@@ -14,7 +14,7 @@ use crate::{
 pub const AUTHENTICATOR_DF_NAME: &str = "IOTA_AUTHENTICATION";
 
 pub const AUTHENTICATOR_INFO_MODULE_NAME: &IdentStr = ident_str!("account");
-pub const AUTHENTICATOR_INFO_STRUCT_NAME: &IdentStr = ident_str!("AuthenticatorInfoV1");
+pub const AUTHENTICATOR_INFO_V1_STRUCT_NAME: &IdentStr = ident_str!("AuthenticatorInfoV1");
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorInfoV1 {
@@ -28,7 +28,7 @@ impl AuthenticatorInfoV1 {
         StructTag {
             address: IOTA_FRAMEWORK_ADDRESS,
             module: AUTHENTICATOR_INFO_MODULE_NAME.to_owned(),
-            name: AUTHENTICATOR_INFO_STRUCT_NAME.to_owned(),
+            name: AUTHENTICATOR_INFO_V1_STRUCT_NAME.to_owned(),
             type_params: Vec::new(),
         }
     }
@@ -42,7 +42,7 @@ impl AuthenticatorInfoV1 {
     pub fn is_authenticator_info_v1(tag: &StructTag) -> bool {
         tag.address == IOTA_FRAMEWORK_ADDRESS
             && tag.module.as_ident_str() == AUTHENTICATOR_INFO_MODULE_NAME
-            && tag.name.as_ident_str() == AUTHENTICATOR_INFO_STRUCT_NAME
+            && tag.name.as_ident_str() == AUTHENTICATOR_INFO_V1_STRUCT_NAME
     }
 }
 
