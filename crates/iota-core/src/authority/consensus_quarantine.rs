@@ -78,7 +78,7 @@ impl ConsensusCommitOutput {
         self.next_randomness_round.as_ref().map(|(_, ts)| *ts)
     }
 
-    pub fn insert_end_of_publish_v1(&mut self, authority: AuthorityName, partial_scores: Vec<u32>) {
+    pub fn insert_end_of_publish_v1(&mut self, authority: AuthorityName) {
         self.end_of_publish.insert(authority);
     }
     pub fn insert_end_of_publish_v2(&mut self, authority: AuthorityName, partial_scores: Vec<u32>) {
@@ -113,10 +113,6 @@ impl ConsensusCommitOutput {
         self.consensus_commit_stats
             .as_ref()
             .map(|stats| stats.index.last_committed_round)
-    }
-
-    pub fn insert_end_of_publish(&mut self, authority: AuthorityName) {
-        self.end_of_publish.insert(authority);
     }
 
     pub(crate) fn record_consensus_commit_stats(&mut self, stats: ExecutionIndicesWithStats) {

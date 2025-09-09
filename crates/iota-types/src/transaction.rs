@@ -264,6 +264,7 @@ pub struct ChangeEpochV4 {
     /// will be upgraded to, their modules in serialized form (which include
     /// their package ID), and a list of their transitive dependencies.
     pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+    /// Scores to be used to modify the reward distribution.
     pub scores: Vec<u64>,
 }
 
@@ -415,7 +416,6 @@ impl EndOfEpochTransactionKind {
         non_refundable_storage_fee: u64,
         epoch_start_timestamp_ms: u64,
         system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-        aggregated_partial_scores: Vec<u64>,
     ) -> Self {
         Self::ChangeEpochV2(ChangeEpochV2 {
             epoch: next_epoch,
@@ -486,6 +486,13 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
+            Self::ChangeEpochV4(_) => {
+                vec![InputObjectKind::SharedMoveObject {
+                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+                    mutable: true,
+                }]
+            }
             Self::AuthenticatorStateCreate => vec![],
             Self::AuthenticatorStateExpire(expire) => {
                 vec![InputObjectKind::SharedMoveObject {
@@ -503,6 +510,9 @@ impl EndOfEpochTransactionKind {
                 Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
             }
             Self::ChangeEpochV2(_) => {
+                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
+            }
+            Self::ChangeEpochV4(_) => {
                 Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
             }
             Self::AuthenticatorStateExpire(expire) => Either::Left(
@@ -527,6 +537,13 @@ impl EndOfEpochTransactionKind {
                 }
             }
             Self::ChangeEpochV2(_) => {
+                if !config.protocol_defined_base_fee() {
+                    return Err(UserInputError::Unsupported(
+                        "protocol defined base fee required".to_string(),
+                    ));
+                }
+            }
+            Self::ChangeEpochV4(_) => {
                 if !config.protocol_defined_base_fee() {
                     return Err(UserInputError::Unsupported(
                         "protocol defined base fee required".to_string(),

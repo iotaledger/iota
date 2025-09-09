@@ -4820,10 +4820,29 @@ impl AuthorityState {
             //   should have had the packages.)
             bail!("missing system packages: cannot form ChangeEpochTx");
         };
-
+        // ChangeEpochV4 requires that all three options are set -
+        // ProtocolDefinedBaseFee, and MaxCommitteeMembersCount, and
+        // scorer_version of 1.
+        if config.protocol_defined_base_fee()
+            && config.max_committee_members_count_as_option().is_some()
+            && config.scorer_version() == 1u64
+        {
+            txns.push(EndOfEpochTransactionKind::new_change_epoch_v4(
+                next_epoch,
+                next_epoch_protocol_version,
+                gas_cost_summary.storage_cost,
+                gas_cost_summary.computation_cost,
+                gas_cost_summary.computation_cost_burned,
+                gas_cost_summary.storage_rebate,
+                gas_cost_summary.non_refundable_storage_fee,
+                epoch_start_timestamp_ms,
+                next_epoch_system_package_bytes,
+                aggregated_partial_scores,
+            ));
+        }
         // ChangeEpochV2 requires that both options are set - ProtocolDefinedBaseFee and
         // MaxCommitteeMembersCount.
-        if config.protocol_defined_base_fee()
+        else if config.protocol_defined_base_fee()
             && config.max_committee_members_count_as_option().is_some()
         {
             txns.push(EndOfEpochTransactionKind::new_change_epoch_v2(
@@ -4836,7 +4855,6 @@ impl AuthorityState {
                 gas_cost_summary.non_refundable_storage_fee,
                 epoch_start_timestamp_ms,
                 next_epoch_system_package_bytes,
-                aggregated_partial_scores,
             ));
         } else {
             txns.push(EndOfEpochTransactionKind::new_change_epoch(
