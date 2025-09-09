@@ -599,7 +599,7 @@ impl IotaNode {
                 .get_highest_executed_checkpoint_seq_number()
                 .expect("checkpoint store read cannot fail")
                 .unwrap_or(0),
-        );
+        )?;
 
         info!("created epoch store");
 
