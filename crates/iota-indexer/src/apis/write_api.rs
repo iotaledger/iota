@@ -99,7 +99,7 @@ impl WriteApiServer for WriteApi {
     async fn view_function_call(
         &self,
         function_name: String,
-        type_args: Vec<IotaTypeTag>,
+        type_args: Option<Vec<IotaTypeTag>>,
         call_args: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
         let MoveFunctionName {
@@ -110,7 +110,13 @@ impl WriteApiServer for WriteApi {
         let sender = IotaAddress::ZERO;
         let tx_kind = self
             .transaction_builder
-            .move_view_call_tx_kind(package, &module, &function, type_args, call_args)
+            .move_view_call_tx_kind(
+                package,
+                &module,
+                &function,
+                type_args.unwrap_or_default(),
+                call_args,
+            )
             .await
             .map_err(IndexerError::from)?;
         let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&tx_kind).map_err(IndexerError::from)?);

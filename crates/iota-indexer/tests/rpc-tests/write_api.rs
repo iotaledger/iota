@@ -350,7 +350,7 @@ fn move_view_function_call() {
         // Test u64 return value, which is cast to string.
         let fn_name = format!("{package_id}::wat_counter::get_counter");
         let view_results = client
-            .view_function_call(fn_name, vec![], vec![call_arg!(review_id).unwrap()])
+            .view_function_call(fn_name, None, vec![call_arg!(review_id).unwrap()])
             .await
             .unwrap();
         assert!(view_results.error().is_none(), "{view_results:?}");
@@ -362,7 +362,7 @@ fn move_view_function_call() {
         // Test struct return value.
         let fn_name = format!("{package_id}::wat_counter::get_wat_object");
         let view_results = client
-            .view_function_call(fn_name, vec![], vec![call_arg!(review_id).unwrap()])
+            .view_function_call(fn_name, None, vec![call_arg!(review_id).unwrap()])
             .await
             .unwrap();
         assert!(view_results.error().is_none(), "{view_results:?}");

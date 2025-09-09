@@ -3220,7 +3220,6 @@
         },
         {
           "name": "type_args",
-          "required": true,
           "schema": {
             "type": "array",
             "items": {

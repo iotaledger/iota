@@ -51,7 +51,7 @@ pub trait WriteApi {
         &self,
         /// The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.
         function_name: String,
-        type_args: Vec<IotaTypeTag>,
+        type_args: Option<Vec<IotaTypeTag>>,
         call_args: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults>;
 
