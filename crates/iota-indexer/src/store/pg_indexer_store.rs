@@ -7,8 +7,7 @@ use std::{any::Any as StdAny, collections::BTreeMap, time::Duration};
 
 use async_trait::async_trait;
 use diesel::{
-    BoolExpressionMethods, ExpressionMethods, OptionalExtension, PgConnection, QueryDsl,
-    RunQueryDsl,
+    ExpressionMethods, OptionalExtension, PgConnection, QueryDsl, RunQueryDsl,
     dsl::{max, min},
     sql_types::{Array, BigInt, Bytea, Nullable, SmallInt, Text},
     upsert::excluded,
@@ -322,67 +321,47 @@ impl PgIndexerStore {
         )
     }
 
-    pub(crate) async fn get_nth_smallest_optimistic_tx_global_order_in_blocking_worker(
+    pub(crate) async fn prune_optimistic_transactions_up_to_in_blocking_worker(
         &self,
-        n: u64,
-    ) -> Result<Option<(i64, i64)>, IndexerError> {
+        to: (i64, i64),
+        limit: i64,
+    ) -> IndexerResult<usize> {
         self.execute_in_blocking_worker(move |this| {
-            this.get_nth_smallest_optimistic_tx_global_order(n)
+            this.prune_optimistic_transactions_up_to(to, limit)
         })
         .await
     }
 
-    fn get_nth_smallest_optimistic_tx_global_order(
-        &self,
-        n: u64,
-    ) -> Result<Option<(i64, i64)>, IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
-            optimistic_transactions::dsl::optimistic_transactions
-                .select((
-                    optimistic_transactions::global_sequence_number,
-                    optimistic_transactions::optimistic_sequence_number,
-                ))
-                .order((
-                    optimistic_transactions::global_sequence_number.asc(),
-                    optimistic_transactions::optimistic_sequence_number.asc(),
-                ))
-                .offset(n as i64)
-                .first::<(i64, i64)>(conn)
-                .optional()
-        })
-        .context(format!("Failed reading Nth smallest optimistic tx global sequence number from PostgresDB for N: {n}").as_str())
-    }
-
-    pub(crate) async fn prune_optimistic_transactions_up_to_in_blocking_worker(
+    fn prune_optimistic_transactions_up_to(
         &self,
         to: (i64, i64),
+        limit: i64,
     ) -> IndexerResult<usize> {
-        self.execute_in_blocking_worker(move |this| this.prune_optimistic_transactions_up_to(to))
-            .await
-    }
-
-    fn prune_optimistic_transactions_up_to(&self, to: (i64, i64)) -> IndexerResult<usize> {
         let (to_global_sequence_num, to_optimistic_sequence_num) = to;
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                diesel::delete(
-                    optimistic_transactions::dsl::optimistic_transactions.filter(
-                        optimistic_transactions::global_sequence_number
-                            .lt(to_global_sequence_num)
-                            .or(optimistic_transactions::global_sequence_number
-                                .eq(to_global_sequence_num)
-                                .and(
-                                    optimistic_transactions::optimistic_sequence_number
-                                        .le(to_optimistic_sequence_num),
-                                )),
-                    ),
-                )
-                .execute(conn)
-                .map_err(IndexerError::from)
-                .context(
-                    format!("Failed to prune optimistic_transactions table to {to:?}").as_str(),
-                )
+                let sql = "\
+                    WITH ids_to_delete AS (\
+                         SELECT global_sequence_number, optimistic_sequence_number \
+                         FROM optimistic_transactions \
+                         WHERE (global_sequence_number, optimistic_sequence_number) <= ($1, $2) \
+                         ORDER BY global_sequence_number, optimistic_sequence_number \
+                         FOR UPDATE LIMIT $3 \
+                     ) \
+                     DELETE FROM optimistic_transactions ot \
+                     USING ids_to_delete \
+                     WHERE (ot.global_sequence_number, ot.optimistic_sequence_number) = \
+                           (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)";
+                diesel::sql_query(sql)
+                    .bind::<BigInt, _>(to_global_sequence_num)
+                    .bind::<BigInt, _>(to_optimistic_sequence_num)
+                    .bind::<BigInt, _>(limit)
+                    .execute(conn)
+                    .map_err(IndexerError::from)
+                    .context(
+                        format!("Failed to prune optimistic_transactions table to {to:?} with limit {limit}").as_str(),
+                    )
             },
             PG_DB_COMMIT_SLEEP_DURATION
         )

@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use tokio_util::sync::CancellationToken;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 use super::checkpoint_handler::CheckpointHandler;
 use crate::{
@@ -44,21 +44,17 @@ impl OptimisticPruner {
     pub async fn start(&self, cancel: CancellationToken) -> IndexerResult<()> {
         info!("Starting Optimistic Pruner task...");
         let mut pruning_in_progress = false;
-        let mut last_pruned_id = (-1, -1);
 
         while !cancel.is_cancelled() {
             if !pruning_in_progress {
                 // let's not spam the DB if there's no pruning to be done
-                tokio::time::sleep(Duration::from_secs(1)).await;
+                tokio::time::sleep(Duration::from_secs(3)).await;
             }
             pruning_in_progress = false;
 
-            match self.prune_single_batch(last_pruned_id).await {
-                Ok(pruned_to) => {
-                    if pruned_to > last_pruned_id {
-                        pruning_in_progress = true;
-                    }
-                    last_pruned_id = pruned_to;
+            match self.prune_single_batch().await {
+                Ok(pruning_occured) => {
+                    pruning_in_progress = pruning_occured;
                 }
                 Err(err) => {
                     warn!("Failed to prune optimistic transaction batch: {err}");
@@ -71,15 +67,17 @@ impl OptimisticPruner {
         Ok(())
     }
 
-    async fn prune_single_batch(&self, last_pruned_id: (i64, i64)) -> IndexerResult<(i64, i64)> {
+    async fn prune_single_batch(&self) -> IndexerResult<bool> {
+        let whole_batch_timer = self.metrics.optimistic_pruner_batch_duration.start_timer();
+
         let current_epoch = self
             .store
             .get_latest_epoch_id_in_blocking_worker()
             .await?
             .unwrap_or(0);
         if current_epoch < EPOCHS_TO_KEEP {
-            debug!("No epochs available for pruning");
-            return Ok(last_pruned_id);
+            info!("No epochs available for optimistic pruning");
+            return Ok(false);
         }
 
         let prune_to_epoch = current_epoch.saturating_sub(EPOCHS_TO_KEEP);
@@ -97,37 +95,29 @@ impl OptimisticPruner {
             .store
             .get_global_order_for_tx_seq_in_blocking_worker(epoch_end_tx)
             .await?;
-        let prune_to = self
-            .store
-            .get_nth_smallest_optimistic_tx_global_order_in_blocking_worker(
-                self.optimistic_pruner_batch_size - 1,
-            )
-            .await?;
 
-        debug!(
-            "Last tx for epoch {prune_to_epoch} has global order {epoch_end_global_order:?}, \
-             next pruning batch ends at {prune_to:?}"
+        let rows_pruned = {
+            let _delete_timer = self
+                .metrics
+                .optimistic_pruner_delete_query_duration
+                .start_timer();
+            self.store
+                .prune_optimistic_transactions_up_to_in_blocking_worker(
+                    epoch_end_global_order,
+                    self.optimistic_pruner_batch_size as i64,
+                )
+                .await?
+        };
+        self.metrics
+            .optimistic_pruner_total_rows_pruned
+            .inc_by(rows_pruned as u64);
+        let elapsed = whole_batch_timer.stop_and_record();
+        info!(
+            "Pruned {rows_pruned} optimistic transactions with limit at {epoch_end_global_order:?} in {elapsed:?} seconds"
         );
 
-        if let Some(prune_to) = prune_to {
-            let prune_to = std::cmp::min(prune_to, epoch_end_global_order);
-            if prune_to <= last_pruned_id {
-                debug!(
-                    "No new optimistic transactions to prune, already pruned to {last_pruned_id:?}"
-                );
-                return Ok(last_pruned_id);
-            }
-            let rows_pruned = self
-                .store
-                .prune_optimistic_transactions_up_to_in_blocking_worker(prune_to)
-                .await?;
-            self.metrics
-                .last_pruned_optimistic_global_seq_num
-                .set(prune_to.0);
-            info!("Pruned {rows_pruned} optimistic transactions up to global order {prune_to:?}",);
-            return Ok(prune_to);
-        }
-
-        Ok(last_pruned_id)
+        // brief pause to give DB time to vacuum deleted rows
+        tokio::time::sleep(Duration::from_millis(200)).await;
+        Ok(rows_pruned > 0)
     }
 }
