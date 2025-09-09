@@ -1,7 +1,10 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::str::FromStr;
+
 use fastcrypto::encoding::Base64;
+use iota_json::call_arg;
 use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{
     IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
@@ -347,11 +350,7 @@ fn move_view_function_call() {
         // Test u64 return value, which is cast to string.
         let fn_name = format!("{package_id}::wat_counter::get_counter");
         let view_results = client
-            .view_function_call(
-                fn_name,
-                vec![],
-                vec![review_id.to_string().as_str().parse().unwrap()],
-            )
+            .view_function_call(fn_name, vec![], vec![call_arg!(review_id).unwrap()])
             .await
             .unwrap();
         assert!(view_results.error().is_none(), "{view_results:?}");
@@ -363,11 +362,7 @@ fn move_view_function_call() {
         // Test struct return value.
         let fn_name = format!("{package_id}::wat_counter::get_wat_object");
         let view_results = client
-            .view_function_call(
-                fn_name,
-                vec![],
-                vec![review_id.to_string().as_str().parse().unwrap()],
-            )
+            .view_function_call(fn_name, vec![], vec![call_arg!(review_id).unwrap()])
             .await
             .unwrap();
         assert!(view_results.error().is_none(), "{view_results:?}");
