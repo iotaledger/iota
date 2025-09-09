@@ -35,6 +35,7 @@ import {
     WALLET_LOCK_DURATION_IN_MS,
 } from '@iota/core';
 import { AccountTooManyAttemptsError } from '_src/shared/accounts';
+import { KeystoneAccount } from './keystoneAccount';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -48,6 +49,9 @@ function toAccount(account: SerializedAccount) {
     }
     if (LedgerAccount.isOfType(account)) {
         return new LedgerAccount({ id: account.id, cachedData: account });
+    }
+    if (KeystoneAccount.isOfType(account)) {
+        return new KeystoneAccount({ id: account.id, cachedData: account });
     }
     throw new Error(`Unknown account of type ${account.type}`);
 }
@@ -274,6 +278,13 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             for (const aLedgerAccount of accounts) {
                 newSerializedAccounts.push(
                     await LedgerAccount.createNew({ ...aLedgerAccount, password }),
+                );
+            }
+        } else if (type === AccountType.KeystoneDerived) {
+            const { password, accounts } = payload.args;
+            for (const aKeystoneAccount of accounts) {
+                newSerializedAccounts.push(
+                    await KeystoneAccount.createNew({ ...aKeystoneAccount, password }),
                 );
             }
         } else {

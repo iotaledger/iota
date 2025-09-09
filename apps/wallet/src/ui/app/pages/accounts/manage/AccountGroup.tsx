@@ -33,6 +33,7 @@ const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.SeedDerived]: 'Seed',
     [AccountType.PrivateKeyDerived]: 'Private Key',
     [AccountType.LedgerDerived]: 'Ledger',
+    [AccountType.KeystoneDerived]: 'Keystone',
 };
 const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
     AccountType.MnemonicDerived,
