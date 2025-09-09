@@ -27,7 +27,6 @@ use move_core_types::{
     annotated_value::{MoveStruct, MoveValue, MoveVariant},
     identifier::Identifier,
     language_storage::StructTag,
-    parsing::{address::ParsedAddress, types::ParsedFqName},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -148,30 +147,15 @@ impl FromStr for MoveFunctionName {
     type Err = IotaError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let parsed = ParsedFqName::parse(s).map_err(|e| UserInputError::InvalidIdentifier {
-            error: e.to_string(),
-        })?;
-        Ok(parsed.try_into()?)
-    }
-}
-
-impl TryFrom<ParsedFqName> for MoveFunctionName {
-    type Error = UserInputError;
-
-    fn try_from(parsed: ParsedFqName) -> Result<Self, Self::Error> {
-        let package = match parsed.module.address {
-            ParsedAddress::Numerical(addr) => ObjectID::from(addr.into_inner()),
-            _ => {
-                return Err(UserInputError::InvalidIdentifier {
-                    error: "invalid package address".into(),
-                });
-            }
-        };
-
+        let (module, name) =
+            iota_types::parse_iota_fq_name(s).map_err(|e| UserInputError::InvalidIdentifier {
+                error: e.to_string(),
+            })?;
+        let package = ObjectID::from_address(*module.address());
         Ok(Self {
             package,
-            module: parsed.module.name,
-            function: parsed.name,
+            module: module.name().to_string(),
+            function: name.to_string(),
         })
     }
 }
