@@ -307,7 +307,7 @@ async fn scan_scoring_metrics(
     use crate::storage::StorageScoringMetrics;
 
     let store = test_store.store();
-    let stored_metrics = [
+    let metrics_updates = [
         StorageScoringMetrics {
             faulty_blocks_provable: 1,
             faulty_blocks_unprovable: 2,
@@ -328,8 +328,8 @@ async fn scan_scoring_metrics(
     ];
 
     let metrics_to_write = vec![
-        (authories[0], stored_metrics[0].clone()),
-        (authories[1], stored_metrics[1].clone()),
+        (authories[0], metrics_updates[0].clone()),
+        (authories[1], metrics_updates[1].clone()),
     ];
 
     store
@@ -341,5 +341,24 @@ async fn scan_scoring_metrics(
             .scan_scoring_metrics()
             .expect("Scan scoring_metrics should not fail");
         assert_eq!(&scanned_metrics, &metrics_to_write);
+    }
+
+    let metrics_to_write = vec![(authories[0], metrics_updates[1].clone())];
+
+    store
+        .write(WriteBatch::default().scoring_metrics(metrics_to_write.clone()))
+        .unwrap();
+
+    {
+        let scanned_metrics = store
+            .scan_scoring_metrics()
+            .expect("Scan scoring_metrics should not fail");
+        assert_eq!(
+            &scanned_metrics,
+            &vec![
+                (authories[0], metrics_updates[1].clone()),
+                (authories[1], metrics_updates[1].clone())
+            ]
+        );
     }
 }
