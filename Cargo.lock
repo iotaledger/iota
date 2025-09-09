@@ -6569,7 +6569,6 @@ dependencies = [
  "iota-metrics",
  "iota-open-rpc",
  "iota-open-rpc-macros",
- "iota-transaction-builder",
  "iota-types",
  "jsonrpsee",
  "once_cell",
