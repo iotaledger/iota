@@ -1292,7 +1292,7 @@ pub enum IotaMoveViewCallResults {
 }
 
 impl IotaMoveViewCallResults {
-    /// Process the dev-inspect results to produce the response
+    /// Processes the dev-inspect results to produce the response
     /// of the move-view function call.
     pub async fn from_dev_inspect_results<S: PackageStore>(
         package_store: S,
