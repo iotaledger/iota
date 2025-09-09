@@ -27,6 +27,7 @@ import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
+import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Mnemonic',
@@ -120,7 +121,11 @@ export function AccountGroup({
     function groupAccountsByAccountIndex(accounts: SerializedUIAccount[]) {
         const accountWalletGroups = accounts.reduce(
             (map, account) => {
-                if (isMnemonicSerializedUiAccount(account) || isSeedSerializedUiAccount(account)) {
+                if (
+                    isMnemonicSerializedUiAccount(account) ||
+                    isSeedSerializedUiAccount(account) ||
+                    isKeystoneAccountSerializedUI(account)
+                ) {
                     const { accountIndex } = parseDerivationPath(account.derivationPath);
                     (map[accountIndex] ||= []).push(account);
                 }

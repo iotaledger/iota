@@ -36,6 +36,7 @@ import {
 } from '@iota/core';
 import { AccountTooManyAttemptsError } from '_src/shared/accounts';
 import { KeystoneAccount } from './keystoneAccount';
+import { KeystoneAccountSource } from '../account-sources/keystoneAccountSource';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -281,10 +282,17 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 );
             }
         } else if (type === AccountType.KeystoneDerived) {
-            const { password, accounts } = payload.args;
-            for (const aKeystoneAccount of accounts) {
+            const { sourceID } = payload.args;
+            const accountSource = await getAccountSourceByID(payload.args.sourceID);
+            if (!accountSource) {
+                throw new Error(`Account source ${sourceID} not found`);
+            }
+            if (!(accountSource instanceof KeystoneAccountSource)) {
+                throw new Error(`Invalid account source type`);
+            }
+            for (const account of payload.args.accounts) {
                 newSerializedAccounts.push(
-                    await KeystoneAccount.createNew({ ...aKeystoneAccount, password }),
+                    await KeystoneAccount.createNew({ ...account, sourceID }),
                 );
             }
         } else {

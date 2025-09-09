@@ -53,11 +53,12 @@ type MethodPayloads = {
           }
         | {
               type: AccountType.KeystoneDerived;
+              sourceID: string;
+              masterFingerprint: string;
               accounts: {
                   publicKey: string;
                   derivationPath: string;
                   address: string;
-                  masterFingerprint: string;
               }[];
               password: string;
           };
