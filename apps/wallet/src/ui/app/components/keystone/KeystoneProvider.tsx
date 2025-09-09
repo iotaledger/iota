@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { Button, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
 import { fromHex } from '@iota/bcs';
 import { toast } from '@iota/core';
@@ -83,13 +86,17 @@ export function ScanBothWays({ request: { ur, reply } }: { request: Request }) {
                 />
                 <DialogBody>
                     {step === Step.ShowQr ? (
-                        <>
-                            <AnimatedQRCode type={ur.type} cbor={ur.cbor.toString('hex')} />
+                        <div className="flex flex-col items-center gap-4">
+                            <AnimatedQRCode
+                                type={ur.type}
+                                cbor={ur.cbor.toString('hex')}
+                                options={{ size: 240 }}
+                            />
                             <Button
                                 text="Get Type Signature"
                                 onClick={() => setState(Step.ScanQr)}
                             />
-                        </>
+                        </div>
                     ) : (
                         <>
                             <AnimatedQRScanner
