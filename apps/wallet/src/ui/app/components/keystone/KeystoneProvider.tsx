@@ -60,6 +60,7 @@ enum Step {
 
 export function ScanBothWays({ request: { ur, reply } }: { request: Request }) {
     const [step, setStep] = useState<Step>(Step.ShowQr);
+
     function onSucceed({ type, cbor }: { type: string; cbor: string }) {
         const { signature, publicKey } = new KeystoneIotaSDK().parseSignature(
             new UR(Buffer.from(cbor, 'hex'), type),
@@ -92,10 +93,7 @@ export function ScanBothWays({ request: { ur, reply } }: { request: Request }) {
                                 cbor={ur.cbor.toString('hex')}
                                 options={{ size: 240 }}
                             />
-                            <Button
-                                text="Get Type Signature"
-                                onClick={() => setStep(Step.ScanQr)}
-                            />
+                            <Button text="Get Signature" onClick={() => setStep(Step.ScanQr)} />
                         </div>
                     ) : (
                         <>
