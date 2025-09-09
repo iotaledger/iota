@@ -19,7 +19,7 @@ and more trustworthy than their physical counterparts.
 
 ## Verifiable Credential Properties
 
-In the IOTA Identity Framework, you can create a Verifiable Credential with the following properties:
+In the IOTA Identity Library, you can create a Verifiable Credential with the following properties:
 
 - [**Context**](https://www.w3.org/TR/vc-data-model/#contexts): List of JSON-LD context URIs. Includes `"https://www.w3.org/2018/credentials/v1"` by default.
 - [**Types**](https://www.w3.org/TR/vc-data-model/#types): List of types describing the credential. Includes `"VerifiableCredential"` by default.
@@ -48,7 +48,7 @@ Verifiers should ensure certain credential properties are valid when receiving o
 
 ### Validation Checks
 
-The IOTA Identity Framework supports the following checks during credential validation:
+The IOTA Identity Library supports the following checks during credential validation:
 
 - **Semantic structure**: Ensures the credential adheres to the specification.
 - **Signature**: Verifies the JWS against the issuer's DID Document.
