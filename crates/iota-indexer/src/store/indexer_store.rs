@@ -5,19 +5,18 @@
 use std::{any::Any, collections::BTreeMap};
 
 use async_trait::async_trait;
+use diesel::PgConnection;
 
 use crate::{
     errors::IndexerError,
     handlers::{EpochToCommit, TransactionObjectChangesToCommit},
     models::{
         display::StoredDisplay,
-        event_indices::OptimisticEventIndices,
-        events::OptimisticEvent,
         obj_indices::StoredObjectVersion,
         objects::{StoredDeletedObject, StoredObject},
-        transactions::{OptimisticTransaction, TxInsertionOrder},
-        tx_indices::OptimisticTxIndices,
+        transactions::{CheckpointTxGlobalOrder, OptimisticTransaction},
     },
+    rolling::transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
         TxIndexV2,
@@ -79,38 +78,19 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         transactions: Vec<IndexedTransaction>,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_optimistic_transaction(
+    fn persist_optimistic_transaction_in_existing_transaction(
         &self,
+        conn: &mut PgConnection,
         transaction: OptimisticTransaction,
-    ) -> Result<(), IndexerError>;
-
-    async fn persist_tx_insertion_order(
-        &self,
-        tx_order: Vec<TxInsertionOrder>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 
-    async fn persist_optimistic_tx_indices(
-        &self,
-        indices: OptimisticTxIndices,
-    ) -> Result<(), IndexerError>;
-
     async fn persist_events(&self, events: Vec<IndexedEvent>) -> Result<(), IndexerError>;
-
-    async fn persist_optimistic_events(
-        &self,
-        events: Vec<OptimisticEvent>,
-    ) -> Result<(), IndexerError>;
 
     async fn persist_event_indices(
         &self,
         event_indices: Vec<EventIndex>,
-    ) -> Result<(), IndexerError>;
-
-    async fn persist_optimistic_event_indices(
-        &self,
-        indices: OptimisticEventIndices,
     ) -> Result<(), IndexerError>;
 
     async fn persist_displays(
@@ -134,9 +114,36 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     async fn refresh_participation_metrics(&self) -> Result<(), IndexerError>;
 
     fn as_any(&self) -> &dyn Any;
+
+    fn persist_displays_in_existing_transaction(
+        &self,
+        conn: &mut PgConnection,
+        display_updates: Vec<&StoredDisplay>,
+    ) -> Result<(), IndexerError>;
+
+    fn persist_objects_in_existing_transaction(
+        &self,
+        conn: &mut PgConnection,
+        object_changes: Vec<TransactionObjectChangesToCommit>,
+    ) -> Result<(), IndexerError>;
 }
 
 #[async_trait]
 pub(crate) trait IndexerStoreExt: IndexerStore {
+    async fn persist_checkpoint_objects(
+        &self,
+        objects: Vec<CheckpointObjectChanges>,
+    ) -> Result<(), IndexerError>;
+
+    async fn update_status_for_checkpoint_transactions(
+        &self,
+        tx_order: Vec<CheckpointTxGlobalOrder>,
+    ) -> Result<(), IndexerError>;
+
+    async fn persist_tx_global_order(
+        &self,
+        tx_order: Vec<CheckpointTxGlobalOrder>,
+    ) -> Result<(), IndexerError>;
+
     async fn persist_tx_indices_v2(&self, indices: Vec<TxIndexV2>) -> Result<(), IndexerError>;
 }

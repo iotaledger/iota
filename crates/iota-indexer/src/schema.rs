@@ -285,89 +285,9 @@ diesel::table! {
 }
 
 diesel::table! {
-    optimistic_event_emit_module (package, module, tx_insertion_order, event_sequence_number) {
-        package -> Bytea,
-        module -> Text,
-        tx_insertion_order -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_event_emit_package (package, tx_insertion_order, event_sequence_number) {
-        package -> Bytea,
-        tx_insertion_order -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_event_senders (sender, tx_insertion_order, event_sequence_number) {
-        sender -> Bytea,
-        tx_insertion_order -> Int8,
-        event_sequence_number -> Int8,
-    }
-}
-
-diesel::table! {
-    optimistic_event_struct_instantiation (package, module, type_instantiation, tx_insertion_order, event_sequence_number) {
-        package -> Bytea,
-        module -> Text,
-        type_instantiation -> Text,
-        tx_insertion_order -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_event_struct_module (package, module, tx_insertion_order, event_sequence_number) {
-        package -> Bytea,
-        module -> Text,
-        tx_insertion_order -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_event_struct_name (package, module, type_name, tx_insertion_order, event_sequence_number) {
-        package -> Bytea,
-        module -> Text,
-        type_name -> Text,
-        tx_insertion_order -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_event_struct_package (package, tx_insertion_order, event_sequence_number) {
-        package -> Bytea,
-        tx_insertion_order -> Int8,
-        event_sequence_number -> Int8,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_events (tx_insertion_order, event_sequence_number) {
-        tx_insertion_order -> Int8,
-        event_sequence_number -> Int8,
-        transaction_digest -> Bytea,
-        senders -> Array<Nullable<Bytea>>,
-        package -> Bytea,
-        module -> Text,
-        event_type -> Text,
-        bcs -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_transactions (insertion_order) {
-        insertion_order -> Int8,
+    optimistic_transactions (global_sequence_number, optimistic_sequence_number) {
+        global_sequence_number -> Int8,
+        optimistic_sequence_number -> Int8,
         transaction_digest -> Bytea,
         raw_transaction -> Bytea,
         raw_effects -> Bytea,
@@ -376,71 +296,6 @@ diesel::table! {
         events -> Array<Nullable<Bytea>>,
         transaction_kind -> Int2,
         success_command_count -> Int2,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_calls_fun (package, module, func, tx_insertion_order) {
-        tx_insertion_order -> Int8,
-        package -> Bytea,
-        module -> Text,
-        func -> Text,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_calls_mod (package, module, tx_insertion_order) {
-        tx_insertion_order -> Int8,
-        package -> Bytea,
-        module -> Text,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_calls_pkg (package, tx_insertion_order) {
-        tx_insertion_order -> Int8,
-        package -> Bytea,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_changed_objects (object_id, tx_insertion_order) {
-        tx_insertion_order -> Int8,
-        object_id -> Bytea,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_input_objects (object_id, tx_insertion_order) {
-        tx_insertion_order -> Int8,
-        object_id -> Bytea,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_kinds (tx_kind, tx_insertion_order) {
-        tx_insertion_order -> Int8,
-        tx_kind -> Int2,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_recipients (recipient, tx_insertion_order) {
-        tx_insertion_order -> Int8,
-        recipient -> Bytea,
-        sender -> Bytea,
-    }
-}
-
-diesel::table! {
-    optimistic_tx_senders (sender, tx_insertion_order) {
-        tx_insertion_order -> Int8,
-        sender -> Bytea,
     }
 }
 
@@ -540,17 +395,19 @@ diesel::table! {
 }
 
 diesel::table! {
-    tx_input_objects (object_id, tx_sequence_number) {
-        tx_sequence_number -> Int8,
-        object_id -> Bytea,
-        sender -> Bytea,
+    tx_global_order (tx_digest) {
+        tx_digest -> Bytea,
+        global_sequence_number -> Int8,
+        optimistic_sequence_number -> Int8,
+        chk_tx_sequence_number -> Nullable<Int8>,
     }
 }
 
 diesel::table! {
-    tx_insertion_order (tx_digest) {
-        tx_digest -> Bytea,
-        insertion_order -> Int8,
+    tx_input_objects (object_id, tx_sequence_number) {
+        tx_sequence_number -> Int8,
+        object_id -> Bytea,
+        sender -> Bytea,
     }
 }
 
@@ -584,23 +441,6 @@ diesel::table! {
     }
 }
 
-diesel::joinable!(optimistic_event_emit_module -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_event_emit_package -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_event_senders -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_event_struct_instantiation -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_event_struct_module -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_event_struct_name -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_event_struct_package -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_events -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_tx_calls_fun -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_tx_calls_mod -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_tx_calls_pkg -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_tx_changed_objects -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_tx_input_objects -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_tx_kinds -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_tx_recipients -> optimistic_transactions (tx_insertion_order));
-diesel::joinable!(optimistic_tx_senders -> optimistic_transactions (tx_insertion_order));
-
 #[macro_export]
 macro_rules! for_all_tables {
     ($action:path) => {
@@ -628,23 +468,7 @@ macro_rules! for_all_tables {
             objects_history,
             objects_snapshot,
             objects_version,
-            optimistic_event_emit_module,
-            optimistic_event_emit_package,
-            optimistic_event_senders,
-            optimistic_event_struct_instantiation,
-            optimistic_event_struct_module,
-            optimistic_event_struct_name,
-            optimistic_event_struct_package,
-            optimistic_events,
             optimistic_transactions,
-            optimistic_tx_calls_fun,
-            optimistic_tx_calls_mod,
-            optimistic_tx_calls_pkg,
-            optimistic_tx_changed_objects,
-            optimistic_tx_input_objects,
-            optimistic_tx_kinds,
-            optimistic_tx_recipients,
-            optimistic_tx_senders,
             packages,
             protocol_configs,
             pruner_cp_watermark,
@@ -655,8 +479,8 @@ macro_rules! for_all_tables {
             tx_changed_objects,
             tx_count_metrics,
             tx_digests,
+            tx_global_order,
             tx_input_objects,
-            tx_insertion_order,
             tx_kinds,
             tx_recipients,
             tx_senders,
