@@ -27,7 +27,7 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use tokio_util::sync::CancellationToken;
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::{
     db::ConnectionPool,
@@ -179,8 +179,6 @@ impl CheckpointHandler {
             return Ok(None);
         }
 
-        let system_state =
-            get_iota_system_state(&checkpoint_object_store)?.into_iota_system_state_summary();
         let event = transactions
             .iter()
             .flat_map(|t| t.events.as_ref().map(|e| &e.data))
@@ -200,21 +198,30 @@ impl CheckpointHandler {
                         ),
                     )
                 }
-            })
-            .unwrap_or_else(|| {
-                panic!(
-                    "Can't find SystemEpochInfoEvent in epoch end checkpoint {}",
-                    checkpoint_summary.sequence_number()
-                )
             });
 
-        let event = IndexedEpochInfoEvent::from(&event);
+        let system_state = get_iota_system_state(&checkpoint_object_store)?;
+        if event.is_none() {
+            warn!(
+                "No SystemEpochInfoEvent found at end of epoch {}, some epoch data will be set to default.",
+                checkpoint_summary.epoch,
+            );
+            assert!(
+                system_state.safe_mode(),
+                "IOTA is not in safe mode but no SystemEpochInfoEvent found at end of epoch {}",
+                checkpoint_summary.epoch
+            );
+        }
+
+        let event = event
+            .as_ref()
+            .map_or_else(Default::default, IndexedEpochInfoEvent::from);
         let new_epoch_first_checkpoint_id = checkpoint_summary.sequence_number + 1;
         let new_epoch_first_tx_sequence_number = checkpoint_summary.network_total_transactions;
         Ok(Some(EpochToCommit {
             last_epoch: Some(EndOfEpochUpdate::new(checkpoint_summary, &event)),
             new_epoch: StartOfEpochUpdate::new(
-                &system_state,
+                &system_state.into_iota_system_state_summary(),
                 new_epoch_first_checkpoint_id,
                 new_epoch_first_tx_sequence_number,
                 Some(&event),

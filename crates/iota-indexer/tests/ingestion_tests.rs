@@ -15,10 +15,11 @@ mod ingestion_tests {
         errors::{Context, IndexerError},
         insert_or_ignore_into,
         models::{
+            checkpoints::StoredCheckpoint,
             objects::{StoredObject, StoredObjectSnapshot},
             transactions::StoredTransaction,
         },
-        schema::{objects, objects_snapshot, transactions, tx_insertion_order},
+        schema::{checkpoints, objects, objects_snapshot, transactions, tx_insertion_order},
         store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
         types::{EventIndex, TxIndex},
@@ -403,6 +404,46 @@ mod ingestion_tests {
             .take(2000)
             .collect();
         pg_store.persist_event_indices(event_indices).await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn test_epoch_boundary() -> Result<(), IndexerError> {
+        let tempdir = tempdir().unwrap();
+        let mut sim = Simulacrum::new();
+        let data_ingestion_path = tempdir.path().to_path_buf();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        let transfer_recipient = IotaAddress::random_for_testing_only();
+        let (transaction, _) = sim.transfer_txn(transfer_recipient);
+        let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
+        assert!(err.is_none());
+
+        sim.create_checkpoint(); // checkpoint 1
+        sim.advance_epoch(); // checkpoint 2 and epoch 1
+
+        let (transaction, _) = sim.transfer_txn(transfer_recipient);
+        let (_, err) = sim.execute_transaction(transaction.clone()).unwrap();
+        sim.create_checkpoint(); // checkpoint 3
+        assert!(err.is_none());
+
+        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            None,
+            None,
+        )
+        .await;
+        indexer_wait_for_checkpoint(&pg_store, 3).await;
+        let db_checkpoint = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
+            checkpoints::table
+                .order(checkpoints::sequence_number.desc())
+                .first::<StoredCheckpoint>(conn)
+        })
+        .context("failed to read checkpoint")?;
+        assert_eq!(db_checkpoint.sequence_number, 3);
+        assert_eq!(db_checkpoint.epoch, 1);
         Ok(())
     }
 }
