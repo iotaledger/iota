@@ -8,11 +8,7 @@ use iota_keys::keystore::{AccountKeystore, StoredKey};
 use iota_ledger::Ledger;
 use iota_ledger_signer::LedgerSigner;
 use iota_sdk::wallet_context::WalletContext;
-use iota_types::{
-    base_types::IotaAddress,
-    crypto::Signature,
-    transaction::{TransactionData, TransactionDataAPI},
-};
+use iota_types::{base_types::IotaAddress, crypto::Signature, transaction::TransactionData};
 use serde::Serialize;
 use shared_crypto::intent::Intent;
 
@@ -49,15 +45,15 @@ impl fmt::Display for ExternalKeySource {
 pub(crate) async fn sign_transaction(
     context: &mut WalletContext,
     tx_data: &TransactionData,
+    signer_address: &IotaAddress,
 ) -> Result<Signature> {
     let iota_client = context.get_client().await?;
-    let sender = &tx_data.sender();
 
-    let key = context.config().keystore().get_key(sender)?;
+    let key = context.config().keystore().get_key(signer_address)?;
 
     match key {
         StoredKey::KeyPair(_) => Ok(context.config().keystore().sign_secure(
-            sender,
+            signer_address,
             tx_data,
             Intent::iota_transaction(),
         )?),
@@ -79,7 +75,7 @@ pub(crate) async fn sign_transaction(
                     // pass the transaction sender to the signer to ensure the correct
                     // key is used
                     Ok(signer
-                        .sign_transaction(tx_data, sender)
+                        .sign_transaction(tx_data, signer_address)
                         .await
                         .map(|s| s.signature)?)
                 }

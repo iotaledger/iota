@@ -82,7 +82,6 @@ use prometheus::Registry;
 use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
-use shared_crypto::intent::Intent;
 use strum::{Display, EnumString};
 use tabled::{
     builder::Builder as TableBuilder,
@@ -103,6 +102,7 @@ use crate::{
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
     keytool::Key,
+    signing::sign_transaction,
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
@@ -3367,16 +3367,13 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
-        let keystore = context.config().keystore();
-        let signature =
-            keystore.sign_secure(&tx_data.sender(), &tx_data, Intent::iota_transaction())?;
+        let signature = sign_transaction(context, &tx_data, &tx_data.sender()).await?;
 
         let mut signatures = vec![signature.into()];
 
         if let Some(gas_sponsor) = gas_sponsor {
             if gas_sponsor != signer {
-                let signature =
-                    keystore.sign_secure(&gas_sponsor, &tx_data, Intent::iota_transaction())?;
+                let signature = sign_transaction(context, &tx_data, &gas_sponsor).await?;
 
                 signatures.push(signature.into());
             }
