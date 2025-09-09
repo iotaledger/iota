@@ -50,5 +50,9 @@ tokio = { workspace = true, features = ["test-util"] }
 
 # internal dependencies
 iota-macros.workspace = true
+iota-protocol-config.workspace = true
 iota-swarm-config.workspace = true
 telemetry-subscribers.workspace = true
+
+[target.'cfg(msim)'.dependencies]
+iota-simulator.workspace = true
