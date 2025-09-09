@@ -50,6 +50,16 @@ type MethodPayloads = {
               type: AccountType.LedgerDerived;
               accounts: { publicKey: string; derivationPath: string; address: string }[];
               password: string;
+          }
+        | {
+              type: AccountType.KeystoneDerived;
+              accounts: {
+                  publicKey: string;
+                  derivationPath: string;
+                  address: string;
+                  masterFingerprint: string;
+              }[];
+              password: string;
           };
     accountsCreatedResponse: { accounts: SerializedUIAccount[] };
     signData: { data: string; id: string };

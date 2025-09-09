@@ -34,6 +34,7 @@ enum AmpliAccountType {
     Derived = 'Derived',
     ImportPrivateKey = 'Private Key',
     Ledger = 'Ledger',
+    Keystone = 'Keystone',
 }
 
 export function useCreateAccountsMutation() {
@@ -50,6 +51,7 @@ export function useCreateAccountsMutation() {
         [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
         [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
         [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
+        [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
     };
     return useMutation({
         mutationKey: ['create accounts'],
@@ -135,6 +137,15 @@ export function useCreateAccountsMutation() {
             ) {
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.LedgerDerived,
+                    accounts: accountsFormValues.accounts,
+                    password: password!,
+                });
+            } else if (
+                type === AccountsFormType.ImportKeystone &&
+                validateAccountFormValues(type, accountsFormValues, password)
+            ) {
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.KeystoneDerived,
                     accounts: accountsFormValues.accounts,
                     password: password!,
                 });

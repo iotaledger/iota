@@ -20,6 +20,7 @@ export enum AccountsFormType {
     ImportLedger = 'import-ledger',
     MnemonicSource = 'mnemonic-source',
     SeedSource = 'seed-source',
+    ImportKeystone = 'import-keystone',
 }
 
 export type AccountsFormValues =
@@ -32,6 +33,15 @@ export type AccountsFormValues =
     | {
           type: AccountsFormType.ImportLedger;
           accounts: { publicKey: string; derivationPath: string; address: string }[];
+      }
+    | {
+          type: AccountsFormType.ImportKeystone;
+          accounts: {
+              publicKey: string;
+              derivationPath: string;
+              address: string;
+              masterFingerprint: string;
+          }[];
       }
     | null;
 
