@@ -11,7 +11,7 @@ use std::ascii;
 const AUTHENTICATOR_ID: vector<u8> = b"IOTA_AUTHENTICATION";
 
 #[allow(unused_field)]
-public struct AuthenticatorInfoV1 has store {
+public struct AuthenticatorInfoV1 has copy, drop, store {
     package: ID,
     module_name: ascii::String,
     function_name: ascii::String,
@@ -41,7 +41,3 @@ native fun create_auth_info_v1_impl(
     module_name: &vector<u8>,
     function_name: &vector<u8>,
 ): AuthenticatorInfoV1;
-
-public fun drop_auth_info_v1(auth_info: AuthenticatorInfoV1) {
-    let AuthenticatorInfoV1 { .. } = auth_info;
-}
