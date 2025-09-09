@@ -44,7 +44,7 @@ import {
     type SourceStrategyToPersist,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
-import { KeystoneAccountSerialized } from '_src/background/accounts/keystoneAccount';
+import type { KeystoneAccountSerialized } from '_src/background/accounts/keystoneAccount';
 
 const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
     accounts: ACCOUNTS_QUERY_KEY,

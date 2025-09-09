@@ -151,8 +151,8 @@ export function useCreateAccountsMutation() {
                         password: password!,
                         masterFingerprint: accountsFormValues.masterFingerprint,
                     });
-                } catch (e) {
-                    console.log(e);
+                } catch {
+                    // Its fine to ignore if the account source already exists
                 }
 
                 await backgroundClient.unlockAccountSourceOrAccount({

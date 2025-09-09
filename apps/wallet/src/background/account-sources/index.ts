@@ -115,7 +115,6 @@ export async function accountSourcesHandleUIMessage(msg: Message, uiConnection: 
     if (isMethodPayload(payload, 'unlockAccountSourceOrAccount')) {
         const { id, password } = payload.args;
         const accountSource = await getAccountSourceByID(id);
-        console.log(accountSource, id, password);
         if (accountSource) {
             if (!password) {
                 throw new Error('Missing password');

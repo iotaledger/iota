@@ -307,7 +307,7 @@ export function ObjectView({ data }: ObjectViewProps): JSX.Element {
                     <div className="flex-1">
                         <DisplayStats
                             label="Website"
-                            value={<Link to={display.project_url}>{display.project_url}</Link>}
+                            value={<Link href={display.project_url}>{display.project_url}</Link>}
                         />
                     </div>
                 )}
