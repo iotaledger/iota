@@ -4,8 +4,7 @@ import { toast } from '@iota/core';
 import { toSerializedSignature } from '@iota/iota-sdk/cryptography';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { AnimatedQRCode, AnimatedQRScanner } from '@keystonehq/animated-qr';
-import { UR, URType } from '@keystonehq/keystone-sdk';
-import { KeystoneIotaSDK } from '@keystonehq/keystone-sdk';
+import { UR, URType, KeystoneIotaSDK } from '@keystonehq/keystone-sdk';
 import { createContext, useContext, useMemo, useState } from 'react';
 
 interface KeystoneContextValue {
