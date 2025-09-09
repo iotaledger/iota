@@ -1,17 +1,14 @@
-module iota_account::iota_account;
+module iota_account2::iota_account;
 
-use iota::account;
+use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::dynamic_field;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
-use std::ascii::{Self, String};
 
 /// A dynamic field name for the account owner public key.
 const IOTACCOUNT_OWNER_PUBKEY: vector<u8> = b"IOTACCOUNT_OWNER_PUBKEY";
-/// A constant contains the `iota_account` module name.
-const IOTACCOUNT_MODULE_NAME: vector<u8> = b"iota_account";
 
 /// This struct represents an IOTA account on-chain.
 /// It holds all the related data as dynamic fields to simplify updates and migrations.
@@ -19,41 +16,31 @@ public struct IOTAccount has key {
     id: UID,
 }
 
-/// The signature schemes supported by the IOTA account.
-public enum SignatureScheme {
-    ED25519,
-    Secp256k1,
-    Secp256r1,
-}
-
 // --------------------------------------- Creation ---------------------------------------
 
-/// Creates a new `IOTAccount`  as a shared object with the given public key and signature scheme.
-/// `package_id` is a `Storage ID` of the `iota_account` package published on-chain.
-public fun create(
-    pubkey: vector<u8>,
-    package_id: address,
-    scheme: SignatureScheme,
-    ctx: &mut TxContext
-) {
+/// Creates a new `IOTAccount`  as a shared object with the given authenticator.
+/// 
+/// `authenticator` is expect to have the following signature:
+///
+/// public fun authenticate(self: &IOTAccount, signature: vector<u8>, _: &AuthContext, _: &TxContext) { ... }
+/// 
+/// And it is expected to verify the `signature` against the public key stored in the account.
+/// 
+/// There are several ready-made authenticators available in this module:
+/// - `authenticate_ed25519`
+/// - `authenticate_secp256k1`
+/// - `authenticate_secp256r1`
+public fun create(pubkey: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
+    // Create an account object.
     let mut account = IOTAccount { id: object::new(ctx) };
-
-    // Check the flag in `pubkey` is the same as the input scheme.
-    //assert!(check_scheme(pubkey, scheme));
 
     let account_id = &mut account.id;
 
     // Add the account owner public key as a dynamic field.
     dynamic_field::add(account_id, IOTACCOUNT_OWNER_PUBKEY, pubkey);
 
-    // Create `AuthenticatorInfoV1` instance.
-    let authenticator_info_v1 = account::create_auth_info_v1(
-        package_id,
-        ascii::string(IOTACCOUNT_MODULE_NAME),
-        signature_scheme_to_authenticator_name(scheme));
-
     // Add the authenticator info as a dynamic field.
-    dynamic_field::add(account_id, account::authenticator_df_name(), authenticator_info_v1);
+    dynamic_field::add(account_id, account::authenticator_df_name(), authenticator);
 
     // Turn the account object into a mutable shared object.
     iota::transfer::share_object(account);
@@ -143,15 +130,4 @@ public fun authenticate_secp256r1(
 ) {
     let pubkey: &vector<u8> = borrow_field(self, IOTACCOUNT_OWNER_PUBKEY, ctx);
     assert!(ecdsa_r1::secp256r1_verify(&signature, pubkey, ctx.digest(), 0));
-}
-
-// --------------------------------------- Utility ---------------------------------------
-
-/// Returns the authenticator function name for the given signature scheme.
-fun signature_scheme_to_authenticator_name(scheme: SignatureScheme): String {
-    match (scheme) {
-        SignatureScheme::ED25519 => ascii::string(b"authenticate_ed25519"),
-        SignatureScheme::Secp256k1 => ascii::string(b"authenticate_secp256k1"),
-        SignatureScheme::Secp256r1 => ascii::string(b"authenticate_secp256r1"),
-    }
 }
