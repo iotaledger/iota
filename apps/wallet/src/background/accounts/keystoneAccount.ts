@@ -20,6 +20,7 @@ export interface KeystoneAccountSerializedUI extends SerializedUIAccount {
     type: AccountType.KeystoneDerived;
     derivationPath: string;
     sourceID: string;
+    masterFingerprint: string;
 }
 
 export function isKeystoneAccountSerializedUI(
@@ -109,6 +110,7 @@ export class KeystoneAccount
     async toUISerialized(): Promise<KeystoneAccountSerializedUI> {
         const { address, type, publicKey, derivationPath, selected, nickname, sourceID } =
             await this.getStoredData();
+        const masterFingerprint = await (await this.#getKeystoneSource()).masterFingerprint;
         return {
             id: this.id,
             type,
@@ -122,6 +124,7 @@ export class KeystoneAccount
             isPasswordUnlockable: true,
             isKeyPairExportable: false,
             sourceID,
+            masterFingerprint,
         };
     }
 

@@ -115,6 +115,10 @@ export class KeystoneAccountSource extends AccountSource<KeystoneAccountSourceSe
         };
     }
 
+    get masterFingerprint() {
+        return this.getStoredData().then(({ masterFingerprint }) => masterFingerprint);
+    }
+
     get sourceHash() {
         return this.getStoredData().then(({ sourceHash }) => sourceHash);
     }
