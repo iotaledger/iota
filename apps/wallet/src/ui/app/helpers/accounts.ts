@@ -17,6 +17,7 @@ export const DEFAULT_SORT_ORDER: AccountType[] = [
     AccountType.SeedDerived,
     AccountType.PrivateKeyDerived,
     AccountType.LedgerDerived,
+    AccountType.KeystoneDerived,
 ];
 
 export function groupByType(accounts: SerializedUIAccount[]) {
