@@ -32,7 +32,7 @@ const HOTNESS_CUTOFF: f64 = 1.0;
 
 /// Controls how quickly congestion tracker updates object hotness.
 /// Values should be > 0.0. Higher values mean faster adjustments.
-const HOTNESS_ADJUSTMENT_FACTOR: f64 = 2.0;
+const HOTNESS_ADJUSTMENT_FACTOR: f64 = 1.5;
 
 /// Controls how quickly hotness decays for objects not seen in congestion.
 /// Values should be >= 1.0: set to > 1.0 for decay, or 1.0 for no decay.
@@ -144,6 +144,15 @@ impl CongestionTracker {
     /// Create a new `CongestionTracker`. The cache capacity will be
     /// set to `CONGESTION_TRACKER_CACHE_CAPACITY`, which is `10_000`.
     pub fn new(reference_gas_price: u64) -> Self {
+        // Remove and recreate the results folder
+        let mut results_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        results_path.push("src");
+        results_path.push("results");
+
+        if results_path.exists() {
+            let _ = std::fs::remove_dir_all(&results_path);
+        }
+        let _ = std::fs::create_dir_all(&results_path);
         Self {
             reference_gas_price,
             object_congestion_info: Cache::new(CONGESTION_TRACKER_CACHE_CAPACITY),
