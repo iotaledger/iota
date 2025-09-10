@@ -1,0 +1,163 @@
+---
+title: Get Accreditations
+sidebar_label: Get Accreditations
+description: Comprehensive guide to accreditations.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+## Get Accreditations
+
+This guide demonstrates how to get accreditations from a hierarchy.
+
+### Prerequisites
+
+- An existing hierarchy on the IOTA network
+- Access to a hierarchy client (read-only access is sufficient)
+
+### Available Read-Only Methods
+
+All hierarchies support the same comprehensive read-only interface:
+
+- **Get Accreditations**: Get accreditations from a hierarchy
+
+### 1. Set Up Read-Only Client
+
+You can use either a full client or a read-only client for inspection:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditations.rs#L25
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts#L7
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Federation
+
+Create a new Federation:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditations.rs#L27-L30
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts#L8-L10
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Add Properties to Federation
+
+Add properties which will be used to create attestations and accreditations:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditations.rs#L42-L53
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts#L15-L21
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Create and Get Accreditation to Attest
+
+Create an accreditation that allows a receiver to attest to specific statements, then retrieve it:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditations.rs#L56-L83
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts#L23-L42
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Create and Get Accreditation to Accredit
+
+Create an accreditation that allows a receiver to grant accreditations to others, then retrieve it:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditations.rs#L86-L101
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts#L46-L65
+```
+</TabItem>
+</Tabs>
+</div>
+
+### Key Differences
+
+- **Accreditation to Attest**: Allows a receiver to create attestations for specific properties
+- **Accreditation to Accredit**: Allows a receiver to grant accreditations to other entities
+- **Read-Only Access**: Getting accreditations only requires read-only access to the hierarchy
+- **Verification**: Both types of accreditations can be retrieved and verified using the same read-only interface
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/01_get_accreditations.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/01_get_accreditations.ts
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally.
+
+If you want to use something different, you will need to modify the API and faucet endpoints in the examples to match your setup.

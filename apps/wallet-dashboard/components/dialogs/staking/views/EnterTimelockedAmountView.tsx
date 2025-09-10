@@ -11,9 +11,8 @@ import {
     toast,
     getGasBudgetErrorMessage,
     useCoinMetadata,
-    parseAmount,
 } from '@iota/core';
-import { CoinFormat, IOTA_TYPE_ARG, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, NANOS_PER_IOTA, parseAmount } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { getAmountFromGroupedTimelockObjects, useNewStakeTimelockedTransaction } from '@/hooks';

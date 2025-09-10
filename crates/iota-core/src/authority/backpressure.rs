@@ -226,14 +226,12 @@ mod tests {
         fn set_backpressure(&self, backpressure: bool) {
             self.log
                 .lock()
-                .push(format!("set backpressure {}", backpressure));
+                .push(format!("set backpressure {backpressure}"));
             self.manager.set_backpressure(backpressure);
         }
 
         fn update_executed(&self, executed: u64) {
-            self.log
-                .lock()
-                .push(format!("update executed {}", executed));
+            self.log.lock().push(format!("update executed {executed}"));
             self.manager.update_highest_executed_checkpoint(executed);
         }
 

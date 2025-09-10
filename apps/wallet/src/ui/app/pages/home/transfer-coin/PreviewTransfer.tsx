@@ -6,13 +6,12 @@ import { ExplorerLink, ExplorerLinkType, TxnAmount } from '_components';
 import { useActiveAddress } from '_hooks';
 import {
     NamedAddressTooltip,
-    parseAmount,
     useCoinMetadata,
     useFormatCoin,
     useGetIotaNameRecord,
 } from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
-import { CoinFormat, formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatAddress, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 
 export type PreviewTransferProps = {
     coinType: string;
