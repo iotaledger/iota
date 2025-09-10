@@ -45,3 +45,13 @@ native fun create_auth_info_v1_impl(
 public fun authenticator_df_name(): vector<u8> {
     AUTHENTICATOR_DF_NAME
 }
+
+/// Creates an `AuthenticatorInfoV1` instance for testing, skipping validation.
+#[test_only]
+public fun create_auth_info_v1_for_testing(
+    package: address,
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorInfoV1 {
+    AuthenticatorInfoV1{ package: package.to_id(), module_name, function_name }
+}

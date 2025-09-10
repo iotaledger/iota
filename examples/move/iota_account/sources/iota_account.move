@@ -76,7 +76,7 @@ public fun add_field<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_df_name(&name);
+    check_reserved_df_name(&name);
 
     // Add a new field.
     dynamic_field::add(&mut self.id, name, value);
@@ -93,7 +93,7 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_df_name(&name);
+    check_reserved_df_name(&name);
 
     // Remove a new field and return it.
     dynamic_field::remove(&mut self.id, name)
@@ -120,10 +120,15 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_df_name(&name);
+    check_reserved_df_name(&name);
 
     // Borrow the related dynamic field.
     dynamic_field::borrow_mut(&mut self.id, name)
+}
+
+/// Returns `true` if and only if `self` has a dynamic field with the specified `name`.
+public fun has_field<Name: copy + drop + store>(self: &IOTAccount, name: Name): bool {
+    dynamic_field::exists_(&self.id, name)
 }
 
 // --------------------------------------- Authentication ---------------------------------------
@@ -223,7 +228,7 @@ fun ensure_tx_sender_is_account(self: &IOTAccount, ctx: &TxContext) {
 }
 
 /// Checks if `name` is allowed to be used for a user-defined dynamic field.
-fun check_df_name<Name: copy + drop + store>(name: &Name) {
+fun check_reserved_df_name<Name: copy + drop + store>(name: &Name) {
     // Check that `Name` is not `OwnerPublicKey`.
     assert!(std::type_name::get<Name>() != std::type_name::get<OwnerPublicKey>(), EOwnerPublicKeyCannotBeUsed);
 
@@ -235,26 +240,14 @@ fun check_df_name<Name: copy + drop + store>(name: &Name) {
     );
 }
 
-// --------------------------------------- Tests ---------------------------------------
+// --------------------------------------- Test Utilities ---------------------------------------
 
 #[test_only]
-use std::string;
-
-#[test]
-fun test_valid_dynamic_field_name() {
-    check_df_name(&42);
-    check_df_name(&b"vector");
-    check_df_name(&string::utf8(b"std::string"));
+public fun create_owner_public_key_for_testing(): OwnerPublicKey {
+    OwnerPublicKey{}
 }
 
-#[test]
-#[expected_failure(abort_code = EOwnerPublicKeyCannotBeUsed)]
-fun test_owner_public_key_dynamic_field_name() {
-    check_df_name(&OwnerPublicKey{});
-}
-
-#[test]
-#[expected_failure(abort_code = EAuthenticatorDynamicFieldNameCannotBeUsed)]
-fun test_authenticator_dynamic_field_name() {
-    check_df_name(&account::authenticator_df_name());
+#[test_only]
+public fun get_address(self: &IOTAccount): address {
+    self.id.to_address()
 }
