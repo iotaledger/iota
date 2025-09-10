@@ -398,15 +398,13 @@ impl CheckpointExecutor {
                 .insert_finalized_transactions(&ckpt_state.data.tx_digests, sequence_number)
                 .expect("failed to insert finalized transactions");
 
-            // TODO: enable when congestion_tracker is added
-            // tracking issue: https://github.com/iotaledger/iota/issues/8178
-            // if self.state.is_fullnode(&self.epoch_store) {
-            //     self.state.congestion_tracker.process_checkpoint_effects(
-            //         &*self.transaction_cache_reader,
-            //         &ckpt_state.data.checkpoint,
-            //         &ckpt_state.data.effects,
-            //     );
-            // }
+            if self.state.is_fullnode(&self.epoch_store) {
+                self.state.congestion_tracker.process_checkpoint_effects(
+                    &*self.transaction_cache_reader,
+                    &ckpt_state.data.checkpoint,
+                    &ckpt_state.data.effects,
+                );
+            }
 
             // TODO remove once we no longer need to support this table for read RPC
             self.state
