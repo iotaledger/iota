@@ -4,14 +4,15 @@
 
 use std::{
     collections::BTreeMap,
-    fmt,
-    fmt::{Display, Formatter, Write},
+    fmt::{self, Display, Formatter, Write},
+    str::FromStr,
 };
 
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
+    error::{IotaError, UserInputError},
     iota_serde::IotaStructTag,
 };
 use itertools::Itertools;
@@ -127,6 +128,36 @@ pub struct IotaMoveNormalizedFunction {
 pub struct IotaMoveModuleId {
     address: String,
     name: String,
+}
+
+/// Identifies a Move function.
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveFunctionName {
+    /// The package ID to which the function belongs.
+    pub package: ObjectID,
+    /// The module name to which the function belongs.
+    pub module: String,
+    /// The function name.
+    pub function: String,
+}
+
+impl FromStr for MoveFunctionName {
+    type Err = IotaError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (module, name) =
+            iota_types::parse_iota_fq_name(s).map_err(|e| UserInputError::InvalidIdentifier {
+                error: e.to_string(),
+            })?;
+        let package = ObjectID::from_address(*module.address());
+        Ok(Self {
+            package,
+            module: module.name().to_string(),
+            function: name.to_string(),
+        })
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
