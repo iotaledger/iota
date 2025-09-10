@@ -707,6 +707,12 @@ mod checked {
                             )?;
                             return Ok(Mode::empty_results());
                         }
+                        EndOfEpochTransactionKind::ChangeEpochV4(_change_epoch_v4) => {
+                            return Err(ExecutionError::new(
+                                ExecutionErrorKind::FeatureNotYetSupported,
+                                Some("ChangeEpochV4 is not supported".to_string().into()),
+                            ));
+                        }
                         EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                             assert!(protocol_config.enable_jwk_consensus_updates());
                             builder = setup_authenticator_state_create(builder);

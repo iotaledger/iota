@@ -13,7 +13,7 @@
 use fastcrypto::traits::ToFromBytes;
 use iota_sdk2::types::{
     object::{MovePackage, MoveStruct},
-    transaction::{ChangeEpoch, ChangeEpochV2},
+    transaction::{ChangeEpoch, ChangeEpochV2, ChangeEpochV4},
     *,
 };
 use move_core_types::language_storage::ModuleId;
@@ -621,6 +621,29 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .collect(),
                 })
             }
+
+            crate::transaction::EndOfEpochTransactionKind::ChangeEpochV4(change_epoch_v4) => {
+                EndOfEpochTransactionKind::ChangeEpochV4(ChangeEpochV4 {
+                    epoch: change_epoch_v4.epoch,
+                    protocol_version: change_epoch_v4.protocol_version.as_u64(),
+                    storage_charge: change_epoch_v4.storage_charge,
+                    computation_charge: change_epoch_v4.computation_charge,
+                    computation_charge_burned: change_epoch_v4.computation_charge_burned,
+                    storage_rebate: change_epoch_v4.storage_rebate,
+                    non_refundable_storage_fee: change_epoch_v4.non_refundable_storage_fee,
+                    epoch_start_timestamp_ms: change_epoch_v4.epoch_start_timestamp_ms,
+                    system_packages: change_epoch_v4
+                        .system_packages
+                        .into_iter()
+                        .map(|(version, modules, dependencies)| SystemPackage {
+                            version: version.value(),
+                            modules,
+                            dependencies: dependencies.into_iter().map(Into::into).collect(),
+                        })
+                        .collect(),
+                    scores: change_epoch_v4.scores,
+                })
+            }
             crate::transaction::EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                 EndOfEpochTransactionKind::AuthenticatorStateCreate
             }
@@ -682,6 +705,30 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                             )
                         })
                         .collect(),
+                })
+            }
+            EndOfEpochTransactionKind::ChangeEpochV4(change_epoch_v4) => {
+                Self::ChangeEpochV4(crate::transaction::ChangeEpochV4 {
+                    epoch: change_epoch_v4.epoch,
+                    protocol_version: change_epoch_v4.protocol_version.into(),
+                    storage_charge: change_epoch_v4.storage_charge,
+                    computation_charge: change_epoch_v4.computation_charge,
+                    computation_charge_burned: change_epoch_v4.computation_charge_burned,
+                    storage_rebate: change_epoch_v4.storage_rebate,
+                    non_refundable_storage_fee: change_epoch_v4.non_refundable_storage_fee,
+                    epoch_start_timestamp_ms: change_epoch_v4.epoch_start_timestamp_ms,
+                    system_packages: change_epoch_v4
+                        .system_packages
+                        .into_iter()
+                        .map(|package| {
+                            (
+                                package.version.into(),
+                                package.modules,
+                                package.dependencies.into_iter().map(Into::into).collect(),
+                            )
+                        })
+                        .collect(),
+                    scores: change_epoch_v4.scores,
                 })
             }
             EndOfEpochTransactionKind::AuthenticatorStateCreate => Self::AuthenticatorStateCreate,
@@ -1312,6 +1359,11 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                                 secondary_idx: subresult,
                             }
                         }
+                        // TO DO: check this error. This mapping is currently a placeholder
+                        CommandArgumentError::InvalidArgumentArity { .. } => {
+                            InternalCmdArgErr::InvalidGasCoinUsage
+                        }
+
                         CommandArgumentError::InvalidResultArity { result } => {
                             InternalCmdArgErr::InvalidResultArity { result_idx: result }
                         }
