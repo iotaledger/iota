@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
+use async_trait::async_trait;
 use cached::{Cached, SizedCache};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
@@ -23,14 +24,16 @@ use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
-    IotaTransactionBlockResponse, IotaTransactionKind, MoveCallMetrics, MoveFunctionName,
-    NetworkMetrics, ParticipationMetrics, TransactionFilter, TransactionFilterV2,
+    IotaObjectDataOptions, IotaObjectResponse, IotaTransactionBlockResponse, IotaTransactionKind,
+    MoveCallMetrics, MoveFunctionName, NetworkMetrics, ParticipationMetrics, TransactionFilter,
+    TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
+use iota_transaction_builder::DataReader;
 use iota_types::{
     TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
+    base_types::{IotaAddress, ObjectID, ObjectInfo, SequenceNumber, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     coin_manager::CoinManager,
     committee::EpochId,
@@ -51,6 +54,7 @@ use move_core_types::{annotated_value::MoveStructLayout, language_storage::Struc
 use tap::TapFallible;
 
 use crate::{
+    apis::GovernanceReadApi,
     db::{ConnectionConfig, ConnectionPool, ConnectionPoolConfig},
     errors::IndexerError,
     models::{
@@ -2365,6 +2369,52 @@ impl iota_types::storage::ObjectStore for IndexerReader {
     ) -> Result<Option<iota_types::object::Object>, iota_types::storage::error::Error> {
         self.get_object(object_id, Some(version))
             .map_err(iota_types::storage::error::Error::custom)
+    }
+}
+
+#[async_trait]
+impl DataReader for IndexerReader {
+    async fn get_owned_objects(
+        &self,
+        address: IotaAddress,
+        object_type: StructTag,
+    ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
+        let stored_objects = self
+            .get_owned_objects_in_blocking_task(
+                address,
+                Some(IotaObjectDataFilter::StructType(object_type)),
+                None,
+                50, // Limit the number of objects returned to 50
+            )
+            .await?;
+
+        stored_objects
+            .into_iter()
+            .map(|object| {
+                let object = Object::try_from(object)?;
+                let object_ref = object.compute_object_reference();
+                let info = ObjectInfo::new(&object_ref, &object);
+                Ok(info)
+            })
+            .collect::<Result<Vec<_>, _>>()
+    }
+
+    async fn get_object_with_options(
+        &self,
+        object_id: ObjectID,
+        options: IotaObjectDataOptions,
+    ) -> Result<IotaObjectResponse, anyhow::Error> {
+        let result = self.get_object_read_in_blocking_task(object_id).await?;
+        Ok((result, options).try_into()?)
+    }
+
+    async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
+        let epoch_info = GovernanceReadApi::new(self.clone())
+            .get_epoch_info(None)
+            .await?;
+        Ok(epoch_info
+            .reference_gas_price
+            .ok_or_else(|| anyhow::anyhow!("missing latest reference_gas_price"))?)
     }
 }
 
