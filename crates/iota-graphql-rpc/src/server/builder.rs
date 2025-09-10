@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use std::{
     any::Any,
     convert::Infallible,
@@ -27,7 +26,11 @@ use axum::{
 use chrono::Utc;
 use http::{HeaderValue, Method, Request};
 use iota_graphql_rpc_headers::LIMITS_HEADER;
-use iota_indexer::db::{get_pool_connection, setup_postgres::check_db_migration_consistency};
+use iota_indexer::{
+    db::{get_pool_connection, setup_postgres::check_db_migration_consistency},
+    metrics::IndexerMetrics,
+    store::PgIndexerStore,
+};
 use iota_metrics::spawn_monitored_task;
 use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
@@ -419,6 +422,7 @@ impl ServerBuilder {
 
         // METRICS
         let metrics = Metrics::new(&registry);
+        let indexer_metrics = IndexerMetrics::new(&registry);
         let state = AppState::new(
             config.connection.clone(),
             config.service.clone(),
@@ -459,24 +463,33 @@ impl ServerBuilder {
 
         // SDK for talking to fullnode. Used for executing transactions only
         // TODO: fail fast if no url, once we enable mutations fully
-        let iota_sdk_client = if let Some(url) = &config.tx_exec_full_node.node_rpc_url {
-            Some(
-                IotaClientBuilder::default()
-                    .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
-                    .max_concurrent_requests(MAX_CONCURRENT_REQUESTS)
-                    .build(url)
-                    .await
-                    .map_err(|e| {
-                        Error::Internal(format!(
-                            "Failed to connect to fullnode {e}. Is the node server running?"
-                        ))
-                    })?,
-            )
+        let (iota_sdk_client, optimistic_tx_executor) = if let Some(url) =
+            &config.tx_exec_full_node.node_rpc_url
+        {
+            let iota_sdk_client = IotaClientBuilder::default()
+                .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
+                .max_concurrent_requests(MAX_CONCURRENT_REQUESTS)
+                .build(url)
+                .await
+                .map_err(|e| {
+                    Error::Internal(format!(
+                        "Failed to connect to fullnode {e}. Is the node server running?"
+                    ))
+                })?;
+            let indexer_store = PgIndexerStore::new(reader.get_pool(), indexer_metrics.clone());
+            let optimistic_tx_executor =
+                iota_indexer::optimistic_indexing::OptimisticTransactionExecutor::new(
+                    url,
+                    reader.clone(),
+                    indexer_store,
+                    indexer_metrics.clone(),
+                );
+            (Some(iota_sdk_client), Some(optimistic_tx_executor))
         } else {
             warn!(
                 "No fullnode url found in config. `dryRunTransactionBlock` and `executeTransactionBlock` will not work"
             );
-            None
+            (None, None)
         };
 
         builder = builder
@@ -486,6 +499,7 @@ impl ServerBuilder {
             .context_data(pg_conn_pool)
             .context_data(resolver)
             .context_data(iota_sdk_client)
+            .context_data(optimistic_tx_executor)
             .context_data(iota_names_config)
             .context_data(zklogin_config)
             .context_data(metrics.clone())
@@ -700,7 +714,8 @@ pub mod tests {
         Response,
         extensions::{Extension, ExtensionContext, NextExecute},
     };
-    use iota_sdk::{IotaClient, wallet_context::WalletContext};
+    use iota_indexer::optimistic_indexing::OptimisticTransactionExecutor;
+    use iota_sdk::wallet_context::WalletContext;
     use iota_types::transaction::TransactionData;
     use uuid::Uuid;
 
@@ -774,7 +789,10 @@ pub mod tests {
         Uuid::new_v4()
     }
 
-    pub async fn test_timeout_impl(wallet: &WalletContext) {
+    pub async fn test_timeout_impl(
+        wallet: &WalletContext,
+        optimistic_tx_executor: &OptimisticTransactionExecutor,
+    ) {
         struct TimedExecuteExt {
             pub min_req_delay: Duration,
         }
@@ -804,14 +822,14 @@ pub mod tests {
             delay: Duration,
             timeout: Duration,
             query: &str,
-            iota_client: &IotaClient,
+            optimistic_tx_executor: &OptimisticTransactionExecutor,
         ) -> Response {
             let mut cfg = ServiceConfig::default();
             cfg.limits.request_timeout_ms = timeout.as_millis() as u32;
             cfg.limits.mutation_timeout_ms = timeout.as_millis() as u32;
 
             let schema = prep_schema(None, Some(cfg))
-                .context_data(Some(iota_client.clone()))
+                .context_data(Some(optimistic_tx_executor.clone()))
                 .extension(Timeout)
                 .extension(TimedExecuteExt {
                     min_req_delay: delay,
@@ -824,15 +842,14 @@ pub mod tests {
         let query = "{ chainIdentifier }";
         let timeout = Duration::from_millis(1000);
         let delay = Duration::from_millis(100);
-        let iota_client = wallet.get_client().await.unwrap();
 
-        test_timeout(delay, timeout, query, &iota_client)
+        test_timeout(delay, timeout, query, optimistic_tx_executor)
             .await
             .into_result()
             .expect("Should complete successfully");
 
         // Should timeout
-        let errs: Vec<_> = test_timeout(delay, delay, query, &iota_client)
+        let errs: Vec<_> = test_timeout(delay, delay, query, optimistic_tx_executor)
             .await
             .into_result()
             .unwrap_err()
@@ -875,7 +892,7 @@ pub mod tests {
             tx_bytes.encoded(),
             signature_base64.encoded()
         );
-        let errs: Vec<_> = test_timeout(delay, delay, &query, &iota_client)
+        let errs: Vec<_> = test_timeout(delay, delay, &query, optimistic_tx_executor)
             .await
             .into_result()
             .unwrap_err()
