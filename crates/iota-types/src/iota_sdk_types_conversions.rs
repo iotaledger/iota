@@ -621,7 +621,6 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                         .collect(),
                 })
             }
-
             crate::transaction::EndOfEpochTransactionKind::ChangeEpochV4(change_epoch_v4) => {
                 EndOfEpochTransactionKind::ChangeEpochV4(ChangeEpochV4 {
                     epoch: change_epoch_v4.epoch,

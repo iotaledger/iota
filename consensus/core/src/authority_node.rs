@@ -57,12 +57,12 @@ impl ConsensusAuthority {
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
+        scorer: Arc<Scorer>,
         // A counter that keeps track of how many times the authority node has been booted while
         // the binary or the component that is calling the `ConsensusAuthority` has been
         // running. It's mostly useful to make decisions on whether amnesia recovery should
         // run or not. When `boot_counter` is 0, then `ConsensusAuthority` will initiate
         // the process of amnesia recovery if that's enabled in the parameters.
-        scorer: Arc<Scorer>,
         boot_counter: u64,
     ) -> Self {
         match network_type {
