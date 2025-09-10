@@ -13,21 +13,21 @@ use iota_indexer::{
     config::PruningOptions, errors::IndexerError, models::transactions::TxGlobalOrder,
     read_only_blocking, schema::tx_global_order, types::IndexerResult,
 };
-use iota_json::{call_args, type_args};
+use iota_json::{call_arg, call_args, type_args};
 use iota_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    IotaExecutionStatus, IotaObjectDataOptions, IotaTransactionBlockEffectsAPI,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
-    TransactionBlockBytes,
+    IotaExecutionStatus, IotaMoveStruct, IotaMoveValue, IotaObjectDataOptions,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, ObjectChange, TransactionBlockBytes,
 };
 use iota_move_build::BuildConfig;
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID, Identifier, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
-    crypto::{AccountKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
     digests::TransactionDigest,
     gas_coin::NANOS_PER_IOTA,
     object::Owner,
@@ -44,7 +44,8 @@ use crate::{
     coin_api::execute_move_call,
     common::{
         ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object,
-        indexer_wait_for_optimistic_transactions_count, start_test_cluster_with_read_write_indexer,
+        indexer_wait_for_optimistic_transactions_count, node_wait_for_object,
+        publish_test_move_package, start_test_cluster_with_read_write_indexer,
     },
 };
 
@@ -1269,4 +1270,77 @@ async fn deploy_package(
         .unwrap();
 
     (res, package_id)
+}
+
+/// Uses the test smart contract under `tests/data/wat_counter`.
+#[test]
+fn move_view_function_call() {
+    let ApiTestSetup {
+        runtime,
+        cluster,
+        store,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (address, keypair) = get_key_pair();
+        let keypair = IotaKeyPair::Ed25519(keypair);
+        cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(NANOS_PER_IOTA),
+                address,
+            )
+            .await;
+        let ((package_id, _, _), transaction_response) =
+            publish_test_move_package(client, address, &keypair, "wat_counter")
+                .await
+                .unwrap();
+
+        let object_changes = transaction_response.object_changes.unwrap();
+        let (review_id, initial_shared_version) = object_changes
+            .into_iter()
+            .find_map(|change| match change {
+                ObjectChange::Created {
+                    object_id,
+                    owner:
+                        Owner::Shared {
+                            initial_shared_version,
+                        },
+                    ..
+                } => Some((object_id, initial_shared_version)),
+                _ => None,
+            })
+            .unwrap();
+        node_wait_for_object(cluster, review_id, initial_shared_version).await;
+
+        // Test u64 return value, which is cast to string.
+        let fn_name = format!("{package_id}::wat_counter::get_counter");
+        let view_results = client
+            .view_function_call(fn_name, None, vec![call_arg!(review_id).unwrap()])
+            .await
+            .unwrap();
+        assert!(view_results.error().is_none(), "{view_results:?}");
+        let return_values = view_results.into_return_values();
+        assert_eq!(return_values.len(), 1);
+        let wat_number = &return_values[0];
+        assert_eq!(wat_number, &IotaMoveValue::String("10".into()));
+
+        // Test struct return value.
+        let fn_name = format!("{package_id}::wat_counter::get_wat_object");
+        let view_results = client
+            .view_function_call(fn_name, None, vec![call_arg!(review_id).unwrap()])
+            .await
+            .unwrap();
+        assert!(view_results.error().is_none(), "{view_results:?}");
+        let return_values = view_results.into_return_values();
+        assert_eq!(return_values.len(), 1);
+        let wat = &return_values[0];
+        let IotaMoveValue::Struct(IotaMoveStruct::WithTypes { type_, fields }) = wat else {
+            panic!("return value should have been a struct");
+        };
+        assert_eq!(type_.name.to_string(), format!("Wat"));
+        assert!(fields.contains_key(&"counter".to_string()));
+    });
 }

@@ -3248,6 +3248,51 @@
       ]
     },
     {
+      "name": "iota_view",
+      "tags": [
+        {
+          "name": "Write API"
+        }
+      ],
+      "description": "Calls a move view function.",
+      "params": [
+        {
+          "name": "function_name",
+          "description": "The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "type_args",
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TypeTag"
+            }
+          }
+        },
+        {
+          "name": "call_args",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IotaJsonValue"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "IotaMoveViewCallResults",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/IotaMoveViewCallResults"
+        }
+      }
+    },
+    {
       "name": "iotax_getAllBalances",
       "tags": [
         {
@@ -8521,6 +8566,39 @@
             "type": "boolean"
           }
         }
+      },
+      "IotaMoveViewCallResults": {
+        "oneOf": [
+          {
+            "description": "Execution error from executing the move view call",
+            "type": "object",
+            "required": [
+              "executionError"
+            ],
+            "properties": {
+              "executionError": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "The return values of the move view function",
+            "type": "object",
+            "required": [
+              "functionReturnValues"
+            ],
+            "properties": {
+              "functionReturnValues": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MoveValue"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       },
       "IotaMoveVisibility": {
         "type": "string",
