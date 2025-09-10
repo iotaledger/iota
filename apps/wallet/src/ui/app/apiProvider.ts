@@ -15,6 +15,7 @@ const ACCOUNT_TYPES_WITH_BACKGROUND_SIGNER: AccountType[] = [
     AccountType.MnemonicDerived,
     AccountType.SeedDerived,
     AccountType.PrivateKeyDerived,
+    AccountType.PasskeyDerived,
 ];
 
 class ApiProvider {

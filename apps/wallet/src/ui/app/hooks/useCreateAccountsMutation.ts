@@ -8,6 +8,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
+import { PASSKEY_PROVIDER, PASSKEY_SAVED_NAME } from '../components/passkey/passkey-provider';
+import { useInitializePasskey } from './useInitializePasskey';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
@@ -33,12 +35,15 @@ function validateAccountFormValues<T extends AccountsFormType>(
 enum AmpliAccountType {
     Derived = 'Derived',
     ImportPrivateKey = 'Private Key',
+    Passkey = 'Passkey',
     Ledger = 'Ledger',
 }
 
 export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
+    const { mutateAsync: initializePasskey } = useInitializePasskey();
+
     const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
         AccountsFormType,
         AddedAccountsProperties['accountType']
@@ -49,6 +54,7 @@ export function useCreateAccountsMutation() {
         [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
         [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
         [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
+        [AccountsFormType.Passkey]: AmpliAccountType.Passkey,
         [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
     };
     return useMutation({
@@ -128,6 +134,21 @@ export function useCreateAccountsMutation() {
                     type: AccountType.PrivateKeyDerived,
                     keyPair: accountsFormValues.keyPair,
                     password: password!,
+                });
+            } else if (
+                type === AccountsFormType.Passkey &&
+                validateAccountFormValues(type, accountsFormValues, password)
+            ) {
+                console.log('Creating passkey account with name', window.location.hostname);
+                console.log('Using passkey provider:', PASSKEY_PROVIDER);
+                const passkey = await initializePasskey({ isRestore: false });
+                console.log('Passkey initialized:', passkey);
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.PasskeyDerived,
+                    address: passkey.getPublicKey().toIotaAddress(),
+                    publicKey: passkey.getPublicKey().toBase64(),
+                    rpId: PASSKEY_SAVED_NAME,
+                    rpName: window.location.hostname,
                 });
             } else if (
                 type === AccountsFormType.ImportLedger &&

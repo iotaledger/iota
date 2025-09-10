@@ -31,6 +31,7 @@ const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.MnemonicSource,
     AccountsFormType.SeedSource,
     AccountsFormType.ImportPrivateKey,
+    AccountsFormType.Passkey,
     AccountsFormType.ImportLedger,
 ];
 
@@ -57,6 +58,7 @@ export function ProtectAccountPage() {
         () => accounts && accounts.some(({ isPasswordUnlockable }) => isPasswordUnlockable),
         [accounts],
     );
+
     const [showVerifyPasswordView, setShowVerifyPasswordView] = useState<boolean | null>(null);
     useEffect(() => {
         if (

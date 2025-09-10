@@ -47,6 +47,13 @@ type MethodPayloads = {
         | { type: AccountType.SeedDerived; sourceID: string }
         | { type: AccountType.PrivateKeyDerived; keyPair: string; password: string }
         | {
+              type: AccountType.PasskeyDerived;
+              address: string;
+              publicKey: string;
+              rpId: string;
+              rpName: string;
+          }
+        | {
               type: AccountType.LedgerDerived;
               accounts: { publicKey: string; derivationPath: string; address: string }[];
               password: string;
