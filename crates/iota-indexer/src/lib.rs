@@ -66,7 +66,7 @@ async fn build_common_json_rpc_server(
         reader.clone(),
         config.iota_names_options.clone().into(),
     ))?;
-    builder.register_module(TransactionBuilderApi::new(reader.clone()))?;
+    builder.register_module(TransactionBuilderApi::from(reader.clone()))?;
     builder.register_module(MoveUtilsApi::new(reader.clone()))?;
     builder.register_module(GovernanceReadApi::new(reader.clone()))?;
     builder.register_module(ReadApi::new(reader.clone()))?;
@@ -90,11 +90,16 @@ pub async fn build_json_rpc_server(
     reader: IndexerReader,
     config: &JsonRpcConfig,
 ) -> Result<ServerHandle, IndexerError> {
-    build_common_json_rpc_server(prometheus_registry, reader, config, |mut builder| {
-        let http_client = get_http_client(&config.rpc_client_url)?;
-        builder.register_module(WriteApi::new(http_client))?;
-        Ok(builder)
-    })
+    build_common_json_rpc_server(
+        prometheus_registry,
+        reader.clone(),
+        config,
+        |mut builder| {
+            let http_client = get_http_client(&config.rpc_client_url)?;
+            builder.register_module(WriteApi::new(http_client, reader))?;
+            Ok(builder)
+        },
+    )
     .await
 }
 
@@ -112,7 +117,7 @@ pub async fn build_optimistic_json_rpc_server(
         |mut builder| {
             let http_client = get_http_client(&config.rpc_client_url)?;
             builder.register_module(OptimisticWriteApi::new(
-                WriteApi::new(http_client),
+                WriteApi::new(http_client, reader.clone()),
                 OptimisticTransactionExecutor::new(&config.rpc_client_url, reader, store, metrics),
             ))?;
             Ok(builder)
