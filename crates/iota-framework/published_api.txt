@@ -1273,6 +1273,9 @@ create_auth_info_v1
 create_auth_info_v1_impl
 	fun
 	0x2::account
+authenticator_df_name
+	public fun
+	0x2::account
 ProgrammableMoveCall
 	public struct
 	0x2::programmable_transaction

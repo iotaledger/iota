@@ -7,8 +7,7 @@ use std::ascii;
 
 /// Dynamic field key, where the system will look for a potential
 /// authenticate function.
-#[allow(unused_const)]
-const AUTHENTICATOR_ID: vector<u8> = b"IOTA_AUTHENTICATION";
+const AUTHENTICATOR_DF_NAME: vector<u8> = b"IOTA_AUTHENTICATION";
 
 #[allow(unused_field)]
 public struct AuthenticatorInfoV1 has copy, drop, store {
@@ -41,3 +40,18 @@ native fun create_auth_info_v1_impl(
     module_name: &vector<u8>,
     function_name: &vector<u8>,
 ): AuthenticatorInfoV1;
+
+/// Returns the dynamic field name where the system will look for an authenticate function.
+public fun authenticator_df_name(): vector<u8> {
+    AUTHENTICATOR_DF_NAME
+}
+
+/// Creates an `AuthenticatorInfoV1` instance for testing, skipping validation.
+#[test_only]
+public fun create_auth_info_v1_for_testing(
+    package: address,
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorInfoV1 {
+    AuthenticatorInfoV1{ package: package.to_id(), module_name, function_name }
+}
