@@ -350,7 +350,7 @@ impl ConsensusAdapter {
         {
             if recovered
                 .iter()
-                .any(ConsensusTransaction::is_end_of_publish)
+                .any(ConsensusTransaction::is_end_of_publish_v1)
             {
                 // There are two cases when this is needed
                 // (1) We send EndOfPublish message after removing pending certificates in
@@ -360,7 +360,7 @@ impl ConsensusAdapter {
                 // (2) If node crashed inside ConsensusAdapter::close_epoch,
                 // after reconfig lock state was written to DB and before we persisted
                 // EndOfPublish message
-                recovered.push(ConsensusTransaction::new_end_of_publish(self.authority));
+                recovered.push(ConsensusTransaction::new_end_of_publish_v1(self.authority));
             }
         }
         debug!(
@@ -368,7 +368,7 @@ impl ConsensusAdapter {
             recovered.len()
         );
         for transaction in recovered {
-            if transaction.is_end_of_publish() {
+            if transaction.is_end_of_publish_v1() {
                 info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublish message to consensus");
             }
             self.submit_unchecked(&[transaction], epoch_store);
@@ -674,8 +674,11 @@ impl ConsensusAdapter {
         let mut transaction_keys = Vec::new();
 
         for transaction in &transactions {
-            if matches!(transaction.kind, ConsensusTransactionKind::EndOfPublish(..)) {
-                info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublish message to consensus");
+            if matches!(
+                transaction.kind,
+                ConsensusTransactionKind::EndOfPublishV1(..)
+            ) {
+                info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublishV1 message to consensus");
                 epoch_store.record_epoch_pending_certs_process_time_metric();
             }
 
@@ -720,7 +723,7 @@ impl ConsensusAdapter {
         let _monitor = if !is_soft_bundle
             && matches!(
                 transactions[0].kind,
-                ConsensusTransactionKind::EndOfPublish(_)
+                ConsensusTransactionKind::EndOfPublishV1(_)
                     | ConsensusTransactionKind::CapabilityNotificationV1(_)
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
@@ -870,7 +873,7 @@ impl ConsensusAdapter {
             // sending message outside of any locks scope
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
             if let Err(err) = self.submit(
-                ConsensusTransaction::new_end_of_publish(self.authority),
+                ConsensusTransaction::new_end_of_publish_v1(self.authority),
                 None,
                 epoch_store,
             ) {
@@ -1109,7 +1112,7 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
         if send_end_of_publish {
             info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
             if let Err(err) = self.submit(
-                ConsensusTransaction::new_end_of_publish(self.authority),
+                ConsensusTransaction::new_end_of_publish_v1(self.authority),
                 None,
                 epoch_store,
             ) {
