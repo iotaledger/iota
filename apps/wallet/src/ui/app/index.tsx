@@ -60,6 +60,7 @@ import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
 import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder/AccountsFinderIntroPage';
+import { PasskeyPage } from './pages/accounts/PasskeyPage';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -192,6 +193,7 @@ export function App() {
                 <Route path="import-passphrase" element={<ImportPassphrasePage />} />
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
+                <Route path="passkey" element={<PasskeyPage />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
                 <Route path="manage/accounts-finder/intro" element={<AccountsFinderIntroPage />} />
                 <Route

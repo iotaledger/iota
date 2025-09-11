@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 import {
     Account,
@@ -6,23 +9,19 @@ import {
     type SerializedAccount,
     type SerializedUIAccount,
 } from './account';
-
-// No need to store any encryption data, just the public key
-// type SessionStorageData = { publicKey: string; unlocked: true };
+import { type BrowserPasswordProviderOptions } from '@iota/iota-sdk/keypairs/passkey';
 
 export interface PasskeyAccountSerialized extends SerializedAccount {
     type: AccountType.PasskeyDerived;
     encrypted: string;
     publicKey: string;
-    rpId: string;
-    rpName: string;
+    providerOptions: BrowserPasswordProviderOptions;
 }
 
 export interface PasskeyAccountSerializedUI extends SerializedUIAccount {
     type: AccountType.PasskeyDerived;
     publicKey: string;
-    rpId: string;
-    rpName: string;
+    providerOptions: BrowserPasswordProviderOptions;
 }
 
 export function isPasskeyAccountSerializedUI(
@@ -45,15 +44,13 @@ export class PasskeyAccount
         password: string;
         address: string;
         publicKey: string;
-        rpId: string;
-        rpName: string;
+        providerOptions: BrowserPasswordProviderOptions;
     }): Promise<Omit<PasskeyAccountSerialized, 'id'>> {
         return {
             type: AccountType.PasskeyDerived,
             address: inputs.address,
             publicKey: inputs.publicKey,
-            rpId: inputs.rpId,
-            rpName: inputs.rpName,
+            providerOptions: inputs.providerOptions,
             encrypted: await encrypt(inputs.password, {}),
             lastUnlockedOn: null,
             selected: false,
@@ -95,7 +92,7 @@ export class PasskeyAccount
     }
 
     async toUISerialized(): Promise<PasskeyAccountSerializedUI> {
-        const { address, publicKey, type, selected, nickname, rpId, rpName } =
+        const { address, publicKey, type, selected, nickname, providerOptions } =
             await this.getStoredData();
         return {
             id: this.id,
@@ -107,15 +104,8 @@ export class PasskeyAccount
             selected,
             nickname,
             isPasswordUnlockable: true,
-            isKeyPairExportable: false, // Cannot export private keys from passkeys
-            rpId,
-            rpName,
+            isKeyPairExportable: false,
+            providerOptions,
         };
     }
-
-    // async unlock(): Promise<void> {
-    //     const { publicKey } = await this.getStoredData();
-    //     await this.setEphemeralValue({ publicKey });
-    //     await this.onUnlocked();
-    // }
 }

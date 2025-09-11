@@ -5,33 +5,30 @@ import { type PasskeyAccountSerializedUI } from '_src/background/accounts/passke
 import { type SignedMessage, type SignedTransaction, WalletSigner } from './walletSigner';
 import { type IotaClient } from '@iota/iota-sdk/client';
 import { toBase64 } from '@iota/iota-sdk/utils';
+import { type BrowserPasswordProviderOptions } from '@iota/iota-sdk/keypairs/passkey';
 
 export class PasskeySigner extends WalletSigner {
     readonly #address: string;
     readonly #publicKey: string;
-    readonly #rpId: string;
-    readonly #rpName: string;
+    readonly #providerOptions: BrowserPasswordProviderOptions;
     readonly #requestSignature: (
         data: Uint8Array,
-        rpId: string,
-        rpName: string,
+        providerOptions: BrowserPasswordProviderOptions,
         publicKey?: string,
     ) => Promise<string>;
 
     constructor(
         requestSignature: (
             data: Uint8Array,
-            rpId: string,
-            rpName: string,
+            providerOptions: BrowserPasswordProviderOptions,
             publicKey: string | undefined,
         ) => Promise<string>,
-        { address, rpId, rpName, publicKey }: PasskeyAccountSerializedUI,
+        { address, providerOptions, publicKey }: PasskeyAccountSerializedUI,
         client: IotaClient,
     ) {
         super(client);
         this.#address = address;
-        this.#rpId = rpId;
-        this.#rpName = rpName;
+        this.#providerOptions = providerOptions;
         this.#publicKey = publicKey;
         this.#requestSignature = requestSignature;
     }
@@ -47,8 +44,7 @@ export class PasskeySigner extends WalletSigner {
     async signMessage(input: { message: Uint8Array }): Promise<SignedMessage> {
         const signature = await this.#requestSignature(
             input.message,
-            this.#rpId,
-            this.#rpName,
+            this.#providerOptions,
             this.#publicKey,
         );
         return {
@@ -60,8 +56,7 @@ export class PasskeySigner extends WalletSigner {
     async signTransactionBytes(bytes: Uint8Array): Promise<SignedTransaction> {
         const signature = await this.#requestSignature(
             bytes,
-            this.#rpId,
-            this.#rpName,
+            this.#providerOptions,
             this.#publicKey,
         );
         return {

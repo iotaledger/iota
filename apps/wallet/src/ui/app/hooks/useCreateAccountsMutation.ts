@@ -8,8 +8,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
-import { PASSKEY_SAVED_NAME } from '../components/passkey/passkey-provider';
 import { useInitializePasskey } from './useInitializePasskey';
+import { createBrowserPasskeyProviderOptions } from '../components/passkey/passkey-provider';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
@@ -139,14 +139,20 @@ export function useCreateAccountsMutation() {
                 type === AccountsFormType.Passkey &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
-                const passkey = await initializePasskey({ isRestore: false });
+                const providerOptions = createBrowserPasskeyProviderOptions({
+                    providerOptions: {
+                        authenticatorSelection: {
+                            authenticatorAttachment: accountsFormValues.authenticatorAttachment,
+                        },
+                    },
+                });
+                const passkey = await initializePasskey({ isRestore: false, providerOptions });
                 console.log('Passkey initialized:', passkey);
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PasskeyDerived,
                     address: passkey.getPublicKey().toIotaAddress(),
                     publicKey: passkey.getPublicKey().toBase64(),
-                    rpId: PASSKEY_SAVED_NAME,
-                    rpName: window.location.hostname,
+                    providerOptions: providerOptions,
                     password: password!,
                 });
             } else if (

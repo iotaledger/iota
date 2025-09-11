@@ -2,15 +2,18 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createContext, useContext, useMemo } from 'react';
-import { BrowserPasskeyProvider, PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
+import {
+    type BrowserPasswordProviderOptions,
+    PasskeyKeypair,
+} from '@iota/iota-sdk/keypairs/passkey';
 import { useRestoreWallet } from '../../hooks/useRestorePasskey';
 import { fromBase64 } from '@iota/iota-sdk/utils';
+import { createBrowserPasskeyProvider } from './passkey-provider';
 
 export interface PasskeyContextType {
     requestSignature: (
         data: Uint8Array,
-        rpId: string,
-        rpName: string,
+        providerOptions: BrowserPasswordProviderOptions,
         publicKey?: string,
     ) => Promise<string>;
 }
@@ -24,25 +27,20 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
         return {
             requestSignature: (
                 data: Uint8Array,
-                rpId: string,
-                rpName: string,
+                providerOptions: BrowserPasswordProviderOptions,
                 publicKey: string | undefined,
             ) =>
                 new Promise<string>((resolve, reject) => {
                     const executeAsync = async () => {
                         try {
-                            const provider = new BrowserPasskeyProvider(rpName, {
-                                rp: {
-                                    name: rpId,
-                                    id: rpName,
-                                },
-                            });
+                            const provider = createBrowserPasskeyProvider({ providerOptions });
+
                             let keypair: PasskeyKeypair;
                             if (publicKey) {
                                 const publicKeyBytes = fromBase64(publicKey);
                                 keypair = new PasskeyKeypair(publicKeyBytes, provider);
                             } else {
-                                keypair = await restoreWallet();
+                                keypair = await restoreWallet(provider);
                             }
 
                             const { signature } = await keypair.signTransaction(data);
