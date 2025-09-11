@@ -32,14 +32,19 @@ public fun create_auth_info_v1(
     module_name: ascii::String,
     function_name: ascii::String,
 ): AuthenticatorInfoV1 {
-    create_auth_info_v1_impl(package, module_name.as_bytes(), function_name.as_bytes())
+    check_auth_info_v1(package, module_name.as_bytes(), function_name.as_bytes());
+    AuthenticatorInfoV1 {
+        package: object::id_from_address(package),
+        module_name,
+        function_name,
+    }
 }
 
-native fun create_auth_info_v1_impl(
+native fun check_auth_info_v1(
     package: address,
     module_name: &vector<u8>,
     function_name: &vector<u8>,
-): AuthenticatorInfoV1;
+);
 
 /// Returns the dynamic field name where the system will look for an authenticate function.
 public fun authenticator_df_name(): vector<u8> {
