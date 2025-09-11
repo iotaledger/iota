@@ -68,9 +68,9 @@ export function ImportKeystone() {
                                             <div className="text-center text-sm">
                                                 Progress: {Math.round(scanProgress)}%
                                             </div>
-                                            <div className="dark:bg-gray-700 h-2 w-full overflow-hidden rounded-full bg-gray-200">
+                                            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
                                                 <div
-                                                    className="dark:bg-blue-500 h-full rounded-full bg-blue-600 transition-all duration-300 ease-out"
+                                                    className="h-full rounded-full bg-blue-600 transition-all duration-300 ease-out dark:bg-blue-500"
                                                     style={{ width: `${scanProgress}%` }}
                                                 />
                                             </div>
