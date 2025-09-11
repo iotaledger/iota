@@ -58,7 +58,7 @@ export function ImportKeystone() {
                             />
                         </div>
                         {scanProgress > 0 && scanProgress <= 100 && (
-                            <div className="flex flex-row items-start gap-4 rounded-lg bg-default-surface py-xs pl-xs pr-lg mt-4">
+                            <div className="mt-4 flex flex-row items-start gap-4 rounded-lg bg-default-surface py-xs pl-xs pr-lg">
                                 <div className="flex w-full flex-col gap-1">
                                     <span className="infobox-text-title text-center text-title-sm">
                                         Scanning QR Code
