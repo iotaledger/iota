@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
+import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
 import { fromHex } from '@iota/bcs';
 import { toast } from '@iota/core';
 import { toSerializedSignature } from '@iota/iota-sdk/cryptography';
@@ -9,6 +9,7 @@ import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { AnimatedQRCode, AnimatedQRScanner } from '@keystonehq/animated-qr';
 import { UR, URType, KeystoneIotaSDK } from '@keystonehq/keystone-sdk';
 import { createContext, useContext, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 interface KeystoneContextValue {
     requestSignature: (ur: UR) => Promise<string>;
@@ -81,29 +82,71 @@ export function ScanBothWays({ request: { ur, reply } }: { request: Request }) {
     return (
         <Dialog open onOpenChange={(open) => {}}>
             <DialogContent containerId="overlay-portal-container">
-                <Header
-                    title={step === Step.ShowQr ? 'Scan with your Keystone' : 'Scan your keystone'}
-                    titleCentered
-                />
+                <Header title="Confirm Transaction" titleCentered onClose={() => {}} />
                 <DialogBody>
-                    {step === Step.ShowQr ? (
-                        <div className="flex flex-col items-center gap-4">
+                    <div className="flex flex-col items-center gap-6">
+                        {step === Step.ShowQr ? (
                             <AnimatedQRCode
                                 type={ur.type}
                                 cbor={ur.cbor.toString('hex')}
                                 options={{ size: 240 }}
                             />
-                            <Button text="Get Signature" onClick={() => setStep(Step.ScanQr)} />
-                        </div>
-                    ) : (
-                        <>
+                        ) : (
                             <AnimatedQRScanner
                                 handleScan={onSucceed}
                                 handleError={onError}
                                 urTypes={[URType.IotaSignature]}
                             />
-                        </>
-                    )}
+                        )}
+                        <div className="flex flex-col items-center justify-center">
+                            <Link
+                                // TODO: Add step 1/2 from tutorial docs link when available - https://github.com/iotaledger/iota/issues/8511
+                                to=""
+                                className="mb-1 text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
+                                target="_blank"
+                                rel="noreferrer"
+                            >
+                                {step === Step.ShowQr ? 'Step 1' : 'Step 2'}
+                            </Link>
+                            <span className="text-center text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
+                                {step === Step.ShowQr
+                                    ? 'Scan this QR code with your Keystone device, then press continue'
+                                    : 'Scan the QR code displayed on your keystone device'}
+                            </span>
+                        </div>
+                        <div className="flex w-full flex-col">
+                            <div className="mb-4 flex items-center justify-center gap-x-1">
+                                <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
+                                    Need more help?
+                                </span>
+                                <Link
+                                    // TODO: Add tutorial docs links when available - https://github.com/iotaledger/iota/issues/8511
+                                    to=""
+                                    className="text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    View tutorial.
+                                </Link>
+                            </div>
+                            <div className="flex w-full gap-xs">
+                                <Button
+                                    fullWidth
+                                    type={ButtonType.Secondary}
+                                    text="Cancel"
+                                    onClick={() => {}}
+                                />
+                                {step === Step.ShowQr && (
+                                    <Button
+                                        fullWidth
+                                        type={ButtonType.Primary}
+                                        text="Continue"
+                                        onClick={() => setStep(Step.ScanQr)}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    </div>
                 </DialogBody>
             </DialogContent>
         </Dialog>
