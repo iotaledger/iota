@@ -1464,6 +1464,7 @@
                 "consensus_max_transactions_in_block_bytes": {
                   "u64": "524288"
                 },
+                "create_auth_info_v1_cost_base": null,
                 "crypto_invalid_arguments_cost": {
                   "u64": "100"
                 },
@@ -9937,11 +9938,12 @@
         "description": "MoveAuthenticator is a GenericSignature variant that enables a new method of authentication through Move code. This function represents the data received by the Move authenticate function during the Account Abstraction authentication flow.",
         "type": "object",
         "required": [
-          "inputs",
-          "object_to_authenticate"
+          "call_args",
+          "object_to_authenticate",
+          "type_arguments"
         ],
         "properties": {
-          "inputs": {
+          "call_args": {
             "description": "Input objects or primitive values",
             "type": "array",
             "items": {
@@ -9949,21 +9951,16 @@
             }
           },
           "object_to_authenticate": {
-            "description": "The reference to the object that this authenticates. This object represents the account being the sender of the transaction.",
-            "type": "array",
-            "items": [
+            "description": "The object that is authenticated. Represents the account being the sender of the transaction.",
+            "allOf": [
               {
-                "$ref": "#/components/schemas/ObjectID"
-              },
-              {
-                "$ref": "#/components/schemas/SequenceNumber"
-              },
-              {
-                "$ref": "#/components/schemas/ObjectDigest"
+                "$ref": "#/components/schemas/CallArg"
               }
-            ],
-            "maxItems": 3,
-            "minItems": 3
+            ]
+          },
+          "type_arguments": {
+            "description": "Type arguments for the Move authenticate function",
+            "type": "string"
           }
         }
       },
@@ -12945,7 +12942,7 @@
         }
       },
       "TypeOrigin": {
-        "description": "Identifies a struct and the module it was defined in",
+        "description": "Store the origin of a data type where it first appeared in the version chain.\n\nA data type is identified by the name of the module and the name of the struct/enum in combination.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
         "type": "object",
         "required": [
           "datatype_name",
@@ -12954,13 +12951,20 @@
         ],
         "properties": {
           "datatype_name": {
+            "description": "The name of the data type.\n\nHere this either refers to an enum or a struct identifier.",
             "type": "string"
           },
           "module_name": {
+            "description": "The name of the module the data type resides in.",
             "type": "string"
           },
           "package": {
-            "$ref": "#/components/schemas/ObjectID"
+            "description": "`Storage ID` of the package, where the given type first appeared.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ObjectID"
+              }
+            ]
           }
         }
       },
@@ -12968,7 +12972,7 @@
         "type": "string"
       },
       "UpgradeInfo": {
-        "description": "Upgraded package info for the linkage table",
+        "description": "Value for the [MovePackage]'s linkage_table.\n\n# Undefined behavior\n\nDirectly modifying any field is undefined behavior. The fields are only public for read-only access.",
         "type": "object",
         "required": [
           "upgraded_id",
@@ -12976,7 +12980,7 @@
         ],
         "properties": {
           "upgraded_id": {
-            "description": "ID of the upgraded packages",
+            "description": "`Storage ID`/`Package ID` of the referred package.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/ObjectID"
@@ -12984,7 +12988,7 @@
             ]
           },
           "upgraded_version": {
-            "description": "Version of the upgraded package",
+            "description": "The version of the package at `upgraded_id`.",
             "allOf": [
               {
                 "$ref": "#/components/schemas/SequenceNumber2"

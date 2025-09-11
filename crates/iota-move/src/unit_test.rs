@@ -125,6 +125,9 @@ fn new_testing_object_and_natives_cost_runtime(ext: &mut NativeContextExtensions
     let metrics = Arc::new(LimitsMetrics::new(&registry));
     let store = Lazy::force(&TEST_STORE);
 
+    // If this list needs to be updated you likely need to update
+    // iota-execution/latest/iota-adapter/src/adapter.rs where it is constructed for
+    // regular execution as well.
     ext.add(ObjectRuntime::new(
         store,
         BTreeMap::new(),

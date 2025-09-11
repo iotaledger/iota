@@ -24,8 +24,10 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
     assert_eq!(
         move_modules.keys().cloned().collect::<HashSet<String>>(),
         [
+            "account",
             "address",
             "authenticator_state",
+            "auth_context",
             "bag",
             "balance",
             "bcs",
@@ -61,6 +63,7 @@ async fn get_normalized_move_modules_by_package() -> Result<(), anyhow::Error> {
             "pay",
             "poseidon",
             "priority_queue",
+            "programmable_transaction",
             "prover",
             "random",
             "system_admin_cap",
