@@ -4,7 +4,7 @@
 import { useNavigate } from 'react-router-dom';
 import { AccountsFormType, useAccountsFormContext, PageTemplate, AccountList } from '_components';
 import { AnimatedQRScanner } from '@keystonehq/animated-qr';
-import { Button, ButtonType } from '@iota/apps-ui-kit';
+import { Button, ButtonType, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { UR, URType } from '@keystonehq/keystone-sdk';
 import { parseMultiAccounts } from '@keystonehq/keystone-sdk/dist/wallet';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
@@ -12,6 +12,7 @@ import { fromHex } from '@iota/iota-sdk/utils';
 import { toast } from '@iota/core';
 import { useState } from 'react';
 import { useAccounts } from '../../hooks';
+import { Warning } from '@iota/apps-ui-icons';
 
 type Step =
     | {
@@ -138,6 +139,17 @@ function KeystoneAccountsList<S extends Extract<Step, { type: 'select-accounts' 
     const eligibleAccounts = step.accounts.filter(
         (account) => !existingAccounts?.some((existing) => existing.address === account.address),
     );
+
+    if (eligibleAccounts.length === 0) {
+        return (
+            <InfoBox
+                icon={<Warning />}
+                type={InfoBoxType.Warning}
+                title={'All scanned accounts have already been imported.'}
+                style={InfoBoxStyle.Default}
+            />
+        );
+    }
 
     function onAccountClick(account: {
         publicKey: string;
