@@ -274,9 +274,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         } else if (type === AccountType.PrivateKeyDerived) {
             newSerializedAccounts.push(await ImportedAccount.createNew(payload.args));
         } else if (type === AccountType.PasskeyDerived) {
-            console.log('Creating new passkey account in background client ARGS', payload.args);
-            const acc = await PasskeyAccount.createNew(payload.args);
-            newSerializedAccounts.push(acc);
+            newSerializedAccounts.push(await PasskeyAccount.createNew(payload.args));
         } else if (type === AccountType.LedgerDerived) {
             const { password, accounts } = payload.args;
             for (const aLedgerAccount of accounts) {

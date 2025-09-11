@@ -11,10 +11,20 @@ export class PasskeySigner extends WalletSigner {
     readonly #publicKey: string;
     readonly #rpId: string;
     readonly #rpName: string;
-    readonly #requestSignature: (data: Uint8Array, rpId: string, rpName: string) => Promise<string>;
+    readonly #requestSignature: (
+        data: Uint8Array,
+        rpId: string,
+        rpName: string,
+        publicKey?: string,
+    ) => Promise<string>;
 
     constructor(
-        requestSignature: (data: Uint8Array, rpId: string, rpName: string) => Promise<string>,
+        requestSignature: (
+            data: Uint8Array,
+            rpId: string,
+            rpName: string,
+            publicKey: string | undefined,
+        ) => Promise<string>,
         { address, rpId, rpName, publicKey }: PasskeyAccountSerializedUI,
         client: IotaClient,
     ) {
@@ -35,7 +45,12 @@ export class PasskeySigner extends WalletSigner {
     }
 
     async signMessage(input: { message: Uint8Array }): Promise<SignedMessage> {
-        const signature = await this.#requestSignature(input.message, this.#rpId, this.#rpName);
+        const signature = await this.#requestSignature(
+            input.message,
+            this.#rpId,
+            this.#rpName,
+            this.#publicKey,
+        );
         return {
             bytes: toBase64(input.message),
             signature,
@@ -43,7 +58,12 @@ export class PasskeySigner extends WalletSigner {
     }
 
     async signTransactionBytes(bytes: Uint8Array): Promise<SignedTransaction> {
-        const signature = await this.#requestSignature(bytes, this.#rpId, this.#rpName);
+        const signature = await this.#requestSignature(
+            bytes,
+            this.#rpId,
+            this.#rpName,
+            this.#publicKey,
+        );
         return {
             bytes: toBase64(bytes),
             signature,
