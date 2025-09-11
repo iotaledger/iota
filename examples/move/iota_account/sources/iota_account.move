@@ -156,9 +156,7 @@ public fun rotate_public_key(
     // Update the account owner public key dynamic field. It is expected that the field already exists.
     let authenticator_df_name = account::authenticator_df_name();
 
-    let prev_authenticator = dynamic_field::remove(account_id, authenticator_df_name);
-    account::drop_auth_info_v1(prev_authenticator);
-
+    dynamic_field::remove<_, AuthenticatorInfoV1>(account_id, authenticator_df_name);
     dynamic_field::add(account_id, authenticator_df_name, authenticator);
 }
 
