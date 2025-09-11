@@ -41,6 +41,7 @@ import { persister, queryClient } from './app/helpers/queryClient';
 import { useAppSelector } from '_hooks';
 import './styles/global.scss';
 import { defaultShouldDehydrateQuery, type Query } from '@tanstack/react-query';
+import { PasskeyProvider } from './app/components/passkey/PasskeyContext';
 
 async function init() {
     if (process.env.NODE_ENV === 'development') {
@@ -109,19 +110,21 @@ function AppWrapper() {
                                                     <ThemeProvider appId="iota-wallet">
                                                         <UnlockAccountProvider>
                                                             <ClipboardPasteSafetyWrapper>
-                                                                <div
-                                                                    className={cn(
-                                                                        'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
-                                                                        isFullscreen &&
-                                                                            'rounded-xl shadow-lg',
-                                                                    )}
-                                                                >
-                                                                    <ErrorBoundary>
-                                                                        <App />
-                                                                    </ErrorBoundary>
-                                                                    <div id="overlay-portal-container"></div>
-                                                                    <div id="toaster-portal-container"></div>
-                                                                </div>
+                                                                <PasskeyProvider>
+                                                                    <div
+                                                                        className={cn(
+                                                                            'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                                            isFullscreen &&
+                                                                                'rounded-xl shadow-lg',
+                                                                        )}
+                                                                    >
+                                                                        <ErrorBoundary>
+                                                                            <App />
+                                                                        </ErrorBoundary>
+                                                                        <div id="overlay-portal-container"></div>
+                                                                        <div id="toaster-portal-container"></div>
+                                                                    </div>
+                                                                </PasskeyProvider>
                                                             </ClipboardPasteSafetyWrapper>
                                                         </UnlockAccountProvider>
                                                     </ThemeProvider>

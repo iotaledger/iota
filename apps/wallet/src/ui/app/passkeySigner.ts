@@ -1,0 +1,52 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+import { type PasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
+import { type SignedMessage, type SignedTransaction, WalletSigner } from './walletSigner';
+import { type IotaClient } from '@iota/iota-sdk/client';
+import { toBase64 } from '@iota/iota-sdk/utils';
+
+export class PasskeySigner extends WalletSigner {
+    readonly #address: string;
+    readonly #publicKey: string;
+    readonly #rpId: string;
+    readonly #rpName: string;
+    readonly #requestSignature: (data: Uint8Array, rpId: string, rpName: string) => Promise<string>;
+
+    constructor(
+        requestSignature: (data: Uint8Array, rpId: string, rpName: string) => Promise<string>,
+        { address, rpId, rpName, publicKey }: PasskeyAccountSerializedUI,
+        client: IotaClient,
+    ) {
+        super(client);
+        this.#address = address;
+        this.#rpId = rpId;
+        this.#rpName = rpName;
+        this.#publicKey = publicKey;
+        this.#requestSignature = requestSignature;
+    }
+
+    async getAddress(): Promise<string> {
+        return this.#address;
+    }
+
+    async getPublicKey(): Promise<string> {
+        return this.#publicKey;
+    }
+
+    async signMessage(input: { message: Uint8Array }): Promise<SignedMessage> {
+        const signature = await this.#requestSignature(input.message, this.#rpId, this.#rpName);
+        return {
+            bytes: toBase64(input.message),
+            signature,
+        };
+    }
+
+    async signTransactionBytes(bytes: Uint8Array): Promise<SignedTransaction> {
+        const signature = await this.#requestSignature(bytes, this.#rpId, this.#rpName);
+        return {
+            bytes: toBase64(bytes),
+            signature,
+        };
+    }
+}
