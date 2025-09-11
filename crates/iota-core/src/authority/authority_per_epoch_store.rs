@@ -2604,7 +2604,11 @@ impl AuthorityPerEpochStore {
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(authority),
+                kind: ConsensusTransactionKind::EndOfPublishV1(authority),
+                ..
+            })
+            | SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::EndOfPublishV2(authority),
                 ..
             }) => {
                 if &transaction.sender_authority() != authority {
@@ -2719,7 +2723,7 @@ impl AuthorityPerEpochStore {
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
         for tx in verified_transactions {
-            if tx.0.is_end_of_publish() {
+            if tx.0.is_end_of_publish_v1() {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
@@ -3474,12 +3478,12 @@ impl AuthorityPerEpochStore {
             }) = transaction;
 
             if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(authority),
+                kind: ConsensusTransactionKind::EndOfPublishV1(authority),
                 ..
             }) = transaction
             {
                 debug!(
-                    "Received EndOfPublish for epoch {} from {:?}",
+                    "Received EndOfPublishV1 for epoch {} from {:?}",
                     self.committee.epoch,
                     authority.concise()
                 );
@@ -3798,7 +3802,11 @@ impl AuthorityPerEpochStore {
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublish(_),
+                kind: ConsensusTransactionKind::EndOfPublishV1(_),
+                ..
+            })
+            | SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::EndOfPublishV2(_),
                 ..
             }) => {
                 // these are partitioned earlier
