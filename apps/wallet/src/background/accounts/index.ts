@@ -249,7 +249,6 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         return true;
     }
     if (isMethodPayload(payload, 'createAccounts')) {
-        console.log('Start Creating new account in background client', payload);
         const newSerializedAccounts: Omit<SerializedAccount, 'id'>[] = [];
         const { type } = payload.args;
         if (type === AccountType.MnemonicDerived) {
@@ -277,7 +276,6 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         } else if (type === AccountType.PasskeyDerived) {
             console.log('Creating new passkey account in background client ARGS', payload.args);
             const acc = await PasskeyAccount.createNew(payload.args);
-            console.log('New passkey account created in background client', acc);
             newSerializedAccounts.push(acc);
         } else if (type === AccountType.LedgerDerived) {
             const { password, accounts } = payload.args;

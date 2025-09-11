@@ -8,7 +8,7 @@ import { useMutation } from '@tanstack/react-query';
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
-import { PASSKEY_PROVIDER, PASSKEY_SAVED_NAME } from '../components/passkey/passkey-provider';
+import { PASSKEY_SAVED_NAME } from '../components/passkey/passkey-provider';
 import { useInitializePasskey } from './useInitializePasskey';
 
 function validateAccountFormValues<T extends AccountsFormType>(
@@ -139,8 +139,6 @@ export function useCreateAccountsMutation() {
                 type === AccountsFormType.Passkey &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
-                console.log('Creating passkey account with name', window.location.hostname);
-                console.log('Using passkey provider:', PASSKEY_PROVIDER);
                 const passkey = await initializePasskey({ isRestore: false });
                 console.log('Passkey initialized:', passkey);
                 createdAccounts = await backgroundClient.createAccounts({
@@ -149,6 +147,7 @@ export function useCreateAccountsMutation() {
                     publicKey: passkey.getPublicKey().toBase64(),
                     rpId: PASSKEY_SAVED_NAME,
                     rpName: window.location.hostname,
+                    password: password!,
                 });
             } else if (
                 type === AccountsFormType.ImportLedger &&

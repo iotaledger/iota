@@ -52,6 +52,7 @@ type MethodPayloads = {
               publicKey: string;
               rpId: string;
               rpName: string;
+              password: string;
           }
         | {
               type: AccountType.LedgerDerived;

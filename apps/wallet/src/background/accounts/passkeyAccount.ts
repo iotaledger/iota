@@ -1,17 +1,18 @@
+import { decrypt, encrypt } from '_src/shared/cryptography/keystore';
 import {
     Account,
     AccountType,
+    type PasswordUnlockableAccount,
     type SerializedAccount,
     type SerializedUIAccount,
-    type SigningAccount,
 } from './account';
-import { toBase64 } from '@iota/iota-sdk/utils';
 
 // No need to store any encryption data, just the public key
-type SessionStorageData = { publicKey: string };
+// type SessionStorageData = { publicKey: string; unlocked: true };
 
 export interface PasskeyAccountSerialized extends SerializedAccount {
     type: AccountType.PasskeyDerived;
+    encrypted: string;
     publicKey: string;
     rpId: string;
     rpName: string;
@@ -20,6 +21,8 @@ export interface PasskeyAccountSerialized extends SerializedAccount {
 export interface PasskeyAccountSerializedUI extends SerializedUIAccount {
     type: AccountType.PasskeyDerived;
     publicKey: string;
+    rpId: string;
+    rpName: string;
 }
 
 export function isPasskeyAccountSerializedUI(
@@ -28,47 +31,30 @@ export function isPasskeyAccountSerializedUI(
     return account.type === AccountType.PasskeyDerived;
 }
 
+type EphemeralData = {
+    unlocked: true;
+};
+
 export class PasskeyAccount
-    extends Account<PasskeyAccountSerialized, SessionStorageData>
-    implements SigningAccount
+    extends Account<PasskeyAccountSerialized, EphemeralData>
+    implements PasswordUnlockableAccount
 {
-    readonly canSign = true;
+    readonly unlockType = 'password';
 
     static async createNew(inputs: {
+        password: string;
         address: string;
         publicKey: string;
         rpId: string;
         rpName: string;
     }): Promise<Omit<PasskeyAccountSerialized, 'id'>> {
-        // Create a new passkey
-        // console.log('Creating passkey provider with:', inputs);
-        // const provider = new BrowserPasskeyProvider(inputs.rpName, {
-        //     rp: {
-        //         id: inputs.rpId,
-        //         name: inputs.rpName,
-        //     },
-        //     // authenticatorSelection: {
-        //     //     authenticatorAttachment: 'cross-platform',
-        //     //     residentKey: 'required',
-        //     //     userVerification: 'required',
-        //     // },
-        // });
-        // console.log('12 Passkey provider created:', inputs);
-        // // This will prompt the user to create a new passkey
-        // const passkey = inputs.passkeyKeyPair;
-        // // const passkey = await PasskeyKeypair.getPasskeyInstance(inputs.provider);
-        // console.log('Passkey instance created:', passkey);
-        // const publicKey = passkey.getPublicKey();
-        // console.log('PublicKEy instance created:', passkey);
-
         return {
             type: AccountType.PasskeyDerived,
-            // address: publicKey.toIotaAddress(),
-            // publicKey: publicKey.toBase64(),
             address: inputs.address,
             publicKey: inputs.publicKey,
             rpId: inputs.rpId,
             rpName: inputs.rpName,
+            encrypted: await encrypt(inputs.password, {}),
             lastUnlockedOn: null,
             selected: false,
             nickname: null,
@@ -85,21 +71,32 @@ export class PasskeyAccount
     }
 
     async lock(allowRead = false): Promise<void> {
-        // With passkeys, we don't need to clear any sensitive data
-        // But we'll clear the session cache as a best practice
         await this.clearEphemeralValue();
         await this.onLocked(allowRead);
     }
 
     async isLocked(): Promise<boolean> {
-        // Passkeys are always "unlocked" when available on the device
-        // but we'll check if we have the publicKey in session
-        const ephemeralData = await this.getEphemeralValue();
-        return !ephemeralData?.publicKey;
+        return !(await this.getEphemeralValue())?.unlocked;
+    }
+
+    async passwordUnlock(password?: string): Promise<void> {
+        if (!password) {
+            throw new Error('Missing password to unlock the account');
+        }
+        const { encrypted } = await this.getStoredData();
+        await decrypt<string>(password, encrypted);
+        await this.setEphemeralValue({ unlocked: true });
+        await this.onUnlocked();
+    }
+
+    async verifyPassword(password: string): Promise<void> {
+        const { encrypted } = await this.getStoredData();
+        await decrypt<string>(password, encrypted);
     }
 
     async toUISerialized(): Promise<PasskeyAccountSerializedUI> {
-        const { address, publicKey, type, selected, nickname } = await this.getStoredData();
+        const { address, publicKey, type, selected, nickname, rpId, rpName } =
+            await this.getStoredData();
         return {
             id: this.id,
             type,
@@ -109,50 +106,16 @@ export class PasskeyAccount
             lastUnlockedOn: await this.lastUnlockedOn,
             selected,
             nickname,
-            isPasswordUnlockable: false, // Passkeys don't use passwords
+            isPasswordUnlockable: true,
             isKeyPairExportable: false, // Cannot export private keys from passkeys
+            rpId,
+            rpName,
         };
     }
 
-    async unlock(): Promise<void> {
-        const { publicKey } = await this.getStoredData();
-        await this.setEphemeralValue({ publicKey });
-        await this.onUnlocked();
-    }
-
-    async signData(data: Uint8Array): Promise<string> {
-        const { rpId, rpName, publicKey } = await this.getStoredData();
-
-        // Create the passkey provider
-        // const provider = new BrowserPasskeyProvider(rpName, {
-        //     rp: {
-        //         id: rpId,
-        //         name: rpName,
-        //     },
-        //     // authenticatorSelection: {
-        //     //     authenticatorAttachment: 'cross-platform',
-        //     //     residentKey: 'required',
-        //     //     userVerification: 'required',
-        //     // },
-        // });
-
-        // We need to recover the keypair using the signAndRecover method
-        // This uses two signatures to find the correct public key
-        // const testMessage1 = new TextEncoder().encode('IOTA Auth Message 1');
-        // const possiblePks1 = await passkey.signAndRecover(provider, testMessage1);
-
-        // const testMessage2 = new TextEncoder().encode('IOTA Auth Message 2');
-        // const possiblePks2 = await PasskeyKeypair.signAndRecover(provider, testMessage2);
-
-        // Find the common public key
-        // const commonPk = findCommonPublicKey(possiblePks1, possiblePks2);
-
-        // Create the keypair with the identified public key
-        // const keyPair = new PasskeyKeypair(commonPk.toRawBytes(), provider);
-        // const signature = await passkeyKeyPair.sign(data);
-
-        // Now sign the actual data
-        // return toBase64(signature);
-        return toBase64(new Uint8Array());
-    }
+    // async unlock(): Promise<void> {
+    //     const { publicKey } = await this.getStoredData();
+    //     await this.setEphemeralValue({ publicKey });
+    //     await this.onUnlocked();
+    // }
 }
