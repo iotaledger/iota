@@ -17,15 +17,12 @@ import { v4 as uuidV4 } from 'uuid';
 import Browser from 'webextension-polyfill';
 
 import { Window } from './window';
+import { Tab } from './tab';
+import { getDB } from './db';
+import { AccountType } from './accounts/account';
 
 const STALE_TRANSACTION_MILLISECONDS = 1000 * 60 * 60 * 3; // 3 hours
 const TX_STORE_KEY = 'transactions';
-
-function openTxWindow(requestID: string) {
-    return new Window(
-        Browser.runtime.getURL('ui.html') + `#/dapp/approve/${encodeURIComponent(requestID)}`,
-    );
-}
 
 class Transactions {
     private _txResponseMessages = new Subject<TransactionRequestResponse>();
@@ -156,9 +153,12 @@ class Transactions {
         origin: string,
         favIcon?: string,
     ) {
+        const requestingAccount =
+            request.type === 'transaction' ? request.account : request.accountAddress;
+
         const txRequest = this.createTransactionRequest(request, origin, favIcon);
         await this.storeTransactionRequest(txRequest);
-        const popUp = openTxWindow(txRequest.id);
+        const popUp = await getNewTabOrWindow(requestingAccount, txRequest.id);
         const popUpClose = (await popUp.show()).pipe(
             take(1),
             map<number, false>(() => false),
@@ -173,6 +173,7 @@ class Transactions {
                 map(async (response) => {
                     await this.removeTransactionRequest(txRequest.id);
                     if (response) {
+                        await popUp.close();
                         const { approved, txResult, txSigned, txResultError } = response;
                         if (approved) {
                             txRequest.approved = approved;
@@ -187,6 +188,22 @@ class Transactions {
             ),
         );
     }
+}
+
+async function getNewTabOrWindow(requestingAccount: string, txRequestId: string) {
+    const accountsThatOpenNewTab: AccountType[] = [AccountType.PasskeyDerived];
+    const allAccounts = await (await getDB()).accounts.toArray();
+    const walletAccount = allAccounts.find((a) => a.address === requestingAccount);
+
+    if (!walletAccount) {
+        throw new Error('Missing account');
+    }
+
+    const shouldUseTab = accountsThatOpenNewTab.includes(walletAccount.type);
+    const url =
+        Browser.runtime.getURL('ui.html') + `#/dapp/approve/${encodeURIComponent(txRequestId)}`;
+
+    return shouldUseTab ? new Tab(url) : new Window(url);
 }
 
 const transactions = new Transactions();
