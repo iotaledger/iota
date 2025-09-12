@@ -9,9 +9,8 @@ use tap::tap::TapFallible;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 
-use super::{CheckpointDataToCommitV2, EpochToCommit};
+use super::{CheckpointDataToCommit, CheckpointDataToCommitV2, EpochToCommit};
 use crate::{
-    handlers::CheckpointDataToCommit,
     metrics::IndexerMetrics,
     store::{IndexerStore, IndexerStoreExt},
     types::IndexerResult,
@@ -70,6 +69,7 @@ where
     Ok(())
 }
 
+#[expect(unused)]
 pub(crate) async fn start_tx_checkpoint_commit_task_v2<S>(
     state: S,
     metrics: IndexerMetrics,
@@ -176,7 +176,9 @@ async fn commit_checkpoints<S>(
 
     let guard = metrics.checkpoint_db_commit_latency.start_timer();
     let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
+
     let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
+
     let events_batch = events_batch.into_iter().flatten().collect::<Vec<_>>();
     let event_indices_batch = event_indices_batch
         .into_iter()
@@ -347,6 +349,7 @@ async fn commit_checkpoints_v2<S>(
     let guard = metrics.checkpoint_db_commit_latency.start_timer();
     let tx_batch = tx_batch.into_iter().flatten().collect::<Vec<_>>();
     let tx_indices_batch = tx_indices_batch.into_iter().flatten().collect::<Vec<_>>();
+
     let events_batch = events_batch.into_iter().flatten().collect::<Vec<_>>();
     let event_indices_batch = event_indices_batch
         .into_iter()
