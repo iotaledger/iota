@@ -1,7 +1,11 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
+use move_core_types::{
+    ident_str,
+    identifier::IdentStr,
+    language_storage::{StructTag, TypeTag},
+};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -62,4 +66,14 @@ impl TryFrom<Object> for AuthenticatorInfoV1 {
             error: format!("Object type is not a AuthenticatorInfoV1: {object:?}"),
         })
     }
+}
+
+pub fn authenticator_df_name_type_tag() -> TypeTag {
+    TypeTag::Vector(Box::new(TypeTag::U8))
+}
+
+pub fn authenticator_df_name_as_bcs_bytes() -> Vec<u8> {
+    bcs::to_bytes(&AUTHENTICATOR_DF_NAME).expect(
+        "authenticator dynamic field name serialization is expected to be finished without any errors",
+    )
 }
