@@ -7,7 +7,7 @@ import { AccountsFormType, PageTemplate, useAccountsFormContext } from '_compone
 import { Button, ButtonHtmlType, ButtonType } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 
-export function PasskeyPage() {
+export function ImportPasskeyPage() {
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
     const [authenticatorType, setAuthenticatorType] = useState<'platform' | 'cross-platform'>(

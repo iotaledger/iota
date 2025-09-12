@@ -8,8 +8,12 @@ import { useMutation } from '@tanstack/react-query';
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
-import { useInitializePasskey } from './useInitializePasskey';
-import { createBrowserPasskeyProviderOptions } from '../components/passkey/passkey-provider';
+
+import {
+    createBrowserPasskeyProvider,
+    createBrowserPasskeyProviderOptions,
+} from '../components/passkey/passkey-provider';
+import { PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
@@ -42,7 +46,6 @@ enum AmpliAccountType {
 export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
-    const { mutateAsync: initializePasskey } = useInitializePasskey();
 
     const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
         AccountsFormType,
@@ -146,7 +149,9 @@ export function useCreateAccountsMutation() {
                         },
                     },
                 });
-                const passkey = await initializePasskey({ isRestore: false, providerOptions });
+                const provider = createBrowserPasskeyProvider({ providerOptions });
+                const passkey = await PasskeyKeypair.getPasskeyInstance(provider);
+
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PasskeyDerived,
                     address: passkey.getPublicKey().toIotaAddress(),

@@ -127,7 +127,7 @@ export function AddAccountPage() {
                 break;
             case AccountsFormType.Passkey:
                 ampli.clickedImportPrivateKey({ sourceFlow });
-                navigate('/accounts/passkey');
+                navigate('/accounts/import-passkey');
                 break;
             case AccountsFormType.ImportSeed:
                 navigate('/accounts/import-seed');
