@@ -94,20 +94,20 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
             <DialogContent containerId="overlay-portal-container">
                 <Header title="Confirm Transaction" titleCentered onClose={() => onCancel()} />
                 <DialogBody>
-                    <div className="flex flex-col items-center gap-6">
+                    <div className="flex flex-col items-center gap-2">
                         {step === Step.ShowQr ? (
                             <AnimatedQRCode
                                 type={ur.type}
                                 cbor={ur.cbor.toString('hex')}
-                                options={{ size: 240 }}
+                                options={{ size: 220 }}
                             />
                         ) : (
-                            <div className="box-border flex min-h-[280px] items-center justify-center">
+                            <div className="box-border flex min-h-[220px] items-center justify-center">
                                 <AnimatedQRScanner
                                     handleScan={onSucceed}
                                     handleError={onError}
                                     urTypes={[URType.IotaSignature]}
-                                    options={{ blur: true, width: '280px', height: '280px' }}
+                                    options={{ blur: true, width: '220px', height: '220px' }}
                                 />
                             </div>
                         )}

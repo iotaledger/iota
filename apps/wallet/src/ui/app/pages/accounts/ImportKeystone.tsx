@@ -79,26 +79,26 @@ export function ImportKeystone() {
         <PageTemplate title="Import Keystone" isTitleCentered showBackButton>
             <div className="flex h-full w-full flex-col items-center ">
                 <div className="w-full grow">
-                    <div className="flex h-full flex-col justify-between gap-2 ">
+                    <div className="flex h-full flex-col justify-between gap-1">
                         {step.type === 'scan-qr' ? (
                             <>
-                                <div className="relative flex flex-col items-center justify-center gap-sm">
-                                    <div className="box-border flex min-h-[280px] items-center justify-center">
+                                <div className="relative flex flex-col items-center justify-center gap-xs">
+                                    <div className="box-border flex min-h-[240px] items-center justify-center">
                                         <AnimatedQRScanner
                                             handleScan={onSucceed}
                                             handleError={onError}
                                             urTypes={[URType.CryptoMultiAccounts]}
                                             options={{
                                                 blur: true,
-                                                width: '280px',
-                                                height: '280px',
+                                                width: '220px',
+                                                height: '220px',
                                             }}
                                         />
                                     </div>
                                     <span className="text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                         Camera is blurred for security reasons
                                     </span>
-                                    <div className="input-border-color flex w-full flex-col gap-md rounded-2lg border border-solid p-4 no-underline">
+                                    <div className="input-border-color flex w-full flex-col gap-xs rounded-2lg border border-solid p-4 no-underline">
                                         <div className="flex">
                                             <div className="mr-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-iota-primary-90 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-black">
                                                 <IotaLogoMark />
@@ -156,7 +156,7 @@ export function ImportKeystone() {
                                             View tutorial.
                                         </Link>
                                     </div>
-                                    <div className="flex flex-row justify-stretch gap-2.5">
+                                    <div className="flex flex-row justify-stretch gap-2">
                                         <Button
                                             type={ButtonType.Secondary}
                                             text="Back"
