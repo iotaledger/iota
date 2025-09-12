@@ -83,19 +83,21 @@ export function ImportKeystone() {
                         {step.type === 'scan-qr' ? (
                             <>
                                 <div className="relative flex flex-col items-center justify-center gap-xs">
-                                    <div className="box-border flex min-h-[240px] items-center justify-center">
-                                        <AnimatedQRScanner
-                                            handleScan={onSucceed}
-                                            handleError={onError}
-                                            urTypes={[URType.CryptoMultiAccounts]}
-                                            options={{
-                                                blur: true,
-                                                width: '220px',
-                                                height: '220px',
-                                            }}
-                                        />
+                                    <div className="box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
+                                        <div className="flex-shrink-0">
+                                            <AnimatedQRScanner
+                                                handleScan={onSucceed}
+                                                handleError={onError}
+                                                urTypes={[URType.CryptoMultiAccounts]}
+                                                options={{
+                                                    blur: true,
+                                                    width: '230px',
+                                                    height: '230px',
+                                                }}
+                                            />
+                                        </div>
                                     </div>
-                                    <span className="text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                                    <span className="mb-sm text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                         Camera is blurred for security reasons
                                     </span>
                                     <div className="input-border-color flex w-full flex-col gap-xs rounded-2lg border border-solid p-4 no-underline">

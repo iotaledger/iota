@@ -102,13 +102,19 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                 options={{ size: 220 }}
                             />
                         ) : (
-                            <div className="box-border flex min-h-[220px] items-center justify-center">
-                                <AnimatedQRScanner
-                                    handleScan={onSucceed}
-                                    handleError={onError}
-                                    urTypes={[URType.IotaSignature]}
-                                    options={{ blur: true, width: '220px', height: '220px' }}
-                                />
+                            <div className="box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
+                                <div className="flex-shrink-0">
+                                    <AnimatedQRScanner
+                                        handleScan={onSucceed}
+                                        handleError={onError}
+                                        urTypes={[URType.IotaSignature]}
+                                        options={{
+                                            blur: true,
+                                            width: '230px',
+                                            height: '230px',
+                                        }}
+                                    />
+                                </div>
                             </div>
                         )}
                         <div className="flex flex-col items-center justify-center">
