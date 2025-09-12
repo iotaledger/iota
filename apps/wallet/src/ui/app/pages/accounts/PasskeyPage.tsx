@@ -15,7 +15,6 @@ export function PasskeyPage() {
     );
 
     function handleOnSubmit() {
-        console.log('handleOnSubmit authenticatorType', authenticatorType);
         setAccountsFormValues({
             type: AccountsFormType.Passkey,
             authenticatorAttachment: authenticatorType,
@@ -29,7 +28,15 @@ export function PasskeyPage() {
 
     return (
         <PageTemplate title="PassKey" isTitleCentered showBackButton>
-            <div className="mt-auto flex gap-xs pt-xs">
+            <div className="mb-4 text-center">
+                <p className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
+                    Selected Authenticator Type:
+                </p>
+                <div className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
+                    {authenticatorType === 'platform' ? 'Platform' : 'Cross-Platform'}
+                </div>
+            </div>
+            <div className="mt-auto flex gap-xs pb-md pt-xs">
                 <Button
                     fullWidth
                     text="Platform"

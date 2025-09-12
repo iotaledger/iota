@@ -147,7 +147,6 @@ export function useCreateAccountsMutation() {
                     },
                 });
                 const passkey = await initializePasskey({ isRestore: false, providerOptions });
-                console.log('Passkey initialized:', passkey);
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PasskeyDerived,
                     address: passkey.getPublicKey().toIotaAddress(),

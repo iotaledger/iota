@@ -58,7 +58,6 @@ export function ProtectAccountPage() {
         () => accounts && accounts.some(({ isPasswordUnlockable }) => isPasswordUnlockable),
         [accounts],
     );
-
     const [showVerifyPasswordView, setShowVerifyPasswordView] = useState<boolean | null>(null);
     useEffect(() => {
         if (
