@@ -1,17 +1,38 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useNavigate } from 'react-router-dom';
-import { AccountsFormType, useAccountsFormContext, PageTemplate } from '_components';
+import { Link, useNavigate } from 'react-router-dom';
+import { AccountsFormType, useAccountsFormContext, PageTemplate, AccountList } from '_components';
 import { AnimatedQRScanner } from '@keystonehq/animated-qr';
-import { Button, ButtonType } from '@iota/apps-ui-kit';
+import { Button, ButtonType, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { UR, URType } from '@keystonehq/keystone-sdk';
 import { parseMultiAccounts } from '@keystonehq/keystone-sdk/dist/wallet';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { fromHex } from '@iota/iota-sdk/utils';
+import { toast } from '@iota/core';
 import { useState } from 'react';
+import { useAccounts } from '../../hooks';
+import { ImportPass, IotaLogoMark, QrCode, Warning } from '@iota/apps-ui-icons';
+
+type Step =
+    | {
+          // Wallet scans Keystone animated QR
+          type: 'scan-qr';
+      }
+    | {
+          // User selects from the account list
+          type: 'select-accounts';
+          masterFingerprint: string;
+          accounts: {
+              publicKey: string;
+              derivationPath: string;
+              address: string;
+          }[];
+          selectedAccounts: Set<string>;
+      };
 
 export function ImportKeystone() {
+    const [step, setStep] = useState<Step>({ type: 'scan-qr' });
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
     const [scanProgress, setScanProgress] = useState(0);
@@ -23,73 +44,227 @@ export function ImportKeystone() {
             publicKey: account.publicKey,
             derivationPath: account.path,
             address: new Ed25519PublicKey(fromHex(account.publicKey)).toIotaAddress(),
-            masterFingerprint: multiAccounts.masterFingerprint,
         }));
-        setAccountsFormValues({
-            type: AccountsFormType.ImportKeystone,
+        setStep({
+            type: 'select-accounts',
             accounts,
+            selectedAccounts: new Set(),
+            masterFingerprint: multiAccounts.masterFingerprint,
         });
-        navigate(
-            `/accounts/protect-account?${new URLSearchParams({
-                accountsFormType: AccountsFormType.ImportKeystone,
-            }).toString()}`,
-        );
-    }
-
-    function onError(_error: string) {
-        setScanProgress(0);
     }
 
     function onProgress(progress: number) {
         setScanProgress(progress);
     }
 
+    function onFinish() {
+        if (step.type === 'select-accounts') {
+            setAccountsFormValues({
+                type: AccountsFormType.ImportKeystone,
+                accounts: step.accounts.filter((account) =>
+                    step.selectedAccounts.has(account.address),
+                ),
+                masterFingerprint: step.masterFingerprint,
+            });
+            navigate(
+                `/accounts/protect-account?${new URLSearchParams({
+                    accountsFormType: AccountsFormType.ImportKeystone,
+                }).toString()}`,
+            );
+        }
+    }
+
+    function onError(error: string) {
+        setScanProgress(0);
+        toast.error(error);
+    }
+
+    const disableFinish = step.type === 'select-accounts' && step.selectedAccounts.size === 0;
+
     return (
         <PageTemplate title="Import Keystone" isTitleCentered showBackButton>
             <div className="flex h-full w-full flex-col items-center">
                 <div className="w-full grow">
-                    <div className="flex h-full flex-col gap-2">
-                        <div className="flex flex-col gap-sm">
-                            <AnimatedQRScanner
-                                handleScan={onSucceed}
-                                handleError={onError}
-                                urTypes={[URType.CryptoMultiAccounts]}
-                                onProgress={onProgress}
-                            />
-                        </div>
-                        {scanProgress > 0 && scanProgress <= 100 && (
-                            <div className="mt-4 flex flex-row items-start gap-4 rounded-lg bg-default-surface py-xs pl-xs pr-lg">
-                                <div className="flex w-full flex-col gap-1">
-                                    <span className="infobox-text-title text-center text-title-sm">
-                                        Scanning QR Code
-                                    </span>
-                                    <span className="infobox-supporting-text text-body-sm">
-                                        <div className="flex w-full flex-col gap-2">
-                                            <div className="text-center text-sm">
-                                                Progress: {Math.round(scanProgress)}%
+                    <div className="flex h-full flex-col justify-between gap-2 ">
+                        {step.type === 'scan-qr' ? (
+                            <>
+                                <div className="relative flex flex-col items-center justify-center gap-sm">
+                                    <div className="relative">
+                                        <AnimatedQRScanner
+                                            handleScan={onSucceed}
+                                            handleError={onError}
+                                            urTypes={[URType.CryptoMultiAccounts]}
+                                            options={{
+                                                blur: true,
+                                                width: '280px',
+                                                height: '280px',
+                                            }}
+                                            onProgress={onProgress}
+                                        />
+                                        {scanProgress > 0 && scanProgress <= 100 && (
+                                            <div className="absolute inset-0 flex items-end justify-center pb-4">
+                                                <div className="text-xl font-bold text-white">
+                                                    {Math.round(scanProgress)}%
+                                                </div>
                                             </div>
-                                            <div className="h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-gray-700">
-                                                <div
-                                                    className="h-full rounded-full bg-blue-600 transition-all duration-300 ease-out dark:bg-blue-500"
-                                                    style={{ width: `${scanProgress}%` }}
-                                                />
+                                        )}
+                                    </div>
+                                    <span className="dark:text-iota-neutral-60 text-center text-body-sm text-iota-neutral-40">
+                                        Camera is blurred for security reasons
+                                    </span>
+                                    <div className="border-gray-45 flex w-full flex-col gap-md rounded-2lg border border-solid p-4 no-underline">
+                                        <div className="flex">
+                                            <div className="mr-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-iota-primary-90 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-black">
+                                                <IotaLogoMark />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="dark:text-iota-neutral-60 text-iota-neutral-40">
+                                                    Step 1
+                                                </span>
+                                                <span className="font-semibold">
+                                                    Open the IOTA Wallet app in Keystone
+                                                </span>
                                             </div>
                                         </div>
-                                    </span>
+                                        <div className="flex">
+                                            <div className="mr-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-iota-primary-90 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-black">
+                                                <QrCode />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="dark:text-iota-neutral-60 text-iota-neutral-40">
+                                                    Step 2
+                                                </span>
+                                                <span className="font-semibold">
+                                                    Point the QR code to your camera
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex">
+                                            <div className="mr-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-iota-primary-90 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-black">
+                                                <ImportPass />
+                                            </div>
+                                            <div className="flex flex-col">
+                                                <span className="dark:text-iota-neutral-60 text-iota-neutral-40">
+                                                    Step 3
+                                                </span>
+                                                <span className="font-semibold">
+                                                    Import wallets
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+
+                                <div className="flex flex-col">
+                                    <div className="mb-4 flex items-center justify-center gap-x-1">
+                                        <span className="dark:text-iota-neutral-60 text-body-md text-iota-neutral-40">
+                                            Need more help?
+                                        </span>
+                                        <Link
+                                            // TODO: Add tutorial docs links when available - https://github.com/iotaledger/iota/issues/8511
+                                            to=""
+                                            className="dark:text-iota-primary-80 text-body-md text-iota-primary-30 no-underline"
+                                            target="_blank"
+                                            rel="noreferrer"
+                                        >
+                                            View tutorial.
+                                        </Link>
+                                    </div>
+                                    <div className="flex flex-row justify-stretch gap-2.5">
+                                        <Button
+                                            type={ButtonType.Secondary}
+                                            text="Back"
+                                            onClick={() => navigate(-1)}
+                                            fullWidth
+                                        />
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <>
+                                <div className="max-h-[530px] w-full flex-col gap-y-sm overflow-auto overflow-y-auto">
+                                    <KeystoneAccountsList step={step} setStep={setStep} />
+                                </div>
+                                <div className="flex flex-1 flex-row items-end justify-stretch gap-2.5">
+                                    <Button
+                                        type={ButtonType.Secondary}
+                                        text="Go back"
+                                        onClick={() => setStep({ type: 'scan-qr' })}
+                                        fullWidth
+                                    />
+                                    <Button
+                                        type={ButtonType.Primary}
+                                        text="Finish"
+                                        onClick={onFinish}
+                                        fullWidth
+                                        disabled={disableFinish}
+                                    />
+                                </div>
+                            </>
                         )}
-                        <div className="mt-auto flex flex-row justify-stretch gap-2.5">
-                            <Button
-                                type={ButtonType.Secondary}
-                                text="Cancel"
-                                onClick={() => navigate(-1)}
-                                fullWidth
-                            />
-                        </div>
                     </div>
                 </div>
             </div>
         </PageTemplate>
+    );
+}
+
+function KeystoneAccountsList<S extends Extract<Step, { type: 'select-accounts' }>>({
+    step,
+    setStep,
+}: {
+    step: S;
+    setStep: (step: S) => void;
+}) {
+    const { data: existingAccounts } = useAccounts();
+
+    const eligibleAccounts = step.accounts.filter(
+        (account) => !existingAccounts?.some((existing) => existing.address === account.address),
+    );
+
+    if (eligibleAccounts.length === 0) {
+        return (
+            <InfoBox
+                icon={<Warning />}
+                type={InfoBoxType.Warning}
+                title={'All scanned accounts have already been imported.'}
+                style={InfoBoxStyle.Default}
+            />
+        );
+    }
+
+    function onAccountClick(account: {
+        publicKey: string;
+        derivationPath: string;
+        address: string;
+    }) {
+        if (step.selectedAccounts.has(account.address)) {
+            step.selectedAccounts.delete(account.address);
+        } else {
+            step.selectedAccounts.add(account.address);
+        }
+        setStep({
+            ...step,
+            selectedAccounts: new Set(step.selectedAccounts),
+        });
+    }
+
+    function onSelectAll() {
+        const areAllAccountsSelected = step.selectedAccounts.size === step.accounts.length;
+        if (!areAllAccountsSelected) {
+            const selectedAccounts = new Set(step.accounts.map((acc) => acc.address));
+            setStep({ ...step, selectedAccounts: selectedAccounts });
+        } else if (areAllAccountsSelected) {
+            setStep({ ...step, selectedAccounts: new Set() });
+        }
+    }
+
+    return (
+        <AccountList
+            accounts={eligibleAccounts}
+            onAccountClick={onAccountClick}
+            selectedAccounts={step.selectedAccounts}
+            selectAll={onSelectAll}
+        />
     );
 }

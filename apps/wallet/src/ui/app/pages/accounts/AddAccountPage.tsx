@@ -24,7 +24,7 @@ import {
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
-import { Create, ImportPass, Key, Seed, Ledger } from '@iota/apps-ui-icons';
+import { Create, ImportPass, Key, Seed, Ledger, Keystone } from '@iota/apps-ui-icons';
 import Browser from 'webextension-polyfill';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
@@ -33,14 +33,6 @@ async function openTabWithSearchParam(searchParam: string, searchParamValue: str
     const urlSearchParams = new URLSearchParams(currentHashSearch);
     urlSearchParams.set(searchParam, searchParamValue);
     currentURL.hash = `${currentHash}?${urlSearchParams.toString()}`;
-    currentURL.searchParams.delete('type');
-    await Browser.tabs.create({
-        url: currentURL.href,
-    });
-}
-
-async function openTabWithPath(path: string) {
-    const currentURL = new URL(`ui.html#${path}`, window.location.href);
     currentURL.searchParams.delete('type');
     await Browser.tabs.create({
         url: currentURL.href,
@@ -103,7 +95,7 @@ export function AddAccountPage() {
                 },
                 {
                     title: 'Keystone',
-                    icon: Ledger,
+                    icon: Keystone,
                     actionType: AccountsFormType.ImportKeystone,
                     isDisabled: createAccountsMutation.isPending,
                 },
@@ -141,7 +133,7 @@ export function AddAccountPage() {
                 }
                 break;
             case AccountsFormType.ImportKeystone:
-                openTabWithPath('/accounts/import-keystone');
+                navigate('/accounts/import-keystone');
                 break;
             default:
                 break;
