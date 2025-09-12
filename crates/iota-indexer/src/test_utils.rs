@@ -12,7 +12,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     IndexerMetrics,
-    config::{IngestionConfig, IotaNamesOptions, PruningOptions, SnapshotLagConfig},
+    config::{IngestionConfig, IotaNamesOptions, RetentionConfig, SnapshotLagConfig},
     db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
@@ -63,7 +63,7 @@ pub enum IndexerTypeConfig {
     },
     Writer {
         snapshot_config: SnapshotLagConfig,
-        pruning_options: PruningOptions,
+        retention_config: Option<RetentionConfig>,
     },
     AnalyticalWorker,
 }
@@ -81,7 +81,8 @@ impl IndexerTypeConfig {
     ) -> Self {
         Self::Writer {
             snapshot_config: snapshot_config.unwrap_or_default(),
-            pruning_options: PruningOptions { epochs_to_keep },
+            retention_config: epochs_to_keep
+                .map(RetentionConfig::new_with_default_retention_only_for_testing),
         }
     }
 }
@@ -152,7 +153,7 @@ pub async fn start_test_indexer_impl(
         }
         IndexerTypeConfig::Writer {
             snapshot_config,
-            pruning_options,
+            retention_config,
         } => {
             let store_clone = store.clone();
             let mut ingestion_config = IngestionConfig::default();
@@ -168,7 +169,7 @@ pub async fn start_test_indexer_impl(
                     store_clone,
                     indexer_metrics,
                     snapshot_config,
-                    pruning_options,
+                    retention_config,
                     cancel,
                 )
                 .await
