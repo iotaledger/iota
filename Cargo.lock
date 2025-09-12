@@ -6455,6 +6455,8 @@ dependencies = [
  "serde_json",
  "serde_with",
  "simulacrum",
+ "strum 0.26.3",
+ "strum_macros 0.26.4",
  "tap",
  "telemetry-subscribers",
  "tempfile",
@@ -6463,6 +6465,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.12",
+ "toml 0.7.8",
  "tracing",
  "url",
 ]

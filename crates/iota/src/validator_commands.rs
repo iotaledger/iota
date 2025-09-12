@@ -47,7 +47,7 @@ use iota_types::{
     },
     multiaddr::Multiaddr,
     object::Owner,
-    transaction::{CallArg, ObjectArg, Transaction, TransactionData},
+    transaction::{CallArg, ObjectArg, Transaction, TransactionData, TransactionDataAPI},
 };
 use move_core_types::ident_str;
 use serde::Serialize;
@@ -624,7 +624,7 @@ async fn call_0x5(
         construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
     let iota_client = context.get_client().await?;
 
-    let signature = sign_transaction(context, &tx_data).await?;
+    let signature = sign_transaction(context, &tx_data, &tx_data.sender()).await?;
     let transaction = Transaction::from_data(tx_data, vec![signature]);
 
     iota_client
