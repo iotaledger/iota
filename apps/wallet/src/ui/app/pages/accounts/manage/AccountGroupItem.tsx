@@ -198,7 +198,9 @@ export function AccountGroupItem({
 function AccountAvatar({ account }: { account: SerializedUIAccount }) {
     let logo = null;
 
-    if (account.type === AccountType.LedgerDerived) {
+    if (account.type === AccountType.KeystoneDerived) {
+        logo = <Ledger className="h-4 w-4" />;
+    } else if (account.type === AccountType.LedgerDerived) {
         logo = <Ledger className="h-4 w-4" />;
     } else {
         logo = <IotaLogoMark />;

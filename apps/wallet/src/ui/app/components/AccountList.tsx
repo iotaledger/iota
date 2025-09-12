@@ -13,23 +13,22 @@ import {
     TableRow,
     TableRowCheckbox,
 } from '@iota/apps-ui-kit';
-import { type DerivedLedgerAccount } from './useDeriveLedgerAccounts';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { useBalance, useFormatCoin } from '@iota/core';
 
-interface LedgerAccountListProps {
-    accounts: DerivedLedgerAccount[];
+interface AccountListProps<A> {
+    accounts: A[];
     selectedAccounts: Set<string>;
-    onAccountClick: (account: DerivedLedgerAccount, checked: boolean) => void;
+    onAccountClick: (account: A, checked: boolean) => void;
     selectAll: () => void;
 }
 
-export function LedgerAccountList({
+export function AccountList<A extends { address: string }>({
     accounts,
     selectedAccounts,
     onAccountClick,
     selectAll,
-}: LedgerAccountListProps) {
+}: AccountListProps<A>) {
     const headersData = [
         { label: 'Address', columnKey: 1 },
         { label: '', columnKey: 2 },
