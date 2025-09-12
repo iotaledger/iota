@@ -144,7 +144,7 @@ export function ImportKeystone() {
                                 </div>
 
                                 <div className="flex flex-col">
-                                    <div className="mb-4 flex items-center justify-center gap-x-1">
+                                    <div className="mb-2 flex items-center justify-center gap-x-1">
                                         <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                                             Need more help?
                                         </span>
