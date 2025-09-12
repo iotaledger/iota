@@ -24,7 +24,7 @@ import {
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
-import { Create, ImportPass, Key, Seed, Ledger } from '@iota/apps-ui-icons';
+import { Create, ImportPass, Key, Seed, Ledger, Keystone } from '@iota/apps-ui-icons';
 import Browser from 'webextension-polyfill';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
@@ -95,7 +95,7 @@ export function AddAccountPage() {
                 },
                 {
                     title: 'Keystone',
-                    icon: Ledger,
+                    icon: Keystone,
                     actionType: AccountsFormType.ImportKeystone,
                     isDisabled: createAccountsMutation.isPending,
                 },
