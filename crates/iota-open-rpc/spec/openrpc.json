@@ -1436,6 +1436,7 @@
                 "buffer_stake_for_protocol_upgrade_bps": {
                   "u64": "5000"
                 },
+                "check_auth_info_v1_cost_base": null,
                 "check_zklogin_id_cost_base": {
                   "u64": "200"
                 },
@@ -1464,7 +1465,6 @@
                 "consensus_max_transactions_in_block_bytes": {
                   "u64": "524288"
                 },
-                "create_auth_info_v1_cost_base": null,
                 "crypto_invalid_arguments_cost": {
                   "u64": "100"
                 },

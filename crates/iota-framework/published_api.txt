@@ -1270,7 +1270,7 @@ AuthenticatorInfoV1
 create_auth_info_v1
 	public fun
 	0x2::account
-create_auth_info_v1_impl
+check_auth_info_v1
 	fun
 	0x2::account
 authenticator_df_name
