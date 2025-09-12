@@ -10,6 +10,7 @@ import { AnimatedQRCode, AnimatedQRScanner } from '@keystonehq/animated-qr';
 import { UR, URType, KeystoneIotaSDK } from '@keystonehq/keystone-sdk';
 import { createContext, useContext, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { KeystoneSigningCanceledByUserError } from './keystoneErrors';
 
 interface KeystoneContextValue {
     requestSignature: (ur: UR) => Promise<string>;
@@ -24,6 +25,7 @@ interface KeystoneProviderProps {
 interface Request {
     ur: UR;
     reply: (signature: string) => void;
+    cancel: () => void;
 }
 
 export function KeystoneProvider({ children }: KeystoneProviderProps) {
@@ -32,12 +34,16 @@ export function KeystoneProvider({ children }: KeystoneProviderProps) {
     const context = useMemo(() => {
         return {
             requestSignature: (ur: UR) =>
-                new Promise<string>((resolve) => {
+                new Promise<string>((resolve, reject) => {
                     setCurrentRequest({
                         ur,
                         reply: (signature) => {
                             setCurrentRequest(null);
                             resolve(signature);
+                        },
+                        cancel: () => {
+                            reject(new KeystoneSigningCanceledByUserError('User canceled'));
+                            setCurrentRequest(null);
                         },
                     });
                 }),
@@ -59,7 +65,7 @@ enum Step {
     ScanQr,
 }
 
-export function ScanBothWays({ request: { ur, reply } }: { request: Request }) {
+export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Request }) {
     const [step, setStep] = useState<Step>(Step.ShowQr);
 
     function onSucceed({ type, cbor }: { type: string; cbor: string }) {
@@ -75,6 +81,10 @@ export function ScanBothWays({ request: { ur, reply } }: { request: Request }) {
         );
     }
 
+    function onCancel() {
+        cancel();
+    }
+
     function onError(error: string) {
         toast.error(`Error while scanning QR: ${error}`);
     }
@@ -82,7 +92,7 @@ export function ScanBothWays({ request: { ur, reply } }: { request: Request }) {
     return (
         <Dialog open onOpenChange={(open) => {}}>
             <DialogContent containerId="overlay-portal-container">
-                <Header title="Confirm Transaction" titleCentered onClose={() => {}} />
+                <Header title="Confirm Transaction" titleCentered onClose={() => onCancel()} />
                 <DialogBody>
                     <div className="flex flex-col items-center gap-6">
                         {step === Step.ShowQr ? (
@@ -134,7 +144,7 @@ export function ScanBothWays({ request: { ur, reply } }: { request: Request }) {
                                     fullWidth
                                     type={ButtonType.Secondary}
                                     text="Cancel"
-                                    onClick={() => {}}
+                                    onClick={() => onCancel()}
                                 />
                                 {step === Step.ShowQr && (
                                     <Button
