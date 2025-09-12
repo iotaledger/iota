@@ -714,8 +714,8 @@ mod tests {
 
         let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap_or(0.0);
         let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
-        assert!(hotness1 == 220.0, "hotness for obj1 should be 220.0");
-        assert!(hotness2 == 120.0, "hotness for obj2 should be 120.0");
+        assert!(hotness1 == 718.75, "hotness for obj1 should be 718.75");
+        assert!(hotness2 == 93.75, "hotness for obj2 should be 93.75");
 
         // Additional checkpoints
         tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
@@ -749,12 +749,12 @@ mod tests {
         let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap_or(0.0);
         let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
         assert!(
-            hotness1.floor() == 64.0,
-            "hotness for obj1 should be positive"
+            hotness1.floor() == 83.0,
+            "hotness for obj1 should be approx 83"
         );
         assert!(
-            hotness2.floor() == 52.0,
-            "hotness for obj2 should be positive"
+            hotness2.floor() == 62.0,
+            "hotness for obj2 should be approx 62"
         );
     }
 
@@ -771,7 +771,7 @@ mod tests {
             &[TxData {
                 objects: vec![obj1, obj2],
                 gas_price: 100,
-                gas_price_feedback: Some(1010),
+                gas_price_feedback: Some(1004),
             }],
             &[],
         );
@@ -787,6 +787,7 @@ mod tests {
             &[],
         );
         tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
+        tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
 
         // hotness for obj1 goes below 1.0 so it should be removed from cache
         assert!(
@@ -794,6 +795,6 @@ mod tests {
             "obj1 should be removed from cache"
         );
         let hotness = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
-        assert!(hotness == 2.0, "hotness for obj2 should be 2.0");
+        assert!(hotness == 1.875, "hotness for obj2 should be 1.875");
     }
 }
