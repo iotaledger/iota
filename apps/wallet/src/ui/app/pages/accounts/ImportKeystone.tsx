@@ -236,9 +236,9 @@ function KeystoneAccountsList<S extends Extract<Step, { type: 'select-accounts' 
     }
 
     function onSelectAll() {
-        const areAllAccountsSelected = step.selectedAccounts.size === step.accounts.length;
+        const areAllAccountsSelected = step.selectedAccounts.size === eligibleAccounts.length;
         if (!areAllAccountsSelected) {
-            const selectedAccounts = new Set(step.accounts.map((acc) => acc.address));
+            const selectedAccounts = new Set(eligibleAccounts.map((acc) => acc.address));
             setStep({ ...step, selectedAccounts: selectedAccounts });
         } else if (areAllAccountsSelected) {
             setStep({ ...step, selectedAccounts: new Set() });
