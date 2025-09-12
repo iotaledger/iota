@@ -35,6 +35,7 @@ export function ImportKeystone() {
     const [step, setStep] = useState<Step>({ type: 'scan-qr' });
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
+    const [scanProgress, setScanProgress] = useState(0);
 
     function onSucceed({ type, cbor }: { type: string; cbor: string }) {
         const multiAccounts = parseMultiAccounts(new UR(Buffer.from(cbor, 'hex'), type));
@@ -50,6 +51,10 @@ export function ImportKeystone() {
             selectedAccounts: new Set(),
             masterFingerprint: multiAccounts.masterFingerprint,
         });
+    }
+
+    function onProgress(progress: number) {
+        setScanProgress(progress);
     }
 
     function onFinish() {
@@ -70,6 +75,7 @@ export function ImportKeystone() {
     }
 
     function onError(error: string) {
+        setScanProgress(0);
         toast.error(error);
     }
 
@@ -77,7 +83,7 @@ export function ImportKeystone() {
 
     return (
         <PageTemplate title="Import Keystone" isTitleCentered showBackButton>
-            <div className="flex h-full w-full flex-col items-center ">
+            <div className="flex h-full w-full flex-col items-center">
                 <div className="w-full grow">
                     <div className="flex h-full flex-col justify-between gap-1">
                         {step.type === 'scan-qr' ? (
@@ -94,7 +100,15 @@ export function ImportKeystone() {
                                                     width: '230px',
                                                     height: '230px',
                                                 }}
+                                                onProgress={onProgress}
                                             />
+                                            {scanProgress > 0 && scanProgress <= 100 && (
+                                                <div className="absolute inset-0 flex items-end justify-center pb-4">
+                                                    <div className="text-xl font-bold text-white">
+                                                        {Math.round(scanProgress)}%
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                     <span className="mb-sm text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
