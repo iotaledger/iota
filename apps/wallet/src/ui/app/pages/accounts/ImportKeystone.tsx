@@ -85,43 +85,45 @@ export function ImportKeystone() {
         <PageTemplate title="Import Keystone" isTitleCentered showBackButton>
             <div className="flex h-full w-full flex-col items-center">
                 <div className="w-full grow">
-                    <div className="flex h-full flex-col justify-between gap-2 ">
+                    <div className="flex h-full flex-col justify-between gap-1">
                         {step.type === 'scan-qr' ? (
                             <>
-                                <div className="relative flex flex-col items-center justify-center gap-sm">
-                                    <div className="relative">
-                                        <AnimatedQRScanner
-                                            handleScan={onSucceed}
-                                            handleError={onError}
-                                            urTypes={[URType.CryptoMultiAccounts]}
-                                            options={{
-                                                blur: true,
-                                                width: '280px',
-                                                height: '280px',
-                                            }}
-                                            onProgress={onProgress}
-                                        />
-                                        {scanProgress > 0 && scanProgress <= 100 && (
-                                            <div className="absolute inset-0 flex items-end justify-center pb-4">
-                                                <div className="text-xl font-bold text-white">
-                                                    {Math.round(scanProgress)}%
+                                <div className="relative flex flex-col items-center justify-center gap-xs">
+                                    <div className="box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
+                                        <div className="flex-shrink-0">
+                                            <AnimatedQRScanner
+                                                handleScan={onSucceed}
+                                                handleError={onError}
+                                                urTypes={[URType.CryptoMultiAccounts]}
+                                                options={{
+                                                    blur: true,
+                                                    width: '230px',
+                                                    height: '230px',
+                                                }}
+                                                onProgress={onProgress}
+                                            />
+                                            {scanProgress > 0 && scanProgress <= 100 && (
+                                                <div className="absolute inset-0 flex items-end justify-center pb-4">
+                                                    <div className="text-xl font-bold text-white">
+                                                        {Math.round(scanProgress)}%
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
                                     </div>
-                                    <span className="dark:text-iota-neutral-60 text-center text-body-sm text-iota-neutral-40">
+                                    <span className="mb-sm text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                         Camera is blurred for security reasons
                                     </span>
-                                    <div className="border-gray-45 flex w-full flex-col gap-md rounded-2lg border border-solid p-4 no-underline">
+                                    <div className="input-border-color flex w-full flex-col gap-xs rounded-2lg border border-solid p-4 no-underline">
                                         <div className="flex">
                                             <div className="mr-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-iota-primary-90 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-black">
                                                 <IotaLogoMark />
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="dark:text-iota-neutral-60 text-iota-neutral-40">
+                                                <span className="text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Step 1
                                                 </span>
-                                                <span className="font-semibold">
+                                                <span className="font-semibold text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Open the IOTA Wallet app in Keystone
                                                 </span>
                                             </div>
@@ -131,10 +133,10 @@ export function ImportKeystone() {
                                                 <QrCode />
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="dark:text-iota-neutral-60 text-iota-neutral-40">
+                                                <span className="text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Step 2
                                                 </span>
-                                                <span className="font-semibold">
+                                                <span className="font-semibold text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Point the QR code to your camera
                                                 </span>
                                             </div>
@@ -144,10 +146,10 @@ export function ImportKeystone() {
                                                 <ImportPass />
                                             </div>
                                             <div className="flex flex-col">
-                                                <span className="dark:text-iota-neutral-60 text-iota-neutral-40">
+                                                <span className="text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Step 3
                                                 </span>
-                                                <span className="font-semibold">
+                                                <span className="font-semibold text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Import wallets
                                                 </span>
                                             </div>
@@ -156,21 +158,21 @@ export function ImportKeystone() {
                                 </div>
 
                                 <div className="flex flex-col">
-                                    <div className="mb-4 flex items-center justify-center gap-x-1">
-                                        <span className="dark:text-iota-neutral-60 text-body-md text-iota-neutral-40">
+                                    <div className="mb-2 flex items-center justify-center gap-x-1">
+                                        <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                                             Need more help?
                                         </span>
                                         <Link
                                             // TODO: Add tutorial docs links when available - https://github.com/iotaledger/iota/issues/8511
                                             to=""
-                                            className="dark:text-iota-primary-80 text-body-md text-iota-primary-30 no-underline"
+                                            className="text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
                                             target="_blank"
                                             rel="noreferrer"
                                         >
                                             View tutorial.
                                         </Link>
                                     </div>
-                                    <div className="flex flex-row justify-stretch gap-2.5">
+                                    <div className="flex flex-row justify-stretch gap-2">
                                         <Button
                                             type={ButtonType.Secondary}
                                             text="Back"
@@ -250,9 +252,9 @@ function KeystoneAccountsList<S extends Extract<Step, { type: 'select-accounts' 
     }
 
     function onSelectAll() {
-        const areAllAccountsSelected = step.selectedAccounts.size === step.accounts.length;
+        const areAllAccountsSelected = step.selectedAccounts.size === eligibleAccounts.length;
         if (!areAllAccountsSelected) {
-            const selectedAccounts = new Set(step.accounts.map((acc) => acc.address));
+            const selectedAccounts = new Set(eligibleAccounts.map((acc) => acc.address));
             setStep({ ...step, selectedAccounts: selectedAccounts });
         } else if (areAllAccountsSelected) {
             setStep({ ...step, selectedAccounts: new Set() });
