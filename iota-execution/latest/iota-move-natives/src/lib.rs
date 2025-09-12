@@ -68,7 +68,7 @@ use self::{
     validator::ValidatorValidateMetadataBcsCostParams,
 };
 use crate::{
-    account::CreateAuthInfoV1ImplCostParams,
+    account::CheckAuthInfoV1ImplCostParams,
     crypto::{
         group_ops::{self, GroupOpsCostParams},
         poseidon::PoseidonBN254CostParams,
@@ -96,7 +96,7 @@ mod validator;
 #[derive(Tid)]
 pub struct NativesCostTable {
     // Account natives
-    pub account_create_auth_info_v1_impl_params: CreateAuthInfoV1ImplCostParams,
+    pub account_check_auth_info_v1_params: CheckAuthInfoV1ImplCostParams,
     // Address natives
     pub address_from_bytes_cost_params: AddressFromBytesCostParams,
     pub address_to_u256_cost_params: AddressToU256CostParams,
@@ -190,9 +190,9 @@ impl NativesCostTable {
     pub fn from_protocol_config(protocol_config: &ProtocolConfig) -> NativesCostTable {
         Self {
             // account
-            account_create_auth_info_v1_impl_params: CreateAuthInfoV1ImplCostParams {
-                create_auth_info_v1_cost_base: protocol_config
-                    .create_auth_info_v1_cost_base_as_option()
+            account_check_auth_info_v1_params: CheckAuthInfoV1ImplCostParams {
+                check_auth_info_v1_cost_base: protocol_config
+                    .check_auth_info_v1_cost_base_as_option()
                     .map(Into::into),
             },
             // address
@@ -784,8 +784,8 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
     let iota_framework_natives: &[(&str, &str, NativeFunction)] = &[
         (
             "account",
-            "create_auth_info_v1_impl",
-            make_native!(account::create_auth_info_v1_impl),
+            "check_auth_info_v1",
+            make_native!(account::check_auth_info_v1),
         ),
         ("address", "from_bytes", make_native!(address::from_bytes)),
         ("address", "to_u256", make_native!(address::to_u256)),

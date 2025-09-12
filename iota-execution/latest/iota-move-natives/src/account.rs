@@ -21,11 +21,11 @@ use smallvec::smallvec;
 use crate::{NativesCostTable, raw_module_loader::RawModuleLoader};
 
 #[derive(Copy, Clone, Debug)]
-pub struct CreateAuthInfoV1ImplCostParams {
-    pub create_auth_info_v1_cost_base: Option<InternalGas>,
+pub struct CheckAuthInfoV1ImplCostParams {
+    pub check_auth_info_v1_cost_base: Option<InternalGas>,
 }
 
-pub fn create_auth_info_v1_impl(
+pub fn check_auth_info_v1(
     context: &mut NativeContext,
     ty_args: Vec<Type>,
     mut args: VecDeque<Value>,
@@ -37,16 +37,16 @@ pub fn create_auth_info_v1_impl(
     let account_create_auth_info_v1_impl_params = context
         .extensions_mut()
         .get::<NativesCostTable>()
-        .account_create_auth_info_v1_impl_params;
+        .account_check_auth_info_v1_params;
 
-    let create_auth_info_v1_cost_base = account_create_auth_info_v1_impl_params
-        .create_auth_info_v1_cost_base
+    let check_auth_info_v1_cost_base = account_create_auth_info_v1_impl_params
+        .check_auth_info_v1_cost_base
         .ok_or_else(|| {
             PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                 .with_message("gas cost is not set".to_string())
         })?;
 
-    native_charge_gas_early_exit!(context, create_auth_info_v1_cost_base);
+    native_charge_gas_early_exit!(context, check_auth_info_v1_cost_base);
 
     let function_name_bytes = pop_arg!(args, VectorRef);
     let function_name = String::from(unsafe {
@@ -91,14 +91,5 @@ pub fn create_auth_info_v1_impl(
         );
     }
 
-    let authenticator_info_v1 = Value::struct_(move_vm_types::values::Struct::pack([
-        Value::address(package),
-        Value::vector_u8(module_name.as_bytes().iter().copied()),
-        Value::vector_u8(function_name.as_bytes().iter().copied()),
-    ]));
-
-    Ok(NativeResult::ok(
-        context.gas_used(),
-        smallvec![authenticator_info_v1],
-    ))
+    Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }
