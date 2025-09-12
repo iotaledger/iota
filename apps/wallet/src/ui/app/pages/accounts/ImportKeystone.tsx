@@ -83,12 +83,18 @@ export function ImportKeystone() {
                         {step.type === 'scan-qr' ? (
                             <>
                                 <div className="relative flex flex-col items-center justify-center gap-sm">
-                                    <AnimatedQRScanner
-                                        handleScan={onSucceed}
-                                        handleError={onError}
-                                        urTypes={[URType.CryptoMultiAccounts]}
-                                        options={{ blur: true, width: '280px', height: '280px' }}
-                                    />
+                                    <div className="box-border flex min-h-[280px] items-center justify-center">
+                                        <AnimatedQRScanner
+                                            handleScan={onSucceed}
+                                            handleError={onError}
+                                            urTypes={[URType.CryptoMultiAccounts]}
+                                            options={{
+                                                blur: true,
+                                                width: '280px',
+                                                height: '280px',
+                                            }}
+                                        />
+                                    </div>
                                     <span className="text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                         Camera is blurred for security reasons
                                     </span>
