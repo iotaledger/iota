@@ -101,7 +101,7 @@ export function ImportKeystone() {
                                                 <span className="text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Step 1
                                                 </span>
-                                                <span className="font-semibold">
+                                                <span className="font-semibold text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Open the IOTA Wallet app in Keystone
                                                 </span>
                                             </div>
@@ -114,7 +114,7 @@ export function ImportKeystone() {
                                                 <span className="text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Step 2
                                                 </span>
-                                                <span className="font-semibold">
+                                                <span className="font-semibold text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Point the QR code to your camera
                                                 </span>
                                             </div>
@@ -127,7 +127,7 @@ export function ImportKeystone() {
                                                 <span className="text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Step 3
                                                 </span>
-                                                <span className="font-semibold">
+                                                <span className="font-semibold text-iota-neutral-40 dark:text-iota-neutral-60">
                                                     Import wallets
                                                 </span>
                                             </div>
