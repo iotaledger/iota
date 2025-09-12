@@ -44,6 +44,7 @@ import {
     type SourceStrategyToPersist,
 } from '_src/shared/messaging/messages/payloads/accounts-finder';
 import { type MakeDerivationOptions } from '_src/background/account-sources/bip44Path';
+import type { KeystoneAccountSerialized } from '_src/background/accounts/keystoneAccount';
 
 const ENTITIES_TO_CLIENT_QUERY_KEYS: Record<UIAccessibleEntityType, QueryKey> = {
     accounts: ACCOUNTS_QUERY_KEY,
@@ -319,6 +320,31 @@ export class BackgroundClient {
                         );
                     }
                     return payload.args.accountSource as unknown as SeedSerializedUiAccount;
+                }),
+            ),
+        );
+    }
+
+    public createKeystoneAccountSource(inputs: { password: string; masterFingerprint: string }) {
+        return lastValueFrom(
+            this.sendMessage(
+                createMessage<MethodPayload<'createAccountSource'>>({
+                    method: 'createAccountSource',
+                    type: 'method-payload',
+                    args: { type: AccountSourceType.Keystone, params: inputs },
+                }),
+            ).pipe(
+                take(1),
+                map(({ payload }) => {
+                    if (!isMethodPayload(payload, 'accountSourceCreationResponse')) {
+                        throw new Error('Unknown response');
+                    }
+                    if (AccountSourceType.Keystone !== payload.args.accountSource.type) {
+                        throw new Error(
+                            `Unexpected account source type response ${payload.args.accountSource.type}`,
+                        );
+                    }
+                    return payload.args.accountSource as unknown as KeystoneAccountSerialized;
                 }),
             ),
         );
