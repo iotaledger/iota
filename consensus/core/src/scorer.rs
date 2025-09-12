@@ -182,7 +182,7 @@ impl Scorer {
             .collect::<Vec<_>>();
 
         // It is possible that the vector recovered_scoring_metrics does not have a
-        // components for every authorites. A perfectly functioning validator, for
+        // component for every authority. A perfectly functioning validator, for
         // example, will never have its metrics updated, so no metric will ever be
         // stored. For this reason, we manually "fill" this vector.
 
@@ -263,7 +263,7 @@ impl Scorer {
                     MetricType::Cached,
                     &context.metrics.node_metrics,
                 );
-            // Initiatize score
+            // Initialize score
             self.update_authority_score(authority_index, hostname, &context.metrics.node_metrics);
         }
     }
@@ -305,7 +305,7 @@ impl Scorer {
         // - The maximum achievable score is u32::MAX.
 
         if faulty_blocks_provable > 0 || equivocations > 0 {
-            self.partial_scores.unprovable[authority].store(0);
+            self.partial_scores.unprovable[authority].store(0, Ordering::Relaxed);
             node_metrics
                 .score_by_authority
                 .with_label_values(&[hostname])
@@ -314,7 +314,7 @@ impl Scorer {
             let score = (2 << 31) - 1
                 + (3 * (2 << 29) / (missing_proposals.saturating_add(1))
                     + (2 << 29) / (faulty_blocks_unprovable.saturating_add(1)));
-            self.partial_scores.unprovable[authority].store(score);
+            self.partial_scores.unprovable[authority].store(score, Ordering::Relaxed);
             node_metrics
                 .score_by_authority
                 .with_label_values(&[hostname])
@@ -422,17 +422,9 @@ enum MetricType {
     Cached,
     Uncached,
 }
-pub struct PartialScore(pub AtomicU64);
+// pub struct PartialScore(pub AtomicU64);
+pub type PartialScore = AtomicU64;
 
-impl PartialScore {
-    pub(crate) fn new() -> Self {
-        Self(AtomicU64::new(u64::MAX))
-    }
-
-    pub(crate) fn store(&self, value: u64) {
-        self.0.store(value, Ordering::Relaxed);
-    }
-}
 #[derive(Debug)]
 pub(crate) struct UncachedScoringMetrics {
     // Counts the number of times that a faulty block signed by the validator was already verified
@@ -483,8 +475,12 @@ pub struct PartialScores {
 
 impl PartialScores {
     pub fn new(committee_size: usize) -> Self {
-        let provable = (0..committee_size).map(|_| PartialScore::new()).collect();
-        let unprovable = (0..committee_size).map(|_| PartialScore::new()).collect();
+        let provable = (0..committee_size)
+            .map(|_| AtomicU64::new(u64::MAX))
+            .collect();
+        let unprovable = (0..committee_size)
+            .map(|_| AtomicU64::new(u64::MAX))
+            .collect();
         Self {
             provable,
             unprovable,
@@ -604,32 +600,31 @@ mod tests {
     use std::{
         collections::BTreeSet,
         sync::{Arc, atomic::Ordering},
-        time::Duration,
         vec,
     };
 
-    use async_trait::async_trait;
-    use bytes::Bytes;
     use consensus_config::{AuthorityIndex, NetworkKeyPair, ProtocolKeyPair};
     use parking_lot::RwLock;
     use tokio::sync::broadcast;
 
     use crate::{
-        Round, TransactionVerifier, ValidationError,
-        authority_service::{AuthorityService, tests::FakeCoreThreadDispatcher},
-        block::{BlockDigest, BlockRef, VerifiedBlock},
+        TransactionVerifier, ValidationError,
+        authority_service::{
+            AuthorityService,
+            tests::{FakeCoreThreadDispatcher, FakeNetworkClient},
+        },
+        block::{BlockDigest, BlockRef},
         block_verifier::SignedBlockVerifier,
-        commit::CommitRange,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         dag_state::DagState,
-        error::{ConsensusError, ConsensusResult},
-        network::{BlockStream, NetworkClient},
+        error::ConsensusError,
         scorer::ValidatorScoringMetrics,
         storage::{StorageScoringMetrics, mem_store::MemStore},
         synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
     };
+
     struct TxnSizeVerifier {}
 
     impl TransactionVerifier for TxnSizeVerifier {
@@ -638,67 +633,67 @@ mod tests {
         }
     }
 
-    #[derive(Default)]
-    struct FakeNetworkClient {}
-
-    #[async_trait]
-    impl NetworkClient for FakeNetworkClient {
-        const SUPPORT_STREAMING: bool = false;
-
-        async fn send_block(
-            &self,
-            _peer: AuthorityIndex,
-            _block: &VerifiedBlock,
-            _timeout: Duration,
-        ) -> ConsensusResult<()> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn subscribe_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _last_received: Round,
-            _timeout: Duration,
-        ) -> ConsensusResult<BlockStream> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _block_refs: Vec<BlockRef>,
-            _highest_accepted_rounds: Vec<Round>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_commits(
-            &self,
-            _peer: AuthorityIndex,
-            _commit_range: CommitRange,
-            _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn fetch_latest_blocks(
-            &self,
-            _peer: AuthorityIndex,
-            _authorities: Vec<AuthorityIndex>,
-            _timeout: Duration,
-        ) -> ConsensusResult<Vec<Bytes>> {
-            unimplemented!("Unimplemented")
-        }
-
-        async fn get_latest_rounds(
-            &self,
-            _peer: AuthorityIndex,
-            _timeout: Duration,
-        ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
-            unimplemented!("Unimplemented")
-        }
-    }
+    // #[derive(Default)]
+    // struct FakeNetworkClient {}
+    //
+    // #[async_trait]
+    // impl NetworkClient for FakeNetworkClient {
+    // const SUPPORT_STREAMING: bool = false;
+    //
+    // async fn send_block(
+    // &self,
+    // _peer: AuthorityIndex,
+    // _block: &VerifiedBlock,
+    // _timeout: Duration,
+    // ) -> ConsensusResult<()> {
+    // unimplemented!("Unimplemented")
+    // }
+    //
+    // async fn subscribe_blocks(
+    // &self,
+    // _peer: AuthorityIndex,
+    // _last_received: Round,
+    // _timeout: Duration,
+    // ) -> ConsensusResult<BlockStream> {
+    // unimplemented!("Unimplemented")
+    // }
+    //
+    // async fn fetch_blocks(
+    // &self,
+    // _peer: AuthorityIndex,
+    // _block_refs: Vec<BlockRef>,
+    // _highest_accepted_rounds: Vec<Round>,
+    // _timeout: Duration,
+    // ) -> ConsensusResult<Vec<Bytes>> {
+    // unimplemented!("Unimplemented")
+    // }
+    //
+    // async fn fetch_commits(
+    // &self,
+    // _peer: AuthorityIndex,
+    // _commit_range: CommitRange,
+    // _timeout: Duration,
+    // ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
+    // unimplemented!("Unimplemented")
+    // }
+    //
+    // async fn fetch_latest_blocks(
+    // &self,
+    // _peer: AuthorityIndex,
+    // _authorities: Vec<AuthorityIndex>,
+    // _timeout: Duration,
+    // ) -> ConsensusResult<Vec<Bytes>> {
+    // unimplemented!("Unimplemented")
+    // }
+    //
+    // async fn get_latest_rounds(
+    // &self,
+    // _peer: AuthorityIndex,
+    // _timeout: Duration,
+    // ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
+    // unimplemented!("Unimplemented")
+    // }
+    // }
 
     // Creates a new authority service for scoring metrics testing purposes.
     fn new_authority_service_for_metrics_tests(
@@ -1543,7 +1538,7 @@ mod tests {
         //   accepted yet. Equivocations metrics, then, should be still all zeroed.
         //
         // Missing proposals:
-        // - The the last committed round is 10, so the eviction round should be 5 for
+        // - The last committed round is 10, so the eviction round should be 5 for
         //   authority 2 (leader of round 10) and 4 for all other authorities.
         // - The threshold_clock_round should be 11, since we already accepted all
         //   blocks from epoch 10.
