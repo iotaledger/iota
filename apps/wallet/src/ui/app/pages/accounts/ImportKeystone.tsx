@@ -98,7 +98,7 @@ export function ImportKeystone() {
                                     <span className="text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                         Camera is blurred for security reasons
                                     </span>
-                                    <div className="border-gray-45 flex w-full flex-col gap-md rounded-2lg border border-solid p-4 no-underline">
+                                    <div className="input-border-color flex w-full flex-col gap-md rounded-2lg border border-solid p-4 no-underline">
                                         <div className="flex">
                                             <div className="mr-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-iota-primary-90 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-black">
                                                 <IotaLogoMark />
