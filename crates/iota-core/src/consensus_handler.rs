@@ -582,7 +582,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublishV1(_) => "end_of_publish_v1",
-        ConsensusTransactionKind::EndOfPublishV2(_) => "end_of_publish_v2",
+        ConsensusTransactionKind::EndOfPublishV2(..) => "end_of_publish_v2",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
@@ -1099,7 +1099,7 @@ mod tests {
                 ConsensusTransactionKind::EndOfPublishV1(authority) => {
                     format!("eop({})", authority.0[0])
                 }
-                ConsensusTransactionKind::EndOfPublishV2(authority) => {
+                ConsensusTransactionKind::EndOfPublishV2(authority, _) => {
                     format!("eop({})", authority.0[0])
                 }
                 ConsensusTransactionKind::CapabilityNotificationV1(cap) => {

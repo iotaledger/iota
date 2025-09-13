@@ -2608,7 +2608,7 @@ impl AuthorityPerEpochStore {
                 ..
             })
             | SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublishV2(authority),
+                kind: ConsensusTransactionKind::EndOfPublishV2(authority, _),
                 ..
             }) => {
                 if &transaction.sender_authority() != authority {
@@ -3806,7 +3806,7 @@ impl AuthorityPerEpochStore {
                 ..
             })
             | SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublishV2(_),
+                kind: ConsensusTransactionKind::EndOfPublishV2(..),
                 ..
             }) => {
                 // these are partitioned earlier
