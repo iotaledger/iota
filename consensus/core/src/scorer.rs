@@ -633,68 +633,6 @@ mod tests {
         }
     }
 
-    // #[derive(Default)]
-    // struct FakeNetworkClient {}
-    //
-    // #[async_trait]
-    // impl NetworkClient for FakeNetworkClient {
-    // const SUPPORT_STREAMING: bool = false;
-    //
-    // async fn send_block(
-    // &self,
-    // _peer: AuthorityIndex,
-    // _block: &VerifiedBlock,
-    // _timeout: Duration,
-    // ) -> ConsensusResult<()> {
-    // unimplemented!("Unimplemented")
-    // }
-    //
-    // async fn subscribe_blocks(
-    // &self,
-    // _peer: AuthorityIndex,
-    // _last_received: Round,
-    // _timeout: Duration,
-    // ) -> ConsensusResult<BlockStream> {
-    // unimplemented!("Unimplemented")
-    // }
-    //
-    // async fn fetch_blocks(
-    // &self,
-    // _peer: AuthorityIndex,
-    // _block_refs: Vec<BlockRef>,
-    // _highest_accepted_rounds: Vec<Round>,
-    // _timeout: Duration,
-    // ) -> ConsensusResult<Vec<Bytes>> {
-    // unimplemented!("Unimplemented")
-    // }
-    //
-    // async fn fetch_commits(
-    // &self,
-    // _peer: AuthorityIndex,
-    // _commit_range: CommitRange,
-    // _timeout: Duration,
-    // ) -> ConsensusResult<(Vec<Bytes>, Vec<Bytes>)> {
-    // unimplemented!("Unimplemented")
-    // }
-    //
-    // async fn fetch_latest_blocks(
-    // &self,
-    // _peer: AuthorityIndex,
-    // _authorities: Vec<AuthorityIndex>,
-    // _timeout: Duration,
-    // ) -> ConsensusResult<Vec<Bytes>> {
-    // unimplemented!("Unimplemented")
-    // }
-    //
-    // async fn get_latest_rounds(
-    // &self,
-    // _peer: AuthorityIndex,
-    // _timeout: Duration,
-    // ) -> ConsensusResult<(Vec<Round>, Vec<Round>)> {
-    // unimplemented!("Unimplemented")
-    // }
-    // }
-
     // Creates a new authority service for scoring metrics testing purposes.
     fn new_authority_service_for_metrics_tests(
         committee_size: usize,
