@@ -39,7 +39,7 @@ use crate::{
 pub(crate) struct ConsensusCommitOutput {
     // Consensus and reconfig state
     consensus_messages_processed: BTreeSet<SequencedConsensusTransactionKey>,
-    end_of_publish: BTreeSet<AuthorityName>,
+    end_of_publish: BTreeSet<(AuthorityName, Option<Vec<u64>>)>,
     reconfig_state: Option<ReconfigState>,
     consensus_commit_stats: Option<ExecutionIndicesWithStats>,
 
@@ -106,8 +106,12 @@ impl ConsensusCommitOutput {
             .map(|stats| stats.index.last_committed_round)
     }
 
-    pub fn insert_end_of_publish(&mut self, authority: AuthorityName) {
-        self.end_of_publish.insert(authority);
+    pub fn insert_end_of_publish(
+        &mut self,
+        authority: AuthorityName,
+        partial_scores: Option<Vec<u64>>,
+    ) {
+        self.end_of_publish.insert((authority, partial_scores));
     }
 
     pub(crate) fn record_consensus_commit_stats(&mut self, stats: ExecutionIndicesWithStats) {
@@ -196,10 +200,7 @@ impl ConsensusCommitOutput {
                 .map(|key| (key, true)),
         )?;
 
-        batch.insert_batch(
-            &tables.end_of_publish,
-            self.end_of_publish.iter().map(|authority| (authority, ())),
-        )?;
+        batch.insert_batch(&tables.end_of_publish, self.end_of_publish.iter().cloned())?;
 
         if let Some(reconfig_state) = &self.reconfig_state {
             batch.insert_batch(

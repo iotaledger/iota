@@ -459,7 +459,7 @@ pub struct AuthorityPerEpochStore {
     /// node crashes at this stage validator will start with the new
     /// epoch(and will open instance of per-epoch store for a new epoch).
     epoch_alive: tokio::sync::RwLock<bool>,
-    end_of_publish: Mutex<StakeAggregator<(), true>>,
+    end_of_publish: Mutex<StakeAggregator<Option<Vec<u64>>, true>>,
     /// Pending certificates that are waiting to be sequenced by the consensus.
     /// This is an in-memory 'index' of a
     /// AuthorityPerEpochTables::pending_consensus_transactions. We need to
@@ -579,8 +579,9 @@ pub struct AuthorityEpochTables {
     /// current epoch
     reconfig_state: DBMap<u64, ReconfigState>,
 
-    /// Validators that have sent EndOfPublish message in this epoch
-    end_of_publish: DBMap<AuthorityName, ()>,
+    /// Validators that have sent EndOfPublish message in this epoch and the
+    /// partial socres contained in the message (in case of EndOfEpochV2)
+    end_of_publish: DBMap<AuthorityName, Option<Vec<u64>>>,
 
     #[allow(dead_code)]
     pending_checkpoints: DBMap<CheckpointHeight, PendingCheckpoint>,
@@ -2625,6 +2626,14 @@ impl AuthorityPerEpochStore {
                     );
                     return None;
                 }
+                if self.protocol_config.score_based_rewards() == transaction.is_end_of_publish_v1()
+                {
+                    warn!(
+                        "Unexpected version of EndOfPublish from authority {}",
+                        authority,
+                    );
+                    return None;
+                }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind:
@@ -2730,7 +2739,7 @@ impl AuthorityPerEpochStore {
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
         for tx in verified_transactions {
-            if tx.0.is_end_of_publish_v1() {
+            if tx.0.is_end_of_publish_v1() | tx.0.is_end_of_publish_v2() {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
@@ -3451,7 +3460,6 @@ impl AuthorityPerEpochStore {
             &cancelled_txns,
             output,
         )?;
-
         let (lock, final_round) = self.process_end_of_publish_transactions_and_reconfig(
             output,
             end_of_publish_transactions,
@@ -3503,10 +3511,65 @@ impl AuthorityPerEpochStore {
                         .get_reconfig_state_read_lock_guard()
                         .should_accept_consensus_certs()
                 {
-                    output.insert_end_of_publish(*authority);
+                    output.insert_end_of_publish(*authority, None);
                     self.end_of_publish.try_lock()
                         .expect("No contention on Authority::end_of_publish as it is only accessed from consensus handler")
-                        .insert_generic(*authority, ()).is_quorum_reached()
+                        .insert_generic(*authority, None).is_quorum_reached()
+                    // end_of_publish lock is released here.
+                } else {
+                    // If we past the stage where we are accepting consensus certificates we also
+                    // don't record end of publish messages
+                    debug!(
+                        "Ignoring end of publish message from validator {:?} as we already collected enough end of publish messages",
+                        authority.concise()
+                    );
+                    false
+                };
+
+                if collected_end_of_publish {
+                    assert!(lock.is_none());
+                    debug!(
+                        "Collected enough end_of_publish messages for epoch {} with last message from validator {:?}",
+                        self.committee.epoch,
+                        authority.concise(),
+                    );
+                    let mut l = self.get_reconfig_state_write_lock_guard();
+                    l.close_all_certs();
+                    output.store_reconfig_state(l.clone());
+                    // Holding this lock until end of
+                    // process_consensus_transactions_and_commit_boundary() where we write batch to
+                    // DB
+                    lock = Some(l);
+                };
+                // Important: we actually rely here on fact that ConsensusHandler panics if its
+                // operation returns error. If some day we won't panic in ConsensusHandler on
+                // error we need to figure out here how to revert in-memory
+                // state of .end_of_publish and .reconfig_state when write
+                // fails.
+                output.record_consensus_message_processed(transaction.key());
+            } else if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::EndOfPublishV2(authority, partial_scores),
+                ..
+            }) = transaction
+            {
+                debug!(
+                    "Received EndOfPublishV2 for epoch {} from {:?}",
+                    self.committee.epoch,
+                    authority.concise()
+                );
+
+                // It is ok to just release lock here as this function is the only place that
+                // transition into RejectAllCerts state And this function itself
+                // is always executed from consensus task
+                let collected_end_of_publish = if lock.is_none()
+                    && self
+                        .get_reconfig_state_read_lock_guard()
+                        .should_accept_consensus_certs()
+                {
+                    output.insert_end_of_publish(*authority, Some(partial_scores.clone()));
+                    self.end_of_publish.try_lock()
+                        .expect("No contention on Authority::end_of_publish as it is only accessed from consensus handler")
+                        .insert_generic(*authority, Some(partial_scores.clone())).is_quorum_reached()
                     // end_of_publish lock is released here.
                 } else {
                     // If we past the stage where we are accepting consensus certificates we also
