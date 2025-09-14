@@ -10,6 +10,7 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
+use iota_protocol_config::ProtocolConfig;
 use itertools::izip;
 
 use crate::{
@@ -22,16 +23,28 @@ use crate::{
 /// and the evictions that happen in storage. It also holds the partial scores
 /// for each authority, which are then added to EndOfPublishV2 and used to
 /// calculate a final score.
+enum ScorerVersion {
+    // Initial version of the scorer.
+    V1,
+    // Future versions can be added here.
+}
 pub struct Scorer {
     scoring_metrics: ValidatorScoringMetrics,
     partial_scores: PartialScores,
+    #[allow(dead_code)]
+    version: ScorerVersion,
 }
 
 impl Scorer {
-    pub fn new(committee_size: usize) -> Self {
+    pub fn new(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
+        let version = match protocol_config.scorer_version_as_option() {
+            None | Some(1) => ScorerVersion::V1,
+            _ => panic!("Unsupported scorer version"),
+        };
         Self {
             scoring_metrics: ValidatorScoringMetrics::new(committee_size),
             partial_scores: PartialScores::new(committee_size),
+            version,
         }
     }
 
@@ -595,7 +608,7 @@ fn is_from_commit_syncer(err: &ConsensusError) -> bool {
 #[cfg(test)]
 impl Scorer {
     pub(crate) fn new_dummy_for_tests(committee_size: usize) -> Self {
-        Self::new(committee_size)
+        Self::new(committee_size, &ProtocolConfig::get_for_min_version())
     }
 }
 
