@@ -318,6 +318,10 @@ struct FeatureFlags {
     // If true enable additional multisig checks.
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
+
+    // If true enable score based reward distribution.
+    #[serde(skip_serializing_if = "is_false")]
+    score_based_rewards: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1326,6 +1330,10 @@ impl ProtocolConfig {
         // parameters.
         0
     }
+
+    pub fn score_based_rewards(&self) -> bool {
+        self.feature_flags.score_based_rewards
+    }
 }
 
 #[cfg(not(msim))]
@@ -2141,6 +2149,7 @@ impl ProtocolConfig {
                 }
                 13 => {
                     cfg.scorer_version = Some(1);
+                    cfg.feature_flags.score_based_rewards = true;
                 }
                 // Use this template when making changes:
                 //
