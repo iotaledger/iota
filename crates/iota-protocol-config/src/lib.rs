@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 13;
+pub const MAX_PROTOCOL_VERSION: u64 = 12;
 
 // Record history of protocol version allocations here:
 //
@@ -2147,10 +2147,6 @@ impl ProtocolConfig {
                     cfg.feature_flags
                         .congestion_control_gas_price_feedback_mechanism = true;
                 }
-                13 => {
-                    cfg.scorer_version = Some(1);
-                    cfg.feature_flags.score_based_rewards = true;
-                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2310,6 +2306,10 @@ impl ProtocolConfig {
     pub fn set_congestion_control_gas_price_feedback_mechanism_for_testing(&mut self, val: bool) {
         self.feature_flags
             .congestion_control_gas_price_feedback_mechanism = val;
+    }
+
+    pub fn set_score_based_rewards_for_testing(&mut self, val: bool) {
+        self.feature_flags.score_based_rewards = val;
     }
 }
 
