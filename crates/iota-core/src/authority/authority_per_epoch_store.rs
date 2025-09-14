@@ -459,7 +459,7 @@ pub struct AuthorityPerEpochStore {
     /// node crashes at this stage validator will start with the new
     /// epoch(and will open instance of per-epoch store for a new epoch).
     epoch_alive: tokio::sync::RwLock<bool>,
-    end_of_publish: Mutex<StakeAggregator<Option<Vec<u64>>, true>>,
+    pub(crate) end_of_publish: Mutex<StakeAggregator<Option<Vec<u64>>, true>>,
     /// Pending certificates that are waiting to be sequenced by the consensus.
     /// This is an in-memory 'index' of a
     /// AuthorityPerEpochTables::pending_consensus_transactions. We need to
