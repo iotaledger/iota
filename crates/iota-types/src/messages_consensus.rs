@@ -457,6 +457,13 @@ impl ConsensusTransaction {
     pub fn is_end_of_publish_v2(&self) -> bool {
         matches!(self.kind, ConsensusTransactionKind::EndOfPublishV2(..))
     }
+
+    pub fn get_partial_scores(&self) -> Option<&Vec<u64>> {
+        match &self.kind {
+            ConsensusTransactionKind::EndOfPublishV2(_, scores) => Some(scores),
+            _ => None,
+        }
+    }
 }
 
 #[test]

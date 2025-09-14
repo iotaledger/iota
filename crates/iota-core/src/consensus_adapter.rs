@@ -348,19 +348,32 @@ impl ConsensusAdapter {
             .is_reject_user_certs()
             && epoch_store.pending_consensus_certificates_empty()
         {
+            // There are two cases when this is needed
+            // (1) We send EndOfPublish message after removing pending certificates in
+            // submit_and_wait_inner It is possible that node will crash
+            // between those two steps, in which case we might need to
+            // re-introduce EndOfPublish message on restart
+            // (2) If node crashed inside ConsensusAdapter::close_epoch,
+            // after reconfig lock state was written to DB and before we persisted
+            // EndOfPublish message
             if recovered
                 .iter()
                 .any(ConsensusTransaction::is_end_of_publish_v1)
             {
-                // There are two cases when this is needed
-                // (1) We send EndOfPublish message after removing pending certificates in
-                // submit_and_wait_inner It is possible that node will crash
-                // between those two steps, in which case we might need to
-                // re-introduce EndOfPublish message on restart
-                // (2) If node crashed inside ConsensusAdapter::close_epoch,
-                // after reconfig lock state was written to DB and before we persisted
-                // EndOfPublish message
                 recovered.push(ConsensusTransaction::new_end_of_publish_v1(self.authority));
+            }
+
+            if let Some(recovered_transaction) = recovered
+                .iter()
+                .find(|transaction| transaction.is_end_of_publish_v2())
+            {
+                // TO DO: discuss if we need to push this message again to the vector
+                recovered.push(ConsensusTransaction::new_end_of_publish_v2(
+                    self.authority,
+                    // We use the same partial scores as in the recovered transaction, to avoid
+                    // equivocations
+                    recovered_transaction.get_partial_scores().cloned().unwrap(),
+                ));
             }
         }
         debug!(
@@ -368,7 +381,7 @@ impl ConsensusAdapter {
             recovered.len()
         );
         for transaction in recovered {
-            if transaction.is_end_of_publish_v1() {
+            if transaction.is_end_of_publish_v1() || transaction.is_end_of_publish_v2() {
                 info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublish message to consensus");
             }
             self.submit_unchecked(&[transaction], epoch_store);
@@ -677,6 +690,12 @@ impl ConsensusAdapter {
             if matches!(transaction.kind, ConsensusTransactionKind::EndOfPublish(..)) {
                 info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublish message to consensus");
                 epoch_store.record_epoch_pending_certs_process_time_metric();
+            } else if matches!(
+                transaction.kind,
+                ConsensusTransactionKind::EndOfPublishV2(..)
+            ) {
+                info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublishV2 message to consensus");
+                epoch_store.record_epoch_pending_certs_process_time_metric();
             }
 
             let transaction_key = SequencedConsensusTransactionKey::External(transaction.key());
@@ -721,6 +740,7 @@ impl ConsensusAdapter {
             && matches!(
                 transactions[0].kind,
                 ConsensusTransactionKind::EndOfPublish(_)
+                    | ConsensusTransactionKind::EndOfPublishV2(..)
                     | ConsensusTransactionKind::CapabilityNotificationV1(_)
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
@@ -867,14 +887,56 @@ impl ConsensusAdapter {
             false
         };
         if send_end_of_publish {
-            // sending message outside of any locks scope
-            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
-            if let Err(err) = self.submit(
-                ConsensusTransaction::new_end_of_publish_v1(self.authority),
-                None,
-                epoch_store,
-            ) {
-                warn!("Error when sending end of publish message: {:?}", err);
+            if !epoch_store.protocol_config().score_based_rewards() {
+                // sending message outside of any locks scope
+                info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV1 message to consensus");
+                if let Err(err) = self.submit(
+                    ConsensusTransaction::new_end_of_publish_v1(self.authority),
+                    None,
+                    epoch_store,
+                ) {
+                    warn!("Error when sending EndOfPublishV1 message: {:?}", err);
+                }
+            } else {
+                // we want to be sure that no equivocation happens here
+                info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV2 message to consensus");
+                let sent_partial_scores = epoch_store.get_sent_partial_scores();
+                match sent_partial_scores {
+                    Some(partial_scores) => {
+                        // We already sent EndOfPublishV2 message before, so we
+                        // must use the same partial scores to avoid equivocation
+                        if let Err(err) = self.submit(
+                            ConsensusTransaction::new_end_of_publish_v2(
+                                self.authority,
+                                partial_scores.clone(),
+                            ),
+                            None,
+                            epoch_store,
+                        ) {
+                            warn!("Error when sending EndOfPublishV2 message: {:?}", err);
+                        }
+                        return;
+                    }
+                    None => {
+                        // In this case, it is guaranteed that no other EndOfPublishV2
+                        // message was sent before, so we can use the current
+                        // unprovable partial scores from the Scorer.
+                        let current_partial_scores =
+                            epoch_store.scorer.get_unprovable_partial_scores();
+                        let mut sent_partial_scores = epoch_store.sent_partial_scores.write();
+                        *sent_partial_scores = Some(current_partial_scores.clone());
+                        if let Err(err) = self.submit(
+                            ConsensusTransaction::new_end_of_publish_v2(
+                                self.authority,
+                                current_partial_scores,
+                            ),
+                            None,
+                            epoch_store,
+                        ) {
+                            warn!("Error when sending EndOfPublishV2 message: {:?}", err);
+                        }
+                    }
+                }
             }
         }
         self.metrics
@@ -1107,13 +1169,55 @@ impl ReconfigurationInitiator for Arc<ConsensusAdapter> {
             // reconfig_guard lock is dropped here.
         };
         if send_end_of_publish {
-            info!(epoch=?epoch_store.epoch(), "Sending EndOfPublish message to consensus");
-            if let Err(err) = self.submit(
-                ConsensusTransaction::new_end_of_publish_v1(self.authority),
-                None,
-                epoch_store,
-            ) {
-                warn!("Error when sending end of publish message: {:?}", err);
+            if !epoch_store.protocol_config().score_based_rewards() {
+                info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV1 message to consensus");
+                if let Err(err) = self.submit(
+                    ConsensusTransaction::new_end_of_publish_v1(self.authority),
+                    None,
+                    epoch_store,
+                ) {
+                    warn!("Error when sending end of publish message: {:?}", err);
+                }
+            } else {
+                // we want to be sure that no equivocation happens here
+                info!(epoch=?epoch_store.epoch(), "Sending EndOfPublishV2 message to consensus");
+                let sent_partial_scores = epoch_store.get_sent_partial_scores();
+                match sent_partial_scores {
+                    Some(partial_scores) => {
+                        // We already sent EndOfPublishV2 message before, so we
+                        // must use the same partial scores to avoid equivocation
+                        if let Err(err) = self.submit(
+                            ConsensusTransaction::new_end_of_publish_v2(
+                                self.authority,
+                                partial_scores.clone(),
+                            ),
+                            None,
+                            epoch_store,
+                        ) {
+                            warn!("Error when sending EndOfPublishV2 message: {:?}", err);
+                        }
+                        return;
+                    }
+                    None => {
+                        // In this case, it is guaranteed that no other EndOfPublishV2
+                        // message was sent before, so we can use the current
+                        // unprovable partial scores from the Scorer.
+                        let current_partial_scores =
+                            epoch_store.scorer.get_unprovable_partial_scores();
+                        let mut sent_partial_scores = epoch_store.sent_partial_scores.write();
+                        *sent_partial_scores = Some(current_partial_scores.clone());
+                        if let Err(err) = self.submit(
+                            ConsensusTransaction::new_end_of_publish_v2(
+                                self.authority,
+                                current_partial_scores,
+                            ),
+                            None,
+                            epoch_store,
+                        ) {
+                            warn!("Error when sending EndOfPublishV2 message: {:?}", err);
+                        }
+                    }
+                }
             }
         }
     }

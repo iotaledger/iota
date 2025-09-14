@@ -55,8 +55,12 @@ impl Scorer {
         &self.partial_scores.provable
     }
 
-    pub fn get_unprovable_partial_scores(&self) -> &Vec<PartialScore> {
-        &self.partial_scores.unprovable
+    pub fn get_unprovable_partial_scores(&self) -> Vec<u64> {
+        self.partial_scores
+            .unprovable
+            .iter()
+            .map(|s| s.load(Ordering::Relaxed))
+            .collect()
     }
 
     pub(crate) fn update_score(

@@ -503,6 +503,10 @@ pub struct AuthorityPerEpochStore {
 
     /// Local view about the other authorities' partial scores.
     pub(crate) scorer: Arc<Scorer>,
+
+    /// Tracks the partial scores vector that this authority has sent in an
+    /// EndOfPublishV2 message.
+    pub sent_partial_scores: RwLock<Option<Vec<u64>>>,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
@@ -987,6 +991,7 @@ impl AuthorityPerEpochStore {
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
             scorer: Arc::new(Scorer::new(committee_size, &protocol_config)),
+            sent_partial_scores: RwLock::new(None),
         });
 
         s.update_buffer_stake_metric();
@@ -4304,6 +4309,11 @@ impl AuthorityPerEpochStore {
                 ),
             }
         }
+    }
+
+    pub(crate) fn get_sent_partial_scores(&self) -> Option<Vec<u64>> {
+        let partial_scores = self.sent_partial_scores.read();
+        partial_scores.clone()
     }
 }
 

@@ -121,6 +121,7 @@ impl ConsensusClient for LazyMysticetiClient {
             && matches!(
                 transactions[0].kind,
                 ConsensusTransactionKind::EndOfPublish(_)
+                    | ConsensusTransactionKind::EndOfPublishV2(..)
                     | ConsensusTransactionKind::CapabilityNotificationV1(_)
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
