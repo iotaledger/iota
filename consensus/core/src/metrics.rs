@@ -396,8 +396,6 @@ impl Metrics {
                 .faulty_blocks_unprovable_by_authority
                 .with_label_values(&[hostname, source, error.name()])
                 .inc();
-        } else {
-            return;
         }
     }
 }
