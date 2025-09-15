@@ -6,3 +6,4 @@ pub mod logging;
 pub mod metrics;
 pub mod stream_ext;
 pub mod sync;
+pub mod try_iterator_ext;

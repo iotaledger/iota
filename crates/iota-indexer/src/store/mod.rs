@@ -96,6 +96,49 @@ pub mod diesel_macro {
     }
 
     #[macro_export]
+    macro_rules! transactional_blocking_with_retry_with_conditional_abort {
+        ($pool:expr, $query:expr, $abort_condition:expr, $max_elapsed:expr) => {{
+            use $crate::{
+                db::{PoolConnection, get_pool_connection},
+                errors::IndexerError,
+            };
+            let mut backoff = backoff::ExponentialBackoff::default();
+            backoff.max_elapsed_time = Some($max_elapsed);
+            let result = match backoff::retry(backoff, || {
+                let mut pool_conn =
+                    get_pool_connection($pool).map_err(|e| backoff::Error::Transient {
+                        err: IndexerError::PostgresWrite(e.to_string()),
+                        retry_after: None,
+                    })?;
+                pool_conn
+                    .as_any_mut()
+                    .downcast_mut::<PoolConnection>()
+                    .unwrap()
+                    .build_transaction()
+                    .read_write()
+                    .run($query)
+                    .map_err(|e| {
+                        tracing::error!("Error with persisting data into DB: {:?}, retrying...", e);
+                        if $abort_condition(&e) {
+                            backoff::Error::Permanent(e)
+                        } else {
+                            backoff::Error::Transient {
+                                err: IndexerError::PostgresWrite(e.to_string()),
+                                retry_after: None,
+                            }
+                        }
+                    })
+            }) {
+                Ok(v) => Ok(v),
+                Err(backoff::Error::Transient { err, .. }) => Err(err),
+                Err(backoff::Error::Permanent(err)) => Err(err),
+            };
+
+            result
+        }};
+    }
+
+    #[macro_export]
     macro_rules! spawn_read_only_blocking {
         ($pool:expr, $query:expr, $repeatable_read:expr) => {{
             use downcast::Any;
@@ -162,6 +205,21 @@ pub mod diesel_macro {
                 .on_conflict($target)
                 .do_update()
                 .set($pg_columns)
+                .execute($conn)?;
+        }};
+    }
+
+    #[macro_export]
+    macro_rules! on_conflict_do_update_with_condition {
+        ($table:expr, $values:expr, $target:expr, $pg_columns:expr, $condition:expr, $conn:expr) => {{
+            use diesel::{ExpressionMethods, RunQueryDsl, query_dsl::methods::FilterDsl};
+
+            diesel::insert_into($table)
+                .values($values)
+                .on_conflict($target)
+                .do_update()
+                .set($pg_columns)
+                .filter($condition)
                 .execute($conn)?;
         }};
     }
@@ -271,9 +329,7 @@ pub mod diesel_macro {
             transactional_blocking_with_retry!(
                 $pool,
                 |conn| {
-                    for chunk in $chunk.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                        insert_or_ignore_into!($table, chunk, conn);
-                    }
+                    persist_chunk_into_table_in_existing_connection!($table, $chunk, conn);
                     Ok::<(), IndexerError>(())
                 },
                 PG_DB_COMMIT_SLEEP_DURATION
@@ -290,6 +346,15 @@ pub mod diesel_macro {
             .tap_err(|e| {
                 tracing::error!("Failed to persist {} with error: {}", stringify!($table), e);
             })
+        }};
+    }
+
+    #[macro_export]
+    macro_rules! persist_chunk_into_table_in_existing_connection {
+        ($table:expr, $chunk:expr, $conn:expr) => {{
+            for chunk in $chunk.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                insert_or_ignore_into!($table, chunk, $conn);
+            }
         }};
     }
 

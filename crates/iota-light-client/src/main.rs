@@ -19,13 +19,13 @@ use iota_light_client::{
     verifier::{get_verified_effects_and_events, get_verified_object},
 };
 use iota_package_resolver::Resolver;
-use iota_rest_api::CheckpointData;
 use iota_sdk::IotaClientBuilder;
 use iota_types::{
     base_types::ObjectID,
     committee::Committee,
     digests::{CheckpointDigest, TransactionDigest},
     event::EventID,
+    full_checkpoint_content::CheckpointData,
     object::{Data, bounded_visitor::BoundedVisitor},
 };
 use tracing::{debug, error, info};
