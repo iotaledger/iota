@@ -131,20 +131,24 @@ struct CheckpointCommitNotification {
 ///
 /// # Backpressure Handling
 ///
+/// This broadcaster handles the "slow receiver" problem similarly to tokio's
+/// broadcast channels. When subscribers cannot keep up with the message rate,
+/// the system maintains bounded memory usage while gracefully handling lag.
+///
 /// ## Channel Send Behavior
 /// - **Success**: Message is delivered immediately to the subscriber's channel
 /// - **Channel Full**: Message is added to the subscriber's local lag buffer
-///   (ring buffer)
 /// - **Channel Closed**: Subscriber is automatically removed from the
 ///   subscribers list
 ///
-/// ## Lag Buffer (Ring Buffer)
-/// Each subscriber has a local `VecDeque` buffer that acts as a ring buffer:
+/// ## Lag Buffer
+/// Each subscriber has a local buffer that retains messages when their channel
+/// is full:
 /// - When a subscriber's channel is full, messages are queued in their lag
 ///   buffer
-/// - The lag buffer has a capacity limit (typically 2x the channel buffer size)
-/// - When the lag buffer exceeds capacity, the **oldest** messages are dropped
-///   to make room for newer ones
+/// - The lag buffer has a hard upper bound on capacity (`BUFFER_SIZE`)
+/// - When the buffer is at capacity and a new message arrives, the **oldest**
+///   message is released to free up space for the new message
 /// - On the next broadcast iteration, buffered messages are sent first
 ///   (oldest-to-newest) before new messages
 ///
@@ -188,6 +192,7 @@ where
             let mut to_remove = vec![];
             let mut subscribers_snapshot = subscribers.lock().unwrap_or_else(|poisoned| {
                 error!("Subscribers mutex poisoned, recovering...");
+                subscribers.clear_poison();
                 poisoned.into_inner()
             });
 
@@ -195,7 +200,7 @@ where
                 if !(subscriber.filter.matches(&data)) {
                     continue;
                 }
-                Self::ring_buffer_push(&mut subscriber.lag_buffer, data.clone());
+                Self::push_bounded(&mut subscriber.lag_buffer, data.clone());
                 while let Some(data) = subscriber.lag_buffer.pop_front() {
                     match subscriber.sender.try_send(data) {
                         Ok(_) => {
@@ -203,7 +208,7 @@ where
                         }
                         Err(TrySendError::Full(returned_data)) => {
                             warn!(subscription_id = id, "Lagging behind");
-                            Self::ring_buffer_push(&mut subscriber.lag_buffer, returned_data);
+                            Self::push_bounded(&mut subscriber.lag_buffer, returned_data);
                         }
                         Err(TrySendError::Closed(_)) => {
                             warn!(
@@ -220,6 +225,7 @@ where
         if !to_remove.is_empty() {
             let mut subscribers = subscribers.lock().unwrap_or_else(|poisoned| {
                 error!("Subscribers mutex poisoned, recovering...");
+                subscribers.clear_poison();
                 poisoned.into_inner()
             });
             for sub in to_remove {
@@ -228,8 +234,10 @@ where
         }
     }
 
-    fn ring_buffer_push(lag_buff: &mut VecDeque<T>, data: T) {
-        if lag_buff.capacity() > BUFFER_SIZE {
+    /// Pushes a message to the lag buffer. If the buffer is at capacity,
+    /// the oldest message is released to free up space for the new message.
+    fn push_bounded(lag_buff: &mut VecDeque<T>, data: T) {
+        if lag_buff.len() >= BUFFER_SIZE {
             lag_buff.pop_front();
         }
         lag_buff.push_back(data);
@@ -260,6 +268,7 @@ where
     fn subscribe(&self, filter: F) -> impl Stream<Item = T> {
         let mut subscribers = self.subscribers.lock().unwrap_or_else(|poisoned| {
             error!("Subscribers mutex poisoned, recovering...");
+            self.subscribers.clear_poison();
             poisoned.into_inner()
         });
 
@@ -307,10 +316,11 @@ where
 ///
 /// # Backpressure Handling
 ///
-/// Slow consumers that cannot keep up with the data rate are automatically
-/// pruned to prevent blocking other subscribers. Each subscriber has a bounded
-/// channel with `BUFFER_SIZE` capacity. A maximum of `MAX_SUBSCRIBERS`
-/// concurrent subscriptions is enforced to prevent memory exhaustion.
+/// This implementation handles the "slow receiver" problem by maintaining
+/// bounded memory usage per subscriber. When a subscriber cannot keep up with
+/// the message rate, older unprocessed messages are released to make room for
+/// newer ones, preventing memory exhaustion while allowing the subscriber to
+/// continue receiving recent data.
 pub struct IndexerStreamer {
     events_broadcaster: Broadcaster<StoredEvent, StreamEventFilter>,
     transactions_broadcaster: Broadcaster<StoredTransaction, StreamTransactionFilter>,
