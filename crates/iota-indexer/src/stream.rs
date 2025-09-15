@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeMap,
+    collections::{BTreeMap, VecDeque},
     str::FromStr,
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex},
     time::Instant,
 };
 
@@ -17,7 +17,7 @@ use iota_types::{
     transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc;
+use tokio::sync::mpsc::{self, error::TrySendError};
 use tokio_postgres::{AsyncMessage, Client, Config, Connection, NoTls, Socket, tls::NoTlsStream};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, error, warn};
@@ -29,14 +29,18 @@ use crate::{
         events::StoredEvent,
         transactions::{StoredTransaction, stored_events_to_events},
     },
-    types::IndexerResult,
 };
 
 const BUFFER_SIZE: usize = 1000;
-const MAX_SUBSCRIBERS: usize = 100;
 const CHANNEL_NAME: &str = "checkpoint_committed";
 
-type Subscribers<T, F> = Arc<RwLock<BTreeMap<String, (mpsc::Sender<T>, F)>>>;
+type Subscribers<T, F> = Arc<Mutex<BTreeMap<String, Subscriber<T, F>>>>;
+
+struct Subscriber<T, F> {
+    sender: mpsc::Sender<T>,
+    lag_buffer: VecDeque<T>,
+    filter: F,
+}
 
 #[derive(Clone, Debug, Default)]
 pub enum StreamEventFilter {
@@ -112,10 +116,10 @@ impl Filter<StoredTransaction> for StreamTransactionFilter {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct CheckpointCommitNotification {
-    pub checkpoint_sequence_number: i64,
-    pub min_tx_sequence_number: i64,
-    pub max_tx_sequence_number: i64,
+struct CheckpointCommitNotification {
+    checkpoint_sequence_number: i64,
+    min_tx_sequence_number: i64,
+    max_tx_sequence_number: i64,
 }
 
 /// A lightweight in-memory fan-out broadcaster that distributes data to
@@ -127,15 +131,22 @@ pub struct CheckpointCommitNotification {
 ///
 /// # Backpressure Handling
 ///
-/// The broadcaster implements automatic subscriber pruning for backpressure
-/// management:
-/// - Each subscriber has a bounded channel with `BUFFER_SIZE` capacity
-/// - Maximum of `MAX_SUBSCRIBERS` concurrent subscribers allowed
-/// - When a subscriber's channel is full, `try_send` fails immediately
-/// - Failed subscribers are automatically removed from the subscriber list
-/// - New subscriptions are rejected when at maximum capacity
-/// - This prevents slow consumers from stalling the entire broadcast system and
-///   prevents OOM
+/// ## Channel Send Behavior
+/// - **Success**: Message is delivered immediately to the subscriber's channel
+/// - **Channel Full**: Message is added to the subscriber's local lag buffer
+///   (ring buffer)
+/// - **Channel Closed**: Subscriber is automatically removed from the
+///   subscribers list
+///
+/// ## Lag Buffer (Ring Buffer)
+/// Each subscriber has a local `VecDeque` buffer that acts as a ring buffer:
+/// - When a subscriber's channel is full, messages are queued in their lag
+///   buffer
+/// - The lag buffer has a capacity limit (typically 2x the channel buffer size)
+/// - When the lag buffer exceeds capacity, the **oldest** messages are dropped
+///   to make room for newer ones
+/// - On the next broadcast iteration, buffered messages are sent first
+///   (oldest-to-newest) before new messages
 ///
 /// # Filtering
 ///
@@ -157,7 +168,7 @@ where
     /// This method spawns a background task that continuously reads from `rx`
     /// and distributes items to all registered subscribers. The broadcaster
     /// begins processing immediately upon creation.
-    pub fn new(mut rx: mpsc::Receiver<T>) -> Self {
+    fn new(mut rx: mpsc::Receiver<T>) -> Self {
         let streamer = Self {
             subscribers: Default::default(),
         };
@@ -166,44 +177,62 @@ where
 
         tokio::spawn(async move {
             while let Some(data) = rx.recv().await {
-                Self::send_to_all_subscribers(subscribers.clone(), data).await;
+                Self::send_to_all_subscribers(subscribers.clone(), data);
             }
         });
         streamer
     }
 
-    async fn send_to_all_subscribers(subscribers: Subscribers<T, F>, data: T) {
+    fn send_to_all_subscribers(subscribers: Subscribers<T, F>, data: T) {
         let to_remove = {
             let mut to_remove = vec![];
-            let subscribers_snapshot = subscribers
-                .read()
-                .expect("failed to acquire read subscribers lock");
+            let mut subscribers_snapshot = subscribers.lock().unwrap_or_else(|poisoned| {
+                error!("Subscribers mutex poisoned, recovering...");
+                poisoned.into_inner()
+            });
 
-            for (id, (subscriber, filter)) in subscribers_snapshot.iter() {
-                if !(filter.matches(&data)) {
+            for (id, subscriber) in subscribers_snapshot.iter_mut() {
+                if !(subscriber.filter.matches(&data)) {
                     continue;
                 }
-                match subscriber.try_send(data.clone()) {
-                    Ok(_) => {
-                        debug!(subscription_id = id, "Streaming data to subscriber.");
-                    }
-                    Err(e) => {
-                        warn!(
-                            subscription_id = id,
-                            "Error when streaming data, removing subscriber. Error: {e}"
-                        );
-                        to_remove.push(id.clone());
+                Self::ring_buffer_push(&mut subscriber.lag_buffer, data.clone());
+                while let Some(data) = subscriber.lag_buffer.pop_front() {
+                    match subscriber.sender.try_send(data) {
+                        Ok(_) => {
+                            debug!(subscription_id = id, "Streaming data to subscriber.");
+                        }
+                        Err(TrySendError::Full(returned_data)) => {
+                            warn!(subscription_id = id, "Lagging behind");
+                            Self::ring_buffer_push(&mut subscriber.lag_buffer, returned_data);
+                        }
+                        Err(TrySendError::Closed(_)) => {
+                            warn!(
+                                subscription_id = id,
+                                "Sender half dropped, removing subscriber"
+                            );
+                            to_remove.push(id.clone());
+                        }
                     }
                 }
             }
             to_remove
         };
         if !to_remove.is_empty() {
-            let mut subscribers = subscribers.write().unwrap();
+            let mut subscribers = subscribers.lock().unwrap_or_else(|poisoned| {
+                error!("Subscribers mutex poisoned, recovering...");
+                poisoned.into_inner()
+            });
             for sub in to_remove {
                 subscribers.remove(&sub);
             }
         }
+    }
+
+    fn ring_buffer_push(lag_buff: &mut VecDeque<T>, data: T) {
+        if lag_buff.capacity() > BUFFER_SIZE {
+            lag_buff.pop_front();
+        }
+        lag_buff.push_back(data);
     }
 
     /// Creates a new subscription to the broadcast stream with the specified
@@ -213,13 +242,7 @@ where
     /// - Receives only items that match the provided filter
     /// - Has its own bounded channel buffer (`BUFFER_SIZE` capacity)
     /// - Operates independently of other subscribers
-    /// - Is automatically removed if it becomes slow or disconnected
-    ///
-    /// # Subscriber Limit
-    ///
-    /// To prevent memory exhaustion, the broadcaster enforces a maximum of
-    /// `MAX_SUBSCRIBERS` concurrent subscriptions. When this limit is reached,
-    /// new subscription attempts will be rejected.
+    /// - Is automatically removed if it's disconnected
     ///
     /// # Example
     ///
@@ -234,24 +257,22 @@ where
     ///     }
     /// });
     /// ```
-    pub fn subscribe(&self, filter: F) -> IndexerResult<impl Stream<Item = T>> {
-        let mut subscribers = self
-            .subscribers
-            .write()
-            .expect("failed to acquire write subscribers lock");
-
-        // Check subscriber limit
-        if subscribers.len() > MAX_SUBSCRIBERS {
-            warn!(
-                "maximum subscribers ({}) reached, rejecting new subscription",
-                MAX_SUBSCRIBERS
-            );
-            return Err(IndexerError::Generic("maximum subscribers reached".into()));
-        }
+    fn subscribe(&self, filter: F) -> impl Stream<Item = T> {
+        let mut subscribers = self.subscribers.lock().unwrap_or_else(|poisoned| {
+            error!("Subscribers mutex poisoned, recovering...");
+            poisoned.into_inner()
+        });
 
         let (tx, rx) = mpsc::channel::<T>(BUFFER_SIZE);
-        subscribers.insert(ObjectID::random().to_string(), (tx, filter));
-        Ok(ReceiverStream::new(rx))
+        subscribers.insert(
+            ObjectID::random().to_string(),
+            Subscriber {
+                sender: tx,
+                lag_buffer: VecDeque::with_capacity(BUFFER_SIZE * 2),
+                filter,
+            },
+        );
+        ReceiverStream::new(rx)
     }
 }
 
@@ -331,6 +352,11 @@ impl IndexerStreamer {
     /// provided filter. Each subscriber gets its own independent stream and
     /// won't be affected by the processing speed of other subscribers.
     ///
+    /// # Note
+    /// If the subscriber's channel exceeds its internal capacity due to slow
+    /// processing, older unprocessed events will be replaced with newer ones
+    /// to maintain bounded memory usage.
+    ///
     /// # Example
     ///
     /// ```rust,ignore
@@ -342,10 +368,7 @@ impl IndexerStreamer {
     ///     }
     /// });
     /// ```
-    pub fn subscribe_events(
-        &self,
-        filter: StreamEventFilter,
-    ) -> IndexerResult<impl Stream<Item = StoredEvent>> {
+    pub fn subscribe_events(&self, filter: StreamEventFilter) -> impl Stream<Item = StoredEvent> {
         self.events_broadcaster.subscribe(filter)
     }
 
@@ -354,6 +377,11 @@ impl IndexerStreamer {
     /// Creates a new subscription that will receive transactions matching the
     /// provided filter. Each subscriber gets its own independent stream and
     /// won't be affected by the processing speed of other subscribers.
+    ///
+    /// # Note
+    /// If the subscriber's channel exceeds its internal capacity due to slow
+    /// processing, older unprocessed events will be replaced with newer ones
+    /// to maintain bounded memory usage.
     ///
     /// # Example
     ///
@@ -370,7 +398,7 @@ impl IndexerStreamer {
     pub fn subscribe_transactions(
         &self,
         filter: StreamTransactionFilter,
-    ) -> IndexerResult<impl Stream<Item = StoredTransaction>> {
+    ) -> impl Stream<Item = StoredTransaction> {
         self.transactions_broadcaster.subscribe(filter)
     }
 
