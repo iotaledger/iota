@@ -5307,7 +5307,7 @@ impl AuthorityState {
             let field_move_object = authenticator_info_field_obj
                 .data
                 .try_as_move()
-                .expect("dynamic field should never have be a package object");
+                .expect("dynamic field should never be a package object");
 
             let field: Field<Vec<u8>, AuthenticatorInfoV1> =
                 bcs::from_bytes(field_move_object.contents()).map_err(|_| {
