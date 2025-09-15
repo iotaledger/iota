@@ -268,7 +268,7 @@ where
             ObjectID::random().to_string(),
             Subscriber {
                 sender: tx,
-                lag_buffer: VecDeque::with_capacity(BUFFER_SIZE * 2),
+                lag_buffer: VecDeque::with_capacity(BUFFER_SIZE),
                 filter,
             },
         );
