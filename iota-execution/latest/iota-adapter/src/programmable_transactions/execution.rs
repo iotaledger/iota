@@ -1391,20 +1391,7 @@ mod checked {
             // injected yet.
             let is_last_arg = idx == (args.len() - 1);
             if is_last_arg && is_auth_context(context, non_ref_param_ty)? {
-                assert_invariant!(
-                    context.protocol_config.move_auth(),
-                    "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_auth` feature is disabled"
-                );
-
-                // TODO: Should we try to deserialize?
-                // TODO: Create a MOVE_AUTHENTICATION mode to make sure that `AuthContext` is
-                // used only for authentication?
-                if !matches!(value, Value::Raw(RawValueType::Any, _)) {
-                    return Err(command_argument_error(
-                        CommandArgumentError::TypeMismatch,
-                        idx,
-                    ));
-                }
+                check_auth_context_value(context, idx, &value)?;
             } else {
                 check_param_type::<Mode>(context, idx, &value, non_ref_param_ty)?;
             }
@@ -1515,6 +1502,31 @@ mod checked {
             }
         }
         Ok(())
+    }
+
+    /// Checks that the value represents the `iota::auth_context::AuthContext`
+    /// type.
+    fn check_auth_context_value(
+        context: &mut ExecutionContext<'_, '_, '_>,
+        idx: usize,
+        value: &Value,
+    ) -> Result<(), ExecutionError> {
+        assert_invariant!(
+            context.protocol_config.move_auth(),
+            "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_auth` feature is disabled"
+        );
+
+        // TODO: Should we try to deserialize?
+        // TODO: Create a MOVE_AUTHENTICATION mode to make sure that `AuthContext` is
+        // used only for authentication?
+        if matches!(value, Value::Raw(RawValueType::Any, _)) {
+            return Ok(());
+        }
+
+        Err(command_argument_error(
+            CommandArgumentError::TypeMismatch,
+            idx,
+        ))
     }
 
     fn to_identifier(
