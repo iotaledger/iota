@@ -110,15 +110,6 @@ export function ImportKeystone() {
                                                 </div>
                                             )}
                                         </div>
-                                        {scanProgress > 0 && scanProgress <= 100 && (
-                                            <div className="absolute inset-0 flex items-end justify-center pb-4">
-                                                <div className="rounded-full bg-black bg-opacity-50 px-4 py-2">
-                                                    <div className="text-xl font-bold text-white">
-                                                        {Math.round(scanProgress)}%
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                     <span className="mb-sm text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                         Camera is blurred for security reasons
