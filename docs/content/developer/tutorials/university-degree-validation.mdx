@@ -48,6 +48,27 @@ sequenceDiagram
     Consortium-->>Employer: Validation result = false
 ```
 
+## Business Context
+
+Universities need to issue degrees that employers and other institutions can verify without manually contacting the university.
+With IOTA Hierarchies:
+
+- A Federation represents the University Consortium.
+
+- Root Authorities are the accredited universities (Harvard, MIT, …).
+
+- Accreditations to accredit let universities delegate authority to their faculties.
+
+- Accreditations to attest let faculties empower registrars to issue degrees.
+
+- Attestations are the actual degrees issued to students.
+
+- Validation allows third parties (employers, schools) to check authenticity.
+
+This ensures a trust chain:
+
+Consortium → University → Faculty → Registrar → Student Degree.
+
 ## Requirements
 
 - Install Rust (v1.70+ recommended).
@@ -179,3 +200,157 @@ In our project:
 
 With these core concepts — Federation, Root Authority, Accreditation, Attestation, Validation, and Revocation — we can now clearly understand the trust model behind IOTA Hierarchies.
 In the next section, we’ll implement these concepts step by step in Rust.
+
+## Getting Started
+
+## Step 1: Create a Federation
+
+We first create the University Consortium federation.
+
+```Rust
+use hierarchies::{federation::Federation, identity::get_funded_client};
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    // Create a new IOTA client
+    let client = get_funded_client().await?;
+
+    // Create the federation
+    let consortium = Federation::create("University Consortium", &client).await?;
+    println!("✅ Created federation: {}", consortium.name());
+
+    Ok(())
+}
+```
+
+## Step 2: Define Academic Properties
+
+Next, we define the degree properties allowed in our federation.
+
+```Rust
+use hierarchies::property::{Property, PropertyType};
+
+async fn define_properties(consortium: &Federation) -> anyhow::Result<()> {
+    consortium.add_property(
+        Property::new("degree", PropertyType::String, vec!["bachelor", "master", "phd"]).unwrap()
+    ).await?;
+
+    consortium.add_property(
+        Property::new("field", PropertyType::String, vec!["cs", "math", "biology"]).unwrap()
+    ).await?;
+
+    consortium.add_property(
+        Property::new("gpa", PropertyType::Number, vec![]).unwrap()
+    ).await?;
+
+    println!("✅ Properties defined: degree, field, gpa");
+    Ok(())
+}
+```
+
+## Step 3: Add Universities as Root Authorities
+
+Each university becomes a Root Authority in the federation.
+
+```Rust
+use hierarchies::authority::Authority;
+
+async fn add_universities(consortium: &Federation) -> anyhow::Result<()> {
+    let harvard = Authority::create("Harvard University").await?;
+    let mit = Authority::create("MIT").await?;
+
+    consortium.add_root_authority(&harvard).await?;
+    consortium.add_root_authority(&mit).await?;
+
+    println!("✅ Added root authorities: Harvard, MIT");
+    Ok(())
+}
+```
+
+## Step 4: Delegate to Faculties
+
+Universities delegate to their faculties using an accreditation to accredit.
+
+```Rust
+use hierarchies::accreditation::Accreditation;
+
+async fn delegate_to_faculty(harvard: &Authority) -> anyhow::Result<Authority> {
+    let cs_faculty = Authority::create("Harvard CS Faculty").await?;
+    Accreditation::create_to_accredit(harvard, &cs_faculty).await?;
+    println!("✅ Harvard accredited CS Faculty");
+    Ok(cs_faculty)
+}
+```
+
+## Step 5: Grant Registrar Attestation Rights
+
+Faculties grant accreditation to attest to their registrars, allowing them to issue degrees.
+
+```Rust
+async fn empower_registrar(cs_faculty: &Authority) -> anyhow::Result<Authority> {
+    let registrar = Authority::create("Harvard CS Registrar").await?;
+    Accreditation::create_to_attest(cs_faculty, &registrar).await?;
+    println!("✅ CS Faculty empowered Registrar to issue degrees");
+    Ok(registrar)
+}
+```
+
+## Step 6: Issue Degrees (Create Attestations)
+
+Registrars issue attestations representing degrees.
+
+```Rust
+use hierarchies::attestation::Attestation;
+
+async fn issue_degrees(registrar: &Authority) -> anyhow::Result<()> {
+    Attestation::create(registrar, "Alice", vec![
+        ("degree", "bachelor"),
+        ("field", "cs"),
+        ("gpa", "3.7"),
+    ]).await?;
+
+    Attestation::create(registrar, "Bob", vec![
+        ("degree", "master"),
+        ("field", "cs"),
+        ("gpa", "3.9"),
+    ]).await?;
+
+    println!("✅ Issued degrees for Alice (Bachelor CS) and Bob (Master CS)");
+    Ok(())
+}
+```
+
+## Step 7: Validate Credentials
+
+Employers or graduate schools can validate a student’s credentials.
+
+```Rust
+use hierarchies::validation::validate_properties;
+
+async fn validate_example(consortium: &Federation) -> anyhow::Result<()> {
+    let valid = validate_properties(
+        consortium,
+        "Alice",
+        vec![("degree", "bachelor"), ("field", "cs")]
+    ).await?;
+
+    println!("✅ Validation result for Alice: {}", valid);
+
+    Ok(())
+}
+```
+
+## Step 8: Revoke a Degree
+
+Degrees can be revoked if issued in error or due to misconduct.
+
+```Rust
+use hierarchies::revocation::revoke_attestation;
+
+async fn revoke_degree(registrar: &Authority) -> anyhow::Result<()> {
+    revoke_attestation(registrar, "Alice").await?;
+    println!("⚠️ Revoked Alice’s degree");
+
+    Ok(())
+}
+```
