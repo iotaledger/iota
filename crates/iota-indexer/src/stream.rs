@@ -73,8 +73,8 @@ impl Filter<StoredEvent> for StreamEventFilter {
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Module {
-    name: String,
-    function: Option<String>,
+    pub name: String,
+    pub function: Option<String>,
 }
 
 /// Filter returned [`StoredTransaction`] form the stream.
