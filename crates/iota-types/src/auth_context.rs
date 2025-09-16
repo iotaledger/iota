@@ -4,12 +4,16 @@
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
-use serde::{Deserialize, Serialize};
+use serde::{
+    Serialize, Serializer,
+    ser::{SerializeStruct, SerializeStructVariant, SerializeTupleVariant},
+};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
     digests::MoveAuthenticatorDigest,
     transaction::{CallArg, Command, ProgrammableTransaction},
+    type_input::TypeName,
 };
 
 pub const AUTH_CONTEXT_MODULE_NAME: &IdentStr = ident_str!("auth_context");
@@ -40,7 +44,7 @@ pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
 /// ```
 // Conceptually similar to `TxContext`, but designed specifically for use in the authentication
 // flow.
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthContext {
     /// The digest of the MoveAuthenticator
     auth_digest: MoveAuthenticatorDigest,
@@ -100,6 +104,66 @@ impl AuthContext {
         } else {
             AuthContextKind::None
         }
+    }
+}
+
+// TODO: add a deserializer that can handle the Command::MoveCall and
+// Command::MakeMoveVec variants properly. For now, we only need serialization
+// for inclusion in the tx authenticator input, so we implement Serialize only.
+// Alternatively, a custom Command struct could be created for de/serialization
+// purposes or to add new functionalities.
+impl Serialize for AuthContext {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("AuthContext", 3)?;
+        state.serialize_field("auth_digest", &self.auth_digest)?;
+        state.serialize_field("tx_inputs", &self.tx_inputs)?;
+
+        // Serialize tx_commands as a Vec of enums, matching the original logic
+        struct CommandSer<'a>(&'a Command);
+
+        impl<'a> Serialize for CommandSer<'a> {
+            fn serialize<SC>(&self, serializer: SC) -> Result<SC::Ok, SC::Error>
+            where
+                SC: Serializer,
+            {
+                match self.0 {
+                    Command::MoveCall(m) => {
+                        let mut s =
+                            serializer.serialize_struct_variant("Command", 0, "MoveCall", 5)?;
+                        s.serialize_field("package", &m.package)?;
+                        s.serialize_field("module", &m.module)?;
+                        s.serialize_field("function", &m.function)?;
+                        s.serialize_field(
+                            "type_arguments",
+                            &m.type_arguments
+                                .iter()
+                                .map(|ty| TypeName::from(ty))
+                                .collect::<Vec<_>>(),
+                        )?;
+                        s.serialize_field("arguments", &m.arguments)?;
+                        s.end()
+                    }
+                    Command::MakeMoveVec(ty_opt, vals) => {
+                        let mut s =
+                            serializer.serialize_tuple_variant("Command", 5, "MakeMoveVec", 2)?;
+                        s.serialize_field(&ty_opt.as_ref().map(|ty| TypeName::from(ty)))?;
+                        s.serialize_field(vals)?;
+                        s.end()
+                    }
+                    _ => self.0.serialize(serializer),
+                }
+            }
+        }
+
+        state.serialize_field(
+            "tx_commands",
+            &self.tx_commands.iter().map(CommandSer).collect::<Vec<_>>(),
+        )?;
+
+        state.end()
     }
 }
 
