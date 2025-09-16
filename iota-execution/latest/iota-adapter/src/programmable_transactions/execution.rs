@@ -15,7 +15,7 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS,
+        IOTA_FRAMEWORK_ADDRESS, auth_context,
         base_types::{
             IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
             RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
@@ -1385,7 +1385,21 @@ mod checked {
                     idx,
                 ));
             }
-            check_param_type::<Mode>(context, idx, &value, non_ref_param_ty)?;
+            // We allow passing in the `AuthContext` as an argument to authenticate
+            // functions.
+            // It must be the last one in the arguments list since the `TxContext` is not
+            // injected yet.
+            //
+            // TODO: We must check the `AuthContext` parameter here because it is added
+            // to the `args` list when the authenticator transaction is created. It leads to
+            // having a more complex validation logic, so we need to refactor this and
+            // inject `AuthContext` in the same way how it is done for `TxContext`.
+            let is_last_arg = idx == (args.len() - 1);
+            if is_last_arg && is_auth_context(context, non_ref_param_ty)? {
+                check_auth_context_value(context, idx, &value)?;
+            } else {
+                check_param_type::<Mode>(context, idx, &value, non_ref_param_ty)?;
+            }
             let bytes = {
                 let mut v = vec![];
                 value.write_bcs_bytes(&mut v, None)?;
@@ -1403,6 +1417,11 @@ mod checked {
         value: &Value,
         param_ty: &Type,
     ) -> Result<(), ExecutionError> {
+        assert_invariant!(
+            !is_auth_context(context, param_ty)?,
+            "`iota::auth_context::AuthContext` struct is not expected to be used here"
+        );
+
         match value {
             // For dev-spect, allow any BCS bytes. This does mean internal invariants for types can
             // be violated (like for string or Option)
@@ -1490,6 +1509,30 @@ mod checked {
         Ok(())
     }
 
+    /// Checks that the value represents the `iota::auth_context::AuthContext`
+    /// type.
+    fn check_auth_context_value(
+        context: &mut ExecutionContext<'_, '_, '_>,
+        idx: usize,
+        value: &Value,
+    ) -> Result<(), ExecutionError> {
+        assert_invariant!(
+            context.protocol_config.move_auth(),
+            "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_auth` feature is disabled"
+        );
+
+        // TODO: Consider creating a MOVE_AUTHENTICATION execution mode to make sure
+        // that `AuthContext` is used only for authentication.
+        if matches!(value, Value::Raw(RawValueType::Any, _)) {
+            return Ok(());
+        }
+
+        Err(command_argument_error(
+            CommandArgumentError::TypeMismatch,
+            idx,
+        ))
+    }
+
     fn to_identifier(
         context: &mut ExecutionContext<'_, '_, '_>,
         ident: String,
@@ -1566,6 +1609,30 @@ mod checked {
         } else {
             TxContextKind::None
         })
+    }
+
+    // Returns `true` if the type is a Datatype with identifier matching
+    // `AuthContext`.
+    // Returns `false` for all other types or identifiers not matching.
+    pub fn is_auth_context(
+        context: &ExecutionContext<'_, '_, '_>,
+        t: &Type,
+    ) -> Result<bool, ExecutionError> {
+        let Type::Datatype(idx) = t else {
+            return Ok(false);
+        };
+
+        let Some(s) = context.vm.get_runtime().get_type(*idx) else {
+            invariant_violation!("Loaded struct not found")
+        };
+
+        let (module_addr, module_name, struct_name) = get_datatype_ident(&s);
+
+        Ok(auth_context::is_auth_context(
+            module_addr,
+            module_name,
+            struct_name,
+        ))
     }
 
     /// Returns Some(layout) iff it is a primitive, an ID, a String, or an
