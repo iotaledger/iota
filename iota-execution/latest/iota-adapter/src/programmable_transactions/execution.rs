@@ -1389,6 +1389,11 @@ mod checked {
             // functions.
             // It must be the last one in the arguments list since the `TxContext` is not
             // injected yet.
+            //
+            // TODO: We must check the `AuthContext` parameter here because it is added
+            // to the `args` list when the authenticator transaction is created. It leads to
+            // having a more complex validation logic, so we need to refactor this and
+            // inject `AuthContext` in the same way how it is done for `TxContext`.
             let is_last_arg = idx == (args.len() - 1);
             if is_last_arg && is_auth_context(context, non_ref_param_ty)? {
                 check_auth_context_value(context, idx, &value)?;
@@ -1516,9 +1521,8 @@ mod checked {
             "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_auth` feature is disabled"
         );
 
-        // TODO: Should we try to deserialize?
-        // TODO: Create a MOVE_AUTHENTICATION mode to make sure that `AuthContext` is
-        // used only for authentication?
+        // TODO: Consider creating a MOVE_AUTHENTICATION execution mode to make sure
+        // that `AuthContext` is used only for authentication.
         if matches!(value, Value::Raw(RawValueType::Any, _)) {
             return Ok(());
         }
