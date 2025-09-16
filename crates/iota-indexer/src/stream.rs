@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::BTreeMap,
     str::FromStr,
     sync::{Arc, Mutex},
     time::Instant,
@@ -17,7 +17,7 @@ use iota_types::{
     transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::{self, error::TrySendError};
+use tokio::sync::mpsc::{self};
 use tokio_postgres::{AsyncMessage, Client, Config, Connection, NoTls, Socket, tls::NoTlsStream};
 use tokio_stream::wrappers::ReceiverStream;
 use tracing::{debug, error, warn};
@@ -31,18 +31,22 @@ use crate::{
     },
 };
 
+/// Buffer size used in the mpsc bounded channels.
 const BUFFER_SIZE: usize = 1000;
+/// Postgres Notify channel name.
 const CHANNEL_NAME: &str = "checkpoint_committed";
 
+/// Active subscribers held in memory.
 type Subscribers<T, F> = Arc<Mutex<BTreeMap<String, Subscriber<T, F>>>>;
 
+/// A single subscriber to which we can send data based on provided filters.
 struct Subscriber<T, F> {
-    sender: mpsc::Sender<T>,
-    lag_buffer: VecDeque<T>,
+    sender: mpsc::Sender<StreamEvent<T>>,
     filter: F,
 }
 
-#[derive(Clone, Debug, Default)]
+/// Filter returned [`StoredEvent`] form the stream.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StreamEventFilter {
     #[default]
     All,
@@ -67,13 +71,14 @@ impl Filter<StoredEvent> for StreamEventFilter {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Module {
     name: String,
     function: Option<String>,
 }
 
-#[derive(Clone, Debug, Default)]
+/// Filter returned [`StoredTransaction`] form the stream.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StreamTransactionFilter {
     #[default]
     All,
@@ -115,42 +120,69 @@ impl Filter<StoredTransaction> for StreamTransactionFilter {
     }
 }
 
+/// Represents a notification about a checkpoint commit in Indexer Database, it
+/// acts as a trigger to request transaction related to that particular
+/// checkpoint.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 struct CheckpointCommitNotification {
+    /// Committed checkpoint sequence number.
     checkpoint_sequence_number: i64,
+    /// the minimum transaction sequence number.
     min_tx_sequence_number: i64,
+    /// the maximum transaction sequence number.
     max_tx_sequence_number: i64,
+}
+
+/// Represents events that can be sent to stream subscribers in a broadcasting
+/// system.
+///
+/// This enum encapsulates the different types of messages that subscribers can
+/// receive when listening to a stream. It handles both normal message delivery
+/// and backpressure scenarios where slow subscribers need to be managed.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum StreamEvent<T> {
+    /// A regular message delivered to an active subscriber.
+    ///
+    /// This variant indicates normal operation where the subscriber is keeping
+    /// up with the message flow and can continue receiving subsequent
+    /// messages. The wrapped data represents the actual payload being
+    /// streamed.
+    Message(T),
+    /// The final message sent to a subscriber that is lagging behind.
+    ///
+    /// This variant is sent when the server detects that a subscriber cannot
+    /// process messages fast enough to keep up with the stream. After sending
+    /// this message, the subscriber will be automatically removed from the
+    /// broadcasting system to prevent memory buildup and maintain overall
+    /// system performance.
+    ///
+    /// The wrapped data represents the last message the subscriber will
+    /// receive, allowing for graceful cleanup or final processing before
+    /// disconnection.
+    ClosingDueToLag(T),
 }
 
 /// A lightweight in-memory fan-out broadcaster that distributes data to
 /// multiple filtered subscribers.
 ///
-/// The `Broadcaster` provides a publish-subscribe pattern where a single data
-/// producer can efficiently distribute items to multiple consumers, each with
-/// their own filtering criteria.
+/// It provides a publish-subscribe pattern where a single data producer can
+/// efficiently distribute items to multiple consumers, each with their own
+/// filtering criteria.
 ///
 /// # Backpressure Handling
+/// The "slow receiver" problem is handled through capacity-based monitoring:
 ///
-/// This broadcaster handles the "slow receiver" problem similarly to tokio's
-/// broadcast channels. When subscribers cannot keep up with the message rate,
-/// the system maintains bounded memory usage while gracefully handling lag.
-///
-/// ## Channel Send Behavior
-/// - **Success**: Message is delivered immediately to the subscriber's channel
-/// - **Channel Full**: Message is added to the subscriber's local lag buffer
-/// - **Channel Closed**: Subscriber is automatically removed from the
-///   subscribers list
-///
-/// ## Lag Buffer
-/// Each subscriber has a local buffer that retains messages when their channel
-/// is full:
-/// - When a subscriber's channel is full, messages are queued in their lag
-///   buffer
-/// - The lag buffer has a hard upper bound on capacity (`BUFFER_SIZE`)
-/// - When the buffer is at capacity and a new message arrives, the **oldest**
-///   message is released to free up space for the new message
-/// - On the next broadcast iteration, buffered messages are sent first
-///   (oldest-to-newest) before new messages
+/// - **Normal Operation**: When a subscriber's channel has capacity > 1,
+///   messages are sent as [`StreamEvent::Message`] allowing continued
+///   subscription
+/// - **Backpressure Detection**: When capacity drops to 1 (channel nearly
+///   full), the subscriber is marked as lagging behind the message production
+///   rate
+/// - **Graceful Termination**: Lagging subscribers receive their final message
+///   wrapped in [`StreamEvent::ClosingDueToLag`] and are automatically removed
+///   from the subscriber list
+/// - **System Protection**: This prevents unbounded memory growth and maintains
+///   overall broadcaster performance by avoiding blocking on slow consumers
 ///
 /// # Filtering
 ///
@@ -169,9 +201,10 @@ where
     /// Creates a new broadcaster that consumes items from the provided
     /// receiver.
     ///
-    /// This method spawns a background task that continuously reads from `rx`
-    /// and distributes items to all registered subscribers. The broadcaster
-    /// begins processing immediately upon creation.
+    /// This method spawns a background task that continuously reads from
+    /// [`mpsc::Receiver`] and distributes items to all registered
+    /// subscribers. The broadcaster begins processing immediately upon
+    /// creation.
     fn new(mut rx: mpsc::Receiver<T>) -> Self {
         let streamer = Self {
             subscribers: Default::default(),
@@ -197,28 +230,32 @@ where
             });
 
             for (id, subscriber) in subscribers_snapshot.iter_mut() {
+                if subscriber.sender.is_closed() {
+                    warn!(
+                        subscription_id = id,
+                        "Subscriber closed connection, removing"
+                    );
+                    to_remove.push(id.clone());
+                    continue;
+                }
+
                 if !(subscriber.filter.matches(&data)) {
                     continue;
                 }
-                Self::push_bounded(&mut subscriber.lag_buffer, data.clone());
-                while let Some(data) = subscriber.lag_buffer.pop_front() {
-                    match subscriber.sender.try_send(data) {
-                        Ok(_) => {
-                            debug!(subscription_id = id, "Streaming data to subscriber.");
-                        }
-                        Err(TrySendError::Full(returned_data)) => {
-                            warn!(subscription_id = id, "Lagging behind");
-                            Self::push_bounded(&mut subscriber.lag_buffer, returned_data);
-                        }
-                        Err(TrySendError::Closed(_)) => {
-                            warn!(
-                                subscription_id = id,
-                                "Sender half dropped, removing subscriber"
-                            );
-                            to_remove.push(id.clone());
-                        }
-                    }
-                }
+
+                let data = if subscriber.sender.capacity() > 1 {
+                    StreamEvent::Message(data.clone())
+                } else {
+                    warn!(
+                        subscription_id = id,
+                        "Lagging behind, sending last message and removing"
+                    );
+                    to_remove.push(id.clone());
+                    StreamEvent::ClosingDueToLag(data.clone())
+                };
+
+                // since we checked the capacity we can ignore the result
+                let _ = subscriber.sender.try_send(data);
             }
             to_remove
         };
@@ -234,21 +271,12 @@ where
         }
     }
 
-    /// Pushes a message to the lag buffer. If the buffer is at capacity,
-    /// the oldest message is released to free up space for the new message.
-    fn push_bounded(lag_buff: &mut VecDeque<T>, data: T) {
-        if lag_buff.len() >= BUFFER_SIZE {
-            lag_buff.pop_front();
-        }
-        lag_buff.push_back(data);
-    }
-
     /// Creates a new subscription to the broadcast stream with the specified
     /// filter.
     ///
     /// Each call to `subscribe` creates an independent stream that:
     /// - Receives only items that match the provided filter
-    /// - Has its own bounded channel buffer (`BUFFER_SIZE` capacity)
+    /// - Has its own bounded channel buffer ([`BUFFER_SIZE`] capacity)
     /// - Operates independently of other subscribers
     /// - Is automatically removed if it's disconnected
     ///
@@ -265,21 +293,16 @@ where
     ///     }
     /// });
     /// ```
-    fn subscribe(&self, filter: F) -> impl Stream<Item = T> {
+    fn subscribe(&self, filter: F) -> impl Stream<Item = StreamEvent<T>> {
         let mut subscribers = self.subscribers.lock().unwrap_or_else(|poisoned| {
             error!("Subscribers mutex poisoned, recovering...");
             self.subscribers.clear_poison();
             poisoned.into_inner()
         });
-
-        let (tx, rx) = mpsc::channel::<T>(BUFFER_SIZE);
+        let (tx, rx) = mpsc::channel::<StreamEvent<T>>(BUFFER_SIZE);
         subscribers.insert(
             ObjectID::random().to_string(),
-            Subscriber {
-                sender: tx,
-                lag_buffer: VecDeque::with_capacity(BUFFER_SIZE),
-                filter,
-            },
+            Subscriber { sender: tx, filter },
         );
         ReceiverStream::new(rx)
     }
@@ -315,12 +338,19 @@ where
 /// ```
 ///
 /// # Backpressure Handling
+/// The "slow receiver" problem is handled through capacity-based monitoring:
 ///
-/// This implementation handles the "slow receiver" problem by maintaining
-/// bounded memory usage per subscriber. When a subscriber cannot keep up with
-/// the message rate, older unprocessed messages are released to make room for
-/// newer ones, preventing memory exhaustion while allowing the subscriber to
-/// continue receiving recent data.
+/// - **Normal Operation**: When a subscriber's channel has capacity > 1,
+///   messages are sent as [`StreamEvent::Message`] allowing continued
+///   subscription
+/// - **Backpressure Detection**: When capacity drops to 1 (channel nearly
+///   full), the subscriber is marked as lagging behind the message production
+///   rate
+/// - **Graceful Termination**: Lagging subscribers receive their final message
+///   wrapped in [`StreamEvent::ClosingDueToLag`] and are automatically removed
+///   from the subscriber list
+/// - **System Protection**: This prevents unbounded memory growth and maintains
+///   overall broadcaster performance by avoiding blocking on slow consumers
 pub struct IndexerStreamer {
     events_broadcaster: Broadcaster<StoredEvent, StreamEventFilter>,
     transactions_broadcaster: Broadcaster<StoredTransaction, StreamTransactionFilter>,
@@ -363,9 +393,13 @@ impl IndexerStreamer {
     /// won't be affected by the processing speed of other subscribers.
     ///
     /// # Note
-    /// If the subscriber's channel exceeds its internal capacity due to slow
-    /// processing, older unprocessed events will be replaced with newer ones
-    /// to maintain bounded memory usage.
+    /// If the subscriber cannot keep up with the event production rate (slow
+    /// subscriber problem), it will automatically receive a final
+    /// [`StreamEvent::ClosingDueToLag`] message and be disconnected to prevent
+    /// system-wide performance degradation. Subscribers can resubscribe at any
+    /// time to resume receiving events, but **any messages that occurred during
+    /// the disconnection period will be lost** - the new subscription will only
+    /// receive events from the point of resubscription forward.
     ///
     /// # Example
     ///
@@ -373,12 +407,22 @@ impl IndexerStreamer {
     /// let events = streamer.subscribe_events(StreamEventFilter::All).unwrap();
     /// tokio::spawn(async move {
     ///     use futures::StreamExt;
-    ///     while let Some(event) = events.next().await {
-    ///         println!("Event: {}", event.event_type);
+    ///     while let Some(stream_event) = events.next().await {
+    ///         match stream_event {
+    ///             StreamEvent::Message(ev) => {
+    ///                 println!("Transaction: {ev:?}");
+    ///             }
+    ///             StreamEvent::ClosingDueToLag(last_ev) => {
+    ///                 println!("Last Transaction: {last_ev:?}");
+    ///             }
+    ///         }
     ///     }
     /// });
     /// ```
-    pub fn subscribe_events(&self, filter: StreamEventFilter) -> impl Stream<Item = StoredEvent> {
+    pub fn subscribe_events(
+        &self,
+        filter: StreamEventFilter,
+    ) -> impl Stream<Item = StreamEvent<StoredEvent>> {
         self.events_broadcaster.subscribe(filter)
     }
 
@@ -389,9 +433,13 @@ impl IndexerStreamer {
     /// won't be affected by the processing speed of other subscribers.
     ///
     /// # Note
-    /// If the subscriber's channel exceeds its internal capacity due to slow
-    /// processing, older unprocessed events will be replaced with newer ones
-    /// to maintain bounded memory usage.
+    /// If the subscriber cannot keep up with the event production rate (slow
+    /// subscriber problem), it will automatically receive a final
+    /// [`StreamEvent::ClosingDueToLag`] message and be disconnected to prevent
+    /// system-wide performance degradation. Subscribers can resubscribe at any
+    /// time to resume receiving events, but **any messages that occurred during
+    /// the disconnection period will be lost** - the new subscription will only
+    /// receive events from the point of resubscription forward.
     ///
     /// # Example
     ///
@@ -400,15 +448,22 @@ impl IndexerStreamer {
     /// let txs = streamer.subscribe_transactions(filter).unwrap();
     /// tokio::spawn(async move {
     ///     use futures::StreamExt;
-    ///     while let Some(tx) = txs.next().await {
-    ///         println!("Transaction: {}", hex::encode(&tx.transaction_digest));
+    ///     while let Some(stream_event) = txs.next().await {
+    ///         match stream_event {
+    ///             StreamEvent::Message(tx) => {
+    ///                 println!("Transaction: {tx:?}");
+    ///             }
+    ///             StreamEvent::ClosingDueToLag(last_tx) => {
+    ///                 println!("Last Transaction: {last_tx:?}");
+    ///             }
+    ///         }
     ///     }
     /// });
     /// ```
     pub fn subscribe_transactions(
         &self,
         filter: StreamTransactionFilter,
-    ) -> impl Stream<Item = StoredTransaction> {
+    ) -> impl Stream<Item = StreamEvent<StoredTransaction>> {
         self.transactions_broadcaster.subscribe(filter)
     }
 
