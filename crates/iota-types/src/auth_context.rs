@@ -3,7 +3,7 @@
 
 use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
-use move_core_types::{ident_str, identifier::IdentStr};
+use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -95,11 +95,7 @@ impl AuthContext {
 
         let (module_addr, module_name, struct_name) = resolve_struct(module, *idx);
 
-        let is_auth_context_type = module_name == AUTH_CONTEXT_MODULE_NAME
-            && module_addr == &IOTA_FRAMEWORK_ADDRESS
-            && struct_name == AUTH_CONTEXT_STRUCT_NAME;
-
-        if is_auth_context_type {
+        if is_auth_context(module_addr, module_name, struct_name) {
             kind
         } else {
             AuthContextKind::None
@@ -115,4 +111,14 @@ pub enum AuthContextKind {
     Mutable,
     // &AuthContext
     Immutable,
+}
+
+pub fn is_auth_context(
+    module_addr: &AccountAddress,
+    module_name: &IdentStr,
+    struct_name: &IdentStr,
+) -> bool {
+    module_addr == &IOTA_FRAMEWORK_ADDRESS
+        && module_name == AUTH_CONTEXT_MODULE_NAME
+        && struct_name == AUTH_CONTEXT_STRUCT_NAME
 }
