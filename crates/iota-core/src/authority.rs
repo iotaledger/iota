@@ -90,7 +90,7 @@ use iota_types::{
         CheckpointSequenceNumber, CheckpointSummary, CheckpointSummaryResponse,
         CheckpointTimestamp, ECMHLiveObjectSetDigest, VerifiedCheckpoint,
     },
-    messages_consensus::AuthorityCapabilitiesV1,
+    messages_consensus::{AuthorityCapabilitiesV1, VerifiedAuthorityCapabilitiesV1},
     messages_grpc::{
         HandleTransactionResponse, LayoutGenerationOption, ObjectInfoRequest,
         ObjectInfoRequestKind, ObjectInfoResponse, TransactionInfoRequest, TransactionInfoResponse,
@@ -1690,6 +1690,26 @@ impl AuthorityState {
         let execution_guard = lock.try_read().unwrap();
 
         self.prepare_certificate(&execution_guard, certificate, input_objects, epoch_store)
+    }
+
+    /// Verifies the signature on the capability notification and updates the
+    /// authority capabilities after verifying the signature
+    pub fn handle_authority_capabilities(
+        &self,
+        verified_authority_capabilities: VerifiedAuthorityCapabilitiesV1,
+        _epoch_store: Arc<AuthorityPerEpochStore>,
+    ) -> Result<(), IotaError> {
+        info!(
+            "Received authority capabilities from non-validator authority. not doing anything with it. Received capabilities: {:?}",
+            verified_authority_capabilities.data()
+        );
+
+        // TODO: Implement the logic to handle authority capabilities from non-committee
+        //  active validators.
+
+        // epoch_store.record_capabilities_v1(verified_authority_capabilities.data())?;
+
+        Ok(())
     }
 
     #[allow(clippy::type_complexity)]

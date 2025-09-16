@@ -73,6 +73,10 @@ pub const MAX_PROTOCOL_VERSION: u64 = 12;
 // Version 11: Framework fix regarding candidate validator commission rate.
 // Version 12: Enable the gas price feedback mechanism in all networks.
 //             Enable the normalization of PTB arguments.
+// Version 13: Introduce logic to allow the committee to be selected from a set
+//             of eligible active validators.
+//             Enable processing and tracking AuthorityCapabilitiesV1 from
+//             non-committee validators in the devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -323,6 +327,19 @@ struct FeatureFlags {
     // `Result`s of length not equal to 1
     #[serde(skip_serializing_if = "is_false")]
     normalize_ptb_arguments: bool,
+
+    // If true, use ChangeEpochV3 for epoch change to pass an additional eligible_active_validators
+    // parameter to IotaSystem's advance_epoch call. This should only be enabled when on-chain
+    // IotaSystem objects are updated as well.
+    #[serde(skip_serializing_if = "is_false")]
+    select_committee_from_eligible_validators: bool,
+
+    // If true, non-committee active validators will sign and send AuthorityCapabilitiesV1 to the
+    // committee. The committee will track them and include them in the epoch change. If this is
+    // disabled, then all active validators are used for selecting the committee (same as previous
+    // behavior).
+    #[serde(skip_serializing_if = "is_false")]
+    track_non_committee_eligible_validators: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1332,6 +1349,14 @@ impl ProtocolConfig {
     pub fn normalize_ptb_arguments(&self) -> bool {
         self.feature_flags.normalize_ptb_arguments
     }
+
+    pub fn select_committee_from_eligible_validators(&self) -> bool {
+        self.feature_flags.select_committee_from_eligible_validators
+    }
+
+    pub fn track_non_committee_eligible_validators(&self) -> bool {
+        self.feature_flags.track_non_committee_eligible_validators
+    }
 }
 
 #[cfg(not(msim))]
@@ -2146,6 +2171,15 @@ impl ProtocolConfig {
                     // Enable normalization of PTB arguments in all networks.
                     cfg.feature_flags.normalize_ptb_arguments = true;
                 }
+                13 => {
+                    // Enable select committee supporting protocol version in devnet.
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable selecting committee based on eligible active validators in devnet.
+                        cfg.feature_flags.select_committee_from_eligible_validators = true;
+                        // Enable tracking non-committee eligible active validators in devnet.
+                        cfg.feature_flags.track_non_committee_eligible_validators = true;
+                    }
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2305,6 +2339,13 @@ impl ProtocolConfig {
     pub fn set_congestion_control_gas_price_feedback_mechanism_for_testing(&mut self, val: bool) {
         self.feature_flags
             .congestion_control_gas_price_feedback_mechanism = val;
+    }
+    pub fn set_select_committee_from_eligible_validators_for_testing(&mut self, val: bool) {
+        self.feature_flags.select_committee_from_eligible_validators = val;
+    }
+
+    pub fn set_track_non_committee_eligible_validators_for_testing(&mut self, val: bool) {
+        self.feature_flags.track_non_committee_eligible_validators = val;
     }
 }
 
