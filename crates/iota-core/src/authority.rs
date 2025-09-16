@@ -54,14 +54,14 @@ use iota_storage::{
 use iota_types::committee::CommitteeTrait;
 use iota_types::{
     IOTA_SYSTEM_ADDRESS, TypeTag,
-    account::{AUTHENTICATOR_DF_NAME, AuthenticatorInfoV1},
+    account::{self, AuthenticatorInfoV1},
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
     crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
     deny_list_v1::check_coin_deny_list_v1_during_signing,
     digests::{ChainIdentifier, TransactionEventsDigest},
-    dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
+    dynamic_field::{self, DynamicFieldInfo, DynamicFieldName, Field, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
         TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
@@ -5287,33 +5287,41 @@ impl AuthorityState {
             );
         }
 
-        let authenticator_id = self.get_dynamic_field_object_id(
+        let authenticator_info_field_id = dynamic_field::derive_dynamic_field_id(
             auth_account_object_id,
-            AuthenticatorInfoV1::tag().into(),
-            AUTHENTICATOR_DF_NAME.as_bytes(),
-        )?;
+            &account::authenticator_df_name_type_tag(),
+            &account::authenticator_df_name_as_bcs_bytes(),
+        )
+        .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId {
+            account_object_id: auth_account_object_id,
+        })?;
 
-        if let Some(authenticator_id) = authenticator_id {
-            let authenticator_info = self
-                .get_object_cache_reader()
-                .try_find_object_lt_or_eq_version(
-                    authenticator_id,
-                    auth_account_object_seq_number,
-                )?;
+        let authenticator_info_field = self
+            .get_object_cache_reader()
+            .try_find_object_lt_or_eq_version(
+                authenticator_info_field_id,
+                auth_account_object_seq_number,
+            )?;
 
-            if let Some(authenticator_info) = authenticator_info {
-                AuthenticatorInfoV1::try_from(authenticator_info)
-            } else {
-                Err(UserInputError::MoveAuthenticatorNotFound {
-                    authenticator_object_id: authenticator_id,
-                    account_object_id: auth_account_object_id,
-                    account_object_version: auth_account_object_seq_number,
-                }
-                .into())
-            }
+        if let Some(authenticator_info_field_obj) = authenticator_info_field {
+            let field_move_object = authenticator_info_field_obj
+                .data
+                .try_as_move()
+                .expect("dynamic field should never be a package object");
+
+            let field: Field<Vec<u8>, AuthenticatorInfoV1> =
+                bcs::from_bytes(field_move_object.contents()).map_err(|_| {
+                    UserInputError::InvalidAuthenticatorInfoField {
+                        account_object_id: auth_account_object_id,
+                    }
+                })?;
+
+            Ok(field.value)
         } else {
-            Err(UserInputError::UnableToGetMoveAuthenticatorId {
+            Err(UserInputError::MoveAuthenticatorNotFound {
+                authenticator_info_id: authenticator_info_field_id,
                 account_object_id: auth_account_object_id,
+                account_object_version: auth_account_object_seq_number,
             }
             .into())
         }
