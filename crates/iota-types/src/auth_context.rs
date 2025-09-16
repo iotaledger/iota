@@ -5,7 +5,7 @@ use move_binary_format::{CompiledModule, file_format::SignatureToken};
 use move_bytecode_utils::resolve_struct;
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::IdentStr};
 use serde::{
-    Deserialize, Serialize, Serializer,
+    Serialize, Serializer,
     ser::{SerializeStruct, SerializeStructVariant, SerializeTupleVariant},
 };
 
@@ -44,7 +44,7 @@ pub const AUTH_CONTEXT_STRUCT_NAME: &IdentStr = ident_str!("AuthContext");
 /// ```
 // Conceptually similar to `TxContext`, but designed specifically for use in the authentication
 // flow.
-#[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct AuthContext {
     /// The digest of the MoveAuthenticator
     auth_digest: MoveAuthenticatorDigest,
@@ -107,6 +107,11 @@ impl AuthContext {
     }
 }
 
+// TODO: add a deserializer that can handle the Command::MoveCall and
+// Command::MakeMoveVec variants properly. For now, we only need serialization
+// for inclusion in the tx authenticator input, so we implement Serialize only.
+// Alternatively, a custom Command struct could be created for de/serialization
+// purposes or to add new functionalities.
 impl Serialize for AuthContext {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
