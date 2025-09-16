@@ -19,6 +19,7 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
+        HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
@@ -26,6 +27,7 @@ use iota_types::{
     },
     transaction::{Transaction, VerifiedTransaction},
 };
+use tracing::info;
 
 use crate::{
     authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder},
@@ -134,6 +136,29 @@ impl AuthorityAPI for LocalAuthorityClient {
         _request: SystemStateRequest,
     ) -> Result<IotaSystemState, IotaError> {
         self.state.get_iota_system_state_object_for_testing()
+    }
+
+    async fn handle_capability_notification_v1(
+        &self,
+        request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+        let state = self.state.clone();
+        let epoch_store = state.load_epoch_store_one_call_per_task();
+
+        // Verify the message signature
+        let verified_authority_capabilities =
+            epoch_store.verify_authority_capabilities(request.message)?;
+
+        // Process the verified capabilities
+        info!(
+            "Received capability notification: {:?}",
+            verified_authority_capabilities.data()
+        );
+
+        state
+            .handle_authority_capabilities(verified_authority_capabilities, epoch_store.clone())?;
+
+        Ok(HandleCapabilityNotificationResponseV1 {})
     }
 }
 
@@ -317,6 +342,13 @@ impl AuthorityAPI for MockAuthorityApi {
     ) -> Result<IotaSystemState, IotaError> {
         unimplemented!();
     }
+
+    async fn handle_capability_notification_v1(
+        &self,
+        _request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+        unimplemented!()
+    }
 }
 
 #[derive(Clone)]
@@ -385,6 +417,13 @@ impl AuthorityAPI for HandleTransactionTestAuthorityClient {
         &self,
         _request: SystemStateRequest,
     ) -> Result<IotaSystemState, IotaError> {
+        unimplemented!()
+    }
+
+    async fn handle_capability_notification_v1(
+        &self,
+        _request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
         unimplemented!()
     }
 }

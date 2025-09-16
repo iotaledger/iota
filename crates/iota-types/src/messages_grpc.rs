@@ -9,6 +9,7 @@ use crate::{
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     effects::{SignedTransactionEffects, TransactionEvents, VerifiedSignedTransactionEffects},
+    messages_consensus::SignedAuthorityCapabilitiesV1,
     object::Object,
     transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction},
 };
@@ -272,3 +273,11 @@ pub struct HandleSoftBundleCertificatesRequestV1 {
     pub include_output_objects: bool,
     pub include_auxiliary_data: bool,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HandleCapabilityNotificationRequestV1 {
+    pub message: SignedAuthorityCapabilitiesV1,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HandleCapabilityNotificationResponseV1 {}
