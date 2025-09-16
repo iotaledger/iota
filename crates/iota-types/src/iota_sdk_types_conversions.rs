@@ -739,8 +739,6 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                         .into(),
                 })
             }
-            // TODO: change accordingly once https://github.com/iotaledger/iota/pull/8127 is merged to develop
-            EndOfEpochTransactionKind::ChangeEpochV3(_) => unimplemented!(),
         }
     }
 }
