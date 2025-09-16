@@ -728,6 +728,12 @@ impl ReadApiServer for ReadApi {
     }
 
     #[instrument(skip(self))]
+    async fn is_transaction_indexed_on_node(&self, digest: TransactionDigest) -> RpcResult<bool> {
+        let transaction = self.get_transaction_block(digest, None).await?;
+        Ok(transaction.digest == digest)
+    }
+
+    #[instrument(skip(self))]
     async fn get_transaction_block(
         &self,
         digest: TransactionDigest,

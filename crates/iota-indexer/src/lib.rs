@@ -61,6 +61,7 @@ async fn build_common_json_rpc_server(
         None,
     ))?;
 
+    let fullnode_client = get_http_client(&config.rpc_client_url)?;
     // Register common modules
     builder.register_module(IndexerApi::new(
         reader.clone(),
@@ -69,7 +70,7 @@ async fn build_common_json_rpc_server(
     builder.register_module(TransactionBuilderApi::new(reader.clone()))?;
     builder.register_module(MoveUtilsApi::new(reader.clone()))?;
     builder.register_module(GovernanceReadApi::new(reader.clone()))?;
-    builder.register_module(ReadApi::new(reader.clone()))?;
+    builder.register_module(ReadApi::new(reader.clone(), fullnode_client))?;
     builder.register_module(CoinReadApi::new(reader.clone())?)?;
     builder.register_module(ExtendedApi::new(reader.clone()))?;
 

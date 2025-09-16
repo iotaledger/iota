@@ -6,7 +6,9 @@ use std::{collections::HashMap, sync::Arc};
 
 use async_trait::async_trait;
 use iota_json_rpc::{IotaRpcModule, error::IotaRpcInputError};
-use iota_json_rpc_api::{QUERY_MAX_RESULT_LIMIT, ReadApiServer, internal_error};
+use iota_json_rpc_api::{
+    QUERY_MAX_RESULT_LIMIT, ReadApiClient, ReadApiServer, error_object_from_rpc, internal_error,
+};
 use iota_json_rpc_types::{
     Checkpoint, CheckpointId, CheckpointPage, IotaEvent, IotaGetPastObjectRequest, IotaObjectData,
     IotaObjectDataOptions, IotaObjectResponse, IotaPastObjectResponse,
@@ -21,18 +23,22 @@ use iota_types::{
     iota_serde::BigInt,
     object::{ObjectRead, PastObjectRead},
 };
-use jsonrpsee::{RpcModule, core::RpcResult};
+use jsonrpsee::{RpcModule, core::RpcResult, http_client::HttpClient};
 
 use crate::{errors::IndexerError, indexer_reader::IndexerReader, models::objects::StoredObject};
 
 #[derive(Clone)]
 pub(crate) struct ReadApi {
     inner: IndexerReader,
+    fullnode_client: HttpClient,
 }
 
 impl ReadApi {
-    pub fn new(inner: IndexerReader) -> Self {
-        Self { inner }
+    pub fn new(inner: IndexerReader, fullnode_client: HttpClient) -> Self {
+        Self {
+            inner,
+            fullnode_client,
+        }
     }
 
     async fn get_checkpoint(&self, id: CheckpointId) -> Result<Checkpoint, IndexerError> {
@@ -231,6 +237,13 @@ impl ReadApiServer for ReadApi {
     async fn get_total_transaction_blocks(&self) -> RpcResult<BigInt<u64>> {
         let checkpoint = self.get_latest_checkpoint().await?;
         Ok(BigInt::from(checkpoint.network_total_transactions))
+    }
+
+    async fn is_transaction_indexed_on_node(&self, digest: TransactionDigest) -> RpcResult<bool> {
+        self.fullnode_client
+            .is_transaction_indexed_on_node(digest)
+            .await
+            .map_err(error_object_from_rpc)
     }
 
     async fn get_transaction_block(
