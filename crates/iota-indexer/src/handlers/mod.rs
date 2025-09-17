@@ -60,7 +60,7 @@ pub(crate) struct CheckpointDataToCommitV2 {
     pub(crate) epoch: Option<EpochToCommit>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct TransactionObjectChangesToCommit {
     pub changed_objects: Vec<IndexedObject>,
     pub deleted_objects: Vec<IndexedDeletedObject>,

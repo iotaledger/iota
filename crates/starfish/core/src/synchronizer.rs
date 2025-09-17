@@ -1375,6 +1375,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 },
                 _ = &mut fetcher_timeout => {
                     debug!("Timed out while fetching missing block headers");
+                    // Drop all pending requests immediately — frees all block guards
+                    drop(request_futures);
                     break;
                 }
             }

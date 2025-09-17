@@ -10,12 +10,11 @@ use clap::*;
 use gcp_bigquery_client::{Client, model::query_request::QueryRequest};
 use iota_config::object_storage_config::ObjectStoreConfig;
 use iota_data_ingestion_core::Worker;
-use iota_rest_api::CheckpointData;
 use iota_storage::object_store::util::{
     find_all_dirs_with_epoch_prefix, find_all_files_with_epoch_prefix,
 };
 use iota_types::{
-    base_types::EpochId, dynamic_field::DynamicFieldType,
+    base_types::EpochId, dynamic_field::DynamicFieldType, full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
 };
 use num_enum::{IntoPrimitive, TryFromPrimitive};

@@ -113,7 +113,7 @@ export function PageHeader({
                                 {isLoadingSubtitle ? (
                                     <Placeholder width="w-48" />
                                 ) : subtitle ? (
-                                    <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
+                                    <span className="truncate text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                                         {subtitle}
                                     </span>
                                 ) : null}

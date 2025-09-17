@@ -165,7 +165,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) transactions_synchronizer_fetched_transactions_by_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_missing_transactions_by_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_current_missing_transactions_by_authority: IntGaugeVec,
-    pub(crate) transactions_synchronizer_scheduler_inflight: IntGauge,
+    pub(crate) transactions_synchronizer_periodic_inflight: IntGauge,
     pub(crate) transactions_synchronizer_fetch_latency: HistogramVec,
     pub(crate) transactions_synchronizer_success_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_failure_by_peer: IntCounterVec,
@@ -598,7 +598,7 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
-            transactions_synchronizer_scheduler_inflight: register_int_gauge_with_registry!(
+            transactions_synchronizer_periodic_inflight: register_int_gauge_with_registry!(
                 "fetch_transactions_scheduler_inflight",
                 "Designates whether the transaction synchronizer scheduler task to fetch transactions is currently running",
                 registry,

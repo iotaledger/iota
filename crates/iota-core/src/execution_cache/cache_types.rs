@@ -14,6 +14,15 @@ use iota_types::base_types::SequenceNumber;
 use moka::sync::Cache as MokaCache;
 use parking_lot::Mutex;
 
+pub enum CacheResult<T> {
+    /// Entry is in the cache
+    Hit(T),
+    /// Entry is not in the cache and is known to not exist
+    NegativeHit,
+    /// Entry is not in the cache and may or may not exist in the store
+    Miss,
+}
+
 /// CachedVersionMap is a map from version to value, with the additional
 /// constraints:
 /// - The key (SequenceNumber) must be monotonically increasing for each insert.

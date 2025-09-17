@@ -67,7 +67,7 @@ pub async fn send_and_confirm_transaction(
     let mut state = state_acc.accumulate_cached_live_object_set_for_testing();
     let (result, _execution_error_opt) = authority.try_execute_for_test(&certificate)?;
     let state_after = state_acc.accumulate_cached_live_object_set_for_testing();
-    let effects_acc = state_acc.accumulate_effects(vec![result.inner().data().clone()]);
+    let effects_acc = state_acc.accumulate_effects(&[result.inner().data().clone()]);
     state.union(&effects_acc);
 
     assert_eq!(state_after.digest(), state.digest());
