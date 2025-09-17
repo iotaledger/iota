@@ -151,7 +151,7 @@ pub struct UpgradePackageCommand {
     pub sender: String,
     #[arg(long)]
     pub gas_budget: Option<u64>,
-    #[clap(long = "dry-run")]
+    #[arg(long)]
     pub dry_run: bool,
     #[arg(long)]
     pub syntax: Option<SyntaxChoice>,
