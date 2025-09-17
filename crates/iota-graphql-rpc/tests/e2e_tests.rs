@@ -377,6 +377,7 @@ mod tests {
         let query = r#"
             {
                 transactionBlock(digest: $dig){
+                    indexedOnNode
                     sender {
                         address
                     }
@@ -396,9 +397,9 @@ mod tests {
             .unwrap();
 
         let binding = res.response_body().data.clone().into_json().unwrap();
-        let sender_read = binding
-            .get("transactionBlock")
-            .unwrap()
+        let tx = binding.get("transactionBlock").unwrap();
+
+        let sender_read = tx
             .get("sender")
             .unwrap()
             .get("address")
@@ -406,6 +407,8 @@ mod tests {
             .as_str()
             .unwrap();
         assert_eq!(sender_read, sender.to_string());
+        let indexed_on_node = tx.get("indexedOnNode").unwrap().as_bool().unwrap();
+        assert!(indexed_on_node);
         cluster.cleanup_resources().await
     }
 
@@ -560,6 +563,7 @@ mod tests {
         let query = r#"{ dryRunTransactionBlock(txBytes: $tx) {
                 transaction {
                     digest
+                    indexedOnNode
                     sender {
                         address
                     }
@@ -609,13 +613,12 @@ mod tests {
         let binding = res.response_body().data.clone().into_json().unwrap();
         let res = binding.get("dryRunTransactionBlock").unwrap();
 
-        let digest = res.get("transaction").unwrap().get("digest").unwrap();
+        let tx = res.get("transaction").unwrap();
+        let digest = tx.get("digest").unwrap();
         // Dry run txn does not have digest
         assert!(digest.is_null());
         assert!(res.get("error").unwrap().is_null());
-        let sender_read = res
-            .get("transaction")
-            .unwrap()
+        let sender_read = tx
             .get("sender")
             .unwrap()
             .get("address")
@@ -623,6 +626,8 @@ mod tests {
             .as_str()
             .unwrap();
         assert_eq!(sender_read, sender.to_string());
+        let indexed_on_node = tx.get("indexedOnNode").unwrap().as_bool().unwrap();
+        assert!(!indexed_on_node);
         assert!(res.get("results").unwrap().is_array());
         cluster.cleanup_resources().await
     }

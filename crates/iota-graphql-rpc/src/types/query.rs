@@ -7,7 +7,6 @@ use std::str::FromStr;
 use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_json_rpc_types::DevInspectArgs;
-use iota_sdk::IotaClient;
 use iota_types::{
     TypeTag,
     gas_coin::GAS,

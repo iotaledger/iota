@@ -13,6 +13,7 @@ use iota_indexer::{
     models::transactions::StoredTransaction,
     schema::{transactions, tx_digests},
 };
+use iota_json_rpc_api::ReadApiClient;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     effects::TransactionEffects as NativeTransactionEffects,
@@ -30,7 +31,7 @@ use crate::{
     connection::ScanConnection,
     data::{self, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
-    server::watermark_task::Watermark,
+    server::{builder::get_fullnode_client, watermark_task::Watermark},
     types::{
         address::Address,
         base64::Base64,
@@ -230,6 +231,21 @@ impl TransactionBlock {
             // Dry run transaction does not have signatures so no sender signed data.
             TransactionBlockInner::DryRun { .. } => None,
         }
+    }
+
+    /// Returns whether the transaction has been indexed on the fullnode.
+    async fn indexed_on_node(&self, ctx: &Context<'_>) -> Result<Option<bool>> {
+        let fullnode_client = get_fullnode_client(ctx)?;
+        let Some(digest) = self.native_signed_data().map(|d| d.digest()) else {
+            // dry-run transactions are never indexed
+            return Ok(Some(false));
+        };
+        Ok(Some(
+            fullnode_client
+                .http()
+                .is_transaction_indexed_on_node(digest)
+                .await?,
+        ))
     }
 }
 

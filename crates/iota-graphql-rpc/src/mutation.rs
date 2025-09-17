@@ -8,7 +8,6 @@ use fastcrypto::{
     traits::ToFromBytes,
 };
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
-use iota_sdk::IotaClient;
 use iota_types::{
     effects::TransactionEffects as NativeTransactionEffects,
     event::Event as NativeEvent,

@@ -4375,6 +4375,10 @@ type TransactionBlock {
 	and Base64 encoded.
 	"""
 	bcs: Base64
+	"""
+	Returns whether the transaction has been indexed on the fullnode.
+	"""
+	indexedOnNode: Boolean
 }
 
 type TransactionBlockConnection {
