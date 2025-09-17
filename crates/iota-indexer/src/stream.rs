@@ -529,7 +529,7 @@ impl IndexerStreamer {
                 );
 
                 let instant = Instant::now();
-                Self::publish_tx_and_events(transactions, &event_tx, &transaction_tx)?;
+                Self::publish_tx_and_events(transactions, &event_tx, &transaction_tx).await?;
                 let duration = instant.elapsed();
                 debug!("broadcast data took: {duration:?}");
             }
@@ -538,19 +538,23 @@ impl IndexerStreamer {
         Ok(())
     }
 
-    fn publish_tx_and_events(
+    async fn publish_tx_and_events(
         transactions: Vec<StoredTransaction>,
         event_tx: &mpsc::Sender<StoredEvent>,
         transaction_tx: &mpsc::Sender<StoredTransaction>,
     ) -> Result<(), IndexerError> {
         for tx in transactions {
             for event in Self::stored_events_from_transaction(&tx)? {
-                if let Err(e) = event_tx.try_send(event) {
-                    error!("failed to queue event: {e}");
+                if event_tx.send(event).await.is_err() {
+                    return Err(IndexerError::ChannelClosed(
+                        "failed to send event, receiver half dropped".into(),
+                    ));
                 }
             }
-            if let Err(e) = transaction_tx.try_send(tx) {
-                error!("failed to queue transaction: {e}");
+            if transaction_tx.send(tx).await.is_err() {
+                return Err(IndexerError::ChannelClosed(
+                    "failed to send transaction, receiver half dropped".into(),
+                ));
             }
         }
         Ok(())
