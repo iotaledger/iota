@@ -103,7 +103,7 @@ export function ImportKeystone() {
                                                 onProgress={onProgress}
                                             />
                                             {scanProgress > 0 && scanProgress <= 100 && (
-                                                <div className="absolute inset-0 flex items-end justify-center pb-4">
+                                                <div className="absolute inset-0 flex items-end justify-center pb-2">
                                                     <div className="text-xl font-bold text-white">
                                                         {Math.round(scanProgress)}%
                                                     </div>
