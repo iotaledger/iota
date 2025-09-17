@@ -89,7 +89,7 @@ export function ImportKeystone() {
                         {step.type === 'scan-qr' ? (
                             <>
                                 <div className="relative flex flex-col items-center justify-center gap-xs">
-                                    <div className="box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
+                                    <div className="relative box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
                                         <div className="flex-shrink-0">
                                             <AnimatedQRScanner
                                                 handleScan={onSucceed}
@@ -103,7 +103,7 @@ export function ImportKeystone() {
                                                 onProgress={onProgress}
                                             />
                                             {scanProgress > 0 && scanProgress <= 100 && (
-                                                <div className="absolute inset-0 flex items-end justify-center pb-4">
+                                                <div className="absolute inset-0 flex items-end justify-center pb-2">
                                                     <div className="text-xl font-bold text-white">
                                                         {Math.round(scanProgress)}%
                                                     </div>
