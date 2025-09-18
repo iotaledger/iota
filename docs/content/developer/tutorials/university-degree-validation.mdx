@@ -339,16 +339,17 @@ In the main tutorial (main.rs), we’ll import it like this:
 use hierarchies_examples::get_funded_client;
 ```
 
-## Step 2: Create a Federation
+## Step 2: Create the University Consortium Federation
 
 We first create the University Consortium federation.
 
 ```Rust
-use hierarchies::{federation::Federation, identity::get_funded_client};
+use hierarchies::{federation::Federation};
+use crate::utils::get_funded_client;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Create a new IOTA client
+    // Create a funded Hierarchies client using our utils.rs helper
     let client = get_funded_client().await?;
 
     // Create the federation
@@ -358,6 +359,12 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+Explanation:
+
+- We import our helper get_funded_client() from utils.rs, which gives us a ready-to-use client with faucet funds.
+- A Federation is the top-level trust group (in this case, all universities).
+- Here we create a federation named "University Consortium".
 
 ## Step 3: Define Academic Properties
 
@@ -383,6 +390,15 @@ async fn define_properties(consortium: &Federation) -> anyhow::Result<()> {
     Ok(())
 }
 ```
+
+Explanation:
+
+- Properties define the kinds of claims that can be issued in this federation.
+- "degree" is a string with allowed values: bachelor, master, phd.
+- "field" is a string: cs, math, biology.
+- "gpa" is numeric.
+
+These constraints make validation straightforward later.
 
 ## Step 4: Add Universities as Root Authorities
 
