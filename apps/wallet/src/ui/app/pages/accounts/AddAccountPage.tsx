@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from '@iota/core';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -39,6 +39,12 @@ async function openTabWithSearchParam(searchParam: string, searchParamValue: str
     });
 }
 
+async function openTabOnImportKeystone() {
+    await Browser.tabs.create({
+        url: Browser.runtime.getURL('ui.html#/accounts/import-keystone'),
+    });
+}
+
 export function AddAccountPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -49,6 +55,25 @@ export function AddAccountPage() {
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
+    const [cameraPermissionStatus, setCameraPermissionStatus] = useState<string | null>(null);
+    useEffect(() => {
+        (async () => {
+            try {
+                const permission = await navigator.permissions.query({
+                    name: 'camera' as PermissionName,
+                });
+
+                permission.onchange = () => {
+                    setCameraPermissionStatus(permission.state);
+                };
+
+                setCameraPermissionStatus(permission.state);
+            } catch (_) {
+                toast.error('Could not check permission status!');
+            }
+        })();
+    }, []);
+
     const cardGroups = [
         {
             title: 'Create a new mnemonic profile',
@@ -133,7 +158,13 @@ export function AddAccountPage() {
                 }
                 break;
             case AccountsFormType.ImportKeystone:
-                navigate('/accounts/import-keystone');
+                // TODO Add amplitude here - https://github.com/iotaledger/iota/issues/8599
+                if (isPopup && cameraPermissionStatus === 'prompt') {
+                    await openTabOnImportKeystone();
+                    window.close();
+                } else {
+                    navigate('/accounts/import-keystone');
+                }
                 break;
             default:
                 break;
