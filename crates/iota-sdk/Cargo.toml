@@ -26,6 +26,7 @@ serde_with.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+# iota-sdk2.workspace = true
 
 # internal dependencies
 iota-config.workspace = true

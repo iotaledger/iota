@@ -10,69 +10,78 @@ use iota_protocol_config::Chain;
 use once_cell::sync::{Lazy, OnceCell};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::{Bytes, serde_as};
+use serde_with::serde_as;
 use tracing::info;
 
-use crate::{error::IotaError, iota_serde::Readable};
+use crate::error::IotaError;
 
 /// A representation of a 32 byte digest
-#[serde_as]
 #[derive(
-    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    derive_more::From,
 )]
-pub struct Digest(
-    #[schemars(with = "Base58")]
-    #[serde_as(as = "Readable<Base58, Bytes>")]
-    [u8; 32],
-);
+pub struct Digest(pub(crate) iota_sdk2::Digest);
 
 impl Digest {
-    pub const ZERO: Self = Digest([0; 32]);
+    pub const ZERO: Self = Self(iota_sdk2::Digest::new([0; iota_sdk2::Digest::LENGTH]));
 
-    pub const fn new(digest: [u8; 32]) -> Self {
-        Self(digest)
+    pub const fn new(digest: [u8; iota_sdk2::Digest::LENGTH]) -> Self {
+        Self(iota_sdk2::Digest::new(digest))
     }
 
-    pub fn generate<R: rand::RngCore + rand::CryptoRng>(mut rng: R) -> Self {
-        let mut bytes = [0; 32];
-        rng.fill_bytes(&mut bytes);
-        Self(bytes)
+    pub fn generate<R: rand::RngCore + rand::CryptoRng>(rng: R) -> Self {
+        Self(iota_sdk2::Digest::generate(rng))
     }
 
     pub fn random() -> Self {
         Self::generate(rand::thread_rng())
     }
 
-    pub const fn inner(&self) -> &[u8; 32] {
-        &self.0
+    pub const fn inner(&self) -> &[u8; iota_sdk2::Digest::LENGTH] {
+        self.0.inner()
     }
 
-    pub const fn into_inner(self) -> [u8; 32] {
-        self.0
+    pub const fn into_inner(self) -> [u8; iota_sdk2::Digest::LENGTH] {
+        self.0.into_inner()
     }
 
     pub fn next_lexicographical(&self) -> Option<Self> {
-        let mut next_digest = *self;
-        let pos = next_digest.0.iter().rposition(|&byte| byte != 255)?;
-        next_digest.0[pos] += 1;
+        let mut next_digest = self.0.into_inner();
+        let pos = next_digest.iter().rposition(|&byte| byte != 255)?;
+        next_digest[pos] += 1;
         next_digest
-            .0
             .iter_mut()
             .skip(pos + 1)
             .for_each(|byte| *byte = 0);
-        Some(next_digest)
+        Some(Self::new(next_digest))
+    }
+}
+
+impl From<Digest> for iota_sdk2::Digest {
+    fn from(value: Digest) -> Self {
+        value.0
     }
 }
 
 impl AsRef<[u8]> for Digest {
     fn as_ref(&self) -> &[u8] {
-        &self.0
+        self.0.inner()
     }
 }
 
 impl AsRef<[u8; 32]> for Digest {
     fn as_ref(&self) -> &[u8; 32] {
-        &self.0
+        self.0.inner()
     }
 }
 
@@ -92,10 +101,12 @@ impl TryFrom<Vec<u8>> for Digest {
     type Error = IotaError;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
-        let bytes: [u8; 32] =
-            <[u8; 32]>::try_from(&bytes[..]).map_err(|_| IotaError::InvalidDigestLength {
-                expected: 32,
-                actual: bytes.len(),
+        let bytes: [u8; iota_sdk2::Digest::LENGTH] =
+            <[u8; iota_sdk2::Digest::LENGTH]>::try_from(&bytes[..]).map_err(|_| {
+                IotaError::InvalidDigestLength {
+                    expected: iota_sdk2::Digest::LENGTH,
+                    actual: bytes.len(),
+                }
             })?;
 
         Ok(Self::from(bytes))
@@ -121,7 +132,7 @@ impl fmt::LowerHex for Digest {
             write!(f, "0x")?;
         }
 
-        for byte in self.0 {
+        for byte in self.0.inner() {
             write!(f, "{byte:02x}")?;
         }
 
@@ -135,7 +146,7 @@ impl fmt::UpperHex for Digest {
             write!(f, "0x")?;
         }
 
-        for byte in self.0 {
+        for byte in self.0.inner() {
             write!(f, "{byte:02X}")?;
         }
 
@@ -266,7 +277,7 @@ pub fn get_testnet_chain_identifier() -> ChainIdentifier {
 
 impl fmt::Display for ChainIdentifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in self.0.0.0[0..4].iter() {
+        for byte in self.0.0.inner()[0..4].iter() {
             write!(f, "{byte:02x}")?;
         }
 
@@ -282,7 +293,18 @@ impl From<CheckpointDigest> for ChainIdentifier {
 
 /// Representation of a Checkpoint's digest
 #[derive(
-    Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema,
+    Clone,
+    Copy,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    derive_more::From,
 )]
 pub struct CheckpointDigest(Digest);
 
@@ -313,6 +335,12 @@ impl CheckpointDigest {
 
     pub fn next_lexicographical(&self) -> Option<Self> {
         self.0.next_lexicographical().map(Self)
+    }
+}
+
+impl From<CheckpointDigest> for Digest {
+    fn from(value: CheckpointDigest) -> Self {
+        value.0
     }
 }
 
@@ -386,7 +414,19 @@ impl std::str::FromStr for CheckpointDigest {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    derive_more::From,
+)]
 pub struct CheckpointContentsDigest(Digest);
 
 impl CheckpointContentsDigest {
@@ -416,6 +456,12 @@ impl CheckpointContentsDigest {
 
     pub fn next_lexicographical(&self) -> Option<Self> {
         self.0.next_lexicographical().map(Self)
+    }
+}
+
+impl From<CheckpointContentsDigest> for Digest {
+    fn from(value: CheckpointContentsDigest) -> Self {
+        value.0
     }
 }
 
@@ -524,12 +570,30 @@ impl fmt::Debug for SenderSignedDataDigest {
 }
 
 /// A transaction will have a (unique) digest.
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    derive_more::From,
+)]
 pub struct TransactionDigest(Digest);
 
 impl Default for TransactionDigest {
     fn default() -> Self {
         Self::ZERO
+    }
+}
+
+impl From<TransactionDigest> for Digest {
+    fn from(value: TransactionDigest) -> Self {
+        value.0
     }
 }
 
@@ -647,7 +711,19 @@ impl std::str::FromStr for TransactionDigest {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    derive_more::From,
+)]
 pub struct TransactionEffectsDigest(Digest);
 
 impl TransactionEffectsDigest {
@@ -679,6 +755,12 @@ impl TransactionEffectsDigest {
 
     pub fn next_lexicographical(&self) -> Option<Self> {
         self.0.next_lexicographical().map(Self)
+    }
+}
+
+impl From<TransactionEffectsDigest> for Digest {
+    fn from(value: TransactionEffectsDigest) -> Self {
+        value.0
     }
 }
 
@@ -733,8 +815,26 @@ impl fmt::UpperHex for TransactionEffectsDigest {
 }
 
 #[serde_as]
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Copy,
+    Clone,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    derive_more::From,
+)]
 pub struct TransactionEventsDigest(Digest);
+
+impl From<TransactionEventsDigest> for Digest {
+    fn from(value: TransactionEventsDigest) -> Self {
+        value.0
+    }
+}
 
 impl TransactionEventsDigest {
     pub const ZERO: Self = Self(Digest::ZERO);
@@ -791,7 +891,19 @@ impl std::str::FromStr for TransactionEventsDigest {
 }
 
 #[serde_as]
-#[derive(Eq, PartialEq, Ord, PartialOrd, Copy, Clone, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Copy,
+    Clone,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    derive_more::From,
+)]
 pub struct EffectsAuxDataDigest(Digest);
 
 impl EffectsAuxDataDigest {
@@ -811,6 +923,12 @@ impl EffectsAuxDataDigest {
 
     pub fn into_inner(self) -> [u8; 32] {
         self.0.into_inner()
+    }
+}
+
+impl From<EffectsAuxDataDigest> for Digest {
+    fn from(value: EffectsAuxDataDigest) -> Self {
+        value.0
     }
 }
 
@@ -849,8 +967,26 @@ impl std::str::FromStr for EffectsAuxDataDigest {
 }
 
 // Each object has a unique digest
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    derive_more::From,
+)]
 pub struct ObjectDigest(Digest);
+
+impl From<ObjectDigest> for Digest {
+    fn from(value: ObjectDigest) -> Self {
+        value.0
+    }
+}
 
 impl ObjectDigest {
     pub const MIN: ObjectDigest = Self::new([u8::MIN; 32]);
@@ -991,7 +1127,19 @@ impl ZKLoginInputsDigest {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Serialize,
+    Deserialize,
+    JsonSchema,
+    derive_more::From,
+)]
 pub struct ConsensusCommitDigest(Digest);
 
 impl ConsensusCommitDigest {
@@ -1029,6 +1177,12 @@ impl From<ConsensusCommitDigest> for [u8; 32] {
 impl From<[u8; 32]> for ConsensusCommitDigest {
     fn from(digest: [u8; 32]) -> Self {
         Self::new(digest)
+    }
+}
+
+impl From<ConsensusCommitDigest> for Digest {
+    fn from(value: ConsensusCommitDigest) -> Self {
+        value.0
     }
 }
 

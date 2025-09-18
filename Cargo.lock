@@ -2095,9 +2095,9 @@ dependencies = [
 
 [[package]]
 name = "bnum"
-version = "0.11.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e31ea183f6ee62ac8b8a8cf7feddd766317adfb13ff469de57ce033efd6a790"
+checksum = "f781dba93de3a5ef6dc5b17c9958b208f6f3f021623b360fb605ea51ce443f10"
 
 [[package]]
 name = "brotli"
@@ -6044,8 +6044,8 @@ dependencies = [
  "iota-node",
  "iota-protocol-config",
  "iota-rest-api",
- "iota-rust-sdk",
  "iota-sdk 1.8.0-alpha",
+ "iota-sdk-types",
  "iota-simulator",
  "iota-storage",
  "iota-swarm",
@@ -7271,7 +7271,7 @@ dependencies = [
  "fastcrypto",
  "iota-network-stack",
  "iota-protocol-config",
- "iota-rust-sdk",
+ "iota-sdk-types",
  "iota-types",
  "itertools 0.13.0",
  "mime",
@@ -7383,26 +7383,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-rust-sdk"
-version = "0.0.0"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d7084eaf0564f4e2381b2e8408ee1f7d51468450#d7084eaf0564f4e2381b2e8408ee1f7d51468450"
-dependencies = [
- "base64ct",
- "bcs",
- "blake2",
- "bnum",
- "bs58 0.5.1",
- "hex",
- "roaring",
- "schemars",
- "serde",
- "serde_derive",
- "serde_json",
- "serde_with",
- "winnow 0.6.26",
-]
-
-[[package]]
 name = "iota-sdk"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7479,6 +7459,29 @@ dependencies = [
  "thiserror 1.0.64",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "iota-sdk-types"
+version = "0.0.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0ca848f2b41a7137365fc34809cf91ebc53d8bd6#0ca848f2b41a7137365fc34809cf91ebc53d8bd6"
+dependencies = [
+ "base64ct",
+ "bcs",
+ "blake2",
+ "bnum",
+ "bs58 0.5.1",
+ "hex",
+ "itertools 0.13.0",
+ "paste",
+ "rand_core 0.6.4",
+ "roaring",
+ "schemars",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_with",
+ "winnow 0.7.11",
 ]
 
 [[package]]
@@ -7966,8 +7969,8 @@ dependencies = [
  "iota-macros",
  "iota-network-stack",
  "iota-protocol-config",
- "iota-rust-sdk",
  "iota-sdk 1.1.5",
+ "iota-sdk-types",
  "itertools 0.13.0",
  "lru",
  "move-binary-format",
@@ -12146,9 +12149,9 @@ checksum = "3582f63211428f83597b51b2ddb88e2a91a9d52d12831f9d08f5e624e8977422"
 
 [[package]]
 name = "roaring"
-version = "0.10.10"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a652edd001c53df0b3f96a36a8dc93fce6866988efc16808235653c6bcac8bf2"
+checksum = "f08d6a905edb32d74a5d5737a0c9d7e950c312f3c46cb0ca0a2ca09ea11878a0"
 dependencies = [
  "bytemuck",
  "byteorder",
@@ -15926,15 +15929,6 @@ name = "winnow"
 version = "0.5.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
-dependencies = [
- "memchr",
-]
-
-[[package]]
-name = "winnow"
-version = "0.6.26"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e90edd2ac1aa278a5c4599b1d89cf03074b610800f866d4026dc199d7929a28"
 dependencies = [
  "memchr",
 ]

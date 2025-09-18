@@ -323,7 +323,7 @@ rand = "0.8.5"
 rayon = "1.5.3"
 regex = "1.7.1"
 reqwest = { version = "0.12", default-features = false, features = ["http2", "json", "rustls-tls"] }
-roaring = "0.10.6"
+roaring = "0.11.2"
 rocksdb = { version = "0.21.0", default-features = false, features = ["snappy", "lz4", "zstd", "zlib", "multi-threaded-cf"] }
 rstest = "0.16.0"
 rustls = { version = "0.23.18", default-features = false, features = ["std", "tls12", "ring"] }
@@ -438,7 +438,8 @@ iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 # core-types with json format for REST API
-iota-sdk2 = { package = "iota-rust-sdk", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d7084eaf0564f4e2381b2e8408ee1f7d51468450", features = ["hash", "serde", "schemars"] }
+# iota-sdk2 = { package = "iota-rust-sdk", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d7084eaf0564f4e2381b2e8408ee1f7d51468450", features = ["hash", "serde", "schemars", "rand"] }
+iota-sdk2 = { package = "iota-sdk-types", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "0ca848f2b41a7137365fc34809cf91ebc53d8bd6", features = ["hash", "serde", "schemars", "rand"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
