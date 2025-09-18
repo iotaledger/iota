@@ -203,7 +203,143 @@ In the next section, we’ll implement these concepts step by step in Rust.
 
 ## Getting Started
 
-## Step 1: Create a Federation
+## Setting Up the Rust Project
+
+Before we start coding, let’s set up a new Rust project for our Hierarchies tutorial.
+
+## Step 1. Create a new Rust binary project
+
+```bash
+cargo new iota-hierarchies-tutorial --bin
+cd iota-hierarchies-tutorial
+```
+
+This will create:
+
+- Cargo.toml → project configuration and dependencies.
+
+- src/main.rs → entry point of the program
+
+## Step 2. Add Dependencies
+
+Open `Cargo.toml` and add the following dependencies:
+
+```toml
+[package]
+name = "iota-hierarchies-tutorial"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+tokio = { version = "1", features = ["full"] }
+iota-sdk = { git = "https://github.com/iotaledger/iota-sdk", branch = "main" }
+hierarchies = { git = "https://github.com/iotaledger/hierarchies", branch = "main" }
+product-common = { git = "https://github.com/iotaledger/hierarchies", branch = "main", package = "product-common" }
+```
+
+- `anyhow` → for easy error handling.
+
+- `tokio` → async runtime.
+
+- `iota-sdk` → SDK for connecting to the IOTA network.
+
+- `hierarchies` → core Hierarchies framework.
+
+- `product-common` → helper utilities (e.g., InMemSigner, faucet funding).
+
+## Step 3. Set Required Environment Variables
+
+The Hierarchies examples require some environment variables to be set:
+
+```bash
+export API_ENDPOINT="http://127.0.0.1:8545"
+export IOTA_HIERARCHIES_PKG_ID="<your_deployed_hierarchies_package_id>"
+```
+
+- `API_ENDPOINT`: The RPC endpoint of your IOTA node (use local testnet for development).
+
+- `IOTA_HIERARCHIES_PKG_ID`: The package ID of the Hierarchies contract deployed on your network.
+
+:::info
+If you’re running the IOTA local network, the docs include instructions on how to get the package ID after deployment. See how to set up a local [IOTA Network](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup)
+:::
+
+## Adding a Utilities File (utils.rs)
+
+Before running our main tutorial code, let’s create a small utils.rs helper file.
+This will handle connecting to the IOTA local network, setting up the Hierarchies client, and funding test addresses.
+
+Create a new file:
+
+```rust
+// src/utils.rs
+
+// Copyright 2020-2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+use anyhow::Context;
+use hierarchies::client::{HierarchiesClient, HierarchiesClientReadOnly};
+use iota_sdk::{IOTA_LOCAL_NETWORK_URL, IotaClientBuilder};
+use product_common::test_utils::{InMemSigner, request_funds};
+
+/// Create a read-only Hierarchies client.
+/// This is useful for querying hierarchies without sending transactions.
+pub async fn get_read_only_client() -> anyhow::Result<HierarchiesClientReadOnly> {
+    let api_endpoint = std::env::var("API_ENDPOINT")
+        .unwrap_or_else(|_| IOTA_LOCAL_NETWORK_URL.to_string());
+
+    let iota_client = IotaClientBuilder::default()
+        .build(&api_endpoint)
+        .await
+        .map_err(|err| anyhow::anyhow!(format!("failed to connect to network; {}", err)))?;
+
+    let package_id = std::env::var("IOTA_HIERARCHIES_PKG_ID")
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "env variable IOTA_HIERARCHIES_PKG_ID must be set in order to run the examples"
+            )
+            .context(e)
+        })
+        .and_then(|pkg_str| pkg_str.parse().context("invalid package id"))?;
+
+    HierarchiesClientReadOnly::new_with_pkg_id(iota_client, package_id)
+        .await
+        .context("failed to create a read-only HierarchiesClient")
+}
+
+/// Create a funded Hierarchies client with an in-memory signer.
+/// This client can send transactions and manage attestations.
+pub async fn get_funded_client() -> Result<HierarchiesClient<InMemSigner>, anyhow::Error> {
+    let signer = InMemSigner::new();
+    let sender_address = signer.get_address().await?;
+
+    // Request faucet funds for testing
+    request_funds(&sender_address).await?;
+
+    let read_only_client = get_read_only_client().await?;
+    let hierarchies_client: HierarchiesClient<InMemSigner> =
+        HierarchiesClient::new(read_only_client, signer).await?;
+
+    Ok(hierarchies_client)
+}
+```
+
+Why do we need this?
+
+- get_read_only_client() → lets us query the state of federations, accreditations, and attestations without sending transactions.
+
+- get_funded_client() → gives us a funded test account with signing ability, so we can create federations, issue credentials, and revoke them.
+
+- This separation keeps the main tutorial code clean and focused on the identity + credential logic, while utils.rs handles boilerplate setup.
+
+In the main tutorial (main.rs), we’ll import it like this:
+
+```rust
+use hierarchies_examples::get_funded_client;
+```
+
+## Step 2: Create a Federation
 
 We first create the University Consortium federation.
 
@@ -223,7 +359,7 @@ async fn main() -> anyhow::Result<()> {
 }
 ```
 
-## Step 2: Define Academic Properties
+## Step 3: Define Academic Properties
 
 Next, we define the degree properties allowed in our federation.
 
@@ -248,7 +384,7 @@ async fn define_properties(consortium: &Federation) -> anyhow::Result<()> {
 }
 ```
 
-## Step 3: Add Universities as Root Authorities
+## Step 4: Add Universities as Root Authorities
 
 Each university becomes a Root Authority in the federation.
 
@@ -267,7 +403,7 @@ async fn add_universities(consortium: &Federation) -> anyhow::Result<()> {
 }
 ```
 
-## Step 4: Delegate to Faculties
+## Step 5: Delegate to Faculties
 
 Universities delegate to their faculties using an accreditation to accredit.
 
@@ -282,7 +418,7 @@ async fn delegate_to_faculty(harvard: &Authority) -> anyhow::Result<Authority> {
 }
 ```
 
-## Step 5: Grant Registrar Attestation Rights
+## Step 6: Grant Registrar Attestation Rights
 
 Faculties grant accreditation to attest to their registrars, allowing them to issue degrees.
 
