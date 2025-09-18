@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from '@iota/core';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -22,7 +22,7 @@ import {
     PageTemplate,
 } from '_components';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
-import { useAppSelector, useCreateAccountsMutation } from '_hooks';
+import { useAppSelector, useCheckCameraPermissionStatus, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
 import { Create, ImportPass, Key, Seed, Ledger, Keystone } from '@iota/apps-ui-icons';
 import Browser from 'webextension-polyfill';
@@ -55,24 +55,7 @@ export function AddAccountPage() {
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
-    const [cameraPermissionStatus, setCameraPermissionStatus] = useState<string | null>(null);
-    useEffect(() => {
-        (async () => {
-            try {
-                const permission = await navigator.permissions.query({
-                    name: 'camera' as PermissionName,
-                });
-
-                permission.onchange = () => {
-                    setCameraPermissionStatus(permission.state);
-                };
-
-                setCameraPermissionStatus(permission.state);
-            } catch (_) {
-                toast.error('Could not check permission status!');
-            }
-        })();
-    }, []);
+    const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
 
     const cardGroups = [
         {
