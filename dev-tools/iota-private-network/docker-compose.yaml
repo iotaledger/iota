@@ -41,8 +41,8 @@ services:
       - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
       - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000
       - OTLP_ENDPOINT=http://tempo:4317
-      - OTEL_SERVICE_NAME=fullnode-1
-      - TRACE_FILTER=warn
+      - OTEL_SERVICE_NAME=validator-1
+      - TRACE_FILTER=[checkpoint_received_from_state_sync]=trace,[checkpoint_received_from_consensus]=trace
     networks:
       iota-network:
         ipv4_address: 10.0.0.11
@@ -282,7 +282,7 @@ services:
       - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000
       - OTLP_ENDPOINT=http://tempo:4317
       - OTEL_SERVICE_NAME=fullnode-1
-      - TRACE_FILTER=warn
+      - TRACE_FILTER=[checkpoint_received_from_state_sync]=trace,[checkpoint_received_from_consensus]=trace
     volumes:
       - ./data/fullnode-1:/opt/iota/db:rw
       - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro
