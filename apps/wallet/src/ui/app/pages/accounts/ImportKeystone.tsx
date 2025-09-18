@@ -8,7 +8,7 @@ import { Button, ButtonType, InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/ap
 import { UR, URType } from '@keystonehq/keystone-sdk';
 import { parseMultiAccounts } from '@keystonehq/keystone-sdk/dist/wallet';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
-import { fromHex } from '@iota/iota-sdk/utils';
+import { fromHex, toBase64 } from '@iota/iota-sdk/utils';
 import { toast } from '@iota/core';
 import { useState } from 'react';
 import { useAccounts } from '../../hooks';
@@ -41,7 +41,7 @@ export function ImportKeystone() {
         const multiAccounts = parseMultiAccounts(new UR(Buffer.from(cbor, 'hex'), type));
         const iotaAccounts = multiAccounts.keys.filter((key) => key.chain === 'IOTA');
         const accounts = iotaAccounts.map((account) => ({
-            publicKey: account.publicKey,
+            publicKey: toBase64(fromHex(account.publicKey)),
             derivationPath: account.path,
             address: new Ed25519PublicKey(fromHex(account.publicKey)).toIotaAddress(),
         }));
