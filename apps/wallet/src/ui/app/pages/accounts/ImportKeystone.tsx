@@ -11,8 +11,8 @@ import { parseMultiAccounts } from '@keystonehq/keystone-sdk/dist/wallet';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { fromHex } from '@iota/iota-sdk/utils';
 import { toast } from '@iota/core';
-import { useEffect, useState } from 'react';
-import { useAccounts } from '../../hooks';
+import { useState } from 'react';
+import { useAccounts, useCheckCameraPermissionStatus } from '../../hooks';
 import { ImportPass, IotaLogoMark, QrCode, Warning } from '@iota/apps-ui-icons';
 
 type Step =
@@ -37,25 +37,7 @@ export function ImportKeystone() {
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
     const [scanProgress, setScanProgress] = useState(0);
-
-    const [cameraPermissionStatus, setCameraPermissionStatus] = useState<string | null>(null);
-    useEffect(() => {
-        (async () => {
-            try {
-                const permission = await navigator.permissions.query({
-                    name: 'camera' as PermissionName,
-                });
-
-                permission.onchange = () => {
-                    setCameraPermissionStatus(permission.state);
-                };
-
-                setCameraPermissionStatus(permission.state);
-            } catch (_) {
-                toast.error('Could not check permission status!');
-            }
-        })();
-    }, []);
+    const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
 
     function onSucceed({ type, cbor }: { type: string; cbor: string }) {
         const multiAccounts = parseMultiAccounts(new UR(Buffer.from(cbor, 'hex'), type));

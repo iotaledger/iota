@@ -21,7 +21,7 @@ import { UR, URType, KeystoneIotaSDK } from '@keystonehq/keystone-sdk';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { KeystoneSigningCanceledByUserError } from './keystoneErrors';
-import { useAppSelector, useFullscreenGuard } from '_hooks';
+import { useAppSelector, useCheckCameraPermissionStatus, useFullscreenGuard } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
 import { Warning } from '@iota/apps-ui-icons';
 
@@ -50,23 +50,22 @@ export function KeystoneProvider({ children }: KeystoneProviderProps) {
 
     useEffect(() => {
         if (currentRequest) {
-            checkPermissionStatus();
+            (async () => {
+                try {
+                    const permission = await navigator.permissions.query({
+                        name: 'camera' as PermissionName,
+                    });
+
+                    if (permission.state === 'prompt') {
+                        // Prompt won't show up in Popup mode, so we force fullscreen
+                        setGoFullscreen(true);
+                    }
+                } catch (_) {
+                    toast.error('Could not check camera permission status!');
+                }
+            })();
         }
     }, [currentRequest]);
-
-    const checkPermissionStatus = async () => {
-        try {
-            const permission = await navigator.permissions.query({
-                name: 'camera' as PermissionName,
-            });
-            if (permission.state === 'prompt') {
-                // Prompt won't show up in Popup mode, so we force fullscreen
-                setGoFullscreen(true);
-            }
-        } catch (_) {
-            toast.error('Could not check camera permission status!');
-        }
-    };
 
     const context = useMemo(() => {
         return {
@@ -106,26 +105,7 @@ enum Step {
 
 export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Request }) {
     const [step, setStep] = useState<Step>(Step.ShowQr);
-    const [cameraPermissionStatus, setCameraPermissionStatus] = useState<string | null>(null);
-
-    useEffect(() => {
-        getCameraPermissionStatus();
-    }, []);
-
-    const getCameraPermissionStatus = async () => {
-        try {
-            const permission = await navigator.permissions.query({
-                name: 'camera' as PermissionName,
-            });
-            permission.onchange = () => {
-                setCameraPermissionStatus(permission.state);
-            };
-
-            setCameraPermissionStatus(permission.state);
-        } catch (_) {
-            toast.error('Could not check permission status!');
-        }
-    };
+    const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
 
     function onSucceed({ type, cbor }: { type: string; cbor: string }) {
         const { signature, publicKey } = new KeystoneIotaSDK().parseSignature(
