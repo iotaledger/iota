@@ -21,8 +21,7 @@ import { UR, URType, KeystoneIotaSDK } from '@keystonehq/keystone-sdk';
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { KeystoneSigningCanceledByUserError } from './keystoneErrors';
-import { useFullscreenGuard } from '../../hooks';
-import { useAppSelector } from '_hooks';
+import { useAppSelector, useFullscreenGuard } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
 import { Warning } from '@iota/apps-ui-icons';
 
