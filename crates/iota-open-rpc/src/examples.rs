@@ -523,7 +523,7 @@ impl RpcExampleProvider {
     }
 
     fn iota_is_transaction_indexed_on_node(&mut self) -> Examples {
-        let digest = TransactionDigest::random();
+        let digest = TransactionDigest::generate(self.rng.clone());
         Examples::new(
             "iota_isTransactionIndexedOnNode",
             vec![ExamplePairing::new(
