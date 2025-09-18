@@ -22,7 +22,7 @@ import {
     PageTemplate,
 } from '_components';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
-import { useAppSelector, useCreateAccountsMutation } from '_hooks';
+import { useAppSelector, useCheckCameraPermissionStatus, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
 import { Create, ImportPass, Key, Seed, Ledger, Keystone } from '@iota/apps-ui-icons';
 import Browser from 'webextension-polyfill';
@@ -39,6 +39,12 @@ async function openTabWithSearchParam(searchParam: string, searchParamValue: str
     });
 }
 
+async function openTabOnImportKeystone() {
+    await Browser.tabs.create({
+        url: Browser.runtime.getURL('ui.html#/accounts/import-keystone'),
+    });
+}
+
 export function AddAccountPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -49,6 +55,8 @@ export function AddAccountPage() {
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
+    const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
+
     const cardGroups = [
         {
             title: 'Create a new mnemonic profile',
@@ -133,7 +141,13 @@ export function AddAccountPage() {
                 }
                 break;
             case AccountsFormType.ImportKeystone:
-                navigate('/accounts/import-keystone');
+                // TODO Add amplitude here - https://github.com/iotaledger/iota/issues/8599
+                if (isPopup && cameraPermissionStatus === 'prompt') {
+                    await openTabOnImportKeystone();
+                    window.close();
+                } else {
+                    navigate('/accounts/import-keystone');
+                }
                 break;
             default:
                 break;

@@ -1,6 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import classNames from 'clsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { AccountsFormType, useAccountsFormContext, PageTemplate, AccountList } from '_components';
 import { AnimatedQRScanner } from '@keystonehq/animated-qr';
@@ -11,7 +12,7 @@ import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { fromHex, toBase64 } from '@iota/iota-sdk/utils';
 import { toast } from '@iota/core';
 import { useState } from 'react';
-import { useAccounts } from '../../hooks';
+import { useAccounts, useCheckCameraPermissionStatus } from '../../hooks';
 import { ImportPass, IotaLogoMark, QrCode, Warning } from '@iota/apps-ui-icons';
 
 type Step =
@@ -36,6 +37,7 @@ export function ImportKeystone() {
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
     const [scanProgress, setScanProgress] = useState(0);
+    const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
 
     function onSucceed({ type, cbor }: { type: string; cbor: string }) {
         const multiAccounts = parseMultiAccounts(new UR(Buffer.from(cbor, 'hex'), type));
@@ -80,6 +82,7 @@ export function ImportKeystone() {
     }
 
     const disableFinish = step.type === 'select-accounts' && step.selectedAccounts.size === 0;
+    const canShowQrScanner = cameraPermissionStatus && cameraPermissionStatus !== 'denied';
 
     return (
         <PageTemplate title="Import Keystone" isTitleCentered showBackButton>
@@ -88,32 +91,51 @@ export function ImportKeystone() {
                     <div className="flex h-full flex-col justify-between gap-1">
                         {step.type === 'scan-qr' ? (
                             <>
-                                <div className="relative flex flex-col items-center justify-center gap-xs">
-                                    <div className="relative box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
-                                        <div className="flex-shrink-0">
-                                            <AnimatedQRScanner
-                                                handleScan={onSucceed}
-                                                handleError={onError}
-                                                urTypes={[URType.CryptoMultiAccounts]}
-                                                options={{
-                                                    blur: true,
-                                                    width: '230px',
-                                                    height: '230px',
-                                                }}
-                                                onProgress={onProgress}
-                                            />
-                                            {scanProgress > 0 && scanProgress <= 100 && (
-                                                <div className="absolute inset-0 flex items-end justify-center pb-2">
-                                                    <div className="text-xl font-bold text-white">
-                                                        {Math.round(scanProgress)}%
-                                                    </div>
+                                <div
+                                    className={classNames(
+                                        'relative flex flex-col items-center justify-center gap-xs',
+                                        { 'h-full justify-around': !canShowQrScanner },
+                                    )}
+                                >
+                                    {canShowQrScanner ? (
+                                        <>
+                                            <div className="relative box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
+                                                <div className="flex-shrink-0">
+                                                    <AnimatedQRScanner
+                                                        handleScan={onSucceed}
+                                                        handleError={onError}
+                                                        urTypes={[URType.CryptoMultiAccounts]}
+                                                        options={{
+                                                            blur: true,
+                                                            width: '230px',
+                                                            height: '230px',
+                                                        }}
+                                                        onProgress={onProgress}
+                                                    />
+                                                    {scanProgress > 0 && scanProgress <= 100 && (
+                                                        <div className="absolute inset-0 flex items-end justify-center pb-2">
+                                                            <div className="text-xl font-bold text-white">
+                                                                {Math.round(scanProgress)}%
+                                                            </div>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                    <span className="mb-sm text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
-                                        Camera is blurred for security reasons
-                                    </span>
+                                            </div>
+                                            <span className="mb-sm text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
+                                                Camera is blurred for security reasons
+                                            </span>
+                                        </>
+                                    ) : (
+                                        <InfoBox
+                                            title="Camera Access Blocked!"
+                                            supportingText={
+                                                'Please allow camera access, then try again to proceed.'
+                                            }
+                                            style={InfoBoxStyle.Elevated}
+                                            type={InfoBoxType.Error}
+                                            icon={<Warning />}
+                                        />
+                                    )}
                                     <div className="input-border-color flex w-full flex-col gap-xs rounded-2lg border border-solid p-4 no-underline">
                                         <div className="flex">
                                             <div className="mr-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-iota-primary-90 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-black">

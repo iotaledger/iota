@@ -1,16 +1,29 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { Button, ButtonType, Dialog, DialogBody, DialogContent, Header } from '@iota/apps-ui-kit';
+import {
+    Button,
+    ButtonType,
+    Dialog,
+    DialogBody,
+    DialogContent,
+    Header,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
+} from '@iota/apps-ui-kit';
 import { fromHex } from '@iota/bcs';
 import { toast } from '@iota/core';
 import { toSerializedSignature } from '@iota/iota-sdk/cryptography';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { AnimatedQRCode, AnimatedQRScanner } from '@keystonehq/animated-qr';
 import { UR, URType, KeystoneIotaSDK } from '@keystonehq/keystone-sdk';
-import { createContext, useContext, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { KeystoneSigningCanceledByUserError } from './keystoneErrors';
+import { useAppSelector, useCheckCameraPermissionStatus, useFullscreenGuard } from '_hooks';
+import { AppType } from '../../redux/slices/app/appType';
+import { Warning } from '@iota/apps-ui-icons';
 
 interface KeystoneContextValue {
     requestSignature: (ur: UR) => Promise<string>;
@@ -30,6 +43,29 @@ interface Request {
 
 export function KeystoneProvider({ children }: KeystoneProviderProps) {
     const [currentRequest, setCurrentRequest] = useState<Request | null>(null);
+    const [goFullscreen, setGoFullscreen] = useState(false);
+    useFullscreenGuard(goFullscreen);
+
+    const isFullscreen = useAppSelector((state) => state.app.appType === AppType.Fullscreen);
+
+    useEffect(() => {
+        if (currentRequest) {
+            (async () => {
+                try {
+                    const permission = await navigator.permissions.query({
+                        name: 'camera' as PermissionName,
+                    });
+
+                    if (permission.state === 'prompt') {
+                        // Prompt won't show up in Popup mode, so we force fullscreen
+                        setGoFullscreen(true);
+                    }
+                } catch (_) {
+                    toast.error('Could not check camera permission status!');
+                }
+            })();
+        }
+    }, [currentRequest]);
 
     const context = useMemo(() => {
         return {
@@ -53,7 +89,9 @@ export function KeystoneProvider({ children }: KeystoneProviderProps) {
     return (
         <KeystoneContext.Provider value={context}>
             {children}
-            {currentRequest ? <ScanBothWays request={currentRequest} /> : null}
+            {currentRequest && !(goFullscreen && !isFullscreen) ? (
+                <ScanBothWays request={currentRequest} />
+            ) : null}
         </KeystoneContext.Provider>
     );
 }
@@ -67,6 +105,7 @@ enum Step {
 
 export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Request }) {
     const [step, setStep] = useState<Step>(Step.ShowQr);
+    const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
 
     function onSucceed({ type, cbor }: { type: string; cbor: string }) {
         const { signature, publicKey } = new KeystoneIotaSDK().parseSignature(
@@ -89,6 +128,8 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
         toast.error(`Error while scanning QR: ${error}`);
     }
 
+    const canShowQrScanner = cameraPermissionStatus && cameraPermissionStatus !== 'denied';
+
     return (
         <Dialog open onOpenChange={(open) => {}}>
             <DialogContent containerId="overlay-portal-container">
@@ -101,7 +142,7 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                 cbor={ur.cbor.toString('hex')}
                                 options={{ size: 220 }}
                             />
-                        ) : (
+                        ) : canShowQrScanner ? (
                             <div className="box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
                                 <div className="flex-shrink-0">
                                     <AnimatedQRScanner
@@ -116,6 +157,16 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                     />
                                 </div>
                             </div>
+                        ) : (
+                            <InfoBox
+                                title="Camera Access Blocked!"
+                                supportingText={
+                                    'Please allow camera access, then try again to proceed.'
+                                }
+                                style={InfoBoxStyle.Elevated}
+                                type={InfoBoxType.Error}
+                                icon={<Warning />}
+                            />
                         )}
                         <div className="flex flex-col items-center justify-center">
                             <Link
