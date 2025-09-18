@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeMap,
+    collections::HashMap,
+    fmt::Display,
     str::FromStr,
     sync::{Arc, Mutex},
     time::Instant,
@@ -37,12 +38,27 @@ const BUFFER_SIZE: usize = 1000;
 const CHANNEL_NAME: &str = "checkpoint_committed";
 
 /// Active subscribers held in memory.
-type Subscribers<T, F> = Arc<Mutex<BTreeMap<String, Subscriber<T, F>>>>;
+type Subscribers<T, F> = Arc<Mutex<HashMap<SubscriberId, Subscriber<T, F>>>>;
 
 /// A single subscriber to which we can send data based on provided filters.
 struct Subscriber<T, F> {
-    sender: mpsc::Sender<StreamEvent<T>>,
+    sender: mpsc::Sender<StreamPayload<T>>,
     filter: F,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
+struct SubscriberId(ObjectID);
+
+impl SubscriberId {
+    pub fn new() -> Self {
+        SubscriberId(ObjectID::random())
+    }
+}
+
+impl Display for SubscriberId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
 }
 
 /// Filter returned [`StoredEvent`] form the stream.
@@ -123,13 +139,13 @@ impl Filter<StoredTransaction> for StreamTransactionFilter {
 /// Represents a notification about a checkpoint commit in Indexer Database, it
 /// acts as a trigger to request transaction related to that particular
 /// checkpoint.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 struct CheckpointCommitNotification {
     /// Committed checkpoint sequence number.
     checkpoint_sequence_number: i64,
-    /// the minimum transaction sequence number.
+    /// The minimum transaction sequence number.
     min_tx_sequence_number: i64,
-    /// the maximum transaction sequence number.
+    /// The maximum transaction sequence number.
     max_tx_sequence_number: i64,
 }
 
@@ -140,7 +156,7 @@ struct CheckpointCommitNotification {
 /// receive when listening to a stream. It handles both normal message delivery
 /// and backpressure scenarios where slow subscribers need to be managed.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum StreamEvent<T> {
+pub enum StreamPayload<T> {
     /// A regular message delivered to an active subscriber.
     ///
     /// This variant indicates normal operation where the subscriber is keeping
@@ -173,14 +189,14 @@ pub enum StreamEvent<T> {
 /// The "slow receiver" problem is handled through capacity-based monitoring:
 ///
 /// - **Normal Operation**: When a subscriber's channel has capacity > 1,
-///   messages are sent as [`StreamEvent::Message`] allowing continued
+///   messages are sent as [`StreamPayload::Message`] allowing continued
 ///   subscription
 /// - **Backpressure Detection**: When capacity drops to 1 (channel nearly
 ///   full), the subscriber is marked as lagging behind the message production
 ///   rate
 /// - **Graceful Termination**: Lagging subscribers receive their final message
-///   wrapped in [`StreamEvent::ClosingDueToLag`] and are automatically removed
-///   from the subscriber list
+///   wrapped in [`StreamPayload::ClosingDueToLag`] and are automatically
+///   removed from the subscriber list
 /// - **System Protection**: This prevents unbounded memory growth and maintains
 ///   overall broadcaster performance by avoiding blocking on slow consumers
 ///
@@ -224,7 +240,7 @@ where
         let to_remove = {
             let mut to_remove = vec![];
             let mut subscribers_snapshot = subscribers.lock().unwrap_or_else(|poisoned| {
-                error!("Subscribers mutex poisoned, recovering...");
+                error!("subscribers mutex poisoned, recovering...");
                 subscribers.clear_poison();
                 poisoned.into_inner()
             });
@@ -232,10 +248,10 @@ where
             for (id, subscriber) in subscribers_snapshot.iter_mut() {
                 if subscriber.sender.is_closed() {
                     warn!(
-                        subscription_id = id,
-                        "Subscriber closed connection, removing"
+                        subscription_id = id.to_string(),
+                        "subscriber closed connection, removing"
                     );
-                    to_remove.push(id.clone());
+                    to_remove.push(*id);
                     continue;
                 }
 
@@ -244,14 +260,14 @@ where
                 }
 
                 let data = if subscriber.sender.capacity() > 1 {
-                    StreamEvent::Message(data.clone())
+                    StreamPayload::Message(data.clone())
                 } else {
                     warn!(
-                        subscription_id = id,
-                        "Lagging behind, sending last message and removing"
+                        subscription_id = id.to_string(),
+                        "lagging behind, sending last message and removing"
                     );
-                    to_remove.push(id.clone());
-                    StreamEvent::ClosingDueToLag(data.clone())
+                    to_remove.push(*id);
+                    StreamPayload::ClosingDueToLag(data.clone())
                 };
 
                 // since we checked the capacity we can ignore the result
@@ -261,7 +277,7 @@ where
         };
         if !to_remove.is_empty() {
             let mut subscribers = subscribers.lock().unwrap_or_else(|poisoned| {
-                error!("Subscribers mutex poisoned, recovering...");
+                error!("subscribers mutex poisoned, recovering...");
                 subscribers.clear_poison();
                 poisoned.into_inner()
             });
@@ -293,17 +309,14 @@ where
     ///     }
     /// });
     /// ```
-    fn subscribe(&self, filter: F) -> impl Stream<Item = StreamEvent<T>> {
+    fn subscribe(&self, filter: F) -> impl Stream<Item = StreamPayload<T>> {
         let mut subscribers = self.subscribers.lock().unwrap_or_else(|poisoned| {
-            error!("Subscribers mutex poisoned, recovering...");
+            error!("subscribers mutex poisoned, recovering...");
             self.subscribers.clear_poison();
             poisoned.into_inner()
         });
-        let (tx, rx) = mpsc::channel::<StreamEvent<T>>(BUFFER_SIZE);
-        subscribers.insert(
-            ObjectID::random().to_string(),
-            Subscriber { sender: tx, filter },
-        );
+        let (tx, rx) = mpsc::channel::<StreamPayload<T>>(BUFFER_SIZE);
+        subscribers.insert(SubscriberId::new(), Subscriber { sender: tx, filter });
         ReceiverStream::new(rx)
     }
 }
@@ -341,14 +354,14 @@ where
 /// The "slow receiver" problem is handled through capacity-based monitoring:
 ///
 /// - **Normal Operation**: When a subscriber's channel has capacity > 1,
-///   messages are sent as [`StreamEvent::Message`] allowing continued
+///   messages are sent as [`StreamPayload::Message`] allowing continued
 ///   subscription
 /// - **Backpressure Detection**: When capacity drops to 1 (channel nearly
 ///   full), the subscriber is marked as lagging behind the message production
 ///   rate
 /// - **Graceful Termination**: Lagging subscribers receive their final message
-///   wrapped in [`StreamEvent::ClosingDueToLag`] and are automatically removed
-///   from the subscriber list
+///   wrapped in [`StreamPayload::ClosingDueToLag`] and are automatically
+///   removed from the subscriber list
 /// - **System Protection**: This prevents unbounded memory growth and maintains
 ///   overall broadcaster performance by avoiding blocking on slow consumers
 pub struct IndexerStreamer {
@@ -395,11 +408,12 @@ impl IndexerStreamer {
     /// # Note
     /// If the subscriber cannot keep up with the event production rate (slow
     /// subscriber problem), it will automatically receive a final
-    /// [`StreamEvent::ClosingDueToLag`] message and be disconnected to prevent
-    /// system-wide performance degradation. Subscribers can resubscribe at any
-    /// time to resume receiving events, but **any messages that occurred during
-    /// the disconnection period will be lost** - the new subscription will only
-    /// receive events from the point of resubscription forward.
+    /// [`StreamPayload::ClosingDueToLag`] message and be disconnected to
+    /// prevent system-wide performance degradation. Subscribers can
+    /// resubscribe at any time to resume receiving events, but **any
+    /// messages that occurred during the disconnection period will be
+    /// lost** - the new subscription will only receive events from the
+    /// point of resubscription forward.
     ///
     /// # Example
     ///
@@ -409,10 +423,10 @@ impl IndexerStreamer {
     ///     use futures::StreamExt;
     ///     while let Some(stream_event) = events.next().await {
     ///         match stream_event {
-    ///             StreamEvent::Message(ev) => {
+    ///             StreamPayload::Message(ev) => {
     ///                 println!("Transaction: {ev:?}");
     ///             }
-    ///             StreamEvent::ClosingDueToLag(last_ev) => {
+    ///             StreamPayload::ClosingDueToLag(last_ev) => {
     ///                 println!("Last Transaction: {last_ev:?}");
     ///             }
     ///         }
@@ -422,7 +436,7 @@ impl IndexerStreamer {
     pub fn subscribe_events(
         &self,
         filter: StreamEventFilter,
-    ) -> impl Stream<Item = StreamEvent<StoredEvent>> {
+    ) -> impl Stream<Item = StreamPayload<StoredEvent>> {
         self.events_broadcaster.subscribe(filter)
     }
 
@@ -435,11 +449,12 @@ impl IndexerStreamer {
     /// # Note
     /// If the subscriber cannot keep up with the event production rate (slow
     /// subscriber problem), it will automatically receive a final
-    /// [`StreamEvent::ClosingDueToLag`] message and be disconnected to prevent
-    /// system-wide performance degradation. Subscribers can resubscribe at any
-    /// time to resume receiving events, but **any messages that occurred during
-    /// the disconnection period will be lost** - the new subscription will only
-    /// receive events from the point of resubscription forward.
+    /// [`StreamPayload::ClosingDueToLag`] message and be disconnected to
+    /// prevent system-wide performance degradation. Subscribers can
+    /// resubscribe at any time to resume receiving events, but **any
+    /// messages that occurred during the disconnection period will be
+    /// lost** - the new subscription will only receive events from the
+    /// point of resubscription forward.
     ///
     /// # Example
     ///
@@ -450,10 +465,10 @@ impl IndexerStreamer {
     ///     use futures::StreamExt;
     ///     while let Some(stream_event) = txs.next().await {
     ///         match stream_event {
-    ///             StreamEvent::Message(tx) => {
+    ///             StreamPayload::Message(tx) => {
     ///                 println!("Transaction: {tx:?}");
     ///             }
-    ///             StreamEvent::ClosingDueToLag(last_tx) => {
+    ///             StreamPayload::ClosingDueToLag(last_tx) => {
     ///                 println!("Last Transaction: {last_tx:?}");
     ///             }
     ///         }
@@ -463,7 +478,7 @@ impl IndexerStreamer {
     pub fn subscribe_transactions(
         &self,
         filter: StreamTransactionFilter,
-    ) -> impl Stream<Item = StreamEvent<StoredTransaction>> {
+    ) -> impl Stream<Item = StreamPayload<StoredTransaction>> {
         self.transactions_broadcaster.subscribe(filter)
     }
 
@@ -474,68 +489,63 @@ impl IndexerStreamer {
         event_tx: mpsc::Sender<StoredEvent>,
         transaction_tx: mpsc::Sender<StoredTransaction>,
     ) -> Result<(), IndexerError> {
-        // Create a channel for receiving messages
-        let (tx, rx) = mpsc::channel(BUFFER_SIZE);
-
-        // Create a stream from the connection that forwards messages to the channel
-        let stream = stream::poll_fn(move |cx| connection.poll_message(cx));
         let connection_task = async move {
-            let mut stream = stream;
-            while let Some(message) = stream.next().await {
-                match message {
-                    Ok(msg) => {
-                        if tx.send(msg).await.is_err() {
-                            error!("notification receiver dropped");
-                            break;
-                        }
-                    }
-                    Err(e) => {
-                        error!("connection error: {e}");
-                        break;
-                    }
+            // create a stream from the connection that forwards messages to the channel.
+            let mut stream =
+                stream::poll_fn(move |cx| connection.poll_message(cx)).ready_chunks(BUFFER_SIZE);
+
+            while let Some(messages) = stream.next().await {
+                let messages = messages
+                    .into_iter()
+                    .collect::<Result<Vec<AsyncMessage>, _>>()
+                    .map_err(|e| {
+                        IndexerError::Generic(format!("database connection error: {e}"))
+                    })?;
+
+                let mut filtered_messages = Self::filter_checkpoint_notifications(&messages);
+
+                if let Some((first, last)) = filtered_messages
+                    .next()
+                    .map(|first| (first, filtered_messages.last().unwrap_or(first)))
+                {
+                    debug!(notification = ?last);
+
+                    let instant = Instant::now();
+                    let transactions: Vec<StoredTransaction> = indexer_reader
+                        .spawn_blocking(move |this| {
+                            this.multi_get_transactions_by_sequence_numbers_range(
+                                first.min_tx_sequence_number,
+                                last.max_tx_sequence_number,
+                            )
+                        })
+                        .await?;
+
+                    let duration = instant.elapsed();
+                    debug!(
+                        "transactions query took: {duration:?}, tx: {}",
+                        transactions.len()
+                    );
+
+                    let instant = Instant::now();
+                    Self::publish_tx_and_events(transactions, &event_tx, &transaction_tx).await?;
+                    let duration = instant.elapsed();
+                    debug!("broadcast data took: {duration:?}");
                 }
             }
+
+            Ok::<(), IndexerError>(())
         };
 
-        // Spawn the connection handler
-        tokio::spawn(connection_task);
+        // spawn the connection handler.
+        let handle = tokio::spawn(connection_task);
 
-        // Listen for notifications on a specific channel
+        // listen for notifications on a specific channel.
         client
             .execute(&format!("LISTEN {CHANNEL_NAME};"), &[])
             .await
             .context("failed to listen to channel notifications")?;
 
-        let mut notification_stream = ReceiverStream::new(rx).ready_chunks(BUFFER_SIZE);
-
-        while let Some(messages) = notification_stream.next().await {
-            if let Some((first, last)) = Self::first_and_last_checkpoint_notifications(&messages) {
-                debug!(notification = ?last);
-
-                let instant = Instant::now();
-                let transactions: Vec<StoredTransaction> = indexer_reader
-                    .spawn_blocking(move |this| {
-                        this.multi_get_transactions_by_sequence_numbers_range(
-                            first.min_tx_sequence_number,
-                            last.max_tx_sequence_number,
-                        )
-                    })
-                    .await?;
-
-                let duration = instant.elapsed();
-                debug!(
-                    "transactions query took: {duration:?}, tx: {}",
-                    transactions.len()
-                );
-
-                let instant = Instant::now();
-                Self::publish_tx_and_events(transactions, &event_tx, &transaction_tx).await?;
-                let duration = instant.elapsed();
-                debug!("broadcast data took: {duration:?}");
-            }
-        }
-
-        Ok(())
+        handle.await?
     }
 
     async fn publish_tx_and_events(
@@ -560,38 +570,24 @@ impl IndexerStreamer {
         Ok(())
     }
 
-    fn first_and_last_checkpoint_notifications(
+    /// Filters and parses database notifications into
+    /// [`CheckpointCommitNotification`] from PostgreSQL messages.
+    fn filter_checkpoint_notifications(
         messages: &[AsyncMessage],
-    ) -> Option<(CheckpointCommitNotification, CheckpointCommitNotification)> {
-        let mut first: Option<CheckpointCommitNotification> = None;
-        let mut last: Option<CheckpointCommitNotification> = None;
-
-        for msg in messages {
-            match msg {
-                AsyncMessage::Notification(n) => {
-                    match serde_json::from_str::<CheckpointCommitNotification>(n.payload()) {
-                        Ok(parsed) => {
-                            first.get_or_insert(parsed.clone());
-                            last = Some(parsed);
-                        }
-                        Err(e) => {
-                            error!("failed parsing checkpoint notification: {e}");
-                        }
-                    }
-                }
-                AsyncMessage::Notice(notice) => {
-                    warn!("received PostgreSQL notice: {}", notice.message());
-                }
-                _ => {}
+    ) -> impl Iterator<Item = CheckpointCommitNotification> + '_ {
+        messages.iter().filter_map(|msg| match msg {
+            AsyncMessage::Notification(n) => {
+                serde_json::from_str::<CheckpointCommitNotification>(n.payload()).ok()
             }
-        }
-
-        first.and_then(|f| last.map(|l| (f, l)))
+            _ => None,
+        })
     }
 
+    /// Extract [`StoredEvent`]'s from [`StoredTransaction`].
     fn stored_events_from_transaction(
         tx: &StoredTransaction,
     ) -> Result<Vec<StoredEvent>, IndexerError> {
+        let with_prefix = true;
         let native_events: Vec<Event> = stored_events_to_events(tx.events.clone())?;
         let stored = native_events
             .into_iter()
@@ -603,7 +599,7 @@ impl IndexerStreamer {
                 senders: vec![Some(native.sender.to_vec())],
                 package: native.package_id.to_vec(),
                 module: native.transaction_module.to_string(),
-                event_type: native.type_.to_canonical_string(/* with_prefix */ true),
+                event_type: native.type_.to_canonical_string(with_prefix),
                 timestamp_ms: tx.timestamp_ms,
                 bcs: native.contents.clone(),
             })
