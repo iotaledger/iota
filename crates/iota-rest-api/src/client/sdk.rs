@@ -2,11 +2,13 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use iota_sdk2::types::{
-    Address, CheckpointData, CheckpointDigest, CheckpointSequenceNumber, EpochId, Object, ObjectId,
-    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction, TransactionDigest,
-    UnresolvedTransaction, ValidatorCommittee, Version,
+use iota_sdk_transaction_builder::unresolved::Transaction as UnresolvedTransaction;
+use iota_sdk_types::{
+    Address, CheckpointData, CheckpointSequenceNumber, EpochId, Object, ObjectId,
+    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction, ValidatorCommittee,
+    Version,
 };
+use iota_types::digests::{CheckpointDigest, TransactionDigest};
 use reqwest::{StatusCode, Url, header::HeaderValue};
 use tap::Pipe;
 
@@ -537,7 +539,7 @@ impl ResponseParts {
         let chain_id = headers
             .get(X_IOTA_CHAIN_ID)
             .map(HeaderValue::as_bytes)
-            .and_then(|s| CheckpointDigest::from_base58(s).ok());
+            .and_then(|s| CheckpointDigest::try_from(s.to_vec()).ok());
         let chain = headers
             .get(X_IOTA_CHAIN)
             .and_then(|h| h.to_str().ok())

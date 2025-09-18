@@ -14,10 +14,10 @@ use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
-use iota_sdk2::types::{
-    CheckpointSequenceNumber, Transaction, TransactionDigest, TransactionEffects,
-    TransactionEvents, UserSignature,
+use iota_sdk_types::{
+    CheckpointSequenceNumber, Transaction, TransactionEffects, TransactionEvents, UserSignature,
 };
+use iota_types::digests::{Digest, TransactionDigest};
 pub use resolve::{
     ResolveTransaction, ResolveTransactionQueryParameters, ResolveTransactionResponse,
 };
@@ -181,7 +181,7 @@ async fn list_transactions(
             state
                 .get_transaction(digest.into())
                 .map(|(transaction, effects, events)| TransactionResponse {
-                    digest: transaction.transaction.digest(),
+                    digest: Digest::from(transaction.transaction.digest()).into(),
                     transaction: transaction.transaction,
                     signatures: transaction.signatures,
                     effects,

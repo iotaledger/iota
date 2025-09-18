@@ -5,7 +5,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::extract::{Query, State, rejection::ExtensionRejection};
-use iota_sdk2::types::{
+use iota_sdk_types::{
     Address, BalanceChange, CheckpointSequenceNumber, Object, Owner, SignedTransaction,
     Transaction, TransactionEffects, TransactionEvents, ValidatorAggregatedSignature,
     framework::Coin,
@@ -308,14 +308,14 @@ enum BinaryEffectsFinality {
     },
 }
 
-fn coins(objects: &[Object]) -> impl Iterator<Item = (&Address, Coin<'_>)> + '_ {
+fn coins(objects: &[Object]) -> impl Iterator<Item = (&Address, Coin)> + '_ {
     objects.iter().filter_map(|object| {
         let address = match object.owner() {
             Owner::Address(address) => address,
             Owner::Object(object_id) => object_id.as_address(),
             Owner::Shared { .. } | Owner::Immutable => return None,
         };
-        let coin = Coin::try_from_object(object)?;
+        let coin = Coin::try_from_object(object).ok()?;
         Some((address, coin))
     })
 }

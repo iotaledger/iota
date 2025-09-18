@@ -30,28 +30,30 @@ use crate::error::IotaError;
     JsonSchema,
     derive_more::From,
 )]
-pub struct Digest(pub(crate) iota_sdk2::Digest);
+pub struct Digest(pub(crate) iota_sdk_types::Digest);
 
 impl Digest {
-    pub const ZERO: Self = Self(iota_sdk2::Digest::new([0; iota_sdk2::Digest::LENGTH]));
+    pub const ZERO: Self = Self(iota_sdk_types::Digest::new(
+        [0; iota_sdk_types::Digest::LENGTH],
+    ));
 
-    pub const fn new(digest: [u8; iota_sdk2::Digest::LENGTH]) -> Self {
-        Self(iota_sdk2::Digest::new(digest))
+    pub const fn new(digest: [u8; iota_sdk_types::Digest::LENGTH]) -> Self {
+        Self(iota_sdk_types::Digest::new(digest))
     }
 
     pub fn generate<R: rand::RngCore + rand::CryptoRng>(rng: R) -> Self {
-        Self(iota_sdk2::Digest::generate(rng))
+        Self(iota_sdk_types::Digest::generate(rng))
     }
 
     pub fn random() -> Self {
         Self::generate(rand::thread_rng())
     }
 
-    pub const fn inner(&self) -> &[u8; iota_sdk2::Digest::LENGTH] {
+    pub const fn inner(&self) -> &[u8; iota_sdk_types::Digest::LENGTH] {
         self.0.inner()
     }
 
-    pub const fn into_inner(self) -> [u8; iota_sdk2::Digest::LENGTH] {
+    pub const fn into_inner(self) -> [u8; iota_sdk_types::Digest::LENGTH] {
         self.0.into_inner()
     }
 
@@ -67,7 +69,7 @@ impl Digest {
     }
 }
 
-impl From<Digest> for iota_sdk2::Digest {
+impl From<Digest> for iota_sdk_types::Digest {
     fn from(value: Digest) -> Self {
         value.0
     }
@@ -101,10 +103,10 @@ impl TryFrom<Vec<u8>> for Digest {
     type Error = IotaError;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, IotaError> {
-        let bytes: [u8; iota_sdk2::Digest::LENGTH] =
-            <[u8; iota_sdk2::Digest::LENGTH]>::try_from(&bytes[..]).map_err(|_| {
+        let bytes: [u8; iota_sdk_types::Digest::LENGTH] =
+            <[u8; iota_sdk_types::Digest::LENGTH]>::try_from(&bytes[..]).map_err(|_| {
                 IotaError::InvalidDigestLength {
-                    expected: iota_sdk2::Digest::LENGTH,
+                    expected: iota_sdk_types::Digest::LENGTH,
                     actual: bytes.len(),
                 }
             })?;

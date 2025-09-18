@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use axum::extract::{Path, Query, State};
-use iota_sdk2::types::{
-    CheckpointContents, CheckpointDigest, CheckpointSequenceNumber, CheckpointSummary,
-    SignedCheckpointSummary, ValidatorAggregatedSignature,
+use iota_sdk_types::{
+    CheckpointContents, CheckpointSequenceNumber, CheckpointSummary, SignedCheckpointSummary,
+    ValidatorAggregatedSignature,
 };
-use iota_types::storage::ReadStore;
+use iota_types::{digests::CheckpointDigest, storage::ReadStore};
 use tap::Pipe;
 
 use crate::{

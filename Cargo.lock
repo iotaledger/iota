@@ -3424,7 +3424,16 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
 dependencies = [
- "derive_more-impl",
+ "derive_more-impl 1.0.0",
+]
+
+[[package]]
+name = "derive_more"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "093242cf7570c207c83073cf82f79706fe7b8317e98620a47d5be7c3d8497678"
+dependencies = [
+ "derive_more-impl 2.0.1",
 ]
 
 [[package]]
@@ -3437,6 +3446,17 @@ dependencies = [
  "quote",
  "syn 2.0.100",
  "unicode-xid",
+]
+
+[[package]]
+name = "derive_more-impl"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bda628edc44c4bb645fbe0f758797143e4e07926f7ebf4e9bdfbd3d2ce621df3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.100",
 ]
 
 [[package]]
@@ -5658,6 +5678,7 @@ dependencies = [
  "iota-core",
  "iota-framework",
  "iota-framework-snapshot",
+ "iota-graphql-client",
  "iota-json-rpc-types",
  "iota-keys",
  "iota-macros",
@@ -5665,11 +5686,13 @@ dependencies = [
  "iota-network",
  "iota-protocol-config",
  "iota-sdk 1.8.0-alpha",
+ "iota-sdk-types",
  "iota-simulator",
  "iota-storage",
  "iota-surfer",
  "iota-swarm-config",
  "iota-test-transaction-builder",
+ "iota-transaction-builder 0.0.1",
  "iota-types",
  "itertools 0.13.0",
  "move-core-types",
@@ -6273,6 +6296,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-graphql-client"
+version = "0.0.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0ca848f2b41a7137365fc34809cf91ebc53d8bd6#0ca848f2b41a7137365fc34809cf91ebc53d8bd6"
+dependencies = [
+ "anyhow",
+ "base64ct",
+ "bcs",
+ "chrono",
+ "cynic",
+ "derive_more 2.0.1",
+ "futures",
+ "iota-graphql-client-build",
+ "iota-sdk-types",
+ "reqwest 0.12.7",
+ "serde",
+ "serde_json",
+ "strum 0.27.2",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
+name = "iota-graphql-client-build"
+version = "0.0.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0ca848f2b41a7137365fc34809cf91ebc53d8bd6#0ca848f2b41a7137365fc34809cf91ebc53d8bd6"
+dependencies = [
+ "cynic-codegen",
+]
+
+[[package]]
 name = "iota-graphql-config"
 version = "1.8.0-alpha"
 dependencies = [
@@ -6442,7 +6496,7 @@ dependencies = [
  "iota-rest-api",
  "iota-swarm-config",
  "iota-test-transaction-builder",
- "iota-transaction-builder",
+ "iota-transaction-builder 1.8.0-alpha",
  "iota-types",
  "itertools 0.13.0",
  "jsonrpsee",
@@ -6535,7 +6589,7 @@ dependencies = [
  "iota-open-rpc",
  "iota-protocol-config",
  "iota-storage",
- "iota-transaction-builder",
+ "iota-transaction-builder 1.8.0-alpha",
  "iota-types",
  "itertools 0.13.0",
  "jsonrpsee",
@@ -7272,6 +7326,7 @@ dependencies = [
  "iota-network-stack",
  "iota-protocol-config",
  "iota-sdk-types",
+ "iota-transaction-builder 0.0.1",
  "iota-types",
  "itertools 0.13.0",
  "mime",
@@ -7442,7 +7497,7 @@ dependencies = [
  "iota-json-rpc-types",
  "iota-keys",
  "iota-move-build",
- "iota-transaction-builder",
+ "iota-transaction-builder 1.8.0-alpha",
  "iota-types",
  "jsonrpsee",
  "move-compiler",
@@ -7864,6 +7919,21 @@ dependencies = [
  "tokio",
  "tracing",
  "typed-store",
+]
+
+[[package]]
+name = "iota-transaction-builder"
+version = "0.0.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=0ca848f2b41a7137365fc34809cf91ebc53d8bd6#0ca848f2b41a7137365fc34809cf91ebc53d8bd6"
+dependencies = [
+ "base64ct",
+ "bcs",
+ "iota-sdk-types",
+ "schemars",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -8620,7 +8690,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4979f22fdb869068da03c9f7528f8297c6fd2606bc3a4affe42e6a823fdb8da4"
 dependencies = [
  "cfg-if",
- "windows-targets 0.52.6",
+ "windows-targets 0.48.5",
 ]
 
 [[package]]
@@ -11416,7 +11486,7 @@ checksum = "0c1318b19085f08681016926435853bbf7858f9c082d0999b80550ff5d9abe15"
 dependencies = [
  "bytes",
  "heck 0.5.0",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "log",
  "multimap",
  "once_cell",
@@ -11436,7 +11506,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9552f850d5f0964a4e4d0bf306459ac29323ddfbae05e35a7c0d35cb0803cc5"
 dependencies = [
  "anyhow",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn 2.0.100",
@@ -13739,6 +13809,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "strum"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af23d6f6c1a224baef9d3f61e287d2761385a5b88fdab4eb4c6f11aeb54c4bcf"
+dependencies = [
+ "strum_macros 0.27.2",
+]
+
+[[package]]
 name = "strum_macros"
 version = "0.24.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -13774,6 +13853,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
+ "syn 2.0.100",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.27.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7695ce3845ea4b33927c055a39dc438a45b059f7c1b3d91d38d10355fb8cbca7"
+dependencies = [
+ "heck 0.5.0",
+ "proc-macro2",
+ "quote",
  "syn 2.0.100",
 ]
 

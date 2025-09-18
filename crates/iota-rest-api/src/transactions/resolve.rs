@@ -9,16 +9,20 @@ use axum::{
     extract::{Query, State},
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk2::types::{
-    Argument, Command, ObjectId, Transaction, UnresolvedInputArgument, UnresolvedObjectReference,
-    UnresolvedProgrammableTransaction, UnresolvedTransaction,
+use iota_sdk_transaction_builder::unresolved::{
+    Input as UnresolvedInput, InputKind as UnresolvedInputKind,
+    ObjectReference as UnresolvedObjectReference,
+    ProgrammableTransaction as UnresolvedProgrammableTransaction,
+    Transaction as UnresolvedTransaction, Value,
 };
+use iota_sdk_types::{Argument, Command, ObjectId, Transaction};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef},
     effects::TransactionEffectsAPI,
     gas::GasCostSummary,
     gas_coin::GasCoin,
     move_package::MovePackage,
+    object::Data,
     transaction::{
         CallArg, GasData, ObjectArg, ProgrammableTransaction, TransactionData, TransactionDataAPI,
     },
@@ -26,6 +30,7 @@ use iota_types::{
 use itertools::Itertools;
 use move_binary_format::normalized;
 use schemars::JsonSchema;
+use serde::de::value;
 use tap::Pipe;
 
 use super::{TransactionSimulationResponse, execution::SimulateTransactionQueryParameters};
@@ -378,109 +383,119 @@ fn resolve_arg(
     reader: &StateReader,
     called_packages: &HashMap<ObjectId, NormalizedPackage>,
     commands: &[Command],
-    arg: UnresolvedInputArgument,
+    arg: UnresolvedInput,
     arg_idx: usize,
 ) -> Result<CallArg> {
-    match arg {
-        UnresolvedInputArgument::Pure { value } => CallArg::Pure(value),
-        UnresolvedInputArgument::ImmutableOrOwned(obj_ref) => CallArg::Object(
-            ObjectArg::ImmOrOwnedObject(resolve_object_reference(reader, obj_ref)?),
-        ),
-        UnresolvedInputArgument::Shared {
-            object_id,
-            initial_shared_version: _,
-            mutable: _,
-        } => {
-            let id = object_id.into();
-            let object = reader
-                .inner()
-                .try_get_object(&id)?
-                .ok_or_else(|| ObjectNotFoundError::new(object_id))?;
+    // TODO implement it
+    match (arg.kind, arg.value) {
+        (Some(UnresolvedInputKind::Pure), Some(Value::Array(values))) => todo!(),
+        (Some(UnresolvedInputKind::Shared), Some(Value::Number(num))) => todo!(),
+        _ => todo!(),
+    };
+    todo!()
 
-            let initial_shared_version = if let iota_types::object::Owner::Shared {
-                initial_shared_version,
-            } = object.owner()
-            {
-                *initial_shared_version
-            } else {
-                return Err(RestError::new(
-                    axum::http::StatusCode::BAD_REQUEST,
-                    format!("object {object_id} is not a shared object"),
-                ));
-            };
+    // match arg {
+    //     UnresolvedInput::Pure { value } => CallArg::Pure(value),
+    //     UnresolvedInput::ImmutableOrOwned(obj_ref) =>
+    // CallArg::Object(ObjectArg::ImmOrOwnedObject(
+    //         resolve_object_reference(reader, obj_ref)?,
+    //     )),
+    //     UnresolvedInput::Shared {
+    //         object_id,
+    //         initial_shared_version: _,
+    //         mutable: _,
+    //     } => {
+    //         let id = object_id.into();
+    //         let object = reader
+    //             .inner()
+    //             .try_get_object(&id)?
+    //             .ok_or_else(|| ObjectNotFoundError::new(object_id))?;
 
-            let mut mutable = false;
+    //         let initial_shared_version = if let
+    // iota_types::object::Owner::Shared {
+    // initial_shared_version,         } = object.owner()
+    //         {
+    //             *initial_shared_version
+    //         } else {
+    //             return Err(RestError::new(
+    //                 axum::http::StatusCode::BAD_REQUEST,
+    //                 format!("object {object_id} is not a shared object"),
+    //             ));
+    //         };
 
-            for (command, idx) in find_arg_uses(arg_idx, commands) {
-                match (command, idx) {
-                    (Command::MoveCall(move_call), Some(idx)) => {
-                        let function = called_packages
-                            // Find the package
-                            .get(&move_call.package)
-                            // Find the module
-                            .and_then(|package| {
-                                package.normalized_modules.get(move_call.module.as_str())
-                            })
-                            // Find the function
-                            .and_then(|module| module.functions.get(move_call.function.as_str()))
-                            .ok_or_else(|| {
-                                RestError::new(
-                                    axum::http::StatusCode::BAD_REQUEST,
-                                    format!(
-                                        "unable to find function {package}::{module}::{function}",
-                                        package = move_call.package,
-                                        module = move_call.module,
-                                        function = move_call.function
-                                    ),
-                                )
-                            })?;
+    //         let mut mutable = false;
 
-                        let arg_type = function.parameters.get(idx).ok_or_else(|| {
-                            RestError::new(
-                                axum::http::StatusCode::BAD_REQUEST,
-                                "invalid input parameter",
-                            )
-                        })?;
+    //         for (command, idx) in find_arg_uses(arg_idx, commands) {
+    //             match (command, idx) {
+    //                 (Command::MoveCall(move_call), Some(idx)) => {
+    //                     let function = called_packages
+    //                         // Find the package
+    //                         .get(&move_call.package)
+    //                         // Find the module
+    //                         .and_then(|package| {
+    //
+    // package.normalized_modules.get(move_call.module.as_str())
+    // })                         // Find the function
+    //                         .and_then(|module|
+    // module.functions.get(move_call.function.as_str()))
+    // .ok_or_else(|| {                             RestError::new(
+    //                                 axum::http::StatusCode::BAD_REQUEST,
+    //                                 format!(
+    //                                     "unable to find function
+    // {package}::{module}::{function}",
+    // package = move_call.package,
+    // module = move_call.module,
+    // function = move_call.function                                 ),
+    //                             )
+    //                         })?;
 
-                        if matches!(
-                            arg_type,
-                            move_binary_format::normalized::Type::MutableReference(_)
-                                | move_binary_format::normalized::Type::Struct { .. }
-                        ) {
-                            mutable = true;
-                        }
-                    }
+    //                     let arg_type =
+    // function.parameters.get(idx).ok_or_else(|| {
+    // RestError::new(
+    // axum::http::StatusCode::BAD_REQUEST,
+    // "invalid input parameter",                         )
+    //                     })?;
 
-                    (
-                        Command::SplitCoins(_)
-                        | Command::MergeCoins(_)
-                        | Command::MakeMoveVector(_),
-                        _,
-                    ) => {
-                        mutable = true;
-                    }
+    //                     if matches!(
+    //                         arg_type,
+    //
+    // move_binary_format::normalized::Type::MutableReference(_)
+    // | move_binary_format::normalized::Type::Struct { .. }
+    // ) {                         mutable = true;
+    //                     }
+    //                 }
 
-                    _ => {}
-                }
+    //                 (
+    //                     Command::SplitCoins(_)
+    //                     | Command::MergeCoins(_)
+    //                     | Command::MakeMoveVector(_),
+    //                     _,
+    //                 ) => {
+    //                     mutable = true;
+    //                 }
 
-                // Early break out of the loop if we've already determined that the shared
-                // object is needed to be mutable
-                if mutable {
-                    break;
-                }
-            }
+    //                 _ => {}
+    //             }
 
-            CallArg::Object(ObjectArg::SharedObject {
-                id,
-                initial_shared_version,
-                mutable,
-            })
-        }
-        UnresolvedInputArgument::Receiving(obj_ref) => CallArg::Object(ObjectArg::Receiving(
-            resolve_object_reference(reader, obj_ref)?,
-        )),
-    }
-    .pipe(Ok)
+    //             // Early break out of the loop if we've already determined
+    // that the shared             // object is needed to be mutable
+    //             if mutable {
+    //                 break;
+    //             }
+    //         }
+
+    //         CallArg::Object(ObjectArg::SharedObject {
+    //             id,
+    //             initial_shared_version,
+    //             mutable,
+    //         })
+    //     }
+    //     UnresolvedInput::Receiving(obj_ref) =>
+    // CallArg::Object(ObjectArg::Receiving(
+    //         resolve_object_reference(reader, obj_ref)?,
+    //     )),
+    // }
+    // .pipe(Ok)
 }
 
 /// Given an particular input argument, find all of its uses.

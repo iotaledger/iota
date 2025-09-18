@@ -9,7 +9,7 @@ use iota_rest_api::{
     client::{BalanceChange, reqwest::StatusCode},
     transactions::ResolveTransactionQueryParameters,
 };
-use iota_sdk2::types::{
+use iota_sdk_types::{
     Argument, Command, TransactionExpiration, UnresolvedGasPayment, UnresolvedInputArgument,
     UnresolvedObjectReference, UnresolvedProgrammableTransaction, UnresolvedTransaction,
 };
@@ -86,12 +86,10 @@ async fn resolve_transaction_simple_transfer() {
                     value: bcs::to_bytes(&recipient).unwrap(),
                 },
             ],
-            commands: vec![Command::TransferObjects(
-                iota_sdk2::types::TransferObjects {
-                    objects: vec![Argument::Input(0)],
-                    address: Argument::Input(1),
-                },
-            )],
+            commands: vec![Command::TransferObjects(iota_sdk_types::TransferObjects {
+                objects: vec![Argument::Input(0)],
+                address: Argument::Input(1),
+            })],
         },
         sender: sender.into(),
         gas_payment: None,
@@ -153,12 +151,10 @@ async fn resolve_transaction_transfer_with_sponsor() {
                     value: bcs::to_bytes(&recipient).unwrap(),
                 },
             ],
-            commands: vec![Command::TransferObjects(
-                iota_sdk2::types::TransferObjects {
-                    objects: vec![Argument::Input(0)],
-                    address: Argument::Input(1),
-                },
-            )],
+            commands: vec![Command::TransferObjects(iota_sdk_types::TransferObjects {
+                objects: vec![Argument::Input(0)],
+                address: Argument::Input(1),
+            })],
         },
         sender: sender.into(),
         gas_payment: Some(UnresolvedGasPayment {
@@ -232,7 +228,7 @@ async fn resolve_transaction_borrowed_shared_object() {
                 initial_shared_version: None,
                 mutable: None,
             }],
-            commands: vec![Command::MoveCall(iota_sdk2::types::MoveCall {
+            commands: vec![Command::MoveCall(iota_sdk_types::MoveCall {
                 package: "0x2".parse().unwrap(),
                 module: "clock".parse().unwrap(),
                 function: "timestamp_ms".parse().unwrap(),
@@ -310,7 +306,7 @@ async fn resolve_transaction_mutable_shared_object() {
                     value: bcs::to_bytes(&validator_address).unwrap(),
                 },
             ],
-            commands: vec![Command::MoveCall(iota_sdk2::types::MoveCall {
+            commands: vec![Command::MoveCall(iota_sdk_types::MoveCall {
                 package: "0x3".parse().unwrap(),
                 module: "iota_system".parse().unwrap(),
                 function: "request_add_stake".parse().unwrap(),
@@ -368,7 +364,7 @@ async fn resolve_transaction_insufficient_gas() {
                 initial_shared_version: None,
                 mutable: None,
             }],
-            commands: vec![Command::MoveCall(iota_sdk2::types::MoveCall {
+            commands: vec![Command::MoveCall(iota_sdk_types::MoveCall {
                 package: "0x2".parse().unwrap(),
                 module: "clock".parse().unwrap(),
                 function: "timestamp_ms".parse().unwrap(),
