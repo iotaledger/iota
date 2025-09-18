@@ -84,11 +84,13 @@ const getResultsForAddress = async (
 
         if (!nameRecord || !nameRecord.targetAddress) return null;
 
+        const exists = await addressExists(client, nameRecord.targetAddress);
+
         return [
             {
                 id: nameRecord.targetAddress,
                 label: nameRecord.targetAddress,
-                type: 'address',
+                type: exists ? 'address' : 'object',
             },
         ];
     }
@@ -119,6 +121,35 @@ const getResultsForAddress = async (
         },
     ];
 };
+
+async function addressExists(client: IotaClient, address: string): Promise<boolean> {
+    const normalized = normalizeIotaObjectId(address);
+    if (!isValidIotaAddress(normalized)) return false;
+
+    try {
+        const fromTransactions = await client.queryTransactionBlocks({
+            filter: { FromAddress: normalized },
+            limit: 1,
+        });
+        if (fromTransactions.data.length > 0) return true;
+
+        const toTransactions = await client.queryTransactionBlocks({
+            filter: { ToAddress: normalized },
+            limit: 1,
+        });
+        if (toTransactions.data.length > 0) return true;
+
+        const ownedObjects = await client.getOwnedObjects({
+            owner: normalized,
+            limit: 1,
+        });
+        if (ownedObjects.data.length > 0) return true;
+
+        return false;
+    } catch (e) {
+        return false;
+    }
+}
 
 // Query for validator by pool id or iota address.
 const getResultsForValidatorByPoolIdOrIotaAddress = async (
