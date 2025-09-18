@@ -10,12 +10,14 @@ import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning } from '@iota/apps-ui-icons';
 import { Ed25519PublicKey } from '@iota/iota-sdk/keypairs/ed25519';
 import { AccountType } from '_src/background/accounts/account';
+import { fromHex } from '@iota/iota-sdk/utils';
 
 export function ExportAccountPage() {
     const { accountID } = useParams();
     const { data: allAccounts, isPending } = useAccounts();
     const account = allAccounts?.find(({ id }) => accountID === id) || null;
     const isLedgerAccount = account?.type === AccountType.LedgerDerived;
+    const isKeystoneAccount = account?.type === AccountType.KeystoneDerived;
     const backgroundClient = useBackgroundClient();
     const exportMutation = useMutation({
         mutationKey: ['export-account', accountID],
@@ -37,7 +39,11 @@ export function ExportAccountPage() {
         return <Navigate to="/accounts/manage" replace />;
     }
 
-    const publicKey = account?.publicKey ? new Ed25519PublicKey(account.publicKey) : null;
+    const publicKey = account?.publicKey
+        ? isKeystoneAccount
+            ? new Ed25519PublicKey(fromHex(account.publicKey))
+            : new Ed25519PublicKey(account.publicKey)
+        : null;
     return (
         <Overlay title="Export Account Keys" closeOverlay={() => navigate(-1)} showModal>
             <Loading loading={isPending}>
@@ -54,7 +60,7 @@ export function ExportAccountPage() {
                             />
                         </div>
 
-                        {!isLedgerAccount && (
+                        {!isLedgerAccount && !isKeystoneAccount && (
                             <>
                                 {exportMutation.data ? (
                                     <div className="flex flex-col gap-xs">
