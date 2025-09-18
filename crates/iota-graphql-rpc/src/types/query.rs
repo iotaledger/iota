@@ -20,7 +20,7 @@ use crate::{
     connection::ScanConnection,
     error::Error,
     mutation::Mutation,
-    server::watermark_task::Watermark,
+    server::{builder::get_fullnode_client, watermark_task::Watermark},
     types::{
         address::Address,
         available_range::AvailableRange,
@@ -108,14 +108,7 @@ impl Query {
     ) -> Result<DryRunResult> {
         let skip_checks = skip_checks.unwrap_or(false);
 
-        let iota_sdk_client: &Option<IotaClient> = ctx
-            .data()
-            .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
-            .extend()?;
-        let iota_sdk_client = iota_sdk_client
-            .as_ref()
-            .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
-            .extend()?;
+        let iota_sdk_client = get_fullnode_client(ctx)?;
 
         let (sender_address, tx_kind, gas_price, gas_sponsor, gas_budget, gas_objects) =
             if let Some(TransactionMetadata {

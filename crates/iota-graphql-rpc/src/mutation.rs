@@ -18,6 +18,7 @@ use iota_types::{
 
 use crate::{
     error::Error,
+    server::builder::get_fullnode_client,
     types::{
         execution_result::ExecutionResult,
         transaction_block_effects::{TransactionBlockEffects, TransactionBlockEffectsKind},
@@ -53,14 +54,7 @@ impl Mutation {
         tx_bytes: String,
         signatures: Vec<String>,
     ) -> Result<ExecutionResult> {
-        let iota_sdk_client: &Option<IotaClient> = ctx
-            .data()
-            .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
-            .extend()?;
-        let iota_sdk_client = iota_sdk_client
-            .as_ref()
-            .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
-            .extend()?;
+        let iota_sdk_client = get_fullnode_client(ctx)?;
         let tx_data = bcs::from_bytes(
             &Base64::decode(&tx_bytes)
                 .map_err(|e| {
