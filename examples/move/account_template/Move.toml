@@ -1,0 +1,13 @@
+[package]
+name = "account_template"
+edition = "2024" 
+
+[dependencies]
+Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
+
+[addresses]
+account_template = "0x0"
+
+[dev-dependencies]
+
+[dev-addresses]
