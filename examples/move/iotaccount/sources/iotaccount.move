@@ -188,6 +188,10 @@ public fun ensure_tx_sender_is_account(self: &IOTAccount, ctx: &TxContext) {
     assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
 }
 
+public fun ensure_tx_sender_is_account_id(account_address: &address, ctx: &TxContext) {
+    assert!(account_address == ctx.sender(), ETransactionSenderIsNotTheAccount);
+}
+
 // === Public-Package Functions ===
 
 // === Private Functions ===
