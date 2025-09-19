@@ -10,7 +10,7 @@ use std::{
 };
 
 use anyhow::Context;
-use futures::{Stream, StreamExt, stream};
+use futures::{Stream, StreamExt, TryFutureExt, stream};
 use iota_json_rpc_types::{Filter, IotaTransactionKind};
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -367,6 +367,8 @@ where
 pub struct IndexerStreamer {
     events_broadcaster: Broadcaster<StoredEvent, StreamEventFilter>,
     transactions_broadcaster: Broadcaster<StoredTransaction, StreamTransactionFilter>,
+    // To receive notifications from the database we must keep the client alive.
+    _client: Client,
 }
 
 impl IndexerStreamer {
@@ -385,17 +387,28 @@ impl IndexerStreamer {
         let (event_tx, event_rx) = mpsc::channel(BUFFER_SIZE);
         let (transaction_tx, transaction_rx) = mpsc::channel(BUFFER_SIZE);
 
-        tokio::spawn(Self::process_checkpoint_notifications(
-            client,
-            connection,
-            indexer_reader,
-            event_tx,
-            transaction_tx,
-        ));
+        // the database connection must be spawned into a separate task in order to
+        // communicate with the database.
+        tokio::spawn({
+            Self::process_checkpoint_notifications(
+                connection,
+                indexer_reader,
+                event_tx,
+                transaction_tx,
+            )
+            .inspect_err(|e| error!("failed to process checkpoint notification: {e}"))
+        });
+
+        // listen for notifications on a specific channel.
+        client
+            .execute(&format!("LISTEN {CHANNEL_NAME};"), &[])
+            .await
+            .context("failed to listen to channel notifications")?;
 
         Ok(Self {
             events_broadcaster: Broadcaster::new(event_rx),
             transactions_broadcaster: Broadcaster::new(transaction_rx),
+            _client: client,
         })
     }
 
@@ -483,69 +496,52 @@ impl IndexerStreamer {
     }
 
     async fn process_checkpoint_notifications(
-        client: Client,
         mut connection: Connection<Socket, NoTlsStream>,
         indexer_reader: IndexerReader,
         event_tx: mpsc::Sender<StoredEvent>,
         transaction_tx: mpsc::Sender<StoredTransaction>,
     ) -> Result<(), IndexerError> {
-        let connection_task = async move {
-            // create a stream from the connection that forwards messages to the channel.
-            let mut stream =
-                stream::poll_fn(move |cx| connection.poll_message(cx)).ready_chunks(BUFFER_SIZE);
+        // Batch checkpoints in smaller chunks to prevent subscriber overload.
+        // Large batches (1000 checkpoints = ~4000-5000 transactions) would cause
+        // immediate subscriber lag. Smaller batches (~10 checkpoints = ~40-50 tx) keep
+        // pace.
+        let buffer_size = BUFFER_SIZE / 100;
+        // create a stream from the connection that forwards messages to the channel.
+        let mut stream =
+            stream::poll_fn(move |cx| connection.poll_message(cx)).ready_chunks(buffer_size);
 
-            while let Some(messages) = stream.next().await {
-                let messages = messages
-                    .into_iter()
-                    .collect::<Result<Vec<AsyncMessage>, _>>()
-                    .map_err(|e| {
-                        IndexerError::Generic(format!("database connection error: {e}"))
-                    })?;
+        while let Some(messages) = stream.next().await {
+            let mut filtered_messages = Self::filter_checkpoint_notifications(messages);
 
-                let mut filtered_messages = Self::filter_checkpoint_notifications(&messages);
+            let first = filtered_messages.next().transpose()?;
+            let last = filtered_messages.last().transpose()?;
 
-                if let Some((first, last)) = filtered_messages
-                    .next()
-                    .map(|first| (first, filtered_messages.last().unwrap_or(first)))
-                {
-                    debug!(notification = ?last);
+            if let Some((first, last)) = first.map(|f| (f, last.unwrap_or(f))) {
+                debug!(notification = ?last);
 
-                    let instant = Instant::now();
-                    let transactions: Vec<StoredTransaction> = indexer_reader
-                        .spawn_blocking(move |this| {
-                            this.multi_get_transactions_by_sequence_numbers_range(
-                                first.min_tx_sequence_number,
-                                last.max_tx_sequence_number,
-                            )
-                        })
-                        .await?;
+                let instant = Instant::now();
+                let transactions: Vec<StoredTransaction> = indexer_reader
+                    .spawn_blocking(move |this| {
+                        this.multi_get_transactions_by_sequence_numbers_range(
+                            first.min_tx_sequence_number,
+                            last.max_tx_sequence_number,
+                        )
+                    })
+                    .await?;
 
-                    let duration = instant.elapsed();
-                    debug!(
-                        "transactions query took: {duration:?}, tx: {}",
-                        transactions.len()
-                    );
+                let duration = instant.elapsed();
+                debug!(
+                    "transactions query took: {duration:?}, tx: {}",
+                    transactions.len()
+                );
 
-                    let instant = Instant::now();
-                    Self::publish_tx_and_events(transactions, &event_tx, &transaction_tx).await?;
-                    let duration = instant.elapsed();
-                    debug!("broadcast data took: {duration:?}");
-                }
+                let instant = Instant::now();
+                Self::publish_tx_and_events(transactions, &event_tx, &transaction_tx).await?;
+                let duration = instant.elapsed();
+                debug!("broadcast data took: {duration:?}");
             }
-
-            Ok::<(), IndexerError>(())
-        };
-
-        // spawn the connection handler.
-        let handle = tokio::spawn(connection_task);
-
-        // listen for notifications on a specific channel.
-        client
-            .execute(&format!("LISTEN {CHANNEL_NAME};"), &[])
-            .await
-            .context("failed to listen to channel notifications")?;
-
-        handle.await?
+        }
+        Ok(())
     }
 
     async fn publish_tx_and_events(
@@ -573,13 +569,21 @@ impl IndexerStreamer {
     /// Filters and parses database notifications into
     /// [`CheckpointCommitNotification`] from PostgreSQL messages.
     fn filter_checkpoint_notifications(
-        messages: &[AsyncMessage],
-    ) -> impl Iterator<Item = CheckpointCommitNotification> + '_ {
-        messages.iter().filter_map(|msg| match msg {
-            AsyncMessage::Notification(n) => {
-                serde_json::from_str::<CheckpointCommitNotification>(n.payload()).ok()
+        messages: Vec<Result<AsyncMessage, tokio_postgres::Error>>,
+    ) -> impl Iterator<Item = Result<CheckpointCommitNotification, IndexerError>> {
+        messages.into_iter().filter_map(|msg_result| {
+            match msg_result {
+                Ok(AsyncMessage::Notification(n)) => {
+                    match serde_json::from_str::<CheckpointCommitNotification>(n.payload()) {
+                        Ok(notification) => Some(Ok(notification)),
+                        Err(_) => None,
+                    }
+                }
+                Ok(_) => None, // Not a notification message, skip
+                Err(e) => Some(Err(IndexerError::Generic(format!(
+                    "database connection error: {e}"
+                )))),
             }
-            _ => None,
         })
     }
 
