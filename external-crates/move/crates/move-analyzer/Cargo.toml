@@ -2,6 +2,10 @@
 name = "move-analyzer"
 version = "1.0.0"
 authors = ["IOTA Foundation <info@iota.org>"]
+# `move-analyzer` binary built directly out of this crate
+# should not be used "as is", as it sits somewhere
+# in the middle between supporting IOTA and not supporting it (fully)
+autobins = false
 edition = "2021"
 license = "Apache-2.0"
 publish = false
