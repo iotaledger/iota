@@ -284,13 +284,13 @@ impl CongestionTracker {
     /// For all the mutable shared inputs, sum the hotness of the objects.
     /// More sophisticated prediction algorithms can be implemented.
     pub fn get_suggested_gas_price_with_ogd(&self, transaction: &TransactionData) -> u64 {
-        let hotness = self.get_max_hotness_per_tx(
+        let (_, hotness) = self.get_max_hotness_per_tx(
             transaction
                 .shared_input_objects()
                 .into_iter()
                 .filter(|id| id.mutable)
                 .map(|id| id.id),
-        );
+        ).unwrap_or((ObjectID::random(), 0.0));
 
         self.reference_gas_price + hotness as u64
     }
@@ -449,19 +449,14 @@ impl CongestionTracker {
         clearing_gas_price
     }
 
-    fn get_total_hotness_for_objects(&self, objects: impl Iterator<Item = ObjectID>) -> f64 {
+    fn get_max_hotness_per_tx(&self, objects: impl Iterator<Item = ObjectID>) -> Option<(ObjectID, f64)> {
+        
         objects
-            .filter_map(|object_id| self.get_congestion_info(object_id))
-            .map(|info| info.hotness)
-            .sum()
-    }
-
-    fn get_max_hotness_per_tx(&self, objects: impl Iterator<Item = ObjectID>) -> f64 {
-        objects
-            .filter_map(|object_id| self.get_congestion_info(object_id))
-            .map(|info| info.hotness)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(0.0) // return 0 if iterator is empty
+            .filter_map(|object_id| {
+                self.get_congestion_info(object_id)
+                    .map(|info| (object_id, info.hotness))
+            })
+            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
     }
 
     fn compute_per_checkpoint_congestion_info(
@@ -478,8 +473,7 @@ impl CongestionTracker {
             gas_price_feedback,
         } in congestion_txs_data
         {
-            // let hotness_per_tx = self.get_total_hotness_for_objects(objects.iter().cloned());
-            let max_hotness_per_tx = self.get_max_hotness_per_tx(objects.iter().cloned());
+            let (max_object_id, max_hotness_per_tx) = self.get_max_hotness_per_tx(objects.iter().cloned()).unwrap_or((ObjectID::random(), 0.0));
             objects.iter().for_each(|object_id| {
                 match congestion_info_map.entry(*object_id) {
                     Entry::Occupied(entry) => {
@@ -506,7 +500,7 @@ impl CongestionTracker {
                     - (gas_price_feedback.unwrap_or(self.reference_gas_price) as f64);
 
                 congestion_info_map
-                    .entry(*object_id)
+                    .entry(max_object_id)
                     .and_modify(|info| info.hotness += hotness_adjustment);
             });
         }
