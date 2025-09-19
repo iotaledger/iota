@@ -34,7 +34,7 @@ use iota_types::{
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
 use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
-use tracing::instrument;
+use tracing::{Instrument, instrument};
 
 use crate::{
     IotaRpcModule, ObjectProviderCache,
@@ -138,6 +138,7 @@ impl TransactionExecutionApi {
         ))
     }
 
+    #[instrument("json_rpc_api_execute_transaction_block", level="trace", skip_all)]
     async fn execute_transaction_block(
         &self,
         tx_bytes: Base64,
@@ -150,9 +151,11 @@ impl TransactionExecutionApi {
         let (request, opts, sender, input_objs, txn, transaction, raw_transaction) =
             self.prepare_execute_transaction_block(tx_bytes, signatures, opts)?;
         let digest = *txn.digest();
-
+        
         let transaction_orchestrator = self.transaction_orchestrator.clone();
         let orch_timer = self.metrics.orchestrator_latency_ms.start_timer();
+
+        tracing::trace!("Spawning transaction orchestrator task for transaction: {}", digest);
         let (response, is_executed_locally) = spawn_monitored_task!(
             transaction_orchestrator.execute_transaction_block(request, request_type, None)
         )
@@ -173,6 +176,7 @@ impl TransactionExecutionApi {
         .await
     }
 
+    #[instrument(level="trace", skip_all)]
     async fn handle_post_orchestration(
         &self,
         response: ExecuteTransactionResponseV1,
@@ -187,6 +191,7 @@ impl TransactionExecutionApi {
         let _post_orch_timer = self.metrics.post_orchestrator_latency_ms.start_timer();
 
         let events = if opts.show_events {
+            tracing::trace!("Resolving events");
             let epoch_store = self.state.load_epoch_store_one_call_per_task();
             let backing_package_store = PostExecutionPackageResolver::new(
                 self.state.get_backing_package_store().clone(),
@@ -205,34 +210,42 @@ impl TransactionExecutionApi {
             None
         };
 
-        let object_cache = response.output_objects.map(|output_objects| {
-            ObjectProviderCache::new_with_output_objects(self.state.clone(), output_objects)
-        });
+        let object_cache = {
+            response.output_objects.map(|output_objects| {
+                ObjectProviderCache::new_with_output_objects(self.state.clone(), output_objects)
+            })
+        };
 
         let balance_changes = match &object_cache {
-            Some(object_cache) if opts.show_balance_changes => Some(
-                get_balance_changes_from_effect(
-                    object_cache,
-                    &response.effects.effects,
-                    input_objs,
-                    None,
+            Some(object_cache) if opts.show_balance_changes => {
+                Some(
+                    get_balance_changes_from_effect(
+                        object_cache,
+                        &response.effects.effects,
+                        input_objs,
+                        None,
+                    )
+                    .instrument(tracing::trace_span!("resolving balance changes"))
+                    .await?,
                 )
-                .await?,
-            ),
+            },
             _ => None,
         };
 
         let object_changes = match &object_cache {
-            Some(object_cache) if opts.show_object_changes => Some(
-                get_object_changes(
-                    object_cache,
-                    sender,
-                    response.effects.effects.modified_at_versions(),
-                    response.effects.effects.all_changed_objects(),
-                    response.effects.effects.all_removed_objects(),
+            Some(object_cache) if opts.show_object_changes => {
+                Some(
+                    get_object_changes(
+                        object_cache,
+                        sender,
+                        response.effects.effects.modified_at_versions(),
+                        response.effects.effects.all_changed_objects(),
+                        response.effects.effects.all_removed_objects(),
+                    )
+                    .instrument(tracing::trace_span!("resolving object changes"))
+                    .await?,
                 )
-                .await?,
-            ),
+            },
             _ => None,
         };
 
