@@ -560,7 +560,7 @@ impl DagBuilder {
         let mut references = Vec::new();
 
         for (authority, ancestors) in connections {
-            let author = authority.value() as u32;
+            let author = authority.value() as u8;
             let base_ts = round as BlockTimestampMs * 1000;
             let block = VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(round, author)
@@ -1044,7 +1044,7 @@ impl<'a> LayerBuilder<'a> {
             let num_blocks = self.num_blocks_to_create(authority);
 
             for num_block in 0..num_blocks {
-                let author = authority.value() as u32;
+                let author = authority.value() as u8;
                 let base_ts = match self.timestamp_delay_ms {
                     Some(delay) => (round as BlockTimestampMs * 1000) + delay,
                     None => round as BlockTimestampMs * 1000,
@@ -1068,7 +1068,7 @@ impl<'a> LayerBuilder<'a> {
                             .cloned()
                             .unwrap_or_default(),
                     )
-                    .set_timestamp_ms(base_ts + (author + round + num_block) as u64)
+                    .set_timestamp_ms(base_ts + (author as u32 + round + num_block) as u64)
                     .set_commitment(commitment)
                     .build();
                 let block_header =

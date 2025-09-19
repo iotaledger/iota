@@ -1623,7 +1623,7 @@ mod test {
         // Populate test blocks for round 1 ~ 10, authorities 0 ~ 2.
         let num_rounds: u32 = 10;
         let non_existent_round: u32 = 100;
-        let num_authorities: u32 = 3;
+        let num_authorities: u8 = 3;
         let num_blocks_per_slot: usize = 3;
         let mut blocks = BTreeMap::new();
         for round in 1..=num_rounds {
@@ -1896,7 +1896,7 @@ mod test {
 
         // Create test blocks for round 1 ~ 10
         let num_rounds: u32 = 10;
-        let num_authorities: u32 = 4;
+        let num_authorities: u8 = 4;
         let mut block_headers = Vec::new();
 
         for round in 1..=num_rounds {
@@ -1929,7 +1929,7 @@ mod test {
         let result = dag_state.contains_block_headers(block_refs.clone());
 
         // Ensure everything is found
-        let mut expected = vec![true; (num_rounds * num_authorities) as usize];
+        let mut expected = vec![true; (num_rounds * num_authorities as u32) as usize];
         assert_eq!(result, expected);
 
         // Now try to ask also for one block ref that is neither in cache nor in store
@@ -1953,7 +1953,7 @@ mod test {
         /// Only keep elements up to 2 rounds before the last committed round
         const CACHED_ROUNDS: Round = 2;
 
-        let num_authorities: u32 = 4;
+        let num_authorities: u8 = 4;
         let (mut context, _) = Context::new_for_test(num_authorities as usize);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
 
@@ -2006,7 +2006,7 @@ mod test {
                 BlockHeaderDigest::default(),
             ),
         );
-        let mut expected = vec![true; (num_rounds * num_authorities) as usize];
+        let mut expected = vec![true; (num_rounds * num_authorities as u32) as usize];
         expected.insert(3, false);
 
         // Attempt to check the same for via the contains slot method
@@ -2072,7 +2072,7 @@ mod test {
 
         // Create test blocks for round 1 ~ 10
         let num_rounds: u32 = 10;
-        let num_authorities: u32 = 4;
+        let num_authorities: u8 = 4;
         let mut block_headers = Vec::new();
 
         for round in 1..=num_rounds {
@@ -2244,8 +2244,9 @@ mod test {
         let mut all_blocks = Vec::new();
         for author in 1..=3 {
             for round in 10..(10 + author) {
-                let block =
-                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
+                let block = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author as u8).build(),
+                );
                 all_blocks.push(block.clone());
                 dag_state.accept_block_header(block);
             }
@@ -2528,8 +2529,9 @@ mod test {
         let mut all_blocks = Vec::new();
         for author in 1..=3 {
             for round in 1..=author {
-                let block =
-                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
+                let block = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author as u8).build(),
+                );
                 all_blocks.push(block.clone());
                 dag_state.accept_block_header(block);
             }
@@ -2681,7 +2683,7 @@ mod test {
 
         // Create test blocks for round 1 ~ 10
         let num_rounds: u32 = 10;
-        let num_authorities: u32 = 4;
+        let num_authorities: u8 = 4;
         let mut blocks = Vec::new();
 
         for round in 1..=num_rounds {
@@ -2717,7 +2719,7 @@ mod test {
         let result = dag_state.contains_transactions(block_refs.clone());
 
         // Ensure everything is found
-        let mut expected = vec![true; (num_rounds * num_authorities) as usize];
+        let mut expected = vec![true; (num_rounds * num_authorities as u32) as usize];
         assert_eq!(result, expected);
 
         // Now try to ask also for one block ref that is neither in cache nor in store

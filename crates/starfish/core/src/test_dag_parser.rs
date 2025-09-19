@@ -59,7 +59,7 @@ fn parse_genesis(input: &str) -> IResult<&str, u32> {
 fn parse_authority_index(input: &str) -> IResult<&str, AuthorityIndex> {
     map_res(anychar, |c: char| {
         if c.is_ascii_uppercase() {
-            Ok((c as u32 - 'A' as u32).into())
+            Ok((c as u8 - b'A').into())
         } else {
             Err(nom::Err::Error(()))
         }
@@ -164,7 +164,7 @@ fn parse_author_and_connections(
         terminated(
             pair(
                 map(terminated(anychar, tag("->")), |author: char| {
-                    AuthorityIndex::from(author as u32 - 'A' as u32)
+                    AuthorityIndex::from(author as u8 - b'A')
                 }),
                 parse_pair_of_ancestor_selections,
             ),

@@ -971,7 +971,7 @@ pub struct TestBlockHeader {
 }
 
 impl TestBlockHeader {
-    pub fn new(round: Round, author: u32) -> Self {
+    pub fn new(round: Round, author: u8) -> Self {
         Self {
             block_header: BlockHeaderV1 {
                 round,
@@ -987,7 +987,7 @@ impl TestBlockHeader {
         }
     }
 
-    pub fn new_with_transaction(round: Round, author: u32, tx: u8) -> Self {
+    pub fn new_with_transaction(round: Round, author: u8, tx: u8) -> Self {
         Self {
             block_header: BlockHeaderV1 {
                 round,
