@@ -569,12 +569,12 @@ where
             let _span = tracing::trace_span!(
                 "try_get_highest_verified_checkpoint",
                 sequence_number = checkpoint.sequence_number(),
-            ).entered();
+            )
+            .entered();
 
-            self
-            .store
-            .try_get_highest_verified_checkpoint()
-            .expect("store operation should not fail")
+            self.store
+                .try_get_highest_verified_checkpoint()
+                .expect("store operation should not fail")
         };
 
         // If this is an older checkpoint, just ignore it
@@ -629,7 +629,8 @@ where
             let _span = tracing::trace_span!(
                 "store_next_committee",
                 sequence_number = checkpoint.sequence_number(),
-            ).entered();
+            )
+            .entered();
 
             let next_committee = next_epoch_committee.iter().cloned().collect();
             let committee =
@@ -643,7 +644,8 @@ where
             let _span = tracing::trace_span!(
                 "try_update_synced_verified_checkpoint",
                 sequence_number = checkpoint.sequence_number(),
-            ).entered();
+            )
+            .entered();
 
             self.store
                 .try_update_highest_verified_checkpoint(&checkpoint)
@@ -1177,7 +1179,8 @@ where
             id = %checkpoint.digest(),
             checkpoint_seq = %checkpoint.sequence_number(),
             epoch = %checkpoint.epoch()
-        ).entered();
+        )
+        .entered();
         store
             .try_insert_checkpoint(&checkpoint)
             .expect("store operation should not fail");

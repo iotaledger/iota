@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{sync::Arc, time::Duration};
-use tracing::instrument;
 
 use futures::{FutureExt, future::BoxFuture};
 use iota_config::node::ExecutionCacheTypeAtomicU8;
@@ -20,6 +19,7 @@ use iota_types::{
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
+use tracing::instrument;
 
 use super::{
     CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,

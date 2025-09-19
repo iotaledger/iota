@@ -273,7 +273,7 @@ services:
     hostname: fullnode-1
     networks:
       iota-network:
-        ipv4_address: 10.0.0.35    
+        ipv4_address: 10.0.0.35
     environment:
       - RUST_BACKTRACE=1
       - RUST_LOG=info,iota_core=debug,iota_network=debug,iota_node=debug,jsonrpsee=error

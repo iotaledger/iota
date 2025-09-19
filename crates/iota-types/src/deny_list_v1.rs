@@ -13,7 +13,7 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tracing::{instrument, error};
+use tracing::{error, instrument};
 
 use crate::{
     IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, MoveTypeTagTrait,

@@ -479,7 +479,7 @@ impl CheckpointStore {
         Ok(())
     }
 
-    #[instrument(level="trace", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     fn check_for_checkpoint_fork(
         &self,
         local_checkpoint: &CheckpointSummary,

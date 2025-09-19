@@ -116,6 +116,7 @@ To bring up 19 validators and faucet:
   - PostgreSQL: http://127.0.0.1:5433
 
 ## Span Tracing with Tempo
+
 To enable span tracing for the nodes, you need to modify the docker-compose.yaml file to include the necessary environment variables for each node.
 
 for example, for fullnode-1, you would add the following environment variables:
@@ -127,4 +128,3 @@ for example, for fullnode-1, you would add the following environment variables:
 ```
 
 The `TRACE_FILTER` variable follows the rules defined in the [tracing documentation](https://crates.io/crates/tracing-filter).
-

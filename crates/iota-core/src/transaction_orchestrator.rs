@@ -44,7 +44,7 @@ use tokio::{
     task::JoinHandle,
     time::timeout,
 };
-use tracing::{Instrument, debug, error, trace_span, info, instrument, warn};
+use tracing::{Instrument, debug, error, info, instrument, trace_span, warn};
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -405,9 +405,7 @@ where
                 epoch_store,
             ),
         )
-        .instrument(trace_span!(
-            "local_execution"
-        ))
+        .instrument(trace_span!("local_execution"))
         .await
         {
             Err(_elapsed) => {

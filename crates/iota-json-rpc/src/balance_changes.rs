@@ -217,7 +217,7 @@ impl<P> ObjectProviderCache<P> {
         }
     }
 
-    #[instrument(level="trace", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub fn new_with_output_objects(provider: P, output_objects: Vec<Object>) -> Self {
         let mut object_cache = BTreeMap::new();
         let mut last_version_cache = BTreeMap::new();
