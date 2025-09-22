@@ -1,13 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::HashMap,
-    fmt::Display,
-    str::FromStr,
-    sync::{Arc, Mutex},
-    time::Instant,
-};
+use std::{str::FromStr, time::Instant};
 
 use anyhow::Context;
 use futures::{Stream, StreamExt, TryFutureExt, stream};
@@ -18,10 +12,10 @@ use iota_types::{
     transaction::TransactionDataAPI,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::mpsc::{self};
+use tokio::sync::broadcast;
 use tokio_postgres::{AsyncMessage, Client, Config, Connection, NoTls, Socket, tls::NoTlsStream};
-use tokio_stream::wrappers::ReceiverStream;
-use tracing::{debug, error, warn};
+use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
+use tracing::{debug, error};
 
 use crate::{
     errors::IndexerError,
@@ -36,30 +30,6 @@ use crate::{
 const BUFFER_SIZE: usize = 1000;
 /// Postgres Notify channel name.
 const CHANNEL_NAME: &str = "checkpoint_committed";
-
-/// Active subscribers held in memory.
-type Subscribers<T, F> = Arc<Mutex<HashMap<SubscriberId, Subscriber<T, F>>>>;
-
-/// A single subscriber to which we can send data based on provided filters.
-struct Subscriber<T, F> {
-    sender: mpsc::Sender<StreamPayload<T>>,
-    filter: F,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-struct SubscriberId(ObjectID);
-
-impl SubscriberId {
-    pub fn new() -> Self {
-        SubscriberId(ObjectID::random())
-    }
-}
-
-impl Display for SubscriberId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
 
 /// Filter returned [`StoredEvent`] form the stream.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -149,178 +119,6 @@ struct CheckpointCommitNotification {
     max_tx_sequence_number: i64,
 }
 
-/// Represents events that can be sent to stream subscribers in a broadcasting
-/// system.
-///
-/// This enum encapsulates the different types of messages that subscribers can
-/// receive when listening to a stream. It handles both normal message delivery
-/// and backpressure scenarios where slow subscribers need to be managed.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum StreamPayload<T> {
-    /// A regular message delivered to an active subscriber.
-    ///
-    /// This variant indicates normal operation where the subscriber is keeping
-    /// up with the message flow and can continue receiving subsequent
-    /// messages. The wrapped data represents the actual payload being
-    /// streamed.
-    Message(T),
-    /// The final message sent to a subscriber that is lagging behind.
-    ///
-    /// This variant is sent when the server detects that a subscriber cannot
-    /// process messages fast enough to keep up with the stream. After sending
-    /// this message, the subscriber will be automatically removed from the
-    /// broadcasting system to prevent memory buildup and maintain overall
-    /// system performance.
-    ///
-    /// The wrapped data represents the last message the subscriber will
-    /// receive, allowing for graceful cleanup or final processing before
-    /// disconnection.
-    ClosingDueToLag(T),
-}
-
-/// A lightweight in-memory fan-out broadcaster that distributes data to
-/// multiple filtered subscribers.
-///
-/// It provides a publish-subscribe pattern where a single data producer can
-/// efficiently distribute items to multiple consumers, each with their own
-/// filtering criteria.
-///
-/// # Backpressure Handling
-/// The "slow receiver" problem is handled through capacity-based monitoring:
-///
-/// - **Normal Operation**: When a subscriber's channel has capacity > 1,
-///   messages are sent as [`StreamPayload::Message`] allowing continued
-///   subscription
-/// - **Backpressure Detection**: When capacity drops to 1 (channel nearly
-///   full), the subscriber is marked as lagging behind the message production
-///   rate
-/// - **Graceful Termination**: Lagging subscribers receive their final message
-///   wrapped in [`StreamPayload::ClosingDueToLag`] and are automatically
-///   removed from the subscriber list
-/// - **System Protection**: This prevents unbounded memory growth and maintains
-///   overall broadcaster performance by avoiding blocking on slow consumers
-///
-/// # Filtering
-///
-/// Each subscriber can specify a filter that implements the `Filter<T>` trait.
-/// Only items that match the subscriber's filter are sent to their channel.
-/// Filtering happens after data retrieval but before channel transmission.
-struct Broadcaster<T, F: Filter<T>> {
-    subscribers: Subscribers<T, F>,
-}
-
-impl<T, F> Broadcaster<T, F>
-where
-    T: Clone + Send + 'static,
-    F: Filter<T> + Send + Sync + 'static,
-{
-    /// Creates a new broadcaster that consumes items from the provided
-    /// receiver.
-    ///
-    /// This method spawns a background task that continuously reads from
-    /// [`mpsc::Receiver`] and distributes items to all registered
-    /// subscribers. The broadcaster begins processing immediately upon
-    /// creation.
-    fn new(mut rx: mpsc::Receiver<T>) -> Self {
-        let streamer = Self {
-            subscribers: Default::default(),
-        };
-
-        let subscribers = streamer.subscribers.clone();
-
-        tokio::spawn(async move {
-            while let Some(data) = rx.recv().await {
-                Self::send_to_all_subscribers(subscribers.clone(), data);
-            }
-        });
-        streamer
-    }
-
-    fn send_to_all_subscribers(subscribers: Subscribers<T, F>, data: T) {
-        let to_remove = {
-            let mut to_remove = vec![];
-            let mut subscribers_snapshot = subscribers.lock().unwrap_or_else(|poisoned| {
-                error!("subscribers mutex poisoned, recovering...");
-                subscribers.clear_poison();
-                poisoned.into_inner()
-            });
-
-            for (id, subscriber) in subscribers_snapshot.iter_mut() {
-                if subscriber.sender.is_closed() {
-                    warn!(
-                        subscription_id = id.to_string(),
-                        "subscriber closed connection, removing"
-                    );
-                    to_remove.push(*id);
-                    continue;
-                }
-
-                if !(subscriber.filter.matches(&data)) {
-                    continue;
-                }
-
-                let data = if subscriber.sender.capacity() > 1 {
-                    StreamPayload::Message(data.clone())
-                } else {
-                    warn!(
-                        subscription_id = id.to_string(),
-                        "lagging behind, sending last message and removing"
-                    );
-                    to_remove.push(*id);
-                    StreamPayload::ClosingDueToLag(data.clone())
-                };
-
-                // since we checked the capacity we can ignore the result
-                let _ = subscriber.sender.try_send(data);
-            }
-            to_remove
-        };
-        if !to_remove.is_empty() {
-            let mut subscribers = subscribers.lock().unwrap_or_else(|poisoned| {
-                error!("subscribers mutex poisoned, recovering...");
-                subscribers.clear_poison();
-                poisoned.into_inner()
-            });
-            for sub in to_remove {
-                subscribers.remove(&sub);
-            }
-        }
-    }
-
-    /// Creates a new subscription to the broadcast stream with the specified
-    /// filter.
-    ///
-    /// Each call to `subscribe` creates an independent stream that:
-    /// - Receives only items that match the provided filter
-    /// - Has its own bounded channel buffer ([`BUFFER_SIZE`] capacity)
-    /// - Operates independently of other subscribers
-    /// - Is automatically removed if it's disconnected
-    ///
-    /// # Example
-    ///
-    /// ```rust,ignore
-    /// use futures::StreamExt;
-    ///
-    /// // Attempt to subscribe
-    /// let stream = broadcaster.subscribe(MyFilter::All).unwrap();
-    /// tokio::spawn(async move {
-    ///     while let Some(item) = stream.next().await {
-    ///         process_item(item).await;
-    ///     }
-    /// });
-    /// ```
-    fn subscribe(&self, filter: F) -> impl Stream<Item = StreamPayload<T>> {
-        let mut subscribers = self.subscribers.lock().unwrap_or_else(|poisoned| {
-            error!("subscribers mutex poisoned, recovering...");
-            self.subscribers.clear_poison();
-            poisoned.into_inner()
-        });
-        let (tx, rx) = mpsc::channel::<StreamPayload<T>>(BUFFER_SIZE);
-        subscribers.insert(SubscriberId::new(), Subscriber { sender: tx, filter });
-        ReceiverStream::new(rx)
-    }
-}
-
 /// Provides filtered, real-time streams of transactions
 /// and events from the IOTA Indexer by listening to PostgreSQL NOTIFY
 /// messages triggered when new checkpoints are committed to the indexer
@@ -365,8 +163,8 @@ where
 /// - **System Protection**: This prevents unbounded memory growth and maintains
 ///   overall broadcaster performance by avoiding blocking on slow consumers
 pub struct IndexerStreamer {
-    events_broadcaster: Broadcaster<StoredEvent, StreamEventFilter>,
-    transactions_broadcaster: Broadcaster<StoredTransaction, StreamTransactionFilter>,
+    event_tx: broadcast::Sender<StoredEvent>,
+    transaction_tx: broadcast::Sender<StoredTransaction>,
     // To receive notifications from the database we must keep the client alive.
     _client: Client,
 }
@@ -384,8 +182,8 @@ impl IndexerStreamer {
             .await
             .context("Failed to connect to Postgres")?;
 
-        let (event_tx, event_rx) = mpsc::channel(BUFFER_SIZE);
-        let (transaction_tx, transaction_rx) = mpsc::channel(BUFFER_SIZE);
+        let (event_tx, _) = broadcast::channel(BUFFER_SIZE);
+        let (transaction_tx, _) = broadcast::channel(BUFFER_SIZE);
 
         // the database connection must be spawned into a separate task in order to
         // communicate with the database.
@@ -393,8 +191,8 @@ impl IndexerStreamer {
             Self::process_checkpoint_notifications(
                 connection,
                 indexer_reader,
-                event_tx,
-                transaction_tx,
+                event_tx.clone(),
+                transaction_tx.clone(),
             )
             .inspect_err(|e| error!("failed to process checkpoint notification: {e}"))
         });
@@ -406,8 +204,8 @@ impl IndexerStreamer {
             .context("failed to listen to channel notifications")?;
 
         Ok(Self {
-            events_broadcaster: Broadcaster::new(event_rx),
-            transactions_broadcaster: Broadcaster::new(transaction_rx),
+            event_tx,
+            transaction_tx,
             _client: client,
         })
     }
@@ -448,9 +246,8 @@ impl IndexerStreamer {
     /// ```
     pub fn subscribe_events(
         &self,
-        filter: StreamEventFilter,
-    ) -> impl Stream<Item = StreamPayload<StoredEvent>> {
-        self.events_broadcaster.subscribe(filter)
+    ) -> impl Stream<Item = Result<StoredEvent, BroadcastStreamRecvError>> {
+        BroadcastStream::new(self.event_tx.subscribe())
     }
 
     /// Subscribe to a filtered stream of blockchain transactions.
@@ -490,16 +287,15 @@ impl IndexerStreamer {
     /// ```
     pub fn subscribe_transactions(
         &self,
-        filter: StreamTransactionFilter,
-    ) -> impl Stream<Item = StreamPayload<StoredTransaction>> {
-        self.transactions_broadcaster.subscribe(filter)
+    ) -> impl Stream<Item = Result<StoredTransaction, BroadcastStreamRecvError>> {
+        BroadcastStream::new(self.transaction_tx.subscribe())
     }
 
     async fn process_checkpoint_notifications(
         mut connection: Connection<Socket, NoTlsStream>,
         indexer_reader: IndexerReader,
-        event_tx: mpsc::Sender<StoredEvent>,
-        transaction_tx: mpsc::Sender<StoredTransaction>,
+        event_tx: broadcast::Sender<StoredEvent>,
+        transaction_tx: broadcast::Sender<StoredTransaction>,
     ) -> Result<(), IndexerError> {
         // Batch checkpoints in smaller chunks to prevent subscriber overload.
         // Large batches (1000 checkpoints = ~4000-5000 transactions) would cause
@@ -546,22 +342,16 @@ impl IndexerStreamer {
 
     async fn publish_tx_and_events(
         transactions: Vec<StoredTransaction>,
-        event_tx: &mpsc::Sender<StoredEvent>,
-        transaction_tx: &mpsc::Sender<StoredTransaction>,
+        event_tx: &broadcast::Sender<StoredEvent>,
+        transaction_tx: &broadcast::Sender<StoredTransaction>,
     ) -> Result<(), IndexerError> {
+        // we ignore errors here because we may receive an erro if no subscribers are
+        // registered which may happen.
         for tx in transactions {
             for event in Self::stored_events_from_transaction(&tx)? {
-                if event_tx.send(event).await.is_err() {
-                    return Err(IndexerError::ChannelClosed(
-                        "failed to send event, receiver half dropped".into(),
-                    ));
-                }
+                _ = event_tx.send(event);
             }
-            if transaction_tx.send(tx).await.is_err() {
-                return Err(IndexerError::ChannelClosed(
-                    "failed to send transaction, receiver half dropped".into(),
-                ));
-            }
+            _ = transaction_tx.send(tx);
         }
         Ok(())
     }
