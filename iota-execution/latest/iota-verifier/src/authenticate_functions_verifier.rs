@@ -10,8 +10,8 @@
 //! The authenticate functions must be defined in the same module as the
 //! constant.
 //! The module's `init` function must call
-//! `iota::account::public_authenticate_registry` exactly once, passing the
-//! constant as the argument. The `public_authenticate_registry` function is
+//! `iota::account::publish_authenticate_registry` exactly once, passing the
+//! constant as the argument. The `publish_authenticate_registry` function is
 //! responsible for registering the authenticate functions and is defined in the
 //! `iota::account`.
 use iota_types::{IOTA_FRAMEWORK_ADDRESS, Identifier, error::ExecutionError};
@@ -26,10 +26,11 @@ use move_core_types::{ident_str, identifier::IdentStr, runtime_value::MoveValue}
 use crate::{INIT_FN_NAME, account_auth_verifier::verify_authenticate_func, verification_failure};
 
 pub const ACCOUNT_MODULE: &IdentStr = ident_str!("account");
-pub const PUBLIC_AUTHENTICATE_REGISTRY: &IdentStr = ident_str!("public_authenticate_registry");
+pub const PUBLISH_AUTHENTICATE_REGISTRY_FN_NAME: &IdentStr =
+    ident_str!("publish_authenticate_registry");
 
 /// Checks if the module conforms to the authenticate functions rules only if it
-/// has a call instruction to the `0x2::account::public_authenticate_registry`
+/// has a call instruction to the `0x2::account::publish_authenticate_registry`
 /// function within the `init` function.
 ///
 /// If the module does not have such call instruction, then it is considered to
@@ -48,9 +49,9 @@ pub fn verify_module(view: &CompiledModule) -> Result<(), ExecutionError> {
                 Some(code) => code,
             }
             .code;
-            // verify that, if it calls `0x2::account::public_authenticate_registry` then it
-            // does with the authenticate functions constant as argument
-            verify_init_public_authenticate_registry(view, init_code)
+            // verify that, if it calls `0x2::account::publish_authenticate_registry` then
+            // it does with the authenticate functions constant as argument
+            verify_init_publish_authenticate_registry(view, init_code)
                 .map_err(verification_failure)?;
         }
     }
@@ -131,17 +132,17 @@ pub fn verify_authenticate_functions_const(
 }
 
 /// Check that the module's `init` function calls
-/// `0x2::account::public_authenticate_registry` with the authenticate functions
-/// constant as argument. If the module does not call
-/// `public_authenticate_registry` then it is considered valid.
-fn verify_init_public_authenticate_registry(
+/// `0x2::account::publish_authenticate_registry` with the authenticate
+/// functions constant as argument. If the module does not call
+/// `publish_authenticate_registry` then it is considered valid.
+fn verify_init_publish_authenticate_registry(
     view: &CompiledModule,
     init_code: &[Bytecode],
 ) -> Result<(), String> {
     let mut found_first_instance_of_call = false;
 
     // For each instruction in the code, look for the call to
-    // `0x2::account::public_authenticate_registry`
+    // `0x2::account::publish_authenticate_registry`
     for (i, instr) in init_code.iter().enumerate() {
         if let Bytecode::CallGeneric(finst_idx) = instr {
             let FunctionInstantiation {
@@ -159,30 +160,30 @@ fn verify_init_public_authenticate_registry(
             ) == (
                 IOTA_FRAMEWORK_ADDRESS,
                 ACCOUNT_MODULE,
-                PUBLIC_AUTHENTICATE_REGISTRY,
+                PUBLISH_AUTHENTICATE_REGISTRY_FN_NAME,
             ) {
-                // If we have already found a call to `public_authenticate_registry` then
+                // If we have already found a call to `publish_authenticate_registry` then
                 // this is an error since it can only be called once
                 if found_first_instance_of_call {
                     return Err(format!(
-                        "The 'public_authenticate_registry' function can only be called once in the 'init' function"
+                        "The 'publish_authenticate_registry' function can only be called once in the 'init' function"
                     ));
                 }
                 found_first_instance_of_call = true;
 
-                // If the call instruction to `public_authenticate_registry` is found, then
+                // If the call instruction to `publish_authenticate_registry` is found, then
                 // verify that the second-to-last argument a valid constant.
 
                 // check that the second to last argument is the constant at
                 // index `expected_const_idx`
                 let pos = i.checked_sub(2).ok_or_else(|| {
                         format!(
-                            "Expected at least 2 instructions preceeding the 'public_authenticate_registry' call instruction"
+                            "Expected at least 2 instructions preceding the 'publish_authenticate_registry' call instruction"
                         )
                     })?;
                 let second_to_last_instr = init_code.get(pos).ok_or_else(|| {
                         format!(
-                            "Expected at least 2 instructions preceeding the 'public_authenticate_registry' call instruction"
+                            "Expected at least 2 instructions preceding the 'publish_authenticate_registry' call instruction"
                         )
                     })?;
                 // check that it is a LdConst instruction with the expected const index found
@@ -193,7 +194,7 @@ fn verify_init_public_authenticate_registry(
                     }
                     other => {
                         return Err(format!(
-                            "Expected the argument to 'public_authenticate_registry' to be a constant, but found instruction '{:?}'",
+                            "Expected the argument to 'publish_authenticate_registry' to be a constant, but found instruction '{:?}'",
                             other
                         ));
                     }

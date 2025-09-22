@@ -8,6 +8,9 @@ use iota::types;
 use std::ascii;
 use std::type_name;
 
+/// Error code for non-OTW structures when publishing authenticate functions.
+const ENotOneTimeWitness: u64 = 0;
+
 /// Dynamic field key, where the system will look for a potential
 /// authenticate function.
 const AUTHENTICATOR_DF_NAME: vector<u8> = b"IOTA_AUTHENTICATION";
@@ -17,6 +20,14 @@ public struct AuthenticatorInfoV1 has copy, drop, store {
     package: ID,
     module_name: ascii::String,
     function_name: ascii::String,
+}
+
+/// A record to mark the existence of a unique type, ensuring only one instance per type.
+public struct AuthenticateRegistry has key {
+    id: UID,
+    package: ascii::String,
+    module_name: ascii::String,
+    function_names: vector<vector<u8>>,
 }
 
 /// Create an "AuthenticatorInfoV1" using an `authenticate` function defined outside of this version of the package
@@ -54,31 +65,10 @@ public fun authenticator_df_name(): vector<u8> {
     AUTHENTICATOR_DF_NAME
 }
 
-/// Creates an `AuthenticatorInfoV1` instance for testing, skipping validation.
-#[test_only]
-public fun create_auth_info_v1_for_testing(
-    package: address,
-    module_name: ascii::String,
-    function_name: ascii::String,
-): AuthenticatorInfoV1 {
-    AuthenticatorInfoV1{ package: package.to_id(), module_name, function_name }
-}
-
-/// Error code for non-OTW structures
-const ENotOneTimeWitness: u64 = 0;
-
-/// A record to mark the existence of a unique type, ensuring only one instance per type.
-public struct AuthenticateRegistry has key {
-    id: UID,
-    package: ascii::String,
-    module_name: ascii::String,
-    function_names: vector<vector<u8>>,
-}
-
 /// Public function to public a new registry of authenticate functions.
 /// The `is_one_time_witness` function ensures that this function
 /// can only be called once for a specific `T`.
-public fun public_authenticate_registry<OTW: drop>(
+public fun publish_authenticate_registry<OTW: drop>(
     witness: &OTW,
     function_names: vector<vector<u8>>,
     ctx: &mut TxContext,
@@ -107,4 +97,14 @@ public fun create_auth_info_v2(
         module_name: registry.module_name,
         function_name,
     }
+}
+
+/// Creates an `AuthenticatorInfoV1` instance for testing, skipping validation.
+#[test_only]
+public fun create_auth_info_v1_for_testing(
+    package: address,
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorInfoV1 {
+    AuthenticatorInfoV1 { package: package.to_id(), module_name, function_name }
 }
