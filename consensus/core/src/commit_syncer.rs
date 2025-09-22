@@ -512,12 +512,13 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .clone();
                         inner
                             .context
-                            .metrics
+                            .scorer
                             .update_scoring_metrics_on_block_receival(
                                 authority,
                                 hostname.as_str(),
                                 e.clone(),
                                 "fetch_once",
+                                &inner.context.metrics.node_metrics,
                             );
                         warn!("Failed to fetch {commit_range:?} from {hostname}: {}", e);
                         let error: &'static str = e.into();
