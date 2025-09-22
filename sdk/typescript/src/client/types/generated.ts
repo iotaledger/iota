@@ -529,6 +529,17 @@ export interface IotaChangeEpochV2 {
     storage_charge: string;
     storage_rebate: string;
 }
+
+export interface IotaChangeEpochV4 {
+    computation_charge: string;
+    computation_charge_burned: string;
+    epoch: string;
+    epoch_start_timestamp_ms: string;
+    scores: string;
+    storage_charge: string;
+    storage_rebate: string;
+}
+
 /** Provides a summary of the circulating IOTA supply. */
 export interface IotaCirculatingSupply {
     /** Timestamp (UTC) when the circulating supply was calculated. */
@@ -560,6 +571,9 @@ export type IotaEndOfEpochTransactionKind =
     | {
           ChangeEpochV2: IotaChangeEpochV2;
       }
+    | {
+        ChangeEpochV4: IotaChangeEpochV4;
+    }
     | {
           AuthenticatorStateExpire: IotaAuthenticatorStateExpire;
       };
