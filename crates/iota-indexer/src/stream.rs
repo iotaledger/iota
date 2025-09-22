@@ -26,7 +26,7 @@ use crate::{
     },
 };
 
-/// Buffer size used in the mpsc bounded channels.
+/// Buffer size used in the bounded channels.
 const BUFFER_SIZE: usize = 1000;
 /// Postgres Notify channel name.
 const CHANNEL_NAME: &str = "checkpoint_committed";
