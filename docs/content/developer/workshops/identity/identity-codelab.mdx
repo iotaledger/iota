@@ -1,0 +1,468 @@
+---
+description: Codelab on Validating a University Degree using IOTA Identity
+tags:
+ - tutorial
+ - rust
+---
+
+# Guided Code-Along Workshop
+
+## Purpose:
+
+In this codelab, we will build a production-ready University Degree Verification system using IOTA Identity and Rust. You will learn how to:
+
+- Create and manage DIDs with helper utilities.
+- Issue a Verifiable Credential (VC) representing a university degree.
+- Package the credential into a Verifiable Presentation (VP) from the Holder.
+- Verify the VP and its credentials from the Verifier’s perspective.
+
+By the end of this workshop, you’ll have a complete, end-to-end flow demonstrating how Issuers, Holders, and Verifiers interact in a real-world university degree validation scenario — all powered by IOTA Identity.
+
+## Codelab Title
+
+## Verifiable Credentials with IOTA Identity
+
+## Duration Options
+
+60 minutes (fast track)
+
+## Prerequisites
+
+Before starting this workshop, make sure you have:
+
+- Rust (latest stable version) installed → Install Rust
+- Cargo (comes with Rust) for building and running projects
+- A local IOTA network running with the IOTA Identity contract deployed
+    - See Local Network Setup
+    - Ensure you can request test tokens from the faucet
+- A local IOTA test network endpoint or environment variable set:
+- A code editor such as VS Code
+- (Optional but recommended) Basic familiarity with:
+    - IOTA Decentralized Identifiers (DIDs)
+    - IOTA Verifiable Credentials (VCs) and IOTA Verifiable Presentations (VPs)
+- Git, if you want to clone the repo.
+
+## A. Real-World Use Case Anchor
+
+**The Problem**
+
+Today, verifying university degrees is a slow, manual, and often costly hurdle. Employers must contact universities or rely on centralized third-party services, which is costly and prone to fraud. Fake certificates can easily circulate.
+
+## The Opportunity
+
+Universities can issue tamper-proof verifiable credentials that students control using the IOTA Identity Product. Students present these credentials to employers, who can instantly verify them on the IOTA network without intermediaries.
+
+## What You’ll Build in this Workshop
+
+We’ll implement the end-to-end lifecycle of a digital university degree using IOTA Identity:
+
+- Holder (Student): Creates a DID and stores it securely.
+- Issuer (University): Issues a Verifiable Credential (VC) representing the degree.
+- Holder: Packages the credential into a Verifiable Presentation (VP) and signs it.
+- Verifier (Employer): Verifies the authenticity of the presentation and credentials.
+
+All of this will be demonstrated using Rust CLI applications, with step-by-step commands you can run on your machine.
+
+## Functional Chunk 1: Holder Creates a Verifiable Presentation
+
+### **What This Enables in the Real World**
+
+In our university degree verification use case, the Holder (Alice) is the student who received a digital credential (her degree) from the university. To prove her degree to another party (e.g., IOTA Foundation), Alice needs to wrap her credential inside a Verifiable Presentation (VP) and sign it with her DID.
+
+This ensures that:
+
+- The credential really belongs to Alice.
+- The credential hasn’t been tampered with.
+- The presentation is fresh and cannot be replayed by an attacker.
+
+## Short Explanation
+
+The Holder program (holder.rs):
+
+- Creates and stores a Holder DID if one doesn’t exist.
+- Accepts a VC JWT (degree credential from the Issuer).
+- Wraps the VC into a Verifiable Presentation (VP).
+- Signs the VP with Holder’s DID and adds a challenge/expiration.
+- Saves the signed VP JWT to disk (vp.jwt).
+
+## Project Setup
+
+To get started, we'll create a new Rust project and add the necessary dependencies.
+
+Initialize the project: Open your terminal and run the following commands to create a new Rust workspace:
+
+```bash
+cargo new iota-identity-workshop --bin
+cd iota-identity-workshop
+```
+
+Edit Cargo.toml: Open the Cargo.toml file in your project directory and replace its contents with the following. This adds all the IOTA Identity and related libraries we'll need.
+
+```toml
+[package]
+name = "iota-identity-workshop"
+version = "1.6.0-beta"
+authors = ["IOTA Stiftung"]
+edition = "2021"
+publish = false
+
+[dependencies]
+url = "2"
+base64-url = "2.0"
+josekit = "0.8"
+nanoid = "0.4"
+base64 = "0.21"
+
+# Core IOTA Identity library with necessary features for client interaction and stronghold storage.
+# This single dependency should pull in compatible versions of identity_storage, identity_credential, etc.
+anyhow = "1.0.62"
+
+identity_iota = { git = "https://github.com/iotaledger/identity.rs", tag = "v1.6.0-beta.2" }
+identity_storage = { git = "https://github.com/iotaledger/identity.rs", package = "identity_storage", tag = "v1.6.0-beta.2", features = [
+    "send-sync-storage",
+] }
+identity_stronghold = { git = "https://github.com/iotaledger/identity.rs", package = "identity_stronghold", tag = "v1.6.0-beta.2", features = [
+    "send-sync-storage",
+] }
+identity-eddsa-verifier = { git = "https://github.com/iotaledger/identity.rs", package = "identity_eddsa_verifier", tag = "v1.6.0-beta.2" }
+
+iota-sdk = { git = "https://github.com/iotaledger/iota.git", package = "iota-sdk", tag = "v0.12.0-rc" }
+iota-sdk-legacy = { package = "iota-sdk", version = "1.0", default-features = false, features = [
+    "tls",
+    "client",
+    "stronghold",
+] }
+
+product_common = { git = "https://github.com/iotaledger/product-core.git", tag = "v0.2.1", package = "product_common", features = [
+    "core-client",
+    "transaction",
+] }
+
+sd-jwt-payload = { version = "0.2.1", default-features = false, features = [
+    "sha",
+] }
+secret-storage = { git = "https://github.com/iotaledger/secret-storage.git", tag = "v0.3.0" }
+serde_json = { version = "1.0", default-features = false }
+tokio = { version = "1.43", default-features = false, features = [
+    "rt",
+    "macros",
+] }
+
+shared_utils = { path = "./crates/shared_utils" }
+identity_did = "1.5.1"
+identity_iota_core = "1.5.1"
+
+[[bin]]
+name = "issuer"
+path = "src/issuer.rs"
+
+[[bin]]
+name = "holder"
+path = "src/holder.rs"
+
+[[bin]]
+name = "verifier"
+path = "/shared_src/verifier.rs"
+```
+
+## Create a Utility Module
+
+Create Utility Module: Our programs need a standard set of helper functions. Let's create a new crate within our project.
+
+```bash
+mkdir -p crates/shared_utils/src
+touch crates/shared_utils/src/lib.rs
+```
+
+## Code Walkthrough
+
+## Codelab: Utility Functions for DID & Credential Flow
+
+This file (lib.rs) defines helper functions used by the Holder, Issuer, and Verifier.
+Instead of writing the same code in every binary, these functions:
+
+- Handle storage setup (Stronghold, memory).
+- Provide client initialization (read-only and funded).
+- Simplify DID Document creation and publishing.
+- Add useful utilities like JSON pretty-printing.
+
+## 1. Imports
+
+```rust
+use std::path::PathBuf;
+use anyhow::Context;
+use identity_iota::iota::IotaDocument;
+use identity_iota::iota_interaction::OptionalSync;
+use identity_iota::storage::{JwkDocumentExt, JwkMemStore, KeyIdMemstore, Storage};
+use identity_iota::verification::jws::JwsAlgorithm;
+use identity_iota::verification::MethodScope;
+
+use identity_iota::iota::rebased::client::{IdentityClient, IdentityClientReadOnly, IotaKeySignature};
+use identity_iota::iota::rebased::utils::request_funds;
+use identity_storage::{JwkStorage, KeyIdStorage, KeyType, StorageSigner};
+use identity_stronghold::StrongholdStorage;
+
+use iota_sdk::types::base_types::IotaAddress;
+use iota_sdk::IotaClientBuilder;
+use iota_sdk::IOTA_LOCAL_NETWORK_URL;
+use iota_sdk_legacy::client::secret::stronghold::StrongholdSecretManager;
+use iota_sdk_legacy::client::Password;
+
+use rand::distributions::DistString;
+use secret_storage::Signer;
+use serde_json::Value;
+```
+
+This section imports all the necessary libraries for DID creation, storage, and IOTA client interaction.
+
+## 2. Constants & Types
+
+```rust
+pub const TEST_GAS_BUDGET: u64 = 50_000_000;
+pub type MemStorage = Storage<JwkMemStore, KeyIdMemstore>;
+```
+
+- TEST_GAS_BUDGET → sets the gas limit for publishing DID documents.
+- MemStorage → a shorthand type for in-memory JWK + KeyID storage (for tests).
+
+## 3. DID Document Creation
+
+```rust
+pub async fn create_did_document<K, I, S>(
+    identity_client: &IdentityClient<S>,
+    storage: &Storage<K, I>,
+) -> anyhow::Result<(IotaDocument, String)>
+where
+    K: identity_storage::JwkStorage,
+    I: identity_storage::KeyIdStorage,
+    S: Signer<IotaKeySignature> + OptionalSync,
+{
+    let mut unpublished: IotaDocument = IotaDocument::new(identity_client.network());
+
+    let verification_method_fragment = unpublished
+        .generate_method(
+            storage,
+            JwkMemStore::ED25519_KEY_TYPE,
+            JwsAlgorithm::EdDSA,
+            None,
+            MethodScope::VerificationMethod,
+        )
+        .await?;
+
+    let document = identity_client
+        .publish_did_document(unpublished)
+        .with_gas_budget(TEST_GAS_BUDGET)
+        .build_and_execute(identity_client)
+        .await?
+        .output;
+
+    Ok((document, verification_method_fragment))
+}
+```
+This function creates a new IotaDocument, adds a verification method (Ed25519 public key), and publishes the DID Document to the IOTA network. It returns the published document and the fragment string.
+
+## 4. Storage Helpers
+
+## Random Stronghold Path
+
+```rust
+pub fn random_stronghold_path() -> PathBuf {
+    let mut file = std::env::temp_dir();
+    file.push("test_strongholds");
+    file.push(rand::distributions::Alphanumeric.sample_string(&mut rand::thread_rng(), 32));
+    file.set_extension("stronghold");
+    file.to_owned()
+}
+```
+
+This generates a unique temporary file path for Stronghold storage, ensuring each run has its own secure vault.
+
+## Stronghold Storage
+
+```rust
+pub fn get_stronghold_storage(
+    path: Option<PathBuf>,
+) -> Result<Storage<StrongholdStorage, StrongholdStorage>, anyhow::Error> {
+    let path = path.unwrap_or_else(random_stronghold_path);
+    let password = Password::from("secure_password".to_owned());
+    let stronghold = StrongholdSecretManager::builder()
+        .password(password.clone())
+        .build(path.clone())?;
+    let stronghold_storage = StrongholdStorage::new(stronghold);
+    Ok(Storage::new(
+        stronghold_storage.clone(),
+        stronghold_storage.clone(),
+    ))
+}
+```
+
+This returns a StrongholdStorage instance. It stores keys securely in an encrypted vault file (.stronghold), which is used by the Holder and Issuer to ensure their private keys persist.
+
+## Memory Storage
+
+```rust
+pub async fn get_memstorage() -> anyhow::Result<MemStorage> {
+    Ok(MemStorage::new(JwkMemStore::new(), KeyIdMemstore::new()))
+}
+```
+
+This creates ephemeral, in-memory storage, useful for testing where keys don't need to be saved.
+
+## Client Helpers
+
+## Read-Only Client
+
+```rust
+pub async fn get_read_only_client() -> anyhow::Result<IdentityClientReadOnly> {
+    let api_endpoint =
+        std::env::var("API_ENDPOINT").unwrap_or_else(|_| IOTA_LOCAL_NETWORK_URL.to_string());
+
+    let iota_client = IotaClientBuilder::default()
+        .build(&api_endpoint)
+        .await
+        .map_err(|err| anyhow::anyhow!(format!("failed to connect to network; {}", err)))?;
+
+    let package_id = std::env::var("IOTA_IDENTITY_PKG_ID")
+        .map_err(|e| {
+            anyhow::anyhow!(
+                "env variable IOTA_IDENTITY_PKG_ID must be set in order to run the examples"
+            )
+            .context(e)
+        })
+        .and_then(|pkg_str| pkg_str.parse().context("invalid package id"))?;
+
+    IdentityClientReadOnly::new_with_pkg_id(iota_client, package_id)
+        .await
+        .context("failed to create a read-only IdentityClient")
+}
+```
+
+This function builds a client to connect to the IOTA Identity package on the network. It's used by the Verifier to resolve DID Documents.
+
+## Funded Client
+
+```rust
+pub async fn get_funded_client<K, I>(
+    storage: &Storage<K, I>,
+) -> Result<IdentityClient<StorageSigner<K, I>>, anyhow::Error>
+where
+    K: JwkStorage,
+    I: KeyIdStorage,
+{
+    let generate = storage
+        .key_storage()
+        .generate(KeyType::new("Ed25519"), JwsAlgorithm::EdDSA)
+        .await?;
+
+    let public_key_jwk = generate
+        .jwk
+        .to_public()
+        .expect("public components should be derivable");
+
+    let signer = StorageSigner::new(storage, generate.key_id, public_key_jwk);
+    let sender_address = IotaAddress::from(&Signer::public_key(&signer).await?);
+
+    request_funds(&sender_address).await?;
+
+    let read_only_client = get_read_only_client().await?;
+    let identity_client = IdentityClient::new(read_only_client, signer).await?;
+
+    Ok(identity_client)
+}
+```
+
+This function generates a new Ed25519 key, requests faucet funds for it, and creates a funded IdentityClient. This client is necessary for the Holder and Issuer to publish their DIDs to the ledger.
+
+## Utility: Pretty JSON Printer
+
+```rust
+pub fn pretty_print_json(label: &str, value: &str) {
+    let data: Value = serde_json::from_str(value).unwrap();
+    let pretty_json = serde_json::to_string_pretty(&data).unwrap();
+    println!("--------------------------------------");
+    println!("{}:", label);
+    println!("--------------------------------------");
+    println!("{} \n", pretty_json);
+}
+```
+
+This simple utility function formats and prints JSON, making it easier to read and debug the DID documents and credentials.
+
+utility.rs is the glue layer: it provides storage, client setup, DID creation, faucet funding, and pretty-printing.Without this file, the Holder/Issuer/Verifier code would be way longer and repetitive.
+
+## Codelab: Issuer Issues a Verifiable Credential
+
+This program acts as the university, creating and signing a digital degree.
+
+1. Create src/issuer.rs:
+
+```bash
+touch src/holder.rs
+```
+
+2. Add the code: Open src/issuer.rs and paste the following code.
+
+## 1. Imports
+
+```rust
+use anyhow::Result;
+use identity_iota::core::{Duration, FromJson, Timestamp, ToJson};
+use identity_iota::credential::{Jwt, JwtPresentationOptions, Presentation, PresentationBuilder};
+use identity_iota::iota::IotaDocument;
+use identity_storage::{JwkDocumentExt, JwsSignatureOptions};
+use shared_utils::{create_did_document, get_stronghold_storage, get_funded_client};
+use std::fs;
+use std::path::PathBuf;
+use identity_iota::did::DID;
+```
+
+These are the imports from the IOTA Identity library. They give us access to:
+
+- Result → easy error handling.
+- Duration, Timestamp → time helpers (for VP expiration).
+- ToJson, FromJson → serialize/deserialize DID docs.
+- Jwt, Presentation, PresentationBuilder → work with Verifiable Credentials/Presentations as JWTs.
+- IotaDocument → DID Document type.
+- JwsSignatureOptions → adds signing options (nonce/challenge).
+- shared_utils → helper functions for DID creation & Stronghold storage.
+- fs, PathBuf → file I/O utilities.
+- DID → type representing decentralized identifiers.
+- IotaDID → the actual decentralized identifier type for IOTA.
+- IotaDocument → the DID Document that holds public keys and verification methods.
+- Client extensions → helper methods to publish DID Documents to the IOTA ledger.
+- prelude::* → a convenient shortcut to bring in commonly used types like KeyPair and KeyType.
+
+## 2. Setup Storage
+
+```rust
+let holder_storage = get_stronghold_storage(Some(PathBuf::from("./holder.stronghold")))?;
+```
+
+- Uses Stronghold (holder.stronghold) to securely store Holder’s private keys.
+- Ensures keys survive between runs.
+
+## 3. Create Holder DID (First Run Only)
+
+```rust
+let did_file = "./holder_doc.json";
+let fragment_file = "./holder_fragment.txt";
+
+if !PathBuf::from(did_file).exists() {
+    println!("📦 No holder DID found, creating...");
+    let holder_client = get_funded_client(&holder_storage).await?;
+    let (holder_doc, holder_fragment) = create_did_document(&holder_client, &holder_storage).await?;
+
+    fs::write(did_file, holder_doc.to_json()?)?;
+    fs::write(fragment_file, &holder_fragment)?;
+    println!("✅ Created holder DID: {}", holder_doc.id());
+    println!("✅ Saved fragment: {}", holder_fragment);
+    println!("ℹ️  Next: run issuer to issue a VC, then come back to create VP.");
+    return Ok(());
+}
+```
+
+- Checks if a DID already exists (holder_doc.json).
+- If not:
+    - Creates new Holder DID and anchors it on IOTA.
+    - Saves DID Document (holder_doc.json) and fragment (holder_fragment.txt).
+- Outputs instructions to run the Issuer next.
