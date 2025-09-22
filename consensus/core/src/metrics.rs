@@ -388,7 +388,15 @@ impl Metrics {
             return;
         }
 
-        if should_update_unprovable_metrics(&error, source) {
+        if should_update_provable_metrics(&error, source) {
+            self.scoring_metrics.uncached[authority_index]
+                .faulty_blocks_provable
+                .fetch_add(1, Ordering::Relaxed);
+            self.node_metrics
+                .faulty_blocks_provable_by_authority
+                .with_label_values(&[hostname, source, error.name()])
+                .inc();
+        } else if should_update_unprovable_metrics(&error, source) {
             self.scoring_metrics.uncached[authority_index]
                 .faulty_blocks_unprovable
                 .fetch_add(1, Ordering::Relaxed);
@@ -396,6 +404,8 @@ impl Metrics {
                 .faulty_blocks_unprovable_by_authority
                 .with_label_values(&[hostname, source, error.name()])
                 .inc();
+        } else {
+            return;
         }
     }
 }
@@ -1296,6 +1306,20 @@ fn calculate_scoring_metrics_for_range(
         (end + 1).saturating_sub(start + unique_block_rounds as u32) as u64;
 
     (number_of_equivocations, number_of_missing_blocks)
+}
+
+fn should_update_provable_metrics(error: &ConsensusError, source: &str) -> bool {
+    if source == "handle_send_block"
+        && (is_from_signed_block_verification(error)
+            || matches!(
+                error,
+                ConsensusError::BlockRejected { .. }
+                //| ConsensusError::MalformedAncestorBlock { .. }
+                ))
+    {
+        return true;
+    }
+    false
 }
 
 fn should_update_unprovable_metrics(error: &ConsensusError, source: &str) -> bool {
