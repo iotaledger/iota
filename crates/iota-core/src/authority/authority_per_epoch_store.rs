@@ -2604,7 +2604,7 @@ impl AuthorityPerEpochStore {
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublishV1(authority),
+                kind: ConsensusTransactionKind::EndOfPublish(authority),
                 ..
             })
             | SequencedConsensusTransactionKind::External(ConsensusTransaction {
@@ -3478,12 +3478,12 @@ impl AuthorityPerEpochStore {
             }) = transaction;
 
             if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublishV1(authority),
+                kind: ConsensusTransactionKind::EndOfPublish(authority),
                 ..
             }) = transaction
             {
                 debug!(
-                    "Received EndOfPublishV1 for epoch {} from {:?}",
+                    "Received EndOfPublish for epoch {} from {:?}",
                     self.committee.epoch,
                     authority.concise()
                 );
@@ -3802,7 +3802,7 @@ impl AuthorityPerEpochStore {
                 Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
-                kind: ConsensusTransactionKind::EndOfPublishV1(_),
+                kind: ConsensusTransactionKind::EndOfPublish(_),
                 ..
             })
             | SequencedConsensusTransactionKind::External(ConsensusTransaction {

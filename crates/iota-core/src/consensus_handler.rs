@@ -581,7 +581,7 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
             }
         }
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
-        ConsensusTransactionKind::EndOfPublishV1(_) => "end_of_publish_v1",
+        ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish_v1",
         ConsensusTransactionKind::EndOfPublishV2(..) => "end_of_publish_v2",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
@@ -705,7 +705,7 @@ impl SequencedConsensusTransactionKind {
     pub fn is_end_of_publish_v1(&self) -> bool {
         match self {
             SequencedConsensusTransactionKind::External(ext) => {
-                matches!(ext.kind, ConsensusTransactionKind::EndOfPublishV1(..))
+                matches!(ext.kind, ConsensusTransactionKind::EndOfPublish(..))
             }
             SequencedConsensusTransactionKind::System(_) => false,
         }
@@ -734,7 +734,7 @@ impl SequencedConsensusTransaction {
         if let SequencedConsensusTransactionKind::External(ref transaction) = self.transaction {
             matches!(
                 transaction.kind,
-                ConsensusTransactionKind::EndOfPublishV1(..)
+                ConsensusTransactionKind::EndOfPublish(..)
             )
         } else {
             false
@@ -1096,7 +1096,7 @@ mod tests {
     fn extract_one(t: VerifiedSequencedConsensusTransaction) -> String {
         match t.0.transaction {
             SequencedConsensusTransactionKind::External(ext) => match ext.kind {
-                ConsensusTransactionKind::EndOfPublishV1(authority) => {
+                ConsensusTransactionKind::EndOfPublish(authority) => {
                     format!("eop({})", authority.0[0])
                 }
                 ConsensusTransactionKind::EndOfPublishV2(authority, _) => {
@@ -1117,7 +1117,7 @@ mod tests {
     fn eop_v1_txn(a: u8) -> VerifiedSequencedConsensusTransaction {
         let mut authority = AuthorityName::default();
         authority.0[0] = a;
-        txn(ConsensusTransactionKind::EndOfPublishV1(authority))
+        txn(ConsensusTransactionKind::EndOfPublish(authority))
     }
 
     fn cap_txn(generation: u64, chain: Chain) -> VerifiedSequencedConsensusTransaction {

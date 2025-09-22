@@ -81,7 +81,7 @@ impl IotaTxValidator {
                         error: ("Unexpected EndOfPublishV2".to_string()),
                     });
                 }
-                ConsensusTransactionKind::EndOfPublishV1(_)
+                ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}
             }

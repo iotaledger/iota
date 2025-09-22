@@ -674,11 +674,8 @@ impl ConsensusAdapter {
         let mut transaction_keys = Vec::new();
 
         for transaction in &transactions {
-            if matches!(
-                transaction.kind,
-                ConsensusTransactionKind::EndOfPublishV1(..)
-            ) {
-                info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublishV1 message to consensus");
+            if matches!(transaction.kind, ConsensusTransactionKind::EndOfPublish(..)) {
+                info!(epoch=?epoch_store.epoch(), "Submitting EndOfPublish message to consensus");
                 epoch_store.record_epoch_pending_certs_process_time_metric();
             }
 
@@ -723,7 +720,7 @@ impl ConsensusAdapter {
         let _monitor = if !is_soft_bundle
             && matches!(
                 transactions[0].kind,
-                ConsensusTransactionKind::EndOfPublishV1(_)
+                ConsensusTransactionKind::EndOfPublish(_)
                     | ConsensusTransactionKind::CapabilityNotificationV1(_)
                     | ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                     | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
