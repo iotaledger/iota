@@ -27,7 +27,7 @@ public struct AuthenticateRegistry has key {
     id: UID,
     package: ascii::String,
     module_name: ascii::String,
-    function_names: vector<vector<u8>>,
+    auth_infos: vector<AuthenticatorInfoV1>,
 }
 
 /// Create an "AuthenticatorInfoV1" using an `authenticate` function defined outside of this version of the package
@@ -77,26 +77,24 @@ public fun publish_authenticate_registry<OTW: drop>(
     assert!(types::is_one_time_witness(witness), ENotOneTimeWitness);
 
     let type_name = type_name::get_with_original_ids<OTW>();
+    let package = id_from_bytes(type_name.get_address().into_bytes());
+    let module_name = type_name.get_module();
+
+    let auth_infos = function_names.map!(|fn| {
+        AuthenticatorInfoV1 {
+            package,
+            module_name,
+            function_name: ascii::string(fn),
+        }
+    });
 
     // Share the record globally
     transfer::freeze_object(AuthenticateRegistry {
         id: object::new(ctx),
         package: type_name.get_address(),
         module_name: type_name.get_module(),
-        function_names,
+        auth_infos,
     });
-}
-
-public fun create_auth_info_v2(
-    registry: &AuthenticateRegistry,
-    function_name: ascii::String,
-): AuthenticatorInfoV1 {
-    assert!(registry.function_names.contains(function_name.as_bytes()), 1);
-    AuthenticatorInfoV1 {
-        package: id_from_bytes(registry.package.into_bytes()),
-        module_name: registry.module_name,
-        function_name,
-    }
 }
 
 /// Creates an `AuthenticatorInfoV1` instance for testing, skipping validation.
