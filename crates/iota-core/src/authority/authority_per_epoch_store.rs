@@ -502,7 +502,7 @@ pub struct AuthorityPerEpochStore {
     randomness_reporter: OnceCell<RandomnessReporter>,
 
     /// Local view about the other authorities' partial scores.
-    pub scorer: Arc<Scorer>,
+    pub(crate) scorer: Arc<Scorer>,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
