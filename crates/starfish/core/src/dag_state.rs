@@ -2352,8 +2352,9 @@ mod test {
         let mut all_block_headers = Vec::new();
         for author in 1..=3 {
             for round in 10..(10 + author) {
-                let block_header =
-                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author as u8).build());
+                let block_header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author as u8).build(),
+                );
                 all_block_headers.push(block_header.clone());
                 dag_state.accept_block_header(block_header);
             }
@@ -2635,8 +2636,9 @@ mod test {
         let mut all_blocks_headers = Vec::new();
         for author in 1..=3 {
             for round in 1..=author {
-                let block_header =
-                    VerifiedBlockHeader::new_for_test(TestBlockHeader::new(round, author).build());
+                let block_header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, author as u8).build(),
+                );
                 all_blocks_headers.push(block_header.clone());
                 dag_state.accept_block_header(block_header);
             }
