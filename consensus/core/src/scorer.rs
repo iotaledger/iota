@@ -18,6 +18,11 @@ use crate::{
     storage::StorageScoringMetrics,
 };
 
+/// The Scorer holds the scoring metrics for all authorities in the committee,
+/// which is updated according to the blocks received
+/// and the evictions that happen in storage. It also holds the partial scores
+/// for each authority, which are then added to EndOfPublishV2 and used to
+/// calculate a final score.
 pub struct Scorer {
     scoring_metrics: ValidatorScoringMetrics,
     partial_scores: PartialScores,
