@@ -7,17 +7,12 @@ use iota::clock::Clock;
 use iota::dynamic_field;
 use iota::ed25519;
 
-#[error(code = 1)]
+#[error(code = 0)]
 const EAccountStillLocked: vector<u8> = b"The account is still locked.";
-
-#[error(code = 10)]
+#[error(code = 1)]
 const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verification failed.";
 
-// Can this cause problems when upgrading to a different version and also trying to update it later?
-public struct ReservedDfNames has copy, drop, store {}
-
 public struct UnlockTime has copy, drop, store {}
-
 public struct OwnerPublicKey has copy, drop, store {}
 
 public fun create(
@@ -30,13 +25,15 @@ public fun create(
     let mut id = object::new(ctx);
 
     let reserved_df_names = vector<std::type_name::TypeName>[
-        std::type_name::get<ReservedDfNames>(),
+        std::type_name::get<account_template::ReservedDfNames>(),
         std::type_name::get<UnlockTime>(),
     ];
 
     // Add the authenticator info as a dynamic field.
-    dynamic_field::add(&mut id, ReservedDfNames {}, reserved_df_names);
+    dynamic_field::add(&mut id, account_template::create_reserved_df_names(), reserved_df_names);
     // Add the authenticator info as a dynamic field.
+    // Notice it is not part of the `reserved_df_names`, nor can it be. This is a system requirement,
+    // `AuthenticatorInfoV1` must always be set at `account::authenticator_df_name()`.
     dynamic_field::add(&mut id, account::authenticator_df_name(), authenticator);
 
     // Add the unlock time as a dynamic field.
@@ -44,9 +41,10 @@ public fun create(
     // Add the account owner public key as a dynamic field.
     dynamic_field::add(&mut id, OwnerPublicKey {}, public_key);
 
-    account_template::shared_create(id);
+    account_template::create_shared(id);
 }
 
+/// Authenticate access for the `Time locked account`.
 public fun authenticate(
     self: &IOTAccount,
     clock: &Clock,
@@ -60,6 +58,10 @@ public fun authenticate(
     authenticate_ed25519(self, signature, auth_ctx, ctx);
 }
 
+/// Verify if the account has passed the unlock time.
+///
+/// Looks like an `authenticate` function, but it isn't as it is private. Nor would it provide
+/// satisfactory access protection for the account itself.
 fun authenticate_time(self: &IOTAccount, clock: &Clock, _auth_ctx: &AuthContext, _ctx: &TxContext) {
     let unlock_time: &u64 = self.borrow_field(UnlockTime {});
 
@@ -68,8 +70,7 @@ fun authenticate_time(self: &IOTAccount, clock: &Clock, _auth_ctx: &AuthContext,
     assert!(now >= *unlock_time, EAccountStillLocked);
 }
 
-/// Ed25519 signature authenticator.
-/// This could be private as nobody should call it directly at all.
+/// Verify account access using Ed25519 signature authenticator.
 fun authenticate_ed25519(
     self: &IOTAccount,
     signature: vector<u8>,

@@ -9,7 +9,6 @@ use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::{Self, AuthContext};
 use iota::clock;
 use iota::test_scenario::{Self, Scenario};
-use iota::tx_context;
 use std::ascii;
 use std::unit_test::assert_eq;
 use time_locked::time_locked;
