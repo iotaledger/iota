@@ -249,7 +249,7 @@ pub enum IotaCommand {
         #[arg(long, help = "Specify the delegator address")]
         delegator: Option<IotaAddress>,
     },
-    /// Bootstrap and initialize a new iota network
+    /// Bootstrap and initialize a new IOTA network
     Genesis {
         #[arg(long, help = "Start genesis with a given config file")]
         from_config: Option<PathBuf>,

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashSet,
     fmt,
     hash::{Hash, Hasher},
     ops::Deref,
@@ -92,13 +93,13 @@ pub struct BlockHeaderV1 {
     timestamp_ms: BlockTimestampMs,
     // ancestors are BlockRefs such that there are at least 2f+1 BlockRefs (by stake) from the
     // previous round
-    ancestors: Vec<BlockRef>,
     // acknowledgments are BlockRefs for blocks for which a validator acknowledges data
     // availability of transactions
-    // TODO: https://github.com/iotaledger/iota/issues/8151
-    // We should compress it together with ancestors to
-    // avoid duplications since in most cases these sets have a big overlap
-    acknowledgments: Vec<BlockRef>,
+    // references is a compressed vector that contains both the ancestors and acknowledgments
+    // layout: |ancestors|overlap_without_ref0|acknowledgments|ref0?|
+    references: Vec<BlockRef>,
+    overlap_start_index: u8, // bounded by committee size <=256
+    overlap_end_index: u8,   // bounded by committee size <=256
     transactions_commitment: TransactionsCommitment,
     commit_votes: Vec<CommitVote>,
 }
@@ -114,16 +115,68 @@ impl BlockHeaderV1 {
         commit_votes: Vec<CommitVote>,
         transactions_commitment: TransactionsCommitment,
     ) -> BlockHeaderV1 {
+        let (references, overlap_start_index, overlap_end_index) =
+            Self::compress_references(ancestors, acknowledgments);
         Self {
             epoch,
             round,
             author,
             timestamp_ms,
-            ancestors,
-            acknowledgments,
+            references,
+            overlap_start_index,
+            overlap_end_index,
             transactions_commitment,
             commit_votes,
         }
+    }
+    /// Compresses ancestors and acknowledgments into a single references
+    /// vector, and returns the overlap indices. The first ancestor is
+    /// always the first reference (ref0). If it is also in acknowledgments,
+    /// it is appended to the end of references.
+    pub(crate) fn compress_references(
+        ancestors: Vec<BlockRef>,
+        acknowledgments: Vec<BlockRef>,
+    ) -> (Vec<BlockRef>, u8, u8) {
+        if ancestors.is_empty() {
+            return (acknowledgments, 0, 0);
+        }
+        // Sets for membership checks
+        let ancestor_set: HashSet<_> = ancestors.iter().cloned().collect();
+        let ack_set: HashSet<_> = acknowledgments.into_iter().collect();
+        // ref0 is the first ancestor, and is also always the first reference
+        let ref0 = ancestors[0];
+        // if it is also in acknowledgments, it is appended to the end of references
+        let append_ref0 = ack_set.contains(&ref0);
+
+        // partition ancestors into overlap and ancestors_only (excluding ref0)
+        let (overlap, mut ancestors_only): (Vec<_>, Vec<_>) = ancestors
+            .into_iter()
+            .skip(1)
+            .partition(|a| ack_set.contains(a));
+        // insert ref0 back to the front of ancestors_only
+        ancestors_only.insert(0, ref0);
+
+        // acknowledgments_only excludes any overlap with ancestors
+        let acknowledgments_only: Vec<_> = ack_set
+            .into_iter()
+            .filter(|a| !ancestor_set.contains(a))
+            .collect();
+
+        let overlap_start_index = ancestors_only.len();
+        let overlap_end_index = overlap_start_index + overlap.len();
+        // combine all parts into references
+        // |ancestors_only|overlap|acknowledgments_only|ref0?|
+        let mut references = ancestors_only;
+        references.extend(overlap);
+        references.extend(acknowledgments_only);
+        if append_ref0 {
+            references.push(ref0);
+        }
+        (
+            references,
+            overlap_start_index as u8,
+            overlap_end_index as u8,
+        )
     }
 
     fn genesis_block_header(epoch: Epoch, author: AuthorityIndex) -> Self {
@@ -132,8 +185,9 @@ impl BlockHeaderV1 {
             round: GENESIS_ROUND,
             author,
             timestamp_ms: 0,
-            ancestors: vec![],
-            acknowledgments: vec![],
+            references: vec![],
+            overlap_start_index: 0,
+            overlap_end_index: 0,
             commit_votes: vec![],
             transactions_commitment: TransactionsCommitment::default(),
         }
@@ -158,14 +212,14 @@ impl BlockHeaderAPI for BlockHeaderV1 {
     }
 
     fn acknowledgments(&self) -> &[BlockRef] {
-        &self.acknowledgments
+        &self.references[self.overlap_start_index as usize..]
     }
 
     fn timestamp_ms(&self) -> BlockTimestampMs {
         self.timestamp_ms
     }
     fn ancestors(&self) -> &[BlockRef] {
-        &self.ancestors
+        &self.references[..self.overlap_end_index as usize]
     }
 
     fn commit_votes(&self) -> &[CommitVote] {
@@ -911,6 +965,8 @@ pub(crate) fn genesis_block_headers(context: Arc<Context>) -> Vec<VerifiedBlockH
 /// This struct is public for testing in other crates.
 #[derive(Clone)]
 pub struct TestBlockHeader {
+    ancestors: Vec<BlockRef>,
+    acknowledgments: Vec<BlockRef>,
     block_header: BlockHeaderV1,
 }
 
@@ -926,6 +982,8 @@ impl TestBlockHeader {
                 .unwrap(),
                 ..Default::default()
             },
+            ancestors: vec![],
+            acknowledgments: vec![],
         }
     }
 
@@ -948,6 +1006,8 @@ impl TestBlockHeader {
                 .unwrap(),
                 ..Default::default()
             },
+            ancestors: vec![],
+            acknowledgments: vec![],
         }
     }
 
@@ -972,7 +1032,12 @@ impl TestBlockHeader {
     }
 
     pub fn set_ancestors(mut self, ancestors: Vec<BlockRef>) -> Self {
-        self.block_header.ancestors = ancestors;
+        self.ancestors = ancestors;
+        self
+    }
+
+    pub fn set_acknowledgments(mut self, acknowledgments: Vec<BlockRef>) -> Self {
+        self.acknowledgments = acknowledgments;
         self
     }
 
@@ -981,17 +1046,18 @@ impl TestBlockHeader {
         self
     }
 
-    pub fn set_acknowledgments(mut self, acknowledgments: Vec<BlockRef>) -> Self {
-        self.block_header.acknowledgments = acknowledgments;
-        self
-    }
-
     pub fn set_commitment(mut self, commitment: TransactionsCommitment) -> Self {
         self.block_header.transactions_commitment = commitment;
         self
     }
 
-    pub fn build(self) -> BlockHeader {
+    pub fn build(mut self) -> BlockHeader {
+        let (references, overlap_start_index, overlap_end_index) =
+            BlockHeaderV1::compress_references(self.ancestors, self.acknowledgments);
+        self.block_header.references = references;
+        self.block_header.overlap_start_index = overlap_start_index;
+        self.block_header.overlap_end_index = overlap_end_index;
+
         BlockHeader::V1(self.block_header)
     }
 }
@@ -1006,7 +1072,7 @@ mod tests {
     use fastcrypto::error::FastCryptoError;
 
     use crate::{
-        block_header::{SignedBlockHeader, TestBlockHeader},
+        block_header::{BlockHeaderDigest, SignedBlockHeader, TestBlockHeader},
         context::Context,
         error::ConsensusError,
     };
@@ -1041,6 +1107,102 @@ mod tests {
                 assert_eq!(err, FastCryptoError::InvalidSignature);
             }
             err => panic!("Unexpected error: {err:?}"),
+        }
+    }
+    #[tokio::test]
+    async fn test_compress_references() {
+        use crate::block_header::BlockRef;
+        let rng = &mut rand::thread_rng();
+
+        let ref_a = BlockRef::new(1, 0.into(), BlockHeaderDigest::random(&mut *rng));
+        let ref_b = BlockRef::new(1, 1.into(), BlockHeaderDigest::random(&mut *rng));
+        let ref_c = BlockRef::new(1, 2.into(), BlockHeaderDigest::random(&mut *rng));
+        let ref_d = BlockRef::new(1, 3.into(), BlockHeaderDigest::random(&mut *rng));
+        let ref_e = BlockRef::new(1, 4.into(), BlockHeaderDigest::random(&mut *rng));
+
+        // Test case 1: No overlap
+        let ancestors = vec![ref_a, ref_b];
+        let acknowledgments = vec![ref_c, ref_d];
+        let (references, overlap_start_index, overlap_end_index) =
+            crate::block_header::BlockHeaderV1::compress_references(
+                ancestors.clone(),
+                acknowledgments.clone(),
+            );
+        let expected = [ref_a, ref_b, ref_c, ref_d];
+        assert_eq!(references.len(), expected.len());
+        for r in references.iter() {
+            assert!(expected.contains(r));
+        }
+        assert_eq!(overlap_start_index, 2);
+        assert_eq!(overlap_end_index, 2);
+        assert_eq!(*references.first().unwrap(), ref_a);
+
+        // Test case 2: Some overlap
+        let ancestors = vec![ref_a, ref_b, ref_c];
+        let acknowledgments = vec![ref_c, ref_d];
+        let (references, overlap_start_index, overlap_end_index) =
+            crate::block_header::BlockHeaderV1::compress_references(
+                ancestors.clone(),
+                acknowledgments.clone(),
+            );
+        let expected = [ref_a, ref_b, ref_c, ref_d];
+        assert_eq!(references.len(), expected.len());
+        for r in references.iter() {
+            assert!(expected.contains(r));
+        }
+        assert_eq!(overlap_start_index, 2);
+        assert_eq!(overlap_end_index, 3);
+        assert_eq!(*references.first().unwrap(), ref_a);
+
+        // Some Overlap with ref0 in ack
+        let ancestors = vec![ref_a, ref_b, ref_c, ref_d];
+        let acknowledgments = vec![ref_a, ref_c, ref_d, ref_e];
+
+        let (references, overlap_start_index, overlap_end_index) =
+            crate::block_header::BlockHeaderV1::compress_references(
+                ancestors.clone(),
+                acknowledgments.clone(),
+            );
+
+        let expected = vec![ref_a, ref_b, ref_c, ref_d, ref_e, ref_a];
+        assert_eq!(references.len(), expected.len());
+        for r in references.iter() {
+            assert!(expected.contains(r));
+        }
+
+        assert_eq!(overlap_start_index, 2);
+        assert_eq!(overlap_end_index, 4);
+        assert_eq!(*references.first().unwrap(), ref_a);
+        assert_eq!(*references.last().unwrap(), ref_a);
+
+        // Test case 3: Full overlap
+        let ancestors = vec![ref_a, ref_b, ref_c];
+        let acknowledgments = vec![ref_a, ref_b, ref_c];
+        let (references, overlap_start_index, overlap_end_index) =
+            crate::block_header::BlockHeaderV1::compress_references(
+                ancestors.clone(),
+                acknowledgments.clone(),
+            );
+
+        let expected = [ref_a, ref_b, ref_c, ref_a];
+        assert_eq!(references.len(), expected.len());
+        for r in references.iter() {
+            assert!(expected.contains(r));
+        }
+        assert_eq!(overlap_start_index, 1);
+        assert_eq!(overlap_end_index, 3);
+        assert_eq!(*references.first().unwrap(), ref_a);
+        assert_eq!(*references.last().unwrap(), ref_a);
+
+        // Verify that decompressing references gives back the original ancestors and
+        // acknowledgments
+        let compressed_ancestors = &references[..overlap_end_index as usize];
+        let compressed_acknowledgments = &references[overlap_start_index as usize..];
+        assert_eq!(compressed_ancestors, ancestors.as_slice());
+        assert_eq!(compressed_acknowledgments.len(), acknowledgments.len());
+        // ordering of acknowledgments may not be preserved
+        for ack in acknowledgments.iter() {
+            assert!(compressed_acknowledgments.contains(ack));
         }
     }
 }
