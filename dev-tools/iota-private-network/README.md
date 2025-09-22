@@ -128,3 +128,7 @@ for example, for fullnode-1, you would add the following environment variables:
 ```
 
 The `TRACE_FILTER` variable follows the rules defined in the [tracing documentation](https://crates.io/crates/tracing-filter).
+
+To trace the **checkpoint lifecycle** only, you can set the `TRACE_FILTER` to `TRACE_FILTER=[checkpoint_received_from_state_sync]=trace,[checkpoint_received_from_consensus]=trace`.
+
+To trace the **transaction lifecycle** only, you can set the `TRACE_FILTER` to `TRACE_FILTER=[handle_consensus_output]=trace,[tx_orchestrator_execute_transaction_block]=trace,[json_rpc_api_execute_transaction_block]=trace`.
