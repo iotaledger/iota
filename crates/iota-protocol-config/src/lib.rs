@@ -1111,7 +1111,7 @@ pub struct ProtocolConfig {
     /// EndOfEpoch messages. When set to `Some(version)`, scores are
     /// included in the EndOfEpochV2 messages, where `version` determines
     /// the scoring formulas to be used.
-    scorer_version: Option<u64>,
+    scorer_version: Option<u16>,
 }
 
 // feature flags
