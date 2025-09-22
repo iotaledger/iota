@@ -72,7 +72,6 @@ pub const MAX_PROTOCOL_VERSION: u64 = 12;
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
 // Version 12: Enable the gas price feedback mechanism in all networks.
-// Version 13: Score integration with consensus.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -1108,7 +1107,10 @@ pub struct ProtocolConfig {
     /// `0` then the garbage collection is disabled.
     consensus_gc_depth: Option<u32>,
 
-    // Scorer version
+    /// Scorer version. When set to `None`, scores are not included in
+    /// EndOfEpoch messages. When set to `Some(version)`, scores are
+    /// included in the EndOfEpochV2 messages, where `version` determines
+    /// the scoring formulas to be used.
     scorer_version: Option<u64>,
 }
 
