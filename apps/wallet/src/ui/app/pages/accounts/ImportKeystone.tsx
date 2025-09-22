@@ -19,6 +19,7 @@ type Step =
     | {
           // Wallet scans Keystone animated QR
           type: 'scan-qr';
+          progress: number;
       }
     | {
           // User selects from the account list
@@ -33,10 +34,9 @@ type Step =
       };
 
 export function ImportKeystone() {
-    const [step, setStep] = useState<Step>({ type: 'scan-qr' });
+    const [step, setStep] = useState<Step>({ type: 'scan-qr', progress: 0 });
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
-    const [scanProgress, setScanProgress] = useState(0);
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
 
     function onSucceed({ type, cbor }: { type: string; cbor: string }) {
@@ -56,7 +56,7 @@ export function ImportKeystone() {
     }
 
     function onProgress(progress: number) {
-        setScanProgress(progress);
+        setStep({ type: 'scan-qr', progress });
     }
 
     function onFinish() {
@@ -77,7 +77,7 @@ export function ImportKeystone() {
     }
 
     function onError(error: string) {
-        setScanProgress(0);
+        setStep({ type: 'scan-qr', progress: 0 });
         toast.error(error);
     }
 
@@ -112,10 +112,10 @@ export function ImportKeystone() {
                                                         }}
                                                         onProgress={onProgress}
                                                     />
-                                                    {scanProgress > 0 && scanProgress <= 100 && (
+                                                    {step.progress > 0 && step.progress <= 100 && (
                                                         <div className="absolute inset-0 flex items-end justify-center pb-2">
                                                             <div className="text-xl font-bold text-white">
-                                                                {Math.round(scanProgress)}%
+                                                                {Math.round(step.progress)}%
                                                             </div>
                                                         </div>
                                                     )}
@@ -213,7 +213,7 @@ export function ImportKeystone() {
                                     <Button
                                         type={ButtonType.Secondary}
                                         text="Go back"
-                                        onClick={() => setStep({ type: 'scan-qr' })}
+                                        onClick={() => setStep({ type: 'scan-qr', progress: 0 })}
                                         fullWidth
                                     />
                                     <Button
