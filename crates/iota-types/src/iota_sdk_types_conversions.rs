@@ -1360,7 +1360,7 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                             }
                         }
                         // TO DO: check this error. This mapping is currently a placeholder
-                        CommandArgumentError::InvalidArgumentArity { .. } => {
+                        CommandArgumentError::InvalidArgumentArity => {
                             InternalCmdArgErr::InvalidGasCoinUsage
                         }
 
