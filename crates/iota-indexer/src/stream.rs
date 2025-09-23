@@ -28,6 +28,8 @@ use crate::{
 
 /// Buffer size used in the bounded channels.
 const BUFFER_SIZE: usize = 1000;
+/// Transaction batch size to send to subscribers.
+const TRANSACTION_BATCH_SIZE: i64 = 50;
 /// Postgres Notify channel name.
 const CHANNEL_NAME: &str = "checkpoint_committed";
 
@@ -263,46 +265,74 @@ impl IndexerStreamer {
         event_tx: broadcast::Sender<StoredEvent>,
         transaction_tx: broadcast::Sender<StoredTransaction>,
     ) -> Result<(), IndexerError> {
-        // Batch checkpoints in smaller chunks to prevent subscriber overload.
-        // Large batches (1000 checkpoints = ~4000-5000 transactions) would cause
-        // immediate subscriber lag. Smaller batches (~10 checkpoints = ~40-50 tx) keep
-        // pace.
-        let buffer_size = BUFFER_SIZE / 100;
         // create a stream from the connection that forwards messages to the channel.
-        let mut stream =
-            stream::poll_fn(move |cx| connection.poll_message(cx)).ready_chunks(buffer_size);
+        let mut stream = stream::poll_fn(move |cx| connection.poll_message(cx)).ready_chunks(10);
 
         while let Some(messages) = stream.next().await {
-            let mut filtered_messages = Self::filter_checkpoint_notifications(messages);
+            if let Some((min_tx_sequence_number, max_tx_sequence_number)) =
+                Self::resolve_tx_bounds(messages)?
+            {
+                let mut start = min_tx_sequence_number;
 
-            let first = filtered_messages.next().transpose()?;
-            let last = filtered_messages.last().transpose()?;
+                while start <= max_tx_sequence_number {
+                    let end = (start + TRANSACTION_BATCH_SIZE - 1).min(max_tx_sequence_number);
 
-            if let Some((first, last)) = first.map(|f| (f, last.unwrap_or(f))) {
-                debug!(notification = ?last);
-
-                let instant = Instant::now();
-                let transactions: Vec<StoredTransaction> = indexer_reader
-                    .spawn_blocking(move |this| {
-                        this.multi_get_transactions_by_sequence_numbers_range(
-                            first.min_tx_sequence_number,
-                            last.max_tx_sequence_number,
-                        )
-                    })
+                    Self::process_transaction_batch(
+                        start,
+                        end,
+                        &indexer_reader,
+                        &event_tx,
+                        &transaction_tx,
+                    )
                     .await?;
 
-                let duration = instant.elapsed();
-                debug!(
-                    "transactions query took: {duration:?}, tx: {}",
-                    transactions.len()
-                );
-
-                let instant = Instant::now();
-                Self::publish_tx_and_events(transactions, &event_tx, &transaction_tx).await?;
-                let duration = instant.elapsed();
-                debug!("broadcast data took: {duration:?}");
+                    start = end + 1;
+                }
             }
         }
+        Ok(())
+    }
+
+    fn resolve_tx_bounds(
+        messages: Vec<Result<AsyncMessage, tokio_postgres::Error>>,
+    ) -> Result<Option<(i64, i64)>, IndexerError> {
+        let mut filtered_messages = Self::filter_checkpoint_notifications(messages);
+
+        let first = filtered_messages.next().transpose()?;
+        let last = filtered_messages.last().transpose()?;
+
+        Ok(first.map(|f| {
+            (
+                f.min_tx_sequence_number,
+                last.unwrap_or(f).max_tx_sequence_number,
+            )
+        }))
+    }
+
+    async fn process_transaction_batch(
+        start: i64,
+        end: i64,
+        indexer_reader: &IndexerReader,
+        event_tx: &broadcast::Sender<StoredEvent>,
+        transaction_tx: &broadcast::Sender<StoredTransaction>,
+    ) -> Result<(), IndexerError> {
+        let instant = Instant::now();
+        let transactions: Vec<StoredTransaction> = indexer_reader
+            .spawn_blocking(move |this| {
+                this.multi_get_transactions_by_sequence_numbers_range(start, end)
+            })
+            .await?;
+
+        debug!(
+            "transactions query took: {:?}, tx: {}",
+            instant.elapsed(),
+            transactions.len()
+        );
+
+        let instant = Instant::now();
+        Self::publish_tx_and_events(transactions, event_tx, transaction_tx).await?;
+        debug!("broadcast data took: {:?}", instant.elapsed());
+
         Ok(())
     }
 
