@@ -1117,8 +1117,9 @@ impl DagState {
                 commits,
                 commit_info_to_write,
                 self.recent_provably_faulty_blocks
-                    .values()
-                    .cloned()
+                    .iter()
+                    .filter(|(b, _)| b.round <= self.gc_round())
+                    .map(|(_, b)| b.clone())
                     .collect(),
                 metrics_to_write,
             ))
@@ -1146,7 +1147,14 @@ impl DagState {
             self.evicted_rounds[authority_index] = eviction_round;
         }
 
-        self.recent_provably_faulty_blocks.clear();
+        let gc_round = self.gc_round();
+        while let Some(entry) = self.recent_provably_faulty_blocks.first_entry() {
+            if entry.key().round <= gc_round {
+                entry.remove();
+            } else {
+                break;
+            }
+        }
 
         let metrics = &self.context.metrics.node_metrics;
         metrics
