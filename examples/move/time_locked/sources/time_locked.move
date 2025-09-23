@@ -1,10 +1,9 @@
 module time_locked::time_locked;
 
 use account_template::account_template::{Self, IOTAccount};
-use iota::account::{Self, AuthenticatorInfoV1};
+use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
 use iota::clock::Clock;
-use iota::dynamic_field;
 use iota::ed25519;
 
 #[error(code = 0)]
@@ -21,27 +20,13 @@ public fun create(
     authenticator: AuthenticatorInfoV1,
     ctx: &mut TxContext,
 ) {
-    // Create a UID for an account object.
-    let mut id = object::new(ctx);
+    let mut builder = account_template::init_account_builder(ctx);
 
-    let reserved_df_names = vector<std::type_name::TypeName>[
-        std::type_name::get<account_template::ReservedDfNames>(),
-        std::type_name::get<UnlockTime>(),
-    ];
+    builder.set_authenticator(authenticator);
+    builder.add_reserved_field(UnlockTime {}, unlock_time);
+    builder.add_reserved_field(OwnerPublicKey {}, public_key);
 
-    // Add the authenticator info as a dynamic field.
-    dynamic_field::add(&mut id, account_template::create_reserved_df_names(), reserved_df_names);
-    // Add the authenticator info as a dynamic field.
-    // Notice it is not part of the `reserved_df_names`, nor can it be. This is a system requirement,
-    // `AuthenticatorInfoV1` must always be set at `account::authenticator_df_name()`.
-    dynamic_field::add(&mut id, account::authenticator_df_name(), authenticator);
-
-    // Add the unlock time as a dynamic field.
-    dynamic_field::add(&mut id, UnlockTime {}, unlock_time);
-    // Add the account owner public key as a dynamic field.
-    dynamic_field::add(&mut id, OwnerPublicKey {}, public_key);
-
-    account_template::create_shared(id);
+    builder.finish_and_share();
 }
 
 /// Authenticate access for the `Time locked account`.

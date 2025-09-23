@@ -16,7 +16,7 @@ use time_locked::time_locked;
 // --------------------------------------- Basic Scenario ---------------------------------------
 
 #[test]
-fun test_account_creation() {
+fun account_creation() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let account_address = create_time_locked_for_testing(scenario, 3, option::none());
@@ -71,7 +71,7 @@ fun test_account_time_locked() {
 
 #[test]
 #[expected_failure(abort_code = time_locked::EEd25519VerificationFailed)]
-fun test_account_time_unlocked_but_fails_verification() {
+fun account_time_unlocked_but_fails_verification() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let account_address = create_time_locked_for_testing(scenario, 3, option::none());
@@ -96,7 +96,7 @@ fun test_account_time_unlocked_but_fails_verification() {
 }
 
 #[test]
-fun test_account_unlocked() {
+fun account_unlocked() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
