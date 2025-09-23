@@ -47,6 +47,7 @@ export { default as IotaLogoMark } from './IotaLogoMark';
 export { default as IotaLogoSmall } from './IotaLogoSmall';
 export { default as IotaLogoWeb } from './IotaLogoWeb';
 export { default as Key } from './Key';
+export { default as Keystone } from './Keystone';
 export { default as Ledger } from './Ledger';
 export { default as LightMode } from './LightMode';
 export { default as Link } from './Link';

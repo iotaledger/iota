@@ -74,6 +74,10 @@ class ApiProvider {
             // background script as well.
             throw new Error("Signing with Ledger via ApiProvider isn't supported");
         }
+        if (AccountType.KeystoneDerived === account.type) {
+            // Keystone private key exists only in Keystone Hardware wallets (devices).
+            throw new Error("Signing with Keystone via ApiProvider isn't supported");
+        }
         if (AccountType.PasskeyDerived === account.type) {
             throw new Error("Signing with Passkey via ApiProvider isn't supported");
         }

@@ -11,13 +11,17 @@ import { useIotaLedgerClient } from '_components';
 import { LedgerSigner } from '../ledgerSigner';
 import { type WalletSigner } from '../walletSigner';
 import { useBackgroundClient } from './useBackgroundClient';
+import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
+import { KeystoneSigner } from '../keystoneSigner';
+import { useKeystoneContext } from '../components/keystone/KeystoneProvider';
 import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
 import { PasskeySigner } from '../passkeySigner';
 import { usePasskeyContext } from '../components/passkey/PasskeyContext';
 
 export function useSigner(account: SerializedUIAccount | null): WalletSigner | null {
     const { connectToLedger } = useIotaLedgerClient();
-    const { requestSignature } = usePasskeyContext();
+    const { requestSignature } = useKeystoneContext();
+    const { requestSignature: requestPasskeySignature } = usePasskeyContext();
     const api = useIotaClient();
     const background = useBackgroundClient();
     if (!account) {
@@ -26,8 +30,11 @@ export function useSigner(account: SerializedUIAccount | null): WalletSigner | n
     if (isLedgerAccountSerializedUI(account)) {
         return new LedgerSigner(connectToLedger, account.derivationPath, account.address, api);
     }
+    if (isKeystoneAccountSerializedUI(account)) {
+        return new KeystoneSigner(requestSignature, account, api);
+    }
     if (isPasskeyAccountSerializedUI(account)) {
-        return new PasskeySigner(requestSignature, account, api);
+        return new PasskeySigner(requestPasskeySignature, account, api);
     }
     return walletApiProvider.getSignerInstance(account, background);
 }

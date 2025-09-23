@@ -14,6 +14,7 @@ import {
 export enum AccountSourceType {
     Mnemonic = 'mnemonic',
     Seed = 'seed',
+    Keystone = 'keystone',
 }
 
 export abstract class AccountSource<

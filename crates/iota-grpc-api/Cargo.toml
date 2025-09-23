@@ -1,0 +1,32 @@
+[package]
+name = "iota-grpc-api"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# external dependencies
+anyhow.workspace = true
+async-stream = "0.3"
+bcs.workspace = true
+futures.workspace = true
+prost.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-stream.workspace = true
+tokio-util.workspace = true
+tonic.workspace = true
+tracing.workspace = true
+
+# internal dependencies
+iota-grpc-types.workspace = true
+iota-json-rpc-types.workspace = true
+iota-types.workspace = true
+move-core-types.workspace = true
+
+[build-dependencies]
+tonic-build.workspace = true
+
+[dev-dependencies]
+iota-config.workspace = true
+test-cluster.workspace = true

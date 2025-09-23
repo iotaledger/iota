@@ -190,7 +190,7 @@ struct AuthorityTestFixture {
     block_manager: BlockManager,
 }
 
-fn authority_setup(num_authorities: usize, authority_index: u32) -> AuthorityTestFixture {
+fn authority_setup(num_authorities: usize, authority_index: u8) -> AuthorityTestFixture {
     let context = Arc::new(
         Context::new_for_test(num_authorities)
             .0

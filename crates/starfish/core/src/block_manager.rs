@@ -1119,7 +1119,7 @@ mod tests {
 
         let mut ancestor_blocks = vec![];
         for i in 0..num_authorities {
-            let test_block = TestBlockHeader::new(10, i as u32)
+            let test_block = TestBlockHeader::new(10, i as u8)
                 .set_timestamp_ms(1000 + 100 * i as BlockTimestampMs)
                 .build();
             ancestor_blocks.push(VerifiedBlockHeader::new_for_test(test_block));
