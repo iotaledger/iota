@@ -19,7 +19,6 @@ PERCENT_BLOCK=0           # Percent chance to block a connection
 PERCENT_LOSS=0           # Percent chance to apply packet loss
 PERCENT_RESTART=0         # Percent of validators to stop and start after RESTART_DURATION seconds
 RESTART_DURATION=120    # Seconds to stop validators during restart
-WATCH_INTERVAL=2      # Seconds between re-applying fuzz rules
 GEODISTRIBUTED=false  # Large geodistributed latencies or small ones
 LOG_FILE="logs/fuzz_script.log" # Output file for script
 
@@ -193,8 +192,6 @@ initially_apply_fuzz() {
   # Apply netem loss for packets to chosen validators
   for ((k=0; k<num_to_apply_loss; k++)); do
     A=${validators[indices[k]]}
-    r_netem_A=$(( RANDOM % 100 ))
-
     LOSS=$((RANDOM % 31 + 10 ))
     apply_loss "$A" "$LOSS"
   done

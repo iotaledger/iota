@@ -142,14 +142,10 @@ else
 fi
 
 # --- 2) Bootstrap network ---
-if [ -n "$PROTOCOL" ]; then
-  (cd .. && ./bootstrap.sh -n "$NUM_VALIDATORS" -p "$PROTOCOL")
-else
-  (cd .. && ./bootstrap.sh -n "$NUM_VALIDATORS")
-fi
+(cd .. && ./bootstrap.sh -n "$NUM_VALIDATORS")
 
 # --- 3) Bring up docker network ---
-(cd .. && ./run.sh -n "$NUM_VALIDATORS")
+(cd .. && ./run.sh -n "$NUM_VALIDATORS" -p "$PROTOCOL")
 
 
 log "Sleep 5s to boot validators..."

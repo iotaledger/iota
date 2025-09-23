@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 6,
+  "id": 3,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -944,7 +944,7 @@
       },
       "gridPos": {
         "h": 8,
-        "w": 11,
+        "w": 12,
         "x": 11,
         "y": 12
       },
@@ -1252,7 +1252,7 @@
           },
           "disableTextWrap": false,
           "editorMode": "code",
-          "expr": "rate(consensus_accepted_blocks{source=\"own\"}[1m])",
+          "expr": "rate(consensus_accepted_blocks{source=\"own\"}[1m])\n  or rate(consensus_accepted_block_headers{source=\"own\"}[1m])\n",
           "fullMetaSearch": false,
           "includeNullMetadata": true,
           "instant": false,
@@ -1361,7 +1361,7 @@
           "useBackend": false
         }
       ],
-      "title": "Committed blocks (own)",
+      "title": "Committed consensus messages (own)",
       "type": "timeseries"
     },
     {
@@ -4503,8 +4503,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -4601,8 +4600,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -4700,8 +4698,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -4793,8 +4790,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -4907,8 +4903,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -5033,8 +5028,7 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green",
-                "value": null
+                "color": "green"
               },
               {
                 "color": "red",
@@ -10098,13 +10092,13 @@
     ]
   },
   "time": {
-    "from": "now-5m",
+    "from": "now-30m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "Europe/Berlin",
   "title": "IOTA Starfish Overview",
   "uid": "StarfishOverview",
-  "version": 6,
+  "version": 9,
   "weekStart": ""
 }

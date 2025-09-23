@@ -41,16 +41,6 @@ Generate the genesis files and validators’ configuration:
 ./bootstrap.sh -n 19
 ```
 
-### Optional: Selecting a Consensus Protocol
-
-You can start the network with an optional consensus protocol flag. There are two options `starfish` and `mysticeti`.
-If the flag is not provided, the default protocol is Mysticeti.
-
-For example, to bootstrap a **Starfish** network:
-
-```bash
-./bootstrap.sh -p starfish
-```
 
 ### 3. Start the Network
 
@@ -89,6 +79,17 @@ To bring up 10 validators and faucet:
 > - `docker-compose.yaml` (validator services and network IPs)
 > - `prometheus/prometheus.yaml` (scrape targets)
 > - **(Optional)** Adjust the stake distribution in the chosen `genesis-template-<N>.yaml` if you want different validator stakes.
+
+### Optional: Selecting a Consensus Protocol
+
+You can run the network with an optional consensus protocol flag. There are two options `starfish` and `mysticeti`.
+If the flag is not provided, the default protocol is Mysticeti.
+
+For example, to start a **Starfish** consensus protocol with 10 validators:
+
+```bash
+./run.sh -n 10 -p starfish
+```
 
 ### Ports
 
