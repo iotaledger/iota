@@ -8,7 +8,7 @@ import { useNavigate } from 'react-router-dom';
 export function NetworkSettings() {
     const navigate = useNavigate();
     return (
-        <Overlay showModal title="Network" closeOverlay={() => navigate('/')} showBackButton>
+        <Overlay showModal title="Network" closeOverlay={() => navigate('/tokens')} showBackButton>
             <NetworkSelector />
         </Overlay>
     );

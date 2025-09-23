@@ -83,7 +83,7 @@ export function AccountGroupItem({
         if (!account) return;
 
         await backgroundClient.selectAccount(account.id);
-        navigate('/');
+        navigate('/tokens');
         toast(`Account ${formatAddress(account.address)} selected`);
     }
 
