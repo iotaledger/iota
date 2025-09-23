@@ -33,7 +33,7 @@ use tracing::{debug, error, info, trace, warn};
 use crate::{
     BlockAPI, CommitIndex, Round,
     authority_service::COMMIT_LAG_MULTIPLIER,
-    block::{BlockRef, GENESIS_ROUND, SignedBlock, VerifiedBlock},
+    block::{BlockRef, GENESIS_ROUND, ProvablyFaultyBlock, SignedBlock, VerifiedBlock},
     block_verifier::BlockVerifier,
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -582,7 +582,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         }
 
         // Verify all the fetched blocks
-        let blocks = Handle::current()
+        let (verified_blocks, provably_faulty_blocks) = Handle::current()
             .spawn_blocking({
                 let block_verifier = block_verifier.clone();
                 let context = context.clone();
@@ -593,15 +593,15 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
         if !context.protocol_config.consensus_batched_block_sync() {
             // Get all the ancestors of the requested blocks only
-            let ancestors = blocks
+            let ancestors = verified_blocks
                 .iter()
                 .filter(|b| requested_blocks_guard.block_refs.contains(&b.reference()))
                 .flat_map(|b| b.ancestors().to_vec())
                 .collect::<BTreeSet<BlockRef>>();
 
-            // Now confirm that the blocks are either between the ones requested, or they
+            // Now confirm that the verified blocks fetched were either requested, or they
             // are parents of the requested blocks
-            for block in &blocks {
+            for block in &verified_blocks {
                 if !requested_blocks_guard
                     .block_refs
                     .contains(&block.reference())
@@ -613,10 +613,19 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                     });
                 }
             }
+            // Now confirm that the provably faulty blocks received were actually requested.
+            for block in &provably_faulty_blocks {
+                if !requested_blocks_guard.block_refs.contains(&block.reference) {
+                    return Err(ConsensusError::UnexpectedFetchedBlock {
+                        index: peer_index,
+                        block_ref: block.reference,
+                    });
+                }
+            }
         }
 
         // Record commit votes from the verified blocks.
-        for block in &blocks {
+        for block in &verified_blocks {
             commit_vote_monitor.observe_block(block);
         }
 
@@ -625,8 +634,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         metrics
             .synchronizer_fetched_blocks_by_peer
             .with_label_values(&[peer_hostname.as_str(), sync_method])
-            .inc_by(blocks.len() as u64);
-        for block in &blocks {
+            .inc_by(verified_blocks.len() as u64);
+        for block in &verified_blocks {
             let block_hostname = &context.committee.authority(block.author()).hostname;
             metrics
                 .synchronizer_fetched_blocks_by_authority
@@ -634,19 +643,42 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 .inc();
         }
 
-        debug!(
-            "Synced {} missing blocks from peer {peer_index} {peer_hostname}: {}",
-            blocks.len(),
-            blocks.iter().map(|b| b.reference().to_string()).join(", "),
-        );
+        if !verified_blocks.is_empty() {
+            debug!(
+                "Synced {} missing verified blocks from peer {peer_index} {peer_hostname}: {}",
+                verified_blocks.len(),
+                verified_blocks
+                    .iter()
+                    .map(|b| b.reference().to_string())
+                    .join(", "),
+            );
+        }
+        if !provably_faulty_blocks.is_empty() {
+            debug!(
+                "Synced {} missing provably faulty blocks from peer {peer_index} {peer_hostname}: {}",
+                provably_faulty_blocks.len(),
+                provably_faulty_blocks
+                    .iter()
+                    .map(|b| b.reference.to_string())
+                    .join(", "),
+            );
+        }
 
-        // Now send them to core for processing. Ignore the returned missing blocks as
-        // we don't want this mechanism to keep feedback looping on fetching
-        // more blocks. The periodic synchronization will take care of that.
+        // Now send the verified blocks to core for processing. Ignore the returned
+        // missing blocks as we don't want this mechanism to keep feedback
+        // looping on fetching more blocks. The periodic synchronization will
+        // take care of that.
         let missing_blocks = core_dispatcher
-            .add_blocks(blocks)
+            .add_blocks(verified_blocks)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
+        // Add any provably faulty blocks to core for processing
+        for provably_faulty_block in provably_faulty_blocks {
+            core_dispatcher
+                .add_provably_faulty_block(provably_faulty_block)
+                .await
+                .map_err(|_| ConsensusError::Shutdown)?;
+        }
 
         // now release all the locked blocks as they have been fetched, verified &
         // processed
@@ -690,8 +722,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         block_verifier: Arc<V>,
         context: &Context,
         peer_index: AuthorityIndex,
-    ) -> ConsensusResult<Vec<VerifiedBlock>> {
+    ) -> ConsensusResult<(Vec<VerifiedBlock>, Vec<ProvablyFaultyBlock>)> {
         let mut verified_blocks = Vec::new();
+        let mut provably_faulty_blocks = Vec::new();
 
         for serialized_block in serialized_blocks {
             let signed_block: SignedBlock =
@@ -701,37 +734,45 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             if let Err(e) = block_verifier.verify(&signed_block) {
                 // TODO: we might want to use a different metric to track the invalid "served"
                 // blocks from the invalid "proposed" ones.
-                let hostname = context.committee.authority(peer_index).hostname.clone();
+                if e.is_pre_signature_or_signature_verification_error() {
+                    let hostname = context.committee.authority(peer_index).hostname.clone();
+                    context
+                        .metrics
+                        .node_metrics
+                        .invalid_blocks
+                        .with_label_values(&[hostname.as_str(), "synchronizer", e.clone().name()])
+                        .inc();
+                    warn!("Invalid block received from {}: {}", peer_index, e);
+                    return Err(e);
+                } else {
+                    // The block passes signature verification, but fails other checks.
+                    // Add this provably faulty block to the dag state.
+                    let provably_faulty_block =
+                        ProvablyFaultyBlock::new(signed_block, serialized_block);
+                    provably_faulty_blocks.push(provably_faulty_block);
+                }
+            } else {
+                let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block);
 
-                context
-                    .metrics
-                    .node_metrics
-                    .invalid_blocks
-                    .with_label_values(&[hostname.as_str(), "synchronizer", e.clone().name()])
-                    .inc();
-                warn!("Invalid block received from {}: {}", peer_index, e);
-                return Err(e);
+                // Dropping is ok because the block will be refetched.
+                // TODO: improve efficiency, maybe suspend and continue processing the block
+                // asynchronously.
+                let now = context.clock.timestamp_utc_ms();
+                if now < verified_block.timestamp_ms() {
+                    warn!(
+                        "Synced block {} timestamp {} is in the future (now={}). Ignoring.",
+                        verified_block.reference(),
+                        verified_block.timestamp_ms(),
+                        now
+                    );
+                    continue;
+                }
+
+                verified_blocks.push(verified_block);
             }
-            let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block);
-
-            // Dropping is ok because the block will be refetched.
-            // TODO: improve efficiency, maybe suspend and continue processing the block
-            // asynchronously.
-            let now = context.clock.timestamp_utc_ms();
-            if now < verified_block.timestamp_ms() {
-                warn!(
-                    "Synced block {} timestamp {} is in the future (now={}). Ignoring.",
-                    verified_block.reference(),
-                    verified_block.timestamp_ms(),
-                    now
-                );
-                continue;
-            }
-
-            verified_blocks.push(verified_block);
         }
 
-        Ok(verified_blocks)
+        Ok((verified_blocks, provably_faulty_blocks))
     }
 
     async fn fetch_blocks_request(

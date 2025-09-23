@@ -205,6 +205,18 @@ impl ConsensusError {
     pub fn name(&self) -> &'static str {
         self.into()
     }
+
+    pub(crate) fn is_pre_signature_or_signature_verification_error(&self) -> bool {
+        matches!(
+            self,
+            ConsensusError::UnexpectedGenesisBlock
+                | ConsensusError::InvalidAuthorityIndex { .. }
+                | ConsensusError::WrongEpoch { .. }
+                | ConsensusError::SerializationFailure(_)
+                | ConsensusError::MalformedSignature(_)
+                | ConsensusError::SignatureVerificationFailure(_)
+        )
+    }
 }
 
 pub type ConsensusResult<T> = Result<T, ConsensusError>;

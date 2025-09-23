@@ -112,40 +112,30 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let peer_hostname = &self.context.committee.authority(peer).hostname;
 
         if let Err(e) = self.block_verifier.verify(&signed_block) {
-            match e {
-                // Reject blocks failing pre-signature and signature verifications.
-                ConsensusError::UnexpectedGenesisBlock
-                | ConsensusError::InvalidAuthorityIndex { .. }
-                | ConsensusError::WrongEpoch { .. }
-                | ConsensusError::SerializationFailure(_)
-                | ConsensusError::MalformedSignature(_)
-                | ConsensusError::SignatureVerificationFailure(_) => {
-                    self.context
-                        .metrics
-                        .node_metrics
-                        .invalid_blocks
-                        .with_label_values(&[
-                            peer_hostname.as_str(),
-                            "handle_send_block",
-                            e.clone().name(),
-                        ])
-                        .inc();
-                    info!("Unprovably faulty block from {}: {}", peer, e);
-                    return Err(e);
-                }
-
-                _ => {
-                    // The block passes signature verification, but fails other checks.
-                    // Add this provably faulty block to the dag state.
-                    let provably_faulty_block =
-                        ProvablyFaultyBlock::new(signed_block, serialized_block.block);
-                    self.core_dispatcher
-                        .add_provably_faulty_block(provably_faulty_block)
-                        .await
-                        .map_err(|_| ConsensusError::Shutdown)?;
-                    info!("Provably faulty block from {}: {}", peer, e);
-                    return Err(e);
-                }
+            if e.is_pre_signature_or_signature_verification_error() {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .invalid_blocks
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        "handle_send_block",
+                        e.clone().name(),
+                    ])
+                    .inc();
+                info!("Unprovably faulty block from {}: {}", peer, e);
+                return Err(e);
+            } else {
+                // The block passes signature verification, but fails other checks.
+                // Add this provably faulty block to the dag state.
+                let provably_faulty_block =
+                    ProvablyFaultyBlock::new(signed_block, serialized_block.block);
+                self.core_dispatcher
+                    .add_provably_faulty_block(provably_faulty_block)
+                    .await
+                    .map_err(|_| ConsensusError::Shutdown)?;
+                info!("Provably faulty block from {}: {}", peer, e);
+                return Err(e);
             }
         }
 
