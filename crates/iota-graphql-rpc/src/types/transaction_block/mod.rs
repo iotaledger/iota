@@ -88,6 +88,16 @@ pub(crate) enum TransactionBlockInner {
     },
 }
 
+impl TransactionBlockInner {
+    /// Returns if the transaction is included in a checkpoint.
+    fn is_checkpointed(&self) -> bool {
+        let TransactionBlockInner::Stored { stored_tx, .. } = &self else {
+            return false;
+        };
+        stored_tx.checkpoint_sequence_number >= 0
+    }
+}
+
 /// An input filter selecting for either system or programmable transactions.
 #[derive(Enum, Copy, Clone, Eq, PartialEq, Debug)]
 pub(crate) enum TransactionBlockKindInput {
@@ -235,11 +245,14 @@ impl TransactionBlock {
 
     /// Returns whether the transaction has been indexed on the fullnode.
     async fn indexed_on_node(&self, ctx: &Context<'_>) -> Result<Option<bool>> {
-        let fullnode_client = get_fullnode_client(ctx)?;
+        if self.inner.is_checkpointed() {
+            return Ok(Some(true));
+        }
         let Some(digest) = self.native_signed_data().map(|d| d.digest()) else {
             // dry-run transactions are never indexed
             return Ok(Some(false));
         };
+        let fullnode_client = get_fullnode_client(ctx)?;
         Ok(Some(
             fullnode_client
                 .http()
