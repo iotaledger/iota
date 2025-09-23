@@ -119,7 +119,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_skipped_proposals: IntCounterVec,
     pub(crate) highest_accepted_authority_round: IntGaugeVec,
     pub(crate) highest_accepted_round: IntGauge,
-    pub(crate) accepted_blocks: IntCounterVec,
+    pub(crate) accepted_block_headers: IntCounterVec,
     pub(crate) dag_state_recent_transactions: IntGauge,
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
@@ -336,9 +336,9 @@ impl NodeMetrics {
                 "The highest round where a block has been accepted. Resets on restart.",
                 registry,
             ).unwrap(),
-            accepted_blocks: register_int_counter_vec_with_registry!(
-                "accepted_blocks",
-                "Number of accepted blocks by source (own, others)",
+            accepted_block_headers: register_int_counter_vec_with_registry!(
+                "accepted_block_headers",
+                "Number of accepted block headers by source (own, others)",
                 &["source"],
                 registry,
             ).unwrap(),

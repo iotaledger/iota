@@ -5,4 +5,4 @@ node_modules/
 /playwright/.cache/
 /wallet-dist-L1
 /wallet-dist-L2
-
+/tests/.state

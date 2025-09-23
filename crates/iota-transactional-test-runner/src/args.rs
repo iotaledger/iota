@@ -125,7 +125,7 @@ pub struct ProgrammableTransactionCommand {
     #[arg(long)]
     pub gas_price: Option<u64>,
     #[clap(long = "gas-payment", value_parser = parse_fake_id)]
-    pub gas_payment: Option<FakeID>,
+    pub gas_payment: Option<Vec<FakeID>>,
     #[arg(long = "dev-inspect")]
     pub dev_inspect: bool,
     #[clap(long = "dry-run")]
@@ -151,6 +151,8 @@ pub struct UpgradePackageCommand {
     pub sender: String,
     #[arg(long)]
     pub gas_budget: Option<u64>,
+    #[arg(long)]
+    pub dry_run: bool,
     #[arg(long)]
     pub syntax: Option<SyntaxChoice>,
     #[arg(long, default_value="compatible", value_parser = parse_policy)]

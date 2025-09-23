@@ -22,6 +22,7 @@ pub type Stake = u64;
 
 /// Committee is the set of authorities that participate in the consensus
 /// protocol for this epoch. Its configuration is stored and computed on chain.
+/// Committee size is currently limited to 256 as AuthorityIndex is u8.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Committee {
     /// The epoch number of this committee
@@ -32,7 +33,8 @@ pub struct Committee {
     quorum_threshold: Stake,
     /// The validity threshold (f+1).
     validity_threshold: Stake,
-    /// Protocol and network info of each authority.
+    /// Protocol and network info of each authority. Max number limited to
+    /// u8::MAX (256)
     authorities: Vec<Authority>,
     /// transaction data in a block is divided into info_length equal
     /// parts(shards) that are encoded into n shards with erasure correcting
@@ -44,7 +46,7 @@ impl Committee {
     pub fn new(epoch: Epoch, authorities: Vec<Authority>) -> Self {
         assert!(!authorities.is_empty(), "Committee cannot be empty!");
         assert!(
-            authorities.len() < u32::MAX as usize,
+            authorities.len() < u8::MAX as usize,
             "Too many authorities ({})!",
             authorities.len()
         );
@@ -103,7 +105,7 @@ impl Committee {
         self.authorities
             .iter()
             .enumerate()
-            .map(|(i, a)| (AuthorityIndex(i as u32), a))
+            .map(|(i, a)| (AuthorityIndex(i as u8), a))
     }
 
     // -----------------------------------------------------------------------
@@ -123,7 +125,7 @@ impl Committee {
     /// Returns None if index is out of bound.
     pub fn to_authority_index(&self, index: usize) -> Option<AuthorityIndex> {
         if index < self.authorities.len() {
-            Some(AuthorityIndex(index as u32))
+            Some(AuthorityIndex(index as u8))
         } else {
             None
         }
@@ -165,7 +167,7 @@ pub struct Authority {
 
 /// Each authority is uniquely identified by its AuthorityIndex in the
 /// Committee. AuthorityIndex is between 0 (inclusive) and the total number of
-/// authorities (exclusive).
+/// authorities (exclusive) limited by `u8` to 255.
 ///
 /// NOTE: for safety, invalid AuthorityIndex should be impossible to create. So
 /// AuthorityIndex should not be created or incremented outside of this file.
@@ -173,7 +175,7 @@ pub struct Authority {
 #[derive(
     Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug, Default, Hash, Serialize, Deserialize,
 )]
-pub struct AuthorityIndex(u32);
+pub struct AuthorityIndex(u8);
 
 impl AuthorityIndex {
     // Minimum committee size is 1, so 0 index is always valid.
@@ -181,21 +183,21 @@ impl AuthorityIndex {
 
     // Only for scanning rows in the database. Invalid elsewhere.
     pub const MIN: Self = Self::ZERO;
-    pub const MAX: Self = Self(u32::MAX);
+    pub const MAX: Self = Self(u8::MAX);
 
     pub fn value(&self) -> usize {
         self.0 as usize
     }
 }
 
-impl From<u32> for AuthorityIndex {
-    fn from(value: u32) -> Self {
+impl From<u8> for AuthorityIndex {
+    fn from(value: u8) -> Self {
         Self(value)
     }
 }
 
 impl AuthorityIndex {
-    pub fn new_for_test(index: u32) -> Self {
+    pub fn new_for_test(index: u8) -> Self {
         Self(index)
     }
 }

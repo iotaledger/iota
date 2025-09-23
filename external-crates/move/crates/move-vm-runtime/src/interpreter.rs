@@ -31,7 +31,7 @@ use smallvec::SmallVec;
 use tracing::error;
 
 use crate::{
-    close_frame, close_initial_frame, close_instruction,
+    close_frame, close_initial_native_frame, close_instruction,
     loader::{Function, Loader, Resolver},
     native_extensions::NativeContextExtensions,
     native_functions::NativeContext,
@@ -151,7 +151,7 @@ impl Interpreter {
                         .finish(Location::Module(function.module_id().clone()))
                 });
 
-            close_initial_frame!(tracer, &function, &return_values, gas_meter);
+            close_initial_native_frame!(tracer, &function, &return_values, gas_meter);
 
             Ok(return_values?.into_iter().collect())
         } else {
@@ -1124,7 +1124,7 @@ impl Frame {
                     .push(Value::u16(integer_value.cast_u16()?))?;
             }
             Bytecode::CastU32 => {
-                gas_meter.charge_simple_instr(S::CastU16)?;
+                gas_meter.charge_simple_instr(S::CastU32)?;
                 let integer_value = interpreter.operand_stack.pop_as::<IntegerValue>()?;
                 interpreter
                     .operand_stack
@@ -1145,7 +1145,7 @@ impl Frame {
                     .push(Value::u128(integer_value.cast_u128()?))?;
             }
             Bytecode::CastU256 => {
-                gas_meter.charge_simple_instr(S::CastU16)?;
+                gas_meter.charge_simple_instr(S::CastU256)?;
                 let integer_value = interpreter.operand_stack.pop_as::<IntegerValue>()?;
                 interpreter
                     .operand_stack
