@@ -11,7 +11,7 @@ use std::ascii::{Self, String};
 /// ASCII Character code for the `:` (colon) symbol.
 const ASCII_COLON: u8 = 58;
 
-/// ASCII Character code for the `:` (less-than) symbol.
+/// ASCII Character code for the `<` (less-than) symbol.
 const ASCII_LESS: u8 = 60;
 
 /// ASCII Character code for the `v` (lowercase v) symbol.

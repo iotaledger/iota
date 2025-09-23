@@ -1,26 +1,33 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! A module can define a list of authenticate functions that can be used
-//! to authenticate an account. This list is private to the module and
-//! cannot be modified by other modules.
-//! The list is defined as a constant vector of vector<u8> where each inner
-//! vector<u8> is the UTF-8 bytes of the function name.
+//! A module can define a several Authenticate One Time Witnesses (AOTW). An
+//! AOTW is a type that is never instantiated, and this property is enforced by
+//! the system.
+//! We define an authenticate one-time witness type as a struct type that has
+//! the name starting with a predefined prefix followed by the name of an
+//! authenticate function in capital letters, and possessing certain special
+//! properties specified below (please note that by convention, "regular" struct
+//! type names are expressed in camel case).
+//! In other words, if a module defines a struct type whose name is starting
+//! with the predefined AOTW prefix and has no fields, then this type MUST
+//! possess these special properties, otherwise the module definition will be
+//! considered invalid and will be rejected by the validator:
 //!
-//! The authenticate functions must be defined in the same module as the
-//! constant.
-//! The module's `init` function must call
-//! `iota::account::publish_authenticate_registry` exactly once, passing the
-//! constant as the argument. The `publish_authenticate_registry` function is
-//! responsible for registering the authenticate functions and is defined in the
-//! `iota::account`.
+//! - it has a struct name where the prefix is followed by the name of a
+//!   function in capital letters:
+//!     - this function MUST be found in the same module;
+//!     - this function MUST be a valid authenticate function;
+//! - it has only one ability: drop
+//! - it has only one arbitrarily named field of type boolean or it is empty
+//! - its definition does not involve type parameters
+//! - it is never instantiated anywhere in its defining module
 use iota_types::{
     Identifier,
     error::ExecutionError,
     move_package::{FnInfoMap, is_test_fun},
 };
 use move_binary_format::file_format::{CompiledModule, DatatypeHandle, SignatureToken};
-use move_core_types::{ident_str, identifier::IdentStr};
 
 use crate::{
     account_auth_verifier::verify_authenticate_func,
@@ -30,18 +37,7 @@ use crate::{
 
 pub const AOTW_PREFIX: &str = "AUTH_"; // authenticate one-time witness prefix
 
-pub const ACCOUNT_MODULE: &IdentStr = ident_str!("account");
-pub const PUBLISH_AUTHENTICATE_REGISTRY_FN_NAME: &IdentStr =
-    ident_str!("publish_authenticate_registry");
-
-/// Checks if the module conforms to the authenticate functions rules only if it
-/// has a call instruction to the `0x2::account::publish_authenticate_registry`
-/// function within the `init` function.
-///
-/// If the module does not have such call instruction, then it is considered to
-/// not use authenticate functions and thus the module is considered valid.
-/// If the module does have such call instruction, then it must conform to the
-/// rules.
+/// Checks if the module conforms to the authenticate one time witness rules.
 pub fn verify_module(
     module: &CompiledModule,
     fn_info_map: &FnInfoMap,
