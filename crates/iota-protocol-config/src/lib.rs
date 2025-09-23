@@ -317,10 +317,6 @@ struct FeatureFlags {
     // If true enable additional multisig checks.
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
-
-    // If true enable score based reward distribution.
-    #[serde(skip_serializing_if = "is_false")]
-    score_based_rewards: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1108,9 +1104,10 @@ pub struct ProtocolConfig {
     consensus_gc_depth: Option<u32>,
 
     /// Scorer version. When set to `None`, scores are not included in
-    /// EndOfEpoch messages. When set to `Some(version)`, scores are
-    /// included in the EndOfEpochV2 messages, where `version` determines
-    /// the scoring formulas to be used.
+    /// EndOfEpoch messages. When set to `Some(version)`, scores are included in
+    /// the EndOfEpochV2 messages, where `version` determines the scoring
+    /// formulas to be used and whether rewards are adjusted based on the scores
+    /// or not.
     scorer_version: Option<u16>,
 }
 
@@ -1331,10 +1328,6 @@ impl ProtocolConfig {
         // TODO: this will eventually be the max of some number of other
         // parameters.
         0
-    }
-
-    pub fn score_based_rewards(&self) -> bool {
-        self.feature_flags.score_based_rewards
     }
 }
 
@@ -2308,10 +2301,6 @@ impl ProtocolConfig {
     pub fn set_congestion_control_gas_price_feedback_mechanism_for_testing(&mut self, val: bool) {
         self.feature_flags
             .congestion_control_gas_price_feedback_mechanism = val;
-    }
-
-    pub fn set_score_based_rewards_for_testing(&mut self, val: bool) {
-        self.feature_flags.score_based_rewards = val;
     }
 }
 
