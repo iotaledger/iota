@@ -128,8 +128,6 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
         toast.error(`Error while scanning QR: ${error}`);
     }
 
-    const canShowQrScanner = cameraPermissionStatus && cameraPermissionStatus !== 'denied';
-
     return (
         <Dialog open onOpenChange={(open) => {}}>
             <DialogContent containerId="overlay-portal-container">
@@ -142,7 +140,7 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                 cbor={ur.cbor.toString('hex')}
                                 options={{ size: 220 }}
                             />
-                        ) : canShowQrScanner ? (
+                        ) : cameraPermissionStatus === 'granted' ? (
                             <div className="box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
                                 <div className="flex-shrink-0">
                                     <AnimatedQRScanner
@@ -157,6 +155,16 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                     />
                                 </div>
                             </div>
+                        ) : cameraPermissionStatus === 'prompt' ? (
+                            <InfoBox
+                                title="Camera Access authorization pending."
+                                supportingText={
+                                    'Make sure your camera is connected and authorized, then try again to proceed.'
+                                }
+                                style={InfoBoxStyle.Elevated}
+                                type={InfoBoxType.Warning}
+                                icon={<Warning />}
+                            />
                         ) : (
                             <InfoBox
                                 title="Camera Access Blocked!"

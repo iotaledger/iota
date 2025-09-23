@@ -82,7 +82,6 @@ export function ImportKeystone() {
     }
 
     const disableFinish = step.type === 'select-accounts' && step.selectedAccounts.size === 0;
-    const canShowQrScanner = cameraPermissionStatus && cameraPermissionStatus !== 'denied';
 
     return (
         <PageTemplate title="Import Keystone" isTitleCentered showBackButton>
@@ -94,10 +93,13 @@ export function ImportKeystone() {
                                 <div
                                     className={classNames(
                                         'relative flex flex-col items-center justify-center gap-xs',
-                                        { 'h-full justify-around': !canShowQrScanner },
+                                        {
+                                            'h-full justify-around':
+                                                cameraPermissionStatus !== 'granted',
+                                        },
                                     )}
                                 >
-                                    {canShowQrScanner ? (
+                                    {cameraPermissionStatus === 'granted' ? (
                                         <>
                                             <div className="relative box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
                                                 <div className="flex-shrink-0">
@@ -125,6 +127,16 @@ export function ImportKeystone() {
                                                 Camera is blurred for security reasons
                                             </span>
                                         </>
+                                    ) : cameraPermissionStatus === 'prompt' ? (
+                                        <InfoBox
+                                            title="Camera Access authorization pending."
+                                            supportingText={
+                                                'Make sure your camera is connected and authorized, then try again to proceed.'
+                                            }
+                                            style={InfoBoxStyle.Elevated}
+                                            type={InfoBoxType.Warning}
+                                            icon={<Warning />}
+                                        />
                                     ) : (
                                         <InfoBox
                                             title="Camera Access Blocked!"
