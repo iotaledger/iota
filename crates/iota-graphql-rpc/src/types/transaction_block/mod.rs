@@ -244,6 +244,17 @@ impl TransactionBlock {
     }
 
     /// Returns whether the transaction has been indexed on the fullnode.
+    ///
+    /// This makes a request to the fullnode if the transaction is not part of
+    /// a checkpoint to resolve the index status on the node.
+    ///
+    /// However, as this relies on the transaction data being already
+    /// constructed or fetched from the backing database, it only makes
+    /// sense to be used with `Mutation.executeTransactionBlock` on the
+    /// resulting effects.
+    ///
+    /// Otherwise, it is recommended that you use
+    /// `Query.isTransactionIndexedOnNode` for optimal performance.
     async fn indexed_on_node(&self, ctx: &Context<'_>) -> Result<Option<bool>> {
         if self.inner.is_checkpointed() {
             return Ok(Some(true));

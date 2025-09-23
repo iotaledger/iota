@@ -6,6 +6,7 @@ use std::str::FromStr;
 
 use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::DevInspectArgs;
 use iota_types::{
     TypeTag,
@@ -175,6 +176,19 @@ impl Query {
             .await?;
 
         DryRunResult::try_from(res).extend()
+    }
+
+    /// Check if a transaction is indexed on the fullnode.
+    async fn is_transaction_indexed_on_node(
+        &self,
+        ctx: &Context<'_>,
+        digest: Digest,
+    ) -> Result<bool> {
+        let fullnode_client = get_fullnode_client(ctx)?;
+        Ok(fullnode_client
+            .http()
+            .is_transaction_indexed_on_node(digest.into())
+            .await?)
     }
 
     /// Look up an Owner by its IotaAddress.
