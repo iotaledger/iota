@@ -8,7 +8,7 @@ import type { StateStorage } from 'zustand/middleware';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { getWalletUniqueIdentifier } from './utils/walletUtils.js';
-import { ChainType } from '@iota/iota-sdk/client';
+import type { ChainType } from '@iota/iota-sdk/client';
 
 type WalletConnectionStatus = 'disconnected' | 'connecting' | 'connected';
 

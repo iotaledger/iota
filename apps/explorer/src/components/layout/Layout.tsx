@@ -44,7 +44,11 @@ export function Layout(): JSX.Element {
             >
                 <IotaGraphQLClientProvider>
                     <IotaNamesClientProvider>
-                        <WalletProvider autoConnect enableUnsafeBurner={import.meta.env.DEV} chain={getNetwork(network).chain}>
+                        <WalletProvider
+                            autoConnect
+                            enableUnsafeBurner={import.meta.env.DEV}
+                            chain={getNetwork(network).chain}
+                        >
                             <KioskClientProvider>
                                 <NetworkContext.Provider value={[network, setNetwork]}>
                                     <ThemeProvider appId="iota-explorer">

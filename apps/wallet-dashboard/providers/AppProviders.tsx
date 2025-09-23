@@ -28,7 +28,10 @@ export function AppProviders({ children }: React.PropsWithChildren) {
     const [queryClient] = useState(() => new QueryClient());
     const allNetworks = getAllNetworks();
     const defaultNetworkId = getDefaultNetwork();
-    const [persistedNetworkId] = useLocalStorage<string>('network_iota-dashboard', defaultNetworkId);
+    const [persistedNetworkId] = useLocalStorage<string>(
+        'network_iota-dashboard',
+        defaultNetworkId,
+    );
     const persistedNetwork = getNetwork(persistedNetworkId);
 
     function handleNetworkChange() {

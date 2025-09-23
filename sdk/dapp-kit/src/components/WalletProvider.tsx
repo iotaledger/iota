@@ -24,7 +24,7 @@ import { createInMemoryStore } from '../utils/stateStorage.js';
 import { getRegisteredWallets } from '../utils/walletUtils.js';
 import { createWalletStore } from '../walletStore.js';
 import { InjectedThemeStyles } from './styling/InjectedThemeStyles.js';
-import { ChainType } from '@iota/iota-sdk/client';
+import type { ChainType } from '@iota/iota-sdk/client';
 
 export type WalletProviderProps = {
     /** A list of wallets that are sorted to the top of the wallet list, if they are available to connect to. By default, wallets are sorted by the order they are loaded in. */
