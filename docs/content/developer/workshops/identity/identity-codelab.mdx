@@ -466,3 +466,219 @@ if !PathBuf::from(did_file).exists() {
     - Creates new Holder DID and anchors it on IOTA.
     - Saves DID Document (holder_doc.json) and fragment (holder_fragment.txt).
 - Outputs instructions to run the Issuer next.
+
+## 4. Load DID and Credential
+
+```rust
+let args: Vec<String> = std::env::args().collect();
+if args.len() < 2 {
+    eprintln!("Usage: cargo run --bin holder <VC_JWT>");
+    return Err(anyhow::anyhow!("Missing VC JWT argument."));
+}
+let vc_jwt = &args[1];
+
+let holder_doc_json = fs::read_to_string(did_file)?;
+let holder_doc = IotaDocument::from_json(&holder_doc_json)?;
+let holder_fragment = fs::read_to_string(fragment_file)?.trim().to_string();
+
+println!("🔑 Using holder DID: {}", holder_doc.id());
+println!("🔑 Using fragment to sign: {}", holder_fragment);
+```
+
+- Expects the VC JWT as a command-line argument.
+- Loads Holder’s DID Document and signing fragment from disk.
+- Prepares them for signing the presentation.
+
+## 5. Build Presentation
+
+```rust
+let challenge = "challenge-123";
+let expires = Timestamp::now_utc().checked_add(Duration::minutes(10)).unwrap();
+
+let presentation: Presentation<Jwt> = PresentationBuilder::new(holder_doc.id().to_url().into(), Default::default())
+    .credential(Jwt::new(vc_jwt.clone()))
+    .build()?;
+println!("✅ Built presentation structure");
+```
+
+- Challenge → prevents replay attacks.
+- Expiration → makes VP valid only for 10 minutes.
+- PresentationBuilder → creates a VP and embeds the VC JWT.
+
+## 6. Sign Presentation as JWT
+
+```rust
+let vp_jwt: Jwt = holder_doc
+    .create_presentation_jwt(
+        &presentation,
+        &holder_storage,
+        &holder_fragment,
+        &JwsSignatureOptions::default().nonce(challenge.to_owned()),
+        &JwtPresentationOptions::default().expiration_date(expires),
+    )
+    .await?;
+```
+
+- create_presentation_jwt(...) → signs the VP using Holder’s private key stored in Stronghold.
+- Adds nonce and expiration as protection measures.
+- Returns a signed VP JWT.
+
+## 7. Save VP
+
+```rust
+println!("\n✅ Created VP JWT:\n{}", vp_jwt.as_str());
+fs::write("vp.jwt", vp_jwt.as_str())?;
+println!("📦 Saved VP JWT to vp.jwt");
+println!("ℹ️  Next: run verifier to verify the VP.");
+```
+
+- Prints the VP JWT.
+- Saves it to vp.jwt.
+- Tells user the next step: run verifier.
+
+## Codelab: Issuer Issues a Verifiable Credential
+
+## What This Enables in the Real World
+
+In the university verification scenario:
+
+- The Issuer is the university (e.g., University of Oslo)
+- The Issuer creates its own DID to represent itself.
+- It then issues a Verifiable Credential (VC) to the Holder (Alice).
+
+This credential contains information like Alice’s degree and GPA and is digitally signed by the university. That way, any third party can later verify its authenticity.
+
+## Short Explanation
+
+The Issuer program (issuer.rs):
+
+1. Creates and stores the Issuer’s DID if it doesn’t already exist.
+2. Loads the Holder’s DID (from holder_doc.json).
+3. Creates a Verifiable Credential (degree for Alice).
+4. Signs the credential as a JWT using the Issuer’s DID.
+5. Saves the VC JWT to disk (vc.jwt).
+
+## Code Walkthrough
+
+# 1. Imports
+
+```rust
+use anyhow::Result;
+use identity_iota::core::{FromJson, ToJson, Url};
+use identity_iota::credential::{Credential, CredentialBuilder, Subject};
+use identity_iota::did::DID;
+use identity_iota::iota::IotaDocument;
+use identity_storage::{JwkDocumentExt, JwsSignatureOptions};
+use shared_utils::{create_did_document, get_funded_client, get_stronghold_storage};
+use std::fs;
+use std::path::PathBuf;
+```
+
+- Result → simple error handling.
+- Url → unique identifiers for credentials and issuers.
+- Credential, CredentialBuilder, Subject → core building blocks of a VC.
+- IotaDocument → DID Document for Issuer.
+- JwsSignatureOptions → signing settings for JWTs.
+- shared_utils → helper functions for DID setup and Stronghold storage.
+- fs, PathBuf → file I/O for persisting DID docs and fragments.
+
+## 2. Setup Storage & Client
+
+```rust
+let issuer_storage = get_stronghold_storage(Some(PathBuf::from("./issuer.stronghold")))?;
+let issuer_client = get_funded_client(&issuer_storage).await?;
+```
+
+- Uses Stronghold (issuer.stronghold) for secure private key storage.
+- Gets a funded client to publish DID documents to the IOTA network.
+
+## 3. Create or Load Issuer DID
+
+```rust
+let issuer_doc_file = "./issuer_doc.json";
+let issuer_fragment_file = "./issuer_fragment.txt";
+
+let (issuer_doc, issuer_fragment) = if !PathBuf::from(issuer_doc_file).exists() {
+    let (doc, frag) = create_did_document(&issuer_client, &issuer_storage).await?;
+    fs::write(issuer_doc_file, doc.to_json()?)?;
+    fs::write(issuer_fragment_file, &frag)?;
+    println!("✅ Created issuer DID: {}", doc.id());
+    (doc, frag)
+} else {
+    let json = fs::read_to_string(issuer_doc_file)?;
+    let doc = IotaDocument::from_json(&json)?;
+    let frag = fs::read_to_string(issuer_fragment_file)?.trim().to_string();
+    (doc, frag)
+};
+```
+
+- If issuer_doc.json doesn’t exist:
+    - Creates a new Issuer DID and anchors it on IOTA.
+    - Saves DID Document + signing fragment locally.
+- If it exists: loads DID Document and fragment from disk.
+
+## 4. Load Holder DID
+
+```rust
+let holder_doc_json = fs::read_to_string("./holder_doc.json")?;
+let holder_doc = IotaDocument::from_json(&holder_doc_json)?;
+println!("✅ Loaded holder DID: {}", holder_doc.id());
+```
+
+- Reads Holder’s DID Document (holder_doc.json) created earlier.
+- This ensures the VC is bound to Alice’s DID.
+
+## 5. Build Verifiable Credential
+
+```rust
+let subject = Subject::from_json_value(serde_json::json!({
+    "id": holder_doc.id().as_str(),
+    "name": "Alice",
+    "degree": { "type": "BachelorDegree", "name": "Bachelor of Science and Arts" },
+    "GPA": "4.0"
+}))?;
+
+let credential: Credential = CredentialBuilder::default()
+    .id(Url::parse("https://example.edu/credentials/3732")?)
+    .issuer(Url::parse(issuer_doc.id().as_str())?)
+    .type_("UniversityDegreeCredential")
+    .subject(subject)
+    .build()?;
+```
+
+- Subject → defines the Holder’s identity (linked to Alice’s DID).
+- CredentialBuilder → constructs a VC with:
+    - A unique ID (https://example.edu/credentials/3732).
+    - Issuer = the university’s DID.
+    - Type = UniversityDegreeCredential.
+    - Subject = Alice’s degree details.
+
+## 6. Sign Credential as JWT
+
+```rust
+let credential_jwt = issuer_doc
+    .create_credential_jwt(
+        &credential,
+        &issuer_storage,
+        &issuer_fragment,
+        &JwsSignatureOptions::default(),
+        None,
+    )
+    .await?;
+```
+
+- Signs the VC using Issuer’s private key (from Stronghold).
+- Produces a VC JWT that is cryptographically verifiable.
+
+## 7. Save Credential
+
+```rust
+println!("✅ Created VC JWT:\n{}", credential_jwt.as_str());
+fs::write("vc.jwt", credential_jwt.as_str())?;
+println!("✅ Saved VC to vc.jwt");
+```
+
+- Prints the JWT for debugging.
+- Saves VC JWT to vc.jwt for the Holder to use in the next step.
+
+End Result: The Issuer has created and signed a Verifiable Credential (vc.jwt) for the Holder. The Holder can now embed this VC into a Verifiable Presentation.
