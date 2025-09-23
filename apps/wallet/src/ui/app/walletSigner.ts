@@ -3,8 +3,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
+    type ChainType,
+    getAllNetworks,
+    getFullnodeUrl,
+    IotaClient,
+    type NetworkId,
     type DryRunTransactionBlockResponse,
-    type IotaClient,
     type IotaTransactionBlockResponse,
     type IotaTransactionBlockResponseOptions,
 } from '@iota/iota-sdk/client';
@@ -82,8 +86,15 @@ export abstract class WalletSigner {
 
     async dryRunTransactionBlock(input: {
         transactionBlock: Transaction | string | Uint8Array;
+        chain?: ChainType;
     }): Promise<DryRunTransactionBlockResponse> {
-        return this.client.dryRunTransactionBlock({
+        const requestedNetwork = Object.values(getAllNetworks()).find(
+            (network) => network.chain === input.chain,
+        ) as NetworkId | undefined;
+        const client = requestedNetwork
+            ? new IotaClient({ url: getFullnodeUrl(requestedNetwork) })
+            : this.client;
+        return client.dryRunTransactionBlock({
             transactionBlock: await this.prepareTransaction(input.transactionBlock),
         });
     }
