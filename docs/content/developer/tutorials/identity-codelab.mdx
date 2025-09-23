@@ -5,24 +5,18 @@ tags:
  - rust
 ---
 
-# Guided Code-Along Workshop
+# IOTA Identity Guided Code-Lab Workshop
 
-## Purpose:
-
-In this codelab, we will build a production-ready University Degree Verification system using IOTA Identity and Rust. You will learn how to:
+In this codelab, we will build a production-ready **University Degree Verification system** using **IOTA Identity** and **Rust**. You will learn how to:
 
 - Create and manage DIDs with helper utilities.
-- Issue a Verifiable Credential (VC) representing a university degree.
-- Package the credential into a Verifiable Presentation (VP) from the Holder.
+- Issue a **Verifiable Credential (VC)** representing a university degree.
+- Package the credential into a **Verifiable Presentation (VP)** from the Holder.
 - Verify the VP and its credentials from the Verifier’s perspective.
 
-By the end of this workshop, you’ll have a complete, end-to-end flow demonstrating how Issuers, Holders, and Verifiers interact in a real-world university degree validation scenario — all powered by IOTA Identity.
+By the end of this workshop, you’ll have a complete, end-to-end flow demonstrating how **Issuers**, **Holders**, and **Verifiers** interact in a real-world university degree validation scenario — all powered by IOTA Identity.
 
-## Codelab Title
-
-## Verifiable Credentials with IOTA Identity
-
-## Duration Options
+### Duration Options
 
 60 minutes (fast track)
 
@@ -30,21 +24,19 @@ By the end of this workshop, you’ll have a complete, end-to-end flow demonstra
 
 Before starting this workshop, make sure you have:
 
-- Rust (latest stable version) installed → Install Rust
-- Cargo (comes with Rust) for building and running projects
-- A local IOTA network running with the IOTA Identity contract deployed
-    - See Local Network Setup
+- **Rust** (latest stable version) installed → Install Rust
+- **Cargo** (comes with Rust) for building and running projects
+- A **local IOTA network** running with the IOTA Identity contract deployed
+    - See [Local Network Setup](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup)
     - Ensure you can request test tokens from the faucet
 - A local IOTA test network endpoint or environment variable set:
-- A code editor such as VS Code
+- A code editor such as **VS Code**
 - (Optional but recommended) Basic familiarity with:
-    - IOTA Decentralized Identifiers (DIDs)
-    - IOTA Verifiable Credentials (VCs) and IOTA Verifiable Presentations (VPs)
+    - **IOTA Decentralized Identifiers (DIDs)**
+    - **IOTA Verifiable Credentials (VCs)** and **IOTA Verifiable Presentations (VPs)**
 - Git, if you want to clone the repo.
 
-## A. Real-World Use Case Anchor
-
-**The Problem**
+## The Problem
 
 Today, verifying university degrees is a slow, manual, and often costly hurdle. Employers must contact universities or rely on centralized third-party services, which is costly and prone to fraud. Fake certificates can easily circulate.
 
@@ -56,47 +48,25 @@ Universities can issue tamper-proof verifiable credentials that students control
 
 We’ll implement the end-to-end lifecycle of a digital university degree using IOTA Identity:
 
-- Holder (Student): Creates a DID and stores it securely.
-- Issuer (University): Issues a Verifiable Credential (VC) representing the degree.
-- Holder: Packages the credential into a Verifiable Presentation (VP) and signs it.
-- Verifier (Employer): Verifies the authenticity of the presentation and credentials.
+- **Holder (Student)**: Creates a DID and stores it securely.
+- **Issuer (University)**: Issues a **Verifiable Credential (VC)** representing the degree.
+- **Holder**: Packages the credential into a **Verifiable Presentation (VP)** and signs it.
+- **Verifier (Employer)**: Verifies the authenticity of the presentation and credentials.
 
-All of this will be demonstrated using Rust CLI applications, with step-by-step commands you can run on your machine.
-
-## Functional Chunk 1: Holder Creates a Verifiable Presentation
-
-### **What This Enables in the Real World**
-
-In our university degree verification use case, the Holder (Alice) is the student who received a digital credential (her degree) from the university. To prove her degree to another party (e.g., IOTA Foundation), Alice needs to wrap her credential inside a Verifiable Presentation (VP) and sign it with her DID.
-
-This ensures that:
-
-- The credential really belongs to Alice.
-- The credential hasn’t been tampered with.
-- The presentation is fresh and cannot be replayed by an attacker.
-
-## Short Explanation
-
-The Holder program (holder.rs):
-
-- Creates and stores a Holder DID if one doesn’t exist.
-- Accepts a VC JWT (degree credential from the Issuer).
-- Wraps the VC into a Verifiable Presentation (VP).
-- Signs the VP with Holder’s DID and adds a challenge/expiration.
-- Saves the signed VP JWT to disk (vp.jwt).
+All of this will be demonstrated using **Rust CLI applications**, with step-by-step commands you can run on your machine.
 
 ## Project Setup
 
 To get started, we'll create a new Rust project and add the necessary dependencies.
 
-Initialize the project: Open your terminal and run the following commands to create a new Rust workspace:
+**Initialize the project**: Open your terminal and run the following commands to create a new Rust workspace:
 
 ```bash
 cargo new iota-identity-workshop --bin
 cd iota-identity-workshop
 ```
 
-Edit Cargo.toml: Open the Cargo.toml file in your project directory and replace its contents with the following. This adds all the IOTA Identity and related libraries we'll need.
+**Edit** `Cargo.toml`: Open the `Cargo.toml` file in your project directory and replace its contents with the following. This adds all the IOTA Identity and related libraries we'll need.
 
 ```toml
 [package]
@@ -167,7 +137,7 @@ path = "/shared_src/verifier.rs"
 
 ## Create a Utility Module
 
-Create Utility Module: Our programs need a standard set of helper functions. Let's create a new crate within our project.
+**Create Utility Module**: Our programs need a standard set of helper functions. Let's create a new crate within our project.
 
 ```bash
 mkdir -p crates/shared_utils/src
@@ -178,12 +148,12 @@ touch crates/shared_utils/src/lib.rs
 
 ## Codelab: Utility Functions for DID & Credential Flow
 
-This file (lib.rs) defines helper functions used by the Holder, Issuer, and Verifier.
+This file `(lib.rs)` defines helper functions used by the Holder, Issuer, and Verifier.
 Instead of writing the same code in every binary, these functions:
 
-- Handle storage setup (Stronghold, memory).
-- Provide client initialization (read-only and funded).
-- Simplify DID Document creation and publishing.
+- Handle **storage setup** (Stronghold, memory).
+- Provide **client initialization** (read-only and funded).
+- Simplify **DID Document creation and publishing**.
 - Add useful utilities like JSON pretty-printing.
 
 ## 1. Imports
@@ -222,8 +192,8 @@ pub const TEST_GAS_BUDGET: u64 = 50_000_000;
 pub type MemStorage = Storage<JwkMemStore, KeyIdMemstore>;
 ```
 
-- TEST_GAS_BUDGET → sets the gas limit for publishing DID documents.
-- MemStorage → a shorthand type for in-memory JWK + KeyID storage (for tests).
+- `TEST_GAS_BUDGET` → sets the gas limit for publishing DID documents.
+- `MemStorage` → a shorthand type for in-memory JWK + KeyID storage (for tests).
 
 ## 3. DID Document Creation
 
@@ -259,7 +229,7 @@ where
     Ok((document, verification_method_fragment))
 }
 ```
-This function creates a new IotaDocument, adds a verification method (Ed25519 public key), and publishes the DID Document to the IOTA network. It returns the published document and the fragment string.
+This function creates a new `IotaDocument`, adds a verification method (Ed25519 public key), and publishes the DID Document to the IOTA network. It returns the published document and the fragment string.
 
 ## 4. Storage Helpers
 
@@ -296,7 +266,7 @@ pub fn get_stronghold_storage(
 }
 ```
 
-This returns a StrongholdStorage instance. It stores keys securely in an encrypted vault file (.stronghold), which is used by the Holder and Issuer to ensure their private keys persist.
+This returns a **StrongholdStorage** instance. It stores keys securely in an encrypted vault file `(.stronghold)`, which is used by the Holder and Issuer to ensure their private keys persist.
 
 ## Memory Storage
 
@@ -371,7 +341,7 @@ where
 }
 ```
 
-This function generates a new Ed25519 key, requests faucet funds for it, and creates a funded IdentityClient. This client is necessary for the Holder and Issuer to publish their DIDs to the ledger.
+This function generates a new Ed25519 key, requests faucet funds for it, and creates a **funded IdentityClient**. This client is necessary for the **Holder** and **Issuer** to publish their DIDs to the ledger.
 
 ## Utility: Pretty JSON Printer
 
@@ -388,7 +358,30 @@ pub fn pretty_print_json(label: &str, value: &str) {
 
 This simple utility function formats and prints JSON, making it easier to read and debug the DID documents and credentials.
 
-utility.rs is the glue layer: it provides storage, client setup, DID creation, faucet funding, and pretty-printing.Without this file, the Holder/Issuer/Verifier code would be way longer and repetitive.
+`utility.rs` is the **glue layer**: it provides storage, client setup, DID creation, faucet funding, and pretty-printing.Without this file, the Holder/Issuer/Verifier code would be way longer and repetitive.
+
+## Holder Creates a Verifiable Presentation
+
+### What This Enables in the Real World
+
+In our university degree verification use case, the **Holder** (Alice) is the student who received a digital credential (her degree) from the university. To prove her degree to another party (e.g., IOTA Foundation), Alice needs to wrap her credential inside a **Verifiable Presentation (VP)** and sign it with her DID.
+
+This ensures that:
+
+- The credential really belongs to Alice.
+- The credential hasn’t been tampered with.
+- The presentation is fresh and cannot be replayed by an attacker.
+
+## Short Explanation
+
+The Holder program `(holder.rs)`:
+
+- Creates and stores a Holder DID if one doesn’t exist.
+- Accepts a **VC JWT** (degree credential from the Issuer).
+- Wraps the VC into a **Verifiable Presentation (VP)**.
+- Signs the VP with Holder’s DID and adds a challenge/expiration.
+- Saves the signed VP JWT to disk `(vp.jwt)`.
+
 
 ## Codelab: Issuer Issues a Verifiable Credential
 
@@ -682,3 +675,177 @@ println!("✅ Saved VC to vc.jwt");
 - Saves VC JWT to vc.jwt for the Holder to use in the next step.
 
 End Result: The Issuer has created and signed a Verifiable Credential (vc.jwt) for the Holder. The Holder can now embed this VC into a Verifiable Presentation.
+
+## Codelab: Verifier Validates a Verifiable Presentation
+
+### What This Enables in the Real World
+
+- The Verifier is the third party (e.g., an employer/IOTA).
+- Alice presents her Verifiable Presentation (VP) containing her degree credential.
+- The Verifier checks:
+    - That Alice really signed the VP.
+    - That the VC inside is valid and signed by the Issuer (University).
+    - That the challenge/nonce matches (to prevent replay attacks).
+
+If all checks pass, the employer can trust Alice’s degree is authentic.
+
+## Short Explanation
+
+The Verifier program (verifier.rs):
+
+1. Loads a VP JWT (provided by the Holder).
+2. Extracts the Holder’s DID and resolves it on the IOTA network.
+3. Validates the VP against the challenge (nonce).
+4. Extracts the embedded VCs and their Issuers.
+5. Resolves the Issuers’ DIDs and validates each credential.
+6. Confirms that all credentials are valid and belong to the Holder.
+
+## Code Walkthrough
+
+## 1. Imports
+
+```rust
+use anyhow::Result;
+use identity_eddsa_verifier::EdDSAJwsVerifier;
+use identity_iota::core::Object;
+use identity_iota::credential::{
+    DecodedJwtCredential, DecodedJwtPresentation, FailFast, Jwt, JwtCredentialValidationOptions,
+    JwtCredentialValidator, JwtPresentationValidationOptions, JwtPresentationValidator,
+    JwtPresentationValidatorUtils, SubjectHolderRelationship,
+};
+use identity_iota::did::CoreDID;
+use identity_iota::document::verifiable::JwsVerificationOptions;
+use identity_iota::iota::IotaDocument;
+use identity_iota::resolver::Resolver;
+use shared_utils::get_read_only_client;
+use std::collections::HashMap;
+use identity_iota::did::DID;
+```
+
+- JwtPresentationValidator, JwtCredentialValidator → validators for VP and VC JWTs.
+- EdDSAJwsVerifier → cryptographic verifier for Ed25519 signatures.
+- Resolver → resolves DID Documents from the IOTA network.
+- SubjectHolderRelationship → ensures credential subject matches Holder.
+- get_read_only_client → helper for a read-only IOTA client.
+- HashMap → used to map Issuer DIDs → their DID Documents.
+
+## 2. Load VP JWT
+
+```rust
+let args: Vec<String> = std::env::args().collect();
+if args.len() < 2 {
+    eprintln!("Usage: cargo run --bin verifier <VP_JWT>");
+    return Err(anyhow::anyhow!("Missing VP JWT argument."));
+}
+let vp_jwt_str = &args[1];
+let vp_jwt = Jwt::new(vp_jwt_str.clone());
+
+println!("✅ Loaded VP JWT");
+```
+
+- Takes VP JWT from command line argument.
+- Wraps it in a Jwt object for processing.
+
+## 3. Set Challenge / Nonce
+
+```rust
+let challenge = "challenge-123";
+println!("🔍 Using challenge: {}", challenge);
+let presentation_verifier_options = JwsVerificationOptions::default().nonce(challenge.to_owned());
+```
+
+- Uses the same challenge nonce that the Holder signed.
+- Prevents replay attacks.
+
+## 4. Setup Resolver & Resolve Holder DID
+
+```rust
+let verifier_client = get_read_only_client().await?;
+let mut resolver: Resolver<IotaDocument> = Resolver::new();
+resolver.attach_iota_handler(verifier_client);
+
+let holder_did: CoreDID = JwtPresentationValidatorUtils::extract_holder(&vp_jwt)?;
+println!("🔑 Extracted holder DID from VP: {}", holder_did);
+let holder_doc: IotaDocument = resolver.resolve(&holder_did).await?;
+println!("✅ Resolved holder DID from network: {}", holder_doc.id());
+```
+
+- Builds a DID Resolver with IOTA network support.
+- Extracts the Holder’s DID from the VP.
+- Resolves the Holder’s DID Document from the ledger.
+
+## 5. Validate the VP
+
+```rust
+let vp_validation_options = JwtPresentationValidationOptions::default()
+    .presentation_verifier_options(presentation_verifier_options);
+
+let decoded_vp: DecodedJwtPresentation<Jwt> = JwtPresentationValidator::with_signature_verifier(EdDSAJwsVerifier::default())
+    .validate(&vp_jwt, &holder_doc, &vp_validation_options)?;
+
+println!("✅ VP JWT verified successfully");
+println!("✅ Holder DID matches: {}", decoded_vp.presentation.holder);
+```
+
+- Verifies the VP signature with Holder’s DID.
+- Confirms the challenge nonce matches.
+- Extracts the VP details if validation succeeds.
+
+## 6. Extract Embedded Credentials
+
+```rust
+let jwt_credentials: &Vec<Jwt> = &decoded_vp.presentation.verifiable_credential;
+println!("📦 VP contains {} credential(s)", jwt_credentials.len());
+```
+
+- Retrieves all Verifiable Credentials inside the VP.
+
+## 7. Resolve Issuers of Credentials
+
+```rust
+let issuers: Vec<CoreDID> = jwt_credentials
+    .iter()
+    .map(|jwt| identity_iota::credential::JwtCredentialValidatorUtils::extract_issuer_from_jwt(jwt))
+    .collect::<Result<Vec<CoreDID>, _>>()?;
+println!("🔑 Issuer DIDs: {:?}", issuers);
+
+let issuers_documents: HashMap<CoreDID, IotaDocument> = resolver.resolve_multiple(&issuers).await?;
+```
+
+- Extracts Issuer DIDs from each credential.
+- Resolves Issuers’ DID Documents from the IOTA network.
+
+## 8. Validate Each Credential
+
+```rust
+let credential_validator = JwtCredentialValidator::with_signature_verifier(EdDSAJwsVerifier::default());
+let credential_validation_options = JwtCredentialValidationOptions::default()
+    .subject_holder_relationship(holder_did.to_url().into(), SubjectHolderRelationship::AlwaysSubject);
+
+for (index, jwt_vc) in jwt_credentials.iter().enumerate() {
+    let issuer_doc = &issuers_documents[&issuers[index]];
+    let decoded_credential: DecodedJwtCredential<Object> = credential_validator
+        .validate::<_, Object>(jwt_vc, issuer_doc, &credential_validation_options, FailFast::FirstError)?;
+
+    let subject_id = decoded_credential
+        .credential
+        .credential_subject
+        .first()
+        .and_then(|subj| subj.id.as_ref())
+        .map(|id| id.as_str())
+        .unwrap_or("unknown");
+
+    println!(
+        "✅ Credential [{}]: verified successfully, subject: {}",
+        index + 1,
+        subject_id
+    );
+}
+```
+
+- For each credential in the VP:
+    - Validates the signature using Issuer’s DID.
+    - Ensures subject DID matches Holder’s DID.
+    - Prints credential subject (e.g., Alice).
+
+End Result: The Verifier confirms that Alice’s presentation is authentic, the degree credential was issued by the university, and that it belongs to Alice.
