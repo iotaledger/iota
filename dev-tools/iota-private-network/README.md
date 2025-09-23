@@ -41,7 +41,6 @@ Generate the genesis files and validators’ configuration:
 ./bootstrap.sh -n 19
 ```
 
-
 ### 3. Start the Network
 
 The script supports different modes, which can be used individually or in combination. Regardless of the mode chosen, the validators will always be active.

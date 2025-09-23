@@ -17,7 +17,7 @@ done
 shift $((OPTIND -1))
 PRIVNET_DIR="$(realpath "$(dirname "$0")" || echo "$ROOT/dev-tools/iota-private-network")"
 
-# Set and unset enviroment variables
+# Set and unset environment variables
 set_env_var() {
   # Usage: set_env_var KEY VALUE FILE
   local key="$1" value="$2" file="$3"
