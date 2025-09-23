@@ -21,37 +21,33 @@ export const DEFAULT_AUTHENTICATOR_OPTIONS = {
  * Creates browser passkey provider options with defaults applied
  */
 export function createBrowserPasskeyProviderOptions({
-    providerOptions = {},
+    options = {},
 }: {
-    providerOptions?: Partial<BrowserPasswordProviderOptions>;
+    options?: Partial<BrowserPasswordProviderOptions>;
 } = {}): BrowserPasswordProviderOptions {
-    // Extract values from providerOptions or use defaults
-    const rpName = providerOptions.rp?.name || DEFAULT_PASSKEY_SAVED_NAME;
-    const rpId = providerOptions.rp?.id || DEFAULT_PASSKEY_RP.id;
-    const authenticatorAttachment =
-        providerOptions.authenticatorSelection?.authenticatorAttachment ||
-        DEFAULT_AUTHENTICATOR_OPTIONS.authenticatorAttachment;
-
-    // Create options with defaults for any missing values
-    return {
-        ...providerOptions,
+    const providerOptions = {
+        ...options,
         rp: {
-            name: rpName,
-            id: rpId,
-            ...(providerOptions.rp || {}),
+            name: DEFAULT_PASSKEY_RP.name,
+            id: DEFAULT_PASSKEY_RP.id,
+            ...options?.rp,
         },
         authenticatorSelection: {
-            authenticatorAttachment,
-            ...(providerOptions.authenticatorSelection || {}),
+            authenticatorAttachment: DEFAULT_AUTHENTICATOR_OPTIONS.authenticatorAttachment,
+            ...options?.authenticatorSelection,
         },
     };
+    if (options?.user) {
+        providerOptions.user = { ...options.user };
+    }
+    return providerOptions;
 }
 
 export function createBrowserPasskeyProvider({
-    providerOptions = {},
+    options = {},
 }: {
-    providerOptions?: Partial<BrowserPasswordProviderOptions>;
+    options?: Partial<BrowserPasswordProviderOptions>;
 } = {}): BrowserPasskeyProvider {
-    const options = createBrowserPasskeyProviderOptions({ providerOptions });
-    return new BrowserPasskeyProvider(options?.rp?.name ?? DEFAULT_PASSKEY_SAVED_NAME, options);
+    const providerOptions = createBrowserPasskeyProviderOptions({ options });
+    return new BrowserPasskeyProvider(DEFAULT_PASSKEY_SAVED_NAME, providerOptions);
 }

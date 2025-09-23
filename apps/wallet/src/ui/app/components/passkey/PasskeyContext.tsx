@@ -33,7 +33,9 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
                 new Promise<string>((resolve, reject) => {
                     const executeAsync = async () => {
                         try {
-                            const provider = createBrowserPasskeyProvider({ providerOptions });
+                            const provider = createBrowserPasskeyProvider({
+                                options: providerOptions,
+                            });
 
                             let keypair: PasskeyKeypair;
                             if (publicKey) {

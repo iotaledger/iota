@@ -144,21 +144,25 @@ export function useCreateAccountsMutation() {
                 type === AccountsFormType.Passkey &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
-                const providerOptions = createBrowserPasskeyProviderOptions({
-                    providerOptions: {
+                const options = createBrowserPasskeyProviderOptions({
+                    options: {
                         authenticatorSelection: {
                             authenticatorAttachment: accountsFormValues.authenticatorAttachment,
                         },
+                        user: {
+                            name: accountsFormValues.username,
+                            displayName: accountsFormValues.username,
+                        },
                     },
                 });
-                const provider = createBrowserPasskeyProvider({ providerOptions });
+                const provider = createBrowserPasskeyProvider({ options });
                 const passkey = await PasskeyKeypair.getPasskeyInstance(provider);
 
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PasskeyDerived,
                     address: passkey.getPublicKey().toIotaAddress(),
                     publicKey: passkey.getPublicKey().toBase64(),
-                    providerOptions: providerOptions,
+                    providerOptions: options,
                     password: password!,
                 });
             } else if (
