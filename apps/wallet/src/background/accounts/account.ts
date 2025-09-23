@@ -20,6 +20,7 @@ export enum AccountType {
     SeedDerived = 'seed-derived',
     PrivateKeyDerived = 'private-key-derived',
     LedgerDerived = 'ledger-derived',
+    KeystoneDerived = 'keystone-derived',
 }
 
 export abstract class Account<

@@ -85,7 +85,10 @@ impl BaseCommitter {
         // one leader block (created by Byzantine leaders).
         let wave = self.wave_number(leader.round);
         let certifying_round = self.certifying_round(wave);
-        let leader_blocks = self.dag_state.read().get_uncommitted_blocks_at_slot(leader);
+        let leader_blocks = self
+            .dag_state
+            .read()
+            .get_uncommitted_block_headers_at_slot(leader);
         let mut leaders_with_enough_support: Vec<_> = leader_blocks
             .into_iter()
             .filter(|l| self.enough_leader_support(certifying_round, l))
@@ -279,7 +282,7 @@ impl BaseCommitter {
         let leader_blocks = self
             .dag_state
             .read()
-            .get_uncommitted_blocks_at_slot(leader_slot);
+            .get_uncommitted_block_headers_at_slot(leader_slot);
 
         // TODO: Re-evaluate this check once we have a better way to handle/track
         // byzantine authorities.
@@ -332,7 +335,7 @@ impl BaseCommitter {
         let voting_blocks = self
             .dag_state
             .read()
-            .get_uncommitted_blocks_at_round(voting_round);
+            .get_uncommitted_block_headers_at_round(voting_round);
 
         let mut blame_stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
         for voting_block in &voting_blocks {
@@ -369,7 +372,7 @@ impl BaseCommitter {
         let decision_blocks = self
             .dag_state
             .read()
-            .get_uncommitted_blocks_at_round(certifying_round);
+            .get_uncommitted_block_headers_at_round(certifying_round);
 
         // Quickly reject if there isn't enough stake to support the leader from
         // the potential certificates.

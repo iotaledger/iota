@@ -210,7 +210,7 @@ async fn direct_skip_no_leader() {
         .committee
         .authorities()
         .map(|index| {
-            let author_idx = index.0.value() as u32;
+            let author_idx = index.0.value() as u8;
             let block = TestBlockHeader::new(0, author_idx).build();
             VerifiedBlockHeader::new_for_test(block).reference()
         })

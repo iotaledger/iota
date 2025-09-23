@@ -1,0 +1,20 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 3 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 9-17:
+//# publish
+created: object(1,0)
+mutated: object(0,1)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 3708800,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 19-21:
+//# programmable --sender A --dry-run
+//> 0: test::m::return_u64();
+//> 1: test::m::entry_take_u64(Result(0));
+Error: Transaction Effects Status: CommandArgumentError { arg_idx: 0, kind: InvalidArgumentToPrivateEntryFunction } in command 1
+Execution Error: CommandArgumentError { arg_idx: 0, kind: InvalidArgumentToPrivateEntryFunction } in command 1

@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use indexmap::IndexMap;
 use move_binary_format::file_format::{
     self, AbilitySet, CodeOffset, CodeUnit, CompiledModule, ConstantPoolIndex, DatatypeHandleIndex,
     DatatypeTyParameter, EnumDefinitionIndex, FieldHandleIndex, FunctionDefinition,
@@ -42,9 +43,9 @@ pub struct Package {
 pub struct Module {
     pub name: Symbol,
     pub package: AccountAddress,
-    pub structs: BTreeMap<Symbol, Struct>,
-    pub enums: BTreeMap<Symbol, Enum>,
-    pub functions: BTreeMap<Symbol, Function>,
+    pub structs: IndexMap<Symbol, Struct>,
+    pub enums: IndexMap<Symbol, Enum>,
+    pub functions: IndexMap<Symbol, Function>,
     pub constants: Vec<Constant>,
     pub module: CompiledModule,
     pub deps: BTreeMap<ModuleId, /* is immediate */ bool>,
@@ -65,7 +66,7 @@ pub struct Enum {
     pub name: Symbol,
     pub abilities: AbilitySet,
     pub type_parameters: Vec<DatatypeTyParameter>,
-    pub variants: BTreeMap<Symbol, Variant>,
+    pub variants: IndexMap<Symbol, Variant>,
     pub def_idx: EnumDefinitionIndex,
 }
 
@@ -485,7 +486,7 @@ impl Module {
                 let struct_ = make_struct(&compiled_module, def, StructDefinitionIndex(idx as u16));
                 (struct_.name, struct_)
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect::<IndexMap<_, _>>();
         let enums = compiled_module
             .enum_defs()
             .iter()
@@ -494,7 +495,7 @@ impl Module {
                 let enum_ = make_enum(&compiled_module, def, EnumDefinitionIndex(idx as u16));
                 (enum_.name, enum_)
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect::<IndexMap<_, _>>();
         let functions = compiled_module
             .function_defs()
             .iter()
@@ -503,7 +504,7 @@ impl Module {
                 let fun = make_fun(&compiled_module, def, FunctionDefinitionIndex(idx as u16));
                 (fun.name, fun)
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect::<IndexMap<_, _>>();
         let constants = compiled_module
             .constant_pool()
             .iter()
@@ -511,6 +512,22 @@ impl Module {
             .map(|(idx, def)| make_constant(&compiled_module, def, ConstantPoolIndex(idx as u16)))
             .collect();
 
+        debug_assert!(structs
+            .values()
+            .enumerate()
+            .all(|(i, s)| i == s.def_idx.0 as usize));
+        debug_assert!(enums
+            .values()
+            .enumerate()
+            .all(|(i, e)| i == e.def_idx.0 as usize
+                && e.variants
+                    .values()
+                    .enumerate()
+                    .all(|(j, v)| j == v.tag as usize)));
+        debug_assert!(functions
+            .values()
+            .enumerate()
+            .all(|(i, f)| i == f.def_idx.0 as usize));
         Self {
             name,
             package,

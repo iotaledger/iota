@@ -17,7 +17,7 @@ use tracing::info;
 
 use crate::{
     build_optimistic_json_rpc_server,
-    config::{IngestionConfig, JsonRpcConfig, PruningOptions, SnapshotLagConfig},
+    config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::ConnectionPool,
     errors::IndexerError,
     handlers::{
@@ -33,29 +33,12 @@ use crate::{
 pub struct Indexer;
 
 impl Indexer {
-    pub async fn start_writer(
-        config: &IngestionConfig,
-        store: PgIndexerStore,
-        metrics: IndexerMetrics,
-    ) -> Result<(), IndexerError> {
-        let snapshot_config = SnapshotLagConfig::default();
-        Indexer::start_writer_with_config(
-            config,
-            store,
-            metrics,
-            snapshot_config,
-            PruningOptions::default(),
-            CancellationToken::new(),
-        )
-        .await
-    }
-
     pub async fn start_writer_with_config(
         config: &IngestionConfig,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
         snapshot_config: SnapshotLagConfig,
-        pruning_options: PruningOptions,
+        retention_config: Option<RetentionConfig>,
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
@@ -88,14 +71,10 @@ impl Indexer {
         )
         .await?;
 
-        if let Some(epochs_to_keep) = pruning_options.epochs_to_keep {
-            info!(
-                "Starting indexer pruner with epochs to keep: {}",
-                epochs_to_keep
-            );
-            assert!(epochs_to_keep > 0, "Epochs to keep must be positive");
-            let pruner: Pruner = Pruner::new(store.clone(), epochs_to_keep, metrics.clone())?;
-            spawn_monitored_task!(pruner.start(CancellationToken::new()));
+        if let Some(retention_config) = retention_config {
+            let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
+            let cancel_clone = cancel.clone();
+            spawn_monitored_task!(pruner.start(cancel_clone));
         }
 
         // If we already have chain identifier indexed (i.e. the first checkpoint has

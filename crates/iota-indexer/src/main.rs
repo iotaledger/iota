@@ -9,7 +9,7 @@ use iota_indexer::{
     backfill::runner::BackfillRunner,
     config::{Command, IndexerConfig, deprecated::OldIndexerConfig},
     db::{
-        get_pool_connection, new_connection_pool, reset_database,
+        check_prunable_tables_valid, get_pool_connection, new_connection_pool, reset_database,
         setup_postgres::{check_db_migration_consistency, run_migrations},
     },
     errors::IndexerError,
@@ -71,6 +71,7 @@ async fn main() -> Result<(), IndexerError> {
             pruning_options,
             reset_db,
         } => {
+            let retention_config = pruning_options.load_from_file()?;
             {
                 // Make sure to run all migrations on startup, and also serve as a compatibility
                 // check.
@@ -80,6 +81,9 @@ async fn main() -> Result<(), IndexerError> {
                 } else {
                     run_migrations(&mut pool_conn)?;
                 }
+                if retention_config.is_some() {
+                    check_prunable_tables_valid(&mut pool_conn).await?;
+                }
             }
 
             let store = PgIndexerStore::new(connection_pool, indexer_metrics.clone());
@@ -88,7 +92,7 @@ async fn main() -> Result<(), IndexerError> {
                 store,
                 indexer_metrics,
                 snapshot_config,
-                pruning_options,
+                retention_config,
                 CancellationToken::new(),
             )
             .await?;
