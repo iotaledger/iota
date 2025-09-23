@@ -29,6 +29,7 @@ import { Toaster } from './components/index.ts';
 import { IotaGraphQLClientProvider } from '@iota/core';
 import { growthbook } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
+import { getNetwork } from '@iota/iota-sdk/client';
 
 growthbook.init();
 
@@ -61,6 +62,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                             variables: darkTheme,
                                         },
                                     ]}
+                                    chain={getNetwork(getDefaultNetwork()).chain}
                                 >
                                     <ThemeProvider appId="IOTA-evm-bridge">
                                         <RainbowKit>
