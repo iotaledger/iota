@@ -11,11 +11,12 @@ use std::{
 
 use bytes::Bytes;
 use fastcrypto::hash::{Digest, HashFunction};
+use rs_merkle::MerkleTree;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use starfish_config::{
-    AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, Epoch, ProtocolKeyPair,
-    ProtocolKeySignature, ProtocolPublicKey,
+    AuthorityIndex, DIGEST_LENGTH, DefaultHashFunction, DefaultHashFunctionWrapper, Epoch,
+    ProtocolKeyPair, ProtocolKeySignature, ProtocolPublicKey,
 };
 
 use crate::{
@@ -448,6 +449,24 @@ impl TransactionsCommitment {
         let mut hasher = DefaultHashFunction::new();
         hasher.update(serialized_transactions);
         Ok(TransactionsCommitment(hasher.finalize().into()))
+    }
+
+    pub fn compute_merkle_root(
+        encoded_statements: &Vec<Shard>,
+    ) -> ConsensusResult<TransactionsCommitment> {
+        let mut leaves: Vec<[u8; DefaultHashFunction::OUTPUT_SIZE]> = Vec::new();
+        for shard in encoded_statements {
+            let mut hasher = DefaultHashFunction::new();
+            hasher.update(shard);
+            let leaf = hasher.finalize().into();
+            leaves.push(leaf);
+        }
+        let merkle_tree = MerkleTree::<DefaultHashFunctionWrapper>::from_leaves(&leaves);
+        let merkle_root = merkle_tree
+            .root()
+            .ok_or("couldn't get the merkle root")
+            .unwrap();
+        Ok(TransactionsCommitment(merkle_root))
     }
 }
 

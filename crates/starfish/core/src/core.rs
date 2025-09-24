@@ -646,13 +646,15 @@ impl Core {
             .map(|chunk| chunk.to_vec())
             .collect();
 
-        let encoded_shards =
-            self.encoder
-                .encode_shards(sharded_transactions, info_length, parity_length);
+        let encoded_shards = self
+            .encoder
+            .encode_shards(sharded_transactions, info_length, parity_length)
+            .expect("We should expect correct encoding of the shards");
         // Compute transaction commitment that will be included in the block header
-        let transactions_commitment =
-            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                .expect("We should expect correct computation of the transactions commitment");
+        let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
+            .expect(
+                "We should expect correct computation of the Merkle root for encoded transactions",
+            );
 
         self.context
             .metrics
