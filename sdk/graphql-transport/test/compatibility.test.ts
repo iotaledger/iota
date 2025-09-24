@@ -17,6 +17,55 @@ import { IotaClientGraphQLTransport } from '../src/transport';
 const DEFAULT_GRAPHQL_URL = import.meta.env.DEFAULT_GRAPHQL_URL ?? 'http:127.0.0.1:9125';
 const LOCALNET_INDEXER = 'http:127.0.0.1:9124';
 
+async function waitForTransactionCheckpointed(
+    transactionDigest: string,
+    timeout = 30 * 1000,
+    pollInterval = 100,
+): Promise<void> {
+    const graphQLClient = new IotaClient({
+        transport: new IotaClientGraphQLTransport({
+            url: DEFAULT_GRAPHQL_URL,
+        }),
+    });
+
+    const timeoutSignal = AbortSignal.timeout(timeout);
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutSignal.addEventListener('abort', () => reject(timeoutSignal.reason));
+    });
+
+    timeoutPromise.catch(() => {
+        // Swallow unhandled rejections that might be thrown after early return
+    });
+
+    while (!timeoutSignal.aborted) {
+        try {
+            const transactionBlock = await graphQLClient.getTransactionBlock({
+                digest: transactionDigest,
+                options: {
+                    showEffects: true,
+                },
+            });
+
+            if (transactionBlock.checkpoint !== null && transactionBlock.checkpoint !== undefined) {
+                return;
+            }
+        } catch (error) {
+            console.log(`Error fetching transaction block: ${error}`);
+        }
+
+        // Wait for either the next poll interval, or the timeout
+        await Promise.race([
+            new Promise((resolve) => setTimeout(resolve, pollInterval)),
+            timeoutPromise,
+        ]);
+    }
+
+    timeoutSignal.throwIfAborted();
+
+    // This should never happen, but adding it just in case
+    throw new Error('Unexpected error while waiting for transaction checkpoint.');
+}
+
 describe('GraphQL IotaClient compatibility', () => {
     let toolbox: TestToolbox;
     let transactionBlockDigest: string;
@@ -58,7 +107,7 @@ describe('GraphQL IotaClient compatibility', () => {
         transactionBlockDigest = result.digest;
 
         await toolbox.client.waitForTransaction({ digest: transactionBlockDigest });
-        await graphQLClient.waitForTransaction({ digest: transactionBlockDigest });
+        await waitForTransactionCheckpointed(transactionBlockDigest);
     });
 
     test('getRpcApiVersion', async () => {
@@ -90,16 +139,6 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphQLCoins).toEqual(rpcCoins);
     });
 
-    test('getBalance', async () => {
-        const rpcCoins = await toolbox.client.getBalance({
-            owner: toolbox.address(),
-        });
-        const graphQLCoins = await graphQLClient!.getBalance({
-            owner: toolbox.address(),
-        });
-
-        expect(graphQLCoins).toEqual(rpcCoins);
-    });
     test('getBalance', async () => {
         const rpcBalance = await toolbox.client.getBalance({
             owner: toolbox.address(),
@@ -625,9 +664,6 @@ describe('GraphQL IotaClient compatibility', () => {
                 showRawInput: true,
             },
         });
-
-        await toolbox.client.waitForTransaction({ digest: transaction.digest });
-        await graphQLClient.waitForTransaction({ digest: transaction.digest });
 
         const {
             checkpoint: gCheckpoint,
