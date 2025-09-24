@@ -879,7 +879,17 @@ mod tests {
     use rstest::rstest;
 
     use crate::{
-        block::{BlockAPI, BlockDigest, BlockRef, SignedBlock, VerifiedBlock}, block_manager::BlockManager, block_verifier::{BlockVerifier, NoopBlockVerifier}, commit::TrustedCommit, context::Context, dag_state::{DagState, GetBlockResult}, error::{ConsensusError, ConsensusResult}, storage::mem_store::MemStore, test_dag_builder::DagBuilder, test_dag_parser::parse_dag, CommitDigest, Round
+        CommitDigest, Round,
+        block::{BlockAPI, BlockDigest, BlockRef, SignedBlock, VerifiedBlock},
+        block_manager::BlockManager,
+        block_verifier::{BlockVerifier, NoopBlockVerifier},
+        commit::TrustedCommit,
+        context::Context,
+        dag_state::{DagState, GetBlockResult},
+        error::{ConsensusError, ConsensusResult},
+        storage::mem_store::MemStore,
+        test_dag_builder::DagBuilder,
+        test_dag_parser::parse_dag,
     };
 
     #[tokio::test]
