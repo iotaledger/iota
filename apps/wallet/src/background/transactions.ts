@@ -19,7 +19,7 @@ import Browser from 'webextension-polyfill';
 import { Window } from './window';
 import { Tab } from './tab';
 import { getDB } from './db';
-import { AccountType } from './accounts/account';
+import { NEW_TAB_ACCOUNT_TYPES } from '_src/shared/accountTypes';
 
 const STALE_TRANSACTION_MILLISECONDS = 1000 * 60 * 60 * 3; // 3 hours
 const TX_STORE_KEY = 'transactions';
@@ -191,7 +191,6 @@ class Transactions {
 }
 
 async function getNewTabOrWindow(requestingAccount: string, txRequestId: string) {
-    const accountsThatOpenNewTab: AccountType[] = [AccountType.PasskeyDerived];
     const allAccounts = await (await getDB()).accounts.toArray();
     const walletAccount = allAccounts.find((a) => a.address === requestingAccount);
 
@@ -199,7 +198,7 @@ async function getNewTabOrWindow(requestingAccount: string, txRequestId: string)
         throw new Error('Missing account');
     }
 
-    const shouldUseTab = accountsThatOpenNewTab.includes(walletAccount.type);
+    const shouldUseTab = NEW_TAB_ACCOUNT_TYPES.includes(walletAccount.type);
     const url =
         Browser.runtime.getURL('ui.html') + `#/dapp/approve/${encodeURIComponent(txRequestId)}`;
 

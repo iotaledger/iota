@@ -10,7 +10,7 @@ import { getDefaultNetwork, type Network } from '@iota/iota-sdk/client';
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
-import { AppType } from './appType';
+import { AppType, ExtensionViewType } from './appType';
 
 type AppState = {
     appType: AppType;
@@ -19,7 +19,8 @@ type AppState = {
     navVisible: boolean;
     activeOrigin: string | null;
     activeOriginFavIcon: string | null;
-    isAppViewPopup: boolean | null;
+    isAppViewPopup: boolean;
+    extensionViewType: ExtensionViewType;
 };
 
 const initialState: AppState = {
@@ -29,7 +30,8 @@ const initialState: AppState = {
     navVisible: true,
     activeOrigin: null,
     activeOriginFavIcon: null,
-    isAppViewPopup: null,
+    isAppViewPopup: true,
+    extensionViewType: ExtensionViewType.Popup,
 };
 
 export const changeActiveNetwork = createAsyncThunk<
@@ -67,14 +69,15 @@ const slice = createSlice({
             state.activeOrigin = payload.origin;
             state.activeOriginFavIcon = payload.favIcon;
         },
-        setIsAppViewPopup: (state, { payload }: PayloadAction<boolean>) => {
-            state.isAppViewPopup = payload;
+        setAppViewType: (state, { payload }: PayloadAction<ExtensionViewType>) => {
+            state.extensionViewType = payload;
+            state.isAppViewPopup = payload === ExtensionViewType.Popup;
         },
     },
     initialState,
 });
 
-export const { initAppType, setNavVisibility, setActiveOrigin, setIsAppViewPopup } = slice.actions;
+export const { initAppType, setNavVisibility, setActiveOrigin, setAppViewType } = slice.actions;
 export const getNavIsVisible = ({ app }: RootState) => app.navVisible;
 
 export default slice.reducer;
