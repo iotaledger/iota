@@ -19,8 +19,9 @@ use tracing::{debug, error, info};
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions, genesis_blocks,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round,
+        ShardWithProof, Slot, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+        genesis_blocks,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
@@ -39,6 +40,7 @@ use crate::{
 // TODO: make it derivable from the protocol parameters
 pub(crate) const MAX_TRANSACTIONS_ACK_DEPTH: Round = 50;
 pub(crate) const MAX_HEADERS_PER_BUNDLE: usize = 150;
+pub(crate) const MAX_SHARDS_PER_BUNDLE: usize = 150;
 
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
@@ -64,7 +66,8 @@ pub(crate) struct DagState {
     /// the last consumed commit. Note: all transactions in blocks below that
     /// round are evicted from memory.
     recent_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
-
+    /// Contains recent shards with their Merkle proofs.
+    recent_shards_with_proofs: BTreeMap<BlockRef, ShardWithProof>,
     /// Indexes recent block headers refs by their authorities.
     /// Vec position corresponds to the authority index.
     recent_headers_refs_by_authority: Vec<BTreeSet<BlockRef>>,
@@ -127,6 +130,10 @@ pub(crate) struct DagState {
     /// Is used to ensure that we send block headers that are really needed
     /// to the authority, and not the ones that they already know.
     block_headers_not_known_by_authority: Vec<BTreeSet<BlockRef>>,
+
+    /// Keeps tracks of all shards we know and haven't sent yet to the
+    /// authority.
+    shards_not_known_by_authority: Vec<BTreeSet<BlockRef>>,
 
     /// Transactions to be flushed to storage.
     transactions_to_write: Vec<VerifiedTransactions>,
@@ -208,6 +215,7 @@ impl DagState {
             genesis,
             recent_block_headers: BTreeMap::new(),
             recent_transactions: BTreeMap::new(),
+            recent_shards_with_proofs: BTreeMap::new(),
             recent_headers_refs_by_authority: vec![BTreeSet::new(); num_authorities],
             threshold_clock,
             highest_accepted_round: 0,
@@ -224,6 +232,7 @@ impl DagState {
             pending_acknowledgments: BTreeSet::new(),
             recent_dag_cordial_knowledge: vec![BTreeMap::new(); num_authorities],
             block_headers_not_known_by_authority: vec![BTreeSet::new(); num_authorities],
+            shards_not_known_by_authority: vec![BTreeSet::new(); num_authorities],
             scoring_subdag,
             store: store.clone(),
             cached_rounds,
@@ -335,6 +344,27 @@ impl DagState {
 
             if block_ref.round >= min_round {
                 self.add_pending_acknowledgment(block_ref);
+            }
+        }
+    }
+
+    pub(crate) fn add_shard(&mut self, shard: ShardWithProof) {
+        let block_ref = shard.block_ref;
+        if self
+            .recent_shards_with_proofs
+            .insert(block_ref, shard)
+            .is_none()
+        {
+            tracing::debug!("Adding shard for block ref: {block_ref}");
+            for authority_index in 0..self.shards_not_known_by_authority.len() {
+                // we are going to send shard to every authority except our own and the author
+                // of the block
+                if (authority_index == block_ref.author.value())
+                    || (authority_index == self.context.own_index.value())
+                {
+                    continue;
+                }
+                self.shards_not_known_by_authority[authority_index].insert(block_ref);
             }
         }
     }
@@ -1253,6 +1283,35 @@ impl DagState {
             .collect()
     }
 
+    pub(crate) fn take_unknown_shards_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        round_upper_bound_exclusive: Round,
+    ) -> Vec<ShardWithProof> {
+        let mut set = mem::take(&mut self.shards_not_known_by_authority[authority_index.value()]);
+
+        let split_point = {
+            let round_bound = BlockRef::new(
+                round_upper_bound_exclusive,
+                AuthorityIndex::MIN,
+                BlockHeaderDigest::MIN,
+            );
+            let nth_element = set
+                .iter()
+                .nth(MAX_SHARDS_PER_BUNDLE)
+                .map_or(round_bound, |x| *x);
+            min(nth_element, round_bound)
+        };
+
+        self.shards_not_known_by_authority[authority_index.value()] = set.split_off(&split_point);
+        let mut shards: Vec<ShardWithProof> = vec![];
+        for block_ref in set.into_iter() {
+            if let Some(shard) = self.recent_shards_with_proofs.get(&block_ref) {
+                shards.push(shard.clone());
+            }
+        }
+        shards
+    }
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
         let mut votes = Vec::new();
         while !self.pending_commit_votes.is_empty() && votes.len() < limit {
@@ -1310,6 +1369,11 @@ impl DagState {
         // === 2. Evict from block_headers_not_known_by_authority ===
         for authority_index in 0..self.context.committee.size() {
             let old_set = &mut self.block_headers_not_known_by_authority[authority_index];
+            old_set.retain(|block_ref| block_ref.round > self.evicted_rounds[block_ref.author]);
+        }
+        // === 3. Evict from shards_not_known_by_authority ===
+        for authority_index in 0..self.context.committee.size() {
+            let old_set = &mut self.shards_not_known_by_authority[authority_index];
             old_set.retain(|block_ref| block_ref.round > self.evicted_rounds[block_ref.author]);
         }
     }
