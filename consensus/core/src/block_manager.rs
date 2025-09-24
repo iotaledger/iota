@@ -385,20 +385,17 @@ impl BlockManager {
                 }
 
                 // Collect proof blocks required to verify misbehavior reports.
-                let mut proof_blocks: Vec<Vec<VerifiedBlock>> = vec![];
+                let mut proof_blocks: Vec<Vec<GetBlockResult>> = vec![];
                 for report in b.misbehavior_reports() {
                     // get references and remove none values.
                     match report.proof() {
-                        MisbehaviorProof::InvalidBlock(..) => {
-                            // We do not need to verify the invalid block proofs as we have already
-                            // received and checked the provably faulty block.
-                            proof_blocks.push(vec![]);
+                        MisbehaviorProof::InvalidBlock(block_ref) => {
+                            proof_blocks.push(vec![self.dag_state.read().get_block(block_ref)]);
                         }
                         MisbehaviorProof::Equivocation { .. } => {
                             let report_proof_blocks =
                                 (self.dag_state.read().get_blocks(&report.references()))
                                     .into_iter()
-                                    .filter_map(|b| b.verified_block())
                                     .collect::<Vec<_>>();
                             proof_blocks.push(report_proof_blocks);
                         }
@@ -882,17 +879,7 @@ mod tests {
     use rstest::rstest;
 
     use crate::{
-        CommitDigest, Round,
-        block::{BlockAPI, BlockDigest, BlockRef, SignedBlock, VerifiedBlock},
-        block_manager::BlockManager,
-        block_verifier::{BlockVerifier, NoopBlockVerifier},
-        commit::TrustedCommit,
-        context::Context,
-        dag_state::DagState,
-        error::{ConsensusError, ConsensusResult},
-        storage::mem_store::MemStore,
-        test_dag_builder::DagBuilder,
-        test_dag_parser::parse_dag,
+        block::{BlockAPI, BlockDigest, BlockRef, SignedBlock, VerifiedBlock}, block_manager::BlockManager, block_verifier::{BlockVerifier, NoopBlockVerifier}, commit::TrustedCommit, context::Context, dag_state::{DagState, GetBlockResult}, error::{ConsensusError, ConsensusResult}, storage::mem_store::MemStore, test_dag_builder::DagBuilder, test_dag_parser::parse_dag, CommitDigest, Round
     };
 
     #[tokio::test]
@@ -1655,7 +1642,7 @@ mod tests {
         fn verify_misbehavior_reports(
             &self,
             _block: &VerifiedBlock,
-            _proof_blocks: &[Vec<VerifiedBlock>],
+            _proof_blocks: &[Vec<GetBlockResult>],
         ) -> ConsensusResult<()> {
             Ok(())
         }

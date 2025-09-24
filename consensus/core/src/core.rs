@@ -613,7 +613,7 @@ impl Core {
 
             (ancestors, excluded_ancestors, misbehavior_reports)
         } else {
-            (self.ancestors_to_propose(clock_round), vec![], vec![])
+            self.ancestors_to_propose(clock_round)
         };
 
         // Update the last included ancestor block refs
@@ -1121,7 +1121,10 @@ impl Core {
 
     /// Retrieves the next ancestors to propose to form a block at `clock_round`
     /// round.
-    fn ancestors_to_propose(&mut self, clock_round: Round) -> Vec<VerifiedBlock> {
+    fn ancestors_to_propose(
+        &mut self,
+        clock_round: Round,
+    ) -> (Vec<VerifiedBlock>, Vec<BlockRef>, Vec<MisbehaviorReport>) {
         // Now take the ancestors before the clock_round (excluded) for each authority.
         let (ancestors, gc_enabled, gc_round) = {
             let dag_state = self.dag_state.read();
@@ -1142,6 +1145,8 @@ impl Core {
         // And always include own last proposed block first among ancestors.
         let (last_proposed_block, _) = ancestors[self.context.own_index].clone();
         assert_eq!(last_proposed_block.author(), self.context.own_index);
+
+        let mut misbehavior_reports = Vec::new();
         let ancestors = iter::once(last_proposed_block)
             .chain(
                 ancestors
@@ -1153,7 +1158,17 @@ impl Core {
                         }
                         true
                     })
-                    .flat_map(|(block, _)| {
+                    .flat_map(|(block, equivocations)| {
+                        // Create a misbehavior report for the first equivocation if any.
+                        if let Some(equivocation) = equivocations.first() {
+                            misbehavior_reports.push(MisbehaviorReport::new(
+                                block.author(),
+                                MisbehaviorProof::Equivocation {
+                                    first: block.reference(),
+                                    second: *equivocation,
+                                },
+                            ));
+                        }
                         if let Some(last_block_ref) = self.last_included_ancestors[block.author()] {
                             return (last_block_ref.round < block.round()).then_some(block);
                         }
@@ -1161,6 +1176,18 @@ impl Core {
                     }),
             )
             .collect::<Vec<_>>();
+
+        // Add misbehavior reports for any provably faulty blocks
+        for faulty_block_ref in self
+            .dag_state
+            .read()
+            .get_unreported_provably_faulty_block_refs()
+        {
+            misbehavior_reports.push(MisbehaviorReport::new(
+                faulty_block_ref.author,
+                MisbehaviorProof::InvalidBlock(faulty_block_ref),
+            ))
+        }
 
         // TODO: this is for temporary sanity check - we might want to remove later on
         let mut quorum = StakeAggregator::<QuorumThreshold>::new();
@@ -1175,7 +1202,7 @@ impl Core {
             "Fatal error, quorum not reached for parent round when proposing for round {clock_round}. Possible mismatch between DagState and Core."
         );
 
-        ancestors
+        (ancestors, Vec::new(), misbehavior_reports)
     }
 
     /// Retrieves the next ancestors and misbehavior reports to propose to form
@@ -1407,7 +1434,7 @@ impl Core {
         for faulty_block_ref in self
             .dag_state
             .read()
-            .get_recent_provably_faulty_block_refs()
+            .get_unreported_provably_faulty_block_refs()
         {
             misbehavior_reports.push(MisbehaviorReport::new(
                 faulty_block_ref.author,

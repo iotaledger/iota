@@ -11,6 +11,7 @@ use crate::{
         VerifiedBlock, genesis_blocks,
     },
     context::Context,
+    dag_state::GetBlockResult,
     error::{ConsensusError, ConsensusResult},
     transaction::TransactionVerifier,
 };
@@ -38,7 +39,7 @@ pub(crate) trait BlockVerifier: Send + Sync + 'static {
     fn verify_misbehavior_reports(
         &self,
         block: &VerifiedBlock,
-        proof_blocks: &[Vec<VerifiedBlock>],
+        proof_blocks: &[Vec<GetBlockResult>],
     ) -> ConsensusResult<()>;
 }
 
@@ -248,7 +249,7 @@ impl BlockVerifier for SignedBlockVerifier {
     fn verify_misbehavior_reports(
         &self,
         block: &VerifiedBlock,
-        proof_blocks: &[Vec<VerifiedBlock>],
+        proof_blocks: &[Vec<GetBlockResult>],
     ) -> ConsensusResult<()> {
         for (index, (misbehavior_report, proof_blocks)) in block
             .misbehavior_reports()
@@ -258,31 +259,37 @@ impl BlockVerifier for SignedBlockVerifier {
         {
             match misbehavior_report.proof() {
                 MisbehaviorProof::InvalidBlock(_block_ref) => {
-                    // We do not need to verify the invalid block proofs. The fact that the
-                    // reference was already present in the dag state to solidify this block means
-                    // the block has been checked already.
-                    continue;
+                    // We just need to check that a provably faulty block was provided.
+                    if let Some(GetBlockResult::ProvablyFaultyBlock(_)) = proof_blocks.first() {
+                        // Valid proof, nothing to do.
+                    } else {
+                        return Err(ConsensusError::InvalidProvablyFaultyBlockReport(index));
+                    }
                 }
                 MisbehaviorProof::Equivocation { first, second } => {
                     // Check that the two referenced blocks are not the same.
                     if first == second {
                         return Err(ConsensusError::InvalidEquivocationReport(index));
                     }
-                    // Check that the two referenced blocks are from the same epoch, round, and
-                    // author.
-                    let first_proof_block = proof_blocks
-                        .first()
-                        .expect("should have at least one proof block to verify the equivocation");
-                    let second_proof_block = proof_blocks
-                        .get(1)
-                        .expect("should have at least two proof blocks to verify the equivocation");
-                    if first_proof_block.epoch() != second_proof_block.epoch() {
-                        return Err(ConsensusError::InvalidEquivocationReport(index));
-                    }
-                    if first_proof_block.round() != second_proof_block.round() {
-                        return Err(ConsensusError::InvalidEquivocationReport(index));
-                    }
-                    if first_proof_block.author() != second_proof_block.author() {
+                    // Check that the two referenced blocks are from the current epoch and from the
+                    // same round and author.
+                    if let Some(GetBlockResult::VerifiedBlock(first_proof_block)) =
+                        proof_blocks.first()
+                    {
+                        if let Some(GetBlockResult::VerifiedBlock(second_proof_block)) =
+                            proof_blocks.get(1)
+                        {
+                            if first_proof_block.epoch() != self.context.committee.epoch()
+                                || second_proof_block.epoch() != self.context.committee.epoch()
+                                || first_proof_block.round() != second_proof_block.round()
+                                || first_proof_block.author() != second_proof_block.author()
+                            {
+                                return Err(ConsensusError::InvalidEquivocationReport(index));
+                            }
+                        } else {
+                            return Err(ConsensusError::InvalidEquivocationReport(index));
+                        }
+                    } else {
                         return Err(ConsensusError::InvalidEquivocationReport(index));
                     }
                 }
@@ -314,7 +321,7 @@ impl BlockVerifier for NoopBlockVerifier {
     fn verify_misbehavior_reports(
         &self,
         _block: &VerifiedBlock,
-        _proof_blocks: &[Vec<VerifiedBlock>],
+        _proof_blocks: &[Vec<GetBlockResult>],
     ) -> ConsensusResult<()> {
         Ok(())
     }

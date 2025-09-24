@@ -65,6 +65,9 @@ pub(crate) struct DagState {
     // Contains recent provably faulty blocks.
     recent_provably_faulty_blocks: BTreeMap<BlockRef, ProvablyFaultyBlock>,
 
+    // Contains block refs of provably faulty blocks that have not yet been reported.
+    unreported_provably_faulty_block_refs: BTreeSet<BlockRef>,
+
     // Keeps track of the threshold clock for proposing blocks.
     threshold_clock: ThresholdClock,
 
@@ -183,6 +186,7 @@ impl DagState {
             recent_blocks: BTreeMap::new(),
             recent_refs_by_authority: vec![BTreeSet::new(); num_authorities],
             recent_provably_faulty_blocks: BTreeMap::new(),
+            unreported_provably_faulty_block_refs: BTreeSet::new(),
             threshold_clock,
             highest_accepted_round: 0,
             last_commit: last_commit.clone(),
@@ -363,14 +367,19 @@ impl DagState {
 
     /// Adds provably faulty blocks to the DagState.
     pub(crate) fn add_provably_faulty_block(&mut self, block: ProvablyFaultyBlock) {
+        self.unreported_provably_faulty_block_refs
+            .insert(block.reference);
         self.recent_provably_faulty_blocks
             .entry(block.reference)
             .or_insert(block);
     }
 
     /// Returns the BlockRefs of cached recent provably faulty blocks.
-    pub(crate) fn get_recent_provably_faulty_block_refs(&self) -> Vec<BlockRef> {
-        self.recent_provably_faulty_blocks.keys().cloned().collect()
+    pub(crate) fn get_unreported_provably_faulty_block_refs(&self) -> Vec<BlockRef> {
+        self.unreported_provably_faulty_block_refs
+            .iter()
+            .cloned()
+            .collect()
     }
 
     /// Checks if the dag state contains this provably faulty blocks, first in
@@ -1155,6 +1164,8 @@ impl DagState {
                 break;
             }
         }
+        // clear all unreported faulty blocks after flush as they are now reported.
+        self.unreported_provably_faulty_block_refs.clear();
 
         let metrics = &self.context.metrics.node_metrics;
         metrics
