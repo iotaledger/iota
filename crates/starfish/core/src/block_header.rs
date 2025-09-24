@@ -58,9 +58,31 @@ impl Transaction {
     }
 
     /// Serialises a vector of transactions using the bcs serializer
-    pub(crate) fn serialize(transactions: &[Transaction]) -> Result<Bytes, bcs::Error> {
-        let bytes = bcs::to_bytes(transactions)?;
+    pub(crate) fn serialize(transactions: &[Transaction]) -> Result<Bytes, ConsensusError> {
+        let bytes = bcs::to_bytes(transactions).map_err(ConsensusError::SerializationFailure)?;
         Ok(bytes.into())
+    }
+
+    pub(crate) fn serialize_and_pad_shards(
+        transactions: &[Transaction],
+        info_length: usize,
+    ) -> Result<Bytes, ConsensusError> {
+        let mut serialized =
+            bcs::to_bytes(transactions).map_err(ConsensusError::SerializationFailure)?;
+        let bytes_length = serialized.len();
+        let mut statements_with_len: Vec<u8> = (bytes_length as u32).to_le_bytes().to_vec();
+        statements_with_len.append(&mut serialized);
+        // increase the length by 4 for u32
+        let mut shard_bytes = (bytes_length + 4).div_ceil(info_length);
+
+        // Ensure shard_bytes meets alignment requirements.
+        if shard_bytes % 2 != 0 {
+            shard_bytes += 1;
+        }
+
+        let length_with_padding = shard_bytes * info_length;
+        statements_with_len.resize(length_with_padding, 0);
+        Ok(statements_with_len.into())
     }
 }
 

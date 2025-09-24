@@ -16,6 +16,7 @@ use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
 use iota_metrics::monitored_scope;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
+pub(crate) use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::{AuthorityIndex, ProtocolKeyPair};
 #[cfg(test)]
 use starfish_config::{Stake, local_committee_and_keys};
@@ -31,14 +32,15 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions,
+        Round, Shard, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock,
+        VerifiedBlockHeader, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
     commit_observer::CommitObserver,
     context::Context,
     dag_state::DagState,
+    encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -120,6 +122,8 @@ pub(crate) struct Core {
     /// None it means that the last block sync mechanism is enabled, but it
     /// hasn't been initialised yet.
     last_known_proposed_round: Option<Round>,
+    /// Encoder is used to encode transactions into a longer vector of shards
+    encoder: ReedSolomonEncoder,
 }
 
 impl Core {
@@ -170,6 +174,10 @@ impl Core {
             // restriction.
             Some(0)
         };
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         Self {
             context,
@@ -187,6 +195,7 @@ impl Core {
             block_signer,
             dag_state,
             last_known_proposed_round: min_propose_round,
+            encoder,
         }
         .recover()
     }
@@ -627,8 +636,19 @@ impl Core {
         // be done in the end of the method.
         let (transactions, ack_transactions, _limit_reached) = self.transaction_consumer.next();
         // Serialize the transaction
-        let serialized_transactions = Transaction::serialize(&transactions)
-            .expect("We should expect correct serialization for transactions");
+        let info_length = self.context.committee.info_length();
+        let parity_length = self.context.committee.size() - info_length;
+        let serialized_transactions =
+            Transaction::serialize_and_pad_shards(&transactions, info_length)
+                .expect("We should expect correct serialization and padding for transactions");
+        let sharded_transactions: Vec<Shard> = serialized_transactions
+            .chunks(serialized_transactions.len() / info_length)
+            .map(|chunk| chunk.to_vec())
+            .collect();
+
+        let encoded_shards =
+            self.encoder
+                .encode_shards(sharded_transactions, info_length, parity_length);
         // Compute transaction commitment that will be included in the block header
         let transactions_commitment =
             TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
