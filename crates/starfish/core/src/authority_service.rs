@@ -15,6 +15,7 @@ use dashmap::DashSet;
 use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
+use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{Mutex, broadcast},
@@ -45,8 +46,43 @@ use crate::{
     synchronizer::SynchronizerHandle,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
+use crate::block_header::Shard;
+use crate::encoder::ShardEncoder;
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
+
+pub trait TransactionsCommitmentComputer {
+    async fn compute_transactions_commitment(&self, serialized_transactions: &Bytes) -> ConsensusResult<TransactionsCommitment>;
+}
+
+impl<C: CoreThreadDispatcher> TransactionsCommitmentComputer for AuthorityService<C> {
+    async fn compute_transactions_commitment(&self, serialized_transactions: &Bytes) -> ConsensusResult<TransactionsCommitment> {
+        let info_length = self.context.committee.info_length();
+        let parity_length = self.context.committee.size() - info_length;
+        assert!(
+                    serialized_transactions.len() % info_length == 0,
+                    "Serialized transactions length must be divisible by info length"
+                );
+        // Compute transaction commitment that will be included in the block header// Compute transaction commitment that will be included in the block header
+        let sharded_transactions: Vec<Shard> = serialized_transactions
+            .chunks(serialized_transactions.len() / info_length)
+            .map(|chunk| chunk.to_vec())
+            .collect();
+
+        let mut encoder = self.encoder.lock().await;
+        let encoded_shards = encoder
+            .encode_shards(sharded_transactions, info_length, parity_length)
+            .expect("We should expect correct encoding of the shards");
+
+        let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
+            .expect(
+                "We should expect correct computation of the Merkle root for encoded transactions",
+            );
+        Ok(transactions_commitment)
+    }
+}
+
+
 const MAX_FILTER_SIZE: u32 = 10000;
 
 struct FilterForHeaders {
@@ -108,6 +144,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// multiple times. The size is limited by MAX_FILTER_SIZE, elements are
     /// evicted when the threshold is exceeded
     received_block_headers: FilterForHeaders,
+    encoder: Mutex<ReedSolomonEncoder>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -121,11 +158,18 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
+
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
             core_dispatcher.clone(),
         ));
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let encoder = Mutex::new(
+            ReedSolomonEncoder::new(info_length, parity_length, 2)
+                .expect("We should expect correct creation of the ReedSolomonEncoder"),
+        );
         Self {
             context,
             block_verifier,
@@ -138,6 +182,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             dag_state,
             store,
             received_block_headers: FilterForHeaders::new(),
+            encoder,
         }
     }
 }
@@ -198,8 +243,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         if signed_block_header.transactions_commitment()
-            != TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                .expect("we should expect correct computation of the transactions commitment")
+            != self.compute_transactions_commitment(&serialized_transactions)
+                .await.expect("we should expect correct computation of the transactions commitment")
         {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: signed_block_header.round(),
@@ -1392,7 +1437,7 @@ mod tests {
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new(1, 0)
                 .set_commitment(
-                    TransactionsCommitment::compute_transactions_commitment(&Bytes::from_static(
+                    TransactionsCommitment::compute_transactions_commitment_for_test(&Bytes::from_static(
                         b"dummy data",
                     ))
                     .unwrap(),
@@ -2368,7 +2413,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                TransactionsCommitment::compute_transactions_commitment_for_test(&serialized_transactions)
                     .unwrap()
             );
 
@@ -2429,7 +2474,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                TransactionsCommitment::compute_transactions_commitment_for_test(&serialized_transactions)
                     .unwrap()
             );
 
@@ -3091,7 +3136,7 @@ mod tests {
                 .expect("We expect to find the header with such block_ref");
             assert_eq!(
                 block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                TransactionsCommitment::compute_transactions_commitment_for_test(&serialized_transactions)
                     .unwrap()
             );
         }

@@ -639,8 +639,9 @@ impl Core {
         let info_length = self.context.committee.info_length();
         let parity_length = self.context.committee.size() - info_length;
         let serialized_transactions =
-            Transaction::serialize_and_pad_shards(&transactions, info_length)
+            Transaction::serialize_and_pad_for_sharding(&transactions, info_length)
                 .expect("We should expect correct serialization and padding for transactions");
+        // Compute transaction commitment that will be included in the block header
         let sharded_transactions: Vec<Shard> = serialized_transactions
             .chunks(serialized_transactions.len() / info_length)
             .map(|chunk| chunk.to_vec())
@@ -650,7 +651,7 @@ impl Core {
             .encoder
             .encode_shards(sharded_transactions, info_length, parity_length)
             .expect("We should expect correct encoding of the shards");
-        // Compute transaction commitment that will be included in the block header
+
         let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
             .expect(
                 "We should expect correct computation of the Merkle root for encoded transactions",
@@ -1668,7 +1669,7 @@ mod test {
             .expect("we should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
         let transactions_commitment =
-            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+            TransactionsCommitment::compute_transactions_commitment_for_test(&serialized_transactions)
                 .expect("we should expect correct computation of the transactions commitment");
 
         // a new block should have been created during recovery.

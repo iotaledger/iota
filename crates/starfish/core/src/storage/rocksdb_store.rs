@@ -278,7 +278,7 @@ impl Store for RocksDBStore {
             if let Some(bytes) = serialized {
                 let transactions: Vec<Transaction> =
                     bcs::from_bytes(&bytes).map_err(ConsensusError::MalformedTransactions)?;
-                let commitment = TransactionsCommitment::compute_transactions_commitment(&bytes)
+                let commitment = TransactionsCommitment::compute_transactions_commitment_for_test(&bytes)
                     .expect("computation of the transactions commitment should not fail");
                 let verified = VerifiedTransactions::new(transactions, refs[i], commitment, bytes);
                 result.push(Some(verified));

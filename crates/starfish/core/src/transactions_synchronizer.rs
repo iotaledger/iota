@@ -1001,7 +1001,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 .get(&serialized_transactions.block_ref)
                 .expect("header for fetched transactions must exist");
             if block_header.transactions_commitment()
-                != TransactionsCommitment::compute_transactions_commitment(
+                != TransactionsCommitment::compute_transactions_commitment_for_test(
                     &serialized_transactions.serialized_transactions,
                 )
                 .expect("correct computation of the transactions commitment should be successful")
@@ -1106,7 +1106,7 @@ mod tests {
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                    TransactionsCommitment::compute_transactions_commitment_for_test(&serialized).unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1205,7 +1205,7 @@ mod tests {
             let serialized_vec = bcs::to_bytes(&transactions).unwrap();
             let serialized = Bytes::from(serialized_vec);
             let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                TransactionsCommitment::compute_transactions_commitment_for_test(&serialized).unwrap();
 
             // Create a test block header with the correct commitment
             let header = VerifiedBlockHeader::new_for_test(
@@ -1313,7 +1313,7 @@ mod tests {
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                    TransactionsCommitment::compute_transactions_commitment_for_test(&serialized).unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1429,7 +1429,7 @@ mod tests {
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                    TransactionsCommitment::compute_transactions_commitment_for_test(&serialized).unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1534,7 +1534,7 @@ mod tests {
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                    TransactionsCommitment::compute_transactions_commitment_for_test(&serialized).unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1641,7 +1641,7 @@ mod tests {
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                    TransactionsCommitment::compute_transactions_commitment_for_test(&serialized).unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1746,7 +1746,7 @@ mod tests {
             let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
             let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
             let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                TransactionsCommitment::compute_transactions_commitment_for_test(&serialized).unwrap();
 
             // Create a test block header with the correct commitment
             let header = VerifiedBlockHeader::new_for_test(

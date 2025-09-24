@@ -11,6 +11,7 @@ use std::{
 
 use bytes::Bytes;
 use fastcrypto::hash::{Digest, HashFunction};
+use reed_solomon_simd::ReedSolomonEncoder;
 use rs_merkle::MerkleTree;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
@@ -64,12 +65,7 @@ impl Transaction {
         Ok(bytes.into())
     }
 
-    pub(crate) fn serialize_and_pad_shards(
-        transactions: &[Transaction],
-        info_length: usize,
-    ) -> Result<Bytes, ConsensusError> {
-        let mut serialized =
-            bcs::to_bytes(transactions).map_err(ConsensusError::SerializationFailure)?;
+    pub(crate) fn pad_transactions_for_sharding(mut serialized: Vec<u8>, info_length: usize) -> Result<Bytes, ConsensusError> {
         let bytes_length = serialized.len();
         let mut statements_with_len: Vec<u8> = (bytes_length as u32).to_le_bytes().to_vec();
         statements_with_len.append(&mut serialized);
@@ -80,10 +76,17 @@ impl Transaction {
         if shard_bytes % 2 != 0 {
             shard_bytes += 1;
         }
-
         let length_with_padding = shard_bytes * info_length;
         statements_with_len.resize(length_with_padding, 0);
         Ok(statements_with_len.into())
+    }
+    pub(crate) fn serialize_and_pad_for_sharding(
+        transactions: &[Transaction],
+        info_length: usize,
+    ) -> Result<Bytes, ConsensusError> {
+        let serialized =
+            bcs::to_bytes(transactions).map_err(ConsensusError::SerializationFailure)?;
+        Self::pad_transactions_for_sharding(serialized, info_length)
     }
 }
 
@@ -443,7 +446,9 @@ impl TransactionsCommitment {
     /// Lexicographic min & max digest.
     pub const MIN: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
     pub const MAX: Self = Self([u8::MAX; starfish_config::DIGEST_LENGTH]);
-    pub(crate) fn compute_transactions_commitment(
+
+
+    pub(crate) fn compute_transactions_commitment_for_test(
         serialized_transactions: &Bytes,
     ) -> ConsensusResult<TransactionsCommitment> {
         let mut hasher = DefaultHashFunction::new();
@@ -451,7 +456,7 @@ impl TransactionsCommitment {
         Ok(TransactionsCommitment(hasher.finalize().into()))
     }
 
-    pub fn compute_merkle_root(
+    pub(crate) fn compute_merkle_root(
         encoded_statements: &Vec<Shard>,
     ) -> ConsensusResult<TransactionsCommitment> {
         let mut leaves: Vec<[u8; DefaultHashFunction::OUTPUT_SIZE]> = Vec::new();
@@ -1017,7 +1022,7 @@ impl TestBlockHeader {
             block_header: BlockHeaderV1 {
                 round,
                 author: author.into(),
-                transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
+                transactions_commitment: TransactionsCommitment::compute_transactions_commitment_for_test(
                     &Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
                 )
                 .unwrap(),
@@ -1033,7 +1038,7 @@ impl TestBlockHeader {
             block_header: BlockHeaderV1 {
                 round,
                 author: author.into(),
-                transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
+                transactions_commitment: TransactionsCommitment::compute_transactions_commitment_for_test(
                     &Bytes::from(
                         bcs::to_bytes::<Vec<Transaction>>(
                             &vec![vec![tx; 16]]
