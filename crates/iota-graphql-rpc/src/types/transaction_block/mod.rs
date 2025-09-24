@@ -10,7 +10,7 @@ use cursor::TxLookup;
 use diesel::{ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
 use fastcrypto::encoding::{Base58, Encoding};
 use iota_indexer::{
-    models::transactions::StoredTransaction,
+    models::transactions::{OptimisticTransaction, StoredTransaction},
     schema::{transactions, tx_digests},
 };
 use iota_types::{
@@ -70,13 +70,13 @@ pub(crate) enum TransactionBlockInner {
         stored_tx: StoredTransaction,
         native: NativeSenderSignedData,
     },
-    /// A transaction block that has been executed via executeTransactionBlock
-    /// but not yet indexed.
-    Executed {
-        tx_data: NativeSenderSignedData,
-        effects: NativeTransactionEffects,
-        events: Vec<NativeEvent>,
+    /// A transaction block that has been executed but not yet indexed,
+    /// stored in the optimistic transactions table.
+    ExecutedOptimistically {
+        optimistic_tx: OptimisticTransaction,
+        native: NativeSenderSignedData,
     },
+
     /// A transaction block that has been executed via dryRunTransactionBlock.
     /// This variant also does not return signatures or digest since only
     /// `NativeTransactionData` is present.
@@ -224,9 +224,10 @@ impl TransactionBlock {
             TransactionBlockInner::Stored { stored_tx, .. } => {
                 Some(Base64::from(&stored_tx.raw_transaction))
             }
-            TransactionBlockInner::Executed { tx_data, .. } => {
-                bcs::to_bytes(&tx_data).ok().map(Base64::from)
+            TransactionBlockInner::ExecutedOptimistically { optimistic_tx, .. } => {
+                Some(Base64::from(&optimistic_tx.raw_transaction))
             }
+
             // Dry run transaction does not have signatures so no sender signed data.
             TransactionBlockInner::DryRun { .. } => None,
         }
@@ -237,7 +238,10 @@ impl TransactionBlock {
     fn native(&self) -> &NativeTransactionData {
         match &self.inner {
             TransactionBlockInner::Stored { native, .. } => native.transaction_data(),
-            TransactionBlockInner::Executed { tx_data, .. } => tx_data.transaction_data(),
+            TransactionBlockInner::ExecutedOptimistically { native, .. } => {
+                native.transaction_data()
+            }
+
             TransactionBlockInner::DryRun { tx_data, .. } => tx_data,
         }
     }
@@ -245,7 +249,8 @@ impl TransactionBlock {
     fn native_signed_data(&self) -> Option<&NativeSenderSignedData> {
         match &self.inner {
             TransactionBlockInner::Stored { native, .. } => Some(native),
-            TransactionBlockInner::Executed { tx_data, .. } => Some(tx_data),
+            TransactionBlockInner::ExecutedOptimistically { native, .. } => Some(native),
+
             TransactionBlockInner::DryRun { .. } => None,
         }
     }
@@ -515,6 +520,23 @@ impl TryFrom<StoredTransaction> for TransactionBlockInner {
     }
 }
 
+impl TryFrom<OptimisticTransaction> for TransactionBlockInner {
+    type Error = Error;
+
+    fn try_from(optimistic_tx: OptimisticTransaction) -> Result<Self, Error> {
+        let native = bcs::from_bytes(&optimistic_tx.raw_transaction).map_err(|e| {
+            Error::Internal(format!(
+                "Failed to deserialize NativeSenderSignedData from optimistic transaction: {e}"
+            ))
+        })?;
+
+        Ok(TransactionBlockInner::ExecutedOptimistically {
+            optimistic_tx,
+            native,
+        })
+    }
+}
+
 impl TryFrom<TransactionBlockEffects> for TransactionBlock {
     type Error = Error;
 
@@ -524,15 +546,10 @@ impl TryFrom<TransactionBlockEffects> for TransactionBlock {
             TransactionBlockEffectsKind::Stored { stored_tx, .. } => {
                 TransactionBlockInner::try_from(stored_tx.clone())
             }
-            TransactionBlockEffectsKind::Executed {
-                tx_data,
-                native,
-                events,
-            } => Ok(TransactionBlockInner::Executed {
-                tx_data: tx_data.clone(),
-                effects: native.clone(),
-                events: events.clone(),
-            }),
+            TransactionBlockEffectsKind::ExecutedOptimistically { optimistic_tx, .. } => {
+                TransactionBlockInner::try_from(optimistic_tx.clone())
+            }
+
             TransactionBlockEffectsKind::DryRun {
                 tx_data,
                 native,

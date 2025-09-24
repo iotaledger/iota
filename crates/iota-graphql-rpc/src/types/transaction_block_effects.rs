@@ -7,7 +7,7 @@ use async_graphql::{
     *,
 };
 use fastcrypto::encoding::{Base64 as FBase64, Encoding};
-use iota_indexer::models::transactions::StoredTransaction;
+use iota_indexer::models::transactions::{OptimisticTransaction, StoredTransaction};
 use iota_package_resolver::{CleverError, ErrorConstants};
 use iota_types::{
     effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
@@ -37,7 +37,7 @@ use crate::{
         epoch::Epoch,
         event::Event,
         gas::GasEffects,
-        object_change::ObjectChange,
+        object_change::{ObjectChange, ObjectChangeSource},
         transaction_block::{TransactionBlock, TransactionBlockInner},
         uint53::UInt53,
         unchanged_shared_object::UnchangedSharedObject,
@@ -62,14 +62,13 @@ pub(crate) enum TransactionBlockEffectsKind {
         stored_tx: StoredTransaction,
         native: NativeTransactionEffects,
     },
-    /// A transaction block that has been executed via executeTransactionBlock
-    /// but not yet indexed. So it does not contain checkpoint, timestamp or
-    /// balanceChanges.
-    Executed {
-        tx_data: NativeSenderSignedData,
+    /// A transaction block that has been executed but not yet indexed,
+    /// stored in the optimistic transactions table.
+    ExecutedOptimistically {
+        optimistic_tx: OptimisticTransaction,
         native: NativeTransactionEffects,
-        events: Vec<NativeEvent>,
     },
+
     /// A transaction block that has been executed via dryRunTransactionBlock.
     /// Similar to Executed, it does not contain checkpoint, timestamp or
     /// balanceChanges.
@@ -338,10 +337,20 @@ impl TransactionBlockEffects {
         connection.has_previous_page = prev;
         connection.has_next_page = next;
 
+        // Determine the source based on the transaction block effects kind
+        let source = match &self.kind {
+            TransactionBlockEffectsKind::Stored { .. } => ObjectChangeSource::Stored,
+            TransactionBlockEffectsKind::ExecutedOptimistically { .. } => {
+                ObjectChangeSource::ExecutedOptimistically
+            }
+            TransactionBlockEffectsKind::DryRun { .. } => ObjectChangeSource::DryRun,
+        };
+
         for c in cs {
             let object_change = ObjectChange {
                 native: object_changes[c.ix].clone(),
                 checkpoint_viewed_at: c.c,
+                source: source.clone(),
             };
 
             connection
@@ -365,12 +374,17 @@ impl TransactionBlockEffects {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         let mut connection = Connection::new(false, false);
 
-        let TransactionBlockEffectsKind::Stored { stored_tx, .. } = &self.kind else {
-            return Ok(connection);
+        let balance_len = match &self.kind {
+            TransactionBlockEffectsKind::Stored { stored_tx, .. } => stored_tx.get_balance_len(),
+            TransactionBlockEffectsKind::ExecutedOptimistically { optimistic_tx, .. } => {
+                optimistic_tx.get_balance_len()
+            }
+            // DryRun variant doesn't have balance changes available
+            _ => return Ok(connection),
         };
 
-        let Some((prev, next, _, cs)) = page
-            .paginate_consistent_indices(stored_tx.get_balance_len(), self.checkpoint_viewed_at)?
+        let Some((prev, next, _, cs)) =
+            page.paginate_consistent_indices(balance_len, self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
@@ -379,11 +393,21 @@ impl TransactionBlockEffects {
         connection.has_next_page = next;
 
         for c in cs {
-            let Some(serialized) = &stored_tx.get_balance_at_idx(c.ix) else {
+            let serialized = match &self.kind {
+                TransactionBlockEffectsKind::Stored { stored_tx, .. } => {
+                    stored_tx.get_balance_at_idx(c.ix)
+                }
+                TransactionBlockEffectsKind::ExecutedOptimistically { optimistic_tx, .. } => {
+                    optimistic_tx.get_balance_at_idx(c.ix)
+                }
+                _ => None,
+            };
+
+            let Some(serialized) = serialized else {
                 continue;
             };
 
-            let balance_change = BalanceChange::read(serialized, c.c).extend()?;
+            let balance_change = BalanceChange::read(&serialized, c.c).extend()?;
             connection
                 .edges
                 .push(Edge::new(c.encode_cursor(), balance_change));
@@ -405,8 +429,10 @@ impl TransactionBlockEffects {
         let mut connection = Connection::new(false, false);
         let len = match &self.kind {
             TransactionBlockEffectsKind::Stored { stored_tx, .. } => stored_tx.get_event_len(),
-            TransactionBlockEffectsKind::Executed { events, .. }
-            | TransactionBlockEffectsKind::DryRun { events, .. } => events.len(),
+            TransactionBlockEffectsKind::ExecutedOptimistically { optimistic_tx, .. } => {
+                optimistic_tx.get_event_len()
+            }
+            TransactionBlockEffectsKind::DryRun { events, .. } => events.len(),
         };
         let Some((prev, next, _, cs)) =
             page.paginate_consistent_indices(len, self.checkpoint_viewed_at)?
@@ -422,8 +448,10 @@ impl TransactionBlockEffects {
                 TransactionBlockEffectsKind::Stored { stored_tx, .. } => {
                     Event::try_from_stored_transaction(stored_tx, c.ix, c.c).extend()?
                 }
-                TransactionBlockEffectsKind::Executed { events, .. }
-                | TransactionBlockEffectsKind::DryRun { events, .. } => Event {
+                TransactionBlockEffectsKind::ExecutedOptimistically { optimistic_tx, .. } => {
+                    Event::try_from_optimistic_transaction(optimistic_tx, c.ix, c.c).extend()?
+                }
+                TransactionBlockEffectsKind::DryRun { events, .. } => Event {
                     stored: None,
                     native: events[c.ix].clone(),
                     checkpoint_viewed_at: c.c,
@@ -474,12 +502,14 @@ impl TransactionBlockEffects {
 
     /// Base64 encoded bcs serialization of the on-chain transaction effects.
     async fn bcs(&self) -> Result<Base64> {
-        let bytes = if let TransactionBlockEffectsKind::Stored { stored_tx, .. } = &self.kind {
-            stored_tx.raw_effects.clone()
-        } else {
-            bcs::to_bytes(&self.native())
+        let bytes = match &self.kind {
+            TransactionBlockEffectsKind::Stored { stored_tx, .. } => stored_tx.raw_effects.clone(),
+            TransactionBlockEffectsKind::ExecutedOptimistically { optimistic_tx, .. } => {
+                optimistic_tx.raw_effects.clone()
+            }
+            _ => bcs::to_bytes(&self.native())
                 .map_err(|e| Error::Internal(format!("Error serializing transaction effects: {e}")))
-                .extend()?
+                .extend()?,
         };
 
         Ok(Base64::from(bytes))
@@ -490,8 +520,8 @@ impl TransactionBlockEffects {
     fn native(&self) -> &NativeTransactionEffects {
         match &self.kind {
             TransactionBlockEffectsKind::Stored { native, .. } => native,
-            TransactionBlockEffectsKind::Executed { native, .. } => native,
             TransactionBlockEffectsKind::DryRun { native, .. } => native,
+            TransactionBlockEffectsKind::ExecutedOptimistically { native, .. } => native,
         }
     }
 
@@ -507,10 +537,14 @@ impl TransactionBlockEffects {
                     })?;
                 s.transaction_data().clone()
             }
-            TransactionBlockEffectsKind::Executed { tx_data, .. } => {
-                tx_data.transaction_data().clone()
-            }
             TransactionBlockEffectsKind::DryRun { tx_data, .. } => tx_data.clone(),
+            TransactionBlockEffectsKind::ExecutedOptimistically { optimistic_tx, .. } => {
+                let data: NativeSenderSignedData = bcs::from_bytes(&optimistic_tx.raw_transaction)
+                    .map_err(|e| {
+                        Error::Internal(format!("Error deserializing transaction data: {e}"))
+                    })?;
+                data.transaction_data().clone()
+            }
         })
     }
 
@@ -582,6 +616,23 @@ impl EdgeNameType for DependencyConnectionNames {
     }
 }
 
+impl TryFrom<OptimisticTransaction> for TransactionBlockEffectsKind {
+    type Error = Error;
+
+    fn try_from(optimistic_tx: OptimisticTransaction) -> Result<Self, Error> {
+        let native = bcs::from_bytes(&optimistic_tx.raw_effects).map_err(|e| {
+            Error::Internal(format!(
+                "Failed to deserialize NativeTransactionEffects from optimistic transaction: {e}"
+            ))
+        })?;
+
+        Ok(TransactionBlockEffectsKind::ExecutedOptimistically {
+            optimistic_tx,
+            native,
+        })
+    }
+}
+
 impl TryFrom<TransactionBlock> for TransactionBlockEffects {
     type Error = Error;
 
@@ -598,15 +649,10 @@ impl TryFrom<TransactionBlock> for TransactionBlockEffects {
                         Error::Internal(format!("Error deserializing transaction effects: {e}"))
                     })
             }
-            TransactionBlockInner::Executed {
-                tx_data,
-                effects,
-                events,
-            } => Ok(TransactionBlockEffectsKind::Executed {
-                tx_data,
-                native: effects,
-                events,
-            }),
+            TransactionBlockInner::ExecutedOptimistically { optimistic_tx, .. } => {
+                TransactionBlockEffectsKind::try_from(optimistic_tx.clone())
+            }
+
             TransactionBlockInner::DryRun {
                 tx_data,
                 effects,

@@ -200,6 +200,30 @@ impl OptimisticTransaction {
             success_command_count: stored.success_command_count,
         }
     }
+
+    pub fn get_balance_len(&self) -> usize {
+        self.balance_changes.len()
+    }
+
+    pub fn get_balance_at_idx(&self, idx: usize) -> Option<Vec<u8>> {
+        self.balance_changes.get(idx).cloned().flatten()
+    }
+
+    pub fn get_object_len(&self) -> usize {
+        self.object_changes.len()
+    }
+
+    pub fn get_object_at_idx(&self, idx: usize) -> Option<Vec<u8>> {
+        self.object_changes.get(idx).cloned().flatten()
+    }
+
+    pub fn get_event_len(&self) -> usize {
+        self.events.len()
+    }
+
+    pub fn get_event_at_idx(&self, idx: usize) -> Option<Vec<u8>> {
+        self.events.get(idx).cloned().flatten()
+    }
 }
 
 pub type StoredTransactionEvents = Vec<Option<Vec<u8>>>;
