@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli, type AddedAccountsProperties } from '_src/shared/analytics/ampli';
@@ -151,7 +151,7 @@ export function useCreateAccountsMutation() {
                         },
                         user: {
                             name: accountsFormValues.username,
-                            displayName: accountsFormValues.username,
+                            displayName: accountsFormValues.displayName,
                         },
                     },
                 });
