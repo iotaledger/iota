@@ -28,7 +28,38 @@ use crate::{
 
 /// Buffer size used in the bounded channels.
 const BUFFER_SIZE: usize = 1000;
-/// Transaction batch size to send to subscribers.
+/// The maximum number of checkpoint notifications to batch together for
+/// processing.
+///
+/// This controls how many PostgreSQL NOTIFY messages are collected before
+/// resolving transaction bounds and fetching data from the database. Each
+/// notification represents a committed checkpoint containing one or more
+/// transactions.
+///
+/// **Performance Trade-offs:**
+/// - **Higher values**: Reduce database query frequency but increase latency
+///   and memory usage per batch
+/// - **Lower values**: Increase responsiveness but may cause more frequent
+///   database queries for small checkpoints
+///
+/// The value of 10 provides a good balance between throughput and latency
+/// for typical checkpoint sizes.
+const CHECKPOINT_NOTIFICATION_CHUNK_SIZE: usize = 10;
+/// The maximum number of transactions to send to subscribers in a single batch.
+///
+/// This controls how many transactions are processed and broadcast together
+/// when streaming data to subscribers. Large checkpoints (e.g., genesis with
+/// thousands of transactions) are automatically split into multiple batches
+/// of this size to maintain consistent performance.
+///
+/// **Performance Trade-offs:**
+/// - **Too small**: May fall behind the indexer commit rate, causing the
+///   streaming service to lag behind real-time data ingestion
+/// - **Too large**: May overwhelm subscribers with large batches, causing them
+///   to lag or drop messages due to slow processing
+///
+/// The value of 50 provides good balance between indexer synchronization
+/// and subscriber responsiveness for typical workloads.
 const TRANSACTION_BATCH_SIZE: i64 = 50;
 /// Postgres Notify channel name.
 const CHANNEL_NAME: &str = "checkpoint_committed";
@@ -266,7 +297,8 @@ impl IndexerStreamer {
         transaction_tx: broadcast::Sender<StoredTransaction>,
     ) -> Result<(), IndexerError> {
         // create a stream from the connection that forwards messages to the channel.
-        let mut stream = stream::poll_fn(move |cx| connection.poll_message(cx)).ready_chunks(10);
+        let mut stream = stream::poll_fn(move |cx| connection.poll_message(cx))
+            .ready_chunks(CHECKPOINT_NOTIFICATION_CHUNK_SIZE);
 
         while let Some(messages) = stream.next().await {
             if let Some((min_tx_sequence_number, max_tx_sequence_number)) =
