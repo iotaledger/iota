@@ -8,8 +8,8 @@ import {
 } from '@iota/iota-sdk/keypairs/passkey';
 import { useMutation } from '@tanstack/react-query';
 
-const FIRST_MESSAGE = 'IOTA Passkey Challange';
-const SECOND_MESSAGE = 'IOTA Passkey Challange 2';
+const FIRST_MESSAGE = 'IOTA Passkey Challenge';
+const SECOND_MESSAGE = 'IOTA Passkey Challenge 2';
 
 export function useRestorePasskeyAccount() {
     return useMutation({
