@@ -673,12 +673,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
         // Add any provably faulty blocks to core for processing
-        for provably_faulty_block in provably_faulty_blocks {
-            core_dispatcher
-                .add_provably_faulty_block(provably_faulty_block)
-                .await
-                .map_err(|_| ConsensusError::Shutdown)?;
-        }
+        core_dispatcher
+            .add_provably_faulty_blocks(provably_faulty_blocks)
+            .await
+            .map_err(|_| ConsensusError::Shutdown)?;
 
         // now release all the locked blocks as they have been fetched, verified &
         // processed
@@ -2341,9 +2339,9 @@ mod tests {
             Ok(())
         }
 
-        async fn add_provably_faulty_block(
+        async fn add_provably_faulty_blocks(
             &self,
-            _block: ProvablyFaultyBlock,
+            _block: Vec<ProvablyFaultyBlock>,
         ) -> Result<(), CoreError> {
             Ok(())
         }

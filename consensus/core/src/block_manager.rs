@@ -133,10 +133,13 @@ impl BlockManager {
     }
 
     /// Add a provably faulty block to the block manager.
-    pub(crate) fn add_provably_faulty_block(&mut self, block: ProvablyFaultyBlock) {
-        let _s = monitored_scope("BlockManager::add_provably_faulty_block");
+    pub(crate) fn add_provably_faulty_blocks(&mut self, blocks: Vec<ProvablyFaultyBlock>) {
+        let _s = monitored_scope("BlockManager::add_provably_faulty_blocks");
         // Add the blocks to the dag state and update the metrics.
-        self.dag_state.write().add_provably_faulty_block(block);
+        let mut dag_state = self.dag_state.write();
+        for block in blocks {
+            dag_state.add_provably_faulty_block(block);
+        }
     }
 
     /// Attempts to accept the provided blocks. When `committed = true` then the

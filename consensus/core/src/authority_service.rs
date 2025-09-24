@@ -131,7 +131,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 let provably_faulty_block =
                     ProvablyFaultyBlock::new(signed_block, serialized_block.block);
                 self.core_dispatcher
-                    .add_provably_faulty_block(provably_faulty_block)
+                    .add_provably_faulty_blocks(vec![provably_faulty_block])
                     .await
                     .map_err(|_| ConsensusError::Shutdown)?;
                 info!("Provably faulty block from {}: {}", peer, e);
@@ -962,9 +962,9 @@ pub(crate) mod tests {
             Ok(Default::default())
         }
 
-        async fn add_provably_faulty_block(
+        async fn add_provably_faulty_blocks(
             &self,
-            _block: ProvablyFaultyBlock,
+            _block: Vec<ProvablyFaultyBlock>,
         ) -> Result<(), CoreError> {
             Ok(())
         }

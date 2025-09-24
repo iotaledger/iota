@@ -326,7 +326,7 @@ impl Core {
     }
 
     /// Adds provably faulty blocks.
-    pub(crate) fn add_provably_faulty_block(&mut self, block: ProvablyFaultyBlock) {
+    pub(crate) fn add_provably_faulty_blocks(&mut self, blocks: Vec<ProvablyFaultyBlock>) {
         let _scope = monitored_scope("Core::add_provably_faulty_block");
         let _s = self
             .context
@@ -335,7 +335,7 @@ impl Core {
             .scope_processing_time
             .with_label_values(&["Core::add_provably_faulty_block"])
             .start_timer();
-        self.block_manager.add_provably_faulty_block(block);
+        self.block_manager.add_provably_faulty_blocks(blocks);
     }
 
     /// Checks if provided block refs have been accepted. If not, missing block

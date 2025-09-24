@@ -203,9 +203,9 @@ mod tests {
             todo!()
         }
 
-        async fn add_provably_faulty_block(
+        async fn add_provably_faulty_blocks(
             &self,
-            _block: ProvablyFaultyBlock,
+            _block: Vec<ProvablyFaultyBlock>,
         ) -> Result<(), CoreError> {
             todo!()
         }
