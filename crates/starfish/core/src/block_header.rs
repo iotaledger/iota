@@ -68,7 +68,7 @@ impl Transaction {
 /// to transactions that the authority considers valid.
 /// Well behaved authorities produce at most one block header per round, but
 /// malicious authorities can equivocate.
-#[derive(Clone, Deserialize, Serialize)]
+#[derive(Clone, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
 pub enum BlockHeader {
     V1(BlockHeaderV1),
 }
@@ -85,7 +85,7 @@ pub trait BlockHeaderAPI {
     fn transactions_commitment(&self) -> TransactionsCommitment;
 }
 
-#[derive(Clone, Default, Deserialize, Serialize)]
+#[derive(Clone, Default, Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
 pub struct BlockHeaderV1 {
     epoch: Epoch,
     round: Round,
@@ -509,7 +509,7 @@ impl fmt::Debug for Slot {
 /// Note: `BlockDigest` is computed over this struct, so any added field
 /// (without `#[serde(skip)]`) will affect the values of `BlockDigest` and
 /// `BlockRef`.
-#[derive(Deserialize, Serialize)]
+#[derive(Deserialize, Serialize, PartialOrd, PartialEq, Ord, Eq)]
 pub(crate) struct SignedBlockHeader {
     inner: BlockHeader,
     signature: Bytes,
@@ -631,7 +631,7 @@ impl Deref for SignedBlockHeader {
 
 /// VerifiedBlock allows full access to its content.
 /// Note: clone() is relatively cheap with most underlying data refcounted.
-#[derive(Clone)]
+#[derive(Clone, PartialOrd, Ord, Eq)]
 pub struct VerifiedBlockHeader {
     signed_block_header: Arc<SignedBlockHeader>,
 
