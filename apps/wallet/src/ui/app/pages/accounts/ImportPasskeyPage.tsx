@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNavigate } from 'react-router-dom';
@@ -10,7 +10,8 @@ import { z } from 'zod';
 import { Form } from '../../shared/forms/Form';
 
 const formSchema = z.object({
-    username: z.string().min(1, 'Username is required'),
+    username: z.string().min(1, 'Username is required').max(50, 'Username is too long'),
+    displayName: z.string().optional(),
     isPlatformAuthenticator: z.boolean(),
 });
 type ImportPasskeyFormValues = z.infer<typeof formSchema>;
@@ -20,10 +21,11 @@ export function ImportPasskeyPage() {
     const [, setAccountsFormValues] = useAccountsFormContext();
 
     const form = useZodForm({
-        mode: 'all',
+        mode: 'onChange',
         schema: formSchema,
         defaultValues: {
             username: '',
+            displayName: '',
             isPlatformAuthenticator: true,
         },
     });
@@ -38,6 +40,7 @@ export function ImportPasskeyPage() {
             type: AccountsFormType.Passkey,
             authenticatorAttachment: values.isPlatformAuthenticator ? 'platform' : 'cross-platform',
             username: values.username,
+            displayName: values.displayName || values.username,
         });
         navigate(
             `/accounts/protect-account?${new URLSearchParams({
@@ -63,6 +66,17 @@ export function ImportPasskeyPage() {
                         {...register('username', { shouldUnregister: true })}
                         name="username"
                         data-testid="username-input"
+                    />
+
+                    <Input
+                        autoFocus
+                        type={InputType.Text}
+                        label="Display Name (Optional)"
+                        placeholder="Enter nickname"
+                        errorMessage={errors.displayName?.message}
+                        {...register('displayName', { shouldUnregister: true })}
+                        name="displayName"
+                        data-testid="display-name-input"
                     />
 
                     <div className="flex flex-col gap-2">

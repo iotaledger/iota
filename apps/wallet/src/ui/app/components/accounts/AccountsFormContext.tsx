@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import {
@@ -35,6 +35,7 @@ export type AccountsFormValues =
           type: AccountsFormType.Passkey;
           authenticatorAttachment: 'platform' | 'cross-platform';
           username: string;
+          displayName: string;
       }
     | {
           type: AccountsFormType.ImportLedger;

@@ -151,7 +151,7 @@ export function useCreateAccountsMutation() {
                         },
                         user: {
                             name: accountsFormValues.username,
-                            displayName: accountsFormValues.username,
+                            displayName: accountsFormValues.displayName,
                         },
                     },
                 });
