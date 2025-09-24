@@ -10,7 +10,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     block_header::{BlockHeaderAPI, Slot},
-    block_manager::BlockManager,
+    block_manager::{BlockManager, block_suspender::tests::evaluate_block_headers},
     commit::DecidedLeader,
     context::Context,
     dag_state::DagState,
@@ -73,7 +73,6 @@ async fn test_randomized_dag_all_direct_commit() {
         }
     }
 }
-
 /// Test builds a randomized dag with the following conditions:
 /// - Links to 2f+1 minimum ancestors
 /// - Links to leader of previous round 50% of the time.
@@ -119,12 +118,13 @@ async fn test_randomized_dag_and_decision_sequence() {
         let mut sequenced_leaders_1 = vec![];
         let mut last_decided = Slot::new(0, 0);
         let mut i = 0;
+        let mut seen_so_far = vec![];
         while i < all_blocks.len() {
             let chunk_size = random_test_setup
                 .seeded_rng
                 .gen_range(1..=(all_blocks.len() - i));
             let chunk = &all_blocks[i..i + chunk_size];
-
+            seen_so_far.extend(chunk.iter().cloned());
             let _ = authority_1
                 .block_manager
                 .try_accept_block_headers(chunk.to_vec());
@@ -137,6 +137,12 @@ async fn test_randomized_dag_and_decision_sequence() {
             }
 
             i += chunk_size;
+            // Evaluate the seen blocks so far
+            let (suspended, missing) = evaluate_block_headers(&seen_so_far);
+            let authority1_suspended = authority_1.block_manager.suspended_blocks_refs();
+            let authority1_missing = authority_1.block_manager.blocks_to_fetch_refs();
+            assert_eq!(suspended, authority1_suspended);
+            assert_eq!(missing, authority1_missing);
         }
 
         assert!(authority_1.block_manager.is_empty());
@@ -154,11 +160,13 @@ async fn test_randomized_dag_and_decision_sequence() {
         let mut sequenced_leaders_2 = vec![];
         let mut last_decided = Slot::new(0, 0);
         let mut i = 0;
+        let mut seen_so_far = vec![];
         while i < all_blocks.len() {
             let chunk_size = random_test_setup
                 .seeded_rng
                 .gen_range(1..=(all_blocks.len() - i));
             let chunk = &all_blocks[i..i + chunk_size];
+            seen_so_far.extend(chunk.iter().cloned());
 
             let _ = authority_2
                 .block_manager
@@ -170,7 +178,12 @@ async fn test_randomized_dag_and_decision_sequence() {
                 let leader_status = sequence.last().unwrap();
                 last_decided = Slot::new(leader_status.round(), leader_status.authority());
             }
-
+            // Evaluate the seen blocks so far
+            let (suspended, missing) = evaluate_block_headers(&seen_so_far);
+            let authority2_suspended = authority_2.block_manager.suspended_blocks_refs();
+            let authority2_missing = authority_2.block_manager.blocks_to_fetch_refs();
+            assert_eq!(suspended, authority2_suspended);
+            assert_eq!(missing, authority2_missing);
             i += chunk_size;
         }
 
