@@ -1126,9 +1126,8 @@ impl DagState {
                 commits,
                 commit_info_to_write,
                 self.recent_provably_faulty_blocks
-                    .iter()
-                    .filter(|(b, _)| b.round <= self.gc_round())
-                    .map(|(_, b)| b.clone())
+                    .values()
+                    .cloned()
                     .collect(),
                 metrics_to_write,
             ))
@@ -1156,9 +1155,9 @@ impl DagState {
             self.evicted_rounds[authority_index] = eviction_round;
         }
 
-        let gc_round = self.gc_round();
+        let pf_block_eviction_round = self.calculate_provably_faulty_block_eviction_round();
         while let Some(entry) = self.recent_provably_faulty_blocks.first_entry() {
-            if entry.key().round <= gc_round {
+            if entry.key().round <= pf_block_eviction_round {
                 entry.remove();
             } else {
                 break;
@@ -1248,6 +1247,19 @@ impl DagState {
             Self::gc_eviction_round(last_round, self.gc_round(), self.cached_rounds)
         } else {
             let commit_round = self.last_committed_rounds[authority_index];
+            Self::eviction_round(commit_round, self.cached_rounds)
+        }
+    }
+
+    fn calculate_provably_faulty_block_eviction_round(&self) -> Round {
+        if self.gc_enabled() {
+            Self::gc_eviction_round(
+                self.highest_accepted_round,
+                self.gc_round(),
+                self.cached_rounds,
+            )
+        } else {
+            let commit_round = self.last_commit_round();
             Self::eviction_round(commit_round, self.cached_rounds)
         }
     }
