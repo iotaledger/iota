@@ -36,6 +36,7 @@ export type AccountsFormValues =
           authenticatorAttachment: 'platform' | 'cross-platform';
           username: string;
           displayName: string;
+          isRestoreAccount: boolean;
       }
     | {
           type: AccountsFormType.ImportLedger;

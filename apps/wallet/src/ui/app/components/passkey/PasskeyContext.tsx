@@ -6,7 +6,7 @@ import {
     type BrowserPasswordProviderOptions,
     PasskeyKeypair,
 } from '@iota/iota-sdk/keypairs/passkey';
-import { useRestoreWallet } from '../../hooks/useRestorePasskey';
+import { useRestorePasskeyAccount } from '../../hooks/useRestorePasskeyAccount';
 import { fromBase64 } from '@iota/iota-sdk/utils';
 import { createBrowserPasskeyProvider } from './passkey-provider';
 
@@ -21,7 +21,7 @@ export interface PasskeyContextType {
 export const PasskeyContext = createContext<PasskeyContextType | undefined>(undefined);
 
 export function PasskeyProvider({ children }: { children: React.ReactNode }) {
-    const { mutateAsync: restoreWallet } = useRestoreWallet();
+    const { mutateAsync: restorePasskeyAccount } = useRestorePasskeyAccount();
 
     const context = useMemo(() => {
         return {
@@ -42,7 +42,7 @@ export function PasskeyProvider({ children }: { children: React.ReactNode }) {
                                 const publicKeyBytes = fromBase64(publicKey);
                                 keypair = new PasskeyKeypair(publicKeyBytes, provider);
                             } else {
-                                keypair = await restoreWallet(provider);
+                                keypair = await restorePasskeyAccount(provider);
                             }
 
                             const { signature } = await keypair.signTransaction(data);

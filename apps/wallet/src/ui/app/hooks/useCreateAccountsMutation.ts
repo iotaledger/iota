@@ -14,6 +14,7 @@ import {
     createBrowserPasskeyProviderOptions,
 } from '../components/passkey/passkey-provider';
 import { PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
+import { useRestorePasskeyAccount } from './useRestorePasskeyAccount';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
@@ -47,6 +48,7 @@ enum AmpliAccountType {
 export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
+    const { mutateAsync: restorePasskeyAccount } = useRestorePasskeyAccount();
 
     const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
         AccountsFormType,
@@ -156,8 +158,13 @@ export function useCreateAccountsMutation() {
                     },
                 });
                 const provider = createBrowserPasskeyProvider({ options });
-                const passkey = await PasskeyKeypair.getPasskeyInstance(provider);
 
+                let passkey: PasskeyKeypair;
+                if (accountsFormValues.isRestoreAccount) {
+                    passkey = await restorePasskeyAccount(provider);
+                } else {
+                    passkey = await PasskeyKeypair.getPasskeyInstance(provider);
+                }
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PasskeyDerived,
                     address: passkey.getPublicKey().toIotaAddress(),

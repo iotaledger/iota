@@ -8,10 +8,10 @@ import {
 } from '@iota/iota-sdk/keypairs/passkey';
 import { useMutation } from '@tanstack/react-query';
 
-const FIRST_MESSAGE = 'IOTA Passkey Example';
-const SECOND_MESSAGE = 'IOTA Passkey Example 2';
+const FIRST_MESSAGE = 'IOTA Passkey Challange';
+const SECOND_MESSAGE = 'IOTA Passkey Challange 2';
 
-export function useRestoreWallet() {
+export function useRestorePasskeyAccount() {
     return useMutation({
         mutationFn: async (provider: BrowserPasskeyProvider) => {
             const testMessage = new TextEncoder().encode(FIRST_MESSAGE);
