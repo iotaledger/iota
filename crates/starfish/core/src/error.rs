@@ -242,6 +242,14 @@ pub(crate) enum ConsensusError {
 
     #[error("Block bundle from {peer} contains shard from round {round} with incorrect proof")]
     IncorrectShardProof { peer: AuthorityIndex, round: Round },
+
+    #[error(
+        "Round of the shard in a bundle is greater or equal to the block round: {shard_round} >= {block_round}"
+    )]
+    TooBigShardRoundInABundle {
+        shard_round: Round,
+        block_round: Round,
+    },
 }
 
 impl ConsensusError {
