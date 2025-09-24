@@ -203,8 +203,8 @@ impl BlockManager {
             to_verify_timestamps_and_accept.extend(unsuspended_blocks);
 
             // Verify block timestamps and misbehavior reports.
-            let blocks_to_accept =
-                self.verify_referenced_blocks_and_accept(to_verify_timestamps_and_accept);
+            let blocks_to_accept = self
+                .verify_referenced_blocks_and_accept(to_verify_timestamps_and_accept, committed);
             accepted_blocks.extend(blocks_to_accept);
         }
 
@@ -322,7 +322,8 @@ impl BlockManager {
     // and persisted blocks.
     fn verify_referenced_blocks_and_accept(
         &mut self,
-        unsuspended_blocks: impl IntoIterator<Item = VerifiedBlock>,
+        referenced_blocks: impl IntoIterator<Item = VerifiedBlock>,
+        committed: bool,
     ) -> Vec<VerifiedBlock> {
         let (gc_enabled, gc_round) = {
             let dag_state = self.dag_state.read();
@@ -332,7 +333,7 @@ impl BlockManager {
         let mut blocks_to_accept: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
         let mut blocks_to_reject: BTreeMap<BlockRef, VerifiedBlock> = BTreeMap::new();
         {
-            'block: for b in unsuspended_blocks {
+            'block: for b in referenced_blocks {
                 let ancestors = self.dag_state.read().get_blocks(b.ancestors());
                 assert_eq!(b.ancestors().len(), ancestors.len());
                 let mut ancestor_blocks = vec![];
@@ -387,32 +388,35 @@ impl BlockManager {
                     continue;
                 }
 
-                // Collect proof blocks required to verify misbehavior reports.
-                let mut proof_blocks: Vec<Vec<GetBlockResult>> = vec![];
-                for report in b.misbehavior_reports() {
-                    // get references and remove none values.
-                    match report.proof() {
-                        MisbehaviorProof::InvalidBlock(block_ref) => {
-                            proof_blocks.push(vec![self.dag_state.read().get_block(block_ref)]);
-                        }
-                        MisbehaviorProof::Equivocation { .. } => {
-                            let report_proof_blocks =
-                                (self.dag_state.read().get_blocks(&report.references()))
-                                    .into_iter()
-                                    .collect::<Vec<_>>();
-                            proof_blocks.push(report_proof_blocks);
+                // Only verify misbehavior reports if the block is not committed.
+                if !committed {
+                    // Collect proof blocks required to verify misbehavior reports.
+                    let mut proof_blocks: Vec<Vec<GetBlockResult>> = vec![];
+                    for report in b.misbehavior_reports() {
+                        // get references and remove none values.
+                        match report.proof() {
+                            MisbehaviorProof::InvalidBlock(block_ref) => {
+                                proof_blocks.push(vec![self.dag_state.read().get_block(block_ref)]);
+                            }
+                            MisbehaviorProof::Equivocation { .. } => {
+                                let report_proof_blocks =
+                                    (self.dag_state.read().get_blocks(&report.references()))
+                                        .into_iter()
+                                        .collect::<Vec<_>>();
+                                proof_blocks.push(report_proof_blocks);
+                            }
                         }
                     }
+                    if let Err(e) = self
+                        .block_verifier
+                        .verify_misbehavior_reports(&b, &proof_blocks)
+                    {
+                        warn!("Block {:?} failed to verify misbehavior reports: {}", b, e);
+                        blocks_to_reject.insert(b.reference(), b);
+                        continue;
+                    }
                 }
-                if let Err(e) = self
-                    .block_verifier
-                    .verify_misbehavior_reports(&b, &proof_blocks)
-                {
-                    warn!("Block {:?} failed to verify misbehavior reports: {}", b, e);
-                    blocks_to_reject.insert(b.reference(), b);
-                } else {
-                    blocks_to_accept.insert(b.reference(), b);
-                }
+                blocks_to_accept.insert(b.reference(), b);
             }
         }
 
@@ -767,7 +771,8 @@ impl BlockManager {
             });
 
             // Now validate their timestamps and accept them
-            let accepted_blocks = self.verify_referenced_blocks_and_accept(unsuspended_blocks);
+            let accepted_blocks =
+                self.verify_referenced_blocks_and_accept(unsuspended_blocks, false);
             for block in accepted_blocks {
                 let hostname = self
                     .context
