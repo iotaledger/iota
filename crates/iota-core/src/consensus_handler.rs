@@ -732,10 +732,7 @@ impl SequencedConsensusTransaction {
 
     pub fn is_end_of_publish_v1(&self) -> bool {
         if let SequencedConsensusTransactionKind::External(ref transaction) = self.transaction {
-            matches!(
-                transaction.kind,
-                ConsensusTransactionKind::EndOfPublish(..)
-            )
+            matches!(transaction.kind, ConsensusTransactionKind::EndOfPublish(..))
         } else {
             false
         }

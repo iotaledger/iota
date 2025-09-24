@@ -954,7 +954,7 @@ impl AuthorityPerEpochStore {
         let s = Arc::new(Self {
             name,
             committee,
-            protocol_config,
+            protocol_config: protocol_config.clone(),
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
@@ -986,7 +986,7 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
-            scorer: Arc::new(Scorer::new(committee_size)),
+            scorer: Arc::new(Scorer::new(committee_size, &protocol_config)),
         });
 
         s.update_buffer_stake_metric();

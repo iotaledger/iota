@@ -1102,6 +1102,13 @@ pub struct ProtocolConfig {
     /// Configures the garbage collection depth for consensus. When is unset or
     /// `0` then the garbage collection is disabled.
     consensus_gc_depth: Option<u32>,
+
+    /// Scorer version. When set to `None`, scores are not included in
+    /// EndOfEpoch messages. When set to `Some(version)`, scores are included in
+    /// the EndOfEpochV2 messages, where `version` determines the scoring
+    /// formulas to be used and whether rewards are adjusted based on the scores
+    /// or not.
+    scorer_version: Option<u16>,
 }
 
 // feature flags
@@ -1878,6 +1885,8 @@ impl ProtocolConfig {
             max_committee_members_count: None,
 
             consensus_gc_depth: None,
+
+            scorer_version: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };

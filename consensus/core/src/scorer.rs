@@ -10,12 +10,19 @@ use std::{
 };
 
 use consensus_config::AuthorityIndex;
+use iota_protocol_config::ProtocolConfig;
 use itertools::izip;
 
 use crate::{
     BlockRef, context::Context, error::ConsensusError, metrics::NodeMetrics,
     storage::StorageScoringMetrics,
 };
+
+enum ScorerVersion {
+    // Initial version of the scorer.
+    V1,
+    // Future versions can be added here.
+}
 
 /// The Scorer holds the scoring metrics for all authorities in the committee,
 /// which is updated according to the blocks received
@@ -25,13 +32,22 @@ use crate::{
 pub struct Scorer {
     scoring_metrics: ValidatorScoringMetrics,
     partial_scores: PartialScores,
+    #[allow(dead_code)]
+    version: ScorerVersion,
 }
 
 impl Scorer {
-    pub fn new(committee_size: usize) -> Self {
+    pub fn new(committee_size: usize, protocol_config: &ProtocolConfig) -> Self {
+        // If protocol_config.scorer_version is None, we use ScorerVersion::V1 but still
+        // send EndOfPublish messages (as opposed to EndOfPublishV2).
+        let version = match protocol_config.scorer_version_as_option() {
+            None | Some(1) => ScorerVersion::V1,
+            _ => panic!("Unsupported scorer version"),
+        };
         Self {
             scoring_metrics: ValidatorScoringMetrics::new(committee_size),
             partial_scores: PartialScores::new(committee_size),
+            version,
         }
     }
 
@@ -595,7 +611,7 @@ fn is_from_commit_syncer(err: &ConsensusError) -> bool {
 #[cfg(test)]
 impl Scorer {
     pub(crate) fn new_dummy_for_tests(committee_size: usize) -> Self {
-        Self::new(committee_size)
+        Self::new(committee_size, &ProtocolConfig::get_for_min_version())
     }
 }
 
