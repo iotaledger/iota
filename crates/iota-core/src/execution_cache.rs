@@ -12,6 +12,7 @@ use iota_types::{
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult, UserInputError},
+    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointSequenceNumber,
     object::{Object, Owner},
@@ -157,59 +158,28 @@ pub trait ExecutionCacheCommit: Send + Sync {
     /// Durably commit the outputs of the given transactions to the database.
     /// Will be called by CheckpointExecutor to ensure that transaction outputs
     /// are written durably before marking a checkpoint as finalized.
-    fn try_commit_transaction_outputs<'a>(
-        &'a self,
+    fn try_commit_transaction_outputs(
+        &self,
         epoch: EpochId,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult>;
+        digests: &[TransactionDigest],
+    ) -> IotaResult;
 
     /// Non-fallible version of `try_commit_transaction_outputs`.
-    fn commit_transaction_outputs<'a>(
-        &'a self,
-        epoch: EpochId,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, ()> {
-        Box::pin(async move {
-            self.try_commit_transaction_outputs(epoch, digests)
-                .await
-                .expect("storage access failed")
-        })
+    fn commit_transaction_outputs(&self, epoch: EpochId, digests: &[TransactionDigest]) {
+        self.try_commit_transaction_outputs(epoch, digests)
+            .expect("storage access failed");
     }
 
-    /// Durably commit transactions (but not their outputs) to the database.
-    /// Called before writing a locally built checkpoint to the CheckpointStore,
-    /// so that the inputs of the checkpoint cannot be lost.
-    /// These transactions are guaranteed to be final unless this validator
-    /// forks (i.e. constructs a checkpoint which will never be certified). In
-    /// this case some non-final transactions could be left in the database.
-    ///
-    /// This is an intermediate solution until we delay commits to the epoch db.
-    /// After we have done that, crash recovery will be done by
-    /// re-processing consensus commits and pending_consensus_transactions,
-    /// and this method can be removed.
-    fn try_persist_transactions<'a>(
-        &'a self,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult>;
+    /// Durably commit a transaction to the database. Used to store any
+    /// transactions that cannot be reconstructed at start-up by consensus
+    /// replay. Currently the only case of this is RandomnessStateUpdate.
+    fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult;
 
     /// Non-fallible version of `try_persist_transactions`.
-    fn persist_transactions<'a>(&'a self, digests: &'a [TransactionDigest]) -> BoxFuture<'a, ()> {
-        Box::pin(async move {
-            self.try_persist_transactions(digests)
-                .await
-                .expect("storage access failed")
-        })
+    fn persist_transaction(&self, tx: &VerifiedExecutableTransaction) {
+        self.try_persist_transaction(tx)
+            .expect("storage access failed")
     }
-
-    /// Persist transactions and their effects to the database, but no other
-    /// outputs. Additionally this stores the content-addressed effects in
-    /// the database but does not add an executed_effects. This is required
-    /// for recovery from a crash when upgrading to data-quarantining.
-    /// TODO: remove this once all nodes have upgraded to data-quarantining.
-    fn persist_transactions_and_effects(
-        &self,
-        digests: &[(TransactionDigest, TransactionEffectsDigest)],
-    );
 
     // Number of pending uncommitted transactions
     fn approximate_pending_transaction_count(&self) -> u64;

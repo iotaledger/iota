@@ -7,8 +7,11 @@ use std::{collections::BTreeMap, path::Path, sync::Arc};
 use anyhow::Result;
 use iota_data_ingestion_core::Worker;
 use iota_package_resolver::Resolver;
-use iota_rest_api::{CheckpointData, CheckpointTransaction};
-use iota_types::{SYSTEM_PACKAGE_ADDRESSES, object::Object};
+use iota_types::{
+    SYSTEM_PACKAGE_ADDRESSES,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    object::Object,
+};
 use tokio::sync::Mutex;
 
 use crate::{

@@ -15,10 +15,11 @@ use iota_indexer::{
     db::{ConnectionPoolConfig, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
+    metrics::IndexerMetrics,
     store::{PgIndexerStore, indexer_store::IndexerStore},
-    test_utils::{DBInitHook, IndexerTypeConfig, db_url, start_test_indexer},
+    test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
-use iota_json_rpc_api::ReadApiClient;
+use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
 use iota_metrics::init_metrics;
 use iota_types::{
@@ -261,14 +262,37 @@ pub async fn indexer_wait_for_transaction(
 
 pub async fn execute_tx_and_wait_for_indexer(
     indexer_client: &HttpClient,
-    cluster: &TestCluster,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,
     keypair: &dyn Signer<Signature>,
-) {
+) -> TransactionDigest {
+    let digest = execute_tx_must_succeed(indexer_client, tx_bytes, keypair).await;
+    indexer_wait_for_transaction(digest, store, indexer_client).await;
+    digest
+}
+
+pub async fn execute_tx_must_succeed(
+    indexer_client: &HttpClient,
+    tx_bytes: TransactionBlockBytes,
+    keypair: &dyn Signer<Signature>,
+) -> TransactionDigest {
     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
-    let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
-    indexer_wait_for_transaction(res.digest, store, indexer_client).await;
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+    let indexer_tx_response = indexer_client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        indexer_tx_response.status_ok(),
+        Some(true),
+        "Transaction failed: {indexer_tx_response:?}"
+    );
+    *txn.digest()
 }
 
 /// Start an Indexer instance in `Read` mode
@@ -293,8 +317,13 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
 
     let registry = prometheus::Registry::default();
     init_metrics(&registry);
+    let metrics = IndexerMetrics::new(&registry);
 
-    tokio::spawn(async move { Indexer::start_reader(&config, &registry, pool).await });
+    let store = create_pg_store(&db_url, false);
+
+    tokio::spawn(
+        async move { Indexer::start_reader(&config, store, &registry, pool, metrics).await },
+    );
     port
 }
 

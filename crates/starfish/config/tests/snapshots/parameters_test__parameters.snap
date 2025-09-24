@@ -13,7 +13,7 @@ max_forward_time_drift:
   nanos: 500000000
 max_headers_per_commit_sync_fetch: 1000
 max_headers_per_regular_sync_fetch: 100
-max_transactions_per_fetch: 1000
+max_transactions_per_fetch: 100
 sync_last_known_own_block_timeout:
   secs: 5
   nanos: 0

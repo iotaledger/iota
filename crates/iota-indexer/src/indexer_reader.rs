@@ -1,17 +1,17 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use std::{
-    collections::HashSet,
+    collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
 };
 
 use anyhow::{Result, anyhow};
 use cached::{Cached, SizedCache};
 use diesel::{
-    ExpressionMethods, JoinOnDsl, NullableExpressionMethods, OptionalExtension, PgConnection,
-    QueryDsl, RunQueryDsl, SelectableHelper, TextExpressionMethods,
+    BoolExpressionMethods, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
+    OptionalExtension, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper,
+    TextExpressionMethods,
     dsl::sql,
     r2d2::ConnectionManager,
     sql_query,
@@ -63,7 +63,7 @@ use crate::{
         objects::{CoinBalance, StoredHistoryObject, StoredObject},
         participation_metrics::StoredParticipationMetrics,
         transactions::{
-            OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
+            IndexStatus, OptimisticTransaction, StoredTransaction, StoredTransactionEvents,
             stored_events_to_events, tx_events_to_iota_tx_events,
         },
         tx_indices::TxSequenceNumber,
@@ -71,14 +71,16 @@ use crate::{
     schema::{
         address_metrics, addresses, chain_identifier, checkpoints, display, epochs, events,
         objects, objects_history, objects_snapshot, objects_version, optimistic_transactions,
-        packages, pruner_cp_watermark, transactions, tx_digests, tx_insertion_order,
+        packages, pruner_cp_watermark, transactions, tx_digests, tx_global_order,
     },
     store::{diesel_macro::*, package_resolver::IndexerStorePackageResolver},
     types::{IndexerResult, OwnerType},
 };
 
 pub const TX_SEQUENCE_NUMBER_STR: &str = "tx_sequence_number";
-pub const TRANSACTION_DIGEST_STR: &str = "transaction_digest";
+pub const GLOBAL_SEQUENCE_NUMBER_STR: &str = "global_sequence_number";
+pub const OPTIMISTIC_SEQUENCE_NUMBER_STR: &str = "optimistic_sequence_number";
+pub const TX_DIGEST_STR: &str = "tx_digest";
 pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 
 pub struct IndexerReader {
@@ -593,15 +595,89 @@ impl IndexerReader {
             .collect()
     }
 
-    fn multi_get_transactions(
+    /// Expensive check to assert whether all transactions
+    /// are indexed.
+    ///
+    /// It uses both the `tx_global_order` table
+    /// and the `checkpoints` table to cover old transactions.
+    fn deep_check_all_transactions_are_indexed(
         &self,
         digests: &[TransactionDigest],
-    ) -> Result<Vec<StoredTransaction>, IndexerError> {
-        let digests = digests
+    ) -> Result<bool, IndexerError> {
+        let stored_transactions = self.multi_get_transactions(digests)?;
+        if stored_transactions.len() != digests.len() {
+            return Ok(false);
+        }
+        let (checkpointed, optimistic) = stored_transactions
+            .into_iter()
+            .partition::<Vec<_>, _>(|tx| tx.checkpoint_sequence_number >= 0);
+        if !optimistic.is_empty() {
+            let num_optimistic = optimistic.len();
+            let optimistic_digests = optimistic
+                .into_iter()
+                .map(|tx| tx.transaction_digest)
+                .collect::<HashSet<_>>();
+            let num_indexed =
+                self.count_indexed_tx_global_orders(optimistic_digests.into_iter())?;
+            if num_indexed as usize != num_optimistic {
+                return Ok(false);
+            }
+        }
+        let Some(max_transaction_checkpoint) = checkpointed
             .iter()
-            .map(|digest| digest.inner().to_vec())
-            .collect::<HashSet<_>>();
-        let checkpointed_txs = run_query!(&self.pool, |conn| {
+            .map(|tx| tx.checkpoint_sequence_number)
+            .max()
+        else {
+            return Ok(true);
+        };
+        Ok(self
+            .get_checkpoint(CheckpointId::SequenceNumber(
+                max_transaction_checkpoint as u64,
+            ))?
+            .is_some())
+    }
+
+    pub(crate) async fn deep_check_all_transactions_are_indexed_in_blocking_task(
+        &self,
+        digests: Vec<TransactionDigest>,
+    ) -> Result<bool, IndexerError> {
+        self.spawn_blocking(move |this| this.deep_check_all_transactions_are_indexed(&digests))
+            .await
+    }
+
+    /// Count how many entries in `tx_global_order` correspond
+    /// to indexed transactions.
+    ///
+    /// Any transaction with a non-zero optimistic sequence number
+    /// is considered as indexed.
+    fn count_indexed_tx_global_orders(
+        &self,
+        digests: impl Iterator<Item = Vec<u8>>,
+    ) -> Result<i64, IndexerError> {
+        run_query!(&self.pool, |conn| {
+            tx_global_order::table
+                .filter(tx_global_order::tx_digest.eq_any(digests))
+                .filter(tx_global_order::optimistic_sequence_number.ne(IndexStatus::Started))
+                .count()
+                .get_result(conn)
+        })
+    }
+
+    pub(crate) async fn count_indexed_tx_global_orders_in_blocking_task(
+        &self,
+        digests: HashSet<TransactionDigest>,
+    ) -> Result<i64, IndexerError> {
+        self.spawn_blocking(move |this| {
+            this.count_indexed_tx_global_orders(digests.into_iter().map(|d| d.inner().to_vec()))
+        })
+        .await
+    }
+
+    fn get_checkpointed_transactions(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> Result<Vec<StoredTransaction>, IndexerError> {
+        run_query!(&self.pool, |conn| {
             transactions::table
                 .inner_join(
                     tx_digests::table
@@ -609,29 +685,125 @@ impl IndexerReader {
                 )
                 // we filter the tx_digests table because it is indexed by digest,
                 // transactions table is not
-                .filter(tx_digests::tx_digest.eq_any(&digests))
+                .filter(tx_digests::tx_digest.eq_any(digests))
                 .select(StoredTransaction::as_select())
                 .load::<StoredTransaction>(conn)
-        })?;
+        })
+    }
+
+    fn get_optimistic_transactions(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> Result<Vec<OptimisticTransaction>, IndexerError> {
+        run_query!(&self.pool, |conn| {
+            optimistic_transactions::table
+                .inner_join(
+                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
+                        .eq(tx_global_order::global_sequence_number)
+                        .and(
+                            optimistic_transactions::optimistic_sequence_number
+                                .eq(tx_global_order::optimistic_sequence_number),
+                        )),
+                )
+                // we filter the `tx_global_order` table because it is indexed by digest,
+                // optimistic_transactions table is not
+                .filter(tx_global_order::tx_digest.eq_any(digests))
+                .select(OptimisticTransaction::as_select())
+                .load::<OptimisticTransaction>(conn)
+        })
+    }
+
+    fn get_optimistic_transactions_with_cp_info(
+        &self,
+        digests: &[Vec<u8>],
+    ) -> Result<Vec<(OptimisticTransaction, Option<i64>)>, IndexerError> {
+        run_query!(&self.pool, |conn| {
+            optimistic_transactions::table
+                .inner_join(
+                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
+                        .eq(tx_global_order::global_sequence_number)
+                        .and(
+                            optimistic_transactions::optimistic_sequence_number
+                                .eq(tx_global_order::optimistic_sequence_number),
+                        )),
+                )
+                // we filter the `tx_global_order` table because it is indexed by digest,
+                // optimistic_transactions table is not
+                .filter(tx_global_order::tx_digest.eq_any(digests))
+                .select((
+                    OptimisticTransaction::as_select(),
+                    tx_global_order::chk_tx_sequence_number,
+                ))
+                .load::<(OptimisticTransaction, Option<i64>)>(conn)
+        })
+    }
+
+    async fn get_single_transaction(
+        &self,
+        digest: TransactionDigest,
+    ) -> IndexerResult<Option<StoredTransaction>> {
+        let digest_bytes = digest.inner().to_vec();
+        let optimistic_tx_future = {
+            let digest_bytes = digest_bytes.clone();
+            self.spawn_blocking(move |this| {
+                this.get_optimistic_transactions_with_cp_info(&[digest_bytes])
+                    .map(|mut txs| txs.pop())
+            })
+        };
+        let checkpointed_tx_future = {
+            let digest_bytes = digest_bytes.clone();
+            self.spawn_blocking(move |this| {
+                this.get_checkpointed_transactions(&[digest_bytes])
+                    .map(|mut txs| txs.pop())
+            })
+        };
+        tokio::pin!(optimistic_tx_future, checkpointed_tx_future);
+
+        let result = tokio::select! {
+                checkpointed_tx = &mut checkpointed_tx_future => match checkpointed_tx? {
+                    Some(checkpointed_tx) => Some(checkpointed_tx),
+                    None => optimistic_tx_future
+                        .await?
+                        .map(|(optimistic_tx, _)| optimistic_tx.into()),
+                },
+                optimistic_tx_with_cp_info = &mut optimistic_tx_future => {
+                    match optimistic_tx_with_cp_info? {
+                        Some((optimistic_tx, Some(_cp_info))) => Some(
+                            checkpointed_tx_future
+                                .await?
+                                .unwrap_or_else(|| optimistic_tx.into()),
+                        ),
+                        Some((optimistic_tx, None)) => Some(optimistic_tx.into()),
+                        None => checkpointed_tx_future.await?,
+                    }
+                }
+        };
+
+        Ok(result)
+    }
+
+    fn multi_get_transactions(
+        &self,
+        digests: &[TransactionDigest],
+    ) -> Result<Vec<StoredTransaction>, IndexerError> {
+        let digests: Vec<Vec<u8>> = digests.iter().map(|d| d.inner().to_vec()).collect();
+        let checkpointed_txs = self.get_checkpointed_transactions(&digests)?;
+
         if checkpointed_txs.len() == digests.len() {
             return Ok(checkpointed_txs);
         }
-        let mut missing_digests = digests;
-        for tx in &checkpointed_txs {
-            missing_digests.remove(&tx.transaction_digest);
-        }
-        let optimistic_txs = run_query!(&self.pool, |conn| {
-            optimistic_transactions::table
-                .inner_join(
-                    tx_insertion_order::table.on(optimistic_transactions::insertion_order
-                        .eq(tx_insertion_order::insertion_order)),
-                )
-                // we filter the tx_insertion_order table because it is indexed by digest,
-                // optimistic_transactions table is not
-                .filter(tx_insertion_order::tx_digest.eq_any(missing_digests))
-                .select(OptimisticTransaction::as_select())
-                .load::<OptimisticTransaction>(conn)
-        })?;
+
+        let checkpointed_tx_digests_set = checkpointed_txs
+            .iter()
+            .map(|tx| &tx.transaction_digest)
+            .collect::<HashSet<&Vec<u8>>>();
+        let missing_digests = digests
+            .into_iter()
+            .filter(|digest| !checkpointed_tx_digests_set.contains(digest))
+            .collect::<Vec<Vec<u8>>>();
+
+        let optimistic_txs = self.get_optimistic_transactions(&missing_digests)?;
+
         Ok(checkpointed_txs
             .into_iter()
             .chain(optimistic_txs.into_iter().map(Into::into))
@@ -882,7 +1054,7 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
-        self.query_transaction_blocks_impl(
+        self.query_transaction_blocks_impl_with_checkpointed_data_only(
             filter.map(TransactionFilterKind::V1),
             options,
             cursor,
@@ -900,7 +1072,7 @@ impl IndexerReader {
         limit: usize,
         is_descending: bool,
     ) -> IndexerResult<Vec<IotaTransactionBlockResponse>> {
-        self.query_transaction_blocks_impl(
+        self.query_transaction_blocks_impl_with_checkpointed_data_only(
             filter.map(TransactionFilterKind::V2),
             options,
             cursor,
@@ -910,7 +1082,7 @@ impl IndexerReader {
         .await
     }
 
-    async fn query_transaction_blocks_impl(
+    async fn query_transaction_blocks_impl_with_checkpointed_data_only(
         &self,
         filter: Option<TransactionFilterKind>,
         options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
@@ -1193,6 +1365,24 @@ impl IndexerReader {
             .await
     }
 
+    pub(crate) async fn get_single_transaction_block_response(
+        &self,
+        digest: TransactionDigest,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> IndexerResult<Option<IotaTransactionBlockResponse>> {
+        let stored_tx = self.get_single_transaction(digest).await?;
+        if let Some(stored_tx) = stored_tx {
+            Ok(Some(
+                self.stored_transaction_to_transaction_block(vec![stored_tx], options)
+                    .await?
+                    .pop()
+                    .expect("There should be exactly one response"),
+            ))
+        } else {
+            Ok(None)
+        }
+    }
+
     async fn multi_get_transaction_block_response_by_sequence_numbers_in_blocking_task(
         &self,
         tx_sequence_numbers: Vec<i64>,
@@ -1221,12 +1411,59 @@ impl IndexerReader {
             .await
     }
 
+    pub async fn multi_get_transaction_block_response_in_blocking_task_with_preserved_order(
+        &self,
+        ordered_digests: Vec<TransactionDigest>,
+        options: iota_json_rpc_types::IotaTransactionBlockResponseOptions,
+    ) -> Result<Vec<IotaTransactionBlockResponse>, IndexerError> {
+        let order_map: HashMap<TransactionDigest, usize> = ordered_digests
+            .iter()
+            .enumerate()
+            .map(|(index, &id)| (id, index))
+            .collect();
+
+        let mut transactions = self
+            .multi_get_transaction_block_response_in_blocking_task_impl(&ordered_digests, options)
+            .await?;
+        transactions.sort_unstable_by_key(|tx| {
+            order_map
+                .get(&tx.digest)
+                .copied()
+                .expect("All digests should have some order")
+        });
+        Ok(transactions)
+    }
+
     pub async fn get_transaction_events_in_blocking_task(
         &self,
         digest: TransactionDigest,
     ) -> Result<Vec<iota_json_rpc_types::IotaEvent>, IndexerError> {
+        let checkpointed_events = self.try_get_checkpointed_transaction_events(digest).await?;
+
+        let (timestamp_ms, serialized_events) =
+            if let Some((timestamp, events)) = checkpointed_events {
+                (Some(timestamp as u64), events)
+            } else {
+                (None, self.get_optimistic_transaction_events(digest).await?)
+            };
+
+        let events = stored_events_to_events(serialized_events)?;
+        let tx_events = TransactionEvents { data: events };
+
+        let iota_tx_events =
+            tx_events_to_iota_tx_events(tx_events, self.package_resolver(), digest, timestamp_ms)
+                .await?;
+        Ok(iota_tx_events.map_or(vec![], |transaction_block_events| {
+            transaction_block_events.data
+        }))
+    }
+
+    pub async fn try_get_checkpointed_transaction_events(
+        &self,
+        digest: TransactionDigest,
+    ) -> Result<Option<(i64, StoredTransactionEvents)>, IndexerError> {
         let pool = self.get_pool();
-        let (timestamp_ms, serialized_events) = run_query_async!(&pool, move |conn| {
+        run_query_async!(&pool, move |conn| {
             transactions::table
                 .filter(
                     transactions::tx_sequence_number
@@ -1240,28 +1477,69 @@ impl IndexerReader {
                 )
                 .select((transactions::timestamp_ms, transactions::events))
                 .first::<(i64, StoredTransactionEvents)>(conn)
-        })?;
-
-        let events = stored_events_to_events(serialized_events)?;
-        let tx_events = TransactionEvents { data: events };
-
-        let iota_tx_events = tx_events_to_iota_tx_events(
-            tx_events,
-            self.package_resolver(),
-            digest,
-            timestamp_ms as u64,
-        )
-        .await?;
-        Ok(iota_tx_events.map_or(vec![], |ste| ste.data))
+                .optional()
+        })
     }
 
-    async fn query_events_by_tx_digest(
+    pub async fn get_optimistic_transaction_events(
+        &self,
+        digest: TransactionDigest,
+    ) -> Result<StoredTransactionEvents, IndexerError> {
+        let pool = self.get_pool();
+        run_query_async!(&pool, move |conn| {
+            optimistic_transactions::table
+                .inner_join(
+                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
+                        .eq(tx_global_order::global_sequence_number)
+                        .and(
+                            optimistic_transactions::optimistic_sequence_number
+                                .eq(tx_global_order::optimistic_sequence_number),
+                        )),
+                )
+                // we filter the `tx_global_order` table because it is indexed by digest,
+                // optimistic_transactions table is not
+                .filter(tx_global_order::tx_digest.eq(digest.into_inner().to_vec()))
+                .select(optimistic_transactions::events)
+                .first::<StoredTransactionEvents>(conn)
+        })
+    }
+
+    async fn query_events_by_tx_digest_checkpointed_only(
         &self,
         tx_digest: TransactionDigest,
         cursor: Option<EventID>,
         limit: usize,
         descending_order: bool,
     ) -> IndexerResult<Vec<IotaEvent>> {
+        let ckpt_events = self
+            .query_events_by_tx_digest_checkpointed(tx_digest, cursor, limit, descending_order)
+            .await?;
+
+        let mut iota_event_futures = vec![];
+        for stored_event in ckpt_events {
+            iota_event_futures.push(tokio::task::spawn(
+                stored_event.try_into_iota_event(self.package_resolver.clone()),
+            ));
+        }
+
+        let iota_events = futures::future::join_all(iota_event_futures)
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("Failed to join iota event futures: {}", e))?
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()
+            .tap_err(|e| tracing::error!("Failed to collect iota event futures: {}", e))?;
+        Ok(iota_events)
+    }
+
+    async fn query_events_by_tx_digest_checkpointed(
+        &self,
+        tx_digest: TransactionDigest,
+        cursor: Option<EventID>,
+        limit: usize,
+        descending_order: bool,
+    ) -> IndexerResult<Vec<StoredEvent>> {
         let mut query = events::table.into_boxed();
 
         if let Some(cursor) = cursor {
@@ -1297,29 +1575,12 @@ impl IndexerReader {
         );
 
         let pool = self.get_pool();
-        let stored_events = run_query_async!(&pool, move |conn| {
+        run_query_async!(&pool, move |conn| {
             query.limit(limit as i64).load::<StoredEvent>(conn)
-        })?;
-
-        let mut iota_event_futures = vec![];
-        for stored_event in stored_events {
-            iota_event_futures.push(tokio::task::spawn(
-                stored_event.try_into_iota_event(self.package_resolver.clone()),
-            ));
-        }
-
-        let iota_events = futures::future::join_all(iota_event_futures)
-            .await
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to join iota event futures: {}", e))?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to collect iota event futures: {}", e))?;
-        Ok(iota_events)
+        })
     }
 
-    pub async fn query_events_in_blocking_task(
+    pub(crate) async fn query_only_checkpointed_events_in_blocking_task(
         &self,
         filter: EventFilter,
         cursor: Option<EventID>,
@@ -1390,7 +1651,12 @@ impl IndexerReader {
             )
         } else if let EventFilter::Transaction(tx_digest) = filter {
             return self
-                .query_events_by_tx_digest(tx_digest, cursor, limit, descending_order)
+                .query_events_by_tx_digest_checkpointed_only(
+                    tx_digest,
+                    cursor,
+                    limit,
+                    descending_order,
+                )
                 .await;
         } else {
             let main_where_clause = match filter {
@@ -1460,14 +1726,12 @@ impl IndexerReader {
         let pool = self.get_pool();
         let stored_events = run_query_async!(&pool, move |conn| diesel::sql_query(query)
             .load::<StoredEvent>(conn))?;
-
         let mut iota_event_futures = vec![];
         for stored_event in stored_events {
             iota_event_futures.push(tokio::task::spawn(
                 stored_event.try_into_iota_event(self.package_resolver.clone()),
             ));
         }
-
         let iota_events = futures::future::join_all(iota_event_futures)
             .await
             .into_iter()
