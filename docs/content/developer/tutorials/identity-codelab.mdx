@@ -379,7 +379,7 @@ async fn main() -> Result<()> {
     - VP: A signed package containing the VC, proving Alice’s ownership.
     - JWT: JSON Web Tokens are used to encode and sign credentials/presentations.
 
-4. On runing the Holder (First Time): This program will detect that no DID exists, create one, and publish it to the IOTA network.
+4. On running the Holder (First Time): This program will detect that no DID exists, create one, and publish it to the IOTA network.
 
 :::info
 Checkpoint: Verify that holder_doc.json and holder_fragment.txt exist in the project directory.
@@ -460,7 +460,7 @@ async fn main() -> Result<()> {
     - Issuer DID: Represents the university’s identity, used to sign the VC.
     - Stronghold: Securely stores the Issuer’s private keys.
 
-3. On runing the Issuer: The program will create the Issuer's DID, load the Holder's DID, and issue the verifiable credential. The Issuer will save the signed credential to a new file, `vc.jwt`.
+3. On running the Issuer: The program will create the Issuer's DID, load the Holder's DID, and issue the verifiable credential. The Issuer will save the signed credential to a new file, `vc.jwt`.
 
 
 ## Codelab: Holder Creates a Verifiable Presentation (Continued)
@@ -585,9 +585,4 @@ The Verifier program (verifier.rs):
 6. Confirms that all credentials are valid and belong to the Holder.
 
 If everything works, the terminal will show a series of ✅ messages, confirming that both the Verifiable Presentation and the Verifiable Credential are authentic and have not been tampered with.
-
-
-
-
-
 
