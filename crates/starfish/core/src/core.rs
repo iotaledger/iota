@@ -878,7 +878,7 @@ impl Core {
             .scope_processing_time
             .with_label_values(&["Core::get_missing_blocks"])
             .start_timer();
-        self.block_manager.missing_block_headers()
+        self.block_manager.blocks_to_fetch()
     }
     pub(crate) fn get_missing_transaction_data(
         &self,
@@ -1185,7 +1185,7 @@ pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<Cor
     let mut cores = Vec::new();
 
     for index in 0..authorities.len() {
-        let own_index = AuthorityIndex::new_for_test(index as u32);
+        let own_index = AuthorityIndex::new_for_test(index as u8);
         let core = CoreTextFixture::new(context.clone(), authorities.clone(), own_index, false);
         cores.push(core);
     }
@@ -1436,7 +1436,7 @@ mod test {
             };
 
             for (index, _authority) in context.committee.authorities().skip(authorities_to_skip) {
-                let block = TestBlockHeader::new(round, index.value() as u32)
+                let block = TestBlockHeader::new(round, index.value() as u8)
                     .set_ancestors(last_round_blocks.iter().map(|b| b.reference()).collect())
                     .build();
                 this_round_blocks.push(VerifiedBlock::new_for_test(block));

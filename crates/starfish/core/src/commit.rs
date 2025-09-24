@@ -868,14 +868,14 @@ mod tests {
 
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
         let first_wave_rounds: u32 = WAVE_LENGTH;
-        let num_authorities: u32 = 4;
+        let num_authorities: u8 = 4;
 
         let mut blocks = Vec::new();
         let (first_round_references, first_round_blocks): (Vec<_>, Vec<_>) = context
             .committee
             .authorities()
             .map(|index| {
-                let author_idx = index.0.value() as u32;
+                let author_idx = index.0.value() as u8;
                 let tx = index.0.value() as u8;
                 let block = TestBlockHeader::new_with_transaction(0, author_idx, tx).build();
                 VerifiedBlock::new_with_transaction_for_test(block, tx)
@@ -907,7 +907,7 @@ mod tests {
                 let base_ts = round as BlockTimestampMs * 1000;
                 let block = VerifiedBlock::new_for_test(
                     TestBlockHeader::new(round, author)
-                        .set_timestamp_ms(base_ts + (author + round) as u64)
+                        .set_timestamp_ms(base_ts + (author as u32 + round) as u64)
                         .set_ancestors(ancestors.clone())
                         .set_acknowledgments(ancestors.clone())
                         .build(),
@@ -949,7 +949,7 @@ mod tests {
         assert_eq!(subdag.timestamp_ms, leader_block.timestamp_ms());
         assert_eq!(
             subdag.blocks.len(),
-            (num_authorities * WAVE_LENGTH) as usize + 1
+            (num_authorities as u32 * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(subdag.commit_ref, commit.reference());
         assert_eq!(subdag.committed_transaction_refs, first_round_references);
@@ -970,14 +970,14 @@ mod tests {
 
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
         let first_wave_rounds: u32 = WAVE_LENGTH;
-        let num_authorities: u32 = 4;
+        let num_authorities: u8 = 4;
 
         let mut blocks = Vec::new();
         let (first_round_references, first_round_headers): (Vec<_>, Vec<_>) = context
             .committee
             .authorities()
             .map(|index| {
-                let author_idx = index.0.value() as u32;
+                let author_idx = index.0.value() as u8;
                 let block = TestBlockHeader::new(0, author_idx).build();
                 VerifiedBlockHeader::new_for_test(block)
             })
@@ -996,7 +996,7 @@ mod tests {
                 let base_ts = round as BlockTimestampMs * 1000;
                 let block = VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(round, author)
-                        .set_timestamp_ms(base_ts + (author + round) as u64)
+                        .set_timestamp_ms(base_ts + (author as u32 + round) as u64)
                         .set_ancestors(ancestors.clone())
                         .set_acknowledgments(ancestors.clone())
                         .build(),
@@ -1034,7 +1034,7 @@ mod tests {
         assert_eq!(pending_subdag.timestamp_ms, leader_block.timestamp_ms());
         assert_eq!(
             pending_subdag.blocks.len(),
-            (num_authorities * WAVE_LENGTH) as usize + 1
+            (num_authorities as u32 * WAVE_LENGTH) as usize + 1
         );
         assert_eq!(pending_subdag.commit_ref, commit.reference());
         assert_eq!(

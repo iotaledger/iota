@@ -10,6 +10,7 @@ import {
     LedgerDeviceNotFoundError,
     LedgerNoTransportMechanismError,
 } from '_components';
+import { KeystoneSigningCanceledByUserError } from '../components/keystone/keystoneErrors';
 
 /**
  * Helper method for producing user-friendly error messages from Signer operations
@@ -18,6 +19,7 @@ import {
 export function getSignerOperationErrorMessage(error: unknown) {
     return (
         getLedgerConnectionErrorMessage(error) ||
+        getKeystoneErrorMessage(error) ||
         getIotaApplicationErrorMessage(error) ||
         (error as Error).message ||
         'Something went wrong.'
@@ -36,6 +38,16 @@ export function getLedgerConnectionErrorMessage(error: unknown) {
         return 'Connect your Ledger device and try again.';
     } else if (error instanceof LockedDeviceError) {
         return 'Your device is locked. Unlock it and try again.';
+    }
+    return null;
+}
+
+/**
+ * Helper method for producing user-friendly error messages for Keystone
+ */
+export function getKeystoneErrorMessage(error: unknown) {
+    if (error instanceof KeystoneSigningCanceledByUserError) {
+        return 'Signing canceled by user.';
     }
     return null;
 }

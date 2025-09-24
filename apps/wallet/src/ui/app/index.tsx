@@ -61,6 +61,7 @@ import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
 import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder/AccountsFinderIntroPage';
 import { ImportPasskeyPage } from './pages/accounts/ImportPasskeyPage';
+import { ImportKeystone } from './pages/accounts/ImportKeystone';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -194,6 +195,7 @@ export function App() {
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
                 <Route path="import-passkey" element={<ImportPasskeyPage />} />
+                <Route path="import-keystone" element={<ImportKeystone />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
                 <Route path="manage/accounts-finder/intro" element={<AccountsFinderIntroPage />} />
                 <Route

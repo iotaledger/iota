@@ -33,6 +33,7 @@ const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.ImportPrivateKey,
     AccountsFormType.Passkey,
     AccountsFormType.ImportLedger,
+    AccountsFormType.ImportKeystone,
 ];
 
 const REDIRECT_TO_ACCOUNTS_FINDER: AccountsFormType[] = [

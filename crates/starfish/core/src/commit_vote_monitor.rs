@@ -85,7 +85,7 @@ mod test {
             .map(|i| {
                 VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(10, i)
-                        .set_commit_votes(vec![CommitRef::new(5 + i, CommitDigest::MIN)])
+                        .set_commit_votes(vec![CommitRef::new(5 + i as u32, CommitDigest::MIN)])
                         .build(),
                 )
             })
@@ -103,8 +103,8 @@ mod test {
                 VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(11, i)
                         .set_commit_votes(vec![
-                            CommitRef::new(6 + i, CommitDigest::MIN),
-                            CommitRef::new(7 + i, CommitDigest::MIN),
+                            CommitRef::new(6 + i as u32, CommitDigest::MIN),
+                            CommitRef::new(7 + i as u32, CommitDigest::MIN),
                         ])
                         .build(),
                 )
