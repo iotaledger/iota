@@ -185,8 +185,7 @@ export function ImportKeystone() {
                                             Need more help?
                                         </span>
                                         <Link
-                                            // TODO: Add tutorial docs links when available - https://github.com/iotaledger/iota/issues/8511
-                                            to=""
+                                            to="https://docs.iota.org/users/iota-wallet/how-to/import/keystone"
                                             className="text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
                                             target="_blank"
                                             rel="noreferrer"
