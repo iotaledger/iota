@@ -2,10 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
-import {
-    createBrowserPasswordProviderOptions,
-    createBrowserPasskeyProvider,
-} from '../components/passkey/passkey-provider';
+import { createBrowserPasskeyProvider } from '../components/passkey/passkey-provider';
 import { useRestorePasskeyAccount } from './useRestorePasskeyAccount';
 
 export function useCreatePasskeyAccount() {
@@ -22,8 +19,8 @@ export function useCreatePasskeyAccount() {
         authenticatorAttachment: AuthenticatorAttachment;
         isRestore?: boolean;
     }) => {
-        const options = createBrowserPasswordProviderOptions({
-            options: {
+        const { provider, options } = createBrowserPasskeyProvider({
+            providerOptions: {
                 authenticatorSelection: {
                     authenticatorAttachment,
                 },
@@ -33,8 +30,6 @@ export function useCreatePasskeyAccount() {
                 },
             },
         });
-
-        const provider = createBrowserPasskeyProvider({ options });
 
         try {
             const passkeyKeypair = isRestore
