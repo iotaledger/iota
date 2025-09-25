@@ -48,7 +48,7 @@ public(package) fun has_member(self: &Members, addr: address): bool {
 }
 
 /// Immutably borrows the account member with the provided address.
-public(package) fun borrow_member(self: &Members, addr: address): &Member {
+public(package) fun member(self: &Members, addr: address): &Member {
     let index = find_index(self, addr);
 
     assert!(index.is_some(), EMemberIsNotFound);
@@ -57,7 +57,7 @@ public(package) fun borrow_member(self: &Members, addr: address): &Member {
 }
 
 /// Mutably borrows the account member with the provided address.
-public(package) fun borrow_member_mut(self: &mut Members, addr: address): &mut Member {
+public(package) fun member_mut(self: &mut Members, addr: address): &mut Member {
     let index = find_index(self, addr);
 
     assert!(index.is_some(), EMemberIsNotFound);
@@ -75,7 +75,7 @@ public(package) fun total_weight(self: &Members): u64 {
 // --------------------------------------- Member ---------------------------------------
 
 /// Borrows the address of the member.
-public(package) fun borrow_address(self: &Member): &address {
+public(package) fun addr(self: &Member): &address {
     &self.addr
 }
 

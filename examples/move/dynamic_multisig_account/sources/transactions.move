@@ -41,12 +41,12 @@ public(package) fun has_transaction(self: &Transactions, digest: vector<u8>): bo
 }
 
 /// Immutably borrows the account transaction with the provided digest.
-public(package) fun borrow_transaction(self: &Transactions, digest: vector<u8>): &Transaction {
+public(package) fun transaction(self: &Transactions, digest: vector<u8>): &Transaction {
     self.bag.borrow(digest)
 }
 
 /// Mutably borrows the account transaction with the provided digest.
-public(package) fun borrow_transaction_mut(self: &mut Transactions, digest: vector<u8>): &mut Transaction {
+public(package) fun transaction_mut(self: &mut Transactions, digest: vector<u8>): &mut Transaction {
     self.bag.borrow_mut(digest)
 }
 
