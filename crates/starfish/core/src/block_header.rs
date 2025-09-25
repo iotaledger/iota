@@ -11,7 +11,6 @@ use std::{
 
 use bytes::Bytes;
 use fastcrypto::hash::{Digest, HashFunction};
-use reed_solomon_simd::ReedSolomonEncoder;
 use rs_merkle::MerkleTree;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
@@ -79,6 +78,27 @@ impl Transaction {
         let length_with_padding = shard_bytes * info_length;
         statements_with_len.resize(length_with_padding, 0);
         Ok(statements_with_len.into())
+    }
+
+    pub(crate) fn extract_serialized_transactions_from_padded_data(padded: &[u8]) -> Result<Vec<u8>, ConsensusError> {
+        if padded.len() < 4 {
+            return Err(ConsensusError::ShardsVecIsTooSmall(
+                padded.len(),
+                4,
+            ));
+        }
+        let original_len = u32::from_le_bytes(
+            padded[0..4]
+                .try_into()
+                .map_err(|_| ConsensusError::ShardsVecIsTooSmall(padded.len(), 4))?,
+        ) as usize;
+        if padded.len() < 4 + original_len {
+            return Err(ConsensusError::ShardsVecIsTooSmall(
+                padded.len(),
+                4 + original_len,
+            ));
+        }
+        Ok(padded[4..4 + original_len].to_vec())
     }
     pub(crate) fn serialize_and_pad_for_sharding(
         transactions: &[Transaction],
