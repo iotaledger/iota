@@ -9,12 +9,7 @@ import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } fro
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
 
-import {
-    createBrowserPasskeyProvider,
-    createBrowserPasswordProviderOptions,
-} from '../components/passkey/passkey-provider';
-import { PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
-import { useRestorePasskeyAccount } from './useRestorePasskeyAccount';
+import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
@@ -48,7 +43,7 @@ enum AmpliAccountType {
 export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
-    const { mutateAsync: restorePasskeyAccount } = useRestorePasskeyAccount();
+    const { createPasskeyAccount } = useCreatePasskeyAccount();
 
     const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
         AccountsFormType,
@@ -146,30 +141,18 @@ export function useCreateAccountsMutation() {
                 type === AccountsFormType.Passkey &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
-                const options = createBrowserPasswordProviderOptions({
-                    options: {
-                        authenticatorSelection: {
-                            authenticatorAttachment: accountsFormValues.authenticatorAttachment,
-                        },
-                        user: {
-                            name: accountsFormValues.username,
-                            displayName: accountsFormValues.displayName,
-                        },
-                    },
+                const { address, publicKey, providerOptions } = await createPasskeyAccount({
+                    username: accountsFormValues.username,
+                    displayName: accountsFormValues.displayName,
+                    authenticatorAttachment: accountsFormValues.authenticatorAttachment,
+                    isRestore: accountsFormValues.isRestoreAccount,
                 });
-                const provider = createBrowserPasskeyProvider({ options });
 
-                let passkey: PasskeyKeypair;
-                if (accountsFormValues.isRestoreAccount) {
-                    passkey = await restorePasskeyAccount(provider);
-                } else {
-                    passkey = await PasskeyKeypair.getPasskeyInstance(provider);
-                }
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PasskeyDerived,
-                    address: passkey.getPublicKey().toIotaAddress(),
-                    publicKey: passkey.getPublicKey().toBase64(),
-                    providerOptions: options,
+                    address,
+                    publicKey,
+                    providerOptions,
                     password: password!,
                 });
             } else if (
