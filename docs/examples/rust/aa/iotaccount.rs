@@ -185,7 +185,7 @@ pub async fn create_iota_account<K: AccountKeystore>(
 ) -> anyhow::Result<ObjectRef> {
     let sender_pk = keystore.get_key(&sender)?.public();
 
-    let gas_coin = get_coin(&iota_client, sender).await?;
+    let gas_coin = get_coin(iota_client, sender).await?;
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -273,7 +273,7 @@ pub async fn iota_account_simple_tx(
     iotaccount_ref: ObjectRef,
 ) -> anyhow::Result<TransactionData> {
     let sender = iotaccount_ref.0.into();
-    let gas_coin = get_coin(&iota_client, sender).await?;
+    let gas_coin = get_coin(iota_client, sender).await?;
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
