@@ -222,10 +222,8 @@ if [ "$SPAMMER_ENABLE" = true ]; then
         -d "${SPAMMER_DURATION}s" \
         > "$LOG_DIR/spammer.log" 2>&1 &
     fi
-    wait $!
-    if [ $? -ne 0 ]; then
-      log "Warning: Spammer script exited with an error."
-    fi
+    SPAM_PID=$!
+    log "Spammer started in background (pid=$SPAM_PID); logs: $LOG_DIR/spammer.log"
 fi
 
 # --- 6) Run for specified duration, periodically saving logs ---
