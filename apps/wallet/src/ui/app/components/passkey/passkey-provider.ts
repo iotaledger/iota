@@ -44,10 +44,17 @@ export function createBrowserPasswordProviderOptions({
 }
 
 export function createBrowserPasskeyProvider({
-    options = {},
+    providerOptions = {},
 }: {
-    options?: Partial<BrowserPasswordProviderOptions>;
-} = {}): BrowserPasskeyProvider {
-    const providerOptions = createBrowserPasswordProviderOptions({ options });
-    return new BrowserPasskeyProvider(DEFAULT_PASSKEY_SAVED_NAME, providerOptions);
+    providerOptions?: Partial<BrowserPasswordProviderOptions>;
+} = {}): { provider: BrowserPasskeyProvider; options: BrowserPasswordProviderOptions } {
+    const options = createBrowserPasswordProviderOptions({ options: providerOptions });
+    const provider = new BrowserPasskeyProvider(
+        options?.rp?.name ?? DEFAULT_PASSKEY_SAVED_NAME,
+        options,
+    );
+    return {
+        provider,
+        options,
+    };
 }
