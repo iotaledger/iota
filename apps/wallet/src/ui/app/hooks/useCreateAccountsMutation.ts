@@ -9,10 +9,7 @@ import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } fro
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
 
-import {
-    createBrowserPasskeyProvider,
-    createBrowserPasswordProviderOptions,
-} from '../components/passkey/passkey-provider';
+import { createBrowserPasskeyProvider } from '../components/passkey/passkey-provider';
 import { PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
 
 function validateAccountFormValues<T extends AccountsFormType>(
@@ -144,21 +141,21 @@ export function useCreateAccountsMutation() {
                 type === AccountsFormType.Passkey &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
-                const providerOptions = createBrowserPasswordProviderOptions({
+                const { provider, options } = createBrowserPasskeyProvider({
                     providerOptions: {
                         authenticatorSelection: {
                             authenticatorAttachment: accountsFormValues.authenticatorAttachment,
                         },
                     },
                 });
-                const provider = createBrowserPasskeyProvider({ providerOptions });
+
                 const passkey = await PasskeyKeypair.getPasskeyInstance(provider);
 
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PasskeyDerived,
                     address: passkey.getPublicKey().toIotaAddress(),
                     publicKey: passkey.getPublicKey().toBase64(),
-                    providerOptions: providerOptions,
+                    providerOptions: options,
                     password: password!,
                 });
             } else if (

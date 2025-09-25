@@ -20,7 +20,7 @@ export const DEFAULT_AUTHENTICATOR_OPTIONS = {
 /**
  * Creates browser password provider options with defaults applied
  */
-export function createBrowserPasswordProviderOptions({
+function createBrowserPasswordProviderOptions({
     providerOptions = {},
 }: {
     providerOptions?: Partial<BrowserPasswordProviderOptions>;
@@ -49,7 +49,14 @@ export function createBrowserPasskeyProvider({
     providerOptions = {},
 }: {
     providerOptions?: Partial<BrowserPasswordProviderOptions>;
-} = {}): BrowserPasskeyProvider {
+} = {}): { provider: BrowserPasskeyProvider; options: BrowserPasswordProviderOptions } {
     const options = createBrowserPasswordProviderOptions({ providerOptions });
-    return new BrowserPasskeyProvider(options?.rp?.name ?? DEFAULT_PASSKEY_SAVED_NAME, options);
+    const provider = new BrowserPasskeyProvider(
+        options?.rp?.name ?? DEFAULT_PASSKEY_SAVED_NAME,
+        options,
+    );
+    return {
+        provider,
+        options,
+    };
 }
