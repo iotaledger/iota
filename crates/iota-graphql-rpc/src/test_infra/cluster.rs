@@ -357,7 +357,7 @@ impl Cluster {
         let _ = join!(self.graphql_server_join_handle, self.indexer_join_handle);
     }
 
-    /// Build a transaction that transfers IOTA for testing.
+    /// Builds a transaction that transfers IOTA for testing.
     pub async fn build_transfer_iota_for_test(&self) -> TransactionData {
         let addresses = self.validator_fullnode_handle.wallet.get_addresses();
 
@@ -369,7 +369,7 @@ impl Cluster {
             .build()
     }
 
-    /// Sign a transaction.
+    /// Signs a transaction.
     pub fn sign_transaction(&self, transaction: &TransactionData) -> Transaction {
         self.validator_fullnode_handle
             .wallet
