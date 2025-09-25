@@ -3,42 +3,35 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet, btree_map::Entry},
+    collections::{BTreeMap, BTreeSet},
     sync::Arc,
-    time::Instant,
 };
 
 use iota_metrics::monitored_scope;
+#[cfg(test)]
 use itertools::Itertools as _;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tracing::{debug, warn};
+#[cfg(test)]
+use tracing::debug;
+use tracing::warn;
+
+/// Block Suspender is a private module unless under test.
+#[cfg(not(test))]
+mod block_suspender;
+#[cfg(test)]
+pub(crate) mod block_suspender;
 
 use crate::{
     Round,
     block_header::{
         BlockHeaderAPI, BlockRef, BlockTimestampMs, VerifiedBlock, VerifiedBlockHeader,
     },
+    block_manager::block_suspender::BlockSuspender,
     context::Context,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
 };
-
-struct SuspendedBlockHeader {
-    block_header: VerifiedBlockHeader,
-    missing_ancestors: BTreeSet<BlockRef>,
-    timestamp: Instant,
-}
-
-impl SuspendedBlockHeader {
-    fn new(block: VerifiedBlockHeader, missing_ancestors: BTreeSet<BlockRef>) -> Self {
-        Self {
-            block_header: block,
-            missing_ancestors,
-            timestamp: Instant::now(),
-        }
-    }
-}
 
 /// Block manager suspends incoming blocks until they are connected to the
 /// existing graph, returning newly connected blocks.
@@ -49,30 +42,11 @@ pub(crate) struct BlockManager {
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
 
-    /// Keeps all the suspended block headers. A suspended block header is a
-    /// header that is missing part of its causal history and thus can't be
-    /// immediately processed. A block header will remain in this map until
-    /// all its causal history has been successfully processed.
-    suspended_block_headers: BTreeMap<BlockRef, SuspendedBlockHeader>,
     /// Keeps full blocks for suspended block headers
     /// TODO: this set can grow to become too big, need to add some eviction
     /// mechanism
     suspended_blocks: BTreeMap<BlockRef, VerifiedBlock>,
-
-    /// A map that keeps all the blocks that we are missing (keys) and the
-    /// corresponding blocks that reference the missing blocks as ancestors
-    /// and need them to get unsuspended. It is possible for a missing
-    /// dependency (key) to be a suspended block, so the block has been
-    /// already fetched but it self is still missing some of its ancestors to be
-    /// processed.
-    missing_ancestors: BTreeMap<BlockRef, BTreeSet<BlockRef>>,
-    /// A map of currently missing blocks to the set of authorities expected
-    /// to have them available locally. This set is approximated based on the
-    /// block's author and the authors of its direct children.
-    /// A block is considered missing if it appears in `missing_ancestors`
-    /// and has not yet been accepted or fetched. Blocks already stored or
-    /// present in `suspended_blocks` are excluded.
-    missing_block_headers: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
+    block_suspender: BlockSuspender,
     /// A vector that holds a tuple of (lowest_round, highest_round) of received
     /// blocks per authority. This is used for metrics reporting purposes
     /// and resets during restarts.
@@ -81,15 +55,12 @@ pub(crate) struct BlockManager {
 
 impl BlockManager {
     pub(crate) fn new(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
-        let committee_size = context.committee.size();
         Self {
-            context,
+            context: context.clone(),
             dag_state,
-            suspended_block_headers: BTreeMap::new(),
             suspended_blocks: BTreeMap::new(),
-            missing_ancestors: BTreeMap::new(),
-            missing_block_headers: BTreeMap::new(),
-            received_block_rounds: vec![None; committee_size],
+            block_suspender: BlockSuspender::new(context.clone()),
+            received_block_rounds: vec![None; context.committee.size()],
         }
     }
 
@@ -146,60 +117,33 @@ impl BlockManager {
     /// Attempts to accept the provided blocks.
     fn try_accept_block_headers_internal(
         &mut self,
-        mut block_headers: Vec<VerifiedBlockHeader>,
+        block_headers: Vec<VerifiedBlockHeader>,
     ) -> (Vec<VerifiedBlockHeader>, BTreeSet<BlockRef>) {
         let _s = monitored_scope("BlockManager::try_accept_block_headers_internal");
 
-        block_headers.sort_by_key(|b| b.round());
-        debug!(
-            "Trying to accept block headers: {}",
-            block_headers
-                .iter()
-                .map(|b| b.reference().to_string())
-                .join(",")
-        );
-
-        let mut accepted_block_headers = vec![];
-        let mut missing_block_headers = BTreeSet::new();
-
-        for block_header in block_headers {
-            self.update_block_received_metrics(&block_header);
-
-            // Try to accept the input block.
-            let block_ref = block_header.reference();
-
-            let mut to_verify_timestamps_and_accept = vec![];
-
-            match self.try_accept_one_block_header(block_header) {
-                TryAcceptResult::Accepted(block_header) => {
-                    to_verify_timestamps_and_accept.push(block_header);
-                }
-                TryAcceptResult::Suspended(ancestors_to_fetch) => {
-                    debug!(
-                        "Missing ancestors to fetch for block {block_ref}: {}",
-                        ancestors_to_fetch.iter().map(|b| b.to_string()).join(",")
-                    );
-                    missing_block_headers.extend(ancestors_to_fetch);
-                    continue;
-                }
-                TryAcceptResult::Processed => continue,
-            };
-
-            // If the block is accepted, try to unsuspend its children blocks if any.
-            let unsuspended_blocks = self.try_unsuspend_children_blocks(block_ref);
-            to_verify_timestamps_and_accept.extend(unsuspended_blocks);
-
-            // Verify block timestamps
-            let blocks_to_accept =
-                self.verify_block_timestamps_and_accept(to_verify_timestamps_and_accept);
-            accepted_block_headers.extend(blocks_to_accept);
+        // Filter out already processed and suspended block headers.
+        let block_headers = self.filter_out_already_processed_and_sort(block_headers);
+        // update received block rounds
+        for block_header in &block_headers {
+            self.update_block_received_metrics(block_header);
         }
+        // Find missing ancestors for the provided block headers in the DAG state.
+        let missing_ancestors = self.find_missing_ancestors(block_headers);
+        let (processed_block_headers, ancestors_to_fetch) = self
+            .block_suspender
+            .accept_or_suspend_received_headers(missing_ancestors);
+        // Verify block timestamps
+        let accepted_block_headers =
+            self.verify_block_timestamps_and_accept(processed_block_headers);
 
-        self.update_stats(missing_block_headers.len() as u64);
+        // Insert the accepted blocks into DAG state so future blocks including them as
+        // ancestors do not get suspended.
+        self.dag_state
+            .write()
+            .accept_block_headers(accepted_block_headers.clone());
 
         // check if we already have blocks for this accepted header. If yes, add them to
-        // dag
-
+        // dag_state
         for block_header in accepted_block_headers.iter() {
             if let Some(block) = self.suspended_blocks.remove(&block_header.reference()) {
                 // for this accepted header we already have a block, so we add it to dag_state
@@ -210,7 +154,7 @@ impl BlockManager {
         }
 
         // Figure out the new missing blocks
-        (accepted_block_headers, missing_block_headers)
+        (accepted_block_headers, ancestors_to_fetch)
     }
 
     /// Tries to find the provided block_refs in DagState and BlockManager,
@@ -233,7 +177,7 @@ impl BlockManager {
             block_refs.iter().map(|b| b.to_string()).join(",")
         );
 
-        let mut missing_blocks = BTreeSet::new();
+        let mut blocks_to_fetch = BTreeSet::new();
 
         for (found, block_ref) in self
             .dag_state
@@ -242,19 +186,20 @@ impl BlockManager {
             .into_iter()
             .zip(block_refs.iter())
         {
-            if found || self.suspended_block_headers.contains_key(block_ref) {
+            if found || self.block_suspender.is_block_ref_suspended(block_ref) {
                 continue;
             }
             // Fetches the block if it is not in dag state or suspended.
-            missing_blocks.insert(*block_ref);
+            blocks_to_fetch.insert(*block_ref);
             if self
-                .missing_block_headers
-                .insert(*block_ref, BTreeSet::from([block_ref.author]))
+                .block_suspender
+                .insert_block_to_fetch(*block_ref, BTreeSet::from([block_ref.author]))
                 .is_none()
             {
                 // We want to report this as a missing ancestor even if there is no block that
                 // is actually references it right now.
-                self.missing_ancestors.entry(*block_ref).or_default();
+                self.block_suspender
+                    .set_missing_ancestors_with_no_children(*block_ref);
 
                 self.context
                     .metrics
@@ -268,18 +213,18 @@ impl BlockManager {
         let metrics = &self.context.metrics.node_metrics;
         metrics
             .missing_blocks_total
-            .inc_by(missing_blocks.len() as u64);
+            .inc_by(blocks_to_fetch.len() as u64);
         metrics
             .block_manager_missing_blocks
-            .set(self.missing_block_headers.len() as i64);
+            .set(self.block_suspender.blocks_to_fetch_len() as i64);
 
-        missing_blocks
+        blocks_to_fetch
     }
     /// Verifies a block w.r.t. ancestor blocks.
     /// This is called after a block has complete causal history locally,
     /// and is ready to be accepted into the DAG.
     ///
-    /// Caller must make sure ancestors corresponse to block.ancestors() 1-to-1,
+    /// Caller must make sure ancestors correspond to block.ancestors() 1-to-1,
     /// in the same order.
     fn check_ancestors(
         &self,
@@ -337,10 +282,9 @@ impl BlockManager {
                         blocks_to_reject.insert(b.reference(), b);
                         continue 'block;
                     }
-
                     {
                         panic!(
-                            "Unsuspended block {b:?} has a missing ancestor! Ancestor not found in DagState: {ancestor_ref:?}"
+                            "Unsuspended block {b:?} has a missing ancestor! Ancestor not found in DagState: {ancestor_ref:?}",
                         );
                     }
                 }
@@ -354,7 +298,7 @@ impl BlockManager {
         }
 
         // TODO: report blocks_to_reject to peers.
-        for (block_ref, block) in blocks_to_reject {
+        for (block_ref, block) in &blocks_to_reject {
             self.context
                 .metrics
                 .node_metrics
@@ -368,224 +312,8 @@ impl BlockManager {
             warn!("Invalid block {:?} is rejected", block);
         }
 
-        let blocks_to_accept = blocks_to_accept.values().cloned().collect::<Vec<_>>();
-
-        // Insert the accepted blocks into DAG state so future blocks including them as
-        // ancestors do not get suspended.
-        self.dag_state
-            .write()
-            .accept_block_headers(blocks_to_accept.clone());
-
-        blocks_to_accept
+        blocks_to_accept.values().cloned().collect::<Vec<_>>()
     }
-
-    /// Tries to accept the provided block. To accept a block its ancestors must
-    /// have been already successfully accepted. If block is accepted then
-    /// Some result is returned. None is returned when either the block is
-    /// suspended or the block has been already accepted before.
-    fn try_accept_one_block_header(
-        &mut self,
-        block_header: VerifiedBlockHeader,
-    ) -> TryAcceptResult {
-        let block_ref = block_header.reference();
-        let mut missing_ancestors = BTreeSet::new();
-        let mut ancestors_to_fetch = BTreeSet::new();
-        let dag_state = self.dag_state.read();
-
-        // If block has been already received and suspended, or already processed and
-        // stored, or is a genesis block, then skip it.
-        if self.suspended_block_headers.contains_key(&block_ref)
-            || dag_state.contains_block_header(&block_ref)
-        {
-            self.context
-                .metrics
-                .node_metrics
-                .block_manager_filtered_processed_headers_by_authority
-                .with_label_values(&[self.context.authority_hostname(block_ref.author)])
-                .inc();
-            return TryAcceptResult::Processed;
-        }
-
-        let ancestors = block_header.ancestors().to_vec();
-
-        // make sure that we have all the required ancestors in store
-        for (found, ancestor) in dag_state
-            .contains_block_headers(ancestors.clone())
-            .into_iter()
-            .zip(ancestors.iter())
-        {
-            if !found {
-                missing_ancestors.insert(*ancestor);
-
-                // mark the block as having missing ancestors
-                self.missing_ancestors
-                    .entry(*ancestor)
-                    .or_default()
-                    .insert(block_ref);
-
-                self.context
-                    .metrics
-                    .node_metrics
-                    .block_manager_missing_ancestors_by_authority
-                    .with_label_values(&[self.context.authority_hostname(ancestor.author)])
-                    .inc();
-
-                // Add the ancestor to the missing blocks set only if it doesn't already exist
-                // in the suspended blocks - meaning that we already have its
-                // payload.
-                if !self.suspended_block_headers.contains_key(ancestor) {
-                    // Fetches the block if it is not in dag state or suspended.
-                    ancestors_to_fetch.insert(*ancestor);
-                    // We also want to keep track of the authorities that have this block.
-                    // This block could be already missing, so we just update the set  of
-                    // authorities who have it.
-                    let entry = self.missing_block_headers.entry(*ancestor);
-                    match entry {
-                        Entry::Vacant(v) => {
-                            v.insert(BTreeSet::from([ancestor.author, block_ref.author]));
-                            self.context
-                                .metrics
-                                .node_metrics
-                                .block_manager_missing_blocks_by_authority
-                                .with_label_values(&[self
-                                    .context
-                                    .authority_hostname(ancestor.author)])
-                                .inc();
-                        }
-                        Entry::Occupied(mut o) => {
-                            o.get_mut().insert(block_ref.author);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Remove the block ref from the `missing_blocks` - if exists - since we now
-        // have received the block. The block might still get suspended, but we
-        // won't report it as missing in order to not re-fetch.
-        self.missing_block_headers.remove(&block_header.reference());
-
-        if !missing_ancestors.is_empty() {
-            self.context
-                .metrics
-                .node_metrics
-                .block_suspensions
-                .with_label_values(&[self.context.authority_hostname(block_header.author())])
-                .inc();
-            self.suspended_block_headers.insert(
-                block_ref,
-                SuspendedBlockHeader::new(block_header, missing_ancestors),
-            );
-            return TryAcceptResult::Suspended(ancestors_to_fetch);
-        }
-
-        TryAcceptResult::Accepted(block_header)
-    }
-
-    /// Given an accepted block `accepted_block` it attempts to accept all the
-    /// suspended children blocks assuming such exist. All the unsuspended /
-    /// accepted blocks are returned as a vector in causal order.
-    fn try_unsuspend_children_blocks(
-        &mut self,
-        accepted_block: BlockRef,
-    ) -> Vec<VerifiedBlockHeader> {
-        let mut unsuspended_blocks = vec![];
-        let mut to_process_blocks = vec![accepted_block];
-
-        while let Some(block_ref) = to_process_blocks.pop() {
-            // And try to check if its direct children can be unsuspended
-            if let Some(block_refs_with_missing_deps) = self.missing_ancestors.remove(&block_ref) {
-                for r in block_refs_with_missing_deps {
-                    // For each dependency try to unsuspend it. If that's successful then we add it
-                    // to the queue so we can recursively try to unsuspend its
-                    // children.
-                    if let Some(block) = self.try_unsuspend_block(&r, &block_ref) {
-                        to_process_blocks.push(block.block_header.reference());
-                        unsuspended_blocks.push(block);
-                    }
-                }
-            }
-        }
-
-        let now = Instant::now();
-
-        // Report the unsuspended blocks
-        for block in &unsuspended_blocks {
-            self.context
-                .metrics
-                .node_metrics
-                .block_unsuspensions
-                .with_label_values(&[self.context.authority_hostname(block.block_header.author())])
-                .inc();
-            self.context
-                .metrics
-                .node_metrics
-                .suspended_block_time
-                .with_label_values(&[self.context.authority_hostname(block.block_header.author())])
-                .observe(now.saturating_duration_since(block.timestamp).as_secs_f64());
-        }
-
-        unsuspended_blocks
-            .into_iter()
-            .map(|block| block.block_header)
-            .collect()
-    }
-
-    /// Attempts to unsuspend a block by checking its ancestors and removing the
-    /// `accepted_dependency` by its local set. If there is no missing
-    /// dependency then this block can be unsuspended immediately and is removed
-    /// from the `suspended_blocks` map.
-    fn try_unsuspend_block(
-        &mut self,
-        block_ref: &BlockRef,
-        accepted_dependency: &BlockRef,
-    ) -> Option<SuspendedBlockHeader> {
-        let block = self
-            .suspended_block_headers
-            .get_mut(block_ref)
-            .expect("Block should be in suspended map");
-
-        assert!(
-            block.missing_ancestors.remove(accepted_dependency),
-            "Block reference {} should be present in missing dependencies of {:?}",
-            block_ref,
-            block.block_header
-        );
-
-        if block.missing_ancestors.is_empty() {
-            // we have no missing dependency, so we unsuspend the block and return it
-            return self.suspended_block_headers.remove(block_ref);
-        }
-        None
-    }
-
-    /// Returns all the block headers that are currently missing and needed in
-    /// order to accept suspended block headers. For each block reference it
-    /// returns the set of authorities who have this block header.
-    pub(crate) fn missing_block_headers(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
-        self.missing_block_headers.clone()
-    }
-
-    /// Returns all the block refs that are currently missing.
-    #[cfg(test)]
-    pub(crate) fn missing_block_refs(&self) -> BTreeSet<BlockRef> {
-        self.missing_block_headers.keys().cloned().collect()
-    }
-
-    fn update_stats(&mut self, missing_blocks: u64) {
-        let metrics = &self.context.metrics.node_metrics;
-        metrics.missing_blocks_total.inc_by(missing_blocks);
-        metrics
-            .block_manager_suspended_blocks
-            .set(self.suspended_block_headers.len() as i64);
-        metrics
-            .block_manager_missing_ancestors
-            .set(self.missing_ancestors.len() as i64);
-        metrics
-            .block_manager_missing_blocks
-            .set(self.missing_block_headers.len() as i64);
-    }
-
     fn update_block_received_metrics(&mut self, block: &VerifiedBlockHeader) {
         let (min_round, max_round) =
             if let Some((curr_min, curr_max)) = self.received_block_rounds[block.author()] {
@@ -609,32 +337,90 @@ impl BlockManager {
             .set(max_round.into());
     }
 
+    /// Returns all the blocks that are currently missing and needed in order to
+    /// accept suspended blocks. For each block reference it returns the set of
+    /// authorities who have this block.
+    pub(crate) fn blocks_to_fetch(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
+        self.block_suspender.headers_to_fetch()
+    }
+
+    /// Returns all the block refs that are currently missing.
+    #[cfg(test)]
+    pub(crate) fn blocks_to_fetch_refs(&self) -> BTreeSet<BlockRef> {
+        self.block_suspender.blocks_to_fetch_refs()
+    }
     /// Checks if block manager is empty.
     #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
-        self.suspended_block_headers.is_empty()
-            && self.missing_ancestors.is_empty()
-            && self.missing_block_headers.is_empty()
+        self.block_suspender.is_empty()
     }
 
     /// Returns all the suspended blocks refs whose causal history we miss hence
     /// we can't accept them yet.
     #[cfg(test)]
-    fn suspended_blocks_refs(&self) -> BTreeSet<BlockRef> {
-        self.suspended_block_headers.keys().cloned().collect()
+    pub(crate) fn suspended_blocks_refs(&self) -> BTreeSet<BlockRef> {
+        self.block_suspender.suspended_blocks_refs()
     }
-}
 
-// Result of trying to accept one block.
-enum TryAcceptResult {
-    // The block is accepted. Wraps the block itself.
-    Accepted(VerifiedBlockHeader),
-    // The block is suspended. Wraps ancestors to be fetched.
-    Suspended(BTreeSet<BlockRef>),
-    // The block has been processed before and already exists in BlockManager (and is suspended)
-    // or in DagState (so has been already accepted). No further processing has been done at
-    // this point.
-    Processed,
+    fn find_missing_ancestors(
+        &self,
+        incoming_headers: Vec<VerifiedBlockHeader>,
+    ) -> BTreeMap<VerifiedBlockHeader, BTreeSet<BlockRef>> {
+        let mut missing_ancestors = BTreeMap::new();
+        let dag_state = self.dag_state.read();
+        for incoming_header in incoming_headers {
+            let ancestors: &[BlockRef] = incoming_header.ancestors();
+            let mut missing_ancestors_set = BTreeSet::new();
+            for (found, ancestor) in dag_state
+                .contains_block_headers(ancestors.to_vec())
+                .into_iter()
+                .zip(ancestors.iter())
+            {
+                if !found {
+                    missing_ancestors_set.insert(*ancestor);
+                }
+            }
+            missing_ancestors.insert(incoming_header, missing_ancestors_set);
+        }
+        missing_ancestors
+    }
+    /// Filters out the block headers that have been already processed
+    /// or are currently suspended. Reports metrics for the filtered out headers
+    fn filter_out_already_processed_and_sort(
+        &self,
+        block_headers: Vec<VerifiedBlockHeader>,
+    ) -> Vec<VerifiedBlockHeader> {
+        let block_references = block_headers
+            .iter()
+            .map(|b| b.reference())
+            .collect::<Vec<_>>();
+        let dag_state = self.dag_state.read();
+        let mut filtered = block_headers
+            .into_iter()
+            .zip(dag_state.contains_block_headers(block_references))
+            .filter_map(|(block_header, found)| {
+                if found
+                    || self
+                        .block_suspender
+                        .is_block_ref_suspended(&block_header.reference())
+                {
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .block_manager_filtered_processed_headers_by_authority
+                        .with_label_values(&[self
+                            .context
+                            .authority_hostname(block_header.author())])
+                        .inc();
+                    None // filter out
+                } else {
+                    Some(block_header) // keep
+                }
+            })
+            .collect::<Vec<_>>();
+        filtered.sort_by_key(|h| h.round());
+        filtered
+    }
 }
 
 #[cfg(test)]
@@ -655,7 +441,6 @@ mod tests {
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
     };
-
     #[tokio::test]
     async fn suspend_blocks_with_missing_ancestors() {
         // GIVEN
@@ -700,7 +485,7 @@ mod tests {
         // AND the missing blocks are the parents of the round 2 blocks. Since this is a
         // fully connected DAG taking the ancestors of the first element
         // suffices.
-        assert_eq!(block_manager.missing_block_refs(), missing_block_refs);
+        assert_eq!(block_manager.blocks_to_fetch_refs(), missing_block_refs);
 
         // AND suspended blocks should return the round_2_blocks
         assert_eq!(
@@ -713,7 +498,7 @@ mod tests {
 
         // AND each missing block should be known to all authorities
         let known_by_manager = block_manager
-            .missing_block_headers()
+            .blocks_to_fetch()
             .iter()
             .next()
             .expect("We should expect at least two elements there")
@@ -816,7 +601,7 @@ mod tests {
         assert!(accepted_block_headers.is_empty());
     }
 
-    /// The test generate blocks for a well connected DAG and feed them to block
+    /// The test generate blocks for a well-connected DAG and feed them to block
     /// manager in random order. In the end all the blocks should be
     /// uniquely suspended and no missing blocks should exist.
     #[tokio::test]
@@ -861,7 +646,7 @@ mod tests {
 
             assert_eq!(
                 all_accepted_block_headers, all_block_headers,
-                "Failed acceptance sequence for seed {seed}",
+                "Failed acceptance sequence for seed {seed}"
             );
             assert!(block_manager.is_empty());
         }
@@ -907,7 +692,7 @@ mod tests {
         // Blocks from round 1 are all missing, since the DAG is fully connected
         assert_eq!(missing_blocks, blocks_round_1);
 
-        let missing_blocks_with_authorities = block_manager.missing_block_headers();
+        let missing_blocks_with_authorities = block_manager.blocks_to_fetch();
 
         let block_round_1_authority_0 = all_blocks
             .iter()
@@ -936,7 +721,7 @@ mod tests {
         // Add a new block from round 2 from authority 1, which updates the set of
         // authorities that are aware of the missing blocks
         block_manager.try_accept_block_headers(vec![blocks_round_2[1].clone()]);
-        let missing_blocks_with_authorities = block_manager.missing_block_headers();
+        let missing_blocks_with_authorities = block_manager.blocks_to_fetch();
         assert_eq!(
             missing_blocks_with_authorities[&block_round_1_authority_0],
             BTreeSet::from([
@@ -972,7 +757,6 @@ mod tests {
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let mut block_manager = BlockManager::new(context.clone(), dag_state);
-
         // Try to accept blocks from round 2 ~ 5 into block manager. All of them should
         // be suspended.
         let (accepted_block_headers, missing_refs) = block_manager.try_accept_block_headers(
@@ -982,7 +766,6 @@ mod tests {
                 .cloned()
                 .collect(),
         );
-
         // Missing refs should all come from round 1.
         assert!(accepted_block_headers.is_empty());
         assert_eq!(missing_refs.len(), 4);
@@ -998,7 +781,6 @@ mod tests {
                 .cloned()
                 .collect(),
         );
-
         // Only round 1 and round 2 blocks should be accepted.
         assert_eq!(accepted_block_headers.len(), 8);
         accepted_block_headers.iter().for_each(|block_header| {
@@ -1006,8 +788,8 @@ mod tests {
         });
         assert!(missing_refs.is_empty());
 
-        // Other blocks should be rejected and there should be no remaining suspended
-        // block.
+        // Other blocks should be rejected and there should be no suspended block
+        // remaining.
         assert!(block_manager.suspended_blocks_refs().is_empty());
     }
 
@@ -1055,7 +837,7 @@ mod tests {
                 .all(|block_ref| block_ref.round == 2)
         );
 
-        // Try accept blocks which will cause blocks to be suspended and added to
+        // Try to accept blocks which will cause blocks to be suspended and added to
         // missing in block manager.
         let (accepted_blocks_headers, missing) =
             block_manager.try_accept_block_headers(round_2_block_headers.clone());
@@ -1066,13 +848,13 @@ mod tests {
             missing_block_refs.iter().cloned().collect::<BTreeSet<_>>();
         assert_eq!(missing, missing_block_refs_from_accept);
         assert_eq!(
-            block_manager.missing_block_refs(),
+            block_manager.blocks_to_fetch_refs(),
             missing_block_refs_from_accept
         );
 
         // No blocks should be accepted and block manager should have made note
         // of the missing & suspended blocks.
-        // Now we can check get the result of try find block with all of the blocks
+        // Now we can check get the result of try to find block with all the blocks
         // from newly created but not accepted round 3.
         dag_builder.layer(3).build();
 
@@ -1099,7 +881,7 @@ mod tests {
                 .all(|block_ref| block_ref.round == 3)
         );
         assert_eq!(
-            block_manager.missing_block_refs(),
+            block_manager.blocks_to_fetch_refs(),
             missing_block_refs_from_accept
                 .into_iter()
                 .chain(missing_block_refs_from_find.into_iter())
