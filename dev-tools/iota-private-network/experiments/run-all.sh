@@ -20,7 +20,7 @@ DEFAULT_PERCENT_RESTART=0     # percent chance to restart a validator
 DEFAULT_RUN_DURATION=3600  # default sleep at end: 1 hour
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="$SCRIPT_DIR/logs" # directory with logs
-LOG_INTERVAL=60           # save logs every 5 minutes
+LOG_INTERVAL=60           # save logs every 60 seconds
 DEFAULT_NETWORK_METRIC=false
 DEFAULT_SPAMMER_ENABLE=false
 DEFAULT_SPAMMER_TPS=100
@@ -193,20 +193,34 @@ cd - >/dev/null
 # --- Launch spammer if enabled ---
 if [ "$SPAMMER_ENABLE" = true ]; then
     # Ensure faucet-1 is running (required by spammer)
-    log "Starting faucet-1"
-    (cd .. && docker compose up -d faucet-1) >/dev/null 2>&1 || log "Warning: could not start faucet-1"
+    log "Starting faucet-1..."
+    (cd .. && docker compose up -d faucet-1) || log "Warning: could not start faucet-1"
+    log "Sleep 20s after faucet start..."
+    sleep 20
     SPAMMER_DURATION=$((RUN_DURATION - 60))
     if [ "$SPAMMER_DURATION" -lt 10 ]; then
       SPAMMER_DURATION=10
     fi
-    log "Sleep 10s to boot faucet-1"
-    sleep 10
+    SPAMMER_SCRIPT="${SPAMMER_SCRIPT:-$HOME/iota-spammer/experiments/scripts/spamming_fuzz_test.sh}"
+    if [ ! -f "$SPAMMER_SCRIPT" ]; then
+      log "Error: Spammer script not found at $SPAMMER_SCRIPT"
+      exit 1
+    fi
     log "Starting spammer with TPS=$SPAMMER_TPS, objects per tx=$SPAMMER_OBJECTS_PER_TX, duration=${SPAMMER_DURATION}s..."
-    ../../../../iota-spammer/experiments/scripts/spamming_fuzz_test.sh \
-      -T "$SPAMMER_TPS" \
-      -o "$SPAMMER_OBJECTS_PER_TX" \
-      -d "${SPAMMER_DURATION}s" \
-      > "$LOG_DIR/spammer.log" 2>&1 &
+    if [ -n "${SUDO_USER:-}" ]; then
+      log "Detected sudo; running spammer as $SUDO_USER to inherit user Rust toolchain"
+      sudo -u "$SUDO_USER" -H bash "$SPAMMER_SCRIPT" \
+        -T "$SPAMMER_TPS" \
+        -o "$SPAMMER_OBJECTS_PER_TX" \
+        -d "${SPAMMER_DURATION}s" \
+        > "$LOG_DIR/spammer.log" 2>&1 &
+    else
+      bash "$SPAMMER_SCRIPT" \
+        -T "$SPAMMER_TPS" \
+        -o "$SPAMMER_OBJECTS_PER_TX" \
+        -d "${SPAMMER_DURATION}s" \
+        > "$LOG_DIR/spammer.log" 2>&1 &
+    fi
     wait $!
     if [ $? -ne 0 ]; then
       log "Warning: Spammer script exited with an error."
