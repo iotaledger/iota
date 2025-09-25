@@ -474,6 +474,8 @@ impl<'a> LayerBuilder<'a> {
     fn new(dag_builder: &'a mut DagBuilder, start_round: Round) -> Self {
         assert!(start_round > 0, "genesis round is created by default");
         let ancestors = dag_builder.last_ancestors.clone();
+        let provably_faulty_ancestors =
+            dag_builder.provably_faulty_blocks.keys().cloned().collect();
         Self {
             dag_builder,
             start_round,
@@ -494,7 +496,7 @@ impl<'a> LayerBuilder<'a> {
             random_weak_links: false,
             random_weak_links_random_seed: None,
             ancestors,
-            provably_faulty_ancestors: vec![],
+            provably_faulty_ancestors,
             blocks: vec![],
             provably_faulty_blocks: vec![],
         }
@@ -846,7 +848,8 @@ impl<'a> LayerBuilder<'a> {
 
     fn equivocation_reports(&self, ancestors: Vec<BlockRef>) -> Vec<MisbehaviorReport> {
         let mut reports = vec![];
-        let mut seen_ancestors = BTreeMap::<AuthorityIndex, BlockRef>::new();
+        let mut seen_ancestors: BTreeMap<AuthorityIndex, BlockRef> =
+            BTreeMap::<AuthorityIndex, BlockRef>::new();
         for ancestor in ancestors.iter() {
             if let Some(existing_ancestor) = seen_ancestors.get(&ancestor.author) {
                 reports.push(MisbehaviorReport::new(

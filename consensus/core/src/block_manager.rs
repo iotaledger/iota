@@ -1597,8 +1597,23 @@ mod tests {
             BlockManager::new(context.clone(), dag_state, Arc::new(NoopBlockVerifier));
 
         // create a DAG of 12 rounds
+        // authority 0 creates a provably faulty block at round 3
         let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=12).build();
+        dag_builder.layers(1..=2).build();
+        dag_builder
+            .layer(3)
+            .authorities(vec![context.committee.authorities().next().unwrap().0])
+            .faulty()
+            .build();
+        dag_builder.layers(4..=12).build();
+
+        // Check that there are misbehavior reports in round 4 blocks
+        let round_4_blocks = dag_builder.blocks(4..=4);
+        assert!(
+            round_4_blocks
+                .iter()
+                .all(|b| !b.misbehavior_reports().is_empty())
+        );
 
         // Now try to accept via the normal acceptance block path the blocks of rounds 7
         // ~ 12. None of them should be accepted
