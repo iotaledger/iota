@@ -22,6 +22,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="$SCRIPT_DIR/logs" # directory with logs
 LOG_INTERVAL=60           # save logs every 5 minutes
 DEFAULT_NETWORK_METRIC=false
+DEFAULT_SPAMMER_ENABLE=false
+DEFAULT_SPAMMER_TPS=100
+DEFAULT_SPAMMER_OBJECTS_PER_TX=10
 # ==================================================
 
 # --- Trap termination and normal exit safely ---
@@ -57,6 +60,7 @@ cleanup_and_kill() {
         echo "Stopping all background scripts and validators..."
         kill -- -$$ &> /dev/null   # silently kill all children
         (cd .. && docker compose down &> /dev/null)  # silent cleanup
+        docker rm -f faucet-1 &> /dev/null || true
     fi
 }
 
@@ -81,6 +85,7 @@ usage() {
   echo "Usage: $0 [-n num_validators(4..19)] [-p protocol(mysticeti|starfish)] [-b build_images(true|false)]"
   echo "          [-g geodistributed(true|false)] [-s seed(number)] [-x percent_block_connection(0..100)] [-l percent_loss_packets(0..100)]"
   echo "          [-t run_duration_seconds] [-r percent_restart(0..100)] [-m flag_to_output_network_statistics]"
+  echo "          [-S spammer_enable(true|false)] [-T spammer_tps(number)] [-o spammer_objects_per_tx(number)]"
 }
 
 # --- Default values ---
@@ -94,9 +99,12 @@ PERCENT_LOSS=$DEFAULT_PERCENT_LOSS
 PERCENT_RESTART=$DEFAULT_PERCENT_RESTART
 RUN_DURATION=$DEFAULT_RUN_DURATION
 NETWORK_METRIC=$DEFAULT_NETWORK_METRIC
+SPAMMER_ENABLE=$DEFAULT_SPAMMER_ENABLE
+SPAMMER_TPS=$DEFAULT_SPAMMER_TPS
+SPAMMER_OBJECTS_PER_TX=$DEFAULT_SPAMMER_OBJECTS_PER_TX
 
 # --- Parse command-line arguments ---
-while getopts ":n:p:b:g:s:x:l:t:r:hm" opt; do
+while getopts ":n:p:b:g:s:x:l:t:r:mS:T:o:h" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
     p) PROTOCOL="$OPTARG" ;;
@@ -108,6 +116,9 @@ while getopts ":n:p:b:g:s:x:l:t:r:hm" opt; do
     t) RUN_DURATION="$OPTARG" ;;
     r) PERCENT_RESTART="$OPTARG" ;;
     m) NETWORK_METRIC=true ;;
+    S) SPAMMER_ENABLE="$OPTARG" ;;
+    T) SPAMMER_TPS="$OPTARG" ;;
+    o) SPAMMER_OBJECTS_PER_TX="$OPTARG" ;;
     h) usage; exit 0 ;;
     \?) usage; exit 2 ;;
     :)  usage; exit 2 ;;
@@ -130,6 +141,10 @@ log "Percent block connection   : $PERCENT_BLOCK"
 log "Percent netem loss         : $PERCENT_LOSS"
 log "Percent restart validator  : $PERCENT_RESTART"
 log "Run experiments duration   : $RUN_DURATION s"
+log "Network metrics enabled    : $NETWORK_METRIC"
+log "Spammer enabled            : $SPAMMER_ENABLE"
+log "Spammer TPS                : $SPAMMER_TPS"
+log "Spammer objects per tx     : $SPAMMER_OBJECTS_PER_TX"
 log "==========================="
 
 # --- 1) Build images (optional) ---
@@ -174,6 +189,29 @@ cd - >/dev/null
     -r "$PERCENT_RESTART" \
     -g "$GEODISTRIBUTED" \
     -o "$LOG_FILE" &
+
+# --- Launch spammer if enabled ---
+if [ "$SPAMMER_ENABLE" = true ]; then
+    # Ensure faucet-1 is running (required by spammer)
+    if ! docker ps --format '{{.Names}}' | grep -q '^faucet-1$'; then
+      log "faucet-1 not running; attempting to start it"
+      docker start faucet-1 >/dev/null 2>&1 || log "Warning: could not start faucet-1"
+    fi
+    SPAMMER_DURATION=$((RUN_DURATION - 60))
+    if [ "$SPAMMER_DURATION" -lt 10 ]; then
+      SPAMMER_DURATION=10
+    fi
+    log "Starting spammer with TPS=$SPAMMER_TPS, objects per tx=$SPAMMER_OBJECTS_PER_TX, duration=${SPAMMER_DURATION}s..."
+    ../../../iota-spammer/spamming_fuzz_test.sh \
+      -T "$SPAMMER_TPS" \
+      -o "$SPAMMER_OBJECTS_PER_TX" \
+      -d "${SPAMMER_DURATION}s" \
+      > "$LOG_DIR/spammer.log" 2>&1 &
+    wait $!
+    if [ $? -ne 0 ]; then
+      log "Warning: Spammer script exited with an error."
+    fi
+fi
 
 # --- 6) Run for specified duration, periodically saving logs ---
 log "Running experiments for $RUN_DURATION seconds, saving logs every $LOG_INTERVAL seconds..."

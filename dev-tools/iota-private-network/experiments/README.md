@@ -38,6 +38,9 @@ Supports the following flags:
 - `-r <PERCENT_RESTART>`: percent of validators to restart periodically (default: `0`)
 - `-t <RUN_DURATION>`: total experiment duration in seconds (default: `3600`)
 - `-m`: optional flag to output network metric statistics (packets and bytes).
+- `-S <true|false>`: enable the transaction spammer (default: `false`)
+- `-T <TPS>`: transactions per second used by the spammer (default: `100`)
+- `-o <NUM_OBJECTS>`: number of shared objects per transaction for the spammer (default: `10`)
 
 The script should be run from inside the `iota/dev-tools/iota-private-network/experiments/` directory.
 
@@ -55,3 +58,29 @@ The script should be run from inside the `iota/dev-tools/iota-private-network/ex
 ```
 
 ---
+
+## Optional Transaction Spammer
+
+The experiment suite can optionally include a transaction spammer to generate load on the validator network during the run.
+
+### With spammer enabled:
+
+```bash
+./run-all.sh -n 4 -p mysticeti -S true -T 150 -o 20
+```
+
+This will Launch the spammer from an external repository with the configured transaction rate and shared object parameters.
+
+### Required Setup for Spammer
+
+To enable the spammer (`-S true`), you must clone the following **private** repository:
+
+```
+https://github.com/iotaledger/iota-spammer
+```
+
+Place it at the following relative path from `run-all.sh`, or update the path in the script accordingly:
+
+```
+../../../iota-spammer
+```
