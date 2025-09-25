@@ -201,7 +201,8 @@ if [ "$SPAMMER_ENABLE" = true ]; then
     if [ "$SPAMMER_DURATION" -lt 10 ]; then
       SPAMMER_DURATION=10
     fi
-    SPAMMER_SCRIPT="${SPAMMER_SCRIPT:-$HOME/iota-spammer/experiments/scripts/spamming_fuzz_test.sh}"
+    USER_HOME=$(getent passwd "${SUDO_USER:-$USER}" | cut -d: -f6)
+    SPAMMER_SCRIPT="${SPAMMER_SCRIPT:-$USER_HOME/iota-spammer/experiments/scripts/spamming_fuzz_test.sh}"
     if [ ! -f "$SPAMMER_SCRIPT" ]; then
       log "Error: Spammer script not found at $SPAMMER_SCRIPT"
       exit 1
