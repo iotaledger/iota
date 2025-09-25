@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { useNavigate } from 'react-router-dom';
@@ -10,9 +10,7 @@ import { useState } from 'react';
 export function ImportPasskeyPage() {
     const navigate = useNavigate();
     const [, setAccountsFormValues] = useAccountsFormContext();
-    const [authenticatorType, setAuthenticatorType] = useState<'platform' | 'cross-platform'>(
-        'platform',
-    );
+    const [authenticatorType, setAuthenticatorType] = useState<AuthenticatorAttachment>('platform');
 
     function handleOnSubmit() {
         setAccountsFormValues({

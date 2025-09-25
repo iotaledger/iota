@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SerializedUIAccount } from '_src/background/accounts/account';
@@ -16,12 +16,10 @@ import { KeystoneSigner } from '../keystoneSigner';
 import { useKeystoneContext } from '../components/keystone/KeystoneProvider';
 import { isPasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
 import { PasskeySigner } from '../passkeySigner';
-import { usePasskeyContext } from '../components/passkey/PasskeyContext';
 
 export function useSigner(account: SerializedUIAccount | null): WalletSigner | null {
     const { connectToLedger } = useIotaLedgerClient();
     const { requestSignature } = useKeystoneContext();
-    const { requestSignature: requestPasskeySignature } = usePasskeyContext();
     const api = useIotaClient();
     const background = useBackgroundClient();
     if (!account) {
@@ -34,7 +32,7 @@ export function useSigner(account: SerializedUIAccount | null): WalletSigner | n
         return new KeystoneSigner(requestSignature, account, api);
     }
     if (isPasskeyAccountSerializedUI(account)) {
-        return new PasskeySigner(requestPasskeySignature, account, api);
+        return new PasskeySigner(account, api);
     }
     return walletApiProvider.getSignerInstance(account, background);
 }
