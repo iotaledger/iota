@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Example demonstrating how to unlock an output owned by an alias output.
-//! In order to work, it requires a network with test objects
-//! generated from iota-genesis-builder/src/stardust/test_outputs.
+//! Example demonstrating how to create an abstracted account and send a TX
+//! through it using a Move-based Ed25519 authentication. In order to work, it
+//! requires a running local network.
 
 use docs_examples::utils::{compile_package, get_coin, request_tokens};
 use fastcrypto::{
