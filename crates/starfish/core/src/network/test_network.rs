@@ -47,6 +47,7 @@ impl NetworkService for Mutex<TestService> {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
+        _encoder: &mut ReedSolomonEncoder,
     ) -> ConsensusResult<()> {
         let mut state = self.lock();
         state

@@ -7,6 +7,7 @@ use std::{sync::Arc, time::Duration};
 use futures::StreamExt;
 use iota_metrics::spawn_monitored_task;
 use parking_lot::{Mutex, RwLock};
+use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::AuthorityIndex;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info};
@@ -114,6 +115,12 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let peer_hostname = &context.committee.authority(peer).hostname;
         let mut retries: i64 = 0;
         let mut delay = INITIAL_RETRY_INTERVAL;
+
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
+
         'subscription: loop {
             context
                 .metrics
@@ -195,7 +202,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
-                            .handle_subscribed_block_bundle(peer, block.clone())
+                            .handle_subscribed_block_bundle(peer, block.clone(), &mut encoder)
                             .await;
                         if let Err(e) = result {
                             match e {

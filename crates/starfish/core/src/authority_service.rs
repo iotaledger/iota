@@ -54,6 +54,7 @@ pub trait TransactionsCommitmentComputer {
     async fn compute_transactions_commitment(
         &self,
         serialized_transactions: &Bytes,
+        encoder: &mut ReedSolomonEncoder,
     ) -> ConsensusResult<TransactionsCommitment>;
 }
 
@@ -61,6 +62,7 @@ impl<C: CoreThreadDispatcher> TransactionsCommitmentComputer for AuthorityServic
     async fn compute_transactions_commitment(
         &self,
         serialized_transactions: &Bytes,
+        encoder: &mut ReedSolomonEncoder,
     ) -> ConsensusResult<TransactionsCommitment> {
         let info_length = self.context.committee.info_length();
         let parity_length = self.context.committee.size() - info_length;
@@ -74,7 +76,6 @@ impl<C: CoreThreadDispatcher> TransactionsCommitmentComputer for AuthorityServic
             .map(|chunk| chunk.to_vec())
             .collect();
 
-        let mut encoder = self.encoder.lock().await;
         let encoded_shards = encoder
             .encode_shards(sharded_transactions, info_length, parity_length)
             .expect("We should expect correct encoding of the shards");
@@ -148,7 +149,6 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// multiple times. The size is limited by MAX_FILTER_SIZE, elements are
     /// evicted when the threshold is exceeded
     received_block_headers: FilterForHeaders,
-    encoder: Mutex<ReedSolomonEncoder>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -167,12 +167,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             context.clone(),
             core_dispatcher.clone(),
         ));
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let encoder = Mutex::new(
-            ReedSolomonEncoder::new(info_length, parity_length, 2)
-                .expect("We should expect correct creation of the ReedSolomonEncoder"),
-        );
+
         Self {
             context,
             block_verifier,
@@ -185,7 +180,6 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             dag_state,
             store,
             received_block_headers: FilterForHeaders::new(),
-            encoder,
         }
     }
 }
@@ -196,6 +190,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
+        encoder: &mut ReedSolomonEncoder,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
 
@@ -247,7 +242,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         if signed_block_header.transactions_commitment()
             != self
-                .compute_transactions_commitment(&serialized_transactions)
+                .compute_transactions_commitment(&serialized_transactions, encoder)
                 .await
                 .expect("we should expect correct computation of the transactions commitment")
         {

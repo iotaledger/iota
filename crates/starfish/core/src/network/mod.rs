@@ -53,7 +53,7 @@ pub(crate) mod tonic_network;
 #[cfg(msim)]
 pub mod tonic_network;
 mod tonic_tls;
-
+use reed_solomon_simd::ReedSolomonEncoder;
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
 pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBundle> + Send>>;
@@ -130,6 +130,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
+        encoder: &mut ReedSolomonEncoder,
     ) -> ConsensusResult<()>;
 
     /// Handles the subscription request from the peer.
