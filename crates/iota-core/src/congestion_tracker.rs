@@ -204,8 +204,7 @@ impl CongestionTracker {
                 let prediction_sui = self
                     .get_prediction_suggested_gas_price(tx_data)
                     .unwrap_or(self.reference_gas_price);
-                let prediction_ogd = self
-                    .get_suggested_gas_price_with_ogd(tx_data);
+                let prediction_ogd = self.get_suggested_gas_price_with_ogd(tx_data);
 
                 info!(
                     "Checkpoint: {} | Gas price: {} | Feedback: {} | Prediction (Sui): {:?} | Prediction (IOTA): {:?}",
@@ -284,13 +283,15 @@ impl CongestionTracker {
     /// For all the mutable shared inputs, sum the hotness of the objects.
     /// More sophisticated prediction algorithms can be implemented.
     pub fn get_suggested_gas_price_with_ogd(&self, transaction: &TransactionData) -> u64 {
-        let (_, hotness) = self.get_max_hotness_per_tx(
-            transaction
-                .shared_input_objects()
-                .into_iter()
-                .filter(|id| id.mutable)
-                .map(|id| id.id),
-        ).unwrap_or((ObjectID::random(), 0.0));
+        let (_, hotness) = self
+            .get_max_hotness_per_tx(
+                transaction
+                    .shared_input_objects()
+                    .into_iter()
+                    .filter(|id| id.mutable)
+                    .map(|id| id.id),
+            )
+            .unwrap_or((ObjectID::random(), 0.0));
 
         self.reference_gas_price + hotness as u64
     }
@@ -449,14 +450,32 @@ impl CongestionTracker {
         clearing_gas_price
     }
 
-    fn get_max_hotness_per_tx(&self, objects: impl Iterator<Item = ObjectID>) -> Option<(ObjectID, f64)> {
-        
-        objects
-            .filter_map(|object_id| {
-                self.get_congestion_info(object_id)
-                    .map(|info| (object_id, info.hotness))
-            })
-            .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
+    fn get_max_hotness_per_tx(
+        &self,
+        mut objects: impl Iterator<Item = ObjectID>,
+    ) -> Option<(ObjectID, f64)> {
+        // Initialize with the first object (or return None if empty)
+        let first = objects.next()?;
+        let first_hotness = self
+            .get_congestion_info(first)
+            .map(|info| info.hotness)
+            .unwrap_or(0.0);
+
+        let mut best = (first, first_hotness);
+
+        // Iterate through the rest
+        for object_id in objects {
+            let hotness = self
+                .get_congestion_info(object_id)
+                .map(|info| info.hotness)
+                .unwrap_or(0.0);
+
+            if hotness > best.1 {
+                best = (object_id, hotness);
+            }
+        }
+
+        Some(best)
     }
 
     fn compute_per_checkpoint_congestion_info(
@@ -473,9 +492,14 @@ impl CongestionTracker {
             gas_price_feedback,
         } in congestion_txs_data
         {
-            let (max_object_id, max_hotness_per_tx) = self.get_max_hotness_per_tx(objects.iter().cloned()).unwrap_or((ObjectID::random(), 0.0));
-            objects.iter().for_each(|object_id| {
-                match congestion_info_map.entry(*object_id) {
+            // Get the object with the maximum hotness among all objects in the transaction.
+            let (max_object_id, max_hotness_per_tx) = self
+                .get_max_hotness_per_tx(objects.iter().cloned())
+                .unwrap_or((ObjectID::random(), 0.0));
+
+            objects
+                .iter()
+                .for_each(|object_id| match congestion_info_map.entry(*object_id) {
                     Entry::Occupied(entry) => {
                         entry.into_mut().update_for_congested_tx(time, *gas_price);
                     }
@@ -488,21 +512,16 @@ impl CongestionTracker {
                             hotness: 0.0,
                         });
                     }
-                }
+                });
+            // Adjust hotness based on the loss function comparing prediction (maximum
+            // hotness of objects in the transaction + reference gas price) and actual gas
+            // price feedback.
+            let hotness_adjustment = max_hotness_per_tx + (self.reference_gas_price as f64)
+                - (gas_price_feedback.unwrap_or(self.reference_gas_price) as f64);
 
-                // Adjust hotness based on the loss function comparing prediction (sum of
-                // hotness of objects in the transaction + reference gas price) and actual gas
-                // price feedback.
-
-                //let hotness_adjustment = hotness_per_tx + (self.reference_gas_price as f64)
-                //    - (gas_price_feedback.unwrap_or(self.reference_gas_price) as f64);
-                let hotness_adjustment = max_hotness_per_tx + (self.reference_gas_price as f64)
-                    - (gas_price_feedback.unwrap_or(self.reference_gas_price) as f64);
-
-                congestion_info_map
-                    .entry(max_object_id)
-                    .and_modify(|info| info.hotness += hotness_adjustment);
-            });
+            congestion_info_map
+                .entry(max_object_id)
+                .and_modify(|info| info.hotness += hotness_adjustment);
         }
 
         for TxData {
