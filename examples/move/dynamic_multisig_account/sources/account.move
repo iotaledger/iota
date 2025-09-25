@@ -77,19 +77,19 @@ public fun propose_transaction(
     ctx: &TxContext
 ) {
     // Get the member who proposed the transaction.
-    let member_address = *self.borrow_members().borrow_member(ctx.sender()).borrow_address();
+    let member_address = *self.members().member(ctx.sender()).addr();
 
     // Store the transaction.
-    self.borrow_transactions_mut().add_transaction(transaction_digest, member_address);
+    self.transactions_mut().add_transaction(transaction_digest, member_address);
 }
 
 /// Approves a proposed transaction.
 public fun approve_transaction(self: &mut DynamicMultisigAccount, transaction_digest: vector<u8>, ctx: &TxContext) {
     // Get the member who proposed the transaction.
-    let member_address = *self.borrow_members().borrow_member(ctx.sender()).borrow_address();
+    let member_address = *self.members().member(ctx.sender()).addr();
 
     // Get the transaction.
-    let transaction = self.borrow_transactions_mut().borrow_transaction_mut(transaction_digest);
+    let transaction = self.transactions_mut().transaction_mut(transaction_digest);
 
     // Approve the transaction.
     transaction.add_approval(member_address);
@@ -145,15 +145,15 @@ fun ensure_tx_sender_is_account(self: &DynamicMultisigAccount, ctx: &TxContext) 
 /// If the members list is changed after the transaction proposal, only the members who are still in the list
 /// are considered for the approval. Their weights are taken from the current members list.
 fun ensure_tx_is_approved(self: &DynamicMultisigAccount, ctx: &TxContext) {
-    let members = self.borrow_members();
-    let transaction = self.borrow_transactions().borrow_transaction(*ctx.digest());
-    let threshold = self.borrow_threshold();
+    let members = self.members();
+    let transaction = self.transactions().transaction(*ctx.digest());
+    let threshold = self.threshold();
 
     let mut total_approves = 0;
 
     transaction.approves().do_ref!(|addr| {
         if (members.has_member(*addr)) {
-            total_approves = total_approves + members.borrow_member(*addr).weight();
+            total_approves = total_approves + members.member(*addr).weight();
         }
     });
 
@@ -176,22 +176,22 @@ fun transactions_key(): TransactionsKey {
 }
 
 /// Immutably borrows the account members.
-fun borrow_members(self: &DynamicMultisigAccount): &Members {
+fun members(self: &DynamicMultisigAccount): &Members {
     dynamic_field::borrow(&self.id, members_key())
 }
 
 /// Immutably borrows the account transactions.
-fun borrow_transactions(self: &DynamicMultisigAccount): &Transactions {
+fun transactions(self: &DynamicMultisigAccount): &Transactions {
     dynamic_field::borrow(&self.id, transactions_key())
 }
 
 /// Mutably borrows the account transactions.
-fun borrow_transactions_mut(self: &mut DynamicMultisigAccount): &mut Transactions {
+fun transactions_mut(self: &mut DynamicMultisigAccount): &mut Transactions {
     dynamic_field::borrow_mut(&mut self.id, transactions_key())
 }
 
 /// Borrows the account threshold.
-fun borrow_threshold(self: &DynamicMultisigAccount): u64 {
+fun threshold(self: &DynamicMultisigAccount): u64 {
     *dynamic_field::borrow(&self.id, threshold_key())
 }
 
