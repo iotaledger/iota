@@ -27,7 +27,7 @@ use tracing::{debug, info, warn};
 use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, Shard, SignedBlockHeader,
         TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
@@ -36,6 +36,7 @@ use crate::{
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
+    encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     network::{
         BlockBundle, BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockAndHeaders,
@@ -46,24 +47,28 @@ use crate::{
     synchronizer::SynchronizerHandle,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
-use crate::block_header::Shard;
-use crate::encoder::ShardEncoder;
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
 pub trait TransactionsCommitmentComputer {
-    async fn compute_transactions_commitment(&self, serialized_transactions: &Bytes) -> ConsensusResult<TransactionsCommitment>;
+    async fn compute_transactions_commitment(
+        &self,
+        serialized_transactions: &Bytes,
+    ) -> ConsensusResult<TransactionsCommitment>;
 }
 
 impl<C: CoreThreadDispatcher> TransactionsCommitmentComputer for AuthorityService<C> {
-    async fn compute_transactions_commitment(&self, serialized_transactions: &Bytes) -> ConsensusResult<TransactionsCommitment> {
+    async fn compute_transactions_commitment(
+        &self,
+        serialized_transactions: &Bytes,
+    ) -> ConsensusResult<TransactionsCommitment> {
         let info_length = self.context.committee.info_length();
         let parity_length = self.context.committee.size() - info_length;
         assert!(
-                    serialized_transactions.len() % info_length == 0,
-                    "Serialized transactions length must be divisible by info length"
-                );
-        // Compute transaction commitment that will be included in the block header// Compute transaction commitment that will be included in the block header
+            serialized_transactions.len() % info_length == 0,
+            "Serialized transactions length must be divisible by info length"
+        );
+        // Compute transaction commitment that will be included in the block header
         let sharded_transactions: Vec<Shard> = serialized_transactions
             .chunks(serialized_transactions.len() / info_length)
             .map(|chunk| chunk.to_vec())
@@ -81,7 +86,6 @@ impl<C: CoreThreadDispatcher> TransactionsCommitmentComputer for AuthorityServic
         Ok(transactions_commitment)
     }
 }
-
 
 const MAX_FILTER_SIZE: u32 = 10000;
 
@@ -158,7 +162,6 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
-
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
@@ -243,8 +246,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         if signed_block_header.transactions_commitment()
-            != self.compute_transactions_commitment(&serialized_transactions)
-                .await.expect("we should expect correct computation of the transactions commitment")
+            != self
+                .compute_transactions_commitment(&serialized_transactions)
+                .await
+                .expect("we should expect correct computation of the transactions commitment")
         {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: signed_block_header.round(),
@@ -1437,9 +1442,9 @@ mod tests {
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new(1, 0)
                 .set_commitment(
-                    TransactionsCommitment::compute_transactions_commitment_for_test(&Bytes::from_static(
-                        b"dummy data",
-                    ))
+                    TransactionsCommitment::compute_transactions_commitment_for_test(
+                        &Bytes::from_static(b"dummy data"),
+                    )
                     .unwrap(),
                 )
                 .build(),
@@ -2413,8 +2418,10 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment_for_test(&serialized_transactions)
-                    .unwrap()
+                TransactionsCommitment::compute_transactions_commitment_for_test(
+                    &serialized_transactions
+                )
+                .unwrap()
             );
 
             let verified_block_header =
@@ -2474,8 +2481,10 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment_for_test(&serialized_transactions)
-                    .unwrap()
+                TransactionsCommitment::compute_transactions_commitment_for_test(
+                    &serialized_transactions
+                )
+                .unwrap()
             );
 
             let verified_block_header =
@@ -3136,8 +3145,10 @@ mod tests {
                 .expect("We expect to find the header with such block_ref");
             assert_eq!(
                 block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment_for_test(&serialized_transactions)
-                    .unwrap()
+                TransactionsCommitment::compute_transactions_commitment_for_test(
+                    &serialized_transactions
+                )
+                .unwrap()
             );
         }
 

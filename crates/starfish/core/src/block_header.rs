@@ -64,7 +64,10 @@ impl Transaction {
         Ok(bytes.into())
     }
 
-    pub(crate) fn pad_transactions_for_sharding(mut serialized: Vec<u8>, info_length: usize) -> Result<Bytes, ConsensusError> {
+    pub(crate) fn pad_transactions_for_sharding(
+        mut serialized: Vec<u8>,
+        info_length: usize,
+    ) -> Result<Bytes, ConsensusError> {
         let bytes_length = serialized.len();
         let mut statements_with_len: Vec<u8> = (bytes_length as u32).to_le_bytes().to_vec();
         statements_with_len.append(&mut serialized);
@@ -80,12 +83,11 @@ impl Transaction {
         Ok(statements_with_len.into())
     }
 
-    pub(crate) fn extract_serialized_transactions_from_padded_data(padded: &[u8]) -> Result<Vec<u8>, ConsensusError> {
+    pub(crate) fn extract_serialized_transactions_from_padded_data(
+        padded: &[u8],
+    ) -> Result<Vec<u8>, ConsensusError> {
         if padded.len() < 4 {
-            return Err(ConsensusError::ShardsVecIsTooSmall(
-                padded.len(),
-                4,
-            ));
+            return Err(ConsensusError::ShardsVecIsTooSmall(padded.len(), 4));
         }
         let original_len = u32::from_le_bytes(
             padded[0..4]
@@ -466,7 +468,6 @@ impl TransactionsCommitment {
     /// Lexicographic min & max digest.
     pub const MIN: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
     pub const MAX: Self = Self([u8::MAX; starfish_config::DIGEST_LENGTH]);
-
 
     pub(crate) fn compute_transactions_commitment_for_test(
         serialized_transactions: &Bytes,
@@ -1042,10 +1043,11 @@ impl TestBlockHeader {
             block_header: BlockHeaderV1 {
                 round,
                 author: author.into(),
-                transactions_commitment: TransactionsCommitment::compute_transactions_commitment_for_test(
-                    &Bytes::from(bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap()),
-                )
-                .unwrap(),
+                transactions_commitment:
+                    TransactionsCommitment::compute_transactions_commitment_for_test(&Bytes::from(
+                        bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap(),
+                    ))
+                    .unwrap(),
                 ..Default::default()
             },
             ancestors: vec![],
@@ -1058,8 +1060,8 @@ impl TestBlockHeader {
             block_header: BlockHeaderV1 {
                 round,
                 author: author.into(),
-                transactions_commitment: TransactionsCommitment::compute_transactions_commitment_for_test(
-                    &Bytes::from(
+                transactions_commitment:
+                    TransactionsCommitment::compute_transactions_commitment_for_test(&Bytes::from(
                         bcs::to_bytes::<Vec<Transaction>>(
                             &vec![vec![tx; 16]]
                                 .into_iter()
@@ -1067,9 +1069,8 @@ impl TestBlockHeader {
                                 .collect(),
                         )
                         .unwrap(),
-                    ),
-                )
-                .unwrap(),
+                    ))
+                    .unwrap(),
                 ..Default::default()
             },
             ancestors: vec![],
