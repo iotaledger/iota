@@ -113,7 +113,7 @@ export function ImportKeystone() {
                                             )}
                                         </div>
                                         {cameraPermissionStatus === 'prompt' ? (
-                                            <div className="absolute right-0 top-0 contents h-[220px] w-[220px]">
+                                            <div className="absolute inset-0 z-10 flex items-center justify-center">
                                                 <InfoBox
                                                     title="Camera Access authorization pending."
                                                     supportingText={
@@ -126,7 +126,7 @@ export function ImportKeystone() {
                                             </div>
                                         ) : null}
                                         {cameraPermissionStatus === 'denied' ? (
-                                            <div className="absolute right-0 top-0 contents h-[220px] w-[220px]">
+                                            <div className="absolute inset-0 z-10 flex items-center justify-center">
                                                 <InfoBox
                                                     title="Camera Access Blocked!"
                                                     supportingText={
