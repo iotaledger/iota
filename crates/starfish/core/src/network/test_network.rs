@@ -6,6 +6,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream;
 use parking_lot::Mutex;
+use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -15,7 +16,6 @@ use crate::{
     error::ConsensusResult,
     network::{BlockBundleStream, NetworkService, SerializedBlockBundle},
 };
-
 pub(crate) struct TestService {
     pub(crate) handle_subscribed_block_bundle: Vec<(AuthorityIndex, SerializedBlockBundle)>,
     pub(crate) handle_subscribed_block_bundle_requests: Vec<(AuthorityIndex, Round)>,

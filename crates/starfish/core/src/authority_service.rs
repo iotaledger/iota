@@ -1125,6 +1125,7 @@ mod tests {
     use futures::StreamExt;
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
+    use reed_solomon_simd::ReedSolomonEncoder;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{sync::broadcast, time::sleep};
 
@@ -1254,6 +1255,10 @@ mod tests {
             dag_state,
             store,
         ));
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         // Test rejecting block with time drift.
         let now = context.clock.timestamp_utc_ms();
@@ -1264,21 +1269,15 @@ mod tests {
                 .build(),
         );
 
-        let service = authority_service.clone();
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
-        let bundle_clone = serialized_block_bundle.clone();
-        let service_clone = service.clone();
-        let context_clone = context.clone();
-        let handle = tokio::spawn(async move {
-            service_clone
-                .handle_subscribed_block_bundle(
-                    context_clone.committee.to_authority_index(0).unwrap(),
-                    bundle_clone,
-                )
-                .await
-        });
 
-        let result = handle.await.unwrap(); // unwrap JoinError
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                serialized_block_bundle.clone(),
+                &mut encoder,
+            )
+            .await;
 
         match result {
             Err(ConsensusError::BlockRejected { reason, .. }) => {
@@ -1291,10 +1290,11 @@ mod tests {
         // block but wait
         sleep(max_drift / 2).await;
         tokio::spawn(async move {
-            service
+            authority_service
                 .handle_subscribed_block_bundle(
                     context.committee.to_authority_index(0).unwrap(),
                     serialized_block_bundle,
+                    &mut encoder,
                 )
                 .await
                 .unwrap();
@@ -1349,6 +1349,10 @@ mod tests {
             dag_state,
             store,
         ));
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 0).build());
 
@@ -1356,19 +1360,14 @@ mod tests {
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
 
         // Test sending a block from wrong peer
-        let bundle_clone = serialized_block_bundle.clone();
-        let service_clone = service.clone();
-        let context_clone = context.clone();
-        let handle = tokio::spawn(async move {
-            service_clone
-                .handle_subscribed_block_bundle(
-                    context_clone.committee.to_authority_index(1).unwrap(),
-                    bundle_clone,
-                )
-                .await
-        });
 
-        let result = handle.await.unwrap(); // unwrap JoinError
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                serialized_block_bundle.clone(),
+                &mut encoder,
+            )
+            .await;
 
         if let Err(ConsensusError::UnexpectedAuthority { .. }) = result {
             // everything is fine
@@ -1382,6 +1381,7 @@ mod tests {
                 .handle_subscribed_block_bundle(
                     context.committee.to_authority_index(0).unwrap(),
                     serialized_block_bundle,
+                    &mut encoder,
                 )
                 .await
                 .unwrap();
@@ -1433,6 +1433,10 @@ mod tests {
             dag_state,
             store,
         ));
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new(1, 0)
@@ -1445,23 +1449,16 @@ mod tests {
                 .build(),
         );
 
-        let service = authority_service.clone();
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
 
         // Test sending a block with wrong transaction commitment
-        let bundle_clone = serialized_block_bundle.clone();
-        let service_clone = service.clone();
-        let context_clone = context.clone();
-        let handle = tokio::spawn(async move {
-            service_clone
-                .handle_subscribed_block_bundle(
-                    context_clone.committee.to_authority_index(0).unwrap(),
-                    bundle_clone,
-                )
-                .await
-        });
-
-        let result = handle.await.unwrap(); // unwrap JoinError
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                serialized_block_bundle,
+                &mut encoder,
+            )
+            .await;
 
         if let Err(ConsensusError::TransactionCommitmentFailure { .. }) = result {
             // everything is fine
@@ -1512,6 +1509,10 @@ mod tests {
             dag_state,
             store,
         ));
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 0).build());
         let num_of_block_headers = MAX_HEADERS_PER_BUNDLE + 1;
@@ -1538,19 +1539,13 @@ mod tests {
         let service = authority_service.clone();
 
         // Send a bundle with too many headers
-        let bundle_clone = serialized_big_block_bundle.clone();
-        let service_clone = service.clone();
-        let context_clone = context.clone();
-        let handle = tokio::spawn(async move {
-            service_clone
-                .handle_subscribed_block_bundle(
-                    context_clone.committee.to_authority_index(0).unwrap(),
-                    bundle_clone,
-                )
-                .await
-        });
-
-        let result = handle.await.unwrap(); // unwrap JoinError
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                serialized_big_block_bundle,
+                &mut encoder,
+            )
+            .await;
 
         if let Err(ConsensusError::TooManyHeadersInABundle { .. }) = result {
             // everything is fine
@@ -1569,19 +1564,13 @@ mod tests {
         .unwrap();
 
         // Send a bundle with too many headers
-        let bundle_clone = serialized_block_bundle_with_big_round.clone();
-        let service_clone = service.clone();
-        let context_clone = context.clone();
-        let handle = tokio::spawn(async move {
-            service_clone
-                .handle_subscribed_block_bundle(
-                    context_clone.committee.to_authority_index(0).unwrap(),
-                    bundle_clone,
-                )
-                .await
-        });
-
-        let result = handle.await.unwrap(); // unwrap JoinError
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                serialized_block_bundle_with_big_round,
+                &mut encoder,
+            )
+            .await;
 
         if let Err(ConsensusError::TooBigHeaderRoundInABundle { .. }) = result {
             // everything is fine
@@ -1609,6 +1598,7 @@ mod tests {
                 .handle_subscribed_block_bundle(
                     context.committee.to_authority_index(0).unwrap(),
                     serialized_block_bundle,
+                    &mut encoder,
                 )
                 .await
                 .unwrap();
@@ -2043,6 +2033,11 @@ mod tests {
             dag_state.clone(),
             store,
         ));
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
+
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
         let mut dag_builder =
             DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
@@ -2083,6 +2078,7 @@ mod tests {
                     .handle_subscribed_block_bundle(
                         context.committee.to_authority_index(peer).unwrap(),
                         serialized_block_bundle,
+                        &mut encoder,
                     )
                     .await
                     .expect("bundle is expected to be processed successfully");
@@ -2184,6 +2180,11 @@ mod tests {
             dag_state.clone(),
             store,
         ));
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
+
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
         let mut dag_builder =
             DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
@@ -2216,6 +2217,7 @@ mod tests {
                     .handle_subscribed_block_bundle(
                         context.committee.to_authority_index(peer).unwrap(),
                         serialized_block_bundle,
+                        &mut encoder,
                     )
                     .await
                     .expect("bundle is expected to be processed successfully");

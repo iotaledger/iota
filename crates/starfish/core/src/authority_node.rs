@@ -8,7 +8,6 @@ use iota_protocol_config::ProtocolConfig;
 use itertools::Itertools;
 use parking_lot::RwLock;
 use prometheus::Registry;
-use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use tracing::{info, warn};
 
