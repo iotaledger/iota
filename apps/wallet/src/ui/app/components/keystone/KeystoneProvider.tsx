@@ -135,11 +135,24 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                 <DialogBody>
                     <div className="flex flex-col items-center gap-2">
                         {step === Step.ShowQr ? (
-                            <AnimatedQRCode
-                                type={ur.type}
-                                cbor={ur.cbor.toString('hex')}
-                                options={{ size: 220 }}
-                            />
+                            <>
+                                <AnimatedQRCode
+                                    type={ur.type}
+                                    cbor={ur.cbor.toString('hex')}
+                                    options={{ size: 220 }}
+                                />
+                                {cameraPermissionStatus === 'prompt' ? (
+                                    <InfoBox
+                                        title="Camera Access authorization pending."
+                                        supportingText={
+                                            'Make sure your camera is connected and authorized, then try again to proceed.'
+                                        }
+                                        style={InfoBoxStyle.Elevated}
+                                        type={InfoBoxType.Warning}
+                                        icon={<Warning />}
+                                    />
+                                ) : null}
+                            </>
                         ) : cameraPermissionStatus === 'granted' ? (
                             <div className="box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
                                 <div className="flex-shrink-0">
@@ -155,16 +168,6 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                     />
                                 </div>
                             </div>
-                        ) : cameraPermissionStatus === 'prompt' ? (
-                            <InfoBox
-                                title="Camera Access authorization pending."
-                                supportingText={
-                                    'Make sure your camera is connected and authorized, then try again to proceed.'
-                                }
-                                style={InfoBoxStyle.Elevated}
-                                type={InfoBoxType.Warning}
-                                icon={<Warning />}
-                            />
                         ) : (
                             <InfoBox
                                 title="Camera Access Blocked!"

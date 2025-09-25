@@ -99,7 +99,8 @@ export function ImportKeystone() {
                                         },
                                     )}
                                 >
-                                    {cameraPermissionStatus === 'granted' ? (
+                                    {cameraPermissionStatus === 'granted' ||
+                                    cameraPermissionStatus === 'prompt' ? (
                                         <>
                                             <div className="relative box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
                                                 <div className="flex-shrink-0">
@@ -126,17 +127,18 @@ export function ImportKeystone() {
                                             <span className="mb-sm text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                                 Camera is blurred for security reasons
                                             </span>
+                                            {cameraPermissionStatus === 'prompt' ? (
+                                                <InfoBox
+                                                    title="Camera Access authorization pending."
+                                                    supportingText={
+                                                        'Make sure your camera is connected and authorized, then try again to proceed.'
+                                                    }
+                                                    style={InfoBoxStyle.Elevated}
+                                                    type={InfoBoxType.Warning}
+                                                    icon={<Warning />}
+                                                />
+                                            ) : null}
                                         </>
-                                    ) : cameraPermissionStatus === 'prompt' ? (
-                                        <InfoBox
-                                            title="Camera Access authorization pending."
-                                            supportingText={
-                                                'Make sure your camera is connected and authorized, then try again to proceed.'
-                                            }
-                                            style={InfoBoxStyle.Elevated}
-                                            type={InfoBoxType.Warning}
-                                            icon={<Warning />}
-                                        />
                                     ) : (
                                         <InfoBox
                                             title="Camera Access Blocked!"
