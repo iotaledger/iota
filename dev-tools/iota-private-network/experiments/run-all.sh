@@ -195,6 +195,7 @@ if [ "$SPAMMER_ENABLE" = true ]; then
     # Ensure faucet-1 is running (required by spammer)
     if ! docker ps --format '{{.Names}}' | grep -q '^faucet-1$'; then
       log "faucet-1 not running; attempting to start it"
+      sleep 10s
       (cd .. && docker compose up -d faucet-1) >/dev/null 2>&1 || log "Warning: could not start faucet-1"
     fi
     SPAMMER_DURATION=$((RUN_DURATION - 60))
