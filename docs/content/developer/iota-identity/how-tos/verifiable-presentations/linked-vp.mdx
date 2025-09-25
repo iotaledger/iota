@@ -89,12 +89,42 @@ let notarized_vp = notarization_client
 Now that the VP is hosted on-chain we can link it to its holder's DID document:
 
 ```rust
+let notarized_vp_url = notarized_vp
+  .to_iota_resource_locator(notarization_client.network()) // This require notarization's feature "irl".
+  .to_string()
+  .parse::<Url>()?;
 let service_url: DIDUrl = did_document.id().clone().join("#linked-vp")?;
-let linked_verifiable_presentation_service =
-  LinkedVerifiablePresentationService::new(service_url, verifiable_presentation_urls, Object::new())?;
+let linked_verifiable_presentation_service = LinkedVerifiablePresentationService::new(service_url, [notarized_vp_url], Object::new())?;
 did_document.insert_service(linked_verifiable_presentation_service.into())?;
 
-let updated_did_document: IotaDocument = identity_client
+let updated_did_document = identity_client
   .publish_did_document_update(did_document, TEST_GAS_BUDGET)
   .await?;
 ```
+
+If we inspect the services of `updated_did_document` we would see something similar to this JSON object:
+
+```json
+{
+  "id": "did:iota:fb230e5b:0x1222d84b5598234387bde3baa43ed8d3dbd24e23cfc8db9708412c748962a63f#linked-vp",
+  "type": "LinkedVerifiablePresentation",
+  "serviceEndpoint": "iota:fb230e5b/0x215e1425343e20fc69c8bacd5e783d3b3c81e3c86408b9b8357247860d0a376d/state/data"
+}
+```
+
+The value of the `serviceEndpoint` property is an IRL that references the `state.data` property of
+the Move object having ID `0x215e1425343e20fc69c8bacd5e783d3b3c81e3c86408b9b8357247860d0a376d` (which 
+in this instance is the ID of the notarization that was previously created) and located on a custom
+IOTA network.
+
+
+To fetch or dereference an IRL, the `Resolver` implemented in the `iota-caip` library can be used:
+
+```rust
+let custom_network = IotaNetwork::custom(identity_client.network().as_ref()).expect("valid IOTA network);
+let resolver = Resolver::new_with_custom_networks([(custom_network, custom_network_endpoint)]);
+let jwt_vp = serde_json::from_value(resolver.resolve(&notarized_vp.to_iota_resource_locator()).await?)?;
+```
+
+## Full Example
+FULL EXAMPLE HERE
