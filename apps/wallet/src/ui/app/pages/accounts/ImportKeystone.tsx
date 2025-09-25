@@ -93,6 +93,7 @@ export function ImportKeystone() {
                                     <div className="relative box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
                                         <div className="flex-shrink-0">
                                             <AnimatedQRScanner
+                                                key={cameraPermissionStatus}
                                                 handleScan={onSucceed}
                                                 handleError={onError}
                                                 urTypes={[URType.CryptoMultiAccounts]}
