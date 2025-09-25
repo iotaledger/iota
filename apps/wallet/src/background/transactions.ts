@@ -153,12 +153,12 @@ class Transactions {
         origin: string,
         favIcon?: string,
     ) {
-        const requestingAccount =
+        const requestingAddress =
             request.type === 'transaction' ? request.account : request.accountAddress;
 
         const txRequest = this.createTransactionRequest(request, origin, favIcon);
         await this.storeTransactionRequest(txRequest);
-        const popUp = await getNewTabOrWindow(requestingAccount, txRequest.id);
+        const popUp = await getNewTabOrWindow(requestingAddress, txRequest.id);
         const popUpClose = (await popUp.show()).pipe(
             take(1),
             map<number, false>(() => false),
@@ -190,9 +190,9 @@ class Transactions {
     }
 }
 
-async function getNewTabOrWindow(requestingAccount: string, txRequestId: string) {
+async function getNewTabOrWindow(address: string, txRequestId: string) {
     const allAccounts = await (await getDB()).accounts.toArray();
-    const walletAccount = allAccounts.find((a) => a.address === requestingAccount);
+    const walletAccount = allAccounts.find((a) => a.address === address);
 
     if (!walletAccount) {
         throw new Error('Missing account');

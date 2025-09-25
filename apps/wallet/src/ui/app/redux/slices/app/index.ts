@@ -19,7 +19,6 @@ type AppState = {
     navVisible: boolean;
     activeOrigin: string | null;
     activeOriginFavIcon: string | null;
-    isAppViewPopup: boolean;
     extensionViewType: ExtensionViewType;
 };
 
@@ -30,7 +29,6 @@ const initialState: AppState = {
     navVisible: true,
     activeOrigin: null,
     activeOriginFavIcon: null,
-    isAppViewPopup: true,
     extensionViewType: ExtensionViewType.Popup,
 };
 
@@ -71,7 +69,6 @@ const slice = createSlice({
         },
         setAppViewType: (state, { payload }: PayloadAction<ExtensionViewType>) => {
             state.extensionViewType = payload;
-            state.isAppViewPopup = payload === ExtensionViewType.Popup;
         },
     },
     initialState,

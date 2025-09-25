@@ -164,20 +164,18 @@ export function TokenDetails() {
     const isFirstTimeLoading = isPending && !isFetched;
 
     const onSendClick = () => {
-        if (!activeAccount?.isLocked) {
-            if (activeAccount) {
-                const shouldOpenNewTab =
-                    NEW_TAB_ACCOUNT_TYPES.includes(activeAccount?.type) && !isTabView;
+        if (activeAccount && !activeAccount?.isLocked) {
+            const shouldOpenNewTab =
+                NEW_TAB_ACCOUNT_TYPES.includes(activeAccount?.type) && !isTabView;
 
-                const destination = coinBalance?.coinType
-                    ? `/send?${new URLSearchParams({ type: coinBalance?.coinType }).toString()}`
-                    : '/send';
+            const destination = coinBalance?.coinType
+                ? `/send?${new URLSearchParams({ type: coinBalance?.coinType }).toString()}`
+                : '/send';
 
-                if (shouldOpenNewTab) {
-                    openInNewTab(destination);
-                } else {
-                    navigate(destination);
-                }
+            if (shouldOpenNewTab) {
+                openInNewTab(destination);
+            } else {
+                navigate(destination);
             }
         }
     };
