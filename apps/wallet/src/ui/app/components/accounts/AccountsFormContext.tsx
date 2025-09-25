@@ -31,7 +31,7 @@ export type AccountsFormValues =
     | { type: AccountsFormType.MnemonicSource; sourceID: string }
     | { type: AccountsFormType.SeedSource; sourceID: string }
     | { type: AccountsFormType.ImportPrivateKey; keyPair: string }
-    | { type: AccountsFormType.Passkey; authenticatorAttachment: 'platform' | 'cross-platform' }
+    | { type: AccountsFormType.Passkey; authenticatorAttachment: AuthenticatorAttachment }
     | {
           type: AccountsFormType.ImportLedger;
           accounts: { publicKey: string; derivationPath: string; address: string }[];

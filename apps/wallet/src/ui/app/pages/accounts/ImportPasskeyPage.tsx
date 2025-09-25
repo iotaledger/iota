@@ -32,8 +32,8 @@ export function ImportPasskeyPage() {
                 <p className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
                     Selected Authenticator Type:
                 </p>
-                <div className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
-                    {authenticatorType === 'platform' ? 'Platform' : 'Cross-Platform'}
+                <div className="text-title-sm capitalize text-iota-neutral-10 dark:text-iota-neutral-92">
+                    {authenticatorType}
                 </div>
             </div>
             <div className="mt-auto flex gap-xs pb-md pt-xs">

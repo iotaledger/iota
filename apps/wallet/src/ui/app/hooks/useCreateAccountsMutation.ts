@@ -11,7 +11,7 @@ import { AccountType } from '_src/background/accounts/account';
 
 import {
     createBrowserPasskeyProvider,
-    createBrowserPasskeyProviderOptions,
+    createBrowserPasswordProviderOptions,
 } from '../components/passkey/passkey-provider';
 import { PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
 
@@ -144,7 +144,7 @@ export function useCreateAccountsMutation() {
                 type === AccountsFormType.Passkey &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
-                const providerOptions = createBrowserPasskeyProviderOptions({
+                const providerOptions = createBrowserPasswordProviderOptions({
                     providerOptions: {
                         authenticatorSelection: {
                             authenticatorAttachment: accountsFormValues.authenticatorAttachment,
