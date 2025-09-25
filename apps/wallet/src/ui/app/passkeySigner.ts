@@ -64,7 +64,7 @@ export class PasskeySigner extends WalletSigner {
         publicKey: string,
     ): Promise<string> {
         try {
-            const provider = createBrowserPasskeyProvider({ providerOptions });
+            const provider = createBrowserPasskeyProvider({ options: providerOptions });
 
             const publicKeyBytes = fromBase64(publicKey);
             const keypair = new PasskeyKeypair(publicKeyBytes, provider);
