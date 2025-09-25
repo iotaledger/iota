@@ -202,7 +202,7 @@ if [ "$SPAMMER_ENABLE" = true ]; then
       SPAMMER_DURATION=10
     fi
     log "Starting spammer with TPS=$SPAMMER_TPS, objects per tx=$SPAMMER_OBJECTS_PER_TX, duration=${SPAMMER_DURATION}s..."
-    ../../../iota-spammer/experiments/scripts/spamming_fuzz_test.sh \
+    ../../../../iota-spammer/experiments/scripts/spamming_fuzz_test.sh \
       -T "$SPAMMER_TPS" \
       -o "$SPAMMER_OBJECTS_PER_TX" \
       -d "${SPAMMER_DURATION}s" \
