@@ -75,7 +75,12 @@ impl IotaTxValidator {
                         return Err(IotaError::InvalidDkgMessageSize);
                     }
                 }
-
+                ConsensusTransactionKind::EndOfPublishV2(..) => {
+                    warn!("batch verification error: wrong version of EndOfPublish");
+                    return Err(IotaError::WrongMessageVersion {
+                        error: ("Unexpected EndOfPublishV2".to_string()),
+                    });
+                }
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::NewJWKFetched(_, _, _)
                 | ConsensusTransactionKind::CapabilityNotificationV1(_) => {}

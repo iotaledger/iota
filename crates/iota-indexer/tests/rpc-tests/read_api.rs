@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::File, path::Path, str::FromStr, sync::Arc};
+use std::{fs::File, path::Path, str::FromStr, sync::Arc, time::Duration};
 
 use hex::FromHex;
 use iota_indexer::{
@@ -9,6 +9,7 @@ use iota_indexer::{
     store::package_resolver::IndexerStorePackageResolver,
     test_utils::{TestDatabase, db_url},
 };
+use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
@@ -31,13 +32,17 @@ use iota_types::{
     transaction::{CallArg, ObjectArg},
     utils::to_sender_signed_transaction,
 };
+use itertools::Itertools;
 use move_core_types::identifier::Identifier;
 use serde_json::Value;
 
-use crate::common::{
-    ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
-    indexer_wait_for_checkpoint_pruned, indexer_wait_for_object, indexer_wait_for_transaction,
-    rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+use crate::{
+    common::{
+        ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
+        indexer_wait_for_checkpoint_pruned, indexer_wait_for_object, indexer_wait_for_transaction,
+        rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+    },
+    write_api::{create_basic_object, deploy_basics_pkg},
 };
 
 /// Utility function to convert hex strings in JSON values to byte arrays.
@@ -198,6 +203,10 @@ fn get_transaction_block_with_options(options: IotaTransactionBlockResponseOptio
         // match
         assert_eq!(fullnode_tx, tx);
 
+        // Those fields should be present for checkpoint indexed transactions
+        assert!(tx.checkpoint.is_some());
+        assert!(tx.timestamp_ms.is_some());
+
         assert!(
             match_transaction_block_resp_options(&options, &[fullnode_tx]),
             "fullnode transaction block assertion failed"
@@ -256,6 +265,12 @@ fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockRespon
             "indexer multi transaction blocks assertion failed"
         );
     });
+}
+
+async fn wait_for_objects_history() {
+    // Objects history is not filled by optimistic indexing, this method waits a few
+    // seconds so that checkpoint indexing has a chance to kick in
+    tokio::time::sleep(Duration::from_secs(3)).await;
 }
 
 #[test]
@@ -908,6 +923,184 @@ fn get_events() {
 }
 
 #[test]
+fn get_newly_indexed_optimistic_transaction() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+
+        // Update the object to generate new event
+        let res = crate::coin_api::execute_move_call(
+            client,
+            sender,
+            &sender_kp,
+            package_id,
+            "object_basics".to_string(),
+            "update".to_string(),
+            type_args![].unwrap(),
+            call_args!(basic_obj_1, basic_obj_2).unwrap(),
+            None,
+        )
+        .await?;
+        assert_eq!(res.status_ok(), Some(true));
+
+        // despite the naming, there is no 100% guarantee that the result here comes
+        // from optimistic indexing, but it's very likely
+        let result_optimistic = client
+            .get_transaction_block(
+                res.digest,
+                Some(IotaTransactionBlockResponseOptions::full_content()),
+            )
+            .await
+            .unwrap();
+        let tx_data_to_compare_opt = (
+            &result_optimistic.digest,
+            &result_optimistic.transaction,
+            &result_optimistic.raw_transaction,
+            &result_optimistic.effects,
+            &result_optimistic.object_changes,
+            &result_optimistic.balance_changes,
+            &result_optimistic.errors,
+            &result_optimistic.raw_effects,
+        );
+
+        indexer_wait_for_transaction(res.digest, store, client).await;
+
+        let result_checkpointed = client
+            .get_transaction_block(
+                res.digest,
+                Some(IotaTransactionBlockResponseOptions::full_content()),
+            )
+            .await
+            .unwrap();
+        let tx_data_to_compare_ckpt = (
+            &result_checkpointed.digest,
+            &result_checkpointed.transaction,
+            &result_checkpointed.raw_transaction,
+            &result_checkpointed.effects,
+            &result_checkpointed.object_changes,
+            &result_checkpointed.balance_changes,
+            &result_checkpointed.errors,
+            &result_checkpointed.raw_effects,
+        );
+        assert_eq!(tx_data_to_compare_opt, tx_data_to_compare_ckpt);
+        // comparing only selected fields, because timestamp_ms/checkpoint changes from
+        // None to Some after checkpoint indexing kicks in
+
+        assert!(result_checkpointed.checkpoint.is_some());
+        assert!(result_checkpointed.timestamp_ms.is_some());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+
+        // Update the object to generate new event
+        let res = crate::coin_api::execute_move_call(
+            client,
+            sender,
+            &sender_kp,
+            package_id,
+            "object_basics".to_string(),
+            "update".to_string(),
+            type_args![].unwrap(),
+            call_args!(basic_obj_1, basic_obj_2).unwrap(),
+            None,
+        )
+        .await?;
+        assert_eq!(res.status_ok(), Some(true));
+
+        let event_id = res
+            .events
+            .as_ref()
+            .unwrap()
+            .data
+            .iter()
+            .exactly_one()
+            .unwrap()
+            .id;
+
+        // despite the naming, there is no 100% guarantee that the result here comes
+        // from optimistic indexing, but it's very likely
+        let result_optimistic = client.get_events(res.digest).await.unwrap();
+        assert_eq!(result_optimistic.len(), 1);
+        assert_eq!(result_optimistic[0].id, event_id);
+        let event_data_to_compare_opt = (
+            &result_optimistic[0].id,
+            &result_optimistic[0].package_id,
+            &result_optimistic[0].transaction_module,
+            &result_optimistic[0].sender,
+            &result_optimistic[0].type_,
+            &result_optimistic[0].parsed_json,
+            &result_optimistic[0].bcs,
+        );
+
+        indexer_wait_for_transaction(res.digest, store, client).await;
+
+        let result_checkpointed = client.get_events(res.digest).await.unwrap();
+        assert_eq!(result_checkpointed.len(), 1);
+        assert_eq!(result_checkpointed[0].id, event_id);
+        let event_data_to_compare_ckpt = (
+            &result_checkpointed[0].id,
+            &result_checkpointed[0].package_id,
+            &result_checkpointed[0].transaction_module,
+            &result_checkpointed[0].sender,
+            &result_checkpointed[0].type_,
+            &result_checkpointed[0].parsed_json,
+            &result_checkpointed[0].bcs,
+        );
+
+        assert_eq!(event_data_to_compare_opt, event_data_to_compare_ckpt);
+        // comparing only selected fields, because timestamp_ms changes from None to
+        // Some after checkpoint indexing kicks in
+
+        Ok(())
+    })
+}
+
+#[test]
 fn get_events_not_found() {
     let ApiTestSetup {
         runtime,
@@ -1323,7 +1516,7 @@ fn try_get_past_object_version_found() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        wait_for_objects_history().await;
 
         let result = client
             .try_get_past_object(gas_ref.0, gas_ref.1, None)
@@ -1365,7 +1558,7 @@ fn try_get_past_object_version_not_found() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        wait_for_objects_history().await;
 
         let missing_version = gas_ref.1.one_before().expect("Version should be > 0");
 
@@ -1404,7 +1597,7 @@ fn try_get_past_object_version_too_high() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        wait_for_objects_history().await;
 
         let latest_version = gas_ref.1;
         let asked_version = latest_version.next();
@@ -1442,16 +1635,14 @@ fn try_get_past_object_object_deleted() {
         let context = &cluster.wallet;
         let (package_id, _, _) = publish_nfts_package(context).await;
 
-        let (sender, nft_object_id, tx_digest) = create_nft(context, package_id).await;
-
-        indexer_wait_for_transaction(tx_digest, store, client).await;
+        let (sender, nft_object_id, _) = create_nft(context, package_id).await;
 
         // Retrieve the latest object reference (which includes version) for deletion.
         let nft_object_ref = cluster.get_latest_object_ref(&nft_object_id).await;
 
         // Delete the NFT
-        let delete_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
-        indexer_wait_for_transaction(delete_tx.digest, store, client).await;
+        delete_nft(context, sender, package_id, nft_object_ref).await;
+        wait_for_objects_history().await;
 
         let deleted_version = nft_object_ref.1.next();
 
@@ -1575,8 +1766,7 @@ fn try_multi_get_past_objects() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref_1.0, gas_ref_1.1).await;
-        indexer_wait_for_object(client, gas_ref_2.0, gas_ref_2.1).await;
+        wait_for_objects_history().await;
 
         let requests = vec![
             IotaGetPastObjectRequest {
@@ -1665,28 +1855,29 @@ fn try_get_object_before_version() {
                 sender,
             )
             .await;
-        let object_to_send = cluster
+        let (object_id, object_version, _) = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
                 sender,
             )
             .await;
-
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
-        indexer_wait_for_object(client, object_to_send.0, object_to_send.1).await;
+        // we need the object to be indexed before we can
+        // create a transaction that uses it as an input
+        indexer_wait_for_object(client, object_id, object_version).await;
 
         let tx_bytes = client
             .transfer_object(
                 sender,
-                object_to_send.0,
+                object_id,
                 Some(gas_ref.0),
                 100_000_000.into(),
                 receiver,
             )
             .await
             .expect("Transfer should succeed");
-        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+        execute_tx_and_wait_for_indexer(client, store, tx_bytes, &keypair).await;
+        wait_for_objects_history().await;
 
         let (latest_object, latest_version, _) = cluster.get_latest_object_ref(&gas_ref.0).await;
 

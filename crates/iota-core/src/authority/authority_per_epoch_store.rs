@@ -10,6 +10,7 @@ use std::{
 };
 
 use arc_swap::ArcSwapOption;
+use consensus_core::scorer::Scorer;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::groups::bls12381;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
@@ -499,6 +500,9 @@ pub struct AuthorityPerEpochStore {
     /// State machine managing randomness DKG and generation.
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
+
+    /// Local view about the other authorities' partial scores.
+    pub(crate) scorer: Arc<Scorer>,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
@@ -945,10 +949,12 @@ impl AuthorityPerEpochStore {
         let consensus_output_cache =
             ConsensusOutputCache::new(&epoch_start_configuration, &tables, metrics.clone());
 
+        let committee_size = committee.num_members();
+
         let s = Arc::new(Self {
             name,
             committee,
-            protocol_config,
+            protocol_config: protocol_config.clone(),
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
@@ -980,6 +986,7 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
+            scorer: Arc::new(Scorer::new(committee_size, &protocol_config)),
         });
 
         s.update_buffer_stake_metric();
@@ -2606,6 +2613,10 @@ impl AuthorityPerEpochStore {
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::EndOfPublish(authority),
                 ..
+            })
+            | SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::EndOfPublishV2(authority, _),
+                ..
             }) => {
                 if &transaction.sender_authority() != authority {
                     warn!(
@@ -2719,7 +2730,7 @@ impl AuthorityPerEpochStore {
             Vec::with_capacity(verified_transactions.len());
         let mut end_of_publish_transactions = Vec::with_capacity(verified_transactions.len());
         for tx in verified_transactions {
-            if tx.0.is_end_of_publish() {
+            if tx.0.is_end_of_publish_v1() {
                 end_of_publish_transactions.push(tx);
             } else if tx.0.is_system() {
                 system_transactions.push(tx);
@@ -3799,6 +3810,10 @@ impl AuthorityPerEpochStore {
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::EndOfPublish(_),
+                ..
+            })
+            | SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::EndOfPublishV2(..),
                 ..
             }) => {
                 // these are partitioned earlier

@@ -47,6 +47,8 @@ mod universal_committer;
 mod randomized_tests;
 
 mod round_prober;
+pub mod scorer;
+
 #[cfg(test)]
 mod test_dag;
 #[cfg(test)]

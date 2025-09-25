@@ -238,11 +238,13 @@ impl ReadApiServer for ReadApi {
         digest: TransactionDigest,
         options: Option<IotaTransactionBlockResponseOptions>,
     ) -> RpcResult<IotaTransactionBlockResponse> {
-        let mut txn = self
-            .multi_get_transaction_blocks(vec![digest], options)
+        let options = options.unwrap_or_default();
+        let txn = self
+            .inner
+            .get_single_transaction_block_response(digest, options)
             .await?;
 
-        let txn = txn.pop().ok_or_else(|| {
+        let txn = txn.ok_or_else(|| {
             IndexerError::InvalidArgument(format!("Transaction {digest} not found"))
         })?;
 

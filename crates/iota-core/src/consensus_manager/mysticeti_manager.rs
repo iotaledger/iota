@@ -197,6 +197,7 @@ impl ConsensusManagerTrait for MysticetiManager {
             Arc::new(tx_validator.clone()),
             consumer,
             registry.clone(),
+            epoch_store.scorer.clone(),
             *boot_counter,
         )
         .await;
