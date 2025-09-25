@@ -170,8 +170,7 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                         )}
                         <div className="flex flex-col items-center justify-center">
                             <Link
-                                // TODO: Add step 1/2 from tutorial docs link when available - https://github.com/iotaledger/iota/issues/8511
-                                to=""
+                                to="https://docs.iota.org/users/iota-wallet/how-to/basics#using-keystone-wallet"
                                 className="mb-1 text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
                                 target="_blank"
                                 rel="noreferrer"
@@ -190,8 +189,7 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                     Need more help?
                                 </span>
                                 <Link
-                                    // TODO: Add tutorial docs links when available - https://github.com/iotaledger/iota/issues/8511
-                                    to=""
+                                    to="https://docs.iota.org/users/iota-wallet/how-to/basics#using-keystone-wallet"
                                     className="text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
                                     target="_blank"
                                     rel="noreferrer"
