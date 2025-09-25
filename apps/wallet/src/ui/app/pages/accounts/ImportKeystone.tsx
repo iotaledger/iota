@@ -1,7 +1,6 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import classNames from 'clsx';
 import { Link, useNavigate } from 'react-router-dom';
 import { AccountsFormType, useAccountsFormContext, PageTemplate, AccountList } from '_components';
 import { AnimatedQRScanner } from '@keystonehq/animated-qr';
@@ -90,66 +89,62 @@ export function ImportKeystone() {
                     <div className="flex h-full flex-col justify-between gap-1">
                         {step.type === 'scan-qr' ? (
                             <>
-                                <div
-                                    className={classNames(
-                                        'relative flex flex-col items-center justify-center gap-xs',
-                                        {
-                                            'h-full justify-around':
-                                                cameraPermissionStatus !== 'granted',
-                                        },
-                                    )}
-                                >
-                                    {cameraPermissionStatus === 'granted' ||
-                                    cameraPermissionStatus === 'prompt' ? (
-                                        <>
-                                            <div className="relative box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
-                                                <div className="flex-shrink-0">
-                                                    <AnimatedQRScanner
-                                                        handleScan={onSucceed}
-                                                        handleError={onError}
-                                                        urTypes={[URType.CryptoMultiAccounts]}
-                                                        options={{
-                                                            blur: true,
-                                                            width: '230px',
-                                                            height: '230px',
-                                                        }}
-                                                        onProgress={onProgress}
-                                                    />
-                                                    {step.progress > 0 && step.progress <= 100 && (
-                                                        <div className="absolute inset-0 flex items-end justify-center pb-2">
-                                                            <div className="text-xl font-bold text-white">
-                                                                {Math.round(step.progress)}%
-                                                            </div>
+                                <div className="relative flex flex-col items-center justify-center gap-xs">
+                                    <>
+                                        <div className="relative box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
+                                            <div className="flex-shrink-0">
+                                                <AnimatedQRScanner
+                                                    handleScan={onSucceed}
+                                                    handleError={onError}
+                                                    urTypes={[URType.CryptoMultiAccounts]}
+                                                    options={{
+                                                        blur: true,
+                                                        width: '230px',
+                                                        height: '230px',
+                                                    }}
+                                                    onProgress={onProgress}
+                                                />
+                                                {step.progress > 0 && step.progress <= 100 && (
+                                                    <div className="absolute inset-0 flex items-end justify-center pb-2">
+                                                        <div className="text-xl font-bold text-white">
+                                                            {Math.round(step.progress)}%
                                                         </div>
-                                                    )}
-                                                </div>
+                                                    </div>
+                                                )}
                                             </div>
+                                            {cameraPermissionStatus === 'prompt' ? (
+                                                <div className="absolute right-0 top-0 contents h-[220px] w-[220px]">
+                                                    <InfoBox
+                                                        title="Camera Access authorization pending."
+                                                        supportingText={
+                                                            'Make sure your camera is connected and authorized, then try again to proceed.'
+                                                        }
+                                                        style={InfoBoxStyle.Elevated}
+                                                        type={InfoBoxType.Warning}
+                                                        icon={<Warning />}
+                                                    />
+                                                </div>
+                                            ) : null}
+                                            {cameraPermissionStatus === 'denied' ? (
+                                                <div className="absolute right-0 top-0 contents h-[220px] w-[220px]">
+                                                    <InfoBox
+                                                        title="Camera Access Blocked!"
+                                                        supportingText={
+                                                            'Please allow camera access, then try again to proceed.'
+                                                        }
+                                                        style={InfoBoxStyle.Elevated}
+                                                        type={InfoBoxType.Error}
+                                                        icon={<Warning />}
+                                                    />
+                                                </div>
+                                            ) : null}
+                                        </div>
+                                        {cameraPermissionStatus === 'granted' && (
                                             <span className="mb-sm text-center text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                                 Camera is blurred for security reasons
                                             </span>
-                                            {cameraPermissionStatus === 'prompt' ? (
-                                                <InfoBox
-                                                    title="Camera Access authorization pending."
-                                                    supportingText={
-                                                        'Make sure your camera is connected and authorized, then try again to proceed.'
-                                                    }
-                                                    style={InfoBoxStyle.Elevated}
-                                                    type={InfoBoxType.Warning}
-                                                    icon={<Warning />}
-                                                />
-                                            ) : null}
-                                        </>
-                                    ) : (
-                                        <InfoBox
-                                            title="Camera Access Blocked!"
-                                            supportingText={
-                                                'Please allow camera access, then try again to proceed.'
-                                            }
-                                            style={InfoBoxStyle.Elevated}
-                                            type={InfoBoxType.Error}
-                                            icon={<Warning />}
-                                        />
-                                    )}
+                                        )}
+                                    </>
                                     <div className="input-border-color flex w-full flex-col gap-xs rounded-2lg border border-solid p-4 no-underline">
                                         <div className="flex">
                                             <div className="mr-4 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-iota-primary-90 [&_svg]:h-4 [&_svg]:w-4 [&_svg]:text-black">

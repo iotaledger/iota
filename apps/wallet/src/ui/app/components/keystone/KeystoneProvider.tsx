@@ -141,20 +141,9 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                     cbor={ur.cbor.toString('hex')}
                                     options={{ size: 220 }}
                                 />
-                                {cameraPermissionStatus === 'prompt' ? (
-                                    <InfoBox
-                                        title="Camera Access authorization pending."
-                                        supportingText={
-                                            'Make sure your camera is connected and authorized, then try again to proceed.'
-                                        }
-                                        style={InfoBoxStyle.Elevated}
-                                        type={InfoBoxType.Warning}
-                                        icon={<Warning />}
-                                    />
-                                ) : null}
                             </>
-                        ) : cameraPermissionStatus === 'granted' ? (
-                            <div className="box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
+                        ) : (
+                            <div className="relative box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
                                 <div className="flex-shrink-0">
                                     <AnimatedQRScanner
                                         handleScan={onSucceed}
@@ -167,17 +156,33 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                         }}
                                     />
                                 </div>
+                                {cameraPermissionStatus === 'prompt' ? (
+                                    <div className="absolute right-0 top-0 contents h-[220px] w-[220px]">
+                                        <InfoBox
+                                            title="Camera Access authorization pending."
+                                            supportingText={
+                                                'Make sure your camera is connected and authorized, then try again to proceed.'
+                                            }
+                                            style={InfoBoxStyle.Elevated}
+                                            type={InfoBoxType.Warning}
+                                            icon={<Warning />}
+                                        />
+                                    </div>
+                                ) : null}
+                                {cameraPermissionStatus === 'denied' ? (
+                                    <div className="absolute right-0 top-0 contents h-[220px] w-[220px]">
+                                        <InfoBox
+                                            title="Camera Access Blocked!"
+                                            supportingText={
+                                                'Please allow camera access, then try again to proceed.'
+                                            }
+                                            style={InfoBoxStyle.Elevated}
+                                            type={InfoBoxType.Error}
+                                            icon={<Warning />}
+                                        />
+                                    </div>
+                                ) : null}
                             </div>
-                        ) : (
-                            <InfoBox
-                                title="Camera Access Blocked!"
-                                supportingText={
-                                    'Please allow camera access, then try again to proceed.'
-                                }
-                                style={InfoBoxStyle.Elevated}
-                                type={InfoBoxType.Error}
-                                icon={<Warning />}
-                            />
                         )}
                         <div className="flex flex-col items-center justify-center">
                             <Link
