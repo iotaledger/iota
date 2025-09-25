@@ -4,25 +4,19 @@
 import { type PasskeyAccountSerializedUI } from '_src/background/accounts/passkeyAccount';
 import { type SignedMessage, type SignedTransaction, WalletSigner } from './walletSigner';
 import { type IotaClient } from '@iota/iota-sdk/client';
-import { toBase64 } from '@iota/iota-sdk/utils';
-import { type BrowserPasswordProviderOptions } from '@iota/iota-sdk/keypairs/passkey';
+import { fromBase64, toBase64 } from '@iota/iota-sdk/utils';
+import {
+    PasskeyKeypair,
+    type BrowserPasswordProviderOptions,
+} from '@iota/iota-sdk/keypairs/passkey';
+import { createBrowserPasskeyProvider } from './components/passkey/passkey-provider';
 
 export class PasskeySigner extends WalletSigner {
     readonly #address: string;
     readonly #publicKey: string;
     readonly #providerOptions: BrowserPasswordProviderOptions;
-    readonly #requestSignature: (
-        data: Uint8Array,
-        providerOptions: BrowserPasswordProviderOptions,
-        publicKey?: string,
-    ) => Promise<string>;
 
     constructor(
-        requestSignature: (
-            data: Uint8Array,
-            providerOptions: BrowserPasswordProviderOptions,
-            publicKey: string | undefined,
-        ) => Promise<string>,
         { address, providerOptions, publicKey }: PasskeyAccountSerializedUI,
         client: IotaClient,
     ) {
@@ -30,7 +24,6 @@ export class PasskeySigner extends WalletSigner {
         this.#address = address;
         this.#providerOptions = providerOptions;
         this.#publicKey = publicKey;
-        this.#requestSignature = requestSignature;
     }
 
     async getAddress(): Promise<string> {
@@ -63,5 +56,27 @@ export class PasskeySigner extends WalletSigner {
             bytes: toBase64(bytes),
             signature,
         };
+    }
+
+    async #requestSignature(
+        data: Uint8Array,
+        providerOptions: BrowserPasswordProviderOptions,
+        publicKey: string,
+    ): Promise<string> {
+        try {
+            const provider = createBrowserPasskeyProvider({ options: providerOptions });
+
+            const publicKeyBytes = fromBase64(publicKey);
+            const keypair = new PasskeyKeypair(publicKeyBytes, provider);
+
+            const { signature } = await keypair.signTransaction(data);
+            return signature;
+        } catch (error) {
+            if (error instanceof Error) {
+                throw new Error(`Passkey signing failed: ${error.message}`);
+            } else {
+                throw new Error('Passkey signing failed: Unknown error');
+            }
+        }
     }
 }

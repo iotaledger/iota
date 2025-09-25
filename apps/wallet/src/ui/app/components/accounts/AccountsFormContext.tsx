@@ -33,7 +33,7 @@ export type AccountsFormValues =
     | { type: AccountsFormType.ImportPrivateKey; keyPair: string }
     | {
           type: AccountsFormType.Passkey;
-          authenticatorAttachment: 'platform' | 'cross-platform';
+          authenticatorAttachment: AuthenticatorAttachment;
           username: string;
           displayName: string;
           isRestoreAccount: boolean;
