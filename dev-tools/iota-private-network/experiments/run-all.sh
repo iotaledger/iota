@@ -193,15 +193,14 @@ cd - >/dev/null
 # --- Launch spammer if enabled ---
 if [ "$SPAMMER_ENABLE" = true ]; then
     # Ensure faucet-1 is running (required by spammer)
-    if ! docker ps --format '{{.Names}}' | grep -q '^faucet-1$'; then
-      log "faucet-1 not running; attempting to start it"
-      sleep 10s
-      (cd .. && docker compose up -d faucet-1) >/dev/null 2>&1 || log "Warning: could not start faucet-1"
-    fi
+    log "Starting faucet-1"
+    (cd .. && docker compose up -d faucet-1) >/dev/null 2>&1 || log "Warning: could not start faucet-1"
     SPAMMER_DURATION=$((RUN_DURATION - 60))
     if [ "$SPAMMER_DURATION" -lt 10 ]; then
       SPAMMER_DURATION=10
     fi
+    log "Sleep 10s to boot faucet-1"
+    sleep 10
     log "Starting spammer with TPS=$SPAMMER_TPS, objects per tx=$SPAMMER_OBJECTS_PER_TX, duration=${SPAMMER_DURATION}s..."
     ../../../../iota-spammer/experiments/scripts/spamming_fuzz_test.sh \
       -T "$SPAMMER_TPS" \
