@@ -135,13 +135,11 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                 <DialogBody>
                     <div className="flex flex-col items-center gap-2">
                         {step === Step.ShowQr ? (
-                            <>
-                                <AnimatedQRCode
-                                    type={ur.type}
-                                    cbor={ur.cbor.toString('hex')}
-                                    options={{ size: 220 }}
-                                />
-                            </>
+                            <AnimatedQRCode
+                                type={ur.type}
+                                cbor={ur.cbor.toString('hex')}
+                                options={{ size: 220 }}
+                            />
                         ) : (
                             <div className="relative box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
                                 <div className="flex-shrink-0">
