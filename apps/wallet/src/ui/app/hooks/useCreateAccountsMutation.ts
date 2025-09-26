@@ -9,8 +9,8 @@ import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } fro
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
 
-import { createBrowserPasskeyProvider } from '../components/passkey/passkey-provider';
 import { PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
+import { createBrowserPasskeyProvider } from '../helpers/passkeys';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,

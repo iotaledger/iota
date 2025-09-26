@@ -6,7 +6,7 @@ import { type SignedMessage, type SignedTransaction, WalletSigner } from './wall
 import { type IotaClient } from '@iota/iota-sdk/client';
 import { fromBase64, toBase64 } from '@iota/iota-sdk/utils';
 import { type BrowserPasskeyProvider, PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
-import { createBrowserPasskeyProvider } from './components/passkey/passkey-provider';
+import { createBrowserPasskeyProvider } from './helpers/passkeys';
 
 export class PasskeySigner extends WalletSigner {
     readonly #address: string;
