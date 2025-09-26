@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli, type AddedAccountsProperties } from '_src/shared/analytics/ampli';
@@ -9,8 +9,7 @@ import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } fro
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
 
-import { PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
-import { createBrowserPasskeyProvider } from '../helpers/passkeys';
+import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
@@ -44,6 +43,7 @@ enum AmpliAccountType {
 export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
+    const { createPasskeyAccount } = useCreatePasskeyAccount();
 
     const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
         AccountsFormType,
@@ -141,24 +141,18 @@ export function useCreateAccountsMutation() {
                 type === AccountsFormType.Passkey &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
-                const { provider, options } = createBrowserPasskeyProvider({
-                    providerOptions: {
-                        authenticatorSelection: {
-                            authenticatorAttachment: accountsFormValues.authenticatorAttachment,
-                        },
-                        user: {
-                            name: accountsFormValues.username,
-                            displayName: accountsFormValues.displayName,
-                        },
-                    },
+                const { address, publicKey, providerOptions } = await createPasskeyAccount({
+                    username: accountsFormValues.username,
+                    displayName: accountsFormValues.displayName,
+                    authenticatorAttachment: accountsFormValues.authenticatorAttachment,
+                    isRestore: accountsFormValues.isRestoreAccount,
                 });
-                const passkey = await PasskeyKeypair.getPasskeyInstance(provider);
 
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PasskeyDerived,
-                    address: passkey.getPublicKey().toIotaAddress(),
-                    publicKey: passkey.getPublicKey().toBase64(),
-                    providerOptions: options,
+                    address,
+                    publicKey,
+                    providerOptions,
                     password: password!,
                 });
             } else if (
