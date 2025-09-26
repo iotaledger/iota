@@ -19,6 +19,7 @@ export const DEFAULT_SORT_ORDER: AccountType[] = [
     AccountType.SeedDerived,
     AccountType.PrivateKeyDerived,
     AccountType.LedgerDerived,
+    AccountType.PasskeyDerived,
     AccountType.KeystoneDerived,
 ];
 

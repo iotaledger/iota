@@ -9,6 +9,9 @@ import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } fro
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
 
+import { PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
+import { createBrowserPasskeyProvider } from '../helpers/passkeys';
+
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
     values: AccountsFormValues,
@@ -33,6 +36,7 @@ function validateAccountFormValues<T extends AccountsFormType>(
 enum AmpliAccountType {
     Derived = 'Derived',
     ImportPrivateKey = 'Private Key',
+    Passkey = 'Passkey',
     Ledger = 'Ledger',
     Keystone = 'Keystone',
 }
@@ -40,6 +44,7 @@ enum AmpliAccountType {
 export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
+
     const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
         AccountsFormType,
         AddedAccountsProperties['accountType']
@@ -50,6 +55,7 @@ export function useCreateAccountsMutation() {
         [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
         [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
         [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
+        [AccountsFormType.Passkey]: AmpliAccountType.Passkey,
         [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
         [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
     };
@@ -129,6 +135,27 @@ export function useCreateAccountsMutation() {
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PrivateKeyDerived,
                     keyPair: accountsFormValues.keyPair,
+                    password: password!,
+                });
+            } else if (
+                type === AccountsFormType.Passkey &&
+                validateAccountFormValues(type, accountsFormValues, password)
+            ) {
+                const { provider, options } = createBrowserPasskeyProvider({
+                    providerOptions: {
+                        authenticatorSelection: {
+                            authenticatorAttachment: accountsFormValues.authenticatorAttachment,
+                        },
+                    },
+                });
+
+                const passkey = await PasskeyKeypair.getPasskeyInstance(provider);
+
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.PasskeyDerived,
+                    address: passkey.getPublicKey().toIotaAddress(),
+                    publicKey: passkey.getPublicKey().toBase64(),
+                    providerOptions: options,
                     password: password!,
                 });
             } else if (
