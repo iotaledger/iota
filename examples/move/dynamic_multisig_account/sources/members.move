@@ -8,7 +8,7 @@ module dynamic_multisig_account::members;
 #[error(code = 0)]
 const EMembersComponentsHaveDifferentLengths: vector<u8> = b"The members components have different lengths.";
 #[error(code = 1)]
-const EMembersMustBeUnique: vector<u8> = b"Еhe list of members must not contain duplicates.";
+const EMembersMustNotContainDuplicates: vector<u8> = b"The list of members must not contain duplicates.";
 #[error(code = 2)]
 const EMemberIsNotFound: vector<u8> = b"The member with the provided address is not found.";
 
@@ -96,7 +96,7 @@ fun check_members(addresses: &vector<address>, weights: &vector<u64>) {
     // Check that the provided addresses are unique.
     let mut seen = vector::empty<address>();
     addresses.do_ref!(|addr| {
-        assert!(!seen.contains(addr), EMembersMustBeUnique);
+        assert!(!seen.contains(addr), EMembersMustNotContainDuplicates);
         seen.push_back(*addr);
     });
 }
