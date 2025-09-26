@@ -93,6 +93,17 @@ export function AddAccountPage() {
             ],
         },
         {
+            title: 'Create a new passkey profile',
+            cards: [
+                {
+                    title: 'Passkey',
+                    icon: Key,
+                    actionType: AccountsFormType.Passkey,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+            ],
+        },
+        {
             title: 'Hardware Wallets',
             cards: [
                 {
@@ -127,6 +138,10 @@ export function AddAccountPage() {
             case AccountsFormType.ImportPrivateKey:
                 ampli.clickedImportPrivateKey({ sourceFlow });
                 navigate('/accounts/import-private-key');
+                break;
+            case AccountsFormType.Passkey:
+                ampli.clickedImportPrivateKey({ sourceFlow });
+                navigate('/accounts/import-passkey');
                 break;
             case AccountsFormType.ImportSeed:
                 ampli.clickedImportSeed({ sourceFlow });
