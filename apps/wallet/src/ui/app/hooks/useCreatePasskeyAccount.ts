@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { PasskeyKeypair } from '@iota/iota-sdk/keypairs/passkey';
-import { createBrowserPasskeyProvider } from '../components/passkey/passkey-provider';
 import { useRestorePasskeyAccount } from './useRestorePasskeyAccount';
+import { createBrowserPasskeyProvider } from '../helpers/passkeys';
 
 export function useCreatePasskeyAccount() {
     const { mutateAsync: restorePasskeyAccount } = useRestorePasskeyAccount();
