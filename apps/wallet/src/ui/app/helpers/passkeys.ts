@@ -20,29 +20,27 @@ export const DEFAULT_AUTHENTICATOR_OPTIONS = {
 /**
  * Creates browser password provider options with defaults applied
  */
-function createBrowserPasswordProviderOptions({
-    providerOptions = {},
+export function createBrowserPasswordProviderOptions({
+    options = {},
 }: {
-    providerOptions?: Partial<BrowserPasswordProviderOptions>;
+    options?: Partial<BrowserPasswordProviderOptions>;
 } = {}): BrowserPasswordProviderOptions {
-    const rpName = providerOptions.rp?.name || DEFAULT_PASSKEY_SAVED_NAME;
-    const rpId = providerOptions.rp?.id || DEFAULT_PASSKEY_RP.id;
-    const authenticatorAttachment =
-        providerOptions.authenticatorSelection?.authenticatorAttachment ||
-        DEFAULT_AUTHENTICATOR_OPTIONS.authenticatorAttachment;
-
-    return {
-        ...providerOptions,
+    const providerOptions = {
+        ...options,
         rp: {
-            name: rpName,
-            id: rpId,
-            ...(providerOptions.rp || {}),
+            name: DEFAULT_PASSKEY_RP.name,
+            id: DEFAULT_PASSKEY_RP.id,
+            ...options?.rp,
         },
         authenticatorSelection: {
-            authenticatorAttachment,
-            ...(providerOptions.authenticatorSelection || {}),
+            authenticatorAttachment: DEFAULT_AUTHENTICATOR_OPTIONS.authenticatorAttachment,
+            ...options?.authenticatorSelection,
         },
     };
+    if (options?.user) {
+        providerOptions.user = { ...options.user };
+    }
+    return providerOptions;
 }
 
 export function createBrowserPasskeyProvider({
@@ -50,7 +48,7 @@ export function createBrowserPasskeyProvider({
 }: {
     providerOptions?: Partial<BrowserPasswordProviderOptions>;
 } = {}): { provider: BrowserPasskeyProvider; options: BrowserPasswordProviderOptions } {
-    const options = createBrowserPasswordProviderOptions({ providerOptions });
+    const options = createBrowserPasswordProviderOptions({ options: providerOptions });
     const provider = new BrowserPasskeyProvider(
         options?.rp?.name ?? DEFAULT_PASSKEY_SAVED_NAME,
         options,

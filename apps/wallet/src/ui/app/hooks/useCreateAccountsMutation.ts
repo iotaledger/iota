@@ -146,9 +146,12 @@ export function useCreateAccountsMutation() {
                         authenticatorSelection: {
                             authenticatorAttachment: accountsFormValues.authenticatorAttachment,
                         },
+                        user: {
+                            name: accountsFormValues.username,
+                            displayName: accountsFormValues.displayName,
+                        },
                     },
                 });
-
                 const passkey = await PasskeyKeypair.getPasskeyInstance(provider);
 
                 createdAccounts = await backgroundClient.createAccounts({
