@@ -976,7 +976,11 @@ impl IotaClientCommands {
                 gas_data,
                 processing,
             } => {
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let client = context.get_client().await?;
                 let read_api = client.read_api();
                 let chain_id = read_api.get_chain_identifier().await.ok();
@@ -1129,7 +1133,11 @@ impl IotaClientCommands {
                     .into());
                 }
 
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let client = context.get_client().await?;
                 let read_api = client.read_api();
                 let chain_id = read_api.get_chain_identifier().await.ok();
@@ -1370,7 +1378,11 @@ impl IotaClientCommands {
                     .move_call_tx_kind(package, &module, &function, type_args, args)
                     .await?;
 
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let gas_payment = client
                     .transaction_builder()
                     .input_refs(&payment.gas)
@@ -1827,7 +1839,11 @@ impl IotaClientCommands {
                 };
 
                 let client = context.get_client().await?;
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let gas_payment = client
                     .transaction_builder()
                     .input_refs(&payment.gas)
