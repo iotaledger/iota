@@ -470,6 +470,15 @@ const developer = [
             },
         ],
     },
+   {
+    type: 'category',
+    label: 'Workshops',
+    link: {
+        type: 'doc',
+        id: 'developer/workshops/index',
+    },
+    items: [],
+    },
     {
         type: 'category',
         label: 'Workshops',
