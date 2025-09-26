@@ -6,7 +6,7 @@ import {
     isSignPersonalMessageApprovalRequest,
     isTransactionApprovalRequest,
 } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loading } from '_components';
 import { useAppSelector } from '_hooks';
@@ -26,11 +26,7 @@ export function ApprovalRequestPage() {
     const requestsLoading = useAppSelector(
         ({ transactionRequests }) => !transactionRequests.initialized,
     );
-    useEffect(() => {
-        if (!requestsLoading && (!request || (request && request.approved !== null))) {
-            window.close();
-        }
-    }, [requestsLoading, request]);
+
     return (
         <Loading loading={requestsLoading}>
             {request ? (

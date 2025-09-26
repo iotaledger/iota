@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress, useUnlockedGuard } from '_hooks';
+import { useActiveAccount, useActiveAddress, useAppSelector, useUnlockedGuard } from '_hooks';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useNftDetails, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -10,12 +10,19 @@ import cl from 'clsx';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
+import { NEW_TAB_ACCOUNT_TYPES } from '_src/shared/accountTypes';
+import { openInNewTab } from '_src/ui/app/helpers/openInNewTab';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 
 export function NFTDetailsPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const nftId = searchParams.get('objectId');
     const accountAddress = useActiveAddress();
+    const activeAccount = useActiveAccount();
+    const isTabView = useAppSelector(
+        (state) => state.app.extensionViewType === ExtensionViewType.Tab,
+    );
     const {
         nftDisplayData,
         isLoading,
@@ -45,8 +52,18 @@ export function NFTDetailsPage() {
         window.open(url, '_blank', 'noopener noreferrer');
     }
 
-    function handleSend() {
-        navigate(`/nft-transfer/${nftId}`);
+    async function handleSend() {
+        const destination = `/nft-transfer/${nftId}`;
+        if (activeAccount) {
+            const needNewTab = NEW_TAB_ACCOUNT_TYPES.includes(activeAccount?.type) && !isTabView;
+
+            if (needNewTab) {
+                openInNewTab(destination);
+                return;
+            }
+        }
+
+        navigate(destination);
     }
 
     return (
@@ -82,7 +99,7 @@ export function NFTDetailsPage() {
                                     </div>
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col gap-xxxs">
-                                            <span className="break-words text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
+                                            <span className="dark:text-iota-neutral-92 break-words text-title-lg text-iota-neutral-10">
                                                 {nftDisplayData?.name}
                                             </span>
                                             {nftDisplayData?.description ? (
