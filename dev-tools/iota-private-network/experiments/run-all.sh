@@ -72,6 +72,7 @@ kill_spammer_processes() {
     pkill -9 -f 'iota-spammer spammer spam' 2>/dev/null || true
     pkill -9 -f 'cargo run --release -- spammer spam' 2>/dev/null || true
     pkill -9 -f 'spamming_fuzz_test.sh' 2>/dev/null || true
+    pkill -9 -f 'network-fuzz-disruption.sh
 
     # also remove per-user and global lock files
     rm -f /tmp/spammer-*.lock 2>/dev/null || true
