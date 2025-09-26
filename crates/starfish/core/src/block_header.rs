@@ -11,6 +11,7 @@ use std::{
 
 use bytes::Bytes;
 use fastcrypto::hash::{Digest, HashFunction};
+use reed_solomon_simd::ReedSolomonEncoder;
 use rs_merkle::MerkleTree;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
@@ -22,6 +23,7 @@ use starfish_config::{
 use crate::{
     commit::CommitVote,
     context::Context,
+    encoder::ShardEncoder,
     ensure,
     error::{ConsensusError, ConsensusResult},
 };
@@ -59,6 +61,7 @@ impl Transaction {
     }
 
     /// Serialises a vector of transactions using the bcs serializer
+    #[expect(dead_code)]
     pub(crate) fn serialize(transactions: &[Transaction]) -> Result<Bytes, ConsensusError> {
         let bytes = bcs::to_bytes(transactions).map_err(ConsensusError::SerializationFailure)?;
         Ok(bytes.into())
@@ -102,6 +105,8 @@ impl Transaction {
         }
         Ok(padded[4..4 + original_len].to_vec())
     }
+
+    #[expect(dead_code)]
     pub(crate) fn serialize_and_pad_for_sharding(
         transactions: &[Transaction],
         info_length: usize,
@@ -468,13 +473,41 @@ impl TransactionsCommitment {
     /// Lexicographic min & max digest.
     pub const MIN: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
     pub const MAX: Self = Self([u8::MAX; starfish_config::DIGEST_LENGTH]);
+    pub const DEFAULT_FOR_TEST: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
 
+    #[expect(dead_code)]
     pub(crate) fn compute_transactions_commitment_for_test(
-        serialized_transactions: &Bytes,
+        _serialized_transactions: &Bytes,
     ) -> ConsensusResult<TransactionsCommitment> {
-        let mut hasher = DefaultHashFunction::new();
-        hasher.update(serialized_transactions);
-        Ok(TransactionsCommitment(hasher.finalize().into()))
+        Ok(Self::DEFAULT_FOR_TEST)
+    }
+
+    pub(crate) fn compute_transactions_commitment(
+        serialized_transactions: &Bytes,
+        context: &Arc<Context>,
+        encoder: &mut ReedSolomonEncoder,
+    ) -> ConsensusResult<TransactionsCommitment> {
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        assert!(
+            serialized_transactions.len() % info_length == 0,
+            "Serialized transactions length must be divisible by info length"
+        );
+        // Compute transaction commitment that will be included in the block header
+        let sharded_transactions: Vec<Shard> = serialized_transactions
+            .chunks(serialized_transactions.len() / info_length)
+            .map(|chunk| chunk.to_vec())
+            .collect();
+
+        let encoded_shards = encoder
+            .encode_shards(sharded_transactions, info_length, parity_length)
+            .expect("We should expect correct encoding of the shards");
+
+        let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
+            .expect(
+                "We should expect correct computation of the Merkle root for encoded transactions",
+            );
+        Ok(transactions_commitment)
     }
 
     pub(crate) fn compute_merkle_root(
@@ -853,7 +886,7 @@ pub struct VerifiedTransactions {
     /// Commitment of transactions in the block
     transactions_commitment: TransactionsCommitment,
 
-    /// The serialized bytes of the transactions.
+    /// The serialized bytes of the transactions with padding for sharding.
     serialized: Bytes,
 }
 
@@ -1038,16 +1071,26 @@ pub struct TestBlockHeader {
 }
 
 impl TestBlockHeader {
-    pub fn new(round: Round, author: u8) -> Self {
+    pub fn new(
+        round: Round,
+        author: u8,
+        context: &Arc<Context>,
+        encoder: &mut ReedSolomonEncoder,
+    ) -> Self {
+        let txs = vec![];
+        let serialized_transactions =
+            Transaction::serialize_and_pad_for_sharding(&txs, context.committee.info_length())
+                .expect("We should expect correct serialization of the transactions for sharding");
         Self {
             block_header: BlockHeaderV1 {
                 round,
                 author: author.into(),
-                transactions_commitment:
-                    TransactionsCommitment::compute_transactions_commitment_for_test(&Bytes::from(
-                        bcs::to_bytes::<Vec<Transaction>>(&vec![]).unwrap(),
-                    ))
-                    .unwrap(),
+                transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions,
+                    context,
+                    encoder,
+                )
+                .unwrap(),
                 ..Default::default()
             },
             ancestors: vec![],
@@ -1055,22 +1098,30 @@ impl TestBlockHeader {
         }
     }
 
-    pub fn new_with_transaction(round: Round, author: u8, tx: u8) -> Self {
+    pub fn new_with_transaction(
+        round: Round,
+        author: u8,
+        tx: u8,
+        context: &Arc<Context>,
+        encoder: &mut ReedSolomonEncoder,
+    ) -> Self {
+        let txs = vec![vec![tx; 16]]
+            .into_iter()
+            .map(Transaction::new)
+            .collect::<Vec<Transaction>>();
+        let serialized_transactions =
+            Transaction::serialize_and_pad_for_sharding(&txs, context.committee.info_length())
+                .expect("We should expect correct serialization of the transactions for sharding");
         Self {
             block_header: BlockHeaderV1 {
                 round,
                 author: author.into(),
-                transactions_commitment:
-                    TransactionsCommitment::compute_transactions_commitment_for_test(&Bytes::from(
-                        bcs::to_bytes::<Vec<Transaction>>(
-                            &vec![vec![tx; 16]]
-                                .into_iter()
-                                .map(Transaction::new)
-                                .collect(),
-                        )
-                        .unwrap(),
-                    ))
-                    .unwrap(),
+                transactions_commitment: TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions,
+                    context,
+                    encoder,
+                )
+                .unwrap(),
                 ..Default::default()
             },
             ancestors: vec![],

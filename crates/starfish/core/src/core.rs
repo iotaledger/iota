@@ -1669,10 +1669,8 @@ mod test {
             .expect("we should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
         let transactions_commitment =
-            TransactionsCommitment::compute_transactions_commitment_for_test(
-                &serialized_transactions,
-            )
-            .expect("we should expect correct computation of the transactions commitment");
+            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                .expect("we should expect correct computation of the transactions commitment");
 
         // a new block should have been created during recovery.
         let verified_block = block_receiver

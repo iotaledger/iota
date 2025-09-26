@@ -50,44 +50,6 @@ use crate::{
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
-pub trait TransactionsCommitmentComputer {
-    async fn compute_transactions_commitment(
-        &self,
-        serialized_transactions: &Bytes,
-        encoder: &mut ReedSolomonEncoder,
-    ) -> ConsensusResult<TransactionsCommitment>;
-}
-
-impl<C: CoreThreadDispatcher> TransactionsCommitmentComputer for AuthorityService<C> {
-    async fn compute_transactions_commitment(
-        &self,
-        serialized_transactions: &Bytes,
-        encoder: &mut ReedSolomonEncoder,
-    ) -> ConsensusResult<TransactionsCommitment> {
-        let info_length = self.context.committee.info_length();
-        let parity_length = self.context.committee.size() - info_length;
-        assert!(
-            serialized_transactions.len() % info_length == 0,
-            "Serialized transactions length must be divisible by info length"
-        );
-        // Compute transaction commitment that will be included in the block header
-        let sharded_transactions: Vec<Shard> = serialized_transactions
-            .chunks(serialized_transactions.len() / info_length)
-            .map(|chunk| chunk.to_vec())
-            .collect();
-
-        let encoded_shards = encoder
-            .encode_shards(sharded_transactions, info_length, parity_length)
-            .expect("We should expect correct encoding of the shards");
-
-        let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
-            .expect(
-                "We should expect correct computation of the Merkle root for encoded transactions",
-            );
-        Ok(transactions_commitment)
-    }
-}
-
 const MAX_FILTER_SIZE: u32 = 10000;
 
 struct FilterForHeaders {
@@ -241,10 +203,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         if signed_block_header.transactions_commitment()
-            != self
-                .compute_transactions_commitment(&serialized_transactions, encoder)
-                .await
-                .expect("we should expect correct computation of the transactions commitment")
+            != TransactionsCommitment::compute_transactions_commitment(
+                &serialized_transactions,
+                &self.context,
+                encoder,
+            )
+            .expect("we should expect correct computation of the transactions commitment")
         {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: signed_block_header.round(),
@@ -1441,9 +1405,9 @@ mod tests {
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new(1, 0)
                 .set_commitment(
-                    TransactionsCommitment::compute_transactions_commitment_for_test(
-                        &Bytes::from_static(b"dummy data"),
-                    )
+                    TransactionsCommitment::compute_transactions_commitment(&Bytes::from_static(
+                        b"dummy data",
+                    ))
                     .unwrap(),
                 )
                 .build(),
@@ -2415,10 +2379,8 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment_for_test(
-                    &serialized_transactions
-                )
-                .unwrap()
+                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                    .unwrap()
             );
 
             let verified_block_header =
@@ -2478,10 +2440,8 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment_for_test(
-                    &serialized_transactions
-                )
-                .unwrap()
+                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                    .unwrap()
             );
 
             let verified_block_header =
@@ -3142,10 +3102,8 @@ mod tests {
                 .expect("We expect to find the header with such block_ref");
             assert_eq!(
                 block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment_for_test(
-                    &serialized_transactions
-                )
-                .unwrap()
+                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                    .unwrap()
             );
         }
 
