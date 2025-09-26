@@ -52,7 +52,7 @@ pub(crate) fn build_dag(
             .committee
             .authorities()
             .map(|authority| {
-                let author_idx = authority.0.value() as u32;
+                let author_idx = authority.0.value() as u8;
                 // Test the case where a block from round R+1 has smaller timestamp than a block
                 // from round R.
                 let ts = round as BlockTimestampMs / 2 * num_authorities as BlockTimestampMs
@@ -84,7 +84,7 @@ pub(crate) fn build_dag_layer(
     let mut references = Vec::new();
     for (authority, ancestors) in connections {
         let round = ancestors.first().unwrap().round + 1;
-        let author = authority.value() as u32;
+        let author = authority.value() as u8;
         let block = VerifiedBlockHeader::new_for_test(
             TestBlockHeader::new(round, author)
                 .set_ancestors(ancestors)

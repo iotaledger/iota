@@ -1093,7 +1093,7 @@ mod tests {
         );
 
         // Create some test transactions
-        let block_round_author: Vec<(Round, u32)> = vec![(1, 1), (2, 1), (3, 2)];
+        let block_round_author: Vec<(Round, u8)> = vec![(1, 1), (2, 1), (3, 2)];
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
@@ -1191,7 +1191,7 @@ mod tests {
 
         // Create block round author pairs
         let block_round_authors = (1..LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 2 + 1)
-            .map(|i| (i as Round, 1u32))
+            .map(|i| (i as Round, 1u8))
             .collect::<Vec<_>>();
 
         let mut block_headers = Vec::with_capacity(block_round_authors.len());
@@ -1299,7 +1299,7 @@ mod tests {
         );
 
         // Create some test transactions
-        let block_round_author: Vec<(Round, u32)> = vec![(1, 0), (2, 1), (3, 2)];
+        let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
@@ -1415,7 +1415,7 @@ mod tests {
         );
 
         // Create some test transactions
-        let block_round_author: Vec<(Round, u32)> = vec![(1, 0), (2, 1), (3, 2)];
+        let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
@@ -1520,7 +1520,7 @@ mod tests {
         );
 
         // Create some test transactions
-        let block_round_author: Vec<(Round, u32)> = vec![(1, 0), (2, 1), (3, 2)];
+        let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
@@ -1627,7 +1627,7 @@ mod tests {
         );
 
         // Create some test transactions
-        let block_round_author: Vec<(Round, u32)> = vec![(1, 0), (2, 1), (3, 2)];
+        let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 
@@ -1734,7 +1734,7 @@ mod tests {
         );
 
         // Create some test transactions
-        let block_round_author: Vec<(Round, u32)> = vec![(1, 0), (2, 1), (3, 2)];
+        let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
 
         let mut block_headers = Vec::with_capacity(block_round_author.len());
 

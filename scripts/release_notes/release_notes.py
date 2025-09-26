@@ -63,6 +63,7 @@ NOTE_ORDER = [
     "CLI",
     "Rust SDK",
     "REST API",
+    "Internal gRPC API",
 ]
 
 

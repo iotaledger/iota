@@ -137,7 +137,7 @@ impl LeaderSchedule {
             // TODO: we need to differentiate the leader strategy in tests, so for
             // some type of testing (ex sim tests) we can use the staked approach.
             if #[cfg(test)] {
-                let leader = AuthorityIndex::new_for_test((round + leader_offset) % self.context.committee.size() as u32);
+                let leader = AuthorityIndex::new_for_test(((round + leader_offset) % self.context.committee.size() as u32) as u8);
                 let table = self.leader_swap_table.read();
                 table.swap(leader, round, leader_offset).unwrap_or(leader)
             } else {
@@ -716,14 +716,14 @@ mod tests {
 
         // Populate fully connected test blocks for round 0 ~ 4, authorities 0 ~ 3.
         let max_round: u32 = 4;
-        let num_authorities: u32 = 4;
+        let num_authorities: u8 = 4;
 
         let mut blocks = Vec::new();
         let (genesis_references, genesis): (Vec<_>, Vec<_>) = context
             .committee
             .authorities()
             .map(|index| {
-                let author_idx = index.0.value() as u32;
+                let author_idx = index.0.value() as u8;
                 let block = TestBlockHeader::new(0, author_idx).build();
                 VerifiedBlockHeader::new_for_test(block)
             })
@@ -739,7 +739,7 @@ mod tests {
                 let base_ts = round as BlockTimestampMs * 1000;
                 let block = VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(round, author)
-                        .set_timestamp_ms(base_ts + (author + round) as u64)
+                        .set_timestamp_ms(base_ts + (author as u32 + round) as u64)
                         .set_ancestors(ancestors.clone())
                         .build(),
                 );

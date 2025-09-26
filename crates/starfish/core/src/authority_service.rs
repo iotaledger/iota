@@ -497,7 +497,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // will help with liveness.
         let missed_blocks = stream::iter(
             dag_state
-                .get_cached_blocks(self.context.own_index, last_received + 1)
+                .get_own_cached_blocks(last_received + 1)
                 .into_iter()
                 .filter_map(|block| match SerializedBlockBundle::try_from(block) {
                     Ok(block_bundle) => Some(block_bundle),
@@ -1475,7 +1475,7 @@ mod tests {
                 VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new(
                         (i / committee_size + 1) as u32,
-                        (i % committee_size) as u32,
+                        (i % committee_size) as u8,
                     )
                     .build(),
                 )
@@ -2878,7 +2878,7 @@ mod tests {
             .map(|header| header.reference())
             .collect::<Vec<_>>();
         for validator in 0..validators {
-            let test_block_header = TestBlockHeader::new(rounds + 1, validator as u32)
+            let test_block_header = TestBlockHeader::new(rounds + 1, validator as u8)
                 .set_commit_votes(commit_refs.clone())
                 .set_ancestors(refs_to_headers_from_prev_round.clone())
                 .set_timestamp_ms(
@@ -2903,7 +2903,7 @@ mod tests {
                 .map(|header| header.reference())
                 .collect::<Vec<_>>();
             for validator in 0..validators {
-                let test_block_header = TestBlockHeader::new(round, validator as u32)
+                let test_block_header = TestBlockHeader::new(round, validator as u8)
                     .set_ancestors(refs_to_headers_from_prev_round.clone())
                     .set_timestamp_ms(round as u64 * 1000 + (validator + round as usize + 1) as u64)
                     .build();

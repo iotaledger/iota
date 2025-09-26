@@ -3,8 +3,10 @@ import { useEvmRpcClient } from '../contexts';
 import { CoinBalance } from '@iota/iota-sdk/client';
 import { AssetsResponse } from '@iota/isc-sdk';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { useCoinsReFetchingConfig } from '@iota/core';
 
 export function useGetAllBalancesL2(address: string) {
+    const { staleTime, refetchInterval } = useCoinsReFetchingConfig();
     const { evmRpcClient } = useEvmRpcClient();
 
     return useQuery({
@@ -50,6 +52,7 @@ export function useGetAllBalancesL2(address: string) {
             return coinBalances;
         },
         enabled: !!address && !!evmRpcClient?.baseUrl,
-        staleTime: 1000 * 60 * 5,
+        staleTime,
+        refetchInterval,
     });
 }
