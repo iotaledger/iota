@@ -4,8 +4,10 @@
 import { toast } from '@iota/core';
 import { useEffect, useState } from 'react';
 
-export function useCheckCameraPermissionStatus() {
-    const [cameraPermissionStatus, setCameraPermissionStatus] = useState<string | null>(null);
+export function useCheckCameraPermissionStatus(): [PermissionState | null] {
+    const [cameraPermissionStatus, setCameraPermissionStatus] = useState<PermissionState | null>(
+        null,
+    );
 
     useEffect(() => {
         (async () => {
@@ -19,6 +21,7 @@ export function useCheckCameraPermissionStatus() {
 
                 setCameraPermissionStatus(permission.state);
             } catch (_) {
+                setCameraPermissionStatus('denied');
                 toast.error('Could not check permission status!');
             }
         })();

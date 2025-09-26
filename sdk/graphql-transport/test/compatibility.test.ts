@@ -558,19 +558,19 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test('getDynamicFieldObject', async () => {
+    test('getDynamicFieldObjectV1', async () => {
         const { data } = await toolbox.client.getDynamicFields({
             parentId: parentObjectId,
         });
 
         const field = data.find((field) => field.type === 'DynamicObject')!;
 
-        const rpc = await toolbox.client.getDynamicFieldObject({
+        const rpc = await toolbox.client.getDynamicFieldObjectV1({
             parentId: parentObjectId,
             name: field.name,
         });
 
-        const graphql = await graphQLClient!.getDynamicFieldObject({
+        const graphql = await graphQLClient!.getDynamicFieldObjectV1({
             parentId: parentObjectId,
             name: field.name,
         });
