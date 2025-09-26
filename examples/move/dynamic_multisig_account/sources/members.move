@@ -8,6 +8,8 @@ module dynamic_multisig_account::members;
 #[error(code = 0)]
 const EMembersComponentsHaveDifferentLengths: vector<u8> = b"The members components have different lengths.";
 #[error(code = 1)]
+const EMembersMustBeUnique: vector<u8> = b"Еhe list of members must not contain duplicates.";
+#[error(code = 2)]
 const EMemberIsNotFound: vector<u8> = b"The member with the provided address is not found.";
 
 // ----------------------------------- Data Structures -----------------------------------
@@ -31,8 +33,8 @@ public struct Members has drop, store {
 /// Creates a `Members` struct from the given vectors of addresses and weights.
 /// The vectors must have the same length.
 public(package) fun create(addresses: vector<address>, weights: vector<u64>): Members {
-    // Check that the lengths of the provided vectors are equal.
-    assert!(addresses.length() == weights.length(), EMembersComponentsHaveDifferentLengths);
+    // Check that the provided members components are valid.
+    check_members(&addresses, &weights);
 
     // Create a `Members` instance.
     let list = addresses.zip_map!(weights, |addr, weight| Member { addr, weight });
@@ -85,6 +87,19 @@ public(package) fun weight(self: &Member): u64 {
 }
 
 // --------------------------------------- Utilities ---------------------------------------
+
+/// Check that the provided members components are valid.
+fun check_members(addresses: &vector<address>, weights: &vector<u64>) {
+    // Check that the lengths of the provided vectors are equal.
+    assert!(addresses.length() == weights.length(), EMembersComponentsHaveDifferentLengths);
+
+    // Check that the provided addresses are unique.
+    let mut seen = vector::empty<address>();
+    addresses.do_ref!(|addr| {
+        assert!(!seen.contains(addr), EMembersMustBeUnique);
+        seen.push_back(*addr);
+    });
+}
 
 /// Finds the index of the member with the provided address.
 fun find_index(self: &Members, addr: address): Option<u64> {
