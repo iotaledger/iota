@@ -36,6 +36,7 @@ export type AccountsFormValues =
           authenticatorAttachment: AuthenticatorAttachment;
           username: string;
           displayName: string;
+          isRestoreAccount: boolean;
       }
     | {
           type: AccountsFormType.ImportLedger;
