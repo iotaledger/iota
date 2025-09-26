@@ -707,13 +707,13 @@ impl IndexStore {
                     let iter = self
                         .tables
                         .transaction_order
-                        .iter_with_bounds(Some(cursor.unwrap_or(TxSequenceNumber::MIN)), None)
+                        .safe_iter_with_bounds(Some(cursor.unwrap_or(TxSequenceNumber::MIN)), None)
                         .skip(usize::from(cursor.is_some()))
-                        .map(|(_, digest)| digest);
+                        .map(|result| result.map(|(_, digest)| digest));
                     if let Some(limit) = limit {
-                        Ok(iter.take(limit).collect())
+                        Ok(iter.take(limit).collect::<Result<Vec<_>, _>>()?)
                     } else {
-                        Ok(iter.collect())
+                        Ok(iter.collect::<Result<Vec<_>, _>>()?)
                     }
                 }
             }
@@ -919,12 +919,14 @@ impl IndexStore {
         } else {
             self.tables
                 .event_order
-                .iter_with_bounds(Some((tx_seq, event_seq)), None)
+                .safe_iter_with_bounds(Some((tx_seq, event_seq)), None)
                 .take(limit)
-                .map(|((_, event_seq), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
+                .map(|result| {
+                    result.map(|((_, event_seq), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    })
                 })
-                .collect()
+                .collect::<Result<Vec<_>, _>>()?
         })
     }
 
