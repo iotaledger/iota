@@ -110,6 +110,8 @@ public fun remove_transaction(self: &mut DynamicMultisigAccount, transaction_dig
 
 /// Updates the account data: members information, threshold and authenticator.
 /// Can be called only by the account itself, that means that this call must be approved by the account members.
+/// The transactions that are proposed but not yet executed can have approves from members
+/// who are not in the new members list. These approves will be ignored when checking if the transaction is approved.
 public fun update_account_data(
     self: &mut DynamicMultisigAccount,
     members_addresses: vector<address>,
