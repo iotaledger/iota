@@ -95,9 +95,21 @@ public fun approve_transaction(self: &mut DynamicMultisigAccount, transaction_di
     transaction.add_approval(member_address);
 }
 
+/// Removes a transaction.
+/// It can be removed ether it was executed or not.
+/// Can be removed only by the account itself, that means that this call must be approved by the account members.
+public fun remove_transaction(self: &mut DynamicMultisigAccount, transaction_digest: vector<u8>, ctx: &TxContext) {
+    // Check that the sender of this transaction is the account.
+    ensure_tx_sender_is_account(self, ctx);
+
+    // Get the transaction.
+    self.transactions_mut().remove_transaction(transaction_digest);
+}
+
 // --------------------------------------- Authentication ---------------------------------------
 
 /// Updates the account data: members information, threshold and authenticator.
+/// Can be called only by the account itself, that means that this call must be approved by the account members.
 public fun update_account_data(
     self: &mut DynamicMultisigAccount,
     members_addresses: vector<address>,

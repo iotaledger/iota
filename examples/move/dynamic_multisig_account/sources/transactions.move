@@ -55,6 +55,12 @@ public(package) fun add_transaction(self: &mut Transactions, digest: vector<u8>,
     self.bag.add(digest, Transaction{digest, approves: vector[ member ]});
 }
 
+/// Removes a transaction from the account.
+/// Returns the digest and the addresses of the members who approved the transaction.
+public(package) fun remove_transaction(self: &mut Transactions, digest: vector<u8>): (vector<u8>, vector<address>) {
+    unpack(self.bag.remove(digest))
+}
+
 // ------------------------------------- Transaction -------------------------------------
 
 /// Returns the digest of the transaction.
@@ -75,4 +81,11 @@ public(package) fun add_approval(self: &mut Transaction, member: address) {
     );
 
     self.approves.push_back(member);
+}
+
+/// Unpacks the transaction into its components and deletes it.
+fun unpack(self: Transaction): (vector<u8>, vector<address>) {
+    let Transaction {digest, approves} = self;
+
+    (digest, approves)
 }
