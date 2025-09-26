@@ -12,13 +12,16 @@ import BalanceFinderIntroDarkImage from '_assets/images/balance_finder_intro_dar
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { AllowedAccountSourceTypes } from '_src/ui/app/accounts-finder';
 import { useEffect, useState } from 'react';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 
 export function AccountsFinderIntroPage() {
     const { theme } = useTheme();
     const navigate = useNavigate();
     const activeAccount = useActiveAccount();
     const [skipSeconds, setSkipSeconds] = useState(5);
-    const isAppPopup = useAppSelector((state) => state.app.isAppViewPopup);
+    const isAppPopup = useAppSelector(
+        (state) => state.app.extensionViewType === ExtensionViewType.Popup,
+    );
 
     const skipActionAllowed = skipSeconds > 0;
     const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
