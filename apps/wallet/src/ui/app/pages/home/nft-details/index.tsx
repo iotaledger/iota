@@ -2,19 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress, useUnlockedGuard } from '_hooks';
+import { useActiveAccount, useActiveAddress, useAppSelector, useUnlockedGuard } from '_hooks';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useNftDetails, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
+import { NEW_TAB_ACCOUNT_TYPES } from '_src/shared/accountTypes';
+import { openInNewTab } from '_src/ui/app/helpers/openInNewTab';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 
 export function NFTDetailsPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const nftId = searchParams.get('objectId');
     const accountAddress = useActiveAddress();
+    const activeAccount = useActiveAccount();
+    const isTabView = useAppSelector(
+        (state) => state.app.extensionViewType === ExtensionViewType.Tab,
+    );
     const {
         nftDisplayData,
         isLoading,
@@ -48,8 +55,18 @@ export function NFTDetailsPage() {
         );
     }
 
-    function handleSend() {
-        navigate(`/nft-transfer/${nftId}`);
+    async function handleSend() {
+        const destination = `/nft-transfer/${nftId}`;
+        if (activeAccount) {
+            const needNewTab = NEW_TAB_ACCOUNT_TYPES.includes(activeAccount?.type) && !isTabView;
+
+            if (needNewTab) {
+                openInNewTab(destination);
+                return;
+            }
+        }
+
+        navigate(destination);
     }
 
     return (

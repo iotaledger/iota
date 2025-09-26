@@ -46,6 +46,9 @@ import { ReceiveTokensDialog } from './ReceiveTokensDialog';
 import { OverviewHint } from './OverviewHint';
 import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
 import { MigrationDialog } from './MigrationDialog';
+import { openInNewTab } from '_src/ui/app/helpers/openInNewTab';
+import { NEW_TAB_ACCOUNT_TYPES } from '_src/shared/accountTypes';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 
 export function TokenDetails() {
     const navigate = useNavigate();
@@ -57,6 +60,9 @@ export function TokenDetails() {
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
     const network = useAppSelector((state) => state.app.network);
+    const isTabView = useAppSelector(
+        (state) => state.app.extensionViewType === ExtensionViewType.Tab,
+    );
     const isMainnet = network === Network.Mainnet;
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
     const migrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
@@ -158,12 +164,19 @@ export function TokenDetails() {
     const isFirstTimeLoading = isPending && !isFetched;
 
     const onSendClick = () => {
-        if (!activeAccount?.isLocked) {
+        if (activeAccount && !activeAccount?.isLocked) {
+            const shouldOpenNewTab =
+                NEW_TAB_ACCOUNT_TYPES.includes(activeAccount?.type) && !isTabView;
+
             const destination = coinBalance?.coinType
                 ? `/send?${new URLSearchParams({ type: coinBalance?.coinType }).toString()}`
                 : '/send';
 
-            navigate(destination);
+            if (shouldOpenNewTab) {
+                openInNewTab(destination);
+            } else {
+                navigate(destination);
+            }
         }
     };
 
