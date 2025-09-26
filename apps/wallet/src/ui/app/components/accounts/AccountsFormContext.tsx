@@ -31,7 +31,6 @@ export type AccountsFormValues =
     | { type: AccountsFormType.MnemonicSource; sourceID: string }
     | { type: AccountsFormType.SeedSource; sourceID: string }
     | { type: AccountsFormType.ImportPrivateKey; keyPair: string }
-    | { type: AccountsFormType.Passkey; authenticatorAttachment: AuthenticatorAttachment }
     | {
           type: AccountsFormType.Passkey;
           authenticatorAttachment: AuthenticatorAttachment;
