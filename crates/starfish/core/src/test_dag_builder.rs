@@ -10,6 +10,7 @@ use std::{
 
 use parking_lot::RwLock;
 use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
+use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::{AuthorityIndex, ProtocolKeyPair};
 
 use crate::{
@@ -117,6 +118,8 @@ pub(crate) struct DagBuilder {
     // Protocol keypairs are used to compute signature for headers. If it is None, then the Default
     // signature is used
     protocol_keypair: Option<Vec<ProtocolKeyPair>>,
+
+    encoder: ReedSolomonEncoder,
 }
 /// The `AncestorSelection` enum is an interim data structure used to specify
 /// how ancestors should be selected for a block in the `DagBuilder`. `UseLast`
@@ -150,6 +153,11 @@ impl DagBuilder {
             .map(|block| (block.reference(), block))
             .collect();
         let last_ancestors = genesis.keys().cloned().collect();
+
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
         Self {
             last_committed_rounds: vec![0; context.committee.size()],
             context,
@@ -163,6 +171,7 @@ impl DagBuilder {
             transactions: BTreeMap::new(),
             committed_sub_dags: vec![],
             protocol_keypair: None,
+            encoder,
         }
     }
 
@@ -592,7 +601,7 @@ impl DagBuilder {
             let transactions = vec![Transaction::new(tx_bytes.to_vec())];
             let serialized_transactions = Transaction::serialize(&transactions).unwrap();
             let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions, &self.context, &mut self.encoder)
                     .unwrap();
 
             let verified_transactions = VerifiedTransactions::new(
@@ -1057,6 +1066,7 @@ impl<'a> LayerBuilder<'a> {
                 let serialized_transactions = Transaction::serialize(&transactions).unwrap();
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized_transactions,
+                    &self.dag_builder.context, &mut self.dag_builder.encoder
                 )
                 .unwrap();
 

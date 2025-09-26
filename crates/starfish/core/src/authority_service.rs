@@ -27,7 +27,7 @@ use tracing::{debug, info, warn};
 use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, Shard, SignedBlockHeader,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
         TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
@@ -36,7 +36,6 @@ use crate::{
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
-    encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     network::{
         BlockBundle, BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockAndHeaders,
@@ -1228,7 +1227,7 @@ mod tests {
         let now = context.clock.timestamp_utc_ms();
         let max_drift = context.parameters.max_forward_time_drift;
         let input_block = VerifiedBlock::new_for_test(
-            TestBlockHeader::new(1, 0)
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder)
                 .set_timestamp_ms(now + max_drift.as_millis() as u64 + 1)
                 .build(),
         );
@@ -1318,7 +1317,7 @@ mod tests {
         let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
             .expect("We should expect correct creation of the ReedSolomonEncoder");
 
-        let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 0).build());
+        let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build());
 
         let service = authority_service.clone();
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
@@ -1403,11 +1402,11 @@ mod tests {
             .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         let input_block = VerifiedBlock::new_for_test(
-            TestBlockHeader::new(1, 0)
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder)
                 .set_commitment(
                     TransactionsCommitment::compute_transactions_commitment(&Bytes::from_static(
-                        b"dummy data",
-                    ))
+                        b"dummy data"
+                    ), &context, &mut encoder)
                     .unwrap(),
                 )
                 .build(),
@@ -1478,14 +1477,16 @@ mod tests {
         let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
             .expect("We should expect correct creation of the ReedSolomonEncoder");
 
-        let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 0).build());
+        let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build());
         let num_of_block_headers = MAX_HEADERS_PER_BUNDLE + 1;
         let mut headers = (0..num_of_block_headers)
             .map(|i| {
                 VerifiedBlockHeader::new_for_test(
-                    TestBlockHeader::new(
+                    TestBlockHeader::new_with_commitment(
                         (i / committee_size + 1) as u32,
                         (i % committee_size) as u8,
+                        &context,
+                        &mut encoder,
                     )
                     .build(),
                 )
@@ -1544,7 +1545,7 @@ mod tests {
 
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
-            TestBlockHeader::new(MAX_HEADERS_PER_BUNDLE as u32 + 1, 0).build(),
+            TestBlockHeader::new_with_commitment(MAX_HEADERS_PER_BUNDLE as u32 + 1, 0, &context, &mut encoder).build(),
         );
 
         let block_bundle = BlockBundle {
@@ -2309,6 +2310,10 @@ mod tests {
             dag_state.clone(),
             store,
         ));
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         // Set up DAG with blocks
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
@@ -2379,7 +2384,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions, &context, &mut encoder)
                     .unwrap()
             );
 
@@ -2440,7 +2445,7 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions, &context, &mut encoder)
                     .unwrap()
             );
 
@@ -3036,6 +3041,10 @@ mod tests {
             dag_state.clone(),
             store,
         ));
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         // Set up DAG with blocks
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -3102,7 +3111,7 @@ mod tests {
                 .expect("We expect to find the header with such block_ref");
             assert_eq!(
                 block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions, &context, &mut encoder)
                     .unwrap()
             );
         }

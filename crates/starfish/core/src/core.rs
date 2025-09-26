@@ -32,7 +32,7 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        Round, Shard, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock,
+        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock,
         VerifiedBlockHeader, VerifiedTransactions,
     },
     block_manager::BlockManager,
@@ -1586,6 +1586,10 @@ mod test {
             store.clone(),
             leader_schedule.clone(),
         );
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         // First send some transactions, since the block will be created once we recover
         // core
@@ -1664,7 +1668,7 @@ mod test {
             .expect("we should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
         let transactions_commitment =
-            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
+            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions, &context, &mut encoder)
                 .expect("we should expect correct computation of the transactions commitment");
 
         // a new block should have been created during recovery.

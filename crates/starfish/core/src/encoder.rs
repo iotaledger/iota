@@ -4,7 +4,7 @@
 use bytes::Bytes;
 pub(crate) use reed_solomon_simd::ReedSolomonEncoder;
 
-use crate::{Transaction, block_header::Shard, error::ConsensusError};
+use crate::{block_header::Shard, error::ConsensusError};
 
 /// Trait for encoding data into shards using systematic coding with
 /// configurable redundancy.
@@ -18,10 +18,17 @@ pub trait ShardEncoder {
         parity_length: usize,
     ) -> Result<Vec<Shard>, ConsensusError>;
 
+    /// Creates shards from serialized transactions, padding as necessary to
+    /// ensure each shard is of equal length. The number of shards created is
+    /// equal to `info_length`.
+    fn create_shards_from_serialized_transactions(
+        serialized: &Bytes,
+        info_length: usize,
+    ) -> Vec<Shard>;
+
     /// Serializes and encodes transactions into a vector of shards using an
     /// error-correcting code with a dimension of `info_length` and
     /// redundancy of `parity_length`.
-    #[expect(dead_code)]
     fn encode_transactions(
         &mut self,
         serialized_transactions: &Bytes,
@@ -58,12 +65,10 @@ impl ShardEncoder for ReedSolomonEncoder {
         Ok(data)
     }
 
-    fn encode_transactions(
-        &mut self,
+    fn create_shards_from_serialized_transactions(
         serialized: &Bytes,
         info_length: usize,
-        parity_length: usize,
-    ) -> Result<Vec<Shard>, ConsensusError> {
+    ) -> Vec<Shard> {
         let bytes_length = serialized.len();
         let mut statements_with_len: Vec<u8> = (bytes_length as u32).to_le_bytes().to_vec();
         statements_with_len.extend_from_slice(serialized);
@@ -82,7 +87,15 @@ impl ShardEncoder for ReedSolomonEncoder {
             .chunks(shard_bytes)
             .map(|chunk| chunk.to_vec())
             .collect();
-
+        data
+    }
+    fn encode_transactions(
+        &mut self,
+        serialized: &Bytes,
+        info_length: usize,
+        parity_length: usize,
+    ) -> Result<Vec<Shard>, ConsensusError> {
+        let data = Self::create_shards_from_serialized_transactions(serialized, info_length);
         self.encode_shards(data, info_length, parity_length)
     }
 }

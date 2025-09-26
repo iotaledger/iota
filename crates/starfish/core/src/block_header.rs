@@ -85,26 +85,6 @@ impl Transaction {
         Ok(statements_with_len.into())
     }
 
-    pub(crate) fn extract_serialized_transactions_from_padded_data(
-        padded: &[u8],
-    ) -> Result<Vec<u8>, ConsensusError> {
-        if padded.len() < 4 {
-            return Err(ConsensusError::ShardsVecIsTooSmall(padded.len(), 4));
-        }
-        let original_len = u32::from_le_bytes(
-            padded[0..4]
-                .try_into()
-                .map_err(|_| ConsensusError::ShardsVecIsTooSmall(padded.len(), 4))?,
-        ) as usize;
-        if padded.len() < 4 + original_len {
-            return Err(ConsensusError::ShardsVecIsTooSmall(
-                padded.len(),
-                4 + original_len,
-            ));
-        }
-        Ok(padded[4..4 + original_len].to_vec())
-    }
-
     #[expect(dead_code)]
     pub(crate) fn serialize_and_pad_for_sharding(
         transactions: &[Transaction],
@@ -488,18 +468,8 @@ impl TransactionsCommitment {
     ) -> ConsensusResult<TransactionsCommitment> {
         let info_length = context.committee.info_length();
         let parity_length = context.committee.size() - info_length;
-        assert!(
-            serialized_transactions.len() % info_length == 0,
-            "Serialized transactions length must be divisible by info length"
-        );
-        // Compute transaction commitment that will be included in the block header
-        let sharded_transactions: Vec<Shard> = serialized_transactions
-            .chunks(serialized_transactions.len() / info_length)
-            .map(|chunk| chunk.to_vec())
-            .collect();
-
         let encoded_shards = encoder
-            .encode_shards(sharded_transactions, info_length, parity_length)
+            .encode_transactions(serialized_transactions, info_length, parity_length)
             .expect("We should expect correct encoding of the shards");
 
         let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
@@ -1062,6 +1032,7 @@ pub(crate) fn genesis_block_headers(context: Arc<Context>) -> Vec<VerifiedBlockH
 }
 
 /// This struct is public for testing in other crates.
+#[cfg(test)]
 #[derive(Clone)]
 pub struct TestBlockHeader {
     ancestors: Vec<BlockRef>,
@@ -1069,8 +1040,27 @@ pub struct TestBlockHeader {
     block_header: BlockHeaderV1,
 }
 
+#[cfg(test)]
 impl TestBlockHeader {
-    pub fn new(
+    /// Creates a simple block with no transactions and without real computation of transactions commitment.
+    /// Use it when you don't need to check the commitment and don't want to create and pass the encoder.
+    pub(crate) fn new(
+        round: Round,
+        author: u8,
+    ) -> Self {
+
+        Self {
+            block_header: BlockHeaderV1 {
+                round,
+                author: author.into(),
+                transactions_commitment: TransactionsCommitment::DEFAULT_FOR_TEST,
+                ..Default::default()
+            },
+            ancestors: vec![],
+            acknowledgments: vec![],
+        }
+    }
+    pub(crate) fn new_with_commitment(
         round: Round,
         author: u8,
         context: &Arc<Context>,
@@ -1078,8 +1068,8 @@ impl TestBlockHeader {
     ) -> Self {
         let txs = vec![];
         let serialized_transactions =
-            Transaction::serialize_and_pad_for_sharding(&txs, context.committee.info_length())
-                .expect("We should expect correct serialization of the transactions for sharding");
+            Transaction::serialize(&txs)
+                .expect("We should expect correct serialization of the transactions");
         Self {
             block_header: BlockHeaderV1 {
                 round,
@@ -1097,7 +1087,8 @@ impl TestBlockHeader {
         }
     }
 
-    pub fn new_with_transaction(
+
+    pub(crate) fn new_with_transaction(
         round: Round,
         author: u8,
         tx: u8,
@@ -1109,7 +1100,7 @@ impl TestBlockHeader {
             .map(Transaction::new)
             .collect::<Vec<Transaction>>();
         let serialized_transactions =
-            Transaction::serialize_and_pad_for_sharding(&txs, context.committee.info_length())
+            Transaction::serialize(&txs)
                 .expect("We should expect correct serialization of the transactions for sharding");
         Self {
             block_header: BlockHeaderV1 {

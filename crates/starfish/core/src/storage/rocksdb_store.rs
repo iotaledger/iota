@@ -20,7 +20,7 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, SignedBlockHeader,
-        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},

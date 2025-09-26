@@ -1102,6 +1102,10 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 1), (2, 1), (3, 2)];
@@ -1117,7 +1121,7 @@ mod tests {
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                    TransactionsCommitment::compute_transactions_commitment(&serialized, &context, &mut encoder).unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1199,6 +1203,10 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         // Create block round author pairs
         let block_round_authors = (1..LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 2 + 1)
@@ -1216,7 +1224,7 @@ mod tests {
             let serialized_vec = bcs::to_bytes(&transactions).unwrap();
             let serialized = Bytes::from(serialized_vec);
             let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                TransactionsCommitment::compute_transactions_commitment(&serialized, &context, &mut encoder).unwrap();
 
             // Create a test block header with the correct commitment
             let header = VerifiedBlockHeader::new_for_test(
@@ -1308,6 +1316,10 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1324,7 +1336,7 @@ mod tests {
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                    TransactionsCommitment::compute_transactions_commitment(&serialized, &context, &mut encoder).unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1424,6 +1436,10 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1440,7 +1456,7 @@ mod tests {
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                    TransactionsCommitment::compute_transactions_commitment(&serialized, &context, &mut encoder).unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1529,6 +1545,10 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1545,7 +1565,7 @@ mod tests {
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                    TransactionsCommitment::compute_transactions_commitment(&serialized, &context, &mut encoder).unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1636,6 +1656,10 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1652,7 +1676,7 @@ mod tests {
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
                 let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                    TransactionsCommitment::compute_transactions_commitment(&serialized, &context, &mut encoder).unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1743,6 +1767,10 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
+            .expect("We should expect correct creation of the ReedSolomonEncoder");
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1757,7 +1785,7 @@ mod tests {
             let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
             let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
             let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                TransactionsCommitment::compute_transactions_commitment(&serialized, &context, &mut encoder).unwrap();
 
             // Create a test block header with the correct commitment
             let header = VerifiedBlockHeader::new_for_test(
