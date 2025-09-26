@@ -26,6 +26,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { useState } from 'react';
 import { CoinFormat, formatBalance } from '@iota/iota-sdk/utils';
+import { onCopySuccess } from '~/lib';
 
 const TOOLTIP_TEXT = 'This balance breakdown does not include unmigrated stardust funds.';
 interface BalanceBreakdownElement {
@@ -169,6 +170,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
                                     IOTA_COIN_METADATA.decimals,
                                     CoinFormat.Full,
                                 )}
+                                onCopySuccess={onCopySuccess}
                             />
                         ))}
                     </div>
@@ -191,6 +193,7 @@ export function AddressBalanceBreakdown({ address }: { address: string }): React
                             IOTA_COIN_METADATA.decimals,
                             CoinFormat.Full,
                         )}
+                        onCopySuccess={onCopySuccess}
                     />
                 </div>
             </div>
@@ -224,7 +227,7 @@ function RenderBalanceValue({
     }
 
     return (
-        <Tooltip openDelay={500} text={`${fullAmount} ${symbol}`}>
+        <Tooltip openDelay={100} text={`${fullAmount} ${symbol}`}>
             <span>{roundedAmount}</span>
         </Tooltip>
     );
