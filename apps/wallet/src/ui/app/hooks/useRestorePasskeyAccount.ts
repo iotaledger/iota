@@ -8,7 +8,7 @@ import {
 } from '@iota/iota-sdk/keypairs/passkey';
 import { useMutation } from '@tanstack/react-query';
 
-export function useRestoreWallet() {
+export function useRestorePasskeyAccount() {
     return useMutation({
         mutationFn: async (provider: BrowserPasskeyProvider) => {
             const randomMessage1 = crypto.getRandomValues(new Uint8Array(32));

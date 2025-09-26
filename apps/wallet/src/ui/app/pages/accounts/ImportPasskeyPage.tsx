@@ -12,7 +12,8 @@ import { Form } from '../../shared/forms/Form';
 const formSchema = z.object({
     username: z.string().min(1, 'Username is required').max(50, 'Username is too long'),
     displayName: z.string().optional(),
-    isPlatformAuthenticator: z.boolean(),
+    isPlatformAuthenticator: z.boolean().default(true),
+    isRestoreAccount: z.boolean().default(false),
 });
 type ImportPasskeyFormValues = z.infer<typeof formSchema>;
 
@@ -27,6 +28,7 @@ export function ImportPasskeyPage() {
             username: '',
             displayName: '',
             isPlatformAuthenticator: true,
+            isRestoreAccount: false,
         },
     });
 
@@ -41,6 +43,7 @@ export function ImportPasskeyPage() {
             authenticatorAttachment: values.isPlatformAuthenticator ? 'platform' : 'cross-platform',
             username: values.username,
             displayName: values.displayName || values.username,
+            isRestoreAccount: values.isRestoreAccount,
         });
         navigate(
             `/accounts/protect-account?${new URLSearchParams({
@@ -99,6 +102,21 @@ export function ImportPasskeyPage() {
                                 testId="platform-authenticator-toggle"
                             />
                         </div>
+                        <div className="flex flex-col gap-3">
+                            <Toggle
+                                label={
+                                    form.watch('isRestoreAccount')
+                                        ? 'Restore Existing Account'
+                                        : 'Create New Account'
+                                }
+                                isToggled={form.watch('isRestoreAccount')}
+                                onChange={(isToggled) =>
+                                    form.setValue('isRestoreAccount', isToggled)
+                                }
+                                name="isRestoreAccount"
+                                testId="restore-account-toggle"
+                            />
+                        </div>
                     </div>
                 </div>
 
@@ -113,7 +131,7 @@ export function ImportPasskeyPage() {
                         <Button
                             type={ButtonType.Primary}
                             disabled={isSubmitting || !isValid}
-                            text={'Create Passkey'}
+                            text={form.watch('isRestoreAccount') ? 'Restore' : 'Create'}
                             fullWidth
                             htmlType={ButtonHtmlType.Submit}
                         />
