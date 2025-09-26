@@ -256,8 +256,8 @@ impl IndexerStreamer {
 
     /// Subscribe to a stream of [`StoredTransaction`].
     ///
-    /// By default all events are received, it's possible to filter on client
-    /// side by using [`StreamTransactionFilter`] type.
+    /// By default all transactions are received, it's possible to filter on
+    /// client side by using [`StreamTransactionFilter`] type.
     ///
     /// # Note
     /// Since under the hood a [`tokio::sync::broadcast`] channel is used the
@@ -397,8 +397,13 @@ impl IndexerStreamer {
                         Err(_) => None,
                     }
                 }
-                Ok(_) => None, // Not a notification message, skip
-                Err(e) => Some(Err(IndexerError::Generic(format!(
+                // not a notification message, skip
+                Ok(AsyncMessage::Notice(msg)) => {
+                    tracing::warn!("received a postgres notice: {msg}");
+                    None
+                }
+                Ok(_) => None,
+                Err(e) => Some(Err(IndexerError::PostgresRead(format!(
                     "database connection error: {e}"
                 )))),
             }
