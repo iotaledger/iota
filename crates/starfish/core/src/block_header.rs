@@ -61,7 +61,6 @@ impl Transaction {
     }
 
     /// Serialises a vector of transactions using the bcs serializer
-    #[expect(dead_code)]
     pub(crate) fn serialize(transactions: &[Transaction]) -> Result<Bytes, ConsensusError> {
         let bytes = bcs::to_bytes(transactions).map_err(ConsensusError::SerializationFailure)?;
         Ok(bytes.into())

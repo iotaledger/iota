@@ -1,6 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use bytes::Bytes;
 pub(crate) use reed_solomon_simd::ReedSolomonEncoder;
 
 use crate::{Transaction, block_header::Shard, error::ConsensusError};
@@ -23,7 +24,7 @@ pub trait ShardEncoder {
     #[expect(dead_code)]
     fn encode_transactions(
         &mut self,
-        block: Vec<Transaction>,
+        serialized_transactions: &Bytes,
         info_length: usize,
         parity_length: usize,
     ) -> Result<Vec<Shard>, ConsensusError>;
@@ -59,14 +60,13 @@ impl ShardEncoder for ReedSolomonEncoder {
 
     fn encode_transactions(
         &mut self,
-        block: Vec<Transaction>,
+        serialized: &Bytes,
         info_length: usize,
         parity_length: usize,
     ) -> Result<Vec<Shard>, ConsensusError> {
-        let mut serialized = bcs::to_bytes(&block).map_err(ConsensusError::SerializationFailure)?;
         let bytes_length = serialized.len();
         let mut statements_with_len: Vec<u8> = (bytes_length as u32).to_le_bytes().to_vec();
-        statements_with_len.append(&mut serialized);
+        statements_with_len.extend_from_slice(serialized);
         // increase the length by 4 for u32
         let mut shard_bytes = (bytes_length + 4).div_ceil(info_length);
 

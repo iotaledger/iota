@@ -638,18 +638,13 @@ impl Core {
         // Serialize the transaction
         let info_length = self.context.committee.info_length();
         let parity_length = self.context.committee.size() - info_length;
-        let serialized_transactions =
-            Transaction::serialize_and_pad_for_sharding(&transactions, info_length)
-                .expect("We should expect correct serialization and padding for transactions");
+        let serialized_transactions = Transaction::serialize(&transactions)
+            .expect("We should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
-        let sharded_transactions: Vec<Shard> = serialized_transactions
-            .chunks(serialized_transactions.len() / info_length)
-            .map(|chunk| chunk.to_vec())
-            .collect();
 
         let encoded_shards = self
             .encoder
-            .encode_shards(sharded_transactions, info_length, parity_length)
+            .encode_transactions(&serialized_transactions, info_length, parity_length)
             .expect("We should expect correct encoding of the shards");
 
         let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
