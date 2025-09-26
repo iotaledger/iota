@@ -90,7 +90,8 @@ pub(crate) struct DagBuilder {
     // All provably faulty blocks created by the dag builder.
     pub(crate) provably_faulty_blocks: BTreeMap<BlockRef, ProvablyFaultyBlock>,
     // All the committed sub dags created by the dag builder.
-    pub(crate) committed_sub_dags: Vec<(CommittedSubDag, TrustedCommit)>,
+    pub(crate) committed_sub_dags:
+        Vec<(CommittedSubDag, TrustedCommit, HashSet<MisbehaviorReport>)>,
     pub(crate) last_committed_rounds: Vec<Round>,
 
     wave_length: Round,
@@ -156,9 +157,9 @@ impl DagBuilder {
     pub(crate) fn get_sub_dag_and_commits(
         &mut self,
         leader_rounds: RangeInclusive<Round>,
-    ) -> Vec<(CommittedSubDag, TrustedCommit)> {
+    ) -> Vec<(CommittedSubDag, TrustedCommit, HashSet<MisbehaviorReport>)> {
         let (last_leader_round, mut last_commit_ref, mut last_timestamp_ms) =
-            if let Some((sub_dag, _)) = self.committed_sub_dags.last() {
+            if let Some((sub_dag, _, _)) = self.committed_sub_dags.last() {
                 (
                     sub_dag.leader.round,
                     sub_dag.commit_ref,
@@ -251,6 +252,12 @@ impl DagBuilder {
                 &mut storage,
             );
 
+            // Collect misbehavior reports from the committed blocks
+            let committed_misbehavior_reports = to_commit
+                .iter()
+                .flat_map(|block| block.misbehavior_reports().to_vec())
+                .collect::<HashSet<_>>();
+
             // Update the last committed rounds
             for block in &to_commit {
                 self.last_committed_rounds[block.author()] =
@@ -278,13 +285,14 @@ impl DagBuilder {
                 vec![],
             );
 
-            self.committed_sub_dags.push((sub_dag, commit));
+            self.committed_sub_dags
+                .push((sub_dag, commit, committed_misbehavior_reports));
         }
 
         self.committed_sub_dags
             .clone()
             .into_iter()
-            .filter(|(sub_dag, _)| leader_rounds.contains(&sub_dag.leader.round))
+            .filter(|(sub_dag, _, _)| leader_rounds.contains(&sub_dag.leader.round))
             .collect()
     }
     pub(crate) fn leader_blocks(
@@ -308,7 +316,7 @@ impl DagBuilder {
         let commits = self.get_sub_dag_and_commits(leader_rounds);
         commits
             .into_iter()
-            .map(|(sub_dag, commit)| {
+            .map(|(sub_dag, commit, _)| {
                 let certified_commit =
                     CertifiedCommit::new_certified(commit, sub_dag.blocks.clone());
                 (sub_dag, certified_commit)

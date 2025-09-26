@@ -9,11 +9,13 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
+use std::collections::HashSet;
+
 use consensus_config::AuthorityIndex;
 
 use crate::{
     CommitIndex,
-    block::{BlockRef, ProvablyFaultyBlock, Round, VerifiedBlock},
+    block::{BlockRef, MisbehaviorReport, ProvablyFaultyBlock, Round, VerifiedBlock},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
 };
@@ -72,6 +74,9 @@ pub(crate) trait Store: Send + Sync {
     /// Reads all commits from start (inclusive) until end (inclusive).
     fn scan_commits(&self, range: CommitRange) -> ConsensusResult<Vec<TrustedCommit>>;
 
+    /// Reads all misbehavior reports stored.
+    fn scan_misbehavior_reports(&self) -> ConsensusResult<HashSet<MisbehaviorReport>>;
+
     /// Reads all blocks voting on a particular commit.
     fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>>;
 
@@ -87,6 +92,7 @@ pub(crate) struct WriteBatch {
     pub(crate) commit_info: Vec<(CommitRef, CommitInfo)>,
     pub(crate) provably_faulty_blocks: Vec<ProvablyFaultyBlock>,
     pub(crate) scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+    pub(crate) misbehavior_reports: HashSet<MisbehaviorReport>,
 }
 
 impl WriteBatch {
@@ -96,6 +102,7 @@ impl WriteBatch {
         commit_info: Vec<(CommitRef, CommitInfo)>,
         provably_faulty_blocks: Vec<ProvablyFaultyBlock>,
         scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,
+        misbehavior_reports: HashSet<MisbehaviorReport>,
     ) -> Self {
         WriteBatch {
             blocks,
@@ -103,6 +110,7 @@ impl WriteBatch {
             commit_info,
             provably_faulty_blocks,
             scoring_metrics,
+            misbehavior_reports,
         }
     }
 

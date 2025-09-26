@@ -10,7 +10,7 @@ use parking_lot::RwLock;
 
 use crate::{
     Round,
-    block::{BlockAPI, BlockRef, VerifiedBlock},
+    block::{BlockAPI, BlockRef, MisbehaviorReport, VerifiedBlock},
     commit::{Commit, CommittedSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
     dag_state::{DagState, GetBlockResult},
@@ -85,7 +85,7 @@ impl Linearizer {
         &mut self,
         leader_block: VerifiedBlock,
         reputation_scores_desc: Vec<(AuthorityIndex, u64)>,
-    ) -> (CommittedSubDag, TrustedCommit) {
+    ) -> (CommittedSubDag, TrustedCommit, HashSet<MisbehaviorReport>) {
         let _s = self
             .context
             .metrics
@@ -127,6 +127,12 @@ impl Linearizer {
             .unwrap_or_else(|e| panic!("Failed to serialize commit: {e}"));
         let commit = TrustedCommit::new_trusted(commit, serialized);
 
+        // Collect misbehavior reports from the committed blocks
+        let misbehavior_reports = to_commit
+            .iter()
+            .flat_map(|block| block.misbehavior_reports().to_vec())
+            .collect::<HashSet<_>>();
+
         // Create the corresponding committed sub dag
         let sub_dag = CommittedSubDag::new(
             leader_block.reference(),
@@ -136,7 +142,7 @@ impl Linearizer {
             reputation_scores_desc,
         );
 
-        (sub_dag, commit)
+        (sub_dag, commit, misbehavior_reports)
     }
 
     pub(crate) fn linearize_sub_dag(
@@ -263,6 +269,8 @@ impl Linearizer {
     // This function should be called whenever a new commit is observed. This will
     // iterate over the sequence of committed leaders and produce a list of
     // committed sub-dags.
+    // This also ensures that the misbehavior reports contained in the commit are
+    // stored.
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlock>,
@@ -291,14 +299,16 @@ impl Linearizer {
 
             // Collect the sub-dag generated using each of these leaders and the
             // corresponding commit.
-            let (sub_dag, commit) =
+            let (sub_dag, commit, committed_misbehavior_reports) =
                 self.collect_sub_dag_and_commit(leader_block, reputation_scores_desc);
 
             self.update_blocks_pruned_metric(&sub_dag);
 
             // Buffer commit in dag state for persistence later.
             // This also updates the last committed rounds.
-            self.dag_state.write().add_commit(commit.clone());
+            self.dag_state
+                .write()
+                .add_commit(commit.clone(), committed_misbehavior_reports);
 
             committed_sub_dags.push(sub_dag);
         }
@@ -621,7 +631,9 @@ mod tests {
             first_leader.reference(),
             blocks.into_iter().map(|block| block.reference()).collect(),
         );
-        dag_state.write().add_commit(first_commit_data);
+        dag_state
+            .write()
+            .add_commit(first_commit_data, HashSet::new());
 
         // Now take all the blocks from round `leader_round_wave_1` up to round
         // `leader_round_wave_2-1`

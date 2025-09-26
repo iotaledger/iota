@@ -1412,7 +1412,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::{BTreeMap, BTreeSet},
+        collections::{BTreeMap, BTreeSet, HashSet},
         sync::Arc,
         time::Duration,
     };
@@ -2150,7 +2150,7 @@ mod tests {
                 let commit =
                     TrustedCommit::new_for_test(index, CommitDigest::MIN, 0, BlockRef::MIN, vec![]);
 
-                d.add_commit(commit);
+                d.add_commit(commit, HashSet::new());
             }
 
             println!("Once advanced");

@@ -4,7 +4,7 @@
 
 use std::{
     cmp::max,
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     ops::Bound::{Excluded, Included, Unbounded},
     panic,
     sync::Arc,
@@ -19,8 +19,8 @@ use tracing::{debug, error, info};
 use crate::{
     CommittedSubDag,
     block::{
-        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, ProvablyFaultyBlock,
-        Round, Slot, VerifiedBlock, genesis_blocks,
+        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, MisbehaviorReport,
+        ProvablyFaultyBlock, Round, Slot, VerifiedBlock, genesis_blocks,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
@@ -105,6 +105,10 @@ pub(crate) struct DagState {
     // Data to be flushed to storage.
     blocks_to_write: Vec<VerifiedBlock>,
     commits_to_write: Vec<TrustedCommit>,
+    misbehavior_reports_to_write: HashSet<MisbehaviorReport>,
+
+    // Misbehavior reports that have been included in committed blocks.
+    committed_misbehavior_reports: HashSet<MisbehaviorReport>,
 
     // Buffer the reputation scores & last_committed_rounds to be flushed with the
     // next dag state flush. This is okay because we can recover reputation scores
@@ -180,6 +184,12 @@ impl DagState {
             scoring_subdag.add_subdags(std::mem::take(&mut unscored_committed_subdags));
         }
 
+        // Read the misbehavior reports from store and add them to the
+        // committed_misbehavior_reports set.
+        let committed_misbehavior_reports = store
+            .scan_misbehavior_reports()
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+
         let mut state = Self {
             context,
             genesis,
@@ -195,6 +205,8 @@ impl DagState {
             pending_commit_votes: VecDeque::new(),
             blocks_to_write: vec![],
             commits_to_write: vec![],
+            misbehavior_reports_to_write: HashSet::new(),
+            committed_misbehavior_reports,
             commit_info_to_write: vec![],
             scoring_subdag,
             unscored_committed_subdags,
@@ -899,7 +911,11 @@ impl DagState {
 
     // Buffers a new commit in memory and updates last committed rounds.
     // REQUIRED: must not skip over any commit index.
-    pub(crate) fn add_commit(&mut self, commit: TrustedCommit) {
+    pub(crate) fn add_commit(
+        &mut self,
+        commit: TrustedCommit,
+        committed_misbehavior_reports: HashSet<MisbehaviorReport>,
+    ) {
         if let Some(last_commit) = &self.last_commit {
             if commit.index() <= last_commit.index() {
                 error!(
@@ -960,6 +976,14 @@ impl DagState {
 
         self.pending_commit_votes.push_back(commit.reference());
         self.commits_to_write.push(commit);
+
+        // Save any committed misbehavior reports in memory, and count new instances of
+        // misbehaviors in the provable metrics.
+        for report in committed_misbehavior_reports {
+            if self.committed_misbehavior_reports.insert(report.clone()) {
+                self.context.scorer.update_provable_metrics(report);
+            }
+        }
     }
 
     pub(crate) fn add_commit_info(&mut self, reputation_scores: ReputationScores) {
@@ -1083,6 +1107,7 @@ impl DagState {
         let blocks = std::mem::take(&mut self.blocks_to_write);
         let commits = std::mem::take(&mut self.commits_to_write);
         let commit_info_to_write = std::mem::take(&mut self.commit_info_to_write);
+        let misbehavior_reports_to_write = std::mem::take(&mut self.misbehavior_reports_to_write);
 
         if blocks.is_empty() && commits.is_empty() {
             return;
@@ -1130,6 +1155,7 @@ impl DagState {
                     .cloned()
                     .collect(),
                 metrics_to_write,
+                misbehavior_reports_to_write,
             ))
             .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
         self.context
@@ -1828,16 +1854,19 @@ mod test {
         }
 
         // Now add a commit to trigger an eviction
-        dag_state.add_commit(TrustedCommit::new_for_test(
-            1 as CommitIndex,
-            CommitDigest::MIN,
-            0,
-            blocks.last().unwrap().reference(),
-            blocks
-                .into_iter()
-                .map(|block| block.reference())
-                .collect::<Vec<_>>(),
-        ));
+        dag_state.add_commit(
+            TrustedCommit::new_for_test(
+                1 as CommitIndex,
+                CommitDigest::MIN,
+                0,
+                blocks.last().unwrap().reference(),
+                blocks
+                    .into_iter()
+                    .map(|block| block.reference())
+                    .collect::<Vec<_>>(),
+            ),
+            HashSet::new(),
+        );
 
         dag_state.flush();
 
@@ -1887,13 +1916,16 @@ mod test {
             .for_each(|block| dag_state.accept_block(block));
 
         // Now add a commit for leader round 5 to trigger an eviction
-        dag_state.add_commit(TrustedCommit::new_for_test(
-            1 as CommitIndex,
-            CommitDigest::MIN,
-            0,
-            dag_builder.leader_block(5).unwrap().reference(),
-            vec![],
-        ));
+        dag_state.add_commit(
+            TrustedCommit::new_for_test(
+                1 as CommitIndex,
+                CommitDigest::MIN,
+                0,
+                dag_builder.leader_block(5).unwrap().reference(),
+                vec![],
+            ),
+            HashSet::new(),
+        );
 
         dag_state.flush();
 
@@ -2015,7 +2047,7 @@ mod test {
         dag_builder.layers(1..=num_rounds).build();
         let mut commits = vec![];
 
-        for (_subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+        for (_subdag, commit, _) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
             commits.push(commit);
         }
 
@@ -2023,7 +2055,7 @@ mod test {
         let temp_commits = commits.split_off(5);
         dag_state.accept_blocks(dag_builder.blocks(1..=5));
         for commit in commits.clone() {
-            dag_state.add_commit(commit);
+            dag_state.add_commit(commit, HashSet::new());
         }
 
         // Flush the dag state
@@ -2032,7 +2064,7 @@ mod test {
         // Add the rest of the blocks and commits to the dag state
         dag_state.accept_blocks(dag_builder.blocks(6..=num_rounds));
         for commit in temp_commits.clone() {
-            dag_state.add_commit(commit);
+            dag_state.add_commit(commit, HashSet::new());
         }
 
         // All blocks should be found in DagState.
@@ -2117,7 +2149,7 @@ mod test {
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layers(1..=num_rounds).build();
         let mut commits = vec![];
-        for (_subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
+        for (_subdag, commit, _) in dag_builder.get_sub_dag_and_commits(1..=num_rounds) {
             commits.push(commit);
         }
 
@@ -2125,7 +2157,7 @@ mod test {
         let temp_commits = commits.split_off(5);
         dag_state.accept_blocks(dag_builder.blocks(1..=5));
         for commit in commits.clone() {
-            dag_state.add_commit(commit);
+            dag_state.add_commit(commit, HashSet::new());
         }
 
         // Flush the dag state
@@ -2134,7 +2166,7 @@ mod test {
         // Add the rest of the blocks and commits to the dag state
         dag_state.accept_blocks(dag_builder.blocks(6..=num_rounds));
         for commit in temp_commits.clone() {
-            dag_state.add_commit(commit);
+            dag_state.add_commit(commit, HashSet::new());
         }
 
         // All blocks should be found in DagState.
@@ -2226,20 +2258,20 @@ mod test {
             .faulty()
             .build();
         dag_builder.layer(10).build();
-        let mut commits = vec![];
-        for (_subdag, commit) in dag_builder.get_sub_dag_and_commits(1..=10) {
-            commits.push(commit);
+        let mut commits_and_misbehavior_reports = vec![];
+        for (_subdag, commit, misbehavior_reports) in dag_builder.get_sub_dag_and_commits(1..=10) {
+            commits_and_misbehavior_reports.push((commit, misbehavior_reports));
         }
 
         // Add the blocks and faulty blocks from first 5 rounds and first 5 commits to
         // the dag state
-        let temp_commits = commits.split_off(5);
+        let temp_commits = commits_and_misbehavior_reports.split_off(5);
         dag_state.accept_blocks(dag_builder.blocks(1..=5));
         for provably_faulty_block in dag_builder.provably_faulty_blocks(1..=5) {
             dag_state.add_provably_faulty_block(provably_faulty_block);
         }
-        for commit in commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, misbehavior_reports) in commits_and_misbehavior_reports.clone() {
+            dag_state.add_commit(commit, misbehavior_reports);
         }
 
         // Flush the dag state
@@ -2250,8 +2282,8 @@ mod test {
         for provably_faulty_block in dag_builder.provably_faulty_blocks(6..=10) {
             dag_state.add_provably_faulty_block(provably_faulty_block);
         }
-        for commit in temp_commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, reports) in temp_commits.clone() {
+            dag_state.add_commit(commit, reports);
         }
 
         // All blocks should be found in DagState.
@@ -2359,25 +2391,25 @@ mod test {
             .build();
         dag_builder.layers(9..=num_rounds).build();
 
-        let mut commits = dag_builder
+        let mut commits_and_reports = dag_builder
             .get_sub_dag_and_commits(1..=num_rounds)
             .into_iter()
-            .map(|(_subdag, commit)| commit)
+            .map(|(_subdag, commit, reports)| (commit, reports))
             .collect::<Vec<_>>();
 
         // Add the blocks from first 8 rounds and first 7 commits to the dag state
         // It's 7 commits because we missing the commit of round 8 where authority 0 is
         // the leader, but produced no block
-        let temp_commits = commits.split_off(7);
+        let temp_commits = commits_and_reports.split_off(7);
         dag_state.accept_blocks(dag_builder.blocks(1..=8));
-        for commit in commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, reports) in commits_and_reports.clone() {
+            dag_state.add_commit(commit, reports);
         }
 
         // Holds all the committed blocks from the commits that ended up being persisted
         // (flushed). Any commits that not flushed will not be considered.
         let mut all_committed_blocks = BTreeSet::<BlockRef>::new();
-        for commit in commits.iter() {
+        for (commit, _) in commits_and_reports.iter() {
             all_committed_blocks.extend(commit.blocks());
         }
         // Flush the dag state
@@ -2385,8 +2417,8 @@ mod test {
 
         // Add the rest of the blocks and commits to the dag state
         dag_state.accept_blocks(dag_builder.blocks(9..=num_rounds));
-        for commit in temp_commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, reports) in temp_commits.clone() {
+            dag_state.add_commit(commit, reports);
         }
 
         // All blocks should be found in DagState.
@@ -2712,13 +2744,16 @@ mod test {
             dag_state.accept_block(block);
         }
 
-        dag_state.add_commit(TrustedCommit::new_for_test(
-            1 as CommitIndex,
-            CommitDigest::MIN,
-            context.clock.timestamp_utc_ms(),
-            dag_builder.leader_block(3).unwrap().reference(),
-            vec![],
-        ));
+        dag_state.add_commit(
+            TrustedCommit::new_for_test(
+                1 as CommitIndex,
+                CommitDigest::MIN,
+                context.clock.timestamp_utc_ms(),
+                dag_builder.leader_block(3).unwrap().reference(),
+                vec![],
+            ),
+            HashSet::new(),
+        );
 
         // WHEN search for the latest blocks
         let end_round = 4;
@@ -2830,16 +2865,19 @@ mod test {
             }
         }
 
-        dag_state.add_commit(TrustedCommit::new_for_test(
-            1 as CommitIndex,
-            CommitDigest::MIN,
-            0,
-            all_blocks.last().unwrap().reference(),
-            all_blocks
-                .into_iter()
-                .map(|block| block.reference())
-                .collect::<Vec<_>>(),
-        ));
+        dag_state.add_commit(
+            TrustedCommit::new_for_test(
+                1 as CommitIndex,
+                CommitDigest::MIN,
+                0,
+                all_blocks.last().unwrap().reference(),
+                all_blocks
+                    .into_iter()
+                    .map(|block| block.reference())
+                    .collect::<Vec<_>>(),
+            ),
+            HashSet::new(),
+        );
 
         // Flush the store so we keep in memory only the last 1 round from the last
         // commit for each authority.
@@ -2902,13 +2940,16 @@ mod test {
             dag_state.accept_block(block);
         }
 
-        dag_state.add_commit(TrustedCommit::new_for_test(
-            1 as CommitIndex,
-            CommitDigest::MIN,
-            0,
-            dag_builder.leader_block(3).unwrap().reference(),
-            vec![],
-        ));
+        dag_state.add_commit(
+            TrustedCommit::new_for_test(
+                1 as CommitIndex,
+                CommitDigest::MIN,
+                0,
+                dag_builder.leader_block(3).unwrap().reference(),
+                vec![],
+            ),
+            HashSet::new(),
+        );
 
         // Flush the store so we update the evict rounds
         dag_state.flush();

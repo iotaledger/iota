@@ -530,7 +530,7 @@ mod tests {
 
         let mut scoring_subdag = ScoringSubdag::new(context.clone());
 
-        for (sub_dag, _commit) in dag_builder.get_sub_dag_and_commits(1..=4) {
+        for (sub_dag, _commit, _) in dag_builder.get_sub_dag_and_commits(1..=4) {
             scoring_subdag.add_subdags(vec![sub_dag]);
         }
 
@@ -560,7 +560,7 @@ mod tests {
             .build();
 
         let mut unscored_subdags = vec![];
-        for (sub_dag, _commit) in dag_builder.get_sub_dag_and_commits(1..=4) {
+        for (sub_dag, _commit, _) in dag_builder.get_sub_dag_and_commits(1..=4) {
             unscored_subdags.push(sub_dag);
         }
         let mut calculator = ReputationScoreCalculator::new(context.clone(), &unscored_subdags);
@@ -625,7 +625,7 @@ mod tests {
             .build();
 
         let mut unscored_subdags = vec![];
-        for (sub_dag, _commit) in dag_builder.get_sub_dag_and_commits(1..=4) {
+        for (sub_dag, _commit, _) in dag_builder.get_sub_dag_and_commits(1..=4) {
             unscored_subdags.push(sub_dag);
         }
 

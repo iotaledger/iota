@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     ops::Bound::Included,
 };
 
@@ -13,7 +13,8 @@ use parking_lot::RwLock;
 use super::{Store, WriteBatch};
 use crate::{
     block::{
-        BlockAPI as _, BlockDigest, BlockRef, ProvablyFaultyBlock, Round, Slot, VerifiedBlock,
+        BlockAPI as _, BlockDigest, BlockRef, MisbehaviorReport, ProvablyFaultyBlock, Round, Slot,
+        VerifiedBlock,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
@@ -35,6 +36,7 @@ struct Inner {
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
     faulty_blocks: BTreeMap<(Round, AuthorityIndex, BlockDigest), ProvablyFaultyBlock>,
     scoring_metrics: BTreeMap<AuthorityIndex, StorageScoringMetrics>,
+    misbehavior_reports: HashSet<MisbehaviorReport>,
 }
 
 impl MemStore {
@@ -48,6 +50,7 @@ impl MemStore {
                 commit_info: BTreeMap::new(),
                 faulty_blocks: BTreeMap::new(),
                 scoring_metrics: BTreeMap::new(),
+                misbehavior_reports: HashSet::new(),
             }),
         }
     }
@@ -100,6 +103,10 @@ impl Store for MemStore {
 
         for (authority, metrics) in write_batch.scoring_metrics {
             inner.scoring_metrics.insert(authority, metrics);
+        }
+
+        for report in write_batch.misbehavior_reports {
+            inner.misbehavior_reports.insert(report);
         }
         Ok(())
     }
@@ -251,6 +258,11 @@ impl Store for MemStore {
             commits.push(commit.clone());
         }
         Ok(commits)
+    }
+
+    fn scan_misbehavior_reports(&self) -> ConsensusResult<HashSet<MisbehaviorReport>> {
+        let inner = self.inner.read();
+        Ok(inner.misbehavior_reports.clone())
     }
 
     fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>> {

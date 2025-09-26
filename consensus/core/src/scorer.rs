@@ -14,7 +14,11 @@ use iota_protocol_config::ProtocolConfig;
 use itertools::izip;
 
 use crate::{
-    BlockRef, context::Context, error::ConsensusError, metrics::NodeMetrics,
+    BlockRef,
+    block::{MisbehaviorProof, MisbehaviorReport},
+    context::Context,
+    error::ConsensusError,
+    metrics::NodeMetrics,
     storage::StorageScoringMetrics,
 };
 
@@ -32,6 +36,7 @@ enum ScorerVersion {
 pub struct Scorer {
     scoring_metrics: ValidatorScoringMetrics,
     partial_scores: PartialScores,
+    provable_misbehavior_counts: ProvableMisbehaviorCounts,
     #[allow(dead_code)]
     version: ScorerVersion,
 }
@@ -47,6 +52,7 @@ impl Scorer {
         Self {
             scoring_metrics: ValidatorScoringMetrics::new(committee_size),
             partial_scores: PartialScores::new(committee_size),
+            provable_misbehavior_counts: ProvableMisbehaviorCounts::new(committee_size),
             version,
         }
     }
@@ -149,6 +155,20 @@ impl Scorer {
                 .missing_proposals
                 .load(Ordering::Relaxed),
         })
+    }
+
+    pub(crate) fn update_provable_metrics(&self, report: MisbehaviorReport) {
+        let authority = report.target();
+        match report.proof() {
+            &MisbehaviorProof::Equivocation { .. } => {
+                self.provable_misbehavior_counts.equivocations[authority]
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+            &MisbehaviorProof::InvalidBlock(_) => {
+                self.provable_misbehavior_counts.faulty_blocks[authority]
+                    .fetch_add(1, Ordering::Relaxed);
+            }
+        }
     }
 
     pub(crate) fn update_scoring_metrics_on_block_receival(
@@ -504,6 +524,26 @@ impl PartialScores {
         Self {
             provable,
             unprovable,
+        }
+    }
+}
+
+pub struct ProvableMisbehaviorCounts {
+    pub equivocations: Vec<AtomicU64>,
+    pub faulty_blocks: Vec<AtomicU64>,
+}
+
+impl ProvableMisbehaviorCounts {
+    pub(crate) fn new(committee_size: usize) -> Self {
+        let equivocations = (0..committee_size)
+            .map(|_| AtomicU64::new(u64::MAX))
+            .collect();
+        let faulty_blocks = (0..committee_size)
+            .map(|_| AtomicU64::new(u64::MAX))
+            .collect();
+        Self {
+            equivocations,
+            faulty_blocks,
         }
     }
 }
@@ -1079,19 +1119,19 @@ mod tests {
             .build();
         dag_builder.layers(14..=20).build();
 
-        let mut commits = dag_builder
+        let mut commits_and_reports = dag_builder
             .get_sub_dag_and_commits(1..=20)
             .into_iter()
-            .map(|(_subdag, commit)| commit)
+            .map(|(_subdag, commit, reports)| (commit, reports))
             .collect::<Vec<_>>();
 
         // Add the blocks and commits from first 10 rounds to the dag state. Since
         // authority 0 skipped a leader round, we use the 9 first items of the commits
         // vector
-        let mut temp_commits = commits.split_off(9);
+        let mut temp_commits_and_reports = commits_and_reports.split_off(9);
         dag_state.accept_blocks(dag_builder.blocks(1..=10));
-        for commit in commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, reports) in commits_and_reports.clone() {
+            dag_state.add_commit(commit, reports);
         }
 
         // Checks that metrics are still all zeroed, since even though we accepted
@@ -1228,10 +1268,10 @@ mod tests {
         );
 
         // Add blocks and commits from rounds 11 and 12 to the dag state.
-        let second_temp_commits = temp_commits.split_off(2);
+        let second_temp_commits_and_reports = temp_commits_and_reports.split_off(2);
         dag_state.accept_blocks(dag_builder.blocks(11..=12));
-        for commit in temp_commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, reports) in temp_commits_and_reports.clone() {
+            dag_state.add_commit(commit, reports);
         }
 
         // Flush the dag state
@@ -1277,8 +1317,8 @@ mod tests {
 
         // Accept all the rest of blocks and commits.
         dag_state.accept_blocks(dag_builder.blocks(13..=20));
-        for commit in second_temp_commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, reports) in second_temp_commits_and_reports.clone() {
+            dag_state.add_commit(commit, reports);
         }
 
         // Clear and check all metrics
@@ -1352,8 +1392,8 @@ mod tests {
 
         // Now we accept those lost blocks again and flush the dag state
         dag_state.accept_blocks(dag_builder.blocks(13..=20));
-        for commit in second_temp_commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, reports) in second_temp_commits_and_reports.clone() {
+            dag_state.add_commit(commit, reports);
         }
         dag_state.flush();
 
@@ -1445,19 +1485,19 @@ mod tests {
             .build();
         dag_builder.layers(14..=20).build();
 
-        let mut commits = dag_builder
+        let mut commits_and_reports = dag_builder
             .get_sub_dag_and_commits(1..=20)
             .into_iter()
-            .map(|(_subdag, commit)| commit)
+            .map(|(_subdag, commit, reports)| (commit, reports))
             .collect::<Vec<_>>();
 
         // Add the blocks and commits from first 10 rounds to the dag state. Since
         // authority 0 skipped a leader round, we use the 9 first items of the commits
         // vector
-        let mut temp_commits = commits.split_off(9);
+        let mut temp_commits_and_reports = commits_and_reports.split_off(9);
         dag_state.accept_blocks(dag_builder.blocks(1..=10));
-        for commit in commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, reports) in commits_and_reports.clone() {
+            dag_state.add_commit(commit, reports);
         }
 
         // Checks that metrics are still all zeroed, since even though we accepted
@@ -1589,10 +1629,10 @@ mod tests {
         );
 
         // Add blocks and commits from rounds 11 and 12 to the dag state.
-        let second_temp_commits = temp_commits.split_off(2);
+        let second_temp_commits_and_reports = temp_commits_and_reports.split_off(2);
         dag_state.accept_blocks(dag_builder.blocks(11..=12));
-        for commit in temp_commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, reports) in temp_commits_and_reports.clone() {
+            dag_state.add_commit(commit, reports);
         }
 
         // Flush the dag state
@@ -1641,8 +1681,8 @@ mod tests {
 
         // Accept all the rest of blocks and commits.
         dag_state.accept_blocks(dag_builder.blocks(13..=20));
-        for commit in second_temp_commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, reports) in second_temp_commits_and_reports.clone() {
+            dag_state.add_commit(commit, reports);
         }
 
         // Clear and check all metrics
@@ -1723,8 +1763,8 @@ mod tests {
 
         // Now we accept those lost blocks again and flush the dag state
         dag_state.accept_blocks(dag_builder.blocks(13..=20));
-        for commit in second_temp_commits.clone() {
-            dag_state.add_commit(commit);
+        for (commit, reports) in second_temp_commits_and_reports.clone() {
+            dag_state.add_commit(commit, reports);
         }
         dag_state.flush();
 

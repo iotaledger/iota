@@ -586,7 +586,7 @@ mod tests {
 
         let mut blocks_to_write = vec![];
 
-        for (sub_dag, commit) in dag_builder.get_sub_dag_and_commits(1..=11) {
+        for (sub_dag, commit, _) in dag_builder.get_sub_dag_and_commits(1..=11) {
             for block in sub_dag.blocks.iter() {
                 blocks_to_write.push(block.clone());
             }
@@ -697,7 +697,7 @@ mod tests {
 
         let mut blocks_to_write = vec![];
 
-        for (sub_dag, commit) in dag_builder.get_sub_dag_and_commits(1..=2) {
+        for (sub_dag, commit, _) in dag_builder.get_sub_dag_and_commits(1..=2) {
             for block in sub_dag.blocks.iter() {
                 blocks_to_write.push(block.clone());
             }
@@ -904,7 +904,7 @@ mod tests {
         let mut expected_commits = vec![];
         let mut blocks_to_write = vec![];
 
-        for (sub_dag, commit) in dag_builder.get_sub_dag_and_commits(1..=11) {
+        for (sub_dag, commit, _) in dag_builder.get_sub_dag_and_commits(1..=11) {
             for block in sub_dag.blocks.iter() {
                 blocks_to_write.push(block.clone());
             }
@@ -1007,7 +1007,7 @@ mod tests {
         let mut expected_commits = vec![];
         let mut blocks_to_write = vec![];
 
-        for (sub_dag, commit) in dag_builder.get_sub_dag_and_commits(1..=2) {
+        for (sub_dag, commit, _) in dag_builder.get_sub_dag_and_commits(1..=2) {
             for block in sub_dag.blocks.iter() {
                 blocks_to_write.push(block.clone());
             }

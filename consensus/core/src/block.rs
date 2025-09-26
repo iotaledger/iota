@@ -686,7 +686,7 @@ impl TestBlock {
 }
 
 /// A block can attach reports of misbehavior by other authorities.
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub struct MisbehaviorReport {
     target: AuthorityIndex,
     proof: MisbehaviorProof,
@@ -715,7 +715,7 @@ impl MisbehaviorReport {
 
 /// Proof of misbehavior are usually signed block(s) from the misbehaving
 /// authority.
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub enum MisbehaviorProof {
     InvalidBlock(BlockRef),
     Equivocation { first: BlockRef, second: BlockRef },

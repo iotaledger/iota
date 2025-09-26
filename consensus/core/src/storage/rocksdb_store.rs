@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{ops::Bound::Included, time::Duration};
+use std::{collections::HashSet, ops::Bound::Included, time::Duration};
 
 use bytes::Bytes;
 use consensus_config::AuthorityIndex;
@@ -17,8 +17,8 @@ use typed_store::{
 use super::{CommitInfo, Store, WriteBatch};
 use crate::{
     block::{
-        BlockAPI as _, BlockDigest, BlockRef, ProvablyFaultyBlock, Round, SignedBlock,
-        VerifiedBlock,
+        BlockAPI as _, BlockDigest, BlockRef, MisbehaviorReport, ProvablyFaultyBlock, Round,
+        SignedBlock, VerifiedBlock,
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
@@ -42,6 +42,8 @@ pub(crate) struct RocksDBStore {
     provably_faulty_blocks: DBMap<(Round, AuthorityIndex, BlockDigest), Bytes>,
     /// Stores scoring metrics for each authority.
     scoring_metrics: DBMap<AuthorityIndex, StorageScoringMetrics>,
+    // Stores misbehavior reports to avoid duplicate reports
+    misbehavior_reports: DBMap<MisbehaviorReport, ()>,
 }
 
 impl RocksDBStore {
@@ -52,6 +54,7 @@ impl RocksDBStore {
     const COMMIT_INFO_CF: &'static str = "commit_info";
     const PROVABLY_FAULTY_BLOCKS: &'static str = "provably_faulty_blocks";
     const SCORING_METRICS_CF: &'static str = "scoring_metrics";
+    const MISBEHAVIOR_REPORTS_CF: &'static str = "misbehavior_reports";
 
     /// Creates a new instance of RocksDB storage.
     pub(crate) fn new(path: &str) -> Self {
@@ -76,6 +79,7 @@ impl RocksDBStore {
             (Self::COMMIT_INFO_CF, cf_options.clone()),
             (Self::PROVABLY_FAULTY_BLOCKS, cf_options.clone()),
             (Self::SCORING_METRICS_CF, cf_options.clone()),
+            (Self::MISBEHAVIOR_REPORTS_CF, cf_options.clone()),
         ];
         let rocksdb = open_cf_opts(
             path,
@@ -93,6 +97,7 @@ impl RocksDBStore {
             commit_info,
             provably_faulty_blocks,
             scoring_metrics,
+            misbehavior_reports,
         ) = reopen!(&rocksdb,
             Self::BLOCKS_CF;<(Round, AuthorityIndex, BlockDigest), bytes::Bytes>,
             Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockDigest), ()>,
@@ -100,7 +105,8 @@ impl RocksDBStore {
             Self::COMMIT_VOTES_CF;<(CommitIndex, CommitDigest, BlockRef), ()>,
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
             Self::PROVABLY_FAULTY_BLOCKS;<(Round, AuthorityIndex, BlockDigest), bytes::Bytes>,
-            Self::SCORING_METRICS_CF;<AuthorityIndex, StorageScoringMetrics>
+            Self::SCORING_METRICS_CF;<AuthorityIndex, StorageScoringMetrics>,
+            Self::MISBEHAVIOR_REPORTS_CF;<MisbehaviorReport, ()>
         );
 
         Self {
@@ -111,6 +117,7 @@ impl RocksDBStore {
             commit_info,
             provably_faulty_blocks,
             scoring_metrics,
+            misbehavior_reports,
         }
     }
 }
@@ -182,6 +189,11 @@ impl Store for RocksDBStore {
         for (authority, metrics) in write_batch.scoring_metrics {
             batch
                 .insert_batch(&self.scoring_metrics, [(authority, metrics)])
+                .map_err(ConsensusError::RocksDBFailure)?;
+        }
+        for report in write_batch.misbehavior_reports {
+            batch
+                .insert_batch(&self.misbehavior_reports, [(report, ())])
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
         batch.write()?;
@@ -366,6 +378,15 @@ impl Store for RocksDBStore {
             commits.push(commit);
         }
         Ok(commits)
+    }
+
+    fn scan_misbehavior_reports(&self) -> ConsensusResult<HashSet<MisbehaviorReport>> {
+        let mut reports = HashSet::new();
+        for result in self.misbehavior_reports.safe_iter() {
+            let (report, _) = result?;
+            reports.insert(report);
+        }
+        Ok(reports)
     }
 
     fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>> {
