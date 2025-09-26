@@ -18,14 +18,6 @@ pub trait ShardEncoder {
         parity_length: usize,
     ) -> Result<Vec<Shard>, ConsensusError>;
 
-    /// Creates shards from serialized transactions, padding as necessary to
-    /// ensure each shard is of equal length. The number of shards created is
-    /// equal to `info_length`.
-    fn create_shards_from_serialized_transactions(
-        serialized: &Bytes,
-        info_length: usize,
-    ) -> Vec<Shard>;
-
     /// Serializes and encodes transactions into a vector of shards using an
     /// error-correcting code with a dimension of `info_length` and
     /// redundancy of `parity_length`.
@@ -65,37 +57,69 @@ impl ShardEncoder for ReedSolomonEncoder {
         Ok(data)
     }
 
-    fn create_shards_from_serialized_transactions(
-        serialized: &Bytes,
-        info_length: usize,
-    ) -> Vec<Shard> {
-        let bytes_length = serialized.len();
-        let mut statements_with_len: Vec<u8> = (bytes_length as u32).to_le_bytes().to_vec();
-        statements_with_len.extend_from_slice(serialized);
-        // increase the length by 4 for u32
-        let mut shard_bytes = (bytes_length + 4).div_ceil(info_length);
-
-        // Ensure shard_bytes meets alignment requirements.
-        if shard_bytes % 2 != 0 {
-            shard_bytes += 1;
-        }
-
-        let length_with_padding = shard_bytes * info_length;
-        statements_with_len.resize(length_with_padding, 0);
-
-        let data: Vec<Shard> = statements_with_len
-            .chunks(shard_bytes)
-            .map(|chunk| chunk.to_vec())
-            .collect();
-        data
-    }
     fn encode_transactions(
         &mut self,
         serialized: &Bytes,
         info_length: usize,
         parity_length: usize,
     ) -> Result<Vec<Shard>, ConsensusError> {
-        let data = Self::create_shards_from_serialized_transactions(serialized, info_length);
+        let data = create_shards_from_serialized_transactions(serialized, info_length);
         self.encode_shards(data, info_length, parity_length)
     }
+}
+
+pub(crate) struct TrivialEncoder {}
+impl ShardEncoder for TrivialEncoder {
+    fn encode_shards(
+        &mut self,
+        data: Vec<Shard>,
+        info_length: usize,
+        _parity_length: usize,
+    ) -> Result<Vec<Shard>, ConsensusError> {
+        assert_eq!(
+            data.len(),
+            info_length,
+            "Data length must match info length"
+        );
+        assert!(info_length > 0, "Info length must be greater than 0");
+        Ok(data)
+    }
+
+    fn encode_transactions(
+        &mut self,
+        serialized: &Bytes,
+        info_length: usize,
+        parity_length: usize,
+    ) -> Result<Vec<Shard>, ConsensusError> {
+        let data = create_shards_from_serialized_transactions(serialized, info_length);
+        self.encode_shards(data, info_length, parity_length)
+    }
+}
+
+/// Creates shards from serialized transactions, padding as necessary to
+/// ensure each shard is of equal length. The number of shards created is
+/// equal to `info_length`.
+fn create_shards_from_serialized_transactions(
+    serialized: &Bytes,
+    info_length: usize,
+) -> Vec<Shard> {
+    let bytes_length = serialized.len();
+    let mut statements_with_len: Vec<u8> = (bytes_length as u32).to_le_bytes().to_vec();
+    statements_with_len.extend_from_slice(serialized);
+    // increase the length by 4 for u32
+    let mut shard_bytes = (bytes_length + 4).div_ceil(info_length);
+
+    // Ensure shard_bytes meets alignment requirements.
+    if shard_bytes % 2 != 0 {
+        shard_bytes += 1;
+    }
+
+    let length_with_padding = shard_bytes * info_length;
+    statements_with_len.resize(length_with_padding, 0);
+
+    let data: Vec<Shard> = statements_with_len
+        .chunks(shard_bytes)
+        .map(|chunk| chunk.to_vec())
+        .collect();
+    data
 }

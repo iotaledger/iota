@@ -32,15 +32,15 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock,
-        VerifiedBlockHeader, VerifiedTransactions,
+        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
+        VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
     commit_observer::CommitObserver,
     context::Context,
     dag_state::DagState,
-    encoder::ShardEncoder,
+    encoder::{ShardEncoder, TrivialEncoder},
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -123,7 +123,7 @@ pub(crate) struct Core {
     /// hasn't been initialised yet.
     last_known_proposed_round: Option<Round>,
     /// Encoder is used to encode transactions into a longer vector of shards
-    encoder: ReedSolomonEncoder,
+    encoder: Box<dyn ShardEncoder + Send>,
 }
 
 impl Core {
@@ -176,8 +176,15 @@ impl Core {
         };
         let info_length = context.committee.info_length();
         let parity_length = context.committee.size() - info_length;
-        let encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let encoder: Box<dyn ShardEncoder + Send>;
+        if info_length > 0 && parity_length > 0 {
+            encoder = Box::new(
+                ReedSolomonEncoder::new(info_length, parity_length, 2)
+                    .expect("We should expect correct creation of the ReedSolomonEncoder"),
+            );
+        } else {
+            encoder = Box::new(TrivialEncoder {});
+        }
 
         Self {
             context,
@@ -1667,9 +1674,12 @@ mod test {
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("we should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
-        let transactions_commitment =
-            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions, &context, &mut encoder)
-                .expect("we should expect correct computation of the transactions commitment");
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized_transactions,
+            &context,
+            &mut encoder,
+        )
+        .expect("we should expect correct computation of the transactions commitment");
 
         // a new block should have been created during recovery.
         let verified_block = block_receiver
