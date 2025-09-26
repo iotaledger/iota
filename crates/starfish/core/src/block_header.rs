@@ -1042,13 +1042,10 @@ pub struct TestBlockHeader {
 
 #[cfg(test)]
 impl TestBlockHeader {
-    /// Creates a simple block with no transactions and without real computation of transactions commitment.
-    /// Use it when you don't need to check the commitment and don't want to create and pass the encoder.
-    pub(crate) fn new(
-        round: Round,
-        author: u8,
-    ) -> Self {
-
+    /// Creates a simple block with no transactions and without real computation
+    /// of transactions commitment. Use it when you don't need to check the
+    /// commitment and don't want to create and pass the encoder.
+    pub(crate) fn new(round: Round, author: u8) -> Self {
         Self {
             block_header: BlockHeaderV1 {
                 round,
@@ -1067,9 +1064,8 @@ impl TestBlockHeader {
         encoder: &mut ReedSolomonEncoder,
     ) -> Self {
         let txs = vec![];
-        let serialized_transactions =
-            Transaction::serialize(&txs)
-                .expect("We should expect correct serialization of the transactions");
+        let serialized_transactions = Transaction::serialize(&txs)
+            .expect("We should expect correct serialization of the transactions");
         Self {
             block_header: BlockHeaderV1 {
                 round,
@@ -1087,7 +1083,6 @@ impl TestBlockHeader {
         }
     }
 
-
     pub(crate) fn new_with_transaction(
         round: Round,
         author: u8,
@@ -1099,9 +1094,8 @@ impl TestBlockHeader {
             .into_iter()
             .map(Transaction::new)
             .collect::<Vec<Transaction>>();
-        let serialized_transactions =
-            Transaction::serialize(&txs)
-                .expect("We should expect correct serialization of the transactions for sharding");
+        let serialized_transactions = Transaction::serialize(&txs)
+            .expect("We should expect correct serialization of the transactions for sharding");
         Self {
             block_header: BlockHeaderV1 {
                 round,

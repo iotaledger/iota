@@ -853,7 +853,9 @@ impl Debug for CommitRange {
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
+
     use reed_solomon_simd::ReedSolomonEncoder;
+
     use super::*;
     use crate::{
         block_header::{TestBlockHeader, VerifiedBlock},
@@ -881,7 +883,14 @@ mod tests {
             .map(|index| {
                 let author_idx = index.0.value() as u8;
                 let tx = index.0.value() as u8;
-                let block = TestBlockHeader::new_with_transaction(0, author_idx, tx, &context, &mut encoder).build();
+                let block = TestBlockHeader::new_with_transaction(
+                    0,
+                    author_idx,
+                    tx,
+                    &context,
+                    &mut encoder,
+                )
+                .build();
                 VerifiedBlock::new_with_transaction_for_test(block, tx)
             })
             .map(|block| {

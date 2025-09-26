@@ -1317,7 +1317,9 @@ mod tests {
         let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
             .expect("We should expect correct creation of the ReedSolomonEncoder");
 
-        let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build());
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
 
         let service = authority_service.clone();
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
@@ -1404,9 +1406,11 @@ mod tests {
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder)
                 .set_commitment(
-                    TransactionsCommitment::compute_transactions_commitment(&Bytes::from_static(
-                        b"dummy data"
-                    ), &context, &mut encoder)
+                    TransactionsCommitment::compute_transactions_commitment(
+                        &Bytes::from_static(b"dummy data"),
+                        &context,
+                        &mut encoder,
+                    )
                     .unwrap(),
                 )
                 .build(),
@@ -1477,7 +1481,9 @@ mod tests {
         let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
             .expect("We should expect correct creation of the ReedSolomonEncoder");
 
-        let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build());
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
         let num_of_block_headers = MAX_HEADERS_PER_BUNDLE + 1;
         let mut headers = (0..num_of_block_headers)
             .map(|i| {
@@ -1545,7 +1551,13 @@ mod tests {
 
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
-            TestBlockHeader::new_with_commitment(MAX_HEADERS_PER_BUNDLE as u32 + 1, 0, &context, &mut encoder).build(),
+            TestBlockHeader::new_with_commitment(
+                MAX_HEADERS_PER_BUNDLE as u32 + 1,
+                0,
+                &context,
+                &mut encoder,
+            )
+            .build(),
         );
 
         let block_bundle = BlockBundle {
@@ -2384,8 +2396,12 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions, &context, &mut encoder)
-                    .unwrap()
+                TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions,
+                    &context,
+                    &mut encoder
+                )
+                .unwrap()
             );
 
             let verified_block_header =
@@ -2445,8 +2461,12 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions, &context, &mut encoder)
-                    .unwrap()
+                TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions,
+                    &context,
+                    &mut encoder
+                )
+                .unwrap()
             );
 
             let verified_block_header =
@@ -3111,8 +3131,12 @@ mod tests {
                 .expect("We expect to find the header with such block_ref");
             assert_eq!(
                 block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions, &context, &mut encoder)
-                    .unwrap()
+                TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions,
+                    &context,
+                    &mut encoder
+                )
+                .unwrap()
             );
         }
 

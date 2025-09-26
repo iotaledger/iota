@@ -600,9 +600,12 @@ impl DagBuilder {
             rng.fill(&mut tx_bytes[..]);
             let transactions = vec![Transaction::new(tx_bytes.to_vec())];
             let serialized_transactions = Transaction::serialize(&transactions).unwrap();
-            let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions, &self.context, &mut self.encoder)
-                    .unwrap();
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized_transactions,
+                &self.context,
+                &mut self.encoder,
+            )
+            .unwrap();
 
             let verified_transactions = VerifiedTransactions::new(
                 transactions,
@@ -1066,7 +1069,8 @@ impl<'a> LayerBuilder<'a> {
                 let serialized_transactions = Transaction::serialize(&transactions).unwrap();
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized_transactions,
-                    &self.dag_builder.context, &mut self.dag_builder.encoder
+                    &self.dag_builder.context,
+                    &mut self.dag_builder.encoder,
                 )
                 .unwrap();
 

@@ -242,7 +242,7 @@ mod tests {
         /// Creates a new test setup with a full DAG containing the specified
         /// number of rounds
         fn new(num_rounds: u32) -> Self {
-            let context = Arc::new(Context::new_for_test(2).0);
+            let context = Arc::new(Context::new_for_test(4).0);
             let dag_state = Arc::new(RwLock::new(DagState::new(
                 context.clone(),
                 Arc::new(crate::storage::mem_store::MemStore::new()),

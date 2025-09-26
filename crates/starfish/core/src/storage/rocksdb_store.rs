@@ -19,8 +19,8 @@ use super::{CommitInfo, Store, WriteBatch};
 use crate::{
     Transaction,
     block_header::{
-        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, SignedBlockHeader,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, SignedBlockHeader, VerifiedBlock,
+        VerifiedBlockHeader, VerifiedTransactions,
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
