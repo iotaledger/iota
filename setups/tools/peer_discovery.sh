@@ -179,7 +179,16 @@ print_peer_table() {
         
         ((known_count++))
         local host="${address%%:*}"
-        if [[ ! "${unique_hosts_array[*]:-}" =~ $host ]]; then
+        
+        local host_exists=false
+        for existing_host in "${unique_hosts_array[@]:-}"; do
+            if [[ "$existing_host" == "$host" ]]; then
+                host_exists=true
+                break
+            fi
+        done
+        
+        if [[ "$host_exists" == false ]]; then
             unique_hosts_array+=("$host")
         fi
         
