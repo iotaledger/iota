@@ -54,7 +54,10 @@ export class PasskeyAccount
             encrypted: await encrypt(inputs.password, {}),
             lastUnlockedOn: null,
             selected: false,
-            nickname: null,
+            nickname:
+                inputs.providerOptions.user?.displayName ||
+                inputs.providerOptions.user?.name ||
+                null,
             createdAt: Date.now(),
         };
     }
