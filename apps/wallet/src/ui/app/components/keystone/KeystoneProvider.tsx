@@ -128,8 +128,6 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
         toast.error(`Error while scanning QR: ${error}`);
     }
 
-    const canShowQrScanner = cameraPermissionStatus && cameraPermissionStatus !== 'denied';
-
     return (
         <Dialog open onOpenChange={(open) => {}}>
             <DialogContent containerId="overlay-portal-container">
@@ -142,10 +140,11 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                 cbor={ur.cbor.toString('hex')}
                                 options={{ size: 220 }}
                             />
-                        ) : canShowQrScanner ? (
-                            <div className="box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
+                        ) : (
+                            <div className="relative box-border flex h-[220px] w-[220px] items-center justify-center overflow-hidden rounded-lg">
                                 <div className="flex-shrink-0">
                                     <AnimatedQRScanner
+                                        key={cameraPermissionStatus}
                                         handleScan={onSucceed}
                                         handleError={onError}
                                         urTypes={[URType.IotaSignature]}
@@ -156,22 +155,37 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                         }}
                                     />
                                 </div>
+                                {cameraPermissionStatus === 'prompt' ? (
+                                    <div className="absolute inset-0 z-10 flex items-center justify-center">
+                                        <InfoBox
+                                            title="Camera Access authorization pending."
+                                            supportingText={
+                                                'Make sure your camera is connected and authorized, then try again to proceed.'
+                                            }
+                                            style={InfoBoxStyle.Elevated}
+                                            type={InfoBoxType.Warning}
+                                            icon={<Warning />}
+                                        />
+                                    </div>
+                                ) : null}
+                                {cameraPermissionStatus === 'denied' ? (
+                                    <div className="absolute inset-0 z-10 flex items-center justify-center">
+                                        <InfoBox
+                                            title="Camera Access Blocked!"
+                                            supportingText={
+                                                'Please allow camera access, then try again to proceed.'
+                                            }
+                                            style={InfoBoxStyle.Elevated}
+                                            type={InfoBoxType.Error}
+                                            icon={<Warning />}
+                                        />
+                                    </div>
+                                ) : null}
                             </div>
-                        ) : (
-                            <InfoBox
-                                title="Camera Access Blocked!"
-                                supportingText={
-                                    'Please allow camera access, then try again to proceed.'
-                                }
-                                style={InfoBoxStyle.Elevated}
-                                type={InfoBoxType.Error}
-                                icon={<Warning />}
-                            />
                         )}
                         <div className="flex flex-col items-center justify-center">
                             <Link
-                                // TODO: Add step 1/2 from tutorial docs link when available - https://github.com/iotaledger/iota/issues/8511
-                                to=""
+                                to="https://docs.iota.org/users/iota-wallet/how-to/basics#using-keystone-wallet"
                                 className="mb-1 text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
                                 target="_blank"
                                 rel="noreferrer"
@@ -190,8 +204,7 @@ export function ScanBothWays({ request: { ur, reply, cancel } }: { request: Requ
                                     Need more help?
                                 </span>
                                 <Link
-                                    // TODO: Add tutorial docs links when available - https://github.com/iotaledger/iota/issues/8511
-                                    to=""
+                                    to="https://docs.iota.org/users/iota-wallet/how-to/basics#using-keystone-wallet"
                                     className="text-body-md text-iota-primary-30 no-underline dark:text-iota-primary-80"
                                     target="_blank"
                                     rel="noreferrer"

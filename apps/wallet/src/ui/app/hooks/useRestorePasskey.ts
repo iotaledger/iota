@@ -8,17 +8,14 @@ import {
 } from '@iota/iota-sdk/keypairs/passkey';
 import { useMutation } from '@tanstack/react-query';
 
-const FIRST_MESSAGE = 'IOTA Passkey Example';
-const SECOND_MESSAGE = 'IOTA Passkey Example 2';
-
 export function useRestoreWallet() {
     return useMutation({
         mutationFn: async (provider: BrowserPasskeyProvider) => {
-            const testMessage = new TextEncoder().encode(FIRST_MESSAGE);
-            const possiblePks = await PasskeyKeypair.signAndRecover(provider, testMessage);
+            const randomMessage1 = crypto.getRandomValues(new Uint8Array(32));
+            const possiblePks = await PasskeyKeypair.signAndRecover(provider, randomMessage1);
 
-            const testMessage2 = new TextEncoder().encode(SECOND_MESSAGE);
-            const possiblePks2 = await PasskeyKeypair.signAndRecover(provider, testMessage2);
+            const randomMessage2 = crypto.getRandomValues(new Uint8Array(32));
+            const possiblePks2 = await PasskeyKeypair.signAndRecover(provider, randomMessage2);
 
             const commonPk = findCommonPublicKey(possiblePks, possiblePks2);
             const keypair = new PasskeyKeypair(commonPk.toRawBytes(), provider);
