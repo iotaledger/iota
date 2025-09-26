@@ -30,6 +30,7 @@ DEFAULT_SPAMMER_OBJECTS_PER_TX=10
 # --- Trap termination and normal exit safely ---
 CLEANED_UP=false
 cleanup_and_kill() {
+    kill_spammer_processes || true
     if [ "$CLEANED_UP" = false ]; then
         # --- Print final network statistics to terminal ---
         if [ "$NETWORK_METRIC" = true ]; then
@@ -62,6 +63,19 @@ cleanup_and_kill() {
         (cd .. && docker compose down &> /dev/null)  # silent cleanup
         docker rm -f faucet-1 &> /dev/null || true
     fi
+}
+
+# Kill any lingering spammer processes and remove locks
+kill_spammer_processes() {
+    log "Killing lingering spammer processes (if any) and removing locks..."
+    # kill common spammer process forms
+    pkill -9 -f 'iota-spammer spammer spam' 2>/dev/null || true
+    pkill -9 -f 'cargo run --release -- spammer spam' 2>/dev/null || true
+    pkill -9 -f 'spamming_fuzz_test.sh' 2>/dev/null || true
+
+    # also remove per-user and global lock files
+    rm -f /tmp/spammer-*.lock 2>/dev/null || true
+    rm -f /tmp/spammer.lock 2>/dev/null || true
 }
 
 trap cleanup_and_kill SIGINT SIGTERM EXIT
@@ -146,6 +160,9 @@ log "Spammer enabled            : $SPAMMER_ENABLE"
 log "Spammer TPS                : $SPAMMER_TPS"
 log "Spammer objects per tx     : $SPAMMER_OBJECTS_PER_TX"
 log "==========================="
+
+# Ensure no old spammer instances are running before we begin
+kill_spammer_processes || true
 
 # --- 1) Build images (optional) ---
 if [ "$BUILD" = true ]; then
