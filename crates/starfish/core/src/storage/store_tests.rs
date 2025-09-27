@@ -288,7 +288,7 @@ async fn read_and_contain_transactions(
         .write(WriteBatch::default().transactions(written_transactions))
         .unwrap();
     // Also write headers since we read transaction commitment from headers now
-    let written_headers =  written_blocks
+    let written_headers = written_blocks
         .iter()
         .map(|b| b.verified_block_header.clone())
         .collect();

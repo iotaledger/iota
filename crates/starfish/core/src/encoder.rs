@@ -128,8 +128,7 @@ fn create_shards_from_serialized_transactions(
 pub(crate) fn create_encoder(context: &Arc<Context>) -> Box<dyn ShardEncoder + Send> {
     let info_length = context.committee.info_length();
     let parity_length = context.committee.size() - info_length;
-    let encoder: Box<dyn ShardEncoder + Send> =
-    if info_length > 0 && parity_length > 0 {
+    let encoder: Box<dyn ShardEncoder + Send> = if info_length > 0 && parity_length > 0 {
         Box::new(
             ReedSolomonEncoder::new(info_length, parity_length, 2)
                 .expect("We should expect correct creation of the ReedSolomonEncoder"),

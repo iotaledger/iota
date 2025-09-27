@@ -64,35 +64,6 @@ impl Transaction {
         let bytes = bcs::to_bytes(transactions).map_err(ConsensusError::SerializationFailure)?;
         Ok(bytes.into())
     }
-
-    pub(crate) fn pad_transactions_for_sharding(
-        mut serialized: Vec<u8>,
-        info_length: usize,
-    ) -> Result<Bytes, ConsensusError> {
-        let bytes_length = serialized.len();
-        let mut statements_with_len: Vec<u8> = (bytes_length as u32).to_le_bytes().to_vec();
-        statements_with_len.append(&mut serialized);
-        // increase the length by 4 for u32
-        let mut shard_bytes = (bytes_length + 4).div_ceil(info_length);
-
-        // Ensure shard_bytes meets alignment requirements.
-        if shard_bytes % 2 != 0 {
-            shard_bytes += 1;
-        }
-        let length_with_padding = shard_bytes * info_length;
-        statements_with_len.resize(length_with_padding, 0);
-        Ok(statements_with_len.into())
-    }
-
-    #[expect(dead_code)]
-    pub(crate) fn serialize_and_pad_for_sharding(
-        transactions: &[Transaction],
-        info_length: usize,
-    ) -> Result<Bytes, ConsensusError> {
-        let serialized =
-            bcs::to_bytes(transactions).map_err(ConsensusError::SerializationFailure)?;
-        Self::pad_transactions_for_sharding(serialized, info_length)
-    }
 }
 
 /// A block header includes references to previous round blocks and a commitment
@@ -452,13 +423,6 @@ impl TransactionsCommitment {
     pub const MIN: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
     pub const MAX: Self = Self([u8::MAX; starfish_config::DIGEST_LENGTH]);
     pub const DEFAULT_FOR_TEST: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
-
-    #[expect(dead_code)]
-    pub(crate) fn compute_transactions_commitment_for_test(
-        _serialized_transactions: &Bytes,
-    ) -> ConsensusResult<TransactionsCommitment> {
-        Ok(Self::DEFAULT_FOR_TEST)
-    }
 
     pub(crate) fn compute_transactions_commitment(
         serialized_transactions: &Bytes,
