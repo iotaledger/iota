@@ -17,6 +17,7 @@ use crate::{
     block_header::BlockHeaderAPI as _,
     context::Context,
     dag_state::DagState,
+    encoder::{ShardEncoder, TrivialEncoder, create_encoder},
     error::ConsensusError,
     network::{NetworkClient, NetworkService},
 };
@@ -118,8 +119,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
 
         let info_length = context.committee.info_length();
         let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(context.clone());
 
         'subscription: loop {
             context

@@ -40,7 +40,7 @@ use crate::{
     commit_observer::CommitObserver,
     context::Context,
     dag_state::DagState,
-    encoder::{ShardEncoder, TrivialEncoder},
+    encoder::{ShardEncoder, TrivialEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -174,17 +174,8 @@ impl Core {
             // restriction.
             Some(0)
         };
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let encoder: Box<dyn ShardEncoder + Send>;
-        if info_length > 0 && parity_length > 0 {
-            encoder = Box::new(
-                ReedSolomonEncoder::new(info_length, parity_length, 2)
-                    .expect("We should expect correct creation of the ReedSolomonEncoder"),
-            );
-        } else {
-            encoder = Box::new(TrivialEncoder {});
-        }
+
+        let encoder = create_encoder(context.clone());
 
         Self {
             context,

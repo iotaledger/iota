@@ -464,7 +464,7 @@ impl TransactionsCommitment {
     pub(crate) fn compute_transactions_commitment(
         serialized_transactions: &Bytes,
         context: &Arc<Context>,
-        encoder: &mut ReedSolomonEncoder,
+        encoder: &mut Box<dyn ShardEncoder + Send>,
     ) -> ConsensusResult<TransactionsCommitment> {
         let info_length = context.committee.info_length();
         let parity_length = context.committee.size() - info_length;

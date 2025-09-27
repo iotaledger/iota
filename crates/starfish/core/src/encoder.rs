@@ -1,10 +1,12 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::sync::Arc;
+
 use bytes::Bytes;
 pub(crate) use reed_solomon_simd::ReedSolomonEncoder;
 
-use crate::{block_header::Shard, error::ConsensusError};
+use crate::{block_header::Shard, context::Context, error::ConsensusError};
 
 /// Trait for encoding data into shards using systematic coding with
 /// configurable redundancy.
@@ -122,4 +124,18 @@ fn create_shards_from_serialized_transactions(
         .map(|chunk| chunk.to_vec())
         .collect();
     data
+}
+pub(crate) fn create_encoder(context: Arc<Context>) -> Box<dyn ShardEncoder + Send> {
+    let info_length = context.committee.info_length();
+    let parity_length = context.committee.size() - info_length;
+    let encoder: Box<dyn ShardEncoder + Send>;
+    if info_length > 0 && parity_length > 0 {
+        encoder = Box::new(
+            ReedSolomonEncoder::new(info_length, parity_length, 2)
+                .expect("We should expect correct creation of the ReedSolomonEncoder"),
+        );
+    } else {
+        encoder = Box::new(TrivialEncoder {});
+    }
+    encoder
 }

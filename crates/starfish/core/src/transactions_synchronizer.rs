@@ -39,6 +39,7 @@ use crate::{
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
+    encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactions},
 };
@@ -1005,10 +1006,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 .get(&serialized_transactions.block_ref)
                 .expect("header for fetched transactions must exist");
 
-            let info_length = context.committee.info_length();
-            let parity_length = context.committee.size() - info_length;
-            let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-                .expect("We should expect correct creation of the ReedSolomonEncoder");
+            let mut encoder = create_encoder(context.clone());
             if block_header.transactions_commitment()
                 != TransactionsCommitment::compute_transactions_commitment(
                     &serialized_transactions.serialized_transactions,

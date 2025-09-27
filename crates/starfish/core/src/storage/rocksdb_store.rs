@@ -295,7 +295,7 @@ impl Store for RocksDBStore {
                 // We don't check the transactions commitment as it's loaded from storage.
                 let verified_transactions = VerifiedTransactions::new(
                     transactions,
-                    block_ref.clone(),
+                    *block_ref,
                     signed_block_header.transactions_commitment(),
                     serialized_transactions,
                 );

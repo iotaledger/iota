@@ -36,6 +36,7 @@ use crate::{
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
+    encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     network::{
         BlockBundle, BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockAndHeaders,
@@ -151,7 +152,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
-        encoder: &mut ReedSolomonEncoder,
+        encoder: &mut Box<dyn ShardEncoder + Send>,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
 

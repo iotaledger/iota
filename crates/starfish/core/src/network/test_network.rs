@@ -13,9 +13,11 @@ use crate::{
     Round,
     block_header::{BlockRef, VerifiedBlockHeader},
     commit::{CommitRange, TrustedCommit},
+    encoder::ShardEncoder,
     error::ConsensusResult,
     network::{BlockBundleStream, NetworkService, SerializedBlockBundle},
 };
+
 pub(crate) struct TestService {
     pub(crate) handle_subscribed_block_bundle: Vec<(AuthorityIndex, SerializedBlockBundle)>,
     pub(crate) handle_subscribed_block_bundle_requests: Vec<(AuthorityIndex, Round)>,
@@ -47,7 +49,7 @@ impl NetworkService for Mutex<TestService> {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
-        _encoder: &mut ReedSolomonEncoder,
+        _encoder: &mut Box<dyn ShardEncoder + Send>,
     ) -> ConsensusResult<()> {
         let mut state = self.lock();
         state
