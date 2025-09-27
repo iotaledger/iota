@@ -16,7 +16,6 @@ use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
 use iota_metrics::monitored_scope;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
-pub(crate) use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::{AuthorityIndex, ProtocolKeyPair};
 #[cfg(test)]
 use starfish_config::{Stake, local_committee_and_keys};
@@ -40,7 +39,7 @@ use crate::{
     commit_observer::CommitObserver,
     context::Context,
     dag_state::DagState,
-    encoder::{ShardEncoder, TrivialEncoder, create_encoder},
+    encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -175,7 +174,7 @@ impl Core {
             Some(0)
         };
 
-        let encoder = create_encoder(context.clone());
+        let encoder = create_encoder(&context);
 
         Self {
             context,
@@ -1584,10 +1583,7 @@ mod test {
             store.clone(),
             leader_schedule.clone(),
         );
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // First send some transactions, since the block will be created once we recover
         // core

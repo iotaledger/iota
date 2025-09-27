@@ -7,7 +7,6 @@ use std::{sync::Arc, time::Duration};
 use futures::StreamExt;
 use iota_metrics::spawn_monitored_task;
 use parking_lot::{Mutex, RwLock};
-use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::AuthorityIndex;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info};
@@ -17,7 +16,7 @@ use crate::{
     block_header::BlockHeaderAPI as _,
     context::Context,
     dag_state::DagState,
-    encoder::{ShardEncoder, TrivialEncoder, create_encoder},
+    encoder::create_encoder,
     error::ConsensusError,
     network::{NetworkClient, NetworkService},
 };
@@ -117,9 +116,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let mut retries: i64 = 0;
         let mut delay = INITIAL_RETRY_INTERVAL;
 
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = create_encoder(context.clone());
+        let mut encoder = create_encoder(&context);
 
         'subscription: loop {
             context

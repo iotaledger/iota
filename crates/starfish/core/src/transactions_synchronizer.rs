@@ -22,7 +22,6 @@ use rand::{
     rngs::{OsRng, StdRng},
     seq::SliceRandom,
 };
-use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
@@ -1006,7 +1005,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 .get(&serialized_transactions.block_ref)
                 .expect("header for fetched transactions must exist");
 
-            let mut encoder = create_encoder(context.clone());
+            let mut encoder = create_encoder(&context);
             if block_header.transactions_commitment()
                 != TransactionsCommitment::compute_transactions_commitment(
                     &serialized_transactions.serialized_transactions,
@@ -1100,10 +1099,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 1), (2, 1), (3, 2)];
@@ -1205,10 +1201,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // Create block round author pairs
         let block_round_authors = (1..LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 2 + 1)
@@ -1322,10 +1315,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1446,10 +1436,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1559,10 +1546,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1674,10 +1658,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1789,10 +1770,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];

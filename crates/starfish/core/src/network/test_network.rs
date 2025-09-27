@@ -6,7 +6,6 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream;
 use parking_lot::Mutex;
-use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::AuthorityIndex;
 
 use crate::{

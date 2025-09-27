@@ -53,7 +53,6 @@ pub(crate) mod tonic_network;
 #[cfg(msim)]
 pub mod tonic_network;
 mod tonic_tls;
-use reed_solomon_simd::ReedSolomonEncoder;
 
 use crate::encoder::ShardEncoder;
 

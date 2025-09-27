@@ -15,7 +15,6 @@ use dashmap::DashSet;
 use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
-use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{Mutex, broadcast},
@@ -1089,7 +1088,6 @@ mod tests {
     use futures::StreamExt;
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
-    use reed_solomon_simd::ReedSolomonEncoder;
     use starfish_config::{AuthorityIndex, Parameters};
     use tokio::{sync::broadcast, time::sleep};
 
@@ -1111,6 +1109,7 @@ mod tests {
         core::{Core, CoreSignals},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
+        encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
         leader_schedule::LeaderSchedule,
         network::{
@@ -1219,10 +1218,7 @@ mod tests {
             dag_state,
             store,
         ));
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // Test rejecting block with time drift.
         let now = context.clock.timestamp_utc_ms();
@@ -1313,10 +1309,7 @@ mod tests {
             dag_state,
             store,
         ));
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
@@ -1399,10 +1392,7 @@ mod tests {
             dag_state,
             store,
         ));
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder)
@@ -1477,10 +1467,7 @@ mod tests {
             dag_state,
             store,
         ));
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
@@ -2011,10 +1998,7 @@ mod tests {
             dag_state.clone(),
             store,
         ));
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
         let mut dag_builder =
@@ -2158,10 +2142,7 @@ mod tests {
             dag_state.clone(),
             store,
         ));
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
         let mut dag_builder =
@@ -2323,10 +2304,7 @@ mod tests {
             dag_state.clone(),
             store,
         ));
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // Set up DAG with blocks
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
@@ -3062,10 +3040,7 @@ mod tests {
             dag_state.clone(),
             store,
         ));
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // Set up DAG with blocks
         let mut dag_builder = DagBuilder::new(context.clone());

@@ -125,7 +125,7 @@ fn create_shards_from_serialized_transactions(
         .collect();
     data
 }
-pub(crate) fn create_encoder(context: Arc<Context>) -> Box<dyn ShardEncoder + Send> {
+pub(crate) fn create_encoder(context: &Arc<Context>) -> Box<dyn ShardEncoder + Send> {
     let info_length = context.committee.info_length();
     let parity_length = context.committee.size() - info_length;
     let encoder: Box<dyn ShardEncoder + Send>;

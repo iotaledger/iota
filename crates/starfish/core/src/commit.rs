@@ -854,12 +854,11 @@ impl Debug for CommitRange {
 mod tests {
     use std::sync::Arc;
 
-    use reed_solomon_simd::ReedSolomonEncoder;
-
     use super::*;
     use crate::{
         block_header::{TestBlockHeader, VerifiedBlock},
         context::Context,
+        encoder::create_encoder,
         storage::{WriteBatch, mem_store::MemStore},
     };
 
@@ -867,10 +866,7 @@ mod tests {
     async fn test_new_committed_subdag_from_commit() {
         let store = Arc::new(MemStore::new());
         let context = Arc::new(Context::new_for_test(4).0);
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let mut encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let mut encoder = create_encoder(&context);
 
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
         let first_wave_rounds: u32 = WAVE_LENGTH;

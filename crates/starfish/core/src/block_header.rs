@@ -11,7 +11,6 @@ use std::{
 
 use bytes::Bytes;
 use fastcrypto::hash::{Digest, HashFunction};
-use reed_solomon_simd::ReedSolomonEncoder;
 use rs_merkle::MerkleTree;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
@@ -1061,7 +1060,7 @@ impl TestBlockHeader {
         round: Round,
         author: u8,
         context: &Arc<Context>,
-        encoder: &mut ReedSolomonEncoder,
+        encoder: &mut Box<dyn ShardEncoder + Send>,
     ) -> Self {
         let txs = vec![];
         let serialized_transactions = Transaction::serialize(&txs)
@@ -1088,7 +1087,7 @@ impl TestBlockHeader {
         author: u8,
         tx: u8,
         context: &Arc<Context>,
-        encoder: &mut ReedSolomonEncoder,
+        encoder: &mut Box<dyn ShardEncoder + Send>,
     ) -> Self {
         let txs = vec![vec![tx; 16]]
             .into_iter()

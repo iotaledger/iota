@@ -10,7 +10,6 @@ use std::{
 
 use parking_lot::RwLock;
 use rand::{Rng, SeedableRng, rngs::StdRng, seq::SliceRandom};
-use reed_solomon_simd::ReedSolomonEncoder;
 use starfish_config::{AuthorityIndex, ProtocolKeyPair};
 
 use crate::{
@@ -23,6 +22,7 @@ use crate::{
     commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
     dag_state::DagState,
+    encoder::{ShardEncoder, create_encoder},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::{BlockStoreAPI, Linearizer},
 };
@@ -119,7 +119,7 @@ pub(crate) struct DagBuilder {
     // signature is used
     protocol_keypair: Option<Vec<ProtocolKeyPair>>,
 
-    encoder: ReedSolomonEncoder,
+    encoder: Box<dyn ShardEncoder + Send>,
 }
 /// The `AncestorSelection` enum is an interim data structure used to specify
 /// how ancestors should be selected for a block in the `DagBuilder`. `UseLast`
@@ -154,10 +154,7 @@ impl DagBuilder {
             .collect();
         let last_ancestors = genesis.keys().cloned().collect();
 
-        let info_length = context.committee.info_length();
-        let parity_length = context.committee.size() - info_length;
-        let encoder = ReedSolomonEncoder::new(info_length, parity_length, 2)
-            .expect("We should expect correct creation of the ReedSolomonEncoder");
+        let encoder = create_encoder(&context);
         Self {
             last_committed_rounds: vec![0; context.committee.size()],
             context,
