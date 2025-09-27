@@ -1322,7 +1322,7 @@ mod tests {
 
         let result = authority_service
             .handle_subscribed_block_bundle(
-                context.committee.to_authority_index(0).unwrap(),
+                context.committee.to_authority_index(1).unwrap(),
                 serialized_block_bundle.clone(),
                 &mut encoder,
             )
