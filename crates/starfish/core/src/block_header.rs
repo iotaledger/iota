@@ -432,7 +432,7 @@ impl TransactionsCommitment {
         let info_length = context.committee.info_length();
         let parity_length = context.committee.size() - info_length;
         let encoded_shards = encoder
-            .encode_transactions(serialized_transactions, info_length, parity_length)
+            .encode_serialized_data(serialized_transactions, info_length, parity_length)
             .expect("We should expect correct encoding of the shards");
 
         let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
@@ -818,7 +818,7 @@ pub struct VerifiedTransactions {
     /// Commitment of transactions in the block
     transactions_commitment: TransactionsCommitment,
 
-    /// The serialized bytes of the transactions with padding for sharding.
+    /// The serialized bytes of the transactions.
     serialized: Bytes,
 }
 

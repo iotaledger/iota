@@ -23,7 +23,7 @@ pub trait ShardEncoder {
     /// Serializes and encodes transactions into a vector of shards using an
     /// error-correcting code with a dimension of `info_length` and
     /// redundancy of `parity_length`.
-    fn encode_transactions(
+    fn encode_serialized_data(
         &mut self,
         serialized_transactions: &Bytes,
         info_length: usize,
@@ -59,7 +59,7 @@ impl ShardEncoder for ReedSolomonEncoder {
         Ok(data)
     }
 
-    fn encode_transactions(
+    fn encode_serialized_data(
         &mut self,
         serialized: &Bytes,
         info_length: usize,
@@ -87,7 +87,7 @@ impl ShardEncoder for TrivialEncoder {
         Ok(data)
     }
 
-    fn encode_transactions(
+    fn encode_serialized_data(
         &mut self,
         serialized: &Bytes,
         info_length: usize,

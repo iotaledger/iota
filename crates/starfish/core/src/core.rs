@@ -641,7 +641,7 @@ impl Core {
 
         let encoded_shards = self
             .encoder
-            .encode_transactions(&serialized_transactions, info_length, parity_length)
+            .encode_serialized_data(&serialized_transactions, info_length, parity_length)
             .expect("We should expect correct encoding of the shards");
 
         let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
