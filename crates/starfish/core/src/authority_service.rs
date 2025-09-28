@@ -151,7 +151,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
-        encoder: &mut Box<dyn ShardEncoder + Send>,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
 

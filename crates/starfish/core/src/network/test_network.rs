@@ -48,7 +48,7 @@ impl NetworkService for Mutex<TestService> {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
-        _encoder: &mut Box<dyn ShardEncoder + Send>,
+        _encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()> {
         let mut state = self.lock();
         state

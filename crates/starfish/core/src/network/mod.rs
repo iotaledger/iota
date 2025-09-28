@@ -132,7 +132,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
-        encoder: &mut Box<dyn ShardEncoder + Send>,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()>;
 
     /// Handles the subscription request from the peer.

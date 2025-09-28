@@ -427,7 +427,7 @@ impl TransactionsCommitment {
     pub(crate) fn compute_transactions_commitment(
         serialized_transactions: &Bytes,
         context: &Arc<Context>,
-        encoder: &mut Box<dyn ShardEncoder + Send>,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<TransactionsCommitment> {
         let info_length = context.committee.info_length();
         let parity_length = context.committee.size() - info_length;
@@ -1024,7 +1024,7 @@ impl TestBlockHeader {
         round: Round,
         author: u8,
         context: &Arc<Context>,
-        encoder: &mut Box<dyn ShardEncoder + Send>,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> Self {
         let txs = vec![];
         let serialized_transactions = Transaction::serialize(&txs)
@@ -1051,7 +1051,7 @@ impl TestBlockHeader {
         author: u8,
         tx: u8,
         context: &Arc<Context>,
-        encoder: &mut Box<dyn ShardEncoder + Send>,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> Self {
         let txs = vec![vec![tx; 16]]
             .into_iter()

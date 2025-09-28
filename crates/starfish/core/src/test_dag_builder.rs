@@ -119,7 +119,7 @@ pub(crate) struct DagBuilder {
     // signature is used
     protocol_keypair: Option<Vec<ProtocolKeyPair>>,
 
-    encoder: Box<dyn ShardEncoder + Send>,
+    encoder: Box<dyn ShardEncoder + Send + Sync>,
 }
 /// The `AncestorSelection` enum is an interim data structure used to specify
 /// how ancestors should be selected for a block in the `DagBuilder`. `UseLast`
