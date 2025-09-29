@@ -44,6 +44,7 @@ pub mod processors;
 pub(crate) mod rolling;
 pub mod schema;
 pub mod store;
+pub mod stream;
 pub mod system_package_task;
 pub mod test_utils;
 pub mod types;
