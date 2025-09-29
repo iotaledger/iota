@@ -179,7 +179,66 @@ fun test_account_creation_with_inconsistent_threshold() {
     test_scenario::end(scenario_val);
 }
 
-// --------------------------------------- Transaction Issues ---------------------------------------
+// --------------------------------------- Transactions ---------------------------------------
+
+#[test]
+fun test_transaction_propose_several() {
+    account_test!(|scenario, _| {
+        let transaction_digest_1 = x"1111111111111111111111111111111111111111111111111111111111111111";
+        let transaction_digest_2 = x"2222222222222222222222222222222222222222222222222222222222222222";
+        let transaction_digest_3 = x"3333333333333333333333333333333333333333333333333333333333333333";
+
+        // Propose a transaction.
+        scenario.next_tx(@0x1);
+        {
+            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+
+            account.propose_transaction(transaction_digest_1, test_scenario::ctx(scenario));
+
+            test_scenario::return_shared(account);
+        };
+
+        // Propose a second transaction.
+        scenario.next_tx(@0x2);
+        {
+            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+
+            account.propose_transaction(transaction_digest_2, test_scenario::ctx(scenario));
+
+            test_scenario::return_shared(account);
+        };
+
+        // Propose a third transaction.
+        scenario.next_tx(@0x3);
+        {
+            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+
+            account.propose_transaction(transaction_digest_3, test_scenario::ctx(scenario));
+
+            test_scenario::return_shared(account);
+        };
+
+        // Check the transactions.
+        scenario.next_tx(@0x0);
+        {
+            let account = scenario.take_shared<DynamicMultisigAccount>();
+
+            let transaction_1 = account.transactions().borrow(transaction_digest_1);
+            let transaction_2 = account.transactions().borrow(transaction_digest_2);
+            let transaction_3 = account.transactions().borrow(transaction_digest_3);
+
+            assert_eq(transaction_1.digest(), transaction_digest_1);
+            assert_eq(transaction_2.digest(), transaction_digest_2);
+            assert_eq(transaction_3.digest(), transaction_digest_3);
+
+            assert_ref_eq(transaction_1.approves(), &vector[@0x1]);
+            assert_ref_eq(transaction_2.approves(), &vector[@0x2]);
+            assert_ref_eq(transaction_3.approves(), &vector[@0x3]);
+
+            test_scenario::return_shared(account);
+        };
+    });
+}
 
 #[test]
 #[expected_failure(abort_code = members::EMemberIsNotFound)]
