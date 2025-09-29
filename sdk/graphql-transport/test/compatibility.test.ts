@@ -627,9 +627,7 @@ describe('GraphQL IotaClient compatibility', () => {
         });
 
         await toolbox.client.waitForTransaction({ digest: transaction.digest });
-
-        // Wait for GraphQL indexer to process the transaction
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await graphQLClient.waitForTransaction({ digest: transaction.digest });
 
         const {
             checkpoint: gCheckpoint,
