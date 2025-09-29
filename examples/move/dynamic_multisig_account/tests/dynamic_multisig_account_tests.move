@@ -403,7 +403,8 @@ fun test_account_updating() {
 
             let members_addresses = vector[@0xA, @0xB, @0xC];
             let members_weights = vector[4, 5, 6];
-            let threshold = 10;
+            // The threshold equals to the total weight of all the members; it is the maximum possible value.
+            let threshold = 15;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
             account.update_account_data(members_addresses, members_weights, threshold, authenticator, ctx);
