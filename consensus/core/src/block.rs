@@ -693,7 +693,18 @@ pub struct MisbehaviorReport {
 }
 
 impl MisbehaviorReport {
-    pub fn new(target: AuthorityIndex, proof: MisbehaviorProof) -> Self {
+    pub fn new_equivocation_report(mut block_refs: Vec<BlockRef>) -> Self {
+        // ensure the block refs are sorted and there are at least 2
+        assert!(block_refs.len() >= 2);
+        let target = block_refs[0].author;
+        block_refs.sort();
+        let proof = MisbehaviorProof::Equivocation(block_refs);
+        Self { target, proof }
+    }
+
+    pub fn new_invalid_block_report(block_ref: BlockRef) -> Self {
+        let target = block_ref.author;
+        let proof = MisbehaviorProof::InvalidBlock(block_ref);
         Self { target, proof }
     }
 
@@ -706,9 +717,9 @@ impl MisbehaviorReport {
     }
 
     pub fn references(&self) -> Vec<BlockRef> {
-        match self.proof {
-            MisbehaviorProof::InvalidBlock(block_ref) => vec![block_ref],
-            MisbehaviorProof::Equivocation { first, second } => vec![first, second],
+        match self.proof() {
+            MisbehaviorProof::InvalidBlock(block_ref) => vec![*block_ref],
+            MisbehaviorProof::Equivocation(block_refs) => block_refs.clone(),
         }
     }
 }
@@ -718,7 +729,7 @@ impl MisbehaviorReport {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub enum MisbehaviorProof {
     InvalidBlock(BlockRef),
-    Equivocation { first: BlockRef, second: BlockRef },
+    Equivocation(Vec<BlockRef>),
 }
 
 // TODO: add basic verification for BlockRef and BlockDigest.

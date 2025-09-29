@@ -522,7 +522,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                         self.context
                             .parameters
                             .max_blocks_per_sync
-                            .saturating_sub(verified_blocks.len()),
+                            .saturating_sub(bytes.len()),
                     )
                     .iter()
                     .map(|b| b.serialized().clone())

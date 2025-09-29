@@ -159,12 +159,12 @@ impl Scorer {
 
     pub(crate) fn update_provable_metrics(&self, report: MisbehaviorReport) {
         let authority = report.target();
-        match report.proof() {
-            &MisbehaviorProof::Equivocation { .. } => {
+        match *report.proof() {
+            MisbehaviorProof::Equivocation { .. } => {
                 self.provable_misbehavior_counts.equivocations[authority]
                     .fetch_add(1, Ordering::Relaxed);
             }
-            &MisbehaviorProof::InvalidBlock(_) => {
+            MisbehaviorProof::InvalidBlock(_) => {
                 self.provable_misbehavior_counts.faulty_blocks[authority]
                     .fetch_add(1, Ordering::Relaxed);
             }

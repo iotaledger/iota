@@ -142,6 +142,8 @@ impl WriteBatch {
         self.provably_faulty_blocks = provably_faulty_blocks;
         self
     }
+
+    #[cfg(test)]
     pub(crate) fn scoring_metrics(
         mut self,
         scoring_metrics: Vec<(AuthorityIndex, StorageScoringMetrics)>,

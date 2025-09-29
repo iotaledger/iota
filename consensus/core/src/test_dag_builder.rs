@@ -15,8 +15,8 @@ use rand::{SeedableRng, rngs::StdRng, seq::SliceRandom};
 use crate::{
     CommitRef, CommittedSubDag,
     block::{
-        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, MisbehaviorProof, MisbehaviorReport,
-        ProvablyFaultyBlock, Round, Slot, TestBlock, VerifiedBlock, genesis_blocks,
+        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, MisbehaviorReport, ProvablyFaultyBlock,
+        Round, Slot, TestBlock, VerifiedBlock, genesis_blocks,
     },
     commit::{CertifiedCommit, CommitDigest, DEFAULT_WAVE_LENGTH, TrustedCommit},
     context::Context,
@@ -810,10 +810,8 @@ impl<'a> LayerBuilder<'a> {
             };
             let mut misbehavior_reports = self.equivocation_reports(ancestors.clone());
             for faulty_ancestor in faulty_ancestors {
-                misbehavior_reports.push(MisbehaviorReport::new(
-                    faulty_ancestor.author,
-                    MisbehaviorProof::InvalidBlock(faulty_ancestor),
-                ));
+                misbehavior_reports
+                    .push(MisbehaviorReport::new_invalid_block_report(faulty_ancestor));
             }
             let num_blocks = self.num_blocks_to_create(authority);
 
@@ -856,19 +854,16 @@ impl<'a> LayerBuilder<'a> {
 
     fn equivocation_reports(&self, ancestors: Vec<BlockRef>) -> Vec<MisbehaviorReport> {
         let mut reports = vec![];
-        let mut seen_ancestors: BTreeMap<AuthorityIndex, BlockRef> =
-            BTreeMap::<AuthorityIndex, BlockRef>::new();
-        for ancestor in ancestors.iter() {
-            if let Some(existing_ancestor) = seen_ancestors.get(&ancestor.author) {
-                reports.push(MisbehaviorReport::new(
-                    ancestor.author,
-                    MisbehaviorProof::Equivocation {
-                        first: *existing_ancestor,
-                        second: *ancestor,
-                    },
-                ));
-            } else {
-                seen_ancestors.insert(ancestor.author, *ancestor);
+        let mut ancestors_by_author = BTreeMap::new();
+        for ancestor in ancestors {
+            ancestors_by_author
+                .entry(ancestor.author)
+                .or_insert_with(Vec::new)
+                .push(ancestor);
+        }
+        for (_author, ancestors) in ancestors_by_author {
+            if ancestors.len() > 1 {
+                reports.push(MisbehaviorReport::new_equivocation_report(ancestors));
             }
         }
         reports

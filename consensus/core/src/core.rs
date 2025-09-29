@@ -34,8 +34,7 @@ use crate::{
     ancestor::{AncestorState, AncestorStateManager},
     block::{
         Block, BlockAPI, BlockRef, BlockTimestampMs, BlockV1, ExtendedBlock, GENESIS_ROUND,
-        MisbehaviorProof, MisbehaviorReport, ProvablyFaultyBlock, Round, SignedBlock, Slot,
-        VerifiedBlock,
+        MisbehaviorReport, ProvablyFaultyBlock, Round, SignedBlock, Slot, VerifiedBlock,
     },
     block_manager::BlockManager,
     commit::{
@@ -1158,16 +1157,13 @@ impl Core {
                         }
                         true
                     })
-                    .flat_map(|(block, equivocations)| {
-                        // Create a misbehavior report for the first equivocation if any.
-                        if let Some(equivocation) = equivocations.first() {
-                            misbehavior_reports.push(MisbehaviorReport::new(
-                                block.author(),
-                                MisbehaviorProof::Equivocation {
-                                    first: block.reference(),
-                                    second: *equivocation,
-                                },
-                            ));
+                    .flat_map(|(block, mut equivocations)| {
+                        // Create a misbehavior report for any eqivocations, including the first
+                        // block that will be included as an ancestor.
+                        if !equivocations.is_empty() {
+                            equivocations.push(block.reference());
+                            misbehavior_reports
+                                .push(MisbehaviorReport::new_equivocation_report(equivocations));
                         }
                         if let Some(last_block_ref) = self.last_included_ancestors[block.author()] {
                             return (last_block_ref.round < block.round()).then_some(block);
@@ -1183,9 +1179,8 @@ impl Core {
             .read()
             .get_unreported_provably_faulty_block_refs()
         {
-            misbehavior_reports.push(MisbehaviorReport::new(
-                faulty_block_ref.author,
-                MisbehaviorProof::InvalidBlock(faulty_block_ref),
+            misbehavior_reports.push(MisbehaviorReport::new_invalid_block_report(
+                faulty_block_ref,
             ))
         }
 
@@ -1267,17 +1262,14 @@ impl Core {
                         }
 
                         // Create a misbehavior report for the equivocating ancestors.
-                        if let Some(equivocating_ancestor) =
-                            equivocating_ancestors.first()
-                        {
+                        if !equivocating_ancestors.is_empty() {
+                            let mut equivocations_to_report = equivocating_ancestors.clone();
+                            equivocations_to_report.push(ancestor.reference());
                             misbehavior_reports
-                                .push(MisbehaviorReport::new(
-                                    ancestor.author(),
-                                    MisbehaviorProof::Equivocation { first: ancestor.reference(), second: *equivocating_ancestor },
-                                ));
-
+                                .push(MisbehaviorReport::new_equivocation_report(equivocations_to_report));
                             // We will never include equivocating ancestors so add them immediately
                             excluded_and_equivocating_ancestors.extend(equivocating_ancestors);
+
                         }
 
                         let ancestor_state = ancestor_state_map[ancestor.author()];
@@ -1436,9 +1428,8 @@ impl Core {
             .read()
             .get_unreported_provably_faulty_block_refs()
         {
-            misbehavior_reports.push(MisbehaviorReport::new(
-                faulty_block_ref.author,
-                MisbehaviorProof::InvalidBlock(faulty_block_ref),
+            misbehavior_reports.push(MisbehaviorReport::new_invalid_block_report(
+                faulty_block_ref,
             ))
         }
 

@@ -4,6 +4,8 @@
 
 use std::{collections::BTreeSet, sync::Arc};
 
+use itertools::Itertools;
+
 use crate::{
     Round,
     block::{
@@ -254,7 +256,7 @@ impl BlockVerifier for SignedBlockVerifier {
         for (index, (misbehavior_report, proof_blocks)) in block
             .misbehavior_reports()
             .iter()
-            .zip(proof_blocks.iter())
+            .zip(proof_blocks)
             .enumerate()
         {
             match misbehavior_report.proof() {
@@ -266,31 +268,41 @@ impl BlockVerifier for SignedBlockVerifier {
                         return Err(ConsensusError::InvalidProvablyFaultyBlockReport(index));
                     }
                 }
-                MisbehaviorProof::Equivocation { first, second } => {
-                    // Check that the two referenced blocks are not the same.
-                    if first == second {
+                MisbehaviorProof::Equivocation(block_refs) => {
+                    // Check that we have at least two block_refs and the same number of proof
+                    // blocks.
+                    if block_refs.len() < 2 || block_refs.len() != proof_blocks.len() {
                         return Err(ConsensusError::InvalidEquivocationReport(index));
                     }
-                    // Check that the two referenced blocks are from the current epoch and from the
-                    // same round and author.
-                    if let Some(GetBlockResult::VerifiedBlock(first_proof_block)) =
-                        proof_blocks.first()
-                    {
-                        if let Some(GetBlockResult::VerifiedBlock(second_proof_block)) =
-                            proof_blocks.get(1)
+                    // Check that block_refs contains no duplicates.
+                    let unique_refs: BTreeSet<_> = block_refs.iter().collect();
+                    if unique_refs.len() != block_refs.len() {
+                        return Err(ConsensusError::InvalidEquivocationReport(index));
+                    }
+                    // Check that the block refs are sorted. This ensures that proofs containing the
+                    // same refs are equal.
+                    let sorted_refs: Vec<_> = block_refs.iter().cloned().sorted().collect();
+                    if sorted_refs != *block_refs {
+                        return Err(ConsensusError::InvalidEquivocationReport(index));
+                    }
+
+                    // Check that all referenced blocks are from the same round and author.
+                    for block_ref in block_refs[1..].iter() {
+                        if block_ref.round != block_refs[0].round
+                            || block_ref.author != block_refs[0].author
                         {
-                            if first_proof_block.epoch() != self.context.committee.epoch()
-                                || second_proof_block.epoch() != self.context.committee.epoch()
-                                || first_proof_block.round() != second_proof_block.round()
-                                || first_proof_block.author() != second_proof_block.author()
-                            {
+                            return Err(ConsensusError::InvalidEquivocationReport(index));
+                        }
+                    }
+                    // Check that all proof blocks are VerifiedBlock and from the current epoch.
+                    for proof_block in proof_blocks {
+                        if let GetBlockResult::VerifiedBlock(proof_block) = proof_block {
+                            if proof_block.epoch() != self.context.committee.epoch() {
                                 return Err(ConsensusError::InvalidEquivocationReport(index));
                             }
                         } else {
                             return Err(ConsensusError::InvalidEquivocationReport(index));
                         }
-                    } else {
-                        return Err(ConsensusError::InvalidEquivocationReport(index));
                     }
                 }
             }

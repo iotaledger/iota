@@ -399,6 +399,8 @@ impl BlockManager {
                                 proof_blocks.push(vec![self.dag_state.read().get_block(block_ref)]);
                             }
                             MisbehaviorProof::Equivocation { .. } => {
+                                // If the result of get_blocks is not GetBlockResult::VerifiedBlock,
+                                // the verification of the report will fail later.
                                 let report_proof_blocks =
                                     (self.dag_state.read().get_blocks(&report.references()))
                                         .into_iter()
