@@ -17,8 +17,8 @@ use typed_store::{
 use super::{CommitInfo, Store, WriteBatch};
 use crate::{
     block::{
-        BlockAPI as _, BlockDigest, BlockRef, MisbehaviorReport, ProvablyFaultyBlock, Round,
-        SignedBlock, VerifiedBlock,
+        BlockAPI as _, BlockDigest, BlockRef, ProvablyFaultyBlock, Round, SignedBlock,
+        VerifiedBlock,
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
@@ -42,8 +42,8 @@ pub(crate) struct RocksDBStore {
     provably_faulty_blocks: DBMap<(Round, AuthorityIndex, BlockDigest), Bytes>,
     /// Stores scoring metrics for each authority.
     scoring_metrics: DBMap<AuthorityIndex, StorageScoringMetrics>,
-    // Stores misbehavior reports to avoid duplicate reports
-    misbehavior_reports: DBMap<MisbehaviorReport, ()>,
+    // Stores BlockRefs from misbehavior reports to avoid duplicate reports
+    misbehavior_report_refs: DBMap<BlockRef, ()>,
 }
 
 impl RocksDBStore {
@@ -97,7 +97,7 @@ impl RocksDBStore {
             commit_info,
             provably_faulty_blocks,
             scoring_metrics,
-            misbehavior_reports,
+            misbehavior_report_refs,
         ) = reopen!(&rocksdb,
             Self::BLOCKS_CF;<(Round, AuthorityIndex, BlockDigest), bytes::Bytes>,
             Self::DIGESTS_BY_AUTHORITIES_CF;<(AuthorityIndex, Round, BlockDigest), ()>,
@@ -106,7 +106,7 @@ impl RocksDBStore {
             Self::COMMIT_INFO_CF;<(CommitIndex, CommitDigest), CommitInfo>,
             Self::PROVABLY_FAULTY_BLOCKS;<(Round, AuthorityIndex, BlockDigest), bytes::Bytes>,
             Self::SCORING_METRICS_CF;<AuthorityIndex, StorageScoringMetrics>,
-            Self::MISBEHAVIOR_REPORTS_CF;<MisbehaviorReport, ()>
+            Self::MISBEHAVIOR_REPORTS_CF;<BlockRef, ()>
         );
 
         Self {
@@ -117,7 +117,7 @@ impl RocksDBStore {
             commit_info,
             provably_faulty_blocks,
             scoring_metrics,
-            misbehavior_reports,
+            misbehavior_report_refs,
         }
     }
 }
@@ -191,9 +191,9 @@ impl Store for RocksDBStore {
                 .insert_batch(&self.scoring_metrics, [(authority, metrics)])
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
-        for report in write_batch.misbehavior_reports {
+        for report in write_batch.misbehavior_report_refs {
             batch
-                .insert_batch(&self.misbehavior_reports, [(report, ())])
+                .insert_batch(&self.misbehavior_report_refs, [(report, ())])
                 .map_err(ConsensusError::RocksDBFailure)?;
         }
         batch.write()?;
@@ -380,9 +380,9 @@ impl Store for RocksDBStore {
         Ok(commits)
     }
 
-    fn scan_misbehavior_reports(&self) -> ConsensusResult<HashSet<MisbehaviorReport>> {
+    fn scan_misbehavior_reports(&self) -> ConsensusResult<HashSet<BlockRef>> {
         let mut reports = HashSet::new();
-        for result in self.misbehavior_reports.safe_iter() {
+        for result in self.misbehavior_report_refs.safe_iter() {
             let (report, _) = result?;
             reports.insert(report);
         }

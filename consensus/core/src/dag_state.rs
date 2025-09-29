@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::max,
+    cmp::{max, min},
     collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
     ops::Bound::{Excluded, Included, Unbounded},
     panic,
@@ -19,8 +19,8 @@ use tracing::{debug, error, info};
 use crate::{
     CommittedSubDag,
     block::{
-        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, MisbehaviorReport,
-        ProvablyFaultyBlock, Round, Slot, VerifiedBlock, genesis_blocks,
+        BlockAPI, BlockDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, MisbehaviorProof,
+        MisbehaviorReport, ProvablyFaultyBlock, Round, Slot, VerifiedBlock, genesis_blocks,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
@@ -105,10 +105,10 @@ pub(crate) struct DagState {
     // Data to be flushed to storage.
     blocks_to_write: Vec<VerifiedBlock>,
     commits_to_write: Vec<TrustedCommit>,
-    misbehavior_reports_to_write: HashSet<MisbehaviorReport>,
+    misbehavior_report_refs_to_write: HashSet<BlockRef>,
 
     // Misbehavior reports that have been included in committed blocks.
-    committed_misbehavior_reports: HashSet<MisbehaviorReport>,
+    committed_misbehavior_report_refs: HashSet<BlockRef>,
 
     // Buffer the reputation scores & last_committed_rounds to be flushed with the
     // next dag state flush. This is okay because we can recover reputation scores
@@ -205,8 +205,8 @@ impl DagState {
             pending_commit_votes: VecDeque::new(),
             blocks_to_write: vec![],
             commits_to_write: vec![],
-            misbehavior_reports_to_write: HashSet::new(),
-            committed_misbehavior_reports,
+            misbehavior_report_refs_to_write: HashSet::new(),
+            committed_misbehavior_report_refs: committed_misbehavior_reports,
             commit_info_to_write: vec![],
             scoring_subdag,
             unscored_committed_subdags,
@@ -980,8 +980,31 @@ impl DagState {
         // Save any committed misbehavior reports in memory, and count new instances of
         // misbehaviors in the provable metrics.
         for report in committed_misbehavior_reports {
-            if self.committed_misbehavior_reports.insert(report.clone()) {
-                self.context.scorer.update_provable_metrics(report);
+            match report.proof() {
+                MisbehaviorProof::Equivocation(block_refs) => {
+                    let mut new_equivocations = 0;
+                    for block_ref in block_refs.iter() {
+                        if self.committed_misbehavior_report_refs.insert(*block_ref) {
+                            new_equivocations += 1;
+                        }
+                        self.misbehavior_report_refs_to_write.insert(*block_ref);
+                    }
+                    // We count at most n-1 equivocations for n blocks in an equivocation report.
+                    // This is because one of the blocks is considered valid, and the rest are
+                    // considered equivocations.
+                    self.context.scorer.update_equivocation_count(
+                        report.target(),
+                        min(new_equivocations, block_refs.len() - 1),
+                    );
+                }
+                MisbehaviorProof::InvalidBlock(block_ref) => {
+                    if self.committed_misbehavior_report_refs.insert(*block_ref) {
+                        self.context
+                            .scorer
+                            .update_provably_faulty_block_count(report.target(), 1);
+                    }
+                    self.misbehavior_report_refs_to_write.insert(*block_ref);
+                }
             }
         }
     }
@@ -1107,7 +1130,8 @@ impl DagState {
         let blocks = std::mem::take(&mut self.blocks_to_write);
         let commits = std::mem::take(&mut self.commits_to_write);
         let commit_info_to_write = std::mem::take(&mut self.commit_info_to_write);
-        let misbehavior_reports_to_write = std::mem::take(&mut self.misbehavior_reports_to_write);
+        let misbehavior_report_refs_to_write =
+            std::mem::take(&mut self.misbehavior_report_refs_to_write);
 
         if blocks.is_empty() && commits.is_empty() {
             return;
@@ -1155,7 +1179,7 @@ impl DagState {
                     .cloned()
                     .collect(),
                 metrics_to_write,
-                misbehavior_reports_to_write,
+                misbehavior_report_refs_to_write,
             ))
             .unwrap_or_else(|e| panic!("Failed to write to storage: {e:?}"));
         self.context

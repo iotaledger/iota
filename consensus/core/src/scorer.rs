@@ -14,11 +14,7 @@ use iota_protocol_config::ProtocolConfig;
 use itertools::izip;
 
 use crate::{
-    BlockRef,
-    block::{MisbehaviorProof, MisbehaviorReport},
-    context::Context,
-    error::ConsensusError,
-    metrics::NodeMetrics,
+    BlockRef, context::Context, error::ConsensusError, metrics::NodeMetrics,
     storage::StorageScoringMetrics,
 };
 
@@ -157,18 +153,18 @@ impl Scorer {
         })
     }
 
-    pub(crate) fn update_provable_metrics(&self, report: MisbehaviorReport) {
-        let authority = report.target();
-        match *report.proof() {
-            MisbehaviorProof::Equivocation { .. } => {
-                self.provable_misbehavior_counts.equivocations[authority]
-                    .fetch_add(1, Ordering::Relaxed);
-            }
-            MisbehaviorProof::InvalidBlock(_) => {
-                self.provable_misbehavior_counts.faulty_blocks[authority]
-                    .fetch_add(1, Ordering::Relaxed);
-            }
-        }
+    pub(crate) fn update_equivocation_count(&self, authority_index: AuthorityIndex, count: usize) {
+        self.provable_misbehavior_counts.equivocations[authority_index]
+            .fetch_add(count as u64, Ordering::Relaxed);
+    }
+
+    pub(crate) fn update_provably_faulty_block_count(
+        &self,
+        authority_index: AuthorityIndex,
+        count: usize,
+    ) {
+        self.provable_misbehavior_counts.provably_faulty_blocks[authority_index]
+            .fetch_add(count as u64, Ordering::Relaxed);
     }
 
     pub(crate) fn update_scoring_metrics_on_block_receival(
@@ -530,7 +526,7 @@ impl PartialScores {
 
 pub struct ProvableMisbehaviorCounts {
     pub equivocations: Vec<AtomicU64>,
-    pub faulty_blocks: Vec<AtomicU64>,
+    pub provably_faulty_blocks: Vec<AtomicU64>,
 }
 
 impl ProvableMisbehaviorCounts {
@@ -543,7 +539,7 @@ impl ProvableMisbehaviorCounts {
             .collect();
         Self {
             equivocations,
-            faulty_blocks,
+            provably_faulty_blocks: faulty_blocks,
         }
     }
 }

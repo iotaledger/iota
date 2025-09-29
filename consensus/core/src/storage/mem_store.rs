@@ -13,8 +13,7 @@ use parking_lot::RwLock;
 use super::{Store, WriteBatch};
 use crate::{
     block::{
-        BlockAPI as _, BlockDigest, BlockRef, MisbehaviorReport, ProvablyFaultyBlock, Round, Slot,
-        VerifiedBlock,
+        BlockAPI as _, BlockDigest, BlockRef, ProvablyFaultyBlock, Round, Slot, VerifiedBlock,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRange, CommitRef,
@@ -36,7 +35,7 @@ struct Inner {
     commit_info: BTreeMap<(CommitIndex, CommitDigest), CommitInfo>,
     faulty_blocks: BTreeMap<(Round, AuthorityIndex, BlockDigest), ProvablyFaultyBlock>,
     scoring_metrics: BTreeMap<AuthorityIndex, StorageScoringMetrics>,
-    misbehavior_reports: HashSet<MisbehaviorReport>,
+    misbehavior_report_refs: HashSet<BlockRef>,
 }
 
 impl MemStore {
@@ -50,7 +49,7 @@ impl MemStore {
                 commit_info: BTreeMap::new(),
                 faulty_blocks: BTreeMap::new(),
                 scoring_metrics: BTreeMap::new(),
-                misbehavior_reports: HashSet::new(),
+                misbehavior_report_refs: HashSet::new(),
             }),
         }
     }
@@ -105,8 +104,8 @@ impl Store for MemStore {
             inner.scoring_metrics.insert(authority, metrics);
         }
 
-        for report in write_batch.misbehavior_reports {
-            inner.misbehavior_reports.insert(report);
+        for report in write_batch.misbehavior_report_refs {
+            inner.misbehavior_report_refs.insert(report);
         }
         Ok(())
     }
@@ -260,9 +259,9 @@ impl Store for MemStore {
         Ok(commits)
     }
 
-    fn scan_misbehavior_reports(&self) -> ConsensusResult<HashSet<MisbehaviorReport>> {
+    fn scan_misbehavior_reports(&self) -> ConsensusResult<HashSet<BlockRef>> {
         let inner = self.inner.read();
-        Ok(inner.misbehavior_reports.clone())
+        Ok(inner.misbehavior_report_refs.clone())
     }
 
     fn read_commit_votes(&self, commit_index: CommitIndex) -> ConsensusResult<Vec<BlockRef>> {
