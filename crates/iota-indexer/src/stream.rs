@@ -85,9 +85,9 @@ impl Filter<StoredEvent> for StreamEventFilter {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Module {
-    pub name: String,
-    pub function: Option<String>,
+pub struct ModuleFunction {
+    pub module_name: String,
+    pub function_name: Option<String>,
 }
 
 /// Filter returned [`StoredTransaction`] form the stream.
@@ -97,7 +97,7 @@ pub enum StreamTransactionFilter {
     SigningAddress(IotaAddress),
     Function {
         package: ObjectID,
-        module: Option<Module>,
+        module: Option<ModuleFunction>,
     },
 }
 
@@ -116,11 +116,11 @@ impl Filter<StoredTransaction> for StreamTransactionFilter {
                         .move_calls()
                         .iter()
                         .any(|(p, m, f)| match module {
-                            Some(module) => {
-                                let Some(ref function) = module.function else {
-                                    return *p == package && *m == module.name;
+                            Some(module_function) => {
+                                let Some(ref function) = module_function.function_name else {
+                                    return *p == package && *m == module_function.module_name;
                                 };
-                                *p == package && *m == module.name && *f == function
+                                *p == package && *m == module_function.module_name && *f == function
                             }
                             None => *p == package,
                         })
