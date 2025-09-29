@@ -34,6 +34,15 @@ services:
     <<: *common-validator
     container_name: validator-1
     hostname: validator-1
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info,iota_core=debug,iota_network=debug,iota_node=debug,jsonrpsee=error
+      - RPC_WORKER_THREAD=12
+      - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
+      - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000
+      - OTLP_ENDPOINT=http://tempo:4317
+      - OTEL_SERVICE_NAME=validator-1
+      - TRACE_FILTER=[checkpoint_received_from_state_sync]=trace,[checkpoint_received_from_consensus]=trace,[handle_consensus_output]=trace,[tx_orchestrator_execute_transaction_block]=trace,[json_rpc_api_execute_transaction_block]=trace
     networks:
       iota-network:
         ipv4_address: 10.0.0.11
@@ -265,6 +274,15 @@ services:
     networks:
       iota-network:
         ipv4_address: 10.0.0.35
+    environment:
+      - RUST_BACKTRACE=1
+      - RUST_LOG=info,iota_core=debug,iota_network=debug,iota_node=debug,jsonrpsee=error
+      - RPC_WORKER_THREAD=12
+      - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
+      - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000
+      - OTLP_ENDPOINT=http://tempo:4317
+      - OTEL_SERVICE_NAME=fullnode-1
+      - TRACE_FILTER=[checkpoint_received_from_state_sync]=trace,[checkpoint_received_from_consensus]=trace,[handle_consensus_output]=trace,[tx_orchestrator_execute_transaction_block]=trace,[json_rpc_api_execute_transaction_block]=trace
     volumes:
       - ./data/fullnode-1:/opt/iota/db:rw
       - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro

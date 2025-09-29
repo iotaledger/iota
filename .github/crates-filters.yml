@@ -54,6 +54,10 @@ iota-graphql-rpc-client:
   - "crates/iota-graphql-rpc-client/**"
 iota-graphql-rpc-headers:
   - "crates/iota-graphql-rpc-headers/**"
+iota-grpc-api:
+  - "crates/iota-grpc-api/**"
+iota-grpc-types:
+  - "crates/iota-grpc-types/**"
 iota-http:
   - "crates/iota-http/**"
 iota-indexer:

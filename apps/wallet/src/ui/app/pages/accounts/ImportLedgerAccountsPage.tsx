@@ -8,7 +8,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     AccountsFormType,
     useAccountsFormContext,
-    LedgerAccountList,
+    AccountList,
     useDeriveLedgerAccounts,
     type DerivedLedgerAccount,
     Overlay,
@@ -75,7 +75,7 @@ export function ImportLedgerAccountsPage() {
     } else if (!encounteredDerviceAccountsError) {
         importLedgerAccountsBody = (
             <div className="max-h-[530px] w-full overflow-auto">
-                <LedgerAccountList
+                <AccountList
                     accounts={ledgerAccounts}
                     selectedAccounts={selectedLedgerAccounts}
                     onAccountClick={onAccountClick}

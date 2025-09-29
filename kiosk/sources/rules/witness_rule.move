@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Description:
@@ -16,37 +16,32 @@
 /// - Require a confirmation in a third party module
 /// - Implement a custom requirement on the creator side an link the logic.
 ///
-module kiosk::witness_rule {
-    use iota::transfer_policy::{
-        Self as policy,
-        TransferPolicy,
-        TransferPolicyCap,
-        TransferRequest
-    };
+module kiosk::witness_rule;
 
-    /// When a Proof does not find its Rule<Proof>.
-    const ERuleNotFound: u64 = 0;
+use iota::transfer_policy::{Self as policy, TransferPolicy, TransferPolicyCap, TransferRequest};
 
-    /// Custom witness-key for the "proof policy".
-    struct Rule<phantom Proof: drop> has drop {}
+/// When a Proof does not find its Rule<Proof>.
+const ERuleNotFound: u64 = 0;
 
-    /// Creator action: adds the Rule.
-    /// Requires a "Proof" witness confirmation on every transfer.
-    public fun add<T: key + store, Proof: drop>(
-        policy: &mut TransferPolicy<T>,
-        cap: &TransferPolicyCap<T>
-    ) {
-        policy::add_rule(Rule<Proof> {}, policy, cap, true);
-    }
+/// Custom witness-key for the "proof policy".
+public struct Rule<phantom Proof: drop> has drop {}
 
-    /// Buyer action: follow the policy.
-    /// Present the required "Proof" instance to get a receipt.
-    public fun prove<T: key + store, Proof: drop>(
-        _proof: Proof,
-        policy: &TransferPolicy<T>,
-        request: &mut TransferRequest<T>
-    ) {
-        assert!(policy::has_rule<T, Rule<Proof>>(policy), ERuleNotFound);
-        policy::add_receipt(Rule<Proof> {}, request)
-    }
+/// Creator action: adds the Rule.
+/// Requires a "Proof" witness confirmation on every transfer.
+public fun add<T: key + store, Proof: drop>(
+    policy: &mut TransferPolicy<T>,
+    cap: &TransferPolicyCap<T>,
+) {
+    policy::add_rule(Rule<Proof> {}, policy, cap, true);
+}
+
+/// Buyer action: follow the policy.
+/// Present the required "Proof" instance to get a receipt.
+public fun prove<T: key + store, Proof: drop>(
+    _proof: Proof,
+    policy: &TransferPolicy<T>,
+    request: &mut TransferRequest<T>,
+) {
+    assert!(policy::has_rule<T, Rule<Proof>>(policy), ERuleNotFound);
+    policy::add_receipt(Rule<Proof> {}, request)
 }

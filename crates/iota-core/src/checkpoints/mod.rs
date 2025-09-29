@@ -479,6 +479,7 @@ impl CheckpointStore {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn check_for_checkpoint_fork(
         &self,
         local_checkpoint: &CheckpointSummary,
@@ -584,7 +585,7 @@ impl CheckpointStore {
 
     // Called by state sync, apart from inserting the checkpoint and updating
     // related tables, it also bumps the highest_verified_checkpoint watermark.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub fn insert_verified_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,

@@ -25,6 +25,7 @@ use iota_types::{
 use move_core_types::language_storage::StructTag;
 use parking_lot::Mutex;
 use tap::Pipe;
+use tracing::instrument;
 
 use crate::{
     authority::AuthorityState,
@@ -288,6 +289,7 @@ impl ObjectStore for RocksDbStore {
 }
 
 impl WriteStore for RocksDbStore {
+    #[instrument(level = "trace", skip_all)]
     fn try_insert_checkpoint(
         &self,
         checkpoint: &VerifiedCheckpoint,
