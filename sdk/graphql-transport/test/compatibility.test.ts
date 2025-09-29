@@ -627,6 +627,7 @@ describe('GraphQL IotaClient compatibility', () => {
         });
 
         await toolbox.client.waitForTransaction({ digest: transaction.digest });
+        await graphQLClient.waitForTransaction({ digest: transaction.digest });
 
         const {
             checkpoint: gCheckpoint,
