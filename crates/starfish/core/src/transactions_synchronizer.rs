@@ -229,6 +229,7 @@ pub(crate) struct TransactionsSynchronizerHandle {
     tasks: tokio::sync::Mutex<JoinSet<()>>,
 }
 
+
 impl TransactionsSynchronizerHandle {
     /// Explicitly asks from the transactions synchronizer to fetch the
     /// transactions - provided the block_refs set - from the peer

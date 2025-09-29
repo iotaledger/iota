@@ -1324,19 +1324,27 @@ impl DagState {
     /// "last consume leader round minus MAX_TRANSACTIONS_ACK_DEPTH minus
     /// MAX_LINEARIZER_DEPTH"
     pub(crate) fn evict_transactions(&mut self) {
+        let transaction_gc_round = self.gc_round_for_last_solid_commit();
+        let header_eviction_round = self.calculate_authority_eviction_round(self.context.own_index);
+        let transaction_eviction_round = min(transaction_gc_round, header_eviction_round + 1);
+        // Construct a dummy BlockRef with the minimum round to split on.
+        // All entries < dummy will be removed.
+        let lower_bound =
+            BlockRef::new(transaction_eviction_round, AuthorityIndex::ZERO, BlockHeaderDigest::MIN);
+
+        // Remove entries with round < min_round
+        self.recent_transactions = self.recent_transactions.split_off(&lower_bound);
+    }
+
+    /// Return the garbage collection round with respect to the last solid
+    /// commit's leader round. Transactions of blocks at or below this round
+    /// can be evicted from memory
+    pub(crate) fn gc_round_for_last_solid_commit(&self) -> Round{
         let last_solid_leader_round = self.last_solid_commit_leader_round;
         if let Some(round) = last_solid_leader_round {
-            let tr_eviction_round: Round =
-                round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH);
-            let eviction_round = self.calculate_authority_eviction_round(self.context.own_index);
-            let min_round = min(tr_eviction_round, eviction_round + 1);
-            // Construct a dummy BlockRef with the minimum round to split on.
-            // All entries < dummy will be removed.
-            let lower_bound =
-                BlockRef::new(min_round, AuthorityIndex::ZERO, BlockHeaderDigest::MIN);
-
-            // Remove entries with round < min_round
-            self.recent_transactions = self.recent_transactions.split_off(&lower_bound);
+            self.gc_round(round)
+        } else {
+            GENESIS_ROUND
         }
     }
 
@@ -1446,9 +1454,14 @@ impl DagState {
 
     /// Return the garbage collection round. Transactions of blocks at or below
     /// this round which are not yet sequenced will never be sequenced.
-    pub(crate) fn gc_round(&self) -> Round {
+    pub(crate) fn gc_round_for_last_commit(&self) -> Round {
         let last_commit_round = self.last_commit_round();
-        last_commit_round.saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH)
+       self.gc_round(last_commit_round)
+    }
+
+    /// Return the garbage collection round with respect a given round.
+    pub(crate) fn gc_round(&self, round: Round) -> Round {
+        round.saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH)
     }
 
     /// Last committed round per authority.
@@ -3019,7 +3032,7 @@ mod test {
 
         // Extend with the rest of the transactions
         all_transactions.extend(dag_builder.transactions(1..=num_rounds));
-        let gc_round = dag_state.gc_round();
+        let gc_round = dag_state.gc_round_for_last_commit();
 
         let block_refs_with_transactions_in_dag: Vec<BlockRef> = block_refs
             .iter()

@@ -110,6 +110,11 @@ pub(crate) enum ConsensusError {
         author: AuthorityIndex,
         peer: AuthorityIndex,
     },
+    #[error(
+        "After reconstruction, the transaction commitment does not match the commitment in the block {}",
+        block_ref
+    )]
+    TransactionCommitmentMismatch { block_ref: BlockRef },
 
     #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
     SynchronizerSaturated(AuthorityIndex),
@@ -202,6 +207,9 @@ pub(crate) enum ConsensusError {
 
     #[error("Request timeout: {0:?}")]
     NetworkRequestTimeout(String),
+
+    #[error("Accumulator sender has shut down!")]
+    AccumulatorSenderClosed,
 
     #[error("Consensus has shut down!")]
     Shutdown,

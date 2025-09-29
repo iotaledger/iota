@@ -15,11 +15,13 @@ use dashmap::DashSet;
 use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
+use rustls::HandshakeKind::Full;
 use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{Mutex, broadcast},
     time::sleep,
 };
+use tokio::sync::mpsc::Sender;
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
@@ -47,6 +49,7 @@ use crate::{
     synchronizer::SynchronizerHandle,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
+use crate::shard_reconstructor::{FullTransactionMessage, HeaderMessage, TransactionMessage};
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
@@ -111,6 +114,8 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// multiple times. The size is limited by MAX_FILTER_SIZE, elements are
     /// evicted when the threshold is exceeded
     received_block_headers: FilterForHeaders,
+    /// Sender to send received transaction messages to the shard reconstructor
+    transaction_message_sender: Sender<Vec<TransactionMessage>>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -124,6 +129,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
+        transaction_message_sender: Sender<Vec<TransactionMessage>>,
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
@@ -142,6 +148,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             dag_state,
             store,
             received_block_headers: FilterForHeaders::new(),
+            transaction_message_sender,
         }
     }
 }
@@ -514,6 +521,17 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         //    them
         // Normally, there should be no missing ancestors, as the headers are sent in
         // order of increasing rounds.
+
+        // For additional headers, create the respected messages for shard reconstructor
+        let mut transactions_messages: Vec<TransactionMessage> = additional_block_headers
+            .iter()
+            .map(|block_header| {
+                TransactionMessage::Header(HeaderMessage::new(
+                    block_header.reference(),
+                    block_header.transactions_commitment(),
+                ))
+            })
+            .collect();
         let (mut missing_ancestors, mut missing_committed_txns) = self
             .core_dispatcher
             .add_block_headers(additional_block_headers)
@@ -521,6 +539,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map_err(|_| ConsensusError::Shutdown)?;
 
         // 10. Add the block to dag, add its missing ancestors to the set
+
+        // For the block with transactions, create the respected message for shard reconstructor
+        transactions_messages.push(TransactionMessage::FullTransaction(
+            FullTransactionMessage::new(
+                verified_block.reference(),
+                verified_block.transactions_commitment(),
+            )
+        ));
         let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
             .add_blocks(vec![verified_block])

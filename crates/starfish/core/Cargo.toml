@@ -58,6 +58,7 @@ iota-tls.workspace = true
 shared-crypto.workspace = true
 starfish-config.workspace = true
 typed-store.workspace = true
+time = "0.3.36"
 
 [dev-dependencies]
 # external dependencies

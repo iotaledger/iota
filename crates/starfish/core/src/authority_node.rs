@@ -33,6 +33,7 @@ use crate::{
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
     transactions_synchronizer::{TransactionsSynchronizer, TransactionsSynchronizerHandle},
 };
+use crate::shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle};
 
 pub struct ConsensusAuthority {
     context: Arc<Context>,
@@ -41,7 +42,7 @@ pub struct ConsensusAuthority {
     synchronizer: Arc<SynchronizerHandle>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
-
+    shard_reconstructor: Arc<ShardReconstructorHandle>,
     commit_syncer_handle: CommitSyncerHandle,
     leader_timeout_handle: LeaderTimeoutTaskHandle,
     core_thread_handle: CoreThreadHandle,
@@ -184,6 +185,12 @@ impl ConsensusAuthority {
             context.clone(),
         );
 
+        let shard_reconstructor = ShardReconstructor::start(
+            context.clone(),
+            dag_state.clone(),
+            core_dispatcher.clone(),
+        );
+
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 
         let synchronizer = Synchronizer::start(
@@ -219,6 +226,7 @@ impl ConsensusAuthority {
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
             store,
+            shard_reconstructor.transaction_message_sender(),
         ));
 
         let subscriber = Subscriber::new(
@@ -245,6 +253,7 @@ impl ConsensusAuthority {
             start_time,
             transaction_client: Arc::new(tx_client),
             synchronizer,
+            shard_reconstructor,
             transactions_synchronizer,
             commit_consumer_monitor,
             commit_syncer_handle,
@@ -283,6 +292,17 @@ impl ConsensusAuthority {
                 e
             );
         };
+
+        if let Err(e) = self.shard_reconstructor.stop().await {
+            if e.is_panic() {
+                std::panic::resume_unwind(e.into_panic());
+            }
+            warn!(
+                "Failed to stop shard reconstructor when shutting down consensus: {:?}",
+                e
+            );
+        };
+
         self.commit_syncer_handle.stop().await;
         self.leader_timeout_handle.stop().await;
         // Shutdown Core to stop block productions and broadcast.
