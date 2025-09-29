@@ -598,6 +598,10 @@ impl IotaCommand {
             }
             IotaCommand::FireDrill { fire_drill } => run_fire_drill(fire_drill).await,
             IotaCommand::Analyzer => {
+                std::panic::set_hook(Box::new(|panic_info| {
+                    eprintln!("Fatal panic: {panic_info}");
+                    std::process::exit(1);
+                }));
                 analyzer::run(implicit_deps(latest_system_packages()));
                 Ok(())
             }
