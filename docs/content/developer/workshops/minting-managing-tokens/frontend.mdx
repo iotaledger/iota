@@ -1,0 +1,258 @@
+---
+title: Frontend
+description: Tutorial for Workshop Token (WKT) dApp frontend
+---
+
+
+# Workshop Token dApp Frontend
+
+In the previous section, you built and deployed the Move [package contract](package.mdx) for the Workshop Token (WKT) dApp. Now, let's build the frontend dApp using the [IOTA dApp kit](../../../developer/ts-sdk/dapp-kit/) along with React and other libraries for routing and UI components.
+
+### Set Up the Frontend dApp
+
+First, create an initial react app using the following command:
+
+```bash
+pnpm create @iota/create-dapp
+```
+
+## Set Up the Frontend dApp
+
+Start by creating a new React project with Vite or your preferred tool (or from existing source).
+
+### Install required dependencies:
+
+```bash
+pnpm install
+```
+
+### Core dependencies include:
+
+- `@iota/dapp-kit` for blockchain interaction and wallet connection
+
+- `@radix-ui/themes` and `@radix-ui/react-tabs` for UI components and styling
+
+- `react-router-dom` for client-side routing
+
+- `@tanstack/react-query` for data fetching and caching
+
+
+### Set Up Network Configuration
+
+Add the following variables in the [`networkConfig.ts`](https://github.com/iota-community/workshops/blob/main/workshop-module-7/workshop-token-frontend/src/networkConfig.ts) file:
+
+```javascript reference
+https://github.com/iota-community/workshops/blob/f9b9d70d6167e9da657a45640945e646bc3c06bc/workshop-module-7/workshop-token-frontend/src/networkConfig.ts#L1-L23
+```
+
+You should retrieve the shared objects from the transaction digest of the published [package](package.mdx).
+
+:::note
+
+Make sure to replace `<YOUR_PACKAGE_ID>` and `<YOUR_FAUCET_Object_ID>` with actual object IDs from your deployment.
+
+:::
+
+### Start Development Server
+
+Run the dev server to launch your dApp locally:
+
+```bash
+pnpm run dev
+```
+
+- Open the provided URL (usually http://localhost:3000) in a browser to interact with the dApp.
+- This section prepares the environment to launch the frontend connected to your deployed Move contract on IOTA.
+
+## Folder/File Structure
+
+```text
+.
+├── eslint.config.js
+├── index.html
+├── package.json
+├── pnpm-lock.yaml
+├── prettier.config.cjs
+├── README.md
+├── src
+│   ├── App.tsx
+│   ├── components
+│   │   ├── AdminPanel.tsx
+│   │   ├── BadgeGallery.tsx
+│   │   ├── CelebrationModal.tsx
+│   │   ├── ClaimCoupon.tsx
+│   │   ├── ClaimTokens.tsx
+│   │   ├── Home
+│   │   │   ├── ActionTabs.tsx
+│   │   │   ├── DashboardSummary.tsx
+│   │   │   ├── Home.tsx
+│   │   │   └── HomeStyles.css
+│   │   ├── MakePayment.tsx
+│   │   ├── molecules
+│   │   │   ├── Button.tsx
+│   │   │   ├── Loading.tsx
+│   │   │   └── Tooltip.tsx
+│   │   └── RedeemBadge.tsx
+│   ├── hooks
+│   │   └── useWKTContract.ts
+│   ├── main.tsx
+│   ├── networkConfig.ts
+│   ├── OwnedObjects.tsx
+│   ├── theme
+│   │   └── darkTheme.ts
+│   ├── types
+│   │   └── index.ts
+│   ├── utils
+│   │   └── errorHandling.ts
+│   ├── vite-env.d.ts
+│   └── WalletStatus.tsx
+├── tsconfig.json
+├── tsconfig.node.json
+└── vite.config.ts
+```
+
+The frontend source is organized as:
+
+- `src/components` - Contains UI components for Dashboard, Claims, Payments, Badges, and Admin panel.
+- `src/hooks` - Contains useWKTContract.ts custom hook to handle all blockchain calls.
+- `src/utils` - Utility functions including error parsing.
+- `src/types` - Shared type definitions.
+
+### Main Application
+
+The `App.tsx` manages:
+
+- Navigation bar with wallet connect button and admin panel link (when applicable)
+- Routing to various pages: Dashboard, Claim Tokens, Claim Coupons, Make Payment, Redeem Badge, Badge Gallery, Admin Panel.
+
+```javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/App.tsx#L1-L114
+```
+
+### User Components
+
+Key user components include:
+
+- `DashboardSummary` - Overview of token balances and badges.
+- `ActionTabs` - Tabs to switch between token/payment actions and badge/reward views.
+- `OwnedObjects` - Lists badges and token info owned by the user.
+- `ClaimTokens / ClaimCoupon` - Interfaces to claim tokens daily or via coupon code given by admin.
+- `MakePayment` - Send tokens to another wallet with balance checks.
+- `RedeemBadge` - Redeem earned badges for bonus tokens.
+- `BadgeGallery` - Browse earned badges with redeem button.
+
+### Admin Panel
+
+- Manage coupon codes: Add or remove coupon codes.
+- Configure auto badge minting settings.
+- Manually mint badges to recipients.
+- Admin-only access gated based on blockchain admin check.
+
+### UI Styling and Feedback
+
+- Consistent dark theme using Radix UI themes.
+- Tooltips provide help and guidance.
+- Success and error messages with icons and colors for clear feedback.
+- Loading spinner for async operations and data fetching.
+
+### Shared Hook for Blockchain Interaction [hooks/useWKTContract.ts](https://github.com/iota-community/workshops/blob/main/workshop-module-7/workshop-token-frontend/src/hooks/useWKTContract.ts)
+
+- Provides React hook useWKTContract which exposes functions and state to interact with the blockchain.
+- Wraps contract calls such as claimTokens, claimWithCoupon, makePayment, redeemBadge, admin functions.
+- Handles connection state, loading indicators, success/error handling.
+- Parses Move contract errors into user-friendly messages.
+
+```javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/hooks/useWKTContract.ts#L1-L50
+```
+
+### Dashboard and Controls [components/Home](https://github.com/iota-community/workshops/tree/main/workshop-module-7/workshop-token-frontend/src/components/Home)
+
+- `Home.tsx`: Main dashboard displaying user balances, badges, and claim/payment status.
+- `DashboardSummary.tsx`: Displays wallet address, total WKT balance, badges earned, and claim redemption status.
+- `ActionTabs.tsx`: Tabbed interface separating Token/Payment actions and Badge-related features.
+- `OwnedObjects.tsx`: Lists all Workshop badges and tokens owned by the connected account.
+
+```javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/components/Home/Home.tsx#L1-L119
+```
+
+### Claim Interfaces [components/ClaimTokens.tsx](https://github.com/iota-community/workshops/blob/main/workshop-module-7/workshop-token-frontend/src/components/ClaimTokens.tsx) and [components/ClaimCoupon.tsx](https://github.com/iota-community/workshops/blob/main/workshop-module-7/workshop-token-frontend/src/components/ClaimCoupon.tsx)
+
+- UI forms for claiming daily tokens and redeeming coupons.
+- Input validation, connection checks, and error/success message feedback.
+- Utilizes `useWKTContract` hook functions for blockchain operations.
+
+```javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/components/ClaimTokens.tsx#L1-L159
+```
+
+````javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/components/ClaimCoupon.tsx#L1-L182
+````
+
+### Payment Component [components/MakePayment.tsx](https://github.com/iota-community/workshops/blob/main/workshop-module-7/workshop-token-frontend/src/components/MakePayment.tsx)
+
+- Form for sending WKT tokens to other addresses.
+- Shows current token balance and processes payments.
+- After payments, checks and displays newly minted badges if any.
+- Shows celebratory confetti modal on new badge mint.
+
+```javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/components/MakePayment.tsx#L1-L80
+```
+
+### Badge Management [components/BadgeGallery.tsx](https://github.com/iota-community/workshops/blob/main/workshop-module-7/workshop-token-frontend/src/components/BadgeGallery.tsx) and [components/RedeemBadge.tsx](https://github.com/iota-community/workshops/blob/main/workshop-module-7/workshop-token-frontend/src/components/RedeemBadge.tsx)
+
+- Badge Gallery displays all badges earned with images, minting dates, and badge IDs.
+- Badge Redeem component allows redeeming badges for WKT tokens with one-time restriction.
+- Includes error and state messaging guiding the user.
+
+```javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/components/RedeemBadge.tsx#L1-L15
+```
+
+```javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/components/BadgeGallery.tsx#L1-L11
+```
+
+### Admin Dashboard [components/AdminPanel.tsx](https://github.com/iota-community/workshops/blob/main/workshop-module-7/workshop-token-frontend/src/components/AdminPanel.tsx)
+
+- Accessible only to admin wallet addresses.
+- Manage coupon codes (add/remove).
+- Configure and update auto badge settings.
+- Mint badges to users manually.
+- Shows feedback on action outcomes.
+
+```javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/components/AdminPanel.tsx#L1-L45
+```
+
+### [UI Reusable Components](https://github.com/iota-community/workshops/tree/main/workshop-module-7/workshop-token-frontend/src/components/molecules)
+
+- Reusable UI elements such as buttons, tooltips, and loading spinners (components/molecules/).
+- Designed with Radix UI themes for consistent dark theme styling and accessibility.
+
+```javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/components/molecules/Button.tsx#L1-L31
+```
+```javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/components/molecules/Loading.tsx#L1-L48
+```
+```javascript reference
+https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578d3478908f/workshop-module-7/workshop-token-frontend/src/components/molecules/Tooltip.tsx#L1-L117
+```
+
+## Complete Source Code
+
+The complete source code for the Workshop Token dApp frontend is available on GitHub:
+[workshop-token-frontend](https://github.com/iota-community/workshops/tree/main/workshop-module-7/workshop-token-frontend)
+
+## Deployed Frontend Application: 
+
+[Workshop Token dApp Frontend](https://workshops-token-frontend.vercel.app/)
+
+## Conclusion
+
+The Workshop Minting Managing Tokens (WKT) tutorial focuses on custom token management using the IOTA blockchain and the Move programming language. It guides developers through defining, minting, and managing fungible tokens and NFTs tailored for workshops and events. Key features include daily token claims, coupon-based distribution, peer-to-peer payments, and badge rewards as NFTs. The tutorial highlights secure admin controls, event-driven contract design, and robust error handling. Complemented by a modern frontend built with React and the IOTA dApp kit, it demonstrates seamless blockchain integration with user-friendly interfaces. This hands-on guide equips developers to create scalable, feeless token ecosystems fostering engagement and rewarding participation on the IOTA network.
+
