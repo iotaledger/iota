@@ -45,12 +45,12 @@ public(package) fun create(addresses: vector<address>, weights: vector<u64>): Me
 // --------------------------------------- Members ---------------------------------------
 
 /// Checks if the account has a member with the provided address.
-public(package) fun has_member(self: &Members, addr: address): bool {
+public fun contains(self: &Members, addr: address): bool {
     find_index(self, addr).is_some()
 }
 
 /// Immutably borrows the account member with the provided address.
-public(package) fun member(self: &Members, addr: address): &Member {
+public fun borrow(self: &Members, addr: address): &Member {
     let index = find_index(self, addr);
 
     assert!(index.is_some(), EMemberIsNotFound);
@@ -58,8 +58,29 @@ public(package) fun member(self: &Members, addr: address): &Member {
     self.list.borrow(*index.borrow())
 }
 
+/// Returns the addresses of all the members.
+public fun addresses(self: &Members): vector<address> {
+    let mut addresses = vector::empty<address>();
+    self.list.do_ref!(|m| addresses.push_back(m.addr));
+    addresses
+}
+
+/// Returns the weights of all the members.
+public fun weights(self: &Members): vector<u64> {
+    let mut weights = vector::empty<u64>();
+    self.list.do_ref!(|m| weights.push_back(m.weight));
+    weights
+}
+
+/// Returns the total weight of all the members.
+public fun total_weight(self: &Members): u64 {
+    let mut total = 0;
+    self.list.do_ref!(|m| total = total + m.weight);
+    total
+}
+
 /// Mutably borrows the account member with the provided address.
-public(package) fun member_mut(self: &mut Members, addr: address): &mut Member {
+public(package) fun borrow_mut(self: &mut Members, addr: address): &mut Member {
     let index = find_index(self, addr);
 
     assert!(index.is_some(), EMemberIsNotFound);
@@ -67,22 +88,15 @@ public(package) fun member_mut(self: &mut Members, addr: address): &mut Member {
     self.list.borrow_mut(*index.borrow())
 }
 
-/// Returns the total weight of all the members.
-public(package) fun total_weight(self: &Members): u64 {
-    let mut total = 0;
-    self.list.do_ref!(|m| total = total + m.weight);
-    total
-}
-
 // --------------------------------------- Member ---------------------------------------
 
 /// Borrows the address of the member.
-public(package) fun addr(self: &Member): &address {
+public fun addr(self: &Member): &address {
     &self.addr
 }
 
 /// Returns the weight of the member.
-public(package) fun weight(self: &Member): u64 {
+public fun weight(self: &Member): u64 {
     self.weight
 }
 

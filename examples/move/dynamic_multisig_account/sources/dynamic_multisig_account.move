@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module dynamic_multisig_account::account;
+module dynamic_multisig_account::dynamic_multisig_account;
 
 use dynamic_multisig_account::members::{Self, Members};
 use dynamic_multisig_account::transactions::{Self, Transactions};
@@ -67,6 +67,53 @@ public fun create(
     iota::transfer::share_object(DynamicMultisigAccount { id });
 }
 
+// --------------------------------------- View Functions ---------------------------------------
+
+/// Returns the account address.
+public fun get_address(self: &DynamicMultisigAccount): address {
+    self.id.to_address()
+}
+
+/// Borrows the account threshold.
+public fun threshold(self: &DynamicMultisigAccount): u64 {
+    *dynamic_field::borrow(&self.id, threshold_key())
+}
+
+/// Immutably borrows the account members.
+public fun members(self: &DynamicMultisigAccount): &Members {
+    dynamic_field::borrow(&self.id, members_key())
+}
+
+/// Immutably borrows the account transactions.
+public fun transactions(self: &DynamicMultisigAccount): &Transactions {
+    dynamic_field::borrow(&self.id, transactions_key())
+}
+
+/// Returns the total weight of the members who approved the transaction with the provided digest.
+public fun total_approves(self: &DynamicMultisigAccount, transaction_digest: vector<u8>): u64 {
+    if (!self.transactions().contains(transaction_digest)) {
+        return 0
+    };
+
+    let members = self.members();
+    let transaction = self.transactions().borrow(transaction_digest);
+
+    let mut total_approves = 0;
+
+    transaction.approves().do_ref!(|addr| {
+        if (members.contains(*addr)) {
+            total_approves = total_approves + members.borrow(*addr).weight();
+        }
+    });
+
+    total_approves
+}
+
+/// Immutably borrows the account authenticator.
+public fun authenticator(self: &DynamicMultisigAccount): &AuthenticatorInfoV1 {
+    dynamic_field::borrow(&self.id, account::authenticator_df_name())
+}
+
 // --------------------------------------- Transactions ---------------------------------------
 
 /// Proposes a new transaction to be approved by the account members.
@@ -77,19 +124,19 @@ public fun propose_transaction(
     ctx: &TxContext
 ) {
     // Get the member who proposed the transaction.
-    let member_address = *self.members().member(ctx.sender()).addr();
+    let member_address = *self.members().borrow(ctx.sender()).addr();
 
     // Store the transaction.
-    self.transactions_mut().add_transaction(transaction_digest, member_address);
+    self.transactions_mut().add(transaction_digest, member_address);
 }
 
 /// Approves a proposed transaction.
 public fun approve_transaction(self: &mut DynamicMultisigAccount, transaction_digest: vector<u8>, ctx: &TxContext) {
     // Get the member who proposed the transaction.
-    let member_address = *self.members().member(ctx.sender()).addr();
+    let member_address = *self.members().borrow(ctx.sender()).addr();
 
     // Get the transaction.
-    let transaction = self.transactions_mut().transaction_mut(transaction_digest);
+    let transaction = self.transactions_mut().borrow_mut(transaction_digest);
 
     // Approve the transaction.
     transaction.add_approval(member_address);
@@ -103,7 +150,7 @@ public fun remove_transaction(self: &mut DynamicMultisigAccount, transaction_dig
     ensure_tx_sender_is_account(self, ctx);
 
     // Get the transaction.
-    self.transactions_mut().remove_transaction(transaction_digest);
+    self.transactions_mut().remove(transaction_digest);
 }
 
 // --------------------------------------- Authentication ---------------------------------------
@@ -138,13 +185,17 @@ public fun update_account_data(
 }
 
 /// A transaction authenticator.
-/// Checks that the sender of this transaction is the account and that the transaction is approved.
+/// 
+/// Checks that the sender of this transaction is the account.
+/// The total weight of the members who approved the transaction must be greater than or equal to the threshold.
+/// If the members list is changed after the transaction proposal, only the members who are still in the list
+/// are considered for the approval. Their weights are taken from the current members list.
 public fun authenticate(self: &DynamicMultisigAccount, _: &AuthContext, ctx: &TxContext) {
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
 
     // Check that the transaction is approved.
-    ensure_tx_is_approved(self, ctx);
+    assert!(self.total_approves(*ctx.digest()) >= self.threshold(), ETransactionDoesNotHaveSufficientApprovals);
 }
 
 // --------------------------------------- Utilities ---------------------------------------
@@ -152,26 +203,6 @@ public fun authenticate(self: &DynamicMultisigAccount, _: &AuthContext, ctx: &Tx
 /// Checks that the sender of this transaction is the account.
 fun ensure_tx_sender_is_account(self: &DynamicMultisigAccount, ctx: &TxContext) {
     assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
-}
-
-/// Checks that the transaction is approved.
-/// The total weight of the members who approved the transaction must be greater than or equal to the threshold.
-/// If the members list is changed after the transaction proposal, only the members who are still in the list
-/// are considered for the approval. Their weights are taken from the current members list.
-fun ensure_tx_is_approved(self: &DynamicMultisigAccount, ctx: &TxContext) {
-    let members = self.members();
-    let transaction = self.transactions().transaction(*ctx.digest());
-    let threshold = self.threshold();
-
-    let mut total_approves = 0;
-
-    transaction.approves().do_ref!(|addr| {
-        if (members.has_member(*addr)) {
-            total_approves = total_approves + members.member(*addr).weight();
-        }
-    });
-
-    assert!(total_approves >= threshold, ETransactionDoesNotHaveSufficientApprovals);
 }
 
 /// Returns the dynamic field name used to store the members information.
@@ -189,24 +220,9 @@ fun transactions_key(): TransactionsKey {
     TransactionsKey{}
 }
 
-/// Immutably borrows the account members.
-fun members(self: &DynamicMultisigAccount): &Members {
-    dynamic_field::borrow(&self.id, members_key())
-}
-
-/// Immutably borrows the account transactions.
-fun transactions(self: &DynamicMultisigAccount): &Transactions {
-    dynamic_field::borrow(&self.id, transactions_key())
-}
-
 /// Mutably borrows the account transactions.
 fun transactions_mut(self: &mut DynamicMultisigAccount): &mut Transactions {
     dynamic_field::borrow_mut(&mut self.id, transactions_key())
-}
-
-/// Borrows the account threshold.
-fun threshold(self: &DynamicMultisigAccount): u64 {
-    *dynamic_field::borrow(&self.id, threshold_key())
 }
 
 /// Verifies the threshold.
