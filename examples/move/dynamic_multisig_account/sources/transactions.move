@@ -32,7 +32,7 @@ public struct Transactions has store {
 
 // --------------------------------------- Creation ---------------------------------------
 
-/// Creates a `Transactions` struct.
+/// Creates a `Transactions` instance.
 public(package) fun create(ctx: &mut TxContext): Transactions {
     Transactions{ bag: bag::new(ctx) }
 }

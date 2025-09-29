@@ -30,8 +30,9 @@ public struct Members has drop, store {
 
 // --------------------------------------- Creation ---------------------------------------
 
-/// Creates a `Members` struct from the given vectors of addresses and weights.
+/// Creates a `Members` instance from the given vectors of addresses and weights.
 /// The vectors must have the same length.
+/// The addresses must be unique.
 public(package) fun create(addresses: vector<address>, weights: vector<u64>): Members {
     // Check that the provided members components are valid.
     check_members(&addresses, &weights);

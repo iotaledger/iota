@@ -40,9 +40,9 @@ fun test_account_creation() {
         {
             let mut account = scenario.take_shared<DynamicMultisigAccount>();
 
-            // The transaction does not exist yet.
+            // The transaction does not exist
             assert_eq(account.transactions().contains(TRANSACTION_DIGEST), false);
-            // The transaction has no approvals yet.
+            // and has no approvals yet.
             assert_eq(account.total_approves(TRANSACTION_DIGEST), 0);
 
             account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
@@ -57,11 +57,12 @@ fun test_account_creation() {
 
             let transaction = account.transactions().borrow(TRANSACTION_DIGEST);
 
-            // The transaction now exists.
+            // The transaction now exists
             assert_eq(transaction.digest(), TRANSACTION_DIGEST);
             // and has one approval from the proposer.
             assert_ref_eq(transaction.approves(), &vector[@0x1]);
-            // The transaction has only one approval.
+
+            // The approval weight of the transaction equals to the weight of the proposer.
             assert_eq(account.total_approves(TRANSACTION_DIGEST), 1);
 
             account.approve_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
@@ -78,9 +79,9 @@ fun test_account_creation() {
 
             let transaction = account.transactions().borrow(TRANSACTION_DIGEST);
 
-            // The transaction now has two approvals.
+            // The transaction now has two approvals
             assert_ref_eq(transaction.approves(), &vector[@0x1, @0x2]);
-            // The transaction has two approvals with total weight which is enough to reach the threshold.
+            // with total weight which is enough to reach the threshold.
             assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
 
             dynamic_multisig_account::authenticate(&account, &auth_ctx, &tx_ctx);
@@ -549,14 +550,14 @@ fun test_authenticate_by_not_account() {
 
             account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
 
-            // The transaction has enough approves weight and can be executed.
             assert_eq(account.threshold(), 3);
+            // The transaction has enough approves weight and can be executed.
             assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
 
             test_scenario::return_shared(account);
         };
 
-        // Authenticate the transaction by nit the account.
+        // Authenticate the transaction by not the account.
         scenario.next_tx(@0x3);
         {
             let account = scenario.take_shared<DynamicMultisigAccount>();
@@ -581,8 +582,8 @@ fun test_authenticate_not_enough_total_weight() {
 
             account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
 
-            // The transaction has not enough approves to be executed.
             assert_eq(account.threshold(), 3);
+            // The transaction has not enough approves to be executed.
             assert_eq(account.total_approves(TRANSACTION_DIGEST), 1);
 
             test_scenario::return_shared(account);
@@ -613,8 +614,8 @@ fun test_authenticate_not_enough_total_weight_after_update() {
 
             account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
 
-            // The transaction has enough approves weight and can be executed.
             assert_eq(account.threshold(), 3);
+            // The transaction has enough approves weight and can be executed.
             assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
 
             test_scenario::return_shared(account);
@@ -673,8 +674,8 @@ fun test_authenticate_member_removed_during_update() {
 
             account.approve_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
 
-            // The transaction has enough approves weight and can be executed.
             assert_eq(account.threshold(), 3);
+            // The transaction has enough approves weight and can be executed.
             assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
 
             test_scenario::return_shared(account);
@@ -723,8 +724,8 @@ fun test_authenticate_threshold_changed_during_update() {
 
             account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
 
-            // The transaction has enough approves weight and can be executed.
             assert_eq(account.threshold(), 3);
+            // The transaction has enough approves weight and can be executed.
             assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
 
             test_scenario::return_shared(account);
@@ -737,9 +738,9 @@ fun test_authenticate_threshold_changed_during_update() {
 
             let ctx = test_scenario::ctx(scenario);
 
-            // The threshold is increased, so the transaction does not have enough weight to reach the threshold after the update.
             let members_addresses = vector[@0x1, @0x2, @0x3];
             let members_weights = vector[1, 2, 3];
+            // The threshold is increased, so the transaction does not have enough weight to reach the threshold after the update.
             let threshold = 4;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 

@@ -91,6 +91,7 @@ public fun transactions(self: &DynamicMultisigAccount): &Transactions {
 
 /// Returns the total weight of the members who approved the transaction with the provided digest.
 public fun total_approves(self: &DynamicMultisigAccount, transaction_digest: vector<u8>): u64 {
+    // If the transaction does not exist, the total approves is zero.
     if (!self.transactions().contains(transaction_digest)) {
         return 0
     };
@@ -98,14 +99,13 @@ public fun total_approves(self: &DynamicMultisigAccount, transaction_digest: vec
     let members = self.members();
     let transaction = self.transactions().borrow(transaction_digest);
 
+    // Calculate the total weight of the members who approved the transaction.
     let mut total_approves = 0;
-
     transaction.approves().do_ref!(|addr| {
         if (members.contains(*addr)) {
             total_approves = total_approves + members.borrow(*addr).weight();
         }
     });
-
     total_approves
 }
 
@@ -132,7 +132,7 @@ public fun propose_transaction(
 
 /// Approves a proposed transaction.
 public fun approve_transaction(self: &mut DynamicMultisigAccount, transaction_digest: vector<u8>, ctx: &TxContext) {
-    // Get the member who proposed the transaction.
+    // Get the member who approved the transaction.
     let member_address = *self.members().borrow(ctx.sender()).addr();
 
     // Get the transaction.
@@ -149,7 +149,7 @@ public fun remove_transaction(self: &mut DynamicMultisigAccount, transaction_dig
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
 
-    // Get the transaction.
+    // Remove the transaction.
     self.transactions_mut().remove(transaction_digest);
 }
 
