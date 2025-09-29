@@ -53,6 +53,19 @@ impl Hash for MoveAuthenticator {
 }
 
 impl MoveAuthenticator {
+    pub fn new_for_testing(
+        call_args: Vec<CallArg>,
+        type_arguments: Vec<TypeTag>,
+        object_to_authenticate: CallArg,
+    ) -> Self {
+        Self {
+            call_args,
+            type_arguments,
+            object_to_authenticate,
+            bytes: OnceCell::new(),
+        }
+    }
+
     pub fn address(&self) -> IotaResult<IotaAddress> {
         let (id, _, _) = self.object_to_authenticate_components()?;
         Ok(IotaAddress::from(id))

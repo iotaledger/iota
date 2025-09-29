@@ -140,7 +140,7 @@ impl Serialize for AuthContext {
                             "type_arguments",
                             &m.type_arguments
                                 .iter()
-                                .map(|ty| TypeName::from(ty))
+                                .map(TypeName::from)
                                 .collect::<Vec<_>>(),
                         )?;
                         s.serialize_field("arguments", &m.arguments)?;
@@ -149,7 +149,7 @@ impl Serialize for AuthContext {
                     Command::MakeMoveVec(ty_opt, vals) => {
                         let mut s =
                             serializer.serialize_tuple_variant("Command", 5, "MakeMoveVec", 2)?;
-                        s.serialize_field(&ty_opt.as_ref().map(|ty| TypeName::from(ty)))?;
+                        s.serialize_field(&ty_opt.as_ref().map(TypeName::from))?;
                         s.serialize_field(vals)?;
                         s.end()
                     }

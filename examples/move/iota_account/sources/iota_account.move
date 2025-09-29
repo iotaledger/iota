@@ -10,6 +10,7 @@ use iota::dynamic_field;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
+use iota::hex::decode;
 
 #[error(code = 0)]
 const ETransactionSenderIsNotTheAccount: vector<u8> = b"The user who signed the transaction is not the account.";
@@ -174,7 +175,7 @@ public fun authenticate_ed25519(
 
     // Check the signature.
     assert!(
-        ed25519::ed25519_verify(&signature, self.borrow_public_key(), ctx.digest()),
+        ed25519::ed25519_verify(&decode(signature), self.borrow_public_key(), ctx.digest()),
         EEd25519VerificationFailed
     );
 }
@@ -191,7 +192,7 @@ public fun authenticate_secp256k1(
 
     // Check the signature.
     assert!(
-        ecdsa_k1::secp256k1_verify(&signature, self.borrow_public_key(), ctx.digest(), 0),
+        ecdsa_k1::secp256k1_verify(&decode(signature), self.borrow_public_key(), ctx.digest(), 0),
         ESecp256k1VerificationFailed
     );
 }
@@ -208,7 +209,7 @@ public fun authenticate_secp256r1(
 
     // Check the signature.
     assert!(
-        ecdsa_r1::secp256r1_verify(&signature, self.borrow_public_key(), ctx.digest(), 0),
+        ecdsa_r1::secp256r1_verify(&decode(signature), self.borrow_public_key(), ctx.digest(), 0),
         ESecp256r1VerificationFailed
     );
 }
