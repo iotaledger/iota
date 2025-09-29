@@ -6,16 +6,18 @@ use std::{env, path::PathBuf, time::Duration};
 
 use anyhow::Result;
 use iota_data_ingestion::{
-    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, HistoricalReducer,
+    ArchivalConfig, ArchivalReducer, BlobTaskConfig, BlobWorker, GrpcBlobWorker, HistoricalReducer,
     HistoricalWriterConfig, KVStoreTaskConfig, KVStoreWorker, RelayWorker, common,
 };
 use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, WorkerPool,
 };
+use iota_grpc_api::NodeClient;
 use iota_kvstore::{BigTableClient, KvWorker};
 use iota_rest_api::Client;
 use prometheus::Registry;
 use serde::{Deserialize, Serialize};
+use tokio_stream::StreamExt;
 use tokio_util::sync::CancellationToken;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -145,44 +147,113 @@ async fn main() -> Result<()> {
                 executor.register(worker_pool).await?;
             }
             Task::Blob(blob_config) => {
-                let rest_client = Client::new(&blob_config.node_rest_api_url);
-                let watermark = executor.read_watermark(task_config.name.clone()).await?;
-                let current_epoch = common::current_epoch(&rest_client).await?;
-                let current_epoch_first_checkpoint_seq_num =
-                    common::epoch_first_checkpoint_sequence_number(&rest_client, current_epoch)
+                if let Some(grpc_url) = blob_config.node_grpc_api_url.clone() {
+                    let remote_store = blob_config.object_store_config.make()?;
+                    let task_name = task_config.name.clone();
+                    let mut watermark = executor.read_watermark(task_name.clone()).await?;
+
+                    let node_client = NodeClient::connect(&grpc_url)
+                        .await
+                        .map_err(|e| anyhow::anyhow!("Failed to connect to gRPC client: {}", e))?;
+                    let mut checkpoint_client = node_client
+                        .checkpoint_client()
+                        .ok_or_else(|| anyhow::anyhow!("Checkpoint client not available"))?;
+                    let mut stream = checkpoint_client
+                        .stream_checkpoints(None, Some(watermark), true)
                         .await?;
-                // if watermark is less than the first checkpoint of current epoch
-                // is safe to assume that an epoch was changed.
-                let worker = if watermark < current_epoch_first_checkpoint_seq_num {
-                    // updating the watermark ensures that the worker will start synchronization
-                    // from that point onward.
-                    executor
-                        .update_watermark(
-                            task_config.name.clone(),
-                            current_epoch_first_checkpoint_seq_num,
+                    let mut current_epoch = 0u64;
+                    if let Some(Ok(first_checkpoint)) = stream.next().await {
+                        // The stream now returns CheckpointContent directly
+                        match &first_checkpoint {
+                            iota_grpc_api::CheckpointContent::Data(checkpoint_data) => {
+                                let sequence_number = checkpoint_data.sequence_number();
+                                if sequence_number > watermark {
+                                    tracing::warn!(
+                                        "Watermark {} is behind node's first available checkpoint {}. Resetting.",
+                                        watermark,
+                                        sequence_number
+                                    );
+                                    watermark = sequence_number;
+                                    executor
+                                        .update_watermark(task_name.clone(), watermark)
+                                        .await?;
+                                }
+
+                                // Extract the current epoch from the checkpoint data
+                                if let Some(checkpoint_v1) = checkpoint_data.as_v1() {
+                                    current_epoch = checkpoint_v1.checkpoint_summary.epoch;
+                                    tracing::debug!(
+                                        "Extracted current epoch {} from checkpoint {}",
+                                        current_epoch,
+                                        sequence_number
+                                    );
+                                } else {
+                                    tracing::warn!(
+                                        "Unknown checkpoint data version, using epoch 0 as fallback"
+                                    );
+                                }
+                            }
+                            iota_grpc_api::CheckpointContent::Summary(_) => {
+                                tracing::error!(
+                                    "Checkpoint contains summary instead of data, using epoch 0 as fallback"
+                                );
+                            }
+                        }
+                    } else {
+                        tracing::warn!("No checkpoint data available from stream");
+                    }
+                    let worker = GrpcBlobWorker::new(
+                        remote_store,
+                        grpc_url,
+                        blob_config.checkpoint_chunk_size_mb,
+                        current_epoch,
+                    );
+                    let worker_pool = WorkerPool::new(
+                        worker,
+                        task_config.name,
+                        task_config.concurrency,
+                        Default::default(),
+                    );
+                    executor.register(worker_pool).await?;
+                } else {
+                    let rest_client = Client::new(&blob_config.node_rest_api_url);
+                    let watermark = executor.read_watermark(task_config.name.clone()).await?;
+                    let current_epoch = common::current_epoch(&rest_client).await?;
+                    let current_epoch_first_checkpoint_seq_num =
+                        common::epoch_first_checkpoint_sequence_number(&rest_client, current_epoch)
+                            .await?;
+                    // if watermark is less than the first checkpoint of current epoch
+                    // is safe to assume that an epoch was changed.
+                    let worker = if watermark < current_epoch_first_checkpoint_seq_num {
+                        // updating the watermark ensures that the worker will start synchronization
+                        // from that point onward.
+                        executor
+                            .update_watermark(
+                                task_config.name.clone(),
+                                current_epoch_first_checkpoint_seq_num,
+                            )
+                            .await?;
+                        // get the range from the first checkpoint of the watermark's epoch to the
+                        // watermark
+                        let reset_range = common::checkpoint_sequence_number_range_to_watermark(
+                            &rest_client,
+                            watermark,
                         )
                         .await?;
-                    // get the range from the first checkpoint of the watermark's epoch to the
-                    // watermark
-                    let reset_range = common::checkpoint_sequence_number_range_to_watermark(
-                        &rest_client,
-                        watermark,
-                    )
-                    .await?;
-                    let worker = BlobWorker::new(blob_config, rest_client, current_epoch)?;
-                    worker.reset_remote_store(reset_range).await?;
-                    worker
-                } else {
-                    BlobWorker::new(blob_config, rest_client, current_epoch)?
-                };
-
-                let worker_pool = WorkerPool::new(
-                    worker,
-                    task_config.name,
-                    task_config.concurrency,
-                    Default::default(),
-                );
-                executor.register(worker_pool).await?;
+                        let worker = BlobWorker::new(blob_config, rest_client, current_epoch)?;
+                        worker.reset_remote_store(reset_range).await?;
+                        worker
+                    } else {
+                        BlobWorker::new(blob_config, rest_client, current_epoch)?
+                    };
+                    let worker_pool = WorkerPool::new(
+                        worker,
+                        task_config.name,
+                        task_config.concurrency,
+                        Default::default(),
+                    );
+                    executor.register(worker_pool).await?;
+                }
             }
             Task::BigTableKv(kv_config) => {
                 let client = BigTableClient::new_remote(

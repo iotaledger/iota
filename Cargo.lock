@@ -5968,6 +5968,7 @@ dependencies = [
  "iota-archival",
  "iota-config",
  "iota-data-ingestion-core",
+ "iota-grpc-api",
  "iota-kvstore",
  "iota-metrics",
  "iota-rest-api",
@@ -5979,8 +5980,11 @@ dependencies = [
  "serde_yaml",
  "telemetry-subscribers",
  "tempfile",
+ "test-cluster",
  "tokio",
+ "tokio-stream",
  "tokio-util 0.7.12",
+ "tonic 0.13.1",
  "tracing",
 ]
 
@@ -5997,6 +6001,8 @@ dependencies = [
  "fastcrypto",
  "futures",
  "iota-config",
+ "iota-grpc-api",
+ "iota-grpc-types",
  "iota-metrics",
  "iota-protocol-config",
  "iota-rest-api",
@@ -6464,6 +6470,8 @@ dependencies = [
  "hex",
  "iota-config",
  "iota-data-ingestion-core",
+ "iota-grpc-api",
+ "iota-grpc-types",
  "iota-json",
  "iota-json-rpc",
  "iota-json-rpc-api",
@@ -6477,6 +6485,7 @@ dependencies = [
  "iota-package-resolver",
  "iota-protocol-config",
  "iota-rest-api",
+ "iota-storage",
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-transaction-builder",
@@ -6504,6 +6513,7 @@ dependencies = [
  "tokio-util 0.7.12",
  "toml 0.7.8",
  "tracing",
+ "tracing-subscriber",
  "url",
 ]
 

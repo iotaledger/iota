@@ -7,7 +7,7 @@ use std::{collections::HashMap, env};
 use anyhow::Result;
 use async_trait::async_trait;
 use iota_data_ingestion_core::{
-    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
+    DataIngestionMetrics, DataSource, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
@@ -85,6 +85,31 @@ impl Indexer {
             store.persist_protocol_configs_and_feature_flags(chain_id)?;
         }
 
+        // Determine data source based on configuration priority: gRPC > Local > Remote
+        let data_source = if let Some(grpc_url) = &config.sources.grpc_client_url {
+            info!("Using gRPC checkpoint ingestion from {}", grpc_url);
+            DataSource::Grpc {
+                url: grpc_url.to_string(),
+            }
+        } else if let Some(local_path) = &config.sources.data_ingestion_path {
+            info!(
+                "Using local file checkpoint ingestion from {:?}",
+                local_path
+            );
+            DataSource::Local(local_path.clone())
+        } else {
+            let source_url = config
+                .sources
+                .remote_store_url
+                .as_ref()
+                .unwrap_or(config.sources.rpc_client_url.as_ref().unwrap());
+            info!("Using REST checkpoint ingestion from {}", source_url);
+            DataSource::Remote {
+                store_url: source_url.to_string(),
+                store_options: vec![],
+            }
+        };
+
         let mut executor = IndexerExecutor::new(
             ShimIndexerProgressStore::new(vec![
                 ("primary".to_string(), primary_watermark),
@@ -94,6 +119,7 @@ impl Indexer {
             DataIngestionMetrics::new(&Registry::new()),
             cancel.child_token(),
         );
+
         let worker = new_handlers(store, metrics, primary_watermark, cancel.clone()).await?;
         let worker_pool = WorkerPool::new(
             worker,
@@ -111,22 +137,10 @@ impl Indexer {
             Default::default(),
         );
         executor.register(worker_pool).await?;
+
         info!("Starting data ingestion executor...");
         executor
-            .run(
-                config
-                    .sources
-                    .data_ingestion_path
-                    .clone()
-                    .unwrap_or(tempfile::tempdir().unwrap().keep()),
-                config
-                    .sources
-                    .remote_store_url
-                    .as_ref()
-                    .map(|url| url.as_str().to_owned()),
-                vec![],
-                extra_reader_options,
-            )
+            .run_with_data_source(data_source, extra_reader_options)
             .await?;
         Ok(())
     }

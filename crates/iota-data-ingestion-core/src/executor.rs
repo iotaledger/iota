@@ -16,7 +16,8 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
+    DataIngestionMetrics, DataSource, GrpcCheckpointReader, IngestionError, IngestionResult,
+    ReaderOptions, Worker,
     progress_store::{ExecutorProgress, ProgressStore, ProgressStoreWrapper, ShimProgressStore},
     reader::{
         v1::CheckpointReader as CheckpointReaderV1,
@@ -35,6 +36,11 @@ enum CheckpointReader {
         handle: JoinHandle<IngestionResult<()>>,
     },
     V2(CheckpointReaderV2),
+    Grpc {
+        checkpoint_recv: mpsc::Receiver<Arc<CheckpointData>>,
+        exit_sender: oneshot::Sender<()>,
+        handle: JoinHandle<IngestionResult<()>>,
+    },
 }
 
 impl CheckpointReader {
@@ -44,6 +50,9 @@ impl CheckpointReader {
                 checkpoint_recv, ..
             } => checkpoint_recv.recv().await,
             Self::V2(reader) => reader.checkpoint().await,
+            Self::Grpc {
+                checkpoint_recv, ..
+            } => checkpoint_recv.recv().await,
         }
     }
 
@@ -58,6 +67,10 @@ impl CheckpointReader {
                 )
             }),
             Self::V2(reader) => reader.send_gc_signal(seq_number).await,
+            Self::Grpc { .. } => {
+                // gRPC reader doesn't need GC signals
+                Ok(())
+            }
         }
     }
 
@@ -75,6 +88,17 @@ impl CheckpointReader {
                 })?
             }
             Self::V2(reader) => reader.shutdown().await,
+            Self::Grpc {
+                exit_sender,
+                handle,
+                ..
+            } => {
+                _ = exit_sender.send(());
+                handle.await.map_err(|err| IngestionError::Shutdown {
+                    component: "gRPC Checkpoint Reader".into(),
+                    msg: err.to_string(),
+                })?
+            }
         }
     }
 }
@@ -203,6 +227,61 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         task_name: String,
     ) -> IngestionResult<CheckpointSequenceNumber> {
         self.progress_store.load(task_name).await
+    }
+
+    /// Run executor with a specified data source.
+    ///
+    /// # Error
+    ///
+    /// Returns an [`IngestionError::EmptyWorkerPool`] if no worker pool was
+    /// registered.
+    pub async fn run_with_data_source(
+        self,
+        data_source: DataSource,
+        reader_options: ReaderOptions,
+    ) -> IngestionResult<ExecutorProgress> {
+        match data_source {
+            DataSource::Local(path) => self.run(path, None, vec![], reader_options).await,
+            DataSource::Remote {
+                store_url,
+                store_options,
+            } => {
+                self.run(
+                    tempfile::tempdir()?.into_path(),
+                    Some(store_url),
+                    store_options,
+                    reader_options,
+                )
+                .await
+            }
+            DataSource::Grpc { url } => self.run_with_grpc(url, reader_options).await,
+        }
+    }
+
+    /// Run executor with gRPC data source.
+    async fn run_with_grpc(
+        mut self,
+        grpc_url: String,
+        _reader_options: ReaderOptions,
+    ) -> IngestionResult<ExecutorProgress> {
+        let reader_checkpoint_number = self.progress_store.min_watermark()?;
+        let (grpc_reader, checkpoint_recv, exit_sender) = GrpcCheckpointReader::initialize(
+            grpc_url,
+            reader_checkpoint_number,
+            self.token.child_token(),
+        );
+
+        let grpc_reader_handle = spawn_monitored_task!(grpc_reader.run());
+
+        self.run_executor_loop(
+            reader_checkpoint_number,
+            CheckpointReader::Grpc {
+                checkpoint_recv,
+                exit_sender,
+                handle: grpc_reader_handle,
+            },
+        )
+        .await
     }
 
     /// Main executor loop.

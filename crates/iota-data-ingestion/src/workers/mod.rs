@@ -4,12 +4,14 @@
 
 mod archival;
 mod blob;
+mod grpc_blob;
 mod historical;
 mod kv_store;
 mod relay;
 
 pub use archival::{ArchivalConfig, ArchivalReducer};
 pub use blob::{BlobTaskConfig, BlobWorker};
+pub use grpc_blob::GrpcBlobWorker;
 pub use historical::{HistoricalReducer, HistoricalWriterConfig};
 pub use kv_store::{KVStoreTaskConfig, KVStoreWorker};
 pub use relay::RelayWorker;

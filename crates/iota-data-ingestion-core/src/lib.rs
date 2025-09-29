@@ -24,8 +24,10 @@
 //! 3. [`IndexerExecutor`]: Orchestrates the shutdown of all worker pools and
 //!    and finalizes system termination.
 
+mod data_source;
 mod errors;
 mod executor;
+mod grpc_reader;
 pub mod history;
 mod metrics;
 mod progress_store;
@@ -42,8 +44,10 @@ use std::{
 };
 
 use async_trait::async_trait;
+pub use data_source::DataSource;
 pub use errors::{IngestionError, IngestionResult};
 pub use executor::{IndexerExecutor, MAX_CHECKPOINTS_IN_PROGRESS, setup_single_workflow};
+pub use grpc_reader::GrpcCheckpointReader;
 use iota_types::full_checkpoint_content::CheckpointData;
 pub use metrics::DataIngestionMetrics;
 pub use progress_store::{FileProgressStore, ProgressStore, ShimProgressStore};

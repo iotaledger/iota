@@ -32,6 +32,8 @@ url.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
+iota-grpc-api.workspace = true
+iota-grpc-types.workspace = true
 iota-metrics.workspace = true
 iota-protocol-config.workspace = true
 iota-rest-api.workspace = true

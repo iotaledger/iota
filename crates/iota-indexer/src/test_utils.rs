@@ -12,7 +12,10 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     IndexerMetrics,
-    config::{IngestionConfig, IotaNamesOptions, RetentionConfig, SnapshotLagConfig},
+    config::{
+        IngestionConfig, IngestionSources, IotaNamesOptions, PruningOptions, RetentionConfig,
+        SnapshotLagConfig,
+    },
     db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
@@ -184,6 +187,53 @@ pub async fn start_test_indexer_impl(
         }
     };
 
+    (store, handle)
+}
+
+/// Starts an indexer writer for testing using gRPC ingestion.
+pub async fn start_test_indexer_grpc(
+    db_url: String,
+    reset_db: bool,
+    db_init_hook: Option<DBInitHook>,
+    grpc_url: String,
+    data_ingestion_path: Option<PathBuf>,
+    cancel: CancellationToken,
+) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
+    let config = IngestionConfig {
+        sources: IngestionSources {
+            data_ingestion_path,
+            remote_store_url: None,
+            rpc_client_url: None,
+            grpc_client_url: Some(grpc_url.parse().expect("Invalid gRPC URL")),
+        },
+        ..Default::default()
+    };
+
+    let store = create_pg_store(&db_url, reset_db);
+    if reset_db {
+        crate::db::reset_database(&mut store.blocking_cp().get().unwrap()).unwrap();
+    }
+    if let Some(db_init_hook) = db_init_hook {
+        db_init_hook(&store);
+    }
+    let store_clone = store.clone();
+    let registry = prometheus::Registry::default();
+    let indexer_metrics = IndexerMetrics::new(&registry);
+    let handle = tokio::spawn(async move {
+        Indexer::start_writer_with_config(
+            &config,
+            store_clone,
+            indexer_metrics,
+            SnapshotLagConfig::default(),
+            PruningOptions {
+                epochs_to_keep: std::env::var("EPOCHS_TO_KEEP")
+                    .map(|s| s.parse::<u64>().ok())
+                    .unwrap_or_else(|_e| None),
+            },
+            cancel,
+        )
+        .await
+    });
     (store, handle)
 }
 

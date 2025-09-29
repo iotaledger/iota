@@ -70,11 +70,15 @@ shared_test_runtime = []
 hex.workspace = true
 rand.workspace = true
 serde_json.workspace = true
+tracing-subscriber.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
+iota-grpc-api.workspace = true
+iota-grpc-types.workspace = true
 iota-keys.workspace = true
 iota-move-build.workspace = true
+iota-storage.workspace = true
 iota-swarm-config.workspace = true
 iota-test-transaction-builder.workspace = true
 simulacrum.workspace = true
