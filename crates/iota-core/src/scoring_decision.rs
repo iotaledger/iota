@@ -7,7 +7,7 @@ use std::{collections::HashMap, sync::Arc};
 use arc_swap::ArcSwap;
 use consensus_config::Committee as ConsensusCommittee;
 use iota_types::{base_types::AuthorityName, committee::Committee};
-use tracing::debug;
+use tracing::{debug, instrument};
 
 use crate::{authority::AuthorityMetrics, consensus_types::AuthorityIndex};
 
@@ -20,6 +20,7 @@ use crate::{authority::AuthorityMetrics, consensus_types::AuthorityIndex};
 /// Practically we don't want to submit transactions for sequencing to
 /// validators that have low scores and are not part of the leader
 /// schedule since the chances of getting them sequenced are lower.
+#[instrument(level = "trace", skip_all)]
 pub(crate) fn update_low_scoring_authorities(
     low_scoring_authorities: Arc<ArcSwap<HashMap<AuthorityName, u64>>>,
     iota_committee: &Committee,
