@@ -13,7 +13,7 @@ use iota::dynamic_field;
 // --------------------------------------- Errors ---------------------------------------
 
 #[error(code = 0)]
-const ETotalMembersWeightLessThenThreshold: vector<u8> = b"The members weight is less then the threshold.";
+const ETotalMembersWeightLessThanThreshold: vector<u8> = b"The members weight is less than the threshold.";
 #[error(code = 1)]
 const EThresholdIsZero: vector<u8> = b"The threshold can not be equal to 0.";
 #[error(code = 2)]
@@ -214,7 +214,7 @@ fun verify_threshold(members: &Members, threshold: u64 ) {
     // Check that the threshold is not zero.
     assert!(threshold != 0, EThresholdIsZero);
     // Check that the total members weight is greater than or equal to the threshold.  
-    assert!(members.total_weight() >= threshold, ETotalMembersWeightLessThenThreshold);
+    assert!(members.total_weight() >= threshold, ETotalMembersWeightLessThanThreshold);
 }
 
 /// Updates a dynamic field value and returns the previous one.
