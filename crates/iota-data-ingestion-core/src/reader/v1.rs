@@ -4,6 +4,7 @@
 
 use std::{
     collections::BTreeMap,
+    fs,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -26,6 +27,8 @@ use tokio::{
 };
 use tracing::{debug, error, info};
 
+#[cfg(not(target_os = "macos"))]
+use crate::reader::fetch::init_watcher;
 use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     reader::fetch::{
@@ -303,7 +306,12 @@ impl CheckpointReader {
     }
 
     pub async fn run(mut self) -> IngestionResult<()> {
-        let (_watcher, mut inotify_recv) = self.setup_directory_watcher();
+        let (_inotify_sender, mut inotify_recv) = mpsc::channel::<()>(1);
+        fs::create_dir_all(self.path()).expect("failed to create a directory");
+
+        #[cfg(not(target_os = "macos"))]
+        let _watcher = init_watcher(_inotify_sender, self.path());
+
         self.data_limiter.gc(self.last_pruned_watermark);
         self.gc_processed_files(self.last_pruned_watermark)
             .expect("Failed to clean the directory");

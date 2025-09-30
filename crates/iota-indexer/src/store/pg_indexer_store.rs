@@ -151,6 +151,10 @@ impl PgIndexerStore {
         }
     }
 
+    pub fn get_metrics(&self) -> IndexerMetrics {
+        self.metrics.clone()
+    }
+
     pub fn blocking_cp(&self) -> ConnectionPool {
         self.blocking_cp.clone()
     }

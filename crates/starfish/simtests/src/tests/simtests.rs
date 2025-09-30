@@ -67,7 +67,7 @@ mod test {
             };
             let node = AuthorityNode::new(config);
 
-            if index != AuthorityIndex::new_for_test(NUM_OF_AUTHORITIES as u32 - 1) {
+            if index != AuthorityIndex::new_for_test(NUM_OF_AUTHORITIES as u8 - 1) {
                 node.start().await.unwrap();
                 node.spawn_committed_subdag_consumer().unwrap();
 

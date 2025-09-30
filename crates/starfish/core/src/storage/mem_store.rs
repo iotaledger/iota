@@ -268,6 +268,9 @@ impl Store for MemStore {
     }
 
     fn scan_commits(&self, range: CommitRange) -> ConsensusResult<Vec<TrustedCommit>> {
+        if range.start() > range.end() {
+            return Ok(vec![]);
+        }
         let inner = self.inner.read();
         let mut commits = vec![];
         for (_, commit) in inner.commits.range((
