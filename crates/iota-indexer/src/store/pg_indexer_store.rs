@@ -273,7 +273,7 @@ impl PgIndexerStore {
                 .map(|(min, max)| (min as u64, max.map(|v| v as u64)))
         })
         .context(
-            format!("Failed reading checkpoint range from PostgresDB for epoch {epoch}").as_str(),
+            format!("failed reading checkpoint range from PostgresDB for epoch {epoch}").as_str(),
         )
     }
 
@@ -292,7 +292,7 @@ impl PgIndexerStore {
                 .map(|(min, max)| (min as u64, max as u64))
         })
         .context(
-            format!("Failed reading transaction range from PostgresDB for checkpoint {checkpoint}")
+            format!("failed reading transaction range from PostgresDB for checkpoint {checkpoint}")
                 .as_str(),
         )
     }
@@ -316,7 +316,7 @@ impl PgIndexerStore {
                 .first::<(i64, i64)>(conn)
         })
         .context(
-            format!("Failed reading global sequence number from PostgresDB for tx seq {tx_seq}")
+            format!("failed reading global sequence number from PostgresDB for tx seq {tx_seq}")
                 .as_str(),
         )
     }
@@ -360,7 +360,7 @@ impl PgIndexerStore {
                     .execute(conn)
                     .map_err(IndexerError::from)
                     .context(
-                        format!("Failed to prune optimistic_transactions table to {to:?} with limit {limit}").as_str(),
+                        format!("failed to prune optimistic_transactions table to {to:?} with limit {limit}").as_str(),
                     )
             },
             PG_DB_COMMIT_SLEEP_DURATION
@@ -1666,7 +1666,7 @@ impl PgIndexerStore {
                 .select(epochs::network_total_transactions)
                 .get_result::<Option<i64>>(conn)
         })
-        .context(format!("Failed to get network total transactions in epoch {epoch}").as_str())
+        .context(format!("failed to get network total transactions in epoch {epoch}").as_str())
         .map(|option| option.map(|v| v as u64))
     }
 

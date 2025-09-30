@@ -626,7 +626,7 @@ pub mod deprecated {
                             .unwrap_or_else(|_e| None),
                         optimistic_pruner_batch_size: std::env::var("OPTIMISTIC_PRUNER_BATCH_SIZE")
                             .map(|s| s.parse::<u64>().ok())
-                            .unwrap_or_else(|_e| None),
+                            .unwrap_or_default(),
                         pruning_config_path: None,
                     },
                     reset_db: old_conf.reset_db,

@@ -80,7 +80,7 @@ impl Indexer {
 
         if let Some(optimistic_pruner_batch_size) = optimistic_pruner_batch_size {
             info!("Starting indexer optimistic tables pruner");
-            let optimistic_pruner: OptimisticPruner = OptimisticPruner::new(
+            let optimistic_pruner = OptimisticPruner::new(
                 store.clone(),
                 optimistic_pruner_batch_size,
                 metrics.clone(),
