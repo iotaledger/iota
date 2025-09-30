@@ -65,7 +65,7 @@ are: `https://bar.example.com/verifiable-presentation.jsonld` and
 
 In this example we are going to showcase how to host a VP on the IOTA Ledger leveraging IOTA
 Notarization and linking it to its holder's DID document through an URL-like IOTA Resource Locator
-([IRL](LINK TO THE SPEC HERE)).
+([IRL](../../references/iota-resource-locator.mdx)).
 
 :::caution
 The concepts of creating a VC and a VP won't be covered in this page, please refer to their
@@ -74,6 +74,10 @@ corresponding pages.
 
 Having created a JWT-encoded VP containing a set of JWT-encoded VCs, an IOTA Notarization to store
 it on the ledger can be created like so:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
 
 ```rust
 let notarized_vp = notarization_client
@@ -86,13 +90,33 @@ let notarized_vp = notarization_client
   .output;
 ```
 
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts
+const notarizedVp = await notarizationClient
+  .createLocked()
+  .withStringState(jwtVp.toString(), "My Linked VP")
+  .finish()
+  .buildAndExecute(notarizationClient)
+  .then(res => res.output);
+```
+
+</TabItem>
+</Tabs>
+</div>
+
 Now that the VP is hosted on-chain we can link it to its holder's DID document:
 
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
 ```rust
-let notarized_vp_url = notarized_vp
-  .to_iota_resource_locator(notarization_client.network()) // This require notarization's feature "irl".
-  .to_string()
-  .parse::<Url>()?;
+let notarized_vp_url: Url = notarized_vp
+  .iota_resource_locator_builder(notarization_client.network()) // This requires notarization's feature "irl".
+  .data() 
+  .into(); // This requires identity's feature "irl".
 let service_url: DIDUrl = did_document.id().clone().join("#linked-vp")?;
 let linked_verifiable_presentation_service = LinkedVerifiablePresentationService::new(service_url, [notarized_vp_url], Object::new())?;
 did_document.insert_service(linked_verifiable_presentation_service.into())?;
@@ -101,6 +125,24 @@ let updated_did_document = identity_client
   .publish_did_document_update(did_document, TEST_GAS_BUDGET)
   .await?;
 ```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts
+const notarizedVpUrl = notarizedVp.iotaResourceLocatorBuilder(notarizationClient.network()).data();
+const serviceUrl = didDocument.id().join("#linked-vp");
+const linkedVpService = new LinkedVerifiablePresentationService({
+    id: serviceUrl,
+    linked_vp: notarizedVpUrl,
+});
+didDocument.insertService(linkedVpService.toService());
+await identityClient.publishDidDocumentUpdate(didDocument, TEST_GAS_BUDGET);
+```
+
+</TabItem>
+</Tabs>
+</div>
 
 If we inspect the services of `updated_did_document` we would see something similar to this JSON object:
 
@@ -120,11 +162,27 @@ IOTA network.
 
 To fetch or dereference an IRL, the `Resolver` implemented in the `iota-caip` library can be used:
 
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
 ```rust
 let custom_network = IotaNetwork::custom(identity_client.network().as_ref()).expect("valid IOTA network);
 let resolver = Resolver::new_with_custom_networks([(custom_network, custom_network_endpoint)]);
 let jwt_vp = serde_json::from_value(resolver.resolve(&notarized_vp.to_iota_resource_locator()).await?)?;
 ```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts
+const irlResolver = new IrlResolver({ customNetworks: [{ chainId: network, endpoint: NETWORK_URL }] });
+const resolvedJwtVp = await irlResolver.resolve(vpUrl).then(value => new Jwt(value as string));
+```
+
+</TabItem>
+</Tabs>
+</div>
 
 ## Full Example
 FULL EXAMPLE HERE
