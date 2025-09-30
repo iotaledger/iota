@@ -3,7 +3,7 @@
 
 module dynamic_multisig_account::transactions;
 
-use iota::bag::{Self, Bag};
+use iota::table::{Self, Table};
 
 // --------------------------------------- Errors ---------------------------------------
 
@@ -27,50 +27,50 @@ public struct Transaction has store {
 /// Holds the information about the account transactions.
 public struct Transactions has store {
     /// The members collection.
-    bag: Bag,
+    table: Table<vector<u8>, Transaction>,
 }
 
 // --------------------------------------- Creation ---------------------------------------
 
 /// Creates a `Transactions` instance.
 public(package) fun create(ctx: &mut TxContext): Transactions {
-    Transactions{ bag: bag::new(ctx) }
+    Transactions{ table: table::new(ctx) }
 }
 
 // ------------------------------------- Transactions -------------------------------------
 
 /// Checks if the account has a transaction with the provided digest.
 public fun contains(self: &Transactions, digest: vector<u8>): bool {
-    self.bag.contains(digest)
+    self.table.contains(digest)
 }
 
 /// Immutably borrows the account transaction with the provided digest.
 public fun borrow(self: &Transactions, digest: vector<u8>): &Transaction {
-    self.bag.borrow(digest)
+    self.table.borrow(digest)
 }
 
 /// Mutably borrows the account transaction with the provided digest.
 public(package) fun borrow_mut(self: &mut Transactions, digest: vector<u8>): &mut Transaction {
-    self.bag.borrow_mut(digest)
+    self.table.borrow_mut(digest)
 }
 
 /// Adds a new transaction to the account.
 public(package) fun add(self: &mut Transactions, digest: vector<u8>, member: address) {
     // Ensure that the transaction does not already exist.
-    assert!(!self.bag.contains(digest), ETransactionAlreadyExists);
+    assert!(!self.table.contains(digest), ETransactionAlreadyExists);
 
     // Add the transaction.
-    self.bag.add(digest, Transaction{digest, approves: vector[ member ]});
+    self.table.add(digest, Transaction{digest, approves: vector[ member ]});
 }
 
 /// Removes a transaction from the account.
 /// Returns the digest and the addresses of the members who approved the transaction.
 public(package) fun remove(self: &mut Transactions, digest: vector<u8>): (vector<u8>, vector<address>) {
     // Ensure that the transaction exists.
-    assert!(self.bag.contains(digest), ETransactionDoesNotExist);
+    assert!(self.table.contains(digest), ETransactionDoesNotExist);
 
     // Remove the transaction and unpack it.
-    unpack(self.bag.remove(digest))
+    unpack(self.table.remove(digest))
 }
 
 // ------------------------------------- Transaction -------------------------------------
