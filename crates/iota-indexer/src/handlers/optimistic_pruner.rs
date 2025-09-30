@@ -54,8 +54,8 @@ impl OptimisticPruner {
             }
 
             match self.prune_single_batch().await {
-                Ok(pruning_occured) => {
-                    pruning_in_progress = pruning_occured;
+                Ok(pruning_occurred) => {
+                    pruning_in_progress = pruning_occurred;
                 }
                 Err(err) => {
                     pruning_in_progress = false;
