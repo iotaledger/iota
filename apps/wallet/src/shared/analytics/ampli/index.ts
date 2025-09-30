@@ -411,6 +411,14 @@ export class ClickedImportPrivateKey implements BaseEvent {
     }
 }
 
+export class ClickedImportSeed implements BaseEvent {
+    event_type = 'clicked import seed';
+
+    constructor(public event_properties?: ClickedImportSeedProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
 export class ClickedStakeIota implements BaseEvent {
     event_type = 'clicked stake IOTA';
 
@@ -785,6 +793,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ClickedImportPrivateKey(properties), options);
+  }
+
+  /**
+   * clicked import seed
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20import%20seed)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. sourceFlow)
+   * @param options Amplitude event options.
+   */
+  clickedImportSeed(
+    properties?: ClickedImportSeedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ClickedImportSeed(properties), options);
   }
 
   /**

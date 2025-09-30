@@ -129,6 +129,7 @@ export function AddAccountPage() {
                 navigate('/accounts/import-private-key');
                 break;
             case AccountsFormType.ImportSeed:
+                ampli.clickedImportSeed({ sourceFlow });
                 navigate('/accounts/import-seed');
                 break;
             case AccountsFormType.ImportLedger:
