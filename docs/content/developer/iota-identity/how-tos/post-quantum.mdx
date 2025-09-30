@@ -61,6 +61,23 @@ For instance, assuming the given `Storage` supports the creation of an ML-DSA-87
 following code snippet creates a DID Document with a `JsonWebKey2020` verification method
 containing the JWK-encoded public key, of a freshly created key pair.
 
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts 
+const issuerDocument = new IotaDocument(issuerClient.network());
+const issuerFragment = await issuerDocument.generateMethodPQC(
+    issuerStorage,
+    JwkPqMemStore.mldsaKeyType(),
+    JwsAlgorithm.MLDSA87,
+    "#0",
+    MethodScope.VerificationMethod(),
+);
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
 ```rust
 let mut issuer_document = IotaDocument::new(identity_client.network_name());
 issuer_document.generate_method_pqc(
@@ -71,6 +88,9 @@ issuer_document.generate_method_pqc(
   MethodScope::VerificationMethod,
 ).await?;
 ```
+
+</TabItem>
+</Tabs>
 
 Inspecting the resulting DID Document, should yield a JSON object similar to this:
 ```json
@@ -106,8 +126,23 @@ For signing a VC with a PQ key, users can invoke the `create_credential_jwt_pqc`
 document, passing to it a reference to their key store and the DID verification method's fragment
 they want to use.
 
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts 
+const credentialJwt = await issuerDocument.createCredentialJwtPqc(
+  issuerStorage,
+  issuerFragment,
+  unsignedVc,
+  new JwsSignatureOptions(),
+);
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
 ```rust
-issuer_document
+let credential_jwt = issuer_document
   .create_credential_jwt_pqc(
     &credential,
     &issuer_storage,
@@ -118,11 +153,29 @@ issuer_document
   .await?;
 ```
 
+</TabItem>
+</Tabs>
+
 The result of this operation is a JWT encoded VC, with an algorithm (`alg` property) matching that
 of the verification method used, and a particularly long signature: 4627 bytes when using ML-DSA-87.
 
 To verify the signature on a JWT-encoded VC or VP that is using a PQ algorithm, the `PQCJwsVerifier`
 must be used. Using a JWT-encoded VC as an example:
+
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts 
+new JwtCredentialValidator(new PQJwsVerifier()).validate(
+  credentialJwt,
+  issuerDocument,
+  new JwtCredentialValidationOptions(),
+  FailFast.FirstError,
+);
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
 
 ```rust
 JwtCredentialValidator::with_signature_verifier(PQCJwsVerifier::default())
@@ -133,6 +186,9 @@ JwtCredentialValidator::with_signature_verifier(PQCJwsVerifier::default())
     FailFast::FirstError,
   )?;
 ```
+
+</TabItem>
+</Tabs>
 
 ## Transitioning to Post-Quantum Cryptography: Hybrid Signatures
 
@@ -155,6 +211,22 @@ The currently supported algorithms for `compositeJwk` are: `id-MLDSA44-Ed25519` 
 The process of creating a DID Document with an hybrid verification method doesn't differ much from
 what users may be already accustomed to:
 
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts 
+const issuerDocument = new IotaDocument(issuerClient.network());
+const issuerFragment = await issuerDocument.generateMethodHybrid(
+    issuerStorage,
+    CompositeAlgId.IdMldsa44Ed25519,
+    "#0",
+    MethodScope.VerificationMethod(),
+);
+```
+
+</TabItem>
+<TabItem value="rust" label="Rust">
+
 ```rust
 let mut issuer_document = IotaDocument::new(identity_client.network());
 issuer_document
@@ -166,6 +238,9 @@ issuer_document
   )
   .await?;
 ```
+
+</TabItem>
+</Tabs>
 
 Users may notice the above snippet uses the `generate_method_hybrid` which doesn't require a
 `KeyType` parameter, and the use of `CompositeAlgId` instead of `JwsAlgorithm`.
@@ -213,6 +288,18 @@ To validate JWT-encoded VCs that rely on hybrid signatures users can leverage th
 `JwtCredentialValidatorHybrid` which takes two signature verifiers: one for the traditional
 signature, and another for the PQC signature. Here is what it looks like in code:
 
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+```ts 
+new JwtCredentialValidatorHybrid(new EdDSAJwsVerifier(), new PQJwsVerifier()).validate(
+  credentialJwt,
+  issuerDocument,
+  new JwtCredentialValidationOptions(),
+  FailFast.FirstError,
+);
+```
+</TabItem>
+<TabItem value="rust" label="Rust">
 ```rust
 JwtCredentialValidatorHybrid::with_signature_verifiers(EdDSAJwsVerifier::default(), PQCJwsVerifier::default())
   .validate(
@@ -222,6 +309,8 @@ JwtCredentialValidatorHybrid::with_signature_verifiers(EdDSAJwsVerifier::default
     FailFast::FirstError,
   )?;
 ```
+</TabItem>
+</Tabs>
 
 ## Security Considerations
 
@@ -242,6 +331,47 @@ contains it.
 
 Let's check out a small example:
 
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+```ts 
+const issuerJwk = await (issuerStorage.keyStorage() as JwkPqMemStore)
+  .generatePQKey(JwkPqMemStore.mldsaKeyType(), JwsAlgorithm.MLDSA44)
+  .then(res => res.jwk());
+
+// We use the issuer's public key (as JWK) to construct an ephemeral DID document.
+const issuerDid = DIDJwk.fromJwk(issuerJwk);
+const issuerDocument = CoreDocument.expandDIDJwk(issuerDid);
+
+// Expanding the did-jwk into a did document generates a did document with one verification method.
+console.assert(issuerDocument.verificationMethod().length == 1, "expected a single VM");
+
+
+// The expanded did document's verification method contains the issuer's public key as JWK.
+const vmJwk = issuerDocument.verificationMethod()[0].data().tryPublicKeyJwk();
+console.assert(JSON.stringify(issuerJwk) == JSON.stringify(vmJwk), "expected the same JWK");
+
+const credentialJwt = await issuerDocument.createCredentialJwtPqc(
+  issuerStorage,
+  "0", // Expanding a DID JWK into a DID document always creates a VM with fragment "0".
+  credential,
+  new JwsSignatureOptions(),
+);
+
+// The generated JWT has a "iss" header set to "did:jwk:<issuer-jwk>", and a "kid" header set to
+// "did:jwk:<issuer-jwk>#0", enabling verifiers to validate the credential, by simply expanding the
+// issuer's did:jwk and using it's VM "0".
+const issuerDid = new DIDJwk(JwtCredentialValidator.extractIssuerFromJwt(credentialJwt));
+const issuerDocument = CoreDocument.expandDIDJwk(issuerDid);
+
+new JwtCredentialValidator(new PQJwsVerifier()).validate(
+  credentialJwt,
+  issuerDocument,
+  new JwtCredentialValidationOptions(),
+  FailFast.FirstError,
+);
+```
+</TabItem>
+<TabItem value="rust" label="Rust">
 ```rust
 let JwkGenOutput { jwk: issuer_jwk } = issuer_storage
   .key_storage()
@@ -284,6 +414,8 @@ JwtCredentialValidator::with_signature_verifier(PQCJwsVerifier::default())
     FailFast::FirstError,
   )?;
 ```
+</TabItem>
+</Tabs>
 
 ## Full Examples
 
