@@ -34,7 +34,7 @@ use crate::{
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
+    dag_state::{DagState, MAX_HEADERS_PER_BUNDLE, MAX_SHARDS_PER_BUNDLE},
     encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     network::{

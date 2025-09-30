@@ -655,8 +655,6 @@ impl Core {
         // be done in the end of the method.
         let (transactions, ack_transactions, _limit_reached) = self.transaction_consumer.next();
         // Serialize the transaction
-        let info_length = self.context.committee.info_length();
-        let parity_length = self.context.committee.size() - info_length;
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("We should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
