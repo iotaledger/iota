@@ -180,7 +180,6 @@ pub struct IndexerMetrics {
     pub epoch_pruning_latency: Histogram, // not used
     pub optimistic_pruner_total_rows_pruned: IntCounter,
     pub optimistic_pruner_batch_duration: Histogram,
-    pub optimistic_pruner_delete_query_duration: Histogram,
 }
 
 impl IndexerMetrics {
@@ -815,13 +814,6 @@ impl IndexerMetrics {
             optimistic_pruner_batch_duration: register_histogram_with_registry!(
                 "optimistic_pruner_batch_duration",
                 "Time spent processing single optimistic pruner batch",
-                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-                .unwrap(),
-            optimistic_pruner_delete_query_duration: register_histogram_with_registry!(
-                "optimistic_pruner_delete_query_duration",
-                "Time spent executing final DELETE query by optimistic pruner",
                 DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
