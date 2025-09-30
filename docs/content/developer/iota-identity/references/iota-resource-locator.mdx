@@ -21,7 +21,7 @@ IOTA Network.
 
 An IRL is a URL-like address comprised of an [IOTA Chain ID](https://github.com/ChainAgnostic/namespaces/blob/main/iota/caip2.md)
 and a relative URL (a regular URL but with only path, query, and fragment components set), where the 
-first path segment MUST be an IOTA object ID canonically encoded as a 64 lowercase-hex characters preceeded
+first path segment MUST be an IOTA object ID canonically encoded as a 64 lowercase-hex characters preceded
 by the "0x" prefix.
 
 Here are some examples:
@@ -82,7 +82,7 @@ A resolver is only interested in the `fields` object; if the IRL contains an emp
 - besides the object ID - the resolver should return it as the resolution result.
 Otherwise, if the path is not empty, it should be converted to a
 [JSON pointer](https://datatracker.ietf.org/doc/html/rfc6901) and derefering it 
-within the context of the `fields` object, to obtain the resoution result.
+within the context of the `fields` object, to obtain the resolution result.
 
 For Instance, the result of resolving `iota:mainnet/0x53e4567ccafa5f36ce84c80aa8bc9be64e0d5ae796884274aef3005ae6733809`
 is the JSON object:
