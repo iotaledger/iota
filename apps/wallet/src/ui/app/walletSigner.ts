@@ -32,7 +32,7 @@ export abstract class WalletSigner {
         this.client = client;
     }
 
-    private getClient(chain?: ChainType): IotaClient {
+    protected getClient(chain?: ChainType): IotaClient {
         const requestedNetwork = Object.values(getAllNetworks()).find(
             (network) => network.chain === chain,
         ) as NetworkId | undefined;
