@@ -222,6 +222,7 @@ export class IotaWallet implements Wallet {
                     // account might be undefined if previous version of adapters is used
                     // in that case use the first account address
                     account: input.account?.address || this.#accounts[0]?.address || '',
+                    chain: input.chain,
                 },
             }),
             ({ result: { rawEffects, rawTransaction, digest } }) => {
