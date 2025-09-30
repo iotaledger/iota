@@ -6362,6 +6362,7 @@ dependencies = [
  "test-cluster",
  "thiserror 1.0.64",
  "tokio",
+ "tokio-stream",
  "tokio-util 0.7.12",
  "toml 0.7.8",
  "tower 0.4.13",

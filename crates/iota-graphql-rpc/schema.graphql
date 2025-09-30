@@ -4279,6 +4279,49 @@ type StorageFund {
 	nonRefundableBalance: BigInt
 }
 
+type Subscription {
+	"""
+	Subscribe to incoming transactions from the IOTA network.
+	
+	If no filter is provided, all transactions will be returned.
+	"""
+	transactions(filter: SubscriptionTransactionFilter): TransactionBlock!
+	"""
+	Subscribe to incoming events from the IOTA network.
+	
+	If no filter is provided, all events will be returned.
+	"""
+	events(filter: SubscriptionEventFilter): Event!
+}
+
+"""
+Filter incoming events in a subscription.
+"""
+input SubscriptionEventFilter @oneOf {
+	"""
+	Filter incoming events by emitting module.
+	"""
+	emittingModule: String
+}
+
+"""
+Filter incoming transactions in a subscription.
+"""
+input SubscriptionTransactionFilter @oneOf {
+	"""
+	Filter incoming transactions by kind.
+	"""
+	kind: TransactionBlockKindInput
+	"""
+	Filter incoming transactions by signing address.
+	"""
+	signingAddress: IotaAddress
+	"""
+	Filter incoming transactions by package, module, or function name.
+	"""
+	function: String
+}
+
 """
 Details of the system that are decided during genesis.
 """
@@ -4953,10 +4996,15 @@ Directs the executor to include this field or fragment only when the `if` argume
 """
 directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 """
+Indicates that an Input Object is a OneOf Input Object (and thus requires exactly one of its field be provided)
+"""
+directive @oneOf on INPUT_OBJECT
+"""
 Directs the executor to skip this field or fragment when the `if` argument is true.
 """
 directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 schema {
 	query: Query
 	mutation: Mutation
+	subscription: Subscription
 }
