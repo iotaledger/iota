@@ -95,7 +95,6 @@ jobs:
         run: pnpm turbo build
       - name: Test
         env:
-          IOTA_NETWORKS: '{ "localnet": { "id": "localnet", "name": "Localnet", "url": "http://localhost:9124", "explorer": "http://localhost:3000", "chain": "iota:local", "faucet": "http://localhost:9123" } }'
           VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
           VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
         # @iota/ledgerjs-hw-app-iota is tested separately
