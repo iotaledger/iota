@@ -26,7 +26,7 @@ public struct Transaction has store {
 
 /// Holds the information about the account transactions.
 public struct Transactions has store {
-    /// The members collection.
+    /// The transactions collection.
     table: Table<vector<u8>, Transaction>,
 }
 
