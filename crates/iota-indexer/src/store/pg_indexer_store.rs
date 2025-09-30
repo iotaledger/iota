@@ -71,6 +71,28 @@ use crate::{
     },
 };
 
+/// A cursor representing the global order position of transaction according to tx_global_order table
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TxGlobalOrderCursor {
+    pub global_sequence_number: i64,
+    pub optimistic_sequence_number: i64,
+}
+
+impl TxGlobalOrderCursor {
+    pub fn new(global_sequence_number: i64, optimistic_sequence_number: i64) -> Self {
+        Self {
+            global_sequence_number,
+            optimistic_sequence_number,
+        }
+    }
+}
+
+impl From<(i64, i64)> for TxGlobalOrderCursor {
+    fn from((global_sequence_number, optimistic_sequence_number): (i64, i64)) -> Self {
+        Self::new(global_sequence_number, optimistic_sequence_number)
+    }
+}
+
 #[macro_export]
 macro_rules! chunk {
     ($data: expr, $size: expr) => {{
@@ -300,13 +322,16 @@ impl PgIndexerStore {
     pub(crate) async fn get_global_order_for_tx_seq_in_blocking_worker(
         &self,
         tx_seq: i64,
-    ) -> Result<(i64, i64), IndexerError> {
+    ) -> Result<TxGlobalOrderCursor, IndexerError> {
         self.execute_in_blocking_worker(move |this| this.get_global_order_for_tx_seq(tx_seq))
             .await
     }
 
-    fn get_global_order_for_tx_seq(&self, tx_seq: i64) -> Result<(i64, i64), IndexerError> {
-        read_only_blocking!(&self.blocking_cp, |conn| {
+    fn get_global_order_for_tx_seq(
+        &self,
+        tx_seq: i64,
+    ) -> Result<TxGlobalOrderCursor, IndexerError> {
+        let result = read_only_blocking!(&self.blocking_cp, |conn| {
             tx_global_order::dsl::tx_global_order
                 .select((
                     tx_global_order::global_sequence_number,
@@ -318,12 +343,13 @@ impl PgIndexerStore {
         .context(
             format!("failed reading global sequence number from PostgresDB for tx seq {tx_seq}")
                 .as_str(),
-        )
+        )?;
+        Ok(result.into())
     }
 
     pub(crate) async fn prune_optimistic_transactions_up_to_in_blocking_worker(
         &self,
-        to: (i64, i64),
+        to: TxGlobalOrderCursor,
         limit: i64,
     ) -> IndexerResult<usize> {
         self.execute_in_blocking_worker(move |this| {
@@ -334,28 +360,28 @@ impl PgIndexerStore {
 
     fn prune_optimistic_transactions_up_to(
         &self,
-        to: (i64, i64),
+        to: TxGlobalOrderCursor,
         limit: i64,
     ) -> IndexerResult<usize> {
-        let (to_global_sequence_num, to_optimistic_sequence_num) = to;
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                let sql = "\
-                    WITH ids_to_delete AS (\
-                         SELECT global_sequence_number, optimistic_sequence_number \
-                         FROM optimistic_transactions \
-                         WHERE (global_sequence_number, optimistic_sequence_number) <= ($1, $2) \
-                         ORDER BY global_sequence_number, optimistic_sequence_number \
-                         FOR UPDATE LIMIT $3 \
-                     ) \
-                     DELETE FROM optimistic_transactions ot \
-                     USING ids_to_delete \
-                     WHERE (ot.global_sequence_number, ot.optimistic_sequence_number) = \
-                           (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)";
+                let sql = r#"
+                    WITH ids_to_delete AS (
+                         SELECT global_sequence_number, optimistic_sequence_number
+                         FROM optimistic_transactions
+                         WHERE (global_sequence_number, optimistic_sequence_number) <= ($1, $2)
+                         ORDER BY global_sequence_number, optimistic_sequence_number
+                         FOR UPDATE LIMIT $3
+                     )
+                     DELETE FROM optimistic_transactions ot
+                     USING ids_to_delete
+                     WHERE (ot.global_sequence_number, ot.optimistic_sequence_number) =
+                           (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)
+                "#;
                 diesel::sql_query(sql)
-                    .bind::<BigInt, _>(to_global_sequence_num)
-                    .bind::<BigInt, _>(to_optimistic_sequence_num)
+                    .bind::<BigInt, _>(to.global_sequence_number)
+                    .bind::<BigInt, _>(to.optimistic_sequence_number)
                     .bind::<BigInt, _>(limit)
                     .execute(conn)
                     .map_err(IndexerError::from)

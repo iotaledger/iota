@@ -17,8 +17,8 @@ use crate::{
 // Keeping current and previous epoch ensures we will not prune just executed
 // txs on epoch boundary
 const EPOCHS_TO_KEEP: u64 = 2;
-const PRUNING_NOT_IN_PROGRESS_DELAY: Duration = Duration::from_secs(3);
-const DELETE_ROWS_DELAY: Duration = Duration::from_millis(200);
+const CHECK_EPOCH_CHANGE_INTERVAL: Duration = Duration::from_secs(3);
+const DELAY_BETWEEN_BATCHES: Duration = Duration::from_millis(200);
 
 pub struct OptimisticPruner {
     pub store: PgIndexerStore,
@@ -50,7 +50,7 @@ impl OptimisticPruner {
         while !cancel.is_cancelled() {
             if !pruning_in_progress {
                 // let's not spam the DB if there's no pruning to be done
-                tokio::time::sleep(PRUNING_NOT_IN_PROGRESS_DELAY).await;
+                tokio::time::sleep(CHECK_EPOCH_CHANGE_INTERVAL).await;
             }
 
             match self.prune_single_batch().await {
@@ -117,8 +117,8 @@ impl OptimisticPruner {
             "Pruned {rows_pruned} optimistic transactions with limit at {epoch_end_global_order:?} in {elapsed:?} seconds"
         );
 
-        // brief pause to give DB time to vacuum deleted rows
-        tokio::time::sleep(DELETE_ROWS_DELAY).await;
+        // brief pause to relieve the I/O pressure on the DB
+        tokio::time::sleep(DELAY_BETWEEN_BATCHES).await;
         Ok(rows_pruned > 0)
     }
 }
