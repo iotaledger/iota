@@ -5,7 +5,7 @@
 module iota_account::iota_account_tests;
 
 use iota::account::{Self, AuthenticatorInfoV1};
-use iota::test_scenario;
+use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use iota_account::iota_account::{
     Self,
@@ -179,80 +179,51 @@ fun account_cant_rotate_regular_field() {
     test_scenario::end(scenario_val);
 }
 
-// ######################## Dynamic Fields Access By Non-Account Party ########################
+// --------------------------------------- Add Fields By Non-Account Party ---------------------------------------
 
 #[test]
-#[expected_failure(abort_code = iota_account::ECantModifyReservedDynamicField)]
+#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_add_reserved_dynamic_fields() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
+    non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
         account.add_field(account::authenticator_df_name(), 42, ctx);
 
         test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
+    })
 }
 
 #[test]
 #[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_add_regular_dynamic_fields() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-
-    create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(@0x0);
-    {
+    non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
         account.add_field(42, 42, ctx);
 
         test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
+    })
 }
 
 // --------------------------------------- Borrow Dynamic Field ---------------------------------------
 
 #[test]
 fun non_account_can_read_regular_dynamic_fields() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-
-    create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(@0x0);
-    {
+    non_account_sender!(|scenario| {
         let account = scenario.take_shared<IOTAccount>();
 
         let value: &u8 = account.borrow_field(b"SomeData".to_ascii_string());
         assert_eq(*value, 3u8);
 
         test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
+    })
 }
 
 #[test]
 fun non_account_can_read_reserved_dynamic_fields() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-
-    create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(@0x0);
-    {
+    non_account_sender!(|scenario| {
         let account = scenario.take_shared<IOTAccount>();
 
         let authenticator: &AuthenticatorInfoV1 = account.borrow_field(
@@ -261,9 +232,7 @@ fun non_account_can_read_reserved_dynamic_fields() {
         assert_eq(*authenticator, create_authenticator_info_v1_for_testing());
 
         test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
+    })
 }
 
 // --------------------------------------- Borrow Mut Dynamic Field ---------------------------------------
@@ -271,43 +240,27 @@ fun non_account_can_read_reserved_dynamic_fields() {
 #[test]
 #[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_modify_regular_dynamic_fields() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-
-    create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(@0x0);
-    {
+    non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
         let _: &mut u8 = account.borrow_field_mut(b"SomeData".to_ascii_string(), ctx);
 
         test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
+    })
 }
 
 #[test]
 #[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_modify_reserved_dynamic_fields() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-
-    create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(@0x0);
-    {
+    non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
         let _: &mut u8 = account.borrow_field_mut(account::authenticator_df_name(), ctx);
 
         test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
+    })
 }
 
 // --------------------------------------- Remove Dynamic Field ---------------------------------------
@@ -315,81 +268,51 @@ fun non_account_cant_modify_reserved_dynamic_fields() {
 #[test]
 #[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_remove_regular_dynamic_fields() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-
-    create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(@0x0);
-    {
+    non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
         account.remove_field<_, u8>(b"SomeData".to_ascii_string(), ctx);
 
         test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
+    })
 }
 
 #[test]
 #[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_remove_reserved_dynamic_fields() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-
-    create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(@0x0);
-    {
+    non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
         account.remove_field<_, u8>(account::authenticator_df_name(), ctx);
 
         test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
+    })
 }
 
 // --------------------------------------- Has Dynamic Field ---------------------------------------
 
 #[test]
 fun non_account_can_query_regular_dynamic_field_existence() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(@0x0);
-    {
+    non_account_sender!(|scenario| {
         let account = scenario.take_shared<IOTAccount>();
 
         assert!(account.has_field(b"SomeData".to_ascii_string()));
 
         test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
+    })
 }
 
 #[test]
 fun non_account_can_query_reserved_dynamic_field_existence() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(@0x0);
-    {
+    non_account_sender!(|scenario| {
         let account = scenario.take_shared<IOTAccount>();
 
         assert!(account.has_field(account::authenticator_df_name()));
 
         test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
+    })
 }
 
 // ---------------------------------- Rotate reserved field -------------------------------------
@@ -397,24 +320,29 @@ fun non_account_can_query_reserved_dynamic_field_existence() {
 #[test]
 #[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_rotate_reserved_field() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(@0x0);
-    {
+    non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
         account.rotate_reserved(account::authenticator_df_name(), 3, ctx);
 
         test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
+    })
 }
 
 // --------------------------------------- Test Utilities ---------------------------------------
+
+macro fun non_account_sender($f: |&mut Scenario|) {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    create_iotaccount_for_testing(scenario);
+
+    scenario.next_tx(@0x0);
+    {
+        $f(scenario);
+    };
+    test_scenario::end(scenario_val);
+}
 
 fun check_dynamic_field<Name: copy + drop + store, Value: store + copy + drop>(
     account: &mut IOTAccount,
