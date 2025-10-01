@@ -139,6 +139,14 @@ public fun authenticate_ed25519(
     );
 }
 
+/// Free access authenticator.
+public fun authenticate_free_access(self: &AbstractAccount, _: &AuthContext, ctx: &TxContext) {
+    // Check that the sender of this transaction is the account.
+    ensure_tx_sender_is_account(self, ctx);
+
+    // Free access, do nothing.
+}
+
 // --------------------------------------- Utilities ---------------------------------------
 
 /// An utility function to borrow the account-related public key.
