@@ -190,7 +190,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         info!("Ignoring prior consensus commit for round {:?}", round);
     }
 
-    #[instrument(level = "debug", skip_all)]
+    #[instrument("handle_consensus_output", level = "trace", skip_all)]
     async fn handle_consensus_output(&mut self, consensus_output: impl ConsensusOutputAPI) {
         // This may block until one of two conditions happens:
         // - Number of uncommitted transactions in the writeback cache goes below the
@@ -433,6 +433,7 @@ impl AsyncTransactionScheduler {
     }
 
     pub async fn schedule(&self, transactions: Vec<VerifiedExecutableTransaction>) {
+        tracing::trace_span!("AsyncTransactionScheduler::schedule");
         self.sender.send(transactions).await.ok();
     }
 

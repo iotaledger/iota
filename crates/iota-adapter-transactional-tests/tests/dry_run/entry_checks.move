@@ -1,0 +1,21 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+// entry checks maintained during dry run
+
+//# init --addresses test=0x0 --accounts A
+
+//# publish
+
+module test::m {
+    public fun return_u64(): u64 {
+        0
+    }
+    entry fun entry_take_u64(_n: u64) {
+    }
+}
+
+//# programmable --sender A --dry-run
+//> 0: test::m::return_u64();
+//> 1: test::m::entry_take_u64(Result(0));

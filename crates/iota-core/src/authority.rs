@@ -859,7 +859,7 @@ impl AuthorityState {
     /// This is a private method and should be kept that way. It doesn't check
     /// whether the provided transaction is a system transaction, and hence
     /// can only be called internally.
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     async fn handle_transaction_impl(
         &self,
         transaction: VerifiedTransaction,
@@ -934,7 +934,7 @@ impl AuthorityState {
     }
 
     /// Initiate a new transaction.
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(name = "handle_transaction", level = "trace", skip_all)]
     pub async fn handle_transaction(
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -2257,6 +2257,7 @@ impl AuthorityState {
         Ok(epoch_store.reference_gas_price())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn try_is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
         self.get_transaction_cache_reader()
             .try_is_tx_already_executed(digest)
