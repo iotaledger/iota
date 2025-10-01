@@ -26,9 +26,8 @@ use crate::{
 pub(crate) struct WatermarkTask {
     /// Thread-safe watermark that avoids writer starvation
     watermark: WatermarkLock,
-    /// Thread-safe container for chain identifier with guaranteed one-time
-    /// initialization.
-    chain_identifier: ChainIdentifierOnceCellLock,
+    /// Cached chain identifier.
+    chain_identifier: ChainIdentifierCache,
     db: Db,
     metrics: Metrics,
     sleep: Duration,
@@ -39,13 +38,12 @@ pub(crate) struct WatermarkTask {
 
 pub(crate) type WatermarkLock = Arc<RwLock<Watermark>>;
 
-/// Thread-safe container for chain identifier with guaranteed one-time
-/// initialization. Once set, typically from database, the value cannot be
-/// changed.
+/// Cache the chain identifier with guaranteed one-time initialization. Once
+/// set, typically from database, the value cannot be changed.
 #[derive(Clone, Default)]
-pub(crate) struct ChainIdentifierOnceCellLock(pub(crate) Arc<OnceCell<ChainIdentifier>>);
+pub(crate) struct ChainIdentifierCache(pub(crate) Arc<OnceCell<ChainIdentifier>>);
 
-impl ChainIdentifierOnceCellLock {
+impl ChainIdentifierCache {
     /// Read the stored chain identifier.
     pub(crate) fn read(&self) -> ChainIdentifier {
         self.0
@@ -138,12 +136,12 @@ impl WatermarkTask {
         self.watermark.clone()
     }
 
-    /// Returns a clone of the chain identifier lock.
+    /// Returns a clone of the chain identifier cache.
     ///
     /// It clones the underlying `Arc<OnceCell<ChainIdentifier>>` wrapper, which
-    /// means the returned `ChainIdentifierOnceCellLock` shares the same inner
-    /// data with the original.
-    pub(crate) fn chain_id_lock(&self) -> ChainIdentifierOnceCellLock {
+    /// means the returned `ChainIdentifierCache` shares the same inner data
+    /// with the original.
+    pub(crate) fn chain_id_cache(&self) -> ChainIdentifierCache {
         self.chain_identifier.clone()
     }
 
