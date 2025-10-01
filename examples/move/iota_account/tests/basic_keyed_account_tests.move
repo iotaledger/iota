@@ -493,6 +493,258 @@ fun test_has_user_defined_dynamic_field_authenticator_df_name() {
     test_scenario::end(scenario_val);
 }
 
+// --------------------------------------- Ed25519 Authentication ---------------------------------------
+
+#[test]
+fun test_authenticate_ed25519() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(account_address);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(account_address, digest);
+        let auth_ctx = create_auth_context_for_testing();
+
+        let signature =
+            x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
+
+        iota_account::authenticate_ed25519(&account, hex::encode(signature), &auth_ctx, &ctx);
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+fun test_authenticate_ed25519_wrong_sender() {
+    let sender = @0x1;
+    let mut scenario_val = test_scenario::begin(sender);
+    let scenario = &mut scenario_val;
+    let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+
+    create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(sender);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(sender, digest);
+        let auth_ctx = create_auth_context_for_testing();
+
+        let signature =
+            x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
+
+        iota_account::authenticate_ed25519(&account, hex::encode(signature), &auth_ctx, &ctx);
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = iota_account::EEd25519VerificationFailed)]
+fun test_authenticate_ed25519_wrong_signature() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(account_address);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(account_address, digest);
+        let auth_ctx = create_auth_context_for_testing();
+
+        let signature =
+            x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc40561aa";
+
+        iota_account::authenticate_ed25519(&account, hex::encode(signature), &auth_ctx, &ctx);
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+// --------------------------------------- Secp256k1 Authentication ---------------------------------------
+
+#[test]
+fun test_authenticate_secp256k1() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let public_key = x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(account_address);
+    {
+        let secret_key = x"42258dcda14cf111c602b8971b8cc843e91e46ca905151c02744a6b017e69316";
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(account_address, digest);
+        let auth_ctx = create_auth_context_for_testing();
+
+        let signature = ecdsa_k1::secp256k1_sign(&secret_key, &digest, 0, false);
+
+        iota_account::authenticate_secp256k1(&account, hex::encode(signature), &auth_ctx, &ctx);
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+fun test_authenticate_secp256k1_wrong_sender() {
+    let sender = @0x1;
+    let mut scenario_val = test_scenario::begin(sender);
+    let scenario = &mut scenario_val;
+    let public_key = x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
+
+    create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(sender);
+    {
+        let secret_key = x"42258dcda14cf111c602b8971b8cc843e91e46ca905151c02744a6b017e69316";
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(sender, digest);
+        let auth_ctx = create_auth_context_for_testing();
+
+        let signature = ecdsa_k1::secp256k1_sign(&secret_key, &digest, 0, false);
+
+        iota_account::authenticate_secp256k1(&account, hex::encode(signature), &auth_ctx, &ctx);
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = iota_account::ESecp256k1VerificationFailed)]
+fun test_authenticate_secp256k1_wrong_signature() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let public_key = x"02337cca2171fdbfcfd657fa59881f46269f1e590b5ffab6023686c7ad2ecc2c1c";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(account_address);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(account_address, digest);
+        let auth_ctx = create_auth_context_for_testing();
+
+        let signature =
+            x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
+
+        iota_account::authenticate_secp256k1(&account, hex::encode(signature), &auth_ctx, &ctx);
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+// --------------------------------------- Secp256r1 Authentication ---------------------------------------
+
+#[test]
+fun test_authenticate_secp256r1() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let public_key = x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(account_address);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(account_address, digest);
+        let auth_ctx = create_auth_context_for_testing();
+
+        let signature =
+            x"310d0ab3a8870f6ab3d775f3cdf0a60059293e431f3ded9d1f6efe2c70f12da5628c7853ae18464b4d426d8ff6d31ae50fe31e47886b13733ba2aae508541bcd";
+
+        iota_account::authenticate_secp256r1(&account, hex::encode(signature), &auth_ctx, &ctx);
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+fun test_authenticate_secp256r1_wrong_sender() {
+    let sender = @0x1;
+    let mut scenario_val = test_scenario::begin(sender);
+    let scenario = &mut scenario_val;
+    let public_key = x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+
+    create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(sender);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(sender, digest);
+        let auth_ctx = create_auth_context_for_testing();
+
+        let signature =
+            x"310d0ab3a8870f6ab3d775f3cdf0a60059293e431f3ded9d1f6efe2c70f12da5628c7853ae18464b4d426d8ff6d31ae50fe31e47886b13733ba2aae508541bcd";
+
+        iota_account::authenticate_secp256k1(&account, hex::encode(signature), &auth_ctx, &ctx);
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = iota_account::ESecp256r1VerificationFailed)]
+fun test_authenticate_secp256r1_wrong_signature() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let public_key = x"0227322b3a891a0a280d6bc1fb2cbb23d28f54906fd6407f5f741f6def5762609a";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, public_key);
+
+    scenario.next_tx(account_address);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(account_address, digest);
+        let auth_ctx = create_auth_context_for_testing();
+
+        let signature =
+            x"310d0ab3a8870f6ab3d775f3cdf0a60059293e431f3ded9d1f6efe2c70f12da5628c7853ae18464b4d426d8ff6d31ae50fe31e47886b13733ba2aae508541baa";
+
+        iota_account::authenticate_secp256r1(&account, hex::encode(signature), &auth_ctx, &ctx);
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
 // --------------------------------------- Test Utilities ---------------------------------------
 
 fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
@@ -562,87 +814,4 @@ fun check_dynamic_field<Name: copy + drop + store, Value: store + copy + drop>(
     assert_eq(account.remove_field(name, ctx), value);
 
     assert!(!account.has_field(name));
-}
-
-// FROM ACCOUNT_TEMPLATE
-
-public struct ReservedDfName has copy, drop, store {}
-
-#[test]
-#[expected_failure(abort_code = account_template::EReservedDynamicFieldsListCannotBeSet)]
-fun builder_reserved_fields_cannot_be_set() {
-    let test_sender = @0x0;
-    let mut scenario_val = test_scenario::begin(test_sender);
-    let scenario = &mut scenario_val;
-
-    let ctx = test_scenario::ctx(scenario);
-
-    let authenticator = create_authenticator_info_v1_for_testing();
-    let account = account_template::builder(authenticator, ctx)
-        .add_reserved_field(
-            account_template::get_reserved_dynamic_fields(),
-            vector<DfKey>[],
-        )
-        .finish();
-    account.share();
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-fun builder_all_fields_set() {
-    let test_sender = @0x0;
-    let mut scenario_val = test_scenario::begin(test_sender);
-    let scenario = &mut scenario_val;
-
-    let ctx = test_scenario::ctx(scenario);
-
-    let reserved_df_example_name = ReservedDfName {};
-
-    let authenticator = create_authenticator_info_v1_for_testing();
-    // Any field value can be set as a reserved, and for the purposes of this test
-    // the exact value doesn't matter.
-    let account = account_template::builder(authenticator, ctx)
-        .add_reserved_field(reserved_df_example_name, 6)
-        .finish();
-    account.share();
-
-    scenario.next_tx(@0x0);
-    {
-        let account = scenario.take_shared<IOTAccount>();
-
-        let authenticator_df_name = account::authenticator_df_name();
-        assert!(account.has_field(authenticator_df_name));
-        assert_ref_eq(
-            account.borrow_field(authenticator_df_name),
-            &create_authenticator_info_v1_for_testing(),
-        );
-
-        let reserved_df_name = account_template::get_reserved_dynamic_fields();
-        assert!(account.has_field(reserved_df_name));
-        let reserved_df_keys: &vector<DfKey> = account.borrow_field(
-            reserved_df_name,
-        );
-        assert!(reserved_df_keys.length() == 2);
-        assert!(reserved_df_keys.contains(&make_key(authenticator_df_name)));
-        assert!(reserved_df_keys.contains(&make_key(reserved_df_example_name)));
-
-        // check the ReservedKey value as well
-        assert!(account.has_field(reserved_df_example_name));
-        assert_eq(*account.borrow_field(reserved_df_example_name), 6);
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-// --------------------------------------- Test Utilities ---------------------------------------
-
-fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
-    account::create_auth_info_v1_for_testing(
-        @0x0,
-        ascii::string(b"account_template"),
-        ascii::string(b"authenticator"),
-    )
 }
