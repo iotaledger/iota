@@ -170,6 +170,8 @@ iota-upgrade-compatibility-transactional-tests:
   - "crates/iota-upgrade-compatibility-transactional-tests/**"
 iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
+iota-package-alt:
+  - "crates/iota-package-alt/**"
 prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
 shared-crypto:

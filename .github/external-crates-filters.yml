@@ -104,3 +104,5 @@ serializer-tests:
   - "external-crates/move/crates/serializer-tests/**"
 test-generation:
   - "external-crates/move/crates/test-generation/**"
+move-package-alt:
+  - "external-crates/move/crates/move-package-alt/**"
