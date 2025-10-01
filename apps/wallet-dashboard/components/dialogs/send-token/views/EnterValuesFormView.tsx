@@ -8,7 +8,6 @@ import {
     getGasBudgetErrorMessage,
     NO_BALANCE_GENERIC_MESSAGE,
     RECEIVING_ADDRESS_FIELD_IDS,
-    safeParseAmount,
     SendCoinTransaction,
     SendTokenFormInput,
     useCoinMetadata,
@@ -26,7 +25,7 @@ import {
     LoadingIndicator,
     Header,
 } from '@iota/apps-ui-kit';
-import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, safeParseAmount } from '@iota/iota-sdk/utils';
 import { Form, useFormikContext } from 'formik';
 import { Exclamation } from '@iota/apps-ui-icons';
 import { FormDataValues } from '../interfaces';

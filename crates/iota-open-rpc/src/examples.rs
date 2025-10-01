@@ -1049,6 +1049,7 @@ impl RpcExampleProvider {
             friends: vec![],
             name: "module".to_string(),
             structs: BTreeMap::new(),
+            enums: BTreeMap::new(),
         };
 
         Examples::new(
@@ -1072,6 +1073,7 @@ impl RpcExampleProvider {
             friends: vec![],
             name: "module".to_string(),
             structs: BTreeMap::new(),
+            enums: BTreeMap::new(),
         };
 
         Examples::new(

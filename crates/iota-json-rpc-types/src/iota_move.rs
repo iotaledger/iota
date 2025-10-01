@@ -18,8 +18,8 @@ use itertools::Itertools;
 use move_binary_format::{
     file_format::{Ability, AbilitySet, DatatypeTyParameter, Visibility},
     normalized::{
-        Field as NormalizedField, Function as IotaNormalizedFunction, Module as NormalizedModule,
-        Struct as NormalizedStruct, Type as NormalizedType,
+        Enum as NormalizedEnum, Field as NormalizedField, Function as IotaNormalizedFunction,
+        Module as NormalizedModule, Struct as NormalizedStruct, Type as NormalizedType,
     },
 };
 use move_core_types::{
@@ -81,6 +81,14 @@ pub struct IotaMoveNormalizedStruct {
     pub fields: Vec<IotaMoveNormalizedField>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IotaMoveNormalizedEnum {
+    pub abilities: IotaMoveAbilitySet,
+    pub type_parameters: Vec<IotaMoveStructTypeParameter>,
+    pub variants: BTreeMap<String, Vec<IotaMoveNormalizedField>>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 pub enum IotaMoveNormalizedType {
     Bool,
@@ -129,6 +137,8 @@ pub struct IotaMoveNormalizedModule {
     pub name: String,
     pub friends: Vec<IotaMoveModuleId>,
     pub structs: BTreeMap<String, IotaMoveNormalizedStruct>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub enums: BTreeMap<String, IotaMoveNormalizedEnum>,
     pub exposed_functions: BTreeMap<String, IotaMoveNormalizedFunction>,
 }
 
@@ -159,6 +169,11 @@ impl From<NormalizedModule> for IotaMoveNormalizedModule {
                 .into_iter()
                 .map(|(name, struct_)| (name.to_string(), IotaMoveNormalizedStruct::from(struct_)))
                 .collect::<BTreeMap<String, IotaMoveNormalizedStruct>>(),
+            enums: module
+                .enums
+                .into_iter()
+                .map(|(name, enum_)| (name.to_string(), IotaMoveNormalizedEnum::from(enum_)))
+                .collect(),
             exposed_functions: module
                 .functions
                 .into_iter()
@@ -214,6 +229,25 @@ impl From<NormalizedStruct> for IotaMoveNormalizedStruct {
                 .into_iter()
                 .map(IotaMoveNormalizedField::from)
                 .collect::<Vec<IotaMoveNormalizedField>>(),
+        }
+    }
+}
+
+impl From<NormalizedEnum> for IotaMoveNormalizedEnum {
+    fn from(value: NormalizedEnum) -> Self {
+        Self {
+            abilities: value.abilities.into(),
+            type_parameters: value.type_parameters.into_iter().map(Into::into).collect(),
+            variants: value
+                .variants
+                .into_iter()
+                .map(|variant| {
+                    (
+                        variant.name.to_string(),
+                        variant.fields.into_iter().map(Into::into).collect(),
+                    )
+                })
+                .collect(),
         }
     }
 }

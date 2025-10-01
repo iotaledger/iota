@@ -210,8 +210,11 @@ async function extractNativeTokensFromObject(
     for (const nativeToken of nativeTokens) {
         const nativeTokenParentId = fields.native_tokens.fields.id.id;
         const objectDynamic = await client.getDynamicFieldObject({
-            parentId: nativeTokenParentId,
+            parentObjectId: nativeTokenParentId,
             name: nativeToken.name,
+            options: {
+                showContent: true,
+            },
         });
 
         if (objectDynamic?.data?.content && 'fields' in objectDynamic.data.content) {

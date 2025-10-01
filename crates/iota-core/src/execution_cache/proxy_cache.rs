@@ -12,12 +12,14 @@ use iota_types::{
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
+    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
+use tracing::instrument;
 
 use super::{
     CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,
@@ -259,6 +261,7 @@ impl ExecutionCacheWrite for ProxyCache {
         delegate_method!(self.try_write_transaction_outputs(epoch_id, tx_outputs))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,
@@ -310,26 +313,16 @@ impl AccumulatorStore for ProxyCache {
 }
 
 impl ExecutionCacheCommit for ProxyCache {
-    fn try_commit_transaction_outputs<'a>(
-        &'a self,
+    fn try_commit_transaction_outputs(
+        &self,
         epoch: EpochId,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult> {
+        digests: &[TransactionDigest],
+    ) -> IotaResult {
         delegate_method!(self.try_commit_transaction_outputs(epoch, digests))
     }
 
-    fn try_persist_transactions<'a>(
-        &'a self,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult> {
-        delegate_method!(self.try_persist_transactions(digests))
-    }
-
-    fn persist_transactions_and_effects(
-        &self,
-        digests: &[(TransactionDigest, TransactionEffectsDigest)],
-    ) {
-        delegate_method!(self.persist_transactions_and_effects(digests))
+    fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
+        delegate_method!(self.try_persist_transaction(tx))
     }
 
     fn approximate_pending_transaction_count(&self) -> u64 {

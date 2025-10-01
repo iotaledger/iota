@@ -212,7 +212,6 @@ impl ValidatorConfigBuilder {
             metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
             db_checkpoint_config: Default::default(),
-            indirect_objects_threshold: usize::MAX,
             // By default, expensive checks will be enabled in debug build, but not in release
             // build.
             expensive_safety_check_config: ExpensiveSafetyCheckConfig::default(),
@@ -246,6 +245,8 @@ impl ValidatorConfigBuilder {
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: None,
+            enable_grpc_api: false,
+            grpc_api_config: None,
         }
     }
 
@@ -293,6 +294,7 @@ pub struct FullnodeConfigBuilder {
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
+    grpc_api_config: Option<iota_grpc_api::Config>,
 }
 
 impl FullnodeConfigBuilder {
@@ -418,6 +420,11 @@ impl FullnodeConfigBuilder {
         self
     }
 
+    pub fn with_grpc_api_config(mut self, config: iota_grpc_api::Config) -> Self {
+        self.grpc_api_config = Some(config);
+        self
+    }
+
     pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
         self,
         rng: &mut R,
@@ -531,7 +538,6 @@ impl FullnodeConfigBuilder {
             metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
             db_checkpoint_config: self.db_checkpoint_config.unwrap_or_default(),
-            indirect_objects_threshold: usize::MAX,
             expensive_safety_check_config: self
                 .expensive_safety_check_config
                 .unwrap_or_else(ExpensiveSafetyCheckConfig::new_enable_all),
@@ -564,6 +570,8 @@ impl FullnodeConfigBuilder {
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: self.iota_names_config,
+            enable_grpc_api: self.grpc_api_config.is_some(),
+            grpc_api_config: self.grpc_api_config,
         }
     }
 

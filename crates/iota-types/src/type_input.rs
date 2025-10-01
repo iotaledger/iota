@@ -305,7 +305,7 @@ impl Display for StructInput {
 
         let mut prefix = "<";
         for ty in &self.type_params {
-            write!(f, "{}{}", prefix, ty)?;
+            write!(f, "{prefix}{ty}")?;
             prefix = ", ";
         }
         if !self.type_params.is_empty() {
@@ -319,8 +319,8 @@ impl Display for StructInput {
 impl Display for TypeInput {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            TypeInput::Struct(s) => write!(f, "{}", s),
-            TypeInput::Vector(ty) => write!(f, "vector<{}>", ty),
+            TypeInput::Struct(s) => write!(f, "{s}"),
+            TypeInput::Vector(ty) => write!(f, "vector<{ty}>"),
             TypeInput::U8 => write!(f, "u8"),
             TypeInput::U16 => write!(f, "u16"),
             TypeInput::U32 => write!(f, "u32"),

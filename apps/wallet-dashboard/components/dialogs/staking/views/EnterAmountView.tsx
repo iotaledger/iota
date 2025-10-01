@@ -6,11 +6,10 @@ import {
     useCoinMetadata,
     toast,
     useNewStakeTransaction,
-    parseAmount,
     getGasBudgetErrorMessage,
     NO_BALANCE_GENERIC_MESSAGE,
 } from '@iota/core';
-import { CoinFormat, IOTA_DECIMALS, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_DECIMALS, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';

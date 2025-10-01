@@ -168,11 +168,6 @@ pub struct NodeConfig {
     #[serde(default)]
     pub db_checkpoint_config: DBCheckpointConfig,
 
-    /// Defines a threshold for an object size above which object
-    /// is stored separately as `IndirectObject`. Used in `AuthorityStore`.
-    #[serde(default)]
-    pub indirect_objects_threshold: usize,
-
     /// Configuration for enabling/disabling expensive safety checks.
     #[serde(default)]
     pub expensive_safety_check_config: ExpensiveSafetyCheckConfig,
@@ -263,6 +258,15 @@ pub struct NodeConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iota_names_config: Option<IotaNamesConfig>,
+
+    /// Flag to enable the gRPC API.
+    #[serde(default)]
+    pub enable_grpc_api: bool,
+    #[serde(
+        default = "default_grpc_api_config",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub grpc_api_config: Option<iota_grpc_api::Config>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
@@ -572,6 +576,10 @@ pub fn default_json_rpc_address() -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9000)
 }
 
+pub fn default_grpc_api_config() -> Option<iota_grpc_api::Config> {
+    None
+}
+
 pub fn default_concurrency_limit() -> Option<usize> {
     Some(DEFAULT_GRPC_CONCURRENCY_LIMIT)
 }
@@ -688,6 +696,8 @@ impl NodeConfig {
 pub enum ConsensusProtocol {
     #[serde(rename = "mysticeti")]
     Mysticeti,
+    #[serde(rename = "starfish")]
+    Starfish,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -866,7 +876,7 @@ impl ExpensiveSafetyCheckConfig {
 }
 
 fn default_checkpoint_execution_max_concurrency() -> usize {
-    200
+    40
 }
 
 fn default_local_execution_timeout_sec() -> u64 {
@@ -1466,6 +1476,13 @@ impl RunWithRange {
 
     pub fn matches_checkpoint(&self, seq_num: CheckpointSequenceNumber) -> bool {
         matches!(self, RunWithRange::Checkpoint(seq) if *seq == seq_num)
+    }
+
+    pub fn into_checkpoint_bound(self) -> Option<CheckpointSequenceNumber> {
+        match self {
+            RunWithRange::Epoch(_) => None,
+            RunWithRange::Checkpoint(seq) => Some(seq),
+        }
     }
 }
 

@@ -587,6 +587,13 @@ export interface IotaMoveModuleId {
     address: string;
     name: string;
 }
+export interface IotaMoveNormalizedEnum {
+    abilities: IotaMoveAbilitySet;
+    typeParameters: IotaMoveStructTypeParameter[];
+    variants: {
+        [key: string]: IotaMoveNormalizedField[];
+    };
+}
 export interface IotaMoveNormalizedField {
     name: string;
     type: IotaMoveNormalizedType;
@@ -600,6 +607,9 @@ export interface IotaMoveNormalizedFunction {
 }
 export interface IotaMoveNormalizedModule {
     address: string;
+    enums?: {
+        [key: string]: IotaMoveNormalizedEnum;
+    };
     exposedFunctions: {
         [key: string]: IotaMoveNormalizedFunction;
     };

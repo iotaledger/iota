@@ -196,7 +196,7 @@ mod tests {
         checkpoint_size: u64,
     ) {
         for checkpoint in first_checkpoint..first_checkpoint + num_checkpoints {
-            let path = ingestion_dir.join(format!("{}.chk", checkpoint));
+            let path = ingestion_dir.join(format!("{checkpoint}.chk"));
             let bytes = tokio::fs::read(&path).await.unwrap();
             let checkpoint_data: CheckpointData = Blob::from_bytes(&bytes).unwrap();
 

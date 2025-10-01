@@ -40,7 +40,7 @@ export function ObjectModal({
                     />
                 )}
                 <div className="flex flex-col gap-3">
-                    <span className="text-headline-md text-iota-neutral-100">{title}</span>
+                    <span className="truncate text-headline-md text-iota-neutral-100">{title}</span>
                     <span className="text-label-lg text-iota-neutral-90">{subtitle}</span>
                 </div>
             </div>

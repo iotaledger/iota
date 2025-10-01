@@ -75,7 +75,6 @@ use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use tokio::{sync::mpsc, task::JoinHandle, time::Instant};
 use tracing::info;
-use typed_store::rocks::MetricConf;
 
 pub mod commands;
 pub mod db_tool;
@@ -511,8 +510,8 @@ pub(crate) fn make_anemo_config() -> anemo_cli::Config {
         .add_service(
             "Discovery",
             anemo_cli::ServiceInfo::new().add_method(
-                "GetKnownPeers",
-                anemo_cli::ron_method!(DiscoveryClient, get_known_peers, ()),
+                "GetKnownPeersV2",
+                anemo_cli::ron_method!(DiscoveryClient, get_known_peers_v2, ()),
             ),
         )
         // IOTA state sync
@@ -597,8 +596,7 @@ fn start_summary_sync(
 ) -> JoinHandle<Result<(), anyhow::Error>> {
     tokio::spawn(async move {
         info!("Starting summary sync");
-        let store =
-            AuthorityStore::open_no_genesis(perpetual_db, usize::MAX, false, &Registry::default())?;
+        let store = AuthorityStore::open_no_genesis(perpetual_db, false, &Registry::default())?;
         let cache_traits = build_execution_cache_from_env(&Registry::default(), &store);
         let state_sync_store =
             RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
@@ -850,12 +848,7 @@ pub async fn download_formal_snapshot(
         &genesis_committee,
         None,
     ));
-    let checkpoint_store = Arc::new(CheckpointStore::open_tables_read_write(
-        path.join("checkpoints"),
-        MetricConf::default(),
-        None,
-        None,
-    ));
+    let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
 
     let summaries_handle = start_summary_sync(
         perpetual_db.clone(),
@@ -892,7 +885,6 @@ pub async fn download_formal_snapshot(
             epoch,
             &snapshot_store_config,
             &local_store_config,
-            usize::MAX,
             NonZeroUsize::new(num_parallel_downloads).unwrap(),
             m_clone,
             false, // skip_reset_local_store

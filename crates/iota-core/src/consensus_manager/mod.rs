@@ -12,9 +12,9 @@ use arc_swap::ArcSwapOption;
 use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::traits::KeyPair as _;
-use iota_config::{ConsensusConfig, NodeConfig};
+use iota_config::{ConsensusConfig, NodeConfig, node::ConsensusProtocol};
 use iota_metrics::RegistryService;
-use iota_protocol_config::ProtocolVersion;
+use iota_protocol_config::{ConsensusChoice, ProtocolVersion};
 use iota_types::{committee::EpochId, error::IotaResult, messages_consensus::ConsensusTransaction};
 use prometheus::{IntGauge, Registry, register_int_gauge_with_registry};
 use tokio::{
@@ -27,12 +27,14 @@ use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
     consensus_adapter::{BlockStatusReceiver, ConsensusClient},
     consensus_handler::ConsensusHandlerInitializer,
-    consensus_manager::mysticeti_manager::MysticetiManager,
+    consensus_manager::{mysticeti_manager::MysticetiManager, starfish_manager::StarfishManager},
     consensus_validator::IotaTxValidator,
     mysticeti_adapter::LazyMysticetiClient,
+    starfish_adapter::LazyStarfishClient,
 };
 
 pub mod mysticeti_manager;
+pub mod starfish_manager;
 
 #[derive(PartialEq)]
 pub(crate) enum Running {
@@ -61,6 +63,7 @@ pub trait ConsensusManagerTrait {
 #[enum_dispatch]
 enum ProtocolManager {
     Mysticeti(MysticetiManager),
+    Starfish(StarfishManager),
 }
 
 impl ProtocolManager {
@@ -81,14 +84,34 @@ impl ProtocolManager {
             client,
         ))
     }
+
+    /// Creates a new starfish manager.
+    pub fn new_starfish(
+        config: &NodeConfig,
+        consensus_config: &ConsensusConfig,
+        registry_service: &RegistryService,
+        metrics: Arc<ConsensusManagerMetrics>,
+        client: Arc<LazyStarfishClient>,
+    ) -> Self {
+        Self::Starfish(StarfishManager::new(
+            config.protocol_key_pair().copy(),
+            config.network_key_pair().copy(),
+            consensus_config.db_path().to_path_buf(),
+            registry_service.clone(),
+            metrics,
+            client,
+        ))
+    }
 }
 
 /// Used by IOTA validator to start consensus protocol for each epoch.
 pub struct ConsensusManager {
     consensus_config: ConsensusConfig,
     mysticeti_manager: ProtocolManager,
+    starfish_manager: ProtocolManager,
     mysticeti_client: Arc<LazyMysticetiClient>,
-    active: parking_lot::Mutex<bool>,
+    starfish_client: Arc<LazyStarfishClient>,
+    active: parking_lot::Mutex<Vec<bool>>,
     consensus_client: Arc<UpdatableConsensusClient>,
 }
 
@@ -106,20 +129,59 @@ impl ConsensusManager {
             node_config,
             consensus_config,
             registry_service,
-            metrics,
+            metrics.clone(),
             mysticeti_client.clone(),
+        );
+        let starfish_client = Arc::new(LazyStarfishClient::new());
+        let starfish_manager = ProtocolManager::new_starfish(
+            node_config,
+            consensus_config,
+            registry_service,
+            metrics,
+            starfish_client.clone(),
         );
         Self {
             consensus_config: consensus_config.clone(),
             mysticeti_manager,
+            starfish_manager,
             mysticeti_client,
-            active: parking_lot::Mutex::new(false),
+            starfish_client,
+            active: parking_lot::Mutex::new(vec![false; 2]),
             consensus_client,
         }
     }
 
     pub fn get_storage_base_path(&self) -> PathBuf {
         self.consensus_config.db_path().to_path_buf()
+    }
+
+    // Picks the consensus protocol based on the protocol config and the epoch.
+    fn pick_protocol(&self, epoch_store: &AuthorityPerEpochStore) -> ConsensusProtocol {
+        let protocol_config = epoch_store.protocol_config();
+        if let Ok(consensus_choice) = std::env::var("CONSENSUS_PROTOCOL") {
+            match consensus_choice.to_lowercase().as_str() {
+                "mysticeti" => return ConsensusProtocol::Mysticeti,
+                "starfish" => return ConsensusProtocol::Starfish,
+                "swap_each_epoch" => {
+                    let protocol = if epoch_store.epoch() % 2 == 0 {
+                        ConsensusProtocol::Starfish
+                    } else {
+                        ConsensusProtocol::Mysticeti
+                    };
+                    return protocol;
+                }
+                _ => {
+                    info!(
+                        "Invalid consensus choice {} in env var. Continue to pick consensus with protocol config",
+                        consensus_choice
+                    );
+                }
+            };
+        }
+
+        match protocol_config.consensus_choice() {
+            ConsensusChoice::Mysticeti => ConsensusProtocol::Mysticeti,
+        }
     }
 }
 
@@ -134,11 +196,27 @@ impl ConsensusManagerTrait for ConsensusManager {
     ) {
         let protocol_manager = {
             let mut active = self.active.lock();
-            assert!(!*active, "Cannot start consensus. It is already running!");
-            info!("Starting consensus ...");
-            *active = true;
+            active.iter().enumerate().for_each(|(index, active)| {
+                assert!(
+                    !*active,
+                    "Cannot start consensus. ConsensusManager protocol {index} is already running"
+                );
+            });
+            let protocol = self.pick_protocol(&epoch_store);
+            info!("Starting consensus protocol {protocol:?} ...");
             self.consensus_client.set(self.mysticeti_client.clone());
-            &self.mysticeti_manager
+            match protocol {
+                ConsensusProtocol::Mysticeti => {
+                    active[0] = true;
+                    self.consensus_client.set(self.mysticeti_client.clone());
+                    &self.mysticeti_manager
+                }
+                ConsensusProtocol::Starfish => {
+                    active[1] = true;
+                    self.consensus_client.set(self.starfish_client.clone());
+                    &self.starfish_manager
+                }
+            }
         };
 
         protocol_manager
@@ -155,17 +233,22 @@ impl ConsensusManagerTrait for ConsensusManager {
         info!("Shutting down consensus ...");
         let prev_active = {
             let mut active = self.active.lock();
-            std::mem::replace(&mut *active, false)
+            std::mem::replace(&mut *active, vec![false; 2])
         };
-        if prev_active {
+        if prev_active[0] {
             self.mysticeti_manager.shutdown().await;
         }
+
+        if prev_active[1] {
+            self.starfish_manager.shutdown().await;
+        }
+
         self.consensus_client.clear();
     }
 
     async fn is_running(&self) -> bool {
         let active = self.active.lock();
-        *active
+        active.iter().any(|i| *i)
     }
 }
 

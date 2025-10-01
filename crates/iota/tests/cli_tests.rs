@@ -5848,10 +5848,7 @@ async fn test_ptb_sender() -> Result<(), anyhow::Error> {
 async fn test_tree_shaking_package_with_unpublished_deps() -> Result<(), anyhow::Error> {
     let mut test = TreeShakingTest::new().await.unwrap();
     // A package and with unpublished deps
-    let (package_id, _) = test
-        .publish_package("H_depends_on_G_unpublished", true)
-        .await
-        .unwrap();
+    let (package_id, _) = test.publish_package("H", true).await.unwrap();
 
     // set with_unpublished_dependencies to true and publish package H
     let linkage_table_h = test.fetch_linkage_table(package_id).await;
@@ -5861,9 +5858,7 @@ async fn test_tree_shaking_package_with_unpublished_deps() -> Result<(), anyhow:
 
     // try publish package H but `with_unpublished_dependencies` is false. Should
     // error
-    let resp = test
-        .publish_package("H_depends_on_G_unpublished", false)
-        .await;
+    let resp = test.publish_package("H", false).await;
     assert!(resp.is_err());
 
     Ok(())
@@ -5898,10 +5893,7 @@ async fn test_tree_shaking_package_with_bytecode_deps() -> Result<(), anyhow::Er
     fs::remove_dir_all(package_path.join("sources"))?;
 
     let (package_f_id, _) = test
-        .publish_package(
-            "F_depends_on_A_as_bytecode_dep",
-            with_unpublished_dependencies,
-        )
+        .publish_package("F", with_unpublished_dependencies)
         .await?;
     let linkage_table_f = test.fetch_linkage_table(package_f_id).await;
     // F depends on A as a bytecode dep, so the linkage table should not be empty
@@ -5937,7 +5929,7 @@ async fn test_tree_shaking_package_with_direct_dependency() -> Result<(), anyhow
     let (package_a_id, _) = test.publish_package("A", false).await?;
 
     // Then publish B which depends on A
-    let (package_b_id, _) = test.publish_package("B_depends_on_A", false).await?;
+    let (package_b_id, _) = test.publish_package("B_A", false).await?;
     let linkage_table_b = test.fetch_linkage_table(package_b_id).await;
     assert!(
         linkage_table_b.contains_key(&package_a_id),
@@ -5955,9 +5947,7 @@ async fn test_tree_shaking_package_with_unused_dependency() -> Result<(), anyhow
     let (_, _) = test.publish_package("A", false).await?;
 
     // Then publish B which declares but doesn't use A
-    let (package_b_id, _) = test
-        .publish_package("B_depends_on_A_but_no_code_references_A", false)
-        .await?;
+    let (package_b_id, _) = test.publish_package("B_A1", false).await?;
     let linkage_table_b = test.fetch_linkage_table(package_b_id).await;
     assert!(
         linkage_table_b.is_empty(),
@@ -5973,12 +5963,10 @@ async fn test_tree_shaking_package_with_transitive_dependencies1() -> Result<(),
 
     // Publish packages A and B
     let (package_a_id, _) = test.publish_package("A", false).await?;
-    let (package_b_id, _) = test.publish_package("B_depends_on_A", false).await?;
+    let (package_b_id, _) = test.publish_package("B_A", false).await?;
 
     // Publish C which depends on B (which depends on A)
-    let (package_c_id, _) = test
-        .publish_package("C_depends_on_B_which_depends_on_A", false)
-        .await?;
+    let (package_c_id, _) = test.publish_package("C_B_A", false).await?;
     let linkage_table_c = test.fetch_linkage_table(package_c_id).await;
 
     assert!(
@@ -6001,20 +5989,16 @@ async fn test_tree_shaking_package_with_transitive_dependencies1() -> Result<(),
 #[sim_test]
 async fn test_tree_shaking_package_with_transitive_dependencies_and_no_code_references()
 -> Result<(), anyhow::Error> {
-    // Publish package C_depends_on_B_but_no_code_references_B and check the linkage
+    // Publish package C_B and check the linkage
     // table we use here the package B published in TEST 3
     let mut test = TreeShakingTest::new().await?;
 
     // Publish packages A and B
     let (_, _) = test.publish_package("A", false).await?;
-    let (_, _) = test
-        .publish_package("B_depends_on_A_but_no_code_references_A", false)
-        .await?;
+    let (_, _) = test.publish_package("B_A1", false).await?;
 
     // Publish C which depends on B
-    let (package_c_id, _) = test
-        .publish_package("C_depends_on_B_but_no_code_references_B", false)
-        .await?;
+    let (package_c_id, _) = test.publish_package("C_B", false).await?;
     let linkage_table_c = test.fetch_linkage_table(package_c_id).await;
 
     assert!(
@@ -6027,13 +6011,11 @@ async fn test_tree_shaking_package_with_transitive_dependencies_and_no_code_refe
 
 #[sim_test]
 async fn test_tree_shaking_package_deps_on_pkg_upgrade() -> Result<(), anyhow::Error> {
-    // Publish package C_depends_on_B_but_no_code_references_B and check the linkage
-    // table
     let mut test = TreeShakingTest::new().await?;
 
     // Publish package A and B
     let (package_a_id, cap) = test.publish_package("A", false).await?;
-    let (_, _) = test.publish_package("B_depends_on_A", false).await?;
+    let (_, _) = test.publish_package("B_A", false).await?;
 
     // Upgrade package A (named A_v1)
     std::fs::copy(
@@ -6043,9 +6025,7 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade() -> Result<(), anyhow::E
     let package_a_v1_id = test.upgrade_package("A_v1", cap).await?;
 
     // Publish D which depends on A_v1 but no code references A
-    let (package_d_id, _) = test
-        .publish_package("D_depends_on_A_v1_but_no_code_references_A", false)
-        .await?;
+    let (package_d_id, _) = test.publish_package("D_A", false).await?;
     let linkage_table_d = test.fetch_linkage_table(package_d_id).await;
 
     assert!(
@@ -6054,7 +6034,7 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade() -> Result<(), anyhow::E
     );
 
     // Publish D which depends on A_v1 and code references it
-    let (package_d_id, _) = test.publish_package("D_depends_on_A_v1", false).await?;
+    let (package_d_id, _) = test.publish_package("D_A_v1", false).await?;
     let linkage_table_d = test.fetch_linkage_table(package_d_id).await;
 
     assert!(
@@ -6068,12 +6048,7 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade() -> Result<(), anyhow::E
         "Package D should depend on A_v1 after upgrade, and the UpgradeInfo should have matching ids"
     );
 
-    let (package_e_id, _) = test
-        .publish_package(
-            "E_depends_on_A_v1_and_on_B_depends_on_A_but_no_code_references_to_A_or_B",
-            false,
-        )
-        .await?;
+    let (package_e_id, _) = test.publish_package("E_A_v1", false).await?;
 
     let linkage_table_e = test.fetch_linkage_table(package_e_id).await;
     assert!(
@@ -6081,12 +6056,7 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade() -> Result<(), anyhow::E
         "Package E should have no dependencies"
     );
 
-    let (package_e_id, _) = test
-        .publish_package(
-            "E_depends_on_A_v1_and_on_B_depends_on_A_and_code_references_A",
-            false,
-        )
-        .await?;
+    let (package_e_id, _) = test.publish_package("E", false).await?;
 
     let linkage_table_e = test.fetch_linkage_table(package_e_id).await;
     assert!(
@@ -6101,7 +6071,7 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade() -> Result<(), anyhow::E
 async fn test_tree_shaking_package_deps_on_pkg_upgrade_1() -> Result<(), anyhow::Error> {
     let mut test = TreeShakingTest::new().await?;
 
-    // Publish package A and D_depends_on_A_v1_but_no_code_references_A
+    // Publish package A and D_A
     let (package_a_id, cap) = test.publish_package("A", false).await?;
     let package_path = test.package_path("A");
     add_ids_to_manifest(&package_path, &package_a_id, None)?;
@@ -6115,9 +6085,7 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade_1() -> Result<(), anyhow:
     let package_path = test.package_path("A_v1");
     add_ids_to_manifest(&package_path, &package_a_v1_id, None)?;
 
-    let package_d_id = test
-        .publish_package_without_tree_shaking("D_depends_on_A_v1_but_no_code_references_A")
-        .await;
+    let package_d_id = test.publish_package_without_tree_shaking("D_A").await;
     let linkage_table_d = test.fetch_linkage_table(package_d_id).await;
     assert!(
         linkage_table_d.contains_key(&package_a_id),
@@ -6126,11 +6094,7 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade_1() -> Result<(), anyhow:
 
     // published package D with the old stuff that isn't aware of automated address
     // mgmt, so need to update the published-at field in the manifest
-    add_ids_to_manifest(
-        &test.package_path("D_depends_on_A_v1_but_no_code_references_A"),
-        &package_d_id,
-        None,
-    )?;
+    add_ids_to_manifest(&test.package_path("D_A"), &package_d_id, None)?;
 
     // Upgrade package A (named A_v2)
     std::fs::copy(
@@ -6145,12 +6109,7 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade_1() -> Result<(), anyhow:
     let package_path = test.package_path("A_v2");
     add_ids_to_manifest(&package_path, &package_a_v2_id, None)?;
 
-    let (package_i_id, _) = test
-        .publish_package(
-            "I_depends_on_D_depends_on_A_v1_but_no_code_references_A_and_on_A_v2",
-            false,
-        )
-        .await?;
+    let (package_i_id, _) = test.publish_package("I", false).await?;
     let linkage_table_i = test.fetch_linkage_table(package_i_id).await;
     assert!(
         linkage_table_i.contains_key(&package_a_id),
@@ -6184,18 +6143,16 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade_2() -> Result<(), anyhow:
     let package_path = test.package_path("K_v2");
     add_ids_to_manifest(&package_path, &package_k_v2_id, None)?;
 
-    let (package_l_id, _) = test.publish_package("L_depends_on_K", false).await?;
+    let (package_l_id, _) = test.publish_package("L", false).await?;
     let linkage_table_l = test.fetch_linkage_table(package_l_id).await;
     assert!(
         linkage_table_l.contains_key(&package_k_id),
         "Package L should depend on K"
     );
 
-    add_ids_to_manifest(&test.package_path("L_depends_on_K"), &package_l_id, None)?;
+    add_ids_to_manifest(&test.package_path("L"), &package_l_id, None)?;
 
-    let (package_m_id, _) = test
-        .publish_package("M_depends_on_L_and_K_v2_no_code_references_K_v2", false)
-        .await?;
+    let (package_m_id, _) = test.publish_package("M", false).await?;
     let linkage_table_m = test.fetch_linkage_table(package_m_id).await;
     assert!(
         linkage_table_m.contains_key(&package_k_id),
@@ -6236,24 +6193,16 @@ async fn test_tree_shaking_package_deps_on_pkg_upgrade_3() -> Result<(), anyhow:
     let package_path = test.package_path("K_v2");
     add_ids_to_manifest(&package_path, &package_k_v2_id, Some(package_k_id))?;
 
-    let package_l_id = test
-        .publish_package_without_tree_shaking("L_depends_on_K")
-        .await;
+    let package_l_id = test.publish_package_without_tree_shaking("L").await;
     let linkage_table_l = test.fetch_linkage_table(package_l_id).await;
     assert!(
         linkage_table_l.contains_key(&package_k_id),
         "Package L should depend on K"
     );
 
-    add_ids_to_manifest(
-        &test.package_path("L_depends_on_K"),
-        &package_l_id,
-        Some(package_l_id),
-    )?;
+    add_ids_to_manifest(&test.package_path("L"), &package_l_id, Some(package_l_id))?;
 
-    let (package_m_id, _) = test
-        .publish_package("M_depends_on_L_and_K_v2_no_code_references_K_v2", false)
-        .await?;
+    let (package_m_id, _) = test.publish_package("M", false).await?;
     let linkage_table_m = test.fetch_linkage_table(package_m_id).await;
     assert!(
         linkage_table_m.contains_key(&package_k_id),
@@ -6275,7 +6224,7 @@ async fn test_tree_shaking_package_system_deps() -> Result<(), anyhow::Error> {
     let mut test = TreeShakingTest::new().await?;
 
     // Publish package J and verify empty linkage table
-    let (package_j_id, _) = test.publish_package("J_system_deps", false).await?;
+    let (package_j_id, _) = test.publish_package("J", false).await?;
     let move_pkg_j = fetch_move_packages(&test.client, vec![package_j_id]).await;
     let linkage_table_j = move_pkg_j.first().unwrap().linkage_table();
     assert!(
@@ -6285,7 +6234,7 @@ async fn test_tree_shaking_package_system_deps() -> Result<(), anyhow::Error> {
 
     // iota move build --dump-bytecode-as-base64 should also yield a json with no
     // dependencies
-    let package_path = test.package_path("J_system_deps");
+    let package_path = test.package_path("J");
     let binary_path = env!("CARGO_BIN_EXE_iota");
     let cmd = std::process::Command::new(binary_path)
         .arg("move")

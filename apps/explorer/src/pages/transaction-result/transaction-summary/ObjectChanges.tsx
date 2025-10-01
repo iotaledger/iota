@@ -107,7 +107,7 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
                             )}
                         />
                     </div>
-                    <div className="flex flex-row items-center gap-xxs truncate pr-xxs">
+                    <div className="flex flex-row items-center gap-xxs overflow-hidden truncate pr-xxs">
                         {headerContent}
                     </div>
                 </div>
@@ -278,7 +278,12 @@ function ObjectChangeEntriesCardFooter({
             </span>
             <div className="flex flex-row items-center gap-xs">
                 {ownerType === 'AddressOwner' && (
-                    <AddressLink address={ownerAddress} copyText={ownerAddress} />
+                    <AddressLink
+                        address={ownerAddress}
+                        copyText={ownerAddress}
+                        className="[&>div]:max-w-[200px] [&>div]:truncate"
+                        display="block"
+                    />
                 )}
                 {ownerType === 'ObjectOwner' && (
                     <ObjectLink objectId={ownerAddress} copyText={ownerAddress} />

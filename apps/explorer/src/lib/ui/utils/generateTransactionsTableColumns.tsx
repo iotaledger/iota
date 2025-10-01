@@ -39,7 +39,12 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                 const address = getValue<string>();
                 return (
                     <TableCellBase>
-                        <AddressLink address={address} copyText={address} />
+                        <AddressLink
+                            address={address}
+                            copyText={address}
+                            className="[&>div]:max-w-[200px] [&>div]:truncate"
+                            display="block"
+                        />
                     </TableCellBase>
                 );
             },

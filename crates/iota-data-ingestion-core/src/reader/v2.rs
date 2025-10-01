@@ -30,6 +30,8 @@ use tokio::{
 };
 use tracing::{debug, error, info};
 
+#[cfg(not(target_os = "macos"))]
+use crate::reader::fetch::init_watcher;
 use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     history::reader::HistoricalReader,
@@ -451,7 +453,12 @@ impl CheckpointReaderActor {
 
     /// Run the main loop of the checkpoint reader actor.
     async fn run(mut self) {
-        let (_watcher, mut inotify_rx) = self.setup_directory_watcher();
+        let (_inotify_tx, mut inotify_rx) = mpsc::channel::<()>(1);
+        std::fs::create_dir_all(self.path()).expect("failed to create a directory");
+
+        #[cfg(not(target_os = "macos"))]
+        let _watcher = init_watcher(_inotify_tx, self.path());
+
         self.data_limiter.gc(self.last_pruned_watermark);
         self.gc_processed_files(self.last_pruned_watermark)
             .expect("Failed to clean the directory");

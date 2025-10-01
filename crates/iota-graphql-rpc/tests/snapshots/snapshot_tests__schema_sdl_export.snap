@@ -1159,6 +1159,9 @@ type Epoch {
 	referenceGasPrice: BigInt
 	"""
 	Validator related properties, including the active validators.
+	
+	For epochs other than the current the data provided refer to the start
+	of the epoch.
 	"""
 	validatorSet: ValidatorSet
 	"""
@@ -4758,17 +4761,18 @@ type Validator {
 	"""
 	poolTokenBalance: BigInt
 	"""
-	Pending stake amount for this epoch.
+	Pending stake amount for the current epoch, emptied at epoch boundaries.
+	Zero for past epochs.
 	"""
 	pendingStake: BigInt
 	"""
 	Pending stake withdrawn during the current epoch, emptied at epoch
-	boundaries.
+	boundaries. Zero for past epochs.
 	"""
 	pendingTotalIotaWithdraw: BigInt
 	"""
 	Pending pool token withdrawn during the current epoch, emptied at epoch
-	boundaries.
+	boundaries. Zero for past epochs.
 	"""
 	pendingPoolTokenWithdraw: BigInt
 	"""

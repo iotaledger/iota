@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.6.0-alpha"
+    "version": "1.9.0-alpha"
   },
   "methods": [
     {
@@ -1301,7 +1301,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "11",
+              "maxSupportedProtocolVersion": "12",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
@@ -1328,6 +1328,7 @@
                 "minimize_child_object_mutations": false,
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,
+                "normalize_ptb_arguments": false,
                 "passkey_auth": true,
                 "protocol_defined_base_fee": true,
                 "relocate_event_module": true,
@@ -8197,6 +8198,34 @@
           }
         }
       },
+      "IotaMoveNormalizedEnum": {
+        "type": "object",
+        "required": [
+          "abilities",
+          "typeParameters",
+          "variants"
+        ],
+        "properties": {
+          "abilities": {
+            "$ref": "#/components/schemas/IotaMoveAbilitySet"
+          },
+          "typeParameters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IotaMoveStructTypeParameter"
+            }
+          },
+          "variants": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "array",
+              "items": {
+                "$ref": "#/components/schemas/IotaMoveNormalizedField"
+              }
+            }
+          }
+        }
+      },
       "IotaMoveNormalizedField": {
         "type": "object",
         "required": [
@@ -8261,6 +8290,12 @@
         "properties": {
           "address": {
             "type": "string"
+          },
+          "enums": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/components/schemas/IotaMoveNormalizedEnum"
+            }
           },
           "exposedFunctions": {
             "type": "object",

@@ -20,6 +20,57 @@ while getopts "n:" opt; do
     *) echo "Usage: $0 [-n num_validators]"; exit 1 ;;
   esac
 done
+
+generate_genesis_template_if_missing() {
+    mkdir -p "$PRIVNET_DIR/configs"
+    GENESIS_TEMPLATE="$PRIVNET_DIR/configs/genesis-template-${NUM_VALIDATORS}.yaml"
+
+    if [[ -f "$GENESIS_TEMPLATE" ]]; then
+        echo "Genesis template already exists: $GENESIS_TEMPLATE"
+    else
+        echo "Generating genesis template for $NUM_VALIDATORS validators..."
+        cat > "$GENESIS_TEMPLATE" <<EOF
+accounts:
+  - address: "0xd59d79516a4ed5b6825e80826c075a12bdd2759aaeb901df2f427f5f880c8f60"
+    gas_amounts:
+      - 750000000000000000
+      - 750000000000000000
+  - address: "0x160ef6ce4f395208a12119c5011bf8d8ceb760e3159307c819bd0197d154d384"
+    gas_amounts:
+      - 20000000000000000
+      - 20000000000000000
+      - 20000000000000000
+      - 20000000000000000
+      - 20000000000000000
+  - address: "0x7cc6ff19b379d305b8363d9549269e388b8c1515772253ed4c868ee80b149ca0"
+    gas_amounts:
+      - 750000000000000000
+parameters:
+  allow_insertion_of_extra_objects: false
+  epoch_duration_ms: 1200000
+validator_config_info:
+EOF
+
+        for i in $(seq 1 $NUM_VALIDATORS); do
+            cat >> "$GENESIS_TEMPLATE" <<EOF
+  - commission_rate: 0
+    gas_price: 1000
+    name: validator-${i}
+    primary_address: /dns/validator-${i}/udp/8081
+    network_address: /dns/validator-${i}/tcp/8080/http
+    p2p_address: /dns/validator-${i}/udp/8084
+    stake: 20000000000000000
+EOF
+        done
+
+        cat >> "$GENESIS_TEMPLATE" <<EOF
+migration_sources: []
+EOF
+        echo "Genesis template generated: $GENESIS_TEMPLATE"
+    fi
+}
+
+
 shift $((OPTIND-1))
 
 # Select the matching genesis template
@@ -108,23 +159,26 @@ create_folder_for_postgres() {
 
 main() {
   if [[ "$OSTYPE" != "darwin"* && "$EUID" -ne 0 ]]; then
-    echo "Please run as root or with sudo"
-    exit 1
-  fi
-  [ -d "$TEMP_EXPORT_DIR" ] && rm -rf "$TEMP_EXPORT_DIR"
+      echo "Please run as root or with sudo"
+      exit 1
+    fi
+    [ -d "$TEMP_EXPORT_DIR" ] && rm -rf "$TEMP_EXPORT_DIR"
 
-  [ -d "$PRIVATE_DATA_DIR" ] && ./cleanup.sh
+    [ -d "$PRIVATE_DATA_DIR" ] && ./cleanup.sh
 
-  for config_path in "$GENESIS_TEMPLATE" "$OVERLAY_PATH"; do
-    check_configs_exist "$config_path"
-  done
+    # Generate genesis template if missing
+    generate_genesis_template_if_missing
 
-  for image in "iotaledger/iota-tools" "iotaledger/iota-node" "iotaledger/iota-indexer"; do
-    check_docker_image_exist "$image"
-  done
+    # Only check overlay file existence
+    check_configs_exist "$OVERLAY_PATH"
 
-  generate_genesis_files
-  create_folder_for_postgres
+    for image in "iotaledger/iota-tools" "iotaledger/iota-node" "iotaledger/iota-indexer"; do
+      check_docker_image_exist "$image"
+    done
+
+    generate_genesis_files
+    create_folder_for_postgres
+
 
   echo "Done"
 }

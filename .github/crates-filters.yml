@@ -54,6 +54,10 @@ iota-graphql-rpc-client:
   - "crates/iota-graphql-rpc-client/**"
 iota-graphql-rpc-headers:
   - "crates/iota-graphql-rpc-headers/**"
+iota-grpc-api:
+  - "crates/iota-grpc-api/**"
+iota-grpc-types:
+  - "crates/iota-grpc-types/**"
 iota-http:
   - "crates/iota-http/**"
 iota-indexer:
@@ -203,8 +207,16 @@ iota-move-natives-latest:
 iota-verifier-latest:
   - "iota-execution/latest/iota-verifier/**"
 
-# Consensus
+# Mysticeti Consensus
 consensus-config:
   - "consensus/config/**"
 consensus-core:
   - "consensus/core/**"
+
+# Starfish Consensus
+starfish-config:
+  - "crates/starfish/config/**"
+starfish-core:
+  - "crates/starfish/core/**"
+starfish-simtests:
+  - "crates/starfish/simtests/**"

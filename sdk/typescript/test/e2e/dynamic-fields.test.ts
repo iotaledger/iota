@@ -63,8 +63,8 @@ describe('Dynamic Fields Reading API', () => {
         for (const data of dynamicFields.data) {
             const objName = data.name;
 
-            const object = await toolbox.client.getDynamicFieldObject({
-                parentId: parentObjectId,
+            const object = await toolbox.client.getDynamicFieldObjectV2({
+                parentObjectId: parentObjectId,
                 name: objName,
             });
 

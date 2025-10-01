@@ -19,7 +19,7 @@ use iota_rosetta::{
 use iota_sdk::{IotaClient, IotaClientBuilder};
 use iota_types::crypto::{IotaKeyPair, KeypairTraits, ToFromBytes};
 use serde_json::{Value, json};
-use tracing::{info, log::warn};
+use tracing::{info, warn};
 
 #[derive(Parser)]
 #[command(name = "iota-rosetta", author, version)]
