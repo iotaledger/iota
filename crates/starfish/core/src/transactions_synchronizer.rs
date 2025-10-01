@@ -38,6 +38,7 @@ use crate::{
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
+    encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactions},
 };
@@ -767,7 +768,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             peer,
             transactions_guard,
             core_dispatcher.clone(),
-            context.clone(),
+            context,
             block_verifier.clone(),
             dag_state.clone(),
             sync_method,
@@ -912,12 +913,14 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 }
 
                 let block_verifier = block_verifier.clone();
+                let context_cloned = context.clone();
                 move || {
                     Self::verify_transactions(
                         serialized_transactions,
                         block_verifier,
                         peer_index,
                         block_headers_map,
+                        context_cloned,
                     )
                 }
             })
@@ -982,6 +985,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         block_verifier: Arc<V>,
         peer_index: AuthorityIndex,
         block_headers_map: BTreeMap<BlockRef, VerifiedBlockHeader>,
+        context: Arc<Context>,
     ) -> ConsensusResult<Vec<VerifiedTransactions>> {
         let mut collected_verified_transactions = Vec::new();
 
@@ -1000,9 +1004,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             let block_header = block_headers_map
                 .get(&serialized_transactions.block_ref)
                 .expect("header for fetched transactions must exist");
+
+            let mut encoder = create_encoder(&context);
             if block_header.transactions_commitment()
                 != TransactionsCommitment::compute_transactions_commitment(
                     &serialized_transactions.serialized_transactions,
+                    &context,
+                    &mut encoder,
                 )
                 .expect("correct computation of the transactions commitment should be successful")
             {
@@ -1091,6 +1099,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 1), (2, 1), (3, 2)];
@@ -1105,8 +1114,12 @@ mod tests {
                 // Create a dummy transaction
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-                let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1188,6 +1201,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create block round author pairs
         let block_round_authors = (1..LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 2 + 1)
@@ -1204,8 +1218,12 @@ mod tests {
             let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
             let serialized_vec = bcs::to_bytes(&transactions).unwrap();
             let serialized = Bytes::from(serialized_vec);
-            let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized,
+                &context,
+                &mut encoder,
+            )
+            .unwrap();
 
             // Create a test block header with the correct commitment
             let header = VerifiedBlockHeader::new_for_test(
@@ -1297,6 +1315,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1312,8 +1331,12 @@ mod tests {
                 // Create a dummy transaction
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-                let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1413,6 +1436,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1428,8 +1452,12 @@ mod tests {
                 // Create a dummy transaction
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-                let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1518,6 +1546,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1533,8 +1562,12 @@ mod tests {
                 // Create a dummy transaction
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-                let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1625,6 +1658,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1640,8 +1674,12 @@ mod tests {
                 // Create a dummy transaction
                 let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
                 let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-                let commitment =
-                    TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                .unwrap();
 
                 // Create a test block header with the correct commitment
                 let header = VerifiedBlockHeader::new_for_test(
@@ -1732,6 +1770,7 @@ mod tests {
             block_verifier.clone(),
             dag_state.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // Create some test transactions
         let block_round_author: Vec<(Round, u8)> = vec![(1, 0), (2, 1), (3, 2)];
@@ -1745,8 +1784,12 @@ mod tests {
             // Create a dummy transaction
             let transactions = vec![Transaction::new((0..32).map(|_| rng.gen()).collect())];
             let serialized = Bytes::from(bcs::to_bytes(&transactions).unwrap());
-            let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized).unwrap();
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized,
+                &context,
+                &mut encoder,
+            )
+            .unwrap();
 
             // Create a test block header with the correct commitment
             let header = VerifiedBlockHeader::new_for_test(

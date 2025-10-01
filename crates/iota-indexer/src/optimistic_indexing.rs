@@ -48,7 +48,7 @@ type TransactionDataToCommit = (
 );
 
 #[derive(Clone)]
-pub(crate) struct OptimisticTransactionExecutor {
+pub struct OptimisticTransactionExecutor {
     rpc_client: iota_rest_api::Client,
     indexer_reader: IndexerReader,
     store: PgIndexerStore,
@@ -56,7 +56,7 @@ pub(crate) struct OptimisticTransactionExecutor {
 }
 
 impl OptimisticTransactionExecutor {
-    pub(crate) fn new(
+    pub fn new(
         rpc_client_url: &str,
         indexer_reader: IndexerReader,
         store: PgIndexerStore,
@@ -177,7 +177,7 @@ impl OptimisticTransactionExecutor {
             .await
     }
 
-    pub(crate) async fn execute_and_index_transaction(
+    pub async fn execute_and_index_transaction(
         &self,
         tx_bytes: Base64,
         signatures: Vec<Base64>,

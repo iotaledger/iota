@@ -54,6 +54,8 @@ pub(crate) mod tonic_network;
 pub mod tonic_network;
 mod tonic_tls;
 
+use crate::encoder::ShardEncoder;
+
 /// A stream of serialized blocks with additional information such as headers or
 /// shards.
 pub(crate) type BlockBundleStream = Pin<Box<dyn Stream<Item = SerializedBlockBundle> + Send>>;
@@ -130,6 +132,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()>;
 
     /// Handles the subscription request from the peer.
