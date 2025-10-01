@@ -39,6 +39,7 @@ use crate::{
     commit_observer::CommitObserver,
     context::Context,
     dag_state::DagState,
+    encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -120,6 +121,8 @@ pub(crate) struct Core {
     /// None it means that the last block sync mechanism is enabled, but it
     /// hasn't been initialised yet.
     last_known_proposed_round: Option<Round>,
+    /// Encoder is used to encode transactions into a longer vector of shards
+    encoder: Box<dyn ShardEncoder + Send>,
 }
 
 impl Core {
@@ -171,6 +174,8 @@ impl Core {
             Some(0)
         };
 
+        let encoder = create_encoder(&context);
+
         Self {
             context,
             last_signaled_round,
@@ -187,6 +192,7 @@ impl Core {
             block_signer,
             dag_state,
             last_known_proposed_round: min_propose_round,
+            encoder,
         }
         .recover()
     }
@@ -627,12 +633,21 @@ impl Core {
         // be done in the end of the method.
         let (transactions, ack_transactions, _limit_reached) = self.transaction_consumer.next();
         // Serialize the transaction
+        let info_length = self.context.committee.info_length();
+        let parity_length = self.context.committee.size() - info_length;
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("We should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
-        let transactions_commitment =
-            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                .expect("We should expect correct computation of the transactions commitment");
+
+        let encoded_shards = self
+            .encoder
+            .encode_serialized_data(&serialized_transactions, info_length, parity_length)
+            .expect("We should expect correct encoding of the shards");
+
+        let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
+            .expect(
+                "We should expect correct computation of the Merkle root for encoded transactions",
+            );
 
         self.context
             .metrics
@@ -1568,6 +1583,7 @@ mod test {
             store.clone(),
             leader_schedule.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // First send some transactions, since the block will be created once we recover
         // core
@@ -1645,9 +1661,12 @@ mod test {
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("we should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
-        let transactions_commitment =
-            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                .expect("we should expect correct computation of the transactions commitment");
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized_transactions,
+            &context,
+            &mut encoder,
+        )
+        .expect("we should expect correct computation of the transactions commitment");
 
         // a new block should have been created during recovery.
         let verified_block = block_receiver

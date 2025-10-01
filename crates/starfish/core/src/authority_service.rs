@@ -35,6 +35,7 @@ use crate::{
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
+    encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     network::{
         BlockBundle, BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockAndHeaders,
@@ -47,6 +48,7 @@ use crate::{
 };
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
+
 const MAX_FILTER_SIZE: u32 = 10000;
 
 struct FilterForHeaders {
@@ -126,6 +128,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             context.clone(),
             core_dispatcher.clone(),
         ));
+
         Self {
             context,
             block_verifier,
@@ -148,6 +151,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle: SerializedBlockBundle,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
 
@@ -198,8 +202,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         if signed_block_header.transactions_commitment()
-            != TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                .expect("we should expect correct computation of the transactions commitment")
+            != TransactionsCommitment::compute_transactions_commitment(
+                &serialized_transactions,
+                &self.context,
+                encoder,
+            )
+            .expect("we should expect correct computation of the transactions commitment")
         {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: signed_block_header.round(),
@@ -1101,6 +1109,7 @@ mod tests {
         core::{Core, CoreSignals},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
+        encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
         leader_schedule::LeaderSchedule,
         network::{
@@ -1209,31 +1218,26 @@ mod tests {
             dag_state,
             store,
         ));
+        let mut encoder = create_encoder(&context);
 
         // Test rejecting block with time drift.
         let now = context.clock.timestamp_utc_ms();
         let max_drift = context.parameters.max_forward_time_drift;
         let input_block = VerifiedBlock::new_for_test(
-            TestBlockHeader::new(1, 0)
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder)
                 .set_timestamp_ms(now + max_drift.as_millis() as u64 + 1)
                 .build(),
         );
 
-        let service = authority_service.clone();
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
-        let bundle_clone = serialized_block_bundle.clone();
-        let service_clone = service.clone();
-        let context_clone = context.clone();
-        let handle = tokio::spawn(async move {
-            service_clone
-                .handle_subscribed_block_bundle(
-                    context_clone.committee.to_authority_index(0).unwrap(),
-                    bundle_clone,
-                )
-                .await
-        });
 
-        let result = handle.await.unwrap(); // unwrap JoinError
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                serialized_block_bundle.clone(),
+                &mut encoder,
+            )
+            .await;
 
         match result {
             Err(ConsensusError::BlockRejected { reason, .. }) => {
@@ -1246,10 +1250,11 @@ mod tests {
         // block but wait
         sleep(max_drift / 2).await;
         tokio::spawn(async move {
-            service
+            authority_service
                 .handle_subscribed_block_bundle(
                     context.committee.to_authority_index(0).unwrap(),
                     serialized_block_bundle,
+                    &mut encoder,
                 )
                 .await
                 .unwrap();
@@ -1304,26 +1309,24 @@ mod tests {
             dag_state,
             store,
         ));
+        let mut encoder = create_encoder(&context);
 
-        let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 0).build());
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
 
         let service = authority_service.clone();
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
 
         // Test sending a block from wrong peer
-        let bundle_clone = serialized_block_bundle.clone();
-        let service_clone = service.clone();
-        let context_clone = context.clone();
-        let handle = tokio::spawn(async move {
-            service_clone
-                .handle_subscribed_block_bundle(
-                    context_clone.committee.to_authority_index(1).unwrap(),
-                    bundle_clone,
-                )
-                .await
-        });
 
-        let result = handle.await.unwrap(); // unwrap JoinError
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(1).unwrap(),
+                serialized_block_bundle.clone(),
+                &mut encoder,
+            )
+            .await;
 
         if let Err(ConsensusError::UnexpectedAuthority { .. }) = result {
             // everything is fine
@@ -1337,6 +1340,7 @@ mod tests {
                 .handle_subscribed_block_bundle(
                     context.committee.to_authority_index(0).unwrap(),
                     serialized_block_bundle,
+                    &mut encoder,
                 )
                 .await
                 .unwrap();
@@ -1388,35 +1392,31 @@ mod tests {
             dag_state,
             store,
         ));
+        let mut encoder = create_encoder(&context);
 
         let input_block = VerifiedBlock::new_for_test(
-            TestBlockHeader::new(1, 0)
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder)
                 .set_commitment(
-                    TransactionsCommitment::compute_transactions_commitment(&Bytes::from_static(
-                        b"dummy data",
-                    ))
+                    TransactionsCommitment::compute_transactions_commitment(
+                        &Bytes::from_static(b"dummy data"),
+                        &context,
+                        &mut encoder,
+                    )
                     .unwrap(),
                 )
                 .build(),
         );
 
-        let service = authority_service.clone();
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
 
         // Test sending a block with wrong transaction commitment
-        let bundle_clone = serialized_block_bundle.clone();
-        let service_clone = service.clone();
-        let context_clone = context.clone();
-        let handle = tokio::spawn(async move {
-            service_clone
-                .handle_subscribed_block_bundle(
-                    context_clone.committee.to_authority_index(0).unwrap(),
-                    bundle_clone,
-                )
-                .await
-        });
-
-        let result = handle.await.unwrap(); // unwrap JoinError
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                serialized_block_bundle,
+                &mut encoder,
+            )
+            .await;
 
         if let Err(ConsensusError::TransactionCommitmentFailure { .. }) = result {
             // everything is fine
@@ -1467,15 +1467,20 @@ mod tests {
             dag_state,
             store,
         ));
+        let mut encoder = create_encoder(&context);
 
-        let input_block = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 0).build());
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
+        );
         let num_of_block_headers = MAX_HEADERS_PER_BUNDLE + 1;
         let mut headers = (0..num_of_block_headers)
             .map(|i| {
                 VerifiedBlockHeader::new_for_test(
-                    TestBlockHeader::new(
+                    TestBlockHeader::new_with_commitment(
                         (i / committee_size + 1) as u32,
                         (i % committee_size) as u8,
+                        &context,
+                        &mut encoder,
                     )
                     .build(),
                 )
@@ -1493,19 +1498,13 @@ mod tests {
         let service = authority_service.clone();
 
         // Send a bundle with too many headers
-        let bundle_clone = serialized_big_block_bundle.clone();
-        let service_clone = service.clone();
-        let context_clone = context.clone();
-        let handle = tokio::spawn(async move {
-            service_clone
-                .handle_subscribed_block_bundle(
-                    context_clone.committee.to_authority_index(0).unwrap(),
-                    bundle_clone,
-                )
-                .await
-        });
-
-        let result = handle.await.unwrap(); // unwrap JoinError
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                serialized_big_block_bundle,
+                &mut encoder,
+            )
+            .await;
 
         if let Err(ConsensusError::TooManyHeadersInABundle { .. }) = result {
             // everything is fine
@@ -1524,19 +1523,13 @@ mod tests {
         .unwrap();
 
         // Send a bundle with too many headers
-        let bundle_clone = serialized_block_bundle_with_big_round.clone();
-        let service_clone = service.clone();
-        let context_clone = context.clone();
-        let handle = tokio::spawn(async move {
-            service_clone
-                .handle_subscribed_block_bundle(
-                    context_clone.committee.to_authority_index(0).unwrap(),
-                    bundle_clone,
-                )
-                .await
-        });
-
-        let result = handle.await.unwrap(); // unwrap JoinError
+        let result = authority_service
+            .handle_subscribed_block_bundle(
+                context.committee.to_authority_index(0).unwrap(),
+                serialized_block_bundle_with_big_round,
+                &mut encoder,
+            )
+            .await;
 
         if let Err(ConsensusError::TooBigHeaderRoundInABundle { .. }) = result {
             // everything is fine
@@ -1546,7 +1539,13 @@ mod tests {
 
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
-            TestBlockHeader::new(MAX_HEADERS_PER_BUNDLE as u32 + 1, 0).build(),
+            TestBlockHeader::new_with_commitment(
+                MAX_HEADERS_PER_BUNDLE as u32 + 1,
+                0,
+                &context,
+                &mut encoder,
+            )
+            .build(),
         );
 
         let block_bundle = BlockBundle {
@@ -1564,6 +1563,7 @@ mod tests {
                 .handle_subscribed_block_bundle(
                     context.committee.to_authority_index(0).unwrap(),
                     serialized_block_bundle,
+                    &mut encoder,
                 )
                 .await
                 .unwrap();
@@ -1998,6 +1998,8 @@ mod tests {
             dag_state.clone(),
             store,
         ));
+        let mut encoder = create_encoder(&context);
+
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
         let mut dag_builder =
             DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
@@ -2038,6 +2040,7 @@ mod tests {
                     .handle_subscribed_block_bundle(
                         context.committee.to_authority_index(peer).unwrap(),
                         serialized_block_bundle,
+                        &mut encoder,
                     )
                     .await
                     .expect("bundle is expected to be processed successfully");
@@ -2139,6 +2142,8 @@ mod tests {
             dag_state.clone(),
             store,
         ));
+        let mut encoder = create_encoder(&context);
+
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
         let mut dag_builder =
             DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
@@ -2171,6 +2176,7 @@ mod tests {
                     .handle_subscribed_block_bundle(
                         context.committee.to_authority_index(peer).unwrap(),
                         serialized_block_bundle,
+                        &mut encoder,
                     )
                     .await
                     .expect("bundle is expected to be processed successfully");
@@ -2298,6 +2304,7 @@ mod tests {
             dag_state.clone(),
             store,
         ));
+        let mut encoder = create_encoder(&context);
 
         // Set up DAG with blocks
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
@@ -2368,8 +2375,12 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                    .unwrap()
+                TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions,
+                    &context,
+                    &mut encoder
+                )
+                .unwrap()
             );
 
             let verified_block_header =
@@ -2429,8 +2440,12 @@ mod tests {
                 .unwrap();
             assert_eq!(
                 signed_block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                    .unwrap()
+                TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions,
+                    &context,
+                    &mut encoder
+                )
+                .unwrap()
             );
 
             let verified_block_header =
@@ -3025,6 +3040,7 @@ mod tests {
             dag_state.clone(),
             store,
         ));
+        let mut encoder = create_encoder(&context);
 
         // Set up DAG with blocks
         let mut dag_builder = DagBuilder::new(context.clone());
@@ -3091,8 +3107,12 @@ mod tests {
                 .expect("We expect to find the header with such block_ref");
             assert_eq!(
                 block_header.transactions_commitment(),
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                    .unwrap()
+                TransactionsCommitment::compute_transactions_commitment(
+                    &serialized_transactions,
+                    &context,
+                    &mut encoder
+                )
+                .unwrap()
             );
         }
 

@@ -22,6 +22,7 @@ use crate::{
     commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
     dag_state::DagState,
+    encoder::{ShardEncoder, create_encoder},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::{BlockStoreAPI, Linearizer},
 };
@@ -117,6 +118,8 @@ pub(crate) struct DagBuilder {
     // Protocol keypairs are used to compute signature for headers. If it is None, then the Default
     // signature is used
     protocol_keypair: Option<Vec<ProtocolKeyPair>>,
+
+    encoder: Box<dyn ShardEncoder + Send + Sync>,
 }
 /// The `AncestorSelection` enum is an interim data structure used to specify
 /// how ancestors should be selected for a block in the `DagBuilder`. `UseLast`
@@ -150,6 +153,8 @@ impl DagBuilder {
             .map(|block| (block.reference(), block))
             .collect();
         let last_ancestors = genesis.keys().cloned().collect();
+
+        let encoder = create_encoder(&context);
         Self {
             last_committed_rounds: vec![0; context.committee.size()],
             context,
@@ -163,6 +168,7 @@ impl DagBuilder {
             transactions: BTreeMap::new(),
             committed_sub_dags: vec![],
             protocol_keypair: None,
+            encoder,
         }
     }
 
@@ -591,9 +597,12 @@ impl DagBuilder {
             rng.fill(&mut tx_bytes[..]);
             let transactions = vec![Transaction::new(tx_bytes.to_vec())];
             let serialized_transactions = Transaction::serialize(&transactions).unwrap();
-            let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                    .unwrap();
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized_transactions,
+                &self.context,
+                &mut self.encoder,
+            )
+            .unwrap();
 
             let verified_transactions = VerifiedTransactions::new(
                 transactions,
@@ -1057,6 +1066,8 @@ impl<'a> LayerBuilder<'a> {
                 let serialized_transactions = Transaction::serialize(&transactions).unwrap();
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized_transactions,
+                    &self.dag_builder.context,
+                    &mut self.dag_builder.encoder,
                 )
                 .unwrap();
 
