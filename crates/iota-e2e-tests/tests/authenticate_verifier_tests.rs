@@ -255,17 +255,6 @@ impl TestEnvironment {
             CallArg::Pure(bcs::to_bytes(function_name.as_bytes()).unwrap()),
         ];
 
-        // let transaction_data = self
-        //     .cluster
-        //     .test_transaction_builder()
-        //     .await
-        //     .move_call(
-        //         self.package_id,
-        //         "call_site",
-        //         "call_create_auth_info_using",
-        //         arguments,
-        //     )
-        //     .build();
         let transaction_data = self
             .cluster
             .test_transaction_builder()
