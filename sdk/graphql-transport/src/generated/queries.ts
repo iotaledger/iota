@@ -3,10 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 /* eslint-disable */
 
-// Copyright (c) 2025 IOTA Stiftung
-// SPDX-License-Identifier: Apache-2.0
-/* eslint-disable */
-
 import { DocumentTypeDecoration } from '@graphql-typed-document-node/core';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
