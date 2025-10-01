@@ -6,8 +6,8 @@ use std::str::FromStr;
 
 use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::DevInspectArgs;
-use iota_sdk::IotaClient;
 use iota_types::{
     TypeTag,
     gas_coin::GAS,
@@ -21,7 +21,7 @@ use crate::{
     connection::ScanConnection,
     error::Error,
     mutation::Mutation,
-    server::watermark_task::Watermark,
+    server::{builder::get_write_api, watermark_task::Watermark},
     types::{
         address::Address,
         available_range::AvailableRange,
@@ -83,6 +83,16 @@ impl Query {
             .extend()
     }
 
+    async fn move_view_call(
+        &self,
+        ctx: &Context<'_>,
+        function_name: String,
+        type_args: Option<Vec<String>>,
+        arguments: Option<Vec<String>>,
+    ) -> Result<bool> {
+        Ok(true)
+    }
+
     /// Simulate running a transaction to inspect its effects without
     /// committing to them on-chain.
     ///
@@ -109,15 +119,7 @@ impl Query {
     ) -> Result<DryRunResult> {
         let skip_checks = skip_checks.unwrap_or(false);
 
-        let iota_sdk_client: &Option<IotaClient> = ctx
-            .data()
-            .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
-            .extend()?;
-        let iota_sdk_client = iota_sdk_client
-            .as_ref()
-            .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
-            .extend()?;
-
+        let write_api = get_write_api(ctx).extend()?;
         let (sender_address, tx_kind, gas_price, gas_sponsor, gas_budget, gas_objects) =
             if let Some(TransactionMetadata {
                 sender,
@@ -171,11 +173,15 @@ impl Query {
             skip_checks: Some(skip_checks),
         };
 
-        let res = iota_sdk_client
-            .read_api()
+        let tx_bytes = Base64::from_bytes(
+            &bcs::to_bytes(&tx_kind)
+                .map_err(|e| Error::Internal(e.to_string()))
+                .extend()?,
+        );
+        let res = write_api
             .dev_inspect_transaction_block(
                 sender_address,
-                tx_kind,
+                tx_bytes,
                 gas_price,
                 None,
                 Some(dev_inspect_args),

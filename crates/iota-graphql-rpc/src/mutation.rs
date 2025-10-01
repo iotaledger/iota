@@ -3,7 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 use async_graphql::*;
 use fastcrypto::encoding::Base64;
-use iota_indexer::optimistic_indexing::OptimisticTransactionExecutor;
+use iota_indexer::{apis::OptimisticWriteApi, optimistic_indexing::OptimisticTransactionExecutor};
+use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_types::{
     effects::TransactionEffects as NativeTransactionEffects, event::Event as NativeEvent,
@@ -47,17 +48,13 @@ impl Mutation {
         tx_bytes: String,
         signatures: Vec<String>,
     ) -> Result<ExecutionResult> {
-        let optimistic_tx_executor: &Option<OptimisticTransactionExecutor> = ctx
+        let write_api: &Option<OptimisticWriteApi> = ctx
             .data()
-            .map_err(|_| {
-                Error::Internal("Unable to fetch OptimisticTransactionExecutor".to_string())
-            })
+            .map_err(|_| Error::Internal("Unable to fetch OptimisticWriteApi".to_string()))
             .extend()?;
-        let optimistic_tx_executor = optimistic_tx_executor
+        let optimistic_tx_executor = write_api
             .as_ref()
-            .ok_or_else(|| {
-                Error::Internal("OptimisticTransactionExecutor not initialized".to_string())
-            })
+            .ok_or_else(|| Error::Internal("OptimisticWriteApi not initialized".to_string()))
             .extend()?;
         let tx_data = Base64::try_from(tx_bytes)
             .map_err(|e| {
@@ -85,7 +82,7 @@ impl Mutation {
             .with_raw_effects();
 
         let result = optimistic_tx_executor
-            .execute_and_index_transaction(tx_data, sigs, Some(options))
+            .execute_transaction_block(tx_data, sigs, Some(options), None)
             .await
             .map_err(|e| Error::Internal(format!("Unable to execute transaction: {e}")))
             .extend()?;

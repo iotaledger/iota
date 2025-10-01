@@ -28,13 +28,15 @@ use crate::{
     types::IotaTransactionBlockResponseWithOptions,
 };
 
-pub(crate) struct WriteApi {
+#[derive(Clone)]
+pub struct WriteApi {
     fullnode: HttpClient,
     transaction_builder: TransactionBuilder,
     package_resolver: IndexerStorePackageResolver,
 }
 
-pub(crate) struct OptimisticWriteApi {
+#[derive(Clone)]
+pub struct OptimisticWriteApi {
     write_api: WriteApi,
     optimistic_tx_executor: OptimisticTransactionExecutor,
 }

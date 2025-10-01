@@ -31,6 +31,7 @@ http.workspace = true
 http-body-util = "0.1.2"
 hyper.workspace = true
 im.workspace = true
+jsonrpsee.workspace = true
 once_cell.workspace = true
 prometheus.workspace = true
 reqwest.workspace = true
