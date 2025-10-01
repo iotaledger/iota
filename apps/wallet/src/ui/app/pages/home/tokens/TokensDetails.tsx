@@ -243,6 +243,7 @@ export function TokenDetails() {
                                 type={ButtonType.Secondary}
                                 icon={<ArrowBottomLeft />}
                                 size={ButtonSize.Small}
+                                testId="receive-coin-button"
                             />
                             <Button
                                 onClick={onSendClick}
