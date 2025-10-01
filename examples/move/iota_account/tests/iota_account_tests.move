@@ -177,6 +177,23 @@ fun account_can_rotate_reserved_field() {
     })
 }
 
+#[test]
+#[expected_failure(abort_code = iota_account::EMustModifyReservedDynamicField)]
+fun account_cant_rotate_regular_field() {
+    account_sender!(|scenario| {
+        let mut account = scenario.take_shared<IOTAccount>();
+        let ctx = test_scenario::ctx(scenario);
+
+        account.rotate_reserved(
+            b"SomeData".to_ascii_string(),
+            2u8,
+            ctx,
+        );
+
+        test_scenario::return_shared(account);
+    })
+}
+
 // --------------------------------------- Test Utilities ---------------------------------------
 
 macro fun account_sender($f: |&mut Scenario|) {
@@ -343,6 +360,23 @@ fun non_account_cant_rotate_reserved_field() {
         account.rotate_reserved(
             account::authenticator_df_name(),
             create_authenticator_info_v1_for_testing(),
+            ctx,
+        );
+
+        test_scenario::return_shared(account);
+    })
+}
+
+#[test]
+#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+fun non_account_cant_rotate_regular_field() {
+    non_account_sender!(|scenario| {
+        let mut account = scenario.take_shared<IOTAccount>();
+        let ctx = test_scenario::ctx(scenario);
+
+        account.rotate_reserved(
+            b"SomeData".to_ascii_string(),
+            2u8,
             ctx,
         );
 
