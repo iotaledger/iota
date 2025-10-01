@@ -289,7 +289,7 @@ impl TestEnvironment {
             .all_changed_objects()
             .iter()
             .find_map(|change| match change {
-                (_, Owner::Shared { .. }, WriteKind::Create) => Some(change.0.clone()),
+                (_, Owner::Shared { .. }, WriteKind::Create) => Some(change.0),
                 _ => None,
             })
             .expect("Expected a shared object in the transaction response"))
