@@ -1350,7 +1350,7 @@ fn create_genesis_objects(
     let mut store = InMemoryStorage::new(Vec::new());
     let mut events = Vec::new();
     // We don't know the chain ID here since we haven't yet created the genesis
-    // checkpoint. However since we know there are no chain specific protool
+    // checkpoint. However since we know there are no chain specific protocol
     // config options in genesis, we use Chain::Unknown here.
     let protocol_config = ProtocolConfig::get_for_version(
         ProtocolVersion::new(parameters.protocol_version),

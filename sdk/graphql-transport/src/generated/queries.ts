@@ -2428,7 +2428,7 @@ export type MoveModuleEdge = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObject = IMoveObject & IObject & IOwner & {
@@ -2574,7 +2574,7 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectBalanceArgs = {
@@ -2584,7 +2584,7 @@ export type MoveObjectBalanceArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectBalancesArgs = {
@@ -2597,7 +2597,7 @@ export type MoveObjectBalancesArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectCoinsArgs = {
@@ -2611,7 +2611,7 @@ export type MoveObjectCoinsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicFieldArgs = {
@@ -2621,7 +2621,7 @@ export type MoveObjectDynamicFieldArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicFieldsArgs = {
@@ -2634,7 +2634,7 @@ export type MoveObjectDynamicFieldsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicObjectFieldArgs = {
@@ -2644,7 +2644,7 @@ export type MoveObjectDynamicObjectFieldArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectIotaNamesDefaultNameArgs = {
@@ -2654,7 +2654,7 @@ export type MoveObjectIotaNamesDefaultNameArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectIotaNamesRegistrationsArgs = {
@@ -2667,7 +2667,7 @@ export type MoveObjectIotaNamesRegistrationsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectObjectsArgs = {
@@ -2681,7 +2681,7 @@ export type MoveObjectObjectsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectReceivedTransactionBlocksArgs = {
@@ -2696,7 +2696,7 @@ export type MoveObjectReceivedTransactionBlocksArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectStakedIotasArgs = {

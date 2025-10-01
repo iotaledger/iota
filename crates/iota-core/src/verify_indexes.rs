@@ -17,7 +17,7 @@ use crate::{
 
 /// This is a very expensive function that verifies some of the secondary
 /// indexes. This is done by iterating through the live object set and
-/// recalculating these secodary indexes.
+/// recalculating these secondary indexes.
 pub fn verify_indexes(store: &dyn AccumulatorStore, indexes: Arc<IndexStore>) -> Result<()> {
     info!("Begin running index verification checks");
 

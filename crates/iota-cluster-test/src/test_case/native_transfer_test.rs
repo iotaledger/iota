@@ -26,7 +26,7 @@ impl TestCaseImpl for NativeTransferTest {
     }
 
     fn description(&self) -> &'static str {
-        "Test tranferring IOTA coins natively"
+        "Test transferring IOTA coins natively"
     }
 
     async fn run(&self, ctx: &mut TestContext) -> Result<(), anyhow::Error> {

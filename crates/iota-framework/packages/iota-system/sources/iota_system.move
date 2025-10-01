@@ -109,7 +109,7 @@ public(package) fun create(
 
 // ==== entry functions ====
 
-/// Can be called by anyone who wishes to become a validator candidate and starts accuring delegated
+/// Can be called by anyone who wishes to become a validator candidate and starts accruing delegated
 /// stakes in their staking pool. Once they have at least `MIN_VALIDATOR_JOINING_STAKE` amount of stake they
 /// can call `request_add_validator` to officially become an active validator at the next epoch.
 /// Aborts if the caller is already a pending or active validator, or a validator candidate.

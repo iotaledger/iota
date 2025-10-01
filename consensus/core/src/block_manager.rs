@@ -1096,7 +1096,7 @@ mod tests {
     /// The test generate blocks for a well connected DAG and feed them to block
     /// manager in random order. In the end all the blocks should be
     /// uniquely suspended and no missing blocks should exist. The test will run
-    /// for both gc_enabled/disabled. When gc is enabeld we set a high
+    /// for both gc_enabled/disabled. When gc is enabled we set a high
     /// gc_depth value so in practice gc_round will be 0, but we'll be able to
     /// test in the common case that this work exactly the same way as when
     /// gc is disabled.

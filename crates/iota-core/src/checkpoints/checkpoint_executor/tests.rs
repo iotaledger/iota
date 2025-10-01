@@ -119,7 +119,7 @@ pub async fn test_checkpoint_executor_crash_recovery() {
 }
 
 /// Test that checkpoint execution correctly signals end of epoch after
-/// receiving last checkpoint of epoch, then resumes executing cehckpoints
+/// receiving last checkpoint of epoch, then resumes executing checkpoints
 /// from the next epoch if called after reconfig
 ///
 /// TODO(william) disabling reconfig unit tests here for now until we can work
@@ -363,7 +363,7 @@ pub async fn test_reconfig_crash_recovery() {
         *end_of_epoch_checkpoint.sequence_number(),
     );
 
-    // Drop and re-istantiate checkpoint executor without performing reconfig. This
+    // Drop and re-instantiate checkpoint executor without performing reconfig. This
     // is logically equivalent to reconfig crashing and the node restarting, in
     // which case executor should be able to infer that, rather than beginning
     // execution of the next epoch, we should immediately exit so that reconfig
