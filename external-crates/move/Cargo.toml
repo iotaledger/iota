@@ -172,9 +172,6 @@ debug = true
 [profile.dev]
 debug = true
 
-[workspace.metadata.cargo-udeps.ignore]
-normal = ["move-package-alt"]
-
 [profile.test.package.move-vm-integration-tests]
 # opt-level 2 for move-compiler reduces the size of some of its
 # (recursive) stack frames by up to 10x, avoiding stack overflows.

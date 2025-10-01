@@ -202,9 +202,6 @@ strip = 'none'
 # (recursive) stack frames by up to 10x, avoiding stack overflows.
 opt-level = 2
 
-[workspace.metadata.cargo-udeps.ignore]
-normal = ["move-package-alt"]
-
 [profile.simulator]
 debug = true
 debug-assertions = true
