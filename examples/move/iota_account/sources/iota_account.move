@@ -22,22 +22,19 @@ const ECantModifyReservedDynamicField: vector<u8> =
 #[error(code = 3)]
 const EMustModifyReservedDynamicField: vector<u8> =
     b"Internal configuration changes can only modify the restricted dynamic fields.";
-#[error(code = 2)]
-const EAuthenticatorDynamicFieldNameCannotBeUsed: vector<u8> =
-    b"The authenticator dynamic field system name cannot be used as a name for user-defined dynamic fields.";
 
 // --------------------------------------- IOTAccountBuilder ---------------------------------------
 
 /// Safely construct an IOTAccount.
 ///
 /// The builder is entirely temporary. It cannot be copied, stored or dropped.
-/// 
+///
 /// Account implementations are expected to call the builder in a single function call,
 /// add the desired `AuthenticatorInfo` and all reserved dynamic fields necessary for the
 /// operation of the account authentication logic.
 /// All reserved field `Name`s will be stored under key `ReservedDynamicFields` which is managed
 /// by the builder.
-/// 
+///
 /// For convenience the regular dynamic fields may be added at this stage as well.
 public struct IOTAccountBuilder {
     account: IOTAccount,
@@ -133,22 +130,21 @@ public(package) fun get_reserved_dynamic_fields_key(): DfKey {
     make_key(ReservedDynamicFields {})
 }
 
-/// This struct represents an IOTA account on-chain.
+// ------------------------------------- IOTAccount -----------------------------------------------
+
+/// This struct represents an abstract IOTA account.
 ///
 /// It holds all the related data as dynamic fields to simplify updates, migrations and extensions.
 /// It distinguishes between two classes of dynamic fields.
-/// Reserved ones, used for managing the accounts internal state, such as unlock times and public keys
-/// and regular ones which can be used for data storage.
+/// Reserved ones, used for managing the account's internal state, such as unlock times and public keys
+/// and regular ones which can be used for general data storage.
 ///
-/// Reserved fields are keyed by `DFKey` and listed under `ReservedDynamicFields`.
+/// The list of reserved fields is stored as a dynamic field under `ReservedDynamicFields`.
 ///
-/// As regular data, dynamic fields may be added and removed as necessary, but restricted ones cannot.
-/// Since they are part of the authentication logic, in general they should not be removed only rotated.
+/// As regular data, dynamic fields may be added and removed as necessary, but reserved ones cannot.
+/// Reserved fields are part of the authentication logic so they should not be removed only rotated.
 ///
 /// An `IOTAccount` cannot be constructed directly. To create an `IOTAccount` use `IOTAccountBuilder`.
-
-/// This struct represents an IOTA account on-chain.
-/// It holds all the related data as dynamic fields to simplify updates, migrations and extensions.
 public struct IOTAccount has key {
     id: UID,
 }
@@ -238,6 +234,7 @@ public fun has_field<Name: copy + drop + store>(self: &IOTAccount, name: Name): 
 ///
 /// Only the account itself can call this function and the dynamic field must refer be a
 /// reserved one.
+/// This function cannot change the type of the stored `Value`.
 public fun rotate_reserved<Name: copy + drop + store, Value: drop + store>(
     self: &mut IOTAccount,
     name: Name,
@@ -293,4 +290,32 @@ public fun check_df<Name: copy + drop + store>(
 #[test_only]
 public fun get_address(self: &IOTAccount): address {
     self.id.to_address()
+}
+
+#[test_only]
+public(package) fun create_iotaccount_for_testing(
+    scenario: &mut iota::test_scenario::Scenario,
+): address {
+    let ctx = iota::test_scenario::ctx(scenario);
+
+    let authenticator = create_authenticator_info_v1_for_testing();
+
+    let account = builder(authenticator, ctx)
+        .add_regular_field(b"SomeData".to_ascii_string(), 3u8)
+        .finish();
+    let account_address = account.get_address();
+
+    share(account);
+
+    account_address
+}
+
+#[test_only]
+public(package) fun create_authenticator_info_v1_for_testing(): account::AuthenticatorInfoV1 {
+    // The exact values don't matter in these tests.
+    account::create_auth_info_v1_for_testing(
+        @0x1,
+        std::ascii::string(b"iota_account"),
+        std::ascii::string(b"authenticate"),
+    )
 }
