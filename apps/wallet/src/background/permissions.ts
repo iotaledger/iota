@@ -5,7 +5,7 @@
 import { ALL_PERMISSION_TYPES, isValidPermissionTypes } from '_payloads/permissions';
 import type { Permission, PermissionResponse, PermissionType } from '_payloads/permissions';
 import mitt from 'mitt';
-import { catchError, concatMap, filter, from, mergeWith, share, Subject } from 'rxjs';
+import { catchError, concatMap, filter, from, isEmpty, mergeWith, share, Subject } from 'rxjs';
 import type { Observable } from 'rxjs';
 import { v4 as uuidV4 } from 'uuid';
 import Browser from 'webextension-polyfill';
@@ -90,6 +90,14 @@ class Permissions {
                                 ...aPermissionRequest,
                                 ...response,
                             };
+                            console.log(
+                                '[Permissions] permissionReply for origin',
+                                finalPermission.origin,
+                                'with allowed =',
+                                finalPermission.allowed,
+                                'accounts =',
+                                finalPermission.accounts,
+                            );
                             return finalPermission;
                         }
                         // ignore the event
@@ -186,8 +194,15 @@ class Permissions {
         connection: ContentScriptConnection,
     ): Promise<void> {
         const permission = await this.getPermissionByID(permissionId);
-        if (!permission || !this.isPendingPermissionRequest(permission)) {
-            return; // Permission already handled or doesn't exist
+        // if (!permission || !this.isPendingPermissionRequest(permission)) {
+        //     return; // Permission already handled or doesn't exist
+        // }
+        const isHandling = !this._permissionResponses.pipe(
+            filter((response) => response.id === permissionId),
+            isEmpty(),
+        );
+        if (!permission || !this.isPendingPermissionRequest(permission) || isHandling) {
+            return; // Permission already handled, doesn't exist or is being handled
         }
 
         const updatedPermission: Permission = {
