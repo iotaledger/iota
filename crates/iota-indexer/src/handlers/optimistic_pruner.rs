@@ -19,7 +19,15 @@ use crate::{
 // Keeping current and previous epoch ensures we will not prune just executed
 // txs on epoch boundary
 const EPOCHS_TO_KEEP: u64 = 2;
+
+// short epoch change detection time for testing
+#[cfg(any(feature = "shared_test_runtime", feature = "pg_integration"))]
 const CHECK_EPOCH_CHANGE_INTERVAL: Duration = Duration::from_secs(3);
+
+// longer epoch change detection time for production builds
+#[cfg(not(any(feature = "shared_test_runtime", feature = "pg_integration")))]
+const CHECK_EPOCH_CHANGE_INTERVAL: Duration = Duration::from_secs(3600); // 1 hour
+
 const DELAY_BETWEEN_BATCHES: Duration = Duration::from_millis(200);
 
 pub struct OptimisticPruner {
