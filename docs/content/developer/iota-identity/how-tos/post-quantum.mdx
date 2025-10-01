@@ -322,7 +322,7 @@ verify all signatures that rely on it would be compromised as well.
 In the context of quantum attacks, storing such a DID Document on a non-PQC-capable DLT would be
 unsafe.
 
-Until DLTs migrate to use PQC techniques, users may still securely rely on off-chain VPs and VCs
+Until DLTs migrate to use PQC techniques, users may still rely on off-chain VPs and VCs
 either by storing the verification key on a PQ medium or by leveraging ephemeral DID documents such
 as as: `did:jwk`, `did:key`, or `did:compositejwk`. These types of DIDs don't require a derefering
 or resolution operation in order to obtain the corresponding DID document. Instead, they encode
