@@ -495,3 +495,6 @@ transaction-fuzzer = { path = "crates/transaction-fuzzer" }
 typed-store = { path = "crates/typed-store" }
 typed-store-derive = { path = "crates/typed-store-derive" }
 typed-store-error = { path = "crates/typed-store-error" }
+
+[workspace.metadata.cargo-udeps.ignore]
+normal = ["move-package-alt"]
