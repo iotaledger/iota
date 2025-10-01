@@ -989,7 +989,7 @@ export class IotaClient {
     }
 
     /**
-     * Check if a Transaction has been indexed already.
+     * Check if a Transaction has been indexed on the Node.
      */
     async isTransactionIndexedOnNode(input: IsTransactionIndexedOnNodeParams): Promise<boolean> {
         return await this.transport.request({
