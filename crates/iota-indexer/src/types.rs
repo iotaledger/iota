@@ -566,7 +566,7 @@ pub(crate) struct TxIndexExt {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct TxIndexV2 {
+pub struct TxIndexV2 {
     pub(crate) base: TxIndex,
     pub(crate) ext: TxIndexExt,
 }

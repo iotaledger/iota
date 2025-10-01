@@ -2329,40 +2329,19 @@ impl IndexerStoreExt for PgIndexerStore {
         let mutation_futures = mutation_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_changed_objects(c)));
-        futures::future::try_join_all(mutation_futures)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    "Failed to join persist_object_mutation_chunk futures: {}",
-                    e
-                );
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object mutation chunks: {e:?}",
-                ))
-            })?;
         let deletion_futures = deletion_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_removed_objects(c)));
-        futures::future::try_join_all(deletion_futures)
+        futures::future::try_join_all(mutation_futures.chain(deletion_futures))
             .await
             .map_err(|e| {
-                tracing::error!(
-                    "Failed to join persist_object_deletion_chunk futures: {}",
-                    e
-                );
+                tracing::error!("Failed to join futures for persisting objects: {e}");
                 IndexerError::from(e)
             })?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object deletion chunks: {e:?}",
-                ))
+                IndexerError::PostgresWrite(format!("Failed to persist all object chunks: {e:?}",))
             })?;
 
         let elapsed = guard.stop_and_record();

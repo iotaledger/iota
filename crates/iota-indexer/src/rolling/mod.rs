@@ -15,3 +15,4 @@ pub(crate) mod error;
 pub(crate) mod extract;
 pub(crate) mod persist;
 pub(crate) mod transform;
+pub use transform::CheckpointObjectChanges;

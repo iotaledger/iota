@@ -129,7 +129,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 }
 
 #[async_trait]
-pub(crate) trait IndexerStoreExt: IndexerStore {
+pub trait IndexerStoreExt: IndexerStore {
     async fn persist_checkpoint_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
