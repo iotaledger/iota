@@ -46,7 +46,7 @@ pub(crate) type WatermarkLock = Arc<RwLock<Watermark>>;
 pub(crate) struct ChainIdentifierOnceCellLock(pub(crate) Arc<OnceCell<ChainIdentifier>>);
 
 impl ChainIdentifierOnceCellLock {
-    /// Read the stord chain identifier.
+    /// Read the stored chain identifier.
     pub(crate) fn read(&self) -> ChainIdentifier {
         self.0
             .get()
