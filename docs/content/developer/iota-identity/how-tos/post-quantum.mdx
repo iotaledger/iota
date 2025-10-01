@@ -200,6 +200,12 @@ secrecy against future quantum computer attacks. Organizations can adopt hybrid 
 immediately, validating the PQC component in a real-world setting without compromising existing
 security. 
 
+Such an approach would allow issuers to sign credentials able to withstand the passing of time.
+Verifiers can validate these credentials by verifying only the credential's traditional signature
+for as long as the signature's algorithm is considered secure. After that, once traditional digital 
+signature algorithms will be deemed unsecure, the credential's PQC signature can still be used to
+prove the credential's authenticity and integrity.
+
 In order to make this approach work with the current DID infrastructure the LINKS Foundation
 developed a new DID verification material called [**compositeJwk**](https://zenodo.org/records/14780453)
 that combines a traditional JWK-encoded public key, with a PQ JWK-encoded public key.
