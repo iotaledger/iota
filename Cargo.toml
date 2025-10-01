@@ -46,6 +46,7 @@ exclude = [
   "external-crates/move/crates/move-stdlib-natives",
   "external-crates/move/crates/move-symbol-pool",
   "external-crates/move/crates/move-trace-format",
+  "external-crates/move/crates/move-package-alt",
   "external-crates/move/crates/move-transactional-test-runner",
   "external-crates/move/crates/move-unit-test",
   "external-crates/move/crates/move-vm-config",
@@ -118,6 +119,7 @@ members = [
   "crates/iota-node",
   "crates/iota-open-rpc",
   "crates/iota-open-rpc-macros",
+  "crates/iota-package-alt",
   "crates/iota-package-dump",
   "crates/iota-package-management",
   "crates/iota-package-resolver",
@@ -332,6 +334,7 @@ scopeguard = "1.1"
 serde = { version = "1.0.144", features = ["derive", "rc"] }
 serde-reflection = "0.4"
 serde_json = { version = "1.0.95", features = ["preserve_order"] }
+serde_spanned = "0.6.8"
 serde_with = "3.8"
 serde_yaml = "0.8.26"
 shellexpand = "3.1.0"
@@ -471,6 +474,8 @@ move-core-types = { path = "external-crates/move/crates/move-core-types" }
 move-disassembler = { path = "external-crates/move/crates/move-disassembler" }
 move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
 move-package = { path = "external-crates/move/crates/move-package" }
+
+move-package-alt = { path = "external-crates/move/crates/move-package-alt" }
 move-stackless-bytecode = { path = "external-crates/move/crates/move-stackless-bytecode" }
 move-symbol-pool = { path = "external-crates/move/crates/move-symbol-pool" }
 move-trace-format = { path = "external-crates/move/crates/move-trace-format" }
