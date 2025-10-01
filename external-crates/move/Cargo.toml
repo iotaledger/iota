@@ -183,3 +183,6 @@ inherits = "test"
 debug = 0 # for saving disk space during linking
 incremental = false
 codegen-units = 16
+
+[workspace.metadata.cargo-udeps.ignore]
+normal = ["move-package-alt"]

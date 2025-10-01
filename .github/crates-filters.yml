@@ -106,6 +106,8 @@ iota-open-rpc:
   - "crates/iota-open-rpc/**"
 iota-open-rpc-macros:
   - "crates/iota-open-rpc-macros/**"
+iota-package-alt:
+  - "crates/iota-package-alt/**"
 iota-package-dump:
   - "crates/iota-package-dump/**"
 iota-package-management:
@@ -170,8 +172,6 @@ iota-upgrade-compatibility-transactional-tests:
   - "crates/iota-upgrade-compatibility-transactional-tests/**"
 iota-verifier-transactional-tests:
   - "crates/iota-verifier-transactional-tests/**"
-iota-package-alt:
-  - "crates/iota-package-alt/**"
 prometheus-closure-metric:
   - "crates/prometheus-closure-metric/**"
 shared-crypto:
