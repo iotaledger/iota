@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{any::Any, collections::BTreeMap};
-
 use async_trait::async_trait;
 use diesel::PgConnection;
+use std::{any::Any, collections::BTreeMap};
+use strum::IntoEnumIterator;
 
 use crate::{
     errors::IndexerError,
-    handlers::{EpochToCommit, TransactionObjectChangesToCommit},
+    handlers::{CommitterWatermark, EpochToCommit, TransactionObjectChangesToCommit},
     models::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
@@ -126,6 +126,14 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         conn: &mut PgConnection,
         object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
+
+    /// Update the upper bound of the watermarks for the given tables.
+    async fn update_watermarks_upper_bound<E: IntoEnumIterator>(
+        &self,
+        watermark: CommitterWatermark,
+    ) -> Result<(), IndexerError>
+    where
+        E::Iterator: Iterator<Item: AsRef<str>>;
 }
 
 #[async_trait]
