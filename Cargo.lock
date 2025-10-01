@@ -7080,6 +7080,7 @@ dependencies = [
  "prometheus",
  "reqwest 0.12.7",
  "serde",
+ "shared-crypto",
  "tap",
  "telemetry-subscribers",
  "tokio",

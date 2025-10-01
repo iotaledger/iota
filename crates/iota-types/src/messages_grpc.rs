@@ -280,4 +280,7 @@ pub struct HandleCapabilityNotificationRequestV1 {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct HandleCapabilityNotificationResponseV1 {}
+pub struct HandleCapabilityNotificationResponseV1 {
+    // This is needed to make gRPC happy.
+    pub _unused: bool,
+}

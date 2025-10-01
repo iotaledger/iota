@@ -139,6 +139,7 @@ pub(crate) mod consensus_quarantine;
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
+use iota_types::crypto::AuthorityPublicKey;
 
 // CertLockGuard and CertTxGuard are functionally identical right now, but we
 // retain a distinction anyway. If we need to support distributed object
@@ -1207,6 +1208,10 @@ impl AuthorityPerEpochStore {
 
     pub fn protocol_version(&self) -> ProtocolVersion {
         self.epoch_start_state().protocol_version()
+    }
+
+    pub fn active_validators(&self) -> Vec<AuthorityPublicKey> {
+        self.epoch_start_state().get_active_validators()
     }
 
     pub fn module_cache(&self) -> &Arc<ExecutionModuleCache> {

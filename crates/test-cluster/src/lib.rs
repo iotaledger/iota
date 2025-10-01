@@ -357,7 +357,7 @@ impl TestCluster {
             .iota_node
             .with(|node| node.state().clone_committee_for_testing());
         let mut cur_stake = 0;
-        for node in self.swarm.active_validators() {
+        for node in self.swarm.committee_validators() {
             node.get_node_handle()
                 .unwrap()
                 .with_async(|node| async {

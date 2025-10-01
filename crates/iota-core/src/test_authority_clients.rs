@@ -158,7 +158,7 @@ impl AuthorityAPI for LocalAuthorityClient {
         // For test clients, directly record capabilities since we don't have consensus
         epoch_store.record_capabilities_v1(verified_authority_capabilities.data())?;
 
-        Ok(HandleCapabilityNotificationResponseV1 {})
+        Ok(HandleCapabilityNotificationResponseV1 { _unused: false })
     }
 }
 
@@ -257,6 +257,8 @@ pub struct MockAuthorityApi {
     delay: Duration,
     count: Arc<Mutex<u32>>,
     handle_object_info_request_result: Option<IotaResult<ObjectInfoResponse>>,
+    handle_capability_notification_result:
+        Option<IotaResult<HandleCapabilityNotificationResponseV1>>,
 }
 
 impl MockAuthorityApi {
@@ -265,11 +267,19 @@ impl MockAuthorityApi {
             delay,
             count,
             handle_object_info_request_result: None,
+            handle_capability_notification_result: None,
         }
     }
 
     pub fn set_handle_object_info_request(&mut self, result: IotaResult<ObjectInfoResponse>) {
         self.handle_object_info_request_result = Some(result);
+    }
+
+    pub fn set_handle_capability_notification(
+        &mut self,
+        result: IotaResult<HandleCapabilityNotificationResponseV1>,
+    ) {
+        self.handle_capability_notification_result = Some(result);
     }
 }
 
@@ -347,7 +357,12 @@ impl AuthorityAPI for MockAuthorityApi {
         &self,
         _request: HandleCapabilityNotificationRequestV1,
     ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
-        unimplemented!()
+        tokio::time::sleep(self.delay).await;
+
+        match &self.handle_capability_notification_result {
+            Some(result) => result.clone(),
+            None => Ok(HandleCapabilityNotificationResponseV1 { _unused: false }),
+        }
     }
 }
 

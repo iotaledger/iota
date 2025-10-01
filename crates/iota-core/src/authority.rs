@@ -832,12 +832,19 @@ pub struct AuthorityState {
 ///
 /// Repeating valid commands should produce no changes and return no error.
 impl AuthorityState {
-    pub fn is_validator(&self, epoch_store: &AuthorityPerEpochStore) -> bool {
+    pub fn is_committee_validator(&self, epoch_store: &AuthorityPerEpochStore) -> bool {
         epoch_store.committee().authority_exists(&self.name)
     }
 
+    pub fn is_active_validator(&self, epoch_store: &AuthorityPerEpochStore) -> bool {
+        epoch_store
+            .active_validators()
+            .iter()
+            .any(|a| AuthorityName::from(a) == self.name)
+    }
+
     pub fn is_fullnode(&self, epoch_store: &AuthorityPerEpochStore) -> bool {
-        !self.is_validator(epoch_store)
+        !self.is_committee_validator(epoch_store)
     }
 
     pub fn committee_store(&self) -> &Arc<CommitteeStore> {
@@ -960,7 +967,7 @@ impl AuthorityState {
         let signed = self.handle_transaction_impl(transaction, epoch_store).await;
         match signed {
             Ok(s) => {
-                if self.is_validator(epoch_store) {
+                if self.is_committee_validator(epoch_store) {
                     if let Some(validator_tx_finalizer) = &self.validator_tx_finalizer {
                         let tx = s.clone();
                         let validator_tx_finalizer = validator_tx_finalizer.clone();
@@ -4352,7 +4359,7 @@ impl AuthorityState {
         inner_temporary_store: &InnerTemporaryStore,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> Option<TxCoins> {
-        if self.indexes.is_none() || self.is_validator(epoch_store) {
+        if self.indexes.is_none() || self.is_committee_validator(epoch_store) {
             return None;
         }
         let written_coin_objects = inner_temporary_store

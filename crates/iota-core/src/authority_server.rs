@@ -1150,6 +1150,11 @@ impl ValidatorService {
         let existing_capabilities = epoch_store.get_capabilities_v1()?;
         let incoming_capability = request.message.data();
 
+        info!(
+            "Received capability notification: {:?}",
+            incoming_capability
+        );
+
         if let Some(existing) = existing_capabilities
             .iter()
             .find(|cap| cap.authority == incoming_capability.authority)
@@ -1157,7 +1162,7 @@ impl ValidatorService {
             if incoming_capability.generation <= existing.generation {
                 // Return successfully if generation is lower or equal - already processed
                 return Ok((
-                    tonic::Response::new(HandleCapabilityNotificationResponseV1 {}),
+                    tonic::Response::new(HandleCapabilityNotificationResponseV1 { _unused: false }),
                     Weight::one(),
                 ));
             }
@@ -1204,7 +1209,7 @@ impl ValidatorService {
         debug!("Submitted capability notification to consensus for authority {authority_name:?}");
 
         Ok((
-            tonic::Response::new(HandleCapabilityNotificationResponseV1 {}),
+            tonic::Response::new(HandleCapabilityNotificationResponseV1 { _unused: false }),
             Weight::one(),
         ))
     }
