@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 use async_graphql::*;
 use fastcrypto::encoding::Base64;
-use iota_indexer::{apis::OptimisticWriteApi, optimistic_indexing::OptimisticTransactionExecutor};
+use iota_indexer::apis::OptimisticWriteApi;
 use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_types::{

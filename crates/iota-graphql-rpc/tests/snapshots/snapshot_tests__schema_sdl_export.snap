@@ -2699,6 +2699,20 @@ type MoveValue {
 }
 
 """
+The result of a move-view function call.
+"""
+type MoveViewResult {
+	"""
+	Execution error from executing the move view call.
+	"""
+	error: String
+	"""
+	The return values of the move view function.
+	"""
+	results: [JSON!]
+}
+
+"""
 The visibility modifier describes which modules can access this module
 member. By default, a module member can be called only within the same
 module.
@@ -3559,6 +3573,7 @@ type Query {
 	Configuration for this RPC service
 	"""
 	serviceConfig: ServiceConfig!
+	moveViewCall(functionName: String!, typeArgs: [String!], arguments: [JSON!]): MoveViewResult!
 	"""
 	Simulate running a transaction to inspect its effects without
 	committing to them on-chain.

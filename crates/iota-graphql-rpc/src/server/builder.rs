@@ -750,8 +750,6 @@ pub mod tests {
         Response,
         extensions::{Extension, ExtensionContext, NextExecute},
     };
-    use iota_indexer::optimistic_indexing::OptimisticTransactionExecutor;
-    use iota_sdk::wallet_context::WalletContext;
     use iota_types::transaction::TransactionData;
     use uuid::Uuid;
 

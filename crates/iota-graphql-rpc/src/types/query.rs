@@ -6,8 +6,9 @@ use std::str::FromStr;
 
 use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_json::IotaJsonValue;
 use iota_json_rpc_api::WriteApiServer;
-use iota_json_rpc_types::DevInspectArgs;
+use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
 use iota_types::{
     TypeTag,
     gas_coin::GAS,
@@ -39,6 +40,7 @@ use crate::{
         iota_names_registration::{IotaNames, Name},
         move_package::{self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter},
         move_type::MoveType,
+        move_view_result::MoveViewResult,
         object::{self, Object, ObjectFilter},
         owner::Owner,
         protocol_config::ProtocolConfigs,
@@ -88,9 +90,22 @@ impl Query {
         ctx: &Context<'_>,
         function_name: String,
         type_args: Option<Vec<String>>,
-        arguments: Option<Vec<String>>,
-    ) -> Result<bool> {
-        Ok(true)
+        arguments: Option<Vec<serde_json::Value>>,
+    ) -> Result<MoveViewResult> {
+        let type_args = type_args.map(|args| args.into_iter().map(IotaTypeTag::new).collect());
+        let call_args = arguments
+            .unwrap_or_default()
+            .into_iter()
+            .map(IotaJsonValue::new)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Error::Client(e.to_string()))
+            .extend()?;
+        let write_api = get_write_api(ctx).extend()?;
+        let results = write_api
+            .view_function_call(function_name, type_args, call_args)
+            .await?;
+
+        results.try_into().extend()
     }
 
     /// Simulate running a transaction to inspect its effects without
