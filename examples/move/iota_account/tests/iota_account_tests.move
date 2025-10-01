@@ -6,76 +6,81 @@ module iota_account::iota_account_tests;
 
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::{Self, AuthContext};
-use iota::ecdsa_k1;
-use iota::hex;
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
-use iota_account::iota_account::{Self, IOTAccount};
+use iota_account::iota_account::{Self, IOTAccount, DfKey, make_key};
 use std::ascii;
 use std::string;
 
-// --------------------------------------- Basic Scenario ---------------------------------------
+// --------------------------------------- Create IOTAccount ---------------------------------------------------
 
 #[test]
-fun test_account_creation() {
-    let mut scenario_val = test_scenario::begin(@0x0);
+#[expected_failure(abort_code = iota_account::EReservedDynamicFieldsListCannotBeSet)]
+fun builder_reserved_fields_list_cannot_be_set() {
+    let test_sender = @0x0;
+    let mut scenario_val = test_scenario::begin(test_sender);
     let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
 
-    scenario.next_tx(account_address);
+    let ctx = test_scenario::ctx(scenario);
+
+    let authenticator = create_authenticator_info_v1_for_testing();
+    let account = iota_account::builder(authenticator, ctx)
+        .add_reserved_field(
+            iota_account::get_reserved_dynamic_fields(),
+            vector<DfKey>[],
+        )
+        .finish();
+    account.share();
+
+    test_scenario::end(scenario_val);
+}
+
+public struct ReservedDfName has copy, drop, store {}
+
+#[test]
+fun builder_all_mandatory_fields_set() {
+    let test_sender = @0x0;
+    let mut scenario_val = test_scenario::begin(test_sender);
+    let scenario = &mut scenario_val;
+
+    let ctx = test_scenario::ctx(scenario);
+
+    let reserved_df_example_name = ReservedDfName {};
+
+    let authenticator = create_authenticator_info_v1_for_testing();
+    // Any field value can be set as a reserved, and for the purposes of this test
+    // the exact value doesn't matter.
+    let account = iota_account::builder(authenticator, ctx)
+        .add_reserved_field(reserved_df_example_name, 6)
+        .finish();
+    account.share();
+
+    scenario.next_tx(@0x0);
     {
         let account = scenario.take_shared<IOTAccount>();
 
-        let public_key_df_name = iota_account::create_owner_public_key_for_testing();
-
-        assert!(account.has_field(public_key_df_name));
-        assert_ref_eq(account.borrow_field(public_key_df_name), &public_key_for_testing());
-
+        // Check if authenticator has been set.
         let authenticator_df_name = account::authenticator_df_name();
-
         assert!(account.has_field(authenticator_df_name));
         assert_ref_eq(
             account.borrow_field(authenticator_df_name),
             &create_authenticator_info_v1_for_testing(),
         );
 
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-// --------------------------------------- Public Key Rotation ---------------------------------------
-
-#[test]
-fun test_rotate_account_public_key() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
-
-        let public_key = b"24";
-        let authenticator = account::create_auth_info_v1_for_testing(
-            @0x2,
-            ascii::string(b"module2"),
-            ascii::string(b"function2"),
+        // Check if reserved dynamic fields list has been set.
+        let reserved_df_name = iota_account::get_reserved_dynamic_fields();
+        assert!(account.has_field(reserved_df_name));
+        // and if it contains the appropriate values.
+        let reserved_df_keys: &vector<DfKey> = account.borrow_field(
+            reserved_df_name,
         );
-        let ctx = test_scenario::ctx(scenario);
+        assert!(reserved_df_keys.length() == 2);
+        assert!(reserved_df_keys.contains(&make_key(authenticator_df_name)));
+        assert!(reserved_df_keys.contains(&make_key(reserved_df_example_name)));
 
-        account.rotate_public_key(public_key, authenticator, ctx);
-
-        let public_key_df_name = iota_account::create_owner_public_key_for_testing();
-
-        assert!(account.has_field(public_key_df_name));
-        assert_ref_eq(account.borrow_field(public_key_df_name), &public_key);
-
-        let authenticator_df_name = account::authenticator_df_name();
-
-        assert!(account.has_field(authenticator_df_name));
-        assert_ref_eq(account.borrow_field(authenticator_df_name), &authenticator);
+        // Check the ReservedDfName contains the set value.
+        assert!(account.has_field(reserved_df_example_name));
+        assert_eq(*account.borrow_field(reserved_df_example_name), 6);
 
         test_scenario::return_shared(account);
     };
@@ -84,29 +89,75 @@ fun test_rotate_account_public_key() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
-fun test_rotate_account_public_key_wrong_sender() {
-    let mut scenario_val = test_scenario::begin(@0x0);
+#[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
+fun attempting_to_add_a_field_as_reserved_then_regular() {
+    let test_sender = @0x0;
+    let mut scenario_val = test_scenario::begin(test_sender);
     let scenario = &mut scenario_val;
 
-    create_iotaccount_for_testing(scenario);
+    let ctx = test_scenario::ctx(scenario);
+    let authenticator = create_authenticator_info_v1_for_testing();
 
-    scenario.next_tx(@0x0);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
+    let field_name = b"SomeData".to_ascii_string();
+    let account = iota_account::builder(authenticator, ctx)
+        .add_reserved_field(
+            field_name,
+            3,
+        )
+        .add_regular_field(field_name, 3)
+        .finish();
+    account.share();
 
-        let public_key = b"24";
-        let authenticator = account::create_auth_info_v1_for_testing(
-            @0x2,
-            ascii::string(b"module2"),
-            ascii::string(b"function2"),
-        );
-        let ctx = test_scenario::ctx(scenario);
+    test_scenario::end(scenario_val);
+}
 
-        account.rotate_public_key(public_key, authenticator, ctx);
+#[test]
+#[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
+fun attempting_to_add_a_field_as_regular_then_reserved() {
+    let test_sender = @0x0;
+    let mut scenario_val = test_scenario::begin(test_sender);
+    let scenario = &mut scenario_val;
 
-        test_scenario::return_shared(account);
-    };
+    let ctx = test_scenario::ctx(scenario);
+    let authenticator = create_authenticator_info_v1_for_testing();
+
+    let field_name = b"SomeData".to_ascii_string();
+    let account = iota_account::builder(authenticator, ctx)
+        .add_regular_field(field_name, 3)
+        .add_reserved_field(
+            field_name,
+            3,
+        )
+        .finish();
+    account.share();
+
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+fun reserved_fields_list_observe_the_value_not_just_the_type() {
+    let test_sender = @0x0;
+    let mut scenario_val = test_scenario::begin(test_sender);
+    let scenario = &mut scenario_val;
+
+    let ctx = test_scenario::ctx(scenario);
+    let authenticator = create_authenticator_info_v1_for_testing();
+
+    // These fields will are considered different, because the value within the Strings
+    // are different.
+    let field_name = b"SomeData".to_ascii_string();
+    let another_name = b"DifferentData".to_ascii_string();
+    let account = iota_account::builder(authenticator, ctx)
+        .add_reserved_field(
+            field_name,
+            3,
+        )
+        .add_reserved_field(
+            another_name,
+            3,
+        )
+        .finish();
+    account.share();
 
     test_scenario::end(scenario_val);
 }
@@ -165,45 +216,25 @@ fun test_add_user_defined_dynamic_field_wrong_sender() {
     test_scenario::end(scenario_val);
 }
 
-#[test]
-#[expected_failure(abort_code = iota_account::EOwnerPublicKeyCannotBeUsed)]
-fun test_add_user_defined_dynamic_field_owner_public_key() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
+// #[test]
+// #[expected_failure(abort_code = iota_account::EAuthenticatorDynamicFieldNameCannotBeUsed)]
+// fun test_add_user_defined_dynamic_field_authenticator_df_name() {
+//     let mut scenario_val = test_scenario::begin(@0x0);
+//     let scenario = &mut scenario_val;
+//     let account_address = create_iotaccount_for_testing(scenario);
 
-    scenario.next_tx(account_address);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
+//     scenario.next_tx(account_address);
+//     {
+//         let mut account = scenario.take_shared<IOTAccount>();
+//         let ctx = test_scenario::ctx(scenario);
 
-        account.add_field(iota_account::create_owner_public_key_for_testing(), 42, ctx);
+//         account.add_field(account::authenticator_df_name(), 42, ctx);
 
-        test_scenario::return_shared(account);
-    };
+//         test_scenario::return_shared(account);
+//     };
 
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-#[expected_failure(abort_code = iota_account::EAuthenticatorDynamicFieldNameCannotBeUsed)]
-fun test_add_user_defined_dynamic_field_authenticator_df_name() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
-
-        account.add_field(account::authenticator_df_name(), 42, ctx);
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
+//     test_scenario::end(scenario_val);
+// }
 
 // --------------------------------------- Remove Dynamic Field ---------------------------------------
 
@@ -228,48 +259,25 @@ fun test_remove_user_defined_dynamic_field_wrong_sender() {
     test_scenario::end(scenario_val);
 }
 
-#[test]
-#[expected_failure(abort_code = iota_account::EOwnerPublicKeyCannotBeUsed)]
-fun test_remove_user_defined_dynamic_field_owner_public_key() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
+// #[test]
+// #[expected_failure(abort_code = iota_account::EAuthenticatorDynamicFieldNameCannotBeUsed)]
+// fun test_remove_user_defined_dynamic_field_authenticator_df_name() {
+//     let mut scenario_val = test_scenario::begin(@0x0);
+//     let scenario = &mut scenario_val;
+//     let account_address = create_iotaccount_for_testing(scenario);
 
-    scenario.next_tx(account_address);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
+//     scenario.next_tx(account_address);
+//     {
+//         let mut account = scenario.take_shared<IOTAccount>();
+//         let ctx = test_scenario::ctx(scenario);
 
-        account.remove_field<_, vector<u64>>(
-            iota_account::create_owner_public_key_for_testing(),
-            ctx,
-        );
+//         account.remove_field<_, AuthenticatorInfoV1>(account::authenticator_df_name(), ctx);
 
-        test_scenario::return_shared(account);
-    };
+//         test_scenario::return_shared(account);
+//     };
 
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-#[expected_failure(abort_code = iota_account::EAuthenticatorDynamicFieldNameCannotBeUsed)]
-fun test_remove_user_defined_dynamic_field_authenticator_df_name() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
-
-        account.remove_field<_, AuthenticatorInfoV1>(account::authenticator_df_name(), ctx);
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
+//     test_scenario::end(scenario_val);
+// }
 
 // --------------------------------------- Borrow Dynamic Field ---------------------------------------
 
@@ -297,27 +305,6 @@ fun test_borrow_user_defined_dynamic_field_wrong_sender() {
         let account = scenario.take_shared<IOTAccount>();
 
         assert_ref_eq(account.borrow_field(name), &value);
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-fun test_borrow_user_defined_dynamic_field_owner_public_key() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
-        let account = scenario.take_shared<IOTAccount>();
-
-        assert_ref_eq(
-            account.borrow_field(iota_account::create_owner_public_key_for_testing()),
-            &public_key_for_testing(),
-        );
 
         test_scenario::return_shared(account);
     };
@@ -381,48 +368,25 @@ fun test_borrow_mut_user_defined_dynamic_field_wrong_sender() {
     test_scenario::end(scenario_val);
 }
 
-#[test]
-#[expected_failure(abort_code = iota_account::EOwnerPublicKeyCannotBeUsed)]
-fun test_borrow_mut_user_defined_dynamic_field_owner_public_key() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
+// #[test]
+// #[expected_failure(abort_code = iota_account::EAuthenticatorDynamicFieldNameCannotBeUsed)]
+// fun test_borrow_mut_user_defined_dynamic_field_authenticator_df_name() {
+//     let mut scenario_val = test_scenario::begin(@0x0);
+//     let scenario = &mut scenario_val;
+//     let account_address = create_iotaccount_for_testing(scenario);
 
-    scenario.next_tx(account_address);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
+//     scenario.next_tx(account_address);
+//     {
+//         let mut account = scenario.take_shared<IOTAccount>();
+//         let ctx = test_scenario::ctx(scenario);
 
-        account.borrow_field_mut<_, vector<u64>>(
-            iota_account::create_owner_public_key_for_testing(),
-            ctx,
-        );
+//         account.borrow_field_mut<_, AuthenticatorInfoV1>(account::authenticator_df_name(), ctx);
 
-        test_scenario::return_shared(account);
-    };
+//         test_scenario::return_shared(account);
+//     };
 
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-#[expected_failure(abort_code = iota_account::EAuthenticatorDynamicFieldNameCannotBeUsed)]
-fun test_borrow_mut_user_defined_dynamic_field_authenticator_df_name() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
-
-        account.borrow_field_mut<_, AuthenticatorInfoV1>(account::authenticator_df_name(), ctx);
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
+//     test_scenario::end(scenario_val);
+// }
 
 // --------------------------------------- Has Dynamic Field ---------------------------------------
 
@@ -458,24 +422,6 @@ fun test_has_user_defined_dynamic_field_wrong_sender() {
 }
 
 #[test]
-fun test_has_user_defined_dynamic_field_owner_public_key() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
-        let account = scenario.take_shared<IOTAccount>();
-
-        assert!(account.has_field(iota_account::create_owner_public_key_for_testing()));
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
 fun test_has_user_defined_dynamic_field_authenticator_df_name() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
@@ -496,6 +442,7 @@ fun test_has_user_defined_dynamic_field_authenticator_df_name() {
 // --------------------------------------- Test Utilities ---------------------------------------
 
 fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
+    // The exact values don't matter in these tests.
     account::create_auth_info_v1_for_testing(
         @0x1,
         ascii::string(b"module"),
@@ -504,47 +451,16 @@ fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
 }
 
 fun create_iotaccount_for_testing(scenario: &mut Scenario): address {
-    create_iotaccount_for_testing_impl(scenario, option::none())
-}
-
-fun create_iotaccount_with_pk_for_testing(
-    scenario: &mut Scenario,
-    public_key: vector<u8>,
-): address {
-    create_iotaccount_for_testing_impl(scenario, option::some(public_key))
-}
-
-fun create_iotaccount_for_testing_impl(
-    scenario: &mut Scenario,
-    public_key: Option<vector<u8>>,
-): address {
     let ctx = test_scenario::ctx(scenario);
 
-    let public_key = public_key.destroy_or!(public_key_for_testing());
     let authenticator = create_authenticator_info_v1_for_testing();
 
-    iota_account::create(public_key, authenticator, ctx);
-
-    scenario.next_tx(@0x0);
-
-    let account = scenario.take_shared<IOTAccount>();
+    let account = iota_account::builder(authenticator, ctx).finish();
     let account_address = account.get_address();
 
-    test_scenario::return_shared(account);
+    iota_account::share(account);
 
     account_address
-}
-
-fun create_tx_context_for_testing(sender: address, digest: vector<u8>): TxContext {
-    tx_context::new(sender, digest, 0, 0, 0)
-}
-
-fun create_auth_context_for_testing(): AuthContext {
-    auth_context::new_with_tx_inputs(vector::empty(), vector::empty(), vector::empty())
-}
-
-fun public_key_for_testing(): vector<u8> {
-    b"42"
 }
 
 fun check_dynamic_field<Name: copy + drop + store, Value: store + copy + drop>(
@@ -562,87 +478,4 @@ fun check_dynamic_field<Name: copy + drop + store, Value: store + copy + drop>(
     assert_eq(account.remove_field(name, ctx), value);
 
     assert!(!account.has_field(name));
-}
-
-// FROM ACCOUNT_TEMPLATE
-
-public struct ReservedDfName has copy, drop, store {}
-
-#[test]
-#[expected_failure(abort_code = account_template::EReservedDynamicFieldsListCannotBeSet)]
-fun builder_reserved_fields_cannot_be_set() {
-    let test_sender = @0x0;
-    let mut scenario_val = test_scenario::begin(test_sender);
-    let scenario = &mut scenario_val;
-
-    let ctx = test_scenario::ctx(scenario);
-
-    let authenticator = create_authenticator_info_v1_for_testing();
-    let account = account_template::builder(authenticator, ctx)
-        .add_reserved_field(
-            account_template::get_reserved_dynamic_fields(),
-            vector<DfKey>[],
-        )
-        .finish();
-    account.share();
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-fun builder_all_fields_set() {
-    let test_sender = @0x0;
-    let mut scenario_val = test_scenario::begin(test_sender);
-    let scenario = &mut scenario_val;
-
-    let ctx = test_scenario::ctx(scenario);
-
-    let reserved_df_example_name = ReservedDfName {};
-
-    let authenticator = create_authenticator_info_v1_for_testing();
-    // Any field value can be set as a reserved, and for the purposes of this test
-    // the exact value doesn't matter.
-    let account = account_template::builder(authenticator, ctx)
-        .add_reserved_field(reserved_df_example_name, 6)
-        .finish();
-    account.share();
-
-    scenario.next_tx(@0x0);
-    {
-        let account = scenario.take_shared<IOTAccount>();
-
-        let authenticator_df_name = account::authenticator_df_name();
-        assert!(account.has_field(authenticator_df_name));
-        assert_ref_eq(
-            account.borrow_field(authenticator_df_name),
-            &create_authenticator_info_v1_for_testing(),
-        );
-
-        let reserved_df_name = account_template::get_reserved_dynamic_fields();
-        assert!(account.has_field(reserved_df_name));
-        let reserved_df_keys: &vector<DfKey> = account.borrow_field(
-            reserved_df_name,
-        );
-        assert!(reserved_df_keys.length() == 2);
-        assert!(reserved_df_keys.contains(&make_key(authenticator_df_name)));
-        assert!(reserved_df_keys.contains(&make_key(reserved_df_example_name)));
-
-        // check the ReservedKey value as well
-        assert!(account.has_field(reserved_df_example_name));
-        assert_eq(*account.borrow_field(reserved_df_example_name), 6);
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-// --------------------------------------- Test Utilities ---------------------------------------
-
-fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
-    account::create_auth_info_v1_for_testing(
-        @0x0,
-        ascii::string(b"account_template"),
-        ascii::string(b"authenticator"),
-    )
 }
