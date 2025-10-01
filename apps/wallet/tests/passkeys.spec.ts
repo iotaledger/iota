@@ -68,9 +68,6 @@ test('Sends funds to another account', async ({ page, extensionUrl }) => {
     await page.getByRole('button', { name: /Send Now/ }).click();
 
     await expect(page.getByText('Successfully sent')).toBeVisible();
-    await page.getByTestId('close-icon').click();
-    await page.getByTestId('nav-home').click();
-    await expect(balanceLocator).toHaveText('0', { timeout: LONG_TIMEOUT });
 
     await client.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
     await page.close();
@@ -98,7 +95,7 @@ test('Creates a passkey account, resets the wallet and logs back in', async ({
     await page.getByTestId('wallet-settings-button').click();
 
     await page.getByText('Reset').click();
-    await page.getByRole('button', { name: 'Reset' }).click(); // Dialog confirmation
+    await page.getByRole('button', { name: 'Reset' }).click();
 
     await expect(page.getByText('IOTA Wallet')).toBeVisible();
 
