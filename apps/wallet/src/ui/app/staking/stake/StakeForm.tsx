@@ -110,22 +110,23 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                     showEvents: true,
                                 },
                             });
-                            formikHelpers.resetForm();
                             await signer.client.waitForTransaction({
                                 digest: tx.digest,
                             });
-                            return tx;
+                            return { tx, formikHelpers };
                         } finally {
                             span?.end();
                         }
                     },
                 );
             },
-            onSuccess: (_) => {
+            onSuccess: ({ tx, formikHelpers }) => {
                 ampli.stakedIota({
-                    stakedAmount: Number(amountWithoutDecimals),
+                    stakedAmount: Number(amount),
                     validatorAddress: validatorAddress || '',
                 });
+                formikHelpers.resetForm();
+                onSuccess(tx);
             },
             onError: (error) => {
                 throw error;
@@ -134,8 +135,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     const handleSubmit = async (_: FormValues, formikHelpers: FormikHelpers<FormValues>) => {
         try {
-            const response = await stakeTokenMutateAsync(formikHelpers);
-            onSuccess(response);
+            await stakeTokenMutateAsync(formikHelpers);
         } catch (error) {
             toast.error(
                 <div className="flex max-w-xs flex-col overflow-hidden">
