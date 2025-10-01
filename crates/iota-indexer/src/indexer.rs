@@ -85,8 +85,9 @@ impl Indexer {
             store.persist_protocol_configs_and_feature_flags(chain_id)?;
         }
 
-        // Ingestion task watermarks are snapshotted once on indexer startup based on the
-        // corresponding watermark table before being handed off to the ingestion task.
+        // Ingestion task watermarks are snapshotted once on indexer startup based on
+        // the corresponding watermark table before being handed off to the
+        // ingestion task.
         let mut executor = IndexerExecutor::new(
             ShimIndexerProgressStore::new(vec![
                 ("primary".to_string(), primary_watermark),

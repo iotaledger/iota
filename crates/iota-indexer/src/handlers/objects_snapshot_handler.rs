@@ -11,10 +11,9 @@ use iota_types::full_checkpoint_content::CheckpointData;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use super::{CommitterWatermark, ObjectsSnapshotHandlerTables};
-
 use super::{
-    CommonHandler, Handler, TransactionObjectChangesToCommit, checkpoint_handler::CheckpointHandler,
+    CommitterWatermark, CommonHandler, Handler, ObjectsSnapshotHandlerTables,
+    TransactionObjectChangesToCommit, checkpoint_handler::CheckpointHandler,
 };
 use crate::{
     config::SnapshotLagConfig,

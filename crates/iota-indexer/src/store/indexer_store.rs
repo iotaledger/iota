@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{any::Any, collections::BTreeMap};
+
 use async_trait::async_trait;
 use diesel::PgConnection;
-use std::{any::Any, collections::BTreeMap};
 use strum::IntoEnumIterator;
 
 use crate::{

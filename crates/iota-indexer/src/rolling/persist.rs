@@ -4,8 +4,9 @@
 //! Types and associated logic to use while persisting
 //! data to the database.
 
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use std::collections::{BTreeMap, HashMap};
+
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tap::tap::TapFallible;
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
@@ -76,8 +77,8 @@ pub(crate) async fn start_tx_checkpoint_commit_task(
             let epoch = checkpoint.epoch.clone();
             batch.push(checkpoint);
             next_checkpoint_sequence_number += 1;
-            // The batch will consist of contiguous checkpoints and at most one epoch boundary at
-            // the end.
+            // The batch will consist of contiguous checkpoints and at most one epoch
+            // boundary at the end.
             if batch.len() == checkpoint_commit_batch_size || epoch.is_some() {
                 commit_checkpoints(&state, batch, epoch, &metrics).await;
                 batch = vec![];
@@ -91,9 +92,10 @@ pub(crate) async fn start_tx_checkpoint_commit_task(
     Ok(())
 }
 
-/// Writes indexed checkpoint data to the database, and then update watermark upper bounds and
-/// metrics. Expects `indexed_checkpoint_batch` to be non-empty, and contain contiguous checkpoints.
-/// There can be at most one epoch boundary at the end. If an epoch boundary is detected,
+/// Writes indexed checkpoint data to the database, and then update watermark
+/// upper bounds and metrics. Expects `indexed_checkpoint_batch` to be
+/// non-empty, and contain contiguous checkpoints. There can be at most one
+/// epoch boundary at the end. If an epoch boundary is detected,
 /// epoch-partitioned tables must be advanced.
 // Unwrap: Caller needs to make sure indexed_checkpoint_batch is not empty
 #[instrument(skip_all, fields(
@@ -205,8 +207,8 @@ async fn commit_checkpoints(
 
     let is_epoch_end = epoch.is_some();
 
-    // On epoch boundary, we need to modify the existing partitions' upper bound, and introduce a
-    // new partition for incoming data for the upcoming epoch.
+    // On epoch boundary, we need to modify the existing partitions' upper bound,
+    // and introduce a new partition for incoming data for the upcoming epoch.
     if let Some(epoch_data) = epoch {
         state
             .advance_epoch(epoch_data)
