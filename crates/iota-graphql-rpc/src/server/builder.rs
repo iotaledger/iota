@@ -66,9 +66,10 @@ use crate::{
         exchange_rates_task::TriggerExchangeRatesTask,
         system_package_task::SystemPackageTask,
         version::{check_version_middleware, set_version_middleware},
-        watermark_task::{Watermark, WatermarkLock, WatermarkTask},
+        watermark_task::{ChainIdentifierOnceCellLock, Watermark, WatermarkLock, WatermarkTask},
     },
     types::{
+        chain_identifier::ChainIdentifier,
         datatype::IMoveDatatype,
         move_object::IMoveObject,
         object::IObject,
@@ -374,6 +375,7 @@ impl ServerBuilder {
             ))
             .layer(axum::extract::Extension(schema))
             .layer(axum::extract::Extension(watermark_task.lock()))
+            .layer(axum::extract::Extension(watermark_task.chain_id_lock()))
             .layer(Self::cors()?);
 
         Ok(Server {
@@ -560,6 +562,7 @@ async fn graphql_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     schema: Extension<IotaGraphQLSchema>,
     Extension(watermark_lock): Extension<WatermarkLock>,
+    Extension(chain_identifier_lock): Extension<ChainIdentifierOnceCellLock>,
     headers: HeaderMap,
     req: GraphQLRequest,
 ) -> (axum::http::Extensions, GraphQLResponse) {
@@ -574,6 +577,7 @@ async fn graphql_handler(
     req.data.insert(addr);
 
     req.data.insert(Watermark::new(watermark_lock).await);
+    req.data.insert(chain_identifier_lock.read());
 
     let result = schema.execute(req).await;
 
@@ -716,7 +720,7 @@ pub mod tests {
     };
     use iota_indexer::optimistic_indexing::OptimisticTransactionExecutor;
     use iota_sdk::wallet_context::WalletContext;
-    use iota_types::transaction::TransactionData;
+    use iota_types::{digests::get_mainnet_chain_identifier, transaction::TransactionData};
     use uuid::Uuid;
 
     use super::*;
@@ -750,6 +754,7 @@ pub mod tests {
             service_config.limits.clone(),
             metrics.clone(),
         );
+        let loader = DataLoader::new(db.clone());
         let pg_conn_pool = PgManager::new(reader);
         let cancellation_token = CancellationToken::new();
         let watermark = Watermark {
@@ -766,11 +771,13 @@ pub mod tests {
         );
         ServerBuilder::new(state)
             .context_data(db)
+            .context_data(loader)
             .context_data(pg_conn_pool)
             .context_data(service_config)
             .context_data(query_id())
             .context_data(ip_address())
             .context_data(watermark)
+            .context_data(ChainIdentifier::from(get_mainnet_chain_identifier()))
             .context_data(metrics)
     }
 
@@ -839,7 +846,7 @@ pub mod tests {
             schema.execute(query).await
         }
 
-        let query = "{ chainIdentifier }";
+        let query = r#"{ checkpoint(id: {sequenceNumber: 0 }) { digest }}"#;
         let timeout = Duration::from_millis(1000);
         let delay = Duration::from_millis(100);
 
