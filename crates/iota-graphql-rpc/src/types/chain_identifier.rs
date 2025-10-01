@@ -27,18 +27,14 @@ impl ChainIdentifier {
     pub(crate) async fn query(db: &Db) -> Result<Option<NativeChainIdentifier>, Error> {
         use chain_identifier::dsl;
 
-        let Some(digest_bytes) = db
-            .execute(move |conn| {
-                conn.first(move || dsl::chain_identifier.select(dsl::checkpoint_digest))
-                    .optional()
-            })
-            .await
-            .map_err(|e| Error::Internal(format!("Failed to fetch genesis digest: {e}")))?
-        else {
-            return Ok(None);
-        };
-
-        Self::from_bytes(digest_bytes).map(Some)
+        db.execute(move |conn| {
+            conn.first(move || dsl::chain_identifier.select(dsl::checkpoint_digest))
+                .optional()
+        })
+        .await
+        .map_err(|e| Error::Internal(format!("Failed to fetch genesis digest: {e}")))?
+        .map(Self::from_bytes)
+        .transpose()
     }
 
     /// Treat `bytes` as a checkpoint digest and extract a chain identifier from

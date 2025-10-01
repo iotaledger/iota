@@ -7,10 +7,7 @@ use std::{mem, sync::Arc, time::Duration};
 use async_graphql::ServerError;
 use diesel::{ExpressionMethods, OptionalExtension, QueryDsl};
 use iota_indexer::schema::checkpoints;
-use tokio::{
-    sync::{OnceCell, RwLock, watch},
-    time::Interval,
-};
+use tokio::sync::{OnceCell, RwLock, watch};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
@@ -46,10 +43,7 @@ pub(crate) struct ChainIdentifierCache(pub(crate) Arc<OnceCell<ChainIdentifier>>
 impl ChainIdentifierCache {
     /// Read the stored chain identifier.
     pub(crate) fn read(&self) -> ChainIdentifier {
-        self.0
-            .get()
-            .map(|chain_identifier| chain_identifier.into_inner().into())
-            .unwrap_or_default()
+        self.0.get().copied().unwrap_or_default()
     }
 }
 
@@ -89,11 +83,11 @@ impl WatermarkTask {
     }
 
     pub(crate) async fn run(&self) {
-        let mut interval = tokio::time::interval(self.sleep);
         // start the process of finding & setting the chain identifier
         // so that it can be used in all requests.
-        self.initialize_chain_identifier(&mut interval).await;
+        self.initialize_chain_identifier().await;
 
+        let mut interval = tokio::time::interval(self.sleep);
         loop {
             tokio::select! {
                 _ = self.cancel.cancelled() => {
@@ -154,7 +148,8 @@ impl WatermarkTask {
     ///
     /// This ensures is initialized only once, regardless of how many times this
     /// method is called concurrently.
-    async fn initialize_chain_identifier(&self, interval: &mut Interval) {
+    async fn initialize_chain_identifier(&self) {
+        let mut interval = tokio::time::interval(self.sleep);
         self.chain_identifier.0.get_or_init(|| async {
             loop {
                 tokio::select! {

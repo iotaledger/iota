@@ -60,8 +60,9 @@ impl Query {
     /// First four bytes of the network's genesis checkpoint digest (uniquely
     /// identifies the network).
     async fn chain_identifier(&self, ctx: &Context<'_>) -> Result<String> {
-        // we want to panic if the chain identifier is missing, as there's something
-        // wrong with the service.
+        // On every GraphQLRequest the chain identifier is injected into the Request
+        // Data in the `graphql_handler` function, if it panic it's a bug, it should be
+        // always present.
         let chain_id: ChainIdentifier = *ctx.data_unchecked();
 
         if let Some(id) = chain_id.into_inner() {
