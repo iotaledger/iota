@@ -1713,39 +1713,20 @@ impl IndexerStore for PgIndexerStore {
         let mutation_futures = object_mutation_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_object_mutation_chunk(c)));
-        futures::future::try_join_all(mutation_futures)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    "Failed to join persist_object_mutation_chunk futures: {}",
-                    e
-                );
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object mutation chunks: {e:?}"
-                ))
-            })?;
         let deletion_futures = object_deletion_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_object_deletion_chunk(c)));
-        futures::future::try_join_all(deletion_futures)
+        futures::future::try_join_all(mutation_futures.chain(deletion_futures))
             .await
             .map_err(|e| {
-                tracing::error!(
-                    "Failed to join persist_object_deletion_chunk futures: {}",
-                    e
-                );
+                tracing::error!("Failed to join futures for persisting object chunks: {e}",);
                 IndexerError::from(e)
             })?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object deletion chunks: {e:?}"
+                    "Failed to persist all object mutation and deletion chunks: {e:?}"
                 ))
             })?;
 
@@ -2483,11 +2464,11 @@ fn make_objects_history_to_commit(
     deleted_objects.into_iter().chain(mutated_objects).collect()
 }
 
-/// Partition object changes into deletions and mutations,
-/// within partition of mutations or deletions, retain the latest with highest
-/// version; For overlappings of mutations and deletions, only keep one with
-/// higher version. This is necessary b/c after this step, DB commit will be
-/// done in parallel and not in order.
+/// Partitions object changes into deletions and mutations.
+///
+/// Retains only the highest version of each object among deletions and
+/// mutations. This allows concurrent insertion into the DB of the resulting
+/// partitions.
 fn retain_latest_indexed_objects(
     tx_object_changes: Vec<TransactionObjectChangesToCommit>,
 ) -> (Vec<IndexedObject>, Vec<IndexedDeletedObject>) {
