@@ -78,21 +78,6 @@ pub struct TxGlobalOrderCursor {
     pub optimistic_sequence_number: i64,
 }
 
-impl TxGlobalOrderCursor {
-    pub fn new(global_sequence_number: i64, optimistic_sequence_number: i64) -> Self {
-        Self {
-            global_sequence_number,
-            optimistic_sequence_number,
-        }
-    }
-}
-
-impl From<(i64, i64)> for TxGlobalOrderCursor {
-    fn from((global_sequence_number, optimistic_sequence_number): (i64, i64)) -> Self {
-        Self::new(global_sequence_number, optimistic_sequence_number)
-    }
-}
-
 #[macro_export]
 macro_rules! chunk {
     ($data: expr, $size: expr) => {{
@@ -344,7 +329,11 @@ impl PgIndexerStore {
             format!("failed reading global sequence number from PostgresDB for tx seq {tx_seq}")
                 .as_str(),
         )?;
-        Ok(result.into())
+        let (global_sequence_number, optimistic_sequence_number) = result;
+        Ok(TxGlobalOrderCursor {
+            global_sequence_number,
+            optimistic_sequence_number,
+        })
     }
 
     pub(crate) async fn prune_optimistic_transactions_up_to_in_blocking_worker(
