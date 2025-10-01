@@ -12,6 +12,7 @@ use std::{
     vec,
 };
 
+use bytes::Bytes;
 use itertools::Itertools as _;
 use starfish_config::AuthorityIndex;
 use tokio::time::Instant;
@@ -19,9 +20,8 @@ use tracing::{debug, error, info};
 
 use crate::{
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round,
-        ShardWithProof, Slot, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
-        genesis_blocks,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions, genesis_blocks,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
@@ -67,7 +67,7 @@ pub(crate) struct DagState {
     /// round are evicted from memory.
     recent_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
     /// Contains recent shards with their Merkle proofs.
-    recent_shards_with_proofs: BTreeMap<BlockRef, ShardWithProof>,
+    recent_shards: BTreeMap<BlockRef, Bytes>,
     /// Indexes recent block headers refs by their authorities.
     /// Vec position corresponds to the authority index.
     recent_headers_refs_by_authority: Vec<BTreeSet<BlockRef>>,
@@ -215,7 +215,7 @@ impl DagState {
             genesis,
             recent_block_headers: BTreeMap::new(),
             recent_transactions: BTreeMap::new(),
-            recent_shards_with_proofs: BTreeMap::new(),
+            recent_shards: BTreeMap::new(),
             recent_headers_refs_by_authority: vec![BTreeSet::new(); num_authorities],
             threshold_clock,
             highest_accepted_round: 0,
@@ -348,13 +348,9 @@ impl DagState {
         }
     }
 
-    pub(crate) fn add_shard(&mut self, shard: ShardWithProof) {
-        let block_ref = shard.block_ref;
-        if self
-            .recent_shards_with_proofs
-            .insert(block_ref, shard)
-            .is_none()
-        {
+    pub(crate) fn add_shard(&mut self, shard: (BlockRef, Bytes)) {
+        let block_ref = shard.0;
+        if self.recent_shards.insert(block_ref, shard.1).is_none() {
             tracing::debug!("Adding shard for block ref: {block_ref}");
             for authority_index in 0..self.shards_not_known_by_authority.len() {
                 // we are going to send shard to every authority except our own and the author
@@ -1287,7 +1283,7 @@ impl DagState {
         &mut self,
         authority_index: AuthorityIndex,
         round_upper_bound_exclusive: Round,
-    ) -> Vec<ShardWithProof> {
+    ) -> Vec<Bytes> {
         let mut set = mem::take(&mut self.shards_not_known_by_authority[authority_index.value()]);
 
         let split_point = {
@@ -1304,9 +1300,9 @@ impl DagState {
         };
 
         self.shards_not_known_by_authority[authority_index.value()] = set.split_off(&split_point);
-        let mut shards: Vec<ShardWithProof> = vec![];
+        let mut shards: Vec<Bytes> = vec![];
         for block_ref in set.into_iter() {
-            if let Some(shard) = self.recent_shards_with_proofs.get(&block_ref) {
+            if let Some(shard) = self.recent_shards.get(&block_ref) {
                 shards.push(shard.clone());
             }
         }

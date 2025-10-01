@@ -10,6 +10,7 @@ use std::{
     vec,
 };
 
+use bytes::Bytes;
 use iota_macros::fail_point;
 #[cfg(test)]
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
@@ -31,8 +32,8 @@ use crate::{
     Transaction,
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
-        Round, ShardWithProof, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock,
-        VerifiedBlockHeader, VerifiedTransactions,
+        Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
+        VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
@@ -420,7 +421,10 @@ impl Core {
     }
 
     /// Adds shards to the DAG state. The proof is assumed to be already checked
-    pub(crate) fn add_shards(&mut self, shards: Vec<ShardWithProof>) -> ConsensusResult<()> {
+    pub(crate) fn add_shards(
+        &mut self,
+        serialized_shards: Vec<(BlockRef, Bytes)>,
+    ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::add_transactions");
         let _s = self
             .context
@@ -432,8 +436,8 @@ impl Core {
 
         // Add shards to the dag state.
         let mut dag_state_guard = self.dag_state.write();
-        for shard in shards {
-            dag_state_guard.add_shard(shard);
+        for serialized_shard in serialized_shards {
+            dag_state_guard.add_shard(serialized_shard);
         }
         // Safe to drop the guard here as the write/read locks will be asquired in
         // commit_observer

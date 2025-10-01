@@ -1067,7 +1067,7 @@ mod tests {
     use crate::{
         Round, TestBlockHeader,
         block_header::{
-            BlockHeaderDigest, BlockRef, ShardWithProof, TransactionsCommitment, VerifiedBlock,
+            BlockHeaderDigest, BlockRef, TransactionsCommitment, VerifiedBlock,
             VerifiedBlockHeader, VerifiedTransactions,
         },
         block_verifier::NoopBlockVerifier,
@@ -2065,7 +2065,7 @@ mod tests {
             Ok(())
         }
 
-        async fn add_shards(&self, _shards: Vec<ShardWithProof>) -> Result<(), CoreError> {
+        async fn add_shards(&self, _shards: Vec<(BlockRef, Bytes)>) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
         async fn get_missing_transaction_data(

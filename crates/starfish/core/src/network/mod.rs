@@ -32,7 +32,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     Round, VerifiedBlockHeader,
-    block_header::{BlockRef, ShardWithProof, VerifiedBlock},
+    block_header::{BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
@@ -246,7 +246,7 @@ impl TryFrom<SerializedBlock> for SerializedHeaderAndTransactions {
 pub(crate) struct BlockBundle {
     pub(crate) verified_block: VerifiedBlock,
     pub(crate) verified_headers: Vec<VerifiedBlockHeader>,
-    pub(crate) shards: Vec<ShardWithProof>,
+    pub(crate) serialized_shards: Vec<Bytes>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -294,19 +294,11 @@ impl TryFrom<BlockBundle> for SerializedBlockBundleParts {
         for block_header in block_bundle.verified_headers.iter() {
             serialized_block_headers.push(block_header.serialized().clone());
         }
-        let mut serialized_shards: Vec<Bytes> = vec![];
-        for shard in block_bundle.shards.iter() {
-            serialized_shards.push(
-                bcs::to_bytes(&shard)
-                    .map_err(ConsensusError::SerializationFailure)?
-                    .into(),
-            );
-        }
 
         Ok(Self {
             serialized_block: Bytes::from(bytes),
             serialized_headers: serialized_block_headers,
-            serialized_shards,
+            serialized_shards: block_bundle.serialized_shards,
         })
     }
 }

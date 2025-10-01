@@ -485,13 +485,17 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         missing_ancestors.extend(missing_block_ancestors);
         missing_committed_txns.extend(missing_block_committed_transactions);
         // 11. Add our shard from the received block and its proof to the dag_state
+        let shard_for_core = ShardWithProof {
+            shard: our_shard,
+            transaction_commitment,
+            proof: proof_for_shard,
+            block_ref,
+        };
+        let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
+            .map_err(ConsensusError::SerializationFailure)?
+            .into();
         self.core_dispatcher
-            .add_shards(vec![ShardWithProof {
-                shard: our_shard,
-                transaction_commitment,
-                proof: proof_for_shard,
-                block_ref,
-            }])
+            .add_shards(vec![(block_ref, serialized_shard_for_core)])
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
@@ -561,12 +565,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 let mut dag_state_guard = dag_state.write();
                 let block_headers =
                     dag_state_guard.take_unknown_headers_for_authority(peer, block.round());
-                let shards = dag_state_guard.take_unknown_shards_for_authority(peer, block.round());
+                let serialized_shards =
+                    dag_state_guard.take_unknown_shards_for_authority(peer, block.round());
                 drop(dag_state_guard);
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: block_headers,
-                    shards,
+                    serialized_shards,
                 };
                 async move {
                     match SerializedBlockBundle::try_from(block_bundle) {
@@ -1129,8 +1134,8 @@ mod tests {
             AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
         },
         block_header::{
-            BlockHeaderAPI, BlockRef, ShardWithProof, SignedBlockHeader, TestBlockHeader,
-            TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, TransactionsCommitment,
+            VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -1521,7 +1526,7 @@ mod tests {
         let big_block_bundle = BlockBundle {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
-            shards: vec![],
+            serialized_shards: vec![],
         };
         let serialized_big_block_bundle = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(big_block_bundle).unwrap(),
@@ -1549,7 +1554,7 @@ mod tests {
         let block_bundle_with_big_rounds = BlockBundle {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
-            shards: vec![],
+            serialized_shards: vec![],
         };
         let serialized_block_bundle_with_big_round = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(block_bundle_with_big_rounds).unwrap(),
@@ -1585,7 +1590,7 @@ mod tests {
         let block_bundle = BlockBundle {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
-            shards: vec![],
+            serialized_shards: vec![],
         };
         let serialized_block_bundle = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
@@ -1902,7 +1907,7 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
-        async fn add_shards(&self, _shards: Vec<ShardWithProof>) -> Result<(), CoreError> {
+        async fn add_shards(&self, _shards: Vec<(BlockRef, Bytes)>) -> Result<(), CoreError> {
             Ok(())
         }
 
@@ -2070,7 +2075,7 @@ mod tests {
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: headers,
-                    shards: vec![],
+                    serialized_shards: vec![],
                 };
                 let serialized_block_bundle = SerializedBlockBundle::try_from(
                     SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
@@ -2207,7 +2212,7 @@ mod tests {
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: vec![],
-                    shards: vec![],
+                    serialized_shards: vec![],
                 };
                 let serialized_block_bundle = SerializedBlockBundle::try_from(
                     SerializedBlockBundleParts::try_from(block_bundle).unwrap(),

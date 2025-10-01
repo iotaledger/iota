@@ -12,6 +12,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use bytes::Bytes;
 use iota_metrics::{
     monitored_mpsc::{Receiver, Sender, WeakSender, channel},
     monitored_scope, spawn_logged_monitored_task,
@@ -24,7 +25,7 @@ use tracing::warn;
 
 use crate::{
     BlockHeaderAPI as _, VerifiedBlockHeader,
-    block_header::{BlockRef, Round, ShardWithProof, VerifiedBlock, VerifiedTransactions},
+    block_header::{BlockRef, Round, VerifiedBlock, VerifiedTransactions},
     commit::CertifiedCommits,
     context::Context,
     core::Core,
@@ -76,7 +77,7 @@ enum CoreThreadCommand {
     /// Add transactions to be processed and accepted
     AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>),
     /// Add shards to the dag_state
-    AddShards(Vec<ShardWithProof>, oneshot::Sender<()>),
+    AddShards(Vec<(BlockRef, Bytes)>, oneshot::Sender<()>),
     /// Get missing transaction data that need to be synced
     GetMissingTransactionData(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
 }
@@ -118,7 +119,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         transactions: Vec<VerifiedTransactions>,
     ) -> Result<(), CoreError>;
 
-    async fn add_shards(&self, transactions: Vec<ShardWithProof>) -> Result<(), CoreError>;
+    async fn add_shards(&self, shards: Vec<(BlockRef, Bytes)>) -> Result<(), CoreError>;
 
     async fn get_missing_transaction_data(
         &self,
@@ -220,9 +221,9 @@ impl CoreThread {
                             self.core.add_transactions(transactions)?;
                             sender.send(()).ok();
                         }
-                        CoreThreadCommand::AddShards(shards_with_proofs, sender) => {
+                        CoreThreadCommand::AddShards(serialized_shards, sender) => {
                             let _scope = monitored_scope("CoreThread::loop::add_shards");
-                            self.core.add_shards(shards_with_proofs)?;
+                            self.core.add_shards(serialized_shards)?;
                             sender.send(()).ok();
                         }
                         CoreThreadCommand::GetMissingTransactionData(sender) => {
@@ -388,9 +389,9 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
-    async fn add_shards(&self, shards_with_proof: Vec<ShardWithProof>) -> Result<(), CoreError> {
+    async fn add_shards(&self, shards: Vec<(BlockRef, Bytes)>) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::AddShards(shards_with_proof, sender))
+        self.send(CoreThreadCommand::AddShards(shards, sender))
             .await;
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
@@ -579,7 +580,7 @@ pub(crate) mod tests {
             unimplemented!()
         }
 
-        async fn add_shards(&self, _shards: Vec<ShardWithProof>) -> Result<(), CoreError> {
+        async fn add_shards(&self, _shards: Vec<(BlockRef, Bytes)>) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
 
