@@ -27,6 +27,8 @@ public struct AuthenticatorInfoV1 has copy, drop, store {
 /// function defined in package B version 2.
 /// Refiring to an `authenticate` function with `create_auth_info_v1` is a strictly runtime dependency and
 /// it does not collide with any compile time restrictions.
+///
+/// This function cannot be used in `move unit tests` as there is no mechanism to refer to the package being tested.
 public fun create_auth_info_v1(
     package: address,
     module_name: ascii::String,
