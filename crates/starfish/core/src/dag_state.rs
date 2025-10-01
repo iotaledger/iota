@@ -21,7 +21,7 @@ use tracing::{debug, error, info};
 use crate::{
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, GENESIS_ROUND, Round, Slot,
-        VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions, genesis_blocks,
+        VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions, genesis_blocks,
     },
     commit::{
         CommitAPI as _, CommitDigest, CommitIndex, CommitInfo, CommitRef, CommitVote,
@@ -348,9 +348,13 @@ impl DagState {
         }
     }
 
-    pub(crate) fn add_shard(&mut self, shard: (BlockRef, Bytes)) {
-        let block_ref = shard.0;
-        if self.recent_shards.insert(block_ref, shard.1).is_none() {
+    pub(crate) fn add_shard(&mut self, shard: VerifiedOwnShard) {
+        let block_ref = shard.block_ref;
+        if self
+            .recent_shards
+            .insert(block_ref, shard.serialized_shard)
+            .is_none()
+        {
             tracing::debug!("Adding shard for block ref: {block_ref}");
             for authority_index in 0..self.shards_not_known_by_authority.len() {
                 // we are going to send shard to every authority except our own and the author

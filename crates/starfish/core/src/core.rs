@@ -10,7 +10,6 @@ use std::{
     vec,
 };
 
-use bytes::Bytes;
 use iota_macros::fail_point;
 #[cfg(test)]
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
@@ -33,7 +32,7 @@ use crate::{
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
         Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions,
+        VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
@@ -423,7 +422,7 @@ impl Core {
     /// Adds shards to the DAG state. The proof is assumed to be already checked
     pub(crate) fn add_shards(
         &mut self,
-        serialized_shards: Vec<(BlockRef, Bytes)>,
+        serialized_shards: Vec<VerifiedOwnShard>,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::add_transactions");
         let _s = self

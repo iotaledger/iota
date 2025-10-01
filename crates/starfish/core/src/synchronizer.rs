@@ -1412,7 +1412,7 @@ mod tests {
         authority_service::COMMIT_LAG_MULTIPLIER,
         block_header::{
             BlockHeaderDigest, BlockRef, Round, TestBlockHeader, VerifiedBlock,
-            VerifiedBlockHeader, VerifiedTransactions,
+            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
@@ -2382,7 +2382,7 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
-        async fn add_shards(&self, _shards: Vec<(BlockRef, Bytes)>) -> Result<(), CoreError> {
+        async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
 

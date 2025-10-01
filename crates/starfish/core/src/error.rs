@@ -229,9 +229,6 @@ pub(crate) enum ConsensusError {
     #[error("Block bundle contains too many additional headers: {count} > {limit}")]
     TooManyHeadersInABundle { count: usize, limit: usize },
 
-    #[error("Block bundle contains too many shards: {count} > {limit}")]
-    TooManyShardsInABundle { count: usize, limit: usize },
-
     #[error(
         "Round of the header in a bundle is greater or equal to the block round: {header_round} >= {block_round}"
     )]
@@ -239,6 +236,12 @@ pub(crate) enum ConsensusError {
         header_round: Round,
         block_round: Round,
     },
+
+    #[error("Block bundle contains too many shards: {count} > {limit}")]
+    TooManyShardsInABundle { count: usize, limit: usize },
+
+    #[error("Block bundle from {peer} contains shard from round {round} with incorrect proof")]
+    IncorrectShardProof { peer: AuthorityIndex, round: Round },
 }
 
 impl ConsensusError {

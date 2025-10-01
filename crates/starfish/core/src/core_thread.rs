@@ -12,7 +12,6 @@ use std::{
 };
 
 use async_trait::async_trait;
-use bytes::Bytes;
 use iota_metrics::{
     monitored_mpsc::{Receiver, Sender, WeakSender, channel},
     monitored_scope, spawn_logged_monitored_task,
@@ -25,7 +24,7 @@ use tracing::warn;
 
 use crate::{
     BlockHeaderAPI as _, VerifiedBlockHeader,
-    block_header::{BlockRef, Round, VerifiedBlock, VerifiedTransactions},
+    block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
     commit::CertifiedCommits,
     context::Context,
     core::Core,
@@ -77,7 +76,7 @@ enum CoreThreadCommand {
     /// Add transactions to be processed and accepted
     AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>),
     /// Add shards to the dag_state
-    AddShards(Vec<(BlockRef, Bytes)>, oneshot::Sender<()>),
+    AddShards(Vec<VerifiedOwnShard>, oneshot::Sender<()>),
     /// Get missing transaction data that need to be synced
     GetMissingTransactionData(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
 }
@@ -119,7 +118,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
         transactions: Vec<VerifiedTransactions>,
     ) -> Result<(), CoreError>;
 
-    async fn add_shards(&self, shards: Vec<(BlockRef, Bytes)>) -> Result<(), CoreError>;
+    async fn add_shards(&self, shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError>;
 
     async fn get_missing_transaction_data(
         &self,
@@ -389,7 +388,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
-    async fn add_shards(&self, shards: Vec<(BlockRef, Bytes)>) -> Result<(), CoreError> {
+    async fn add_shards(&self, shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddShards(shards, sender))
             .await;
@@ -580,7 +579,7 @@ pub(crate) mod tests {
             unimplemented!()
         }
 
-        async fn add_shards(&self, _shards: Vec<(BlockRef, Bytes)>) -> Result<(), CoreError> {
+        async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
 

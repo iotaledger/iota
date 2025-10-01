@@ -427,10 +427,9 @@ pub(crate) struct ShardWithProof {
     pub(crate) block_ref: BlockRef,
 }
 
-impl PartialEq for ShardWithProof {
-    fn eq(&self, other: &Self) -> bool {
-        self.transaction_commitment == other.transaction_commitment
-    }
+pub(crate) struct VerifiedOwnShard {
+    pub(crate) serialized_shard: Bytes,
+    pub(crate) block_ref: BlockRef,
 }
 
 impl TransactionsCommitment {

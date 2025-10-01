@@ -27,7 +27,8 @@ use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
         BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
-        SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
+        SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
+        VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
@@ -357,14 +358,42 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .inc();
         }
 
-        // 5. Observe headers and the block for the commit votes. When local commit is
+        // 5. Collect shards from a bundle and check their proofs.
+        if serialized_block_bundle_parts.serialized_shards.len() > MAX_SHARDS_PER_BUNDLE {
+            return Err(ConsensusError::TooManyShardsInABundle {
+                count: serialized_block_bundle_parts.serialized_shards.len(),
+                limit: MAX_SHARDS_PER_BUNDLE,
+            });
+        }
+        // TODO: use correct type
+        let mut shards_for_decoder: Vec<ShardWithProof> = vec![];
+        for serialized_shard in serialized_block_bundle_parts.serialized_shards.iter() {
+            let shard: ShardWithProof =
+                bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
+            let proof_check = TransactionsCommitment::check_merkle_proof(
+                shard.clone(),
+                self.context.committee.size(),
+                peer.value(),
+            );
+            if proof_check {
+                shards_for_decoder.push(shard);
+            } else {
+                return Err(ConsensusError::IncorrectShardProof {
+                    peer,
+                    round: shard.block_ref.round,
+                });
+            }
+        }
+        // TODO: send to decoders
+
+        // 6. Observe headers and the block for the commit votes. When local commit is
         // lagging too much, commit sync loop will trigger fetching.
         for block_header in additional_block_headers.iter() {
             self.commit_vote_monitor.observe_block(block_header);
         }
         self.commit_vote_monitor.observe_block(&verified_block);
 
-        // 6. Reject blocks when local commit index is lagging too far from quorum
+        // 7. Reject blocks when local commit index is lagging too far from quorum
         //    commit
         // index.
         //
@@ -405,7 +434,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
-        // 7. Add digests to filter. Exclude from the vector those that are already
+        // 8. Add digests to filter. Exclude from the vector those that are already
         //    inserted
         let mut digests_to_add_to_filter = vec![];
         for block_header in additional_block_headers.iter() {
@@ -443,28 +472,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(digests_to_exclude.len() as u64);
 
-        // 8. Collect shards from a bundle, check their proofs and send to decoders.
-        if serialized_block_bundle_parts.serialized_shards.len() > MAX_SHARDS_PER_BUNDLE {
-            return Err(ConsensusError::TooManyShardsInABundle {
-                count: serialized_block_bundle_parts.serialized_shards.len(),
-                limit: MAX_SHARDS_PER_BUNDLE,
-            });
-        }
-        // TODO: use correct type
-        let mut shards_for_decoder: Vec<ShardWithProof> = vec![];
-        for serialized_shard in serialized_block_bundle_parts.serialized_shards.iter() {
-            let shard: ShardWithProof =
-                bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
-            if TransactionsCommitment::check_merkle_proof(
-                shard.clone(),
-                self.context.committee.size(),
-                self.context.own_index.value(),
-            ) {
-                shards_for_decoder.push(shard);
-            }
-        }
-        // TODO: send to decoders
-
         // 9. Add additional headers from bundle to dag, receive missing ancestors for
         //    them
         // Normally, there should be no missing ancestors, as the headers are sent in
@@ -494,8 +501,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
             .map_err(ConsensusError::SerializationFailure)?
             .into();
+        let shard_for_core = VerifiedOwnShard {
+            serialized_shard: serialized_shard_for_core,
+            block_ref,
+        };
         self.core_dispatcher
-            .add_shards(vec![(block_ref, serialized_shard_for_core)])
+            .add_shards(vec![shard_for_core])
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
@@ -1135,7 +1146,7 @@ mod tests {
         },
         block_header::{
             BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, TransactionsCommitment,
-            VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+            VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -1907,7 +1918,7 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
-        async fn add_shards(&self, _shards: Vec<(BlockRef, Bytes)>) -> Result<(), CoreError> {
+        async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
             Ok(())
         }
 
