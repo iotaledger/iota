@@ -13,7 +13,7 @@ use std::{
 use byteorder::{BigEndian, ReadBytesExt};
 use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
-use fastcrypto_zkp::bn254::zk_login::{JwkId, JWK};
+use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::IntentScope;
@@ -226,6 +226,19 @@ impl AuthorityCapabilitiesV1 {
     }
 }
 
+impl SignedAuthorityCapabilitiesV1 {
+    pub fn cache_digest(&self, epoch: u64) -> AuthorityCapabilitiesDigest {
+        // Create a tuple that includes both the capabilities data and the epoch
+        let data_with_epoch = (self.data(), epoch);
+
+        // Ensure deterministic serialization for digest
+        let mut hasher = DefaultHash::new();
+        let serialized = bcs::to_bytes(&data_with_epoch).expect("BCS should not fail");
+        hasher.update(&serialized);
+        AuthorityCapabilitiesDigest::new(<[u8; 32]>::from(hasher.finalize()))
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ConsensusTransactionKind {
     CertifiedTransaction(Box<CertifiedTransaction>),
@@ -233,6 +246,7 @@ pub enum ConsensusTransactionKind {
     EndOfPublish(AuthorityName),
 
     CapabilityNotificationV1(AuthorityCapabilitiesV1),
+    SignedCapabilityNotificationV1(SignedAuthorityCapabilitiesV1),
 
     NewJWKFetched(AuthorityName, JwkId, JWK),
 
@@ -377,6 +391,19 @@ impl ConsensusTransaction {
         }
     }
 
+    pub fn new_signed_capability_notification_v1(
+        signed_capabilities: SignedAuthorityCapabilitiesV1,
+    ) -> Self {
+        let mut hasher = DefaultHasher::new();
+        signed_capabilities.data().hash(&mut hasher);
+        signed_capabilities.auth_sig().hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities),
+        }
+    }
+
     pub fn new_mysticeti_certificate(
         round: u64,
         offset: u64,
@@ -456,6 +483,13 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                 ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
             }
+            ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_cap) => {
+                ConsensusTransactionKey::CapabilityNotification(
+                    signed_cap.authority,
+                    signed_cap.generation,
+                )
+            }
+
             ConsensusTransactionKind::NewJWKFetched(authority, id, key) => {
                 ConsensusTransactionKey::NewJWKFetched(Box::new((
                     *authority,

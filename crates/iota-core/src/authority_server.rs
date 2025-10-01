@@ -49,7 +49,7 @@ use tonic::{
     metadata::{Ascii, MetadataValue},
     transport::server::TcpConnectInfo,
 };
-use tracing::{Instrument, error, error_span, info};
+use tracing::{Instrument, debug, error, error_span, info};
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -1146,6 +1146,22 @@ impl ValidatorService {
             IotaError::FullNodeCantHandleAuthorityCapabilities.into()
         );
 
+        // Check if the capabilities notification has already been processed
+        let existing_capabilities = epoch_store.get_capabilities_v1()?;
+        let incoming_capability = request.message.data();
+
+        if let Some(existing) = existing_capabilities
+            .iter()
+            .find(|cap| cap.authority == incoming_capability.authority)
+        {
+            if incoming_capability.generation <= existing.generation {
+                // Return successfully if generation is lower or equal - already processed
+                return Ok((
+                    tonic::Response::new(HandleCapabilityNotificationResponseV1 {}),
+                    Weight::one(),
+                ));
+            }
+        }
         if let Err(error) = self.consensus_adapter.check_consensus_overload() {
             self.metrics
                 .num_rejected_capability_notifications_during_overload
@@ -1167,19 +1183,29 @@ impl ValidatorService {
                 self.metrics.signature_errors.inc();
             })?;
 
+        let authority_name = verified_authority_capabilities.authority;
         // Process the verified capabilities
-        info!(
-            "Received capability notification: {:?}",
-            verified_authority_capabilities.data()
-        );
+        debug!("Verified capability notification for authority {authority_name:?}");
 
-        // Store or process the capabilities as needed
-        self.state
-            .handle_authority_capabilities(verified_authority_capabilities, epoch_store.clone())?;
+        // Submit the signed capability notification to consensus instead of processing
+        // directly
+        let signed_authority_capabilities_transaction =
+            ConsensusTransaction::new_signed_capability_notification_v1(
+                verified_authority_capabilities.into_inner(),
+            );
+
+        // Submit to consensus - similar to how certificates are handled
+        self.consensus_adapter.submit(
+            signed_authority_capabilities_transaction,
+            None,
+            &epoch_store,
+        )?;
+
+        debug!("Submitted capability notification to consensus for authority {authority_name:?}");
 
         Ok((
             tonic::Response::new(HandleCapabilityNotificationResponseV1 {}),
-            Weight::zero(),
+            Weight::one(),
         ))
     }
 }

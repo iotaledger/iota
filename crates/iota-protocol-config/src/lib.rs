@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 12;
+pub const MAX_PROTOCOL_VERSION: u64 = 13;
 
 // Record history of protocol version allocations here:
 //
@@ -2172,10 +2172,10 @@ impl ProtocolConfig {
                     cfg.feature_flags.normalize_ptb_arguments = true;
                 }
                 13 => {
-                    // Enable select committee supporting protocol version in devnet.
+                    // Enable selecting committee based on eligible active validators in all
+                    // networks.
+                    cfg.feature_flags.select_committee_from_eligible_validators = true;
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
-                        // Enable selecting committee based on eligible active validators in devnet.
-                        cfg.feature_flags.select_committee_from_eligible_validators = true;
                         // Enable tracking non-committee eligible active validators in devnet.
                         cfg.feature_flags.track_non_committee_eligible_validators = true;
                     }

@@ -11,7 +11,7 @@ use std::{
 
 use arc_swap::ArcSwapOption;
 use enum_dispatch::enum_dispatch;
-use fastcrypto::groups::bls12381;
+use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use fastcrypto_zkp::bn254::{
     zk_login::{JWK, JwkId},
@@ -906,14 +906,12 @@ impl AuthorityPerEpochStore {
 
         // Get all active validators and filter out committee members to get
         // non-committee validators
-        let non_committee_validators: BTreeSet<_> = epoch_start_configuration
+        let non_committee_validators: BTreeSet<AuthorityName> = epoch_start_configuration
             .epoch_start_state()
             .get_active_validators()
             .into_iter()
-            .filter(|authority_public_key| {
-                let authority_name = AuthorityName::from(authority_public_key);
-                !committee.authority_exists(&authority_name)
-            })
+            .filter_map(|pubkey| AuthorityName::from_bytes(pubkey.as_bytes()).ok())
+            .filter(|authority_name| !committee.authority_exists(authority_name))
             .collect();
 
         let signature_verifier = SignatureVerifier::new(
@@ -2648,13 +2646,28 @@ impl AuthorityPerEpochStore {
                     }),
                 ..
             }) => {
-                // TODO: this needs to be modified as committee validators might be different
-                //  than the actual authority sending the notification.
                 if transaction.sender_authority() != *authority {
                     warn!(
                         "CapabilityNotificationV1 authority {} does not match its author from consensus {}",
                         authority, transaction.certificate_author_index
                     );
+                    return None;
+                }
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(_),
+                ..
+            }) => {
+                // Signatures are verified as part of the consensus payload
+                // verification in IotaTxValidator. We don't need to check the
+                // sender_authority as it's correct that it's different from the
+                // authority in the notification.
+                // Here we only check if tracking non-committee authority capabilities is
+                // enabled.
+                if !self
+                    .protocol_config()
+                    .track_non_committee_eligible_validators()
+                {
                     return None;
                 }
             }
@@ -3849,6 +3862,31 @@ impl AuthorityPerEpochStore {
                 } else {
                     debug!(
                         "Ignoring CapabilityNotificationV1 from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+                Ok(ConsensusCertificateResult::ConsensusMessage)
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities),
+                ..
+            }) => {
+                // Records capabilities for the authority.
+                // The signature is checked in a previous step, so we can safely access data
+                let capabilities = signed_capabilities.data();
+                let authority = capabilities.authority;
+                if self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Received SignedCapabilityNotificationV1 from {:?}",
+                        authority.concise()
+                    );
+                    self.record_capabilities_v1(capabilities)?;
+                } else {
+                    debug!(
+                        "Ignoring SignedCapabilityNotificationV1 from {:?} because of end of epoch",
                         authority.concise()
                     );
                 }

@@ -14,6 +14,7 @@ use futures::pin_mut;
 use im::hashmap::HashMap as ImHashMap;
 use iota_metrics::monitored_scope;
 use iota_types::{
+    base_types::AuthorityName,
     committee::Committee,
     crypto::{AuthorityPublicKey, AuthoritySignInfoTrait, VerificationObligation},
     digests::{CertificateDigest, SenderSignedDataDigest, ZKLoginInputsDigest},
@@ -96,7 +97,7 @@ impl CertBuffer {
 /// - User signed data - caching.
 pub struct SignatureVerifier {
     committee: Arc<Committee>,
-    non_committee_validators: BTreeSet<AuthorityPublicKey>,
+    non_committee_validators: BTreeSet<AuthorityName>,
 
     certificate_cache: VerifiedDigestCache<CertificateDigest>,
     signed_data_cache: VerifiedDigestCache<SenderSignedDataDigest>,
@@ -138,7 +139,7 @@ struct ZkLoginParams {
 impl SignatureVerifier {
     pub fn new_with_batch_size(
         committee: Arc<Committee>,
-        non_committee_validators: BTreeSet<AuthorityPublicKey>,
+        non_committee_validators: BTreeSet<AuthorityName>,
         batch_size: usize,
         metrics: Arc<SignatureVerifierMetrics>,
         env: ZkLoginEnv,
@@ -185,7 +186,7 @@ impl SignatureVerifier {
 
     pub fn new(
         committee: Arc<Committee>,
-        non_committee_validators: BTreeSet<AuthorityPublicKey>,
+        non_committee_validators: BTreeSet<AuthorityName>,
         metrics: Arc<SignatureVerifierMetrics>,
         zklogin_env: ZkLoginEnv,
         accept_zklogin_in_multisig: bool,
@@ -211,21 +212,21 @@ impl SignatureVerifier {
         &self,
         certs: Vec<&CertifiedTransaction>,
         checkpoints: Vec<&SignedCheckpointSummary>,
+        authority_capabilities: Vec<&SignedAuthorityCapabilitiesV1>,
     ) -> IotaResult {
-        let certs: Vec<_> = certs
-            .into_iter()
-            .filter(|cert| !self.certificate_cache.is_cached(&cert.certificate_digest()))
-            .collect();
-
-        // Verify only the user sigs of certificates that were not cached already, since
-        // whenever we insert a certificate into the cache, it is already
-        // verified.
+        // Verify all user sigs, since caching is handled by the underlying
+        // implementation.
         for cert in &certs {
             self.verify_tx(cert.data())?;
         }
+
+        // Verify authority capabilities signatures. Caching is handled inside to avoid
+        // checking the same message multiple times.
+        for cap in &authority_capabilities {
+            self.verify_authority_capabilities(cap)?;
+        }
+
         batch_verify_all_certificates_and_checkpoints(&self.committee, &certs, &checkpoints)?;
-        self.certificate_cache
-            .cache_digests(certs.into_iter().map(|c| c.certificate_digest()).collect());
         Ok(())
     }
 
@@ -428,16 +429,13 @@ impl SignatureVerifier {
         &self,
         signed_authority_capabilities: &SignedAuthorityCapabilitiesV1,
     ) -> IotaResult {
+        let epoch = self.committee.epoch();
         self.authority_capability_cache.is_verified(
-            *signed_authority_capabilities.digest(),
+            signed_authority_capabilities.cache_digest(epoch),
             || {
                 // Check if authority exists in non-committee validators
                 let authority_name = signed_authority_capabilities.data().authority;
-                let authority_key = AuthorityPublicKey::from_bytes(authority_name.as_bytes())
-                    .map_err(|_| IotaError::IncorrectSigner {
-                        error: "Invalid authority public key bytes".to_string(),
-                    })?;
-                if !self.non_committee_validators.contains(&authority_key) {
+                if !self.non_committee_validators.contains(&authority_name) {
                     return Err(IotaError::IncorrectSigner {
                         error: "Signer must be part of non-committee active validators".to_string(),
                     });
@@ -447,11 +445,16 @@ impl SignatureVerifier {
                 let mut obligation = VerificationObligation::default();
                 let idx = obligation.add_message(
                     signed_authority_capabilities.data(),
-                    self.committee.epoch(),
+                    epoch, /* epoch is shared between the committee and
+                            * non-committee validators */
                     Intent::iota_app(signed_authority_capabilities.scope()),
                 );
 
                 // Add the signature and public key to the obligation
+                let authority_key = AuthorityPublicKey::from_bytes(authority_name.as_bytes())
+                    .map_err(|_| IotaError::IncorrectSigner {
+                        error: "Invalid authority public key bytes".to_string(),
+                    })?;
                 obligation
                     .public_keys
                     .get_mut(idx)
