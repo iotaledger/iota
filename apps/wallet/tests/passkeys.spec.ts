@@ -1,6 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+import { LONG_TIMEOUT } from './constants/timeout.constants';
 import { expect, test } from './fixtures';
 import { receiverAddressMnemonic } from './mocks';
 import { addVirtualAuthenticator, createPasskeyWallet } from './utils/auth';
@@ -56,7 +57,7 @@ test('Sends funds to another account', async ({ page, extensionUrl }) => {
     await page.getByText(/Request localnet tokens/i).click();
 
     const balanceLocator = page.getByTestId('coin-balance');
-    await expect(balanceLocator).not.toHaveText('0', { timeout: 10_000 });
+    await expect(balanceLocator).not.toHaveText('0', { timeout: LONG_TIMEOUT });
 
     await page.getByTestId('send-coin-button').click();
 
@@ -69,7 +70,7 @@ test('Sends funds to another account', async ({ page, extensionUrl }) => {
     await expect(page.getByText('Successfully sent')).toBeVisible();
     await page.getByTestId('close-icon').click();
     await page.getByTestId('nav-home').click();
-    await expect(balanceLocator).toHaveText('0', { timeout: 20_000 });
+    await expect(balanceLocator).toHaveText('0', { timeout: LONG_TIMEOUT });
 
     await client.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
     await page.close();
