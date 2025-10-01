@@ -11,6 +11,7 @@
 
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
+    IOTA_FRAMEWORK_ADDRESS,
     base_types::{ObjectID, ObjectRef},
     effects::{TransactionEffects, TransactionEvents},
     transaction::CallArg,
@@ -201,16 +202,16 @@ fail::{
 
 tests_in_module!(
 vector;
-// pass::{
-    // primitive_immutable_reference,
-    // primitive_by_value,
-    // non_object_immutable_ref,
-    // object_immutable_ref,
-    // template_non_object_immutable_ref,
-    // templated_non_object_immutable_ref,
-    // template_object_immutable_reference,
-    // templated_object_immutable_ref,
-// }
+pass::{
+    primitive_immutable_reference,
+    primitive_by_value,
+    non_object_immutable_ref,
+    object_immutable_ref,
+    template_non_object_immutable_ref,
+    templated_non_object_immutable_ref,
+    template_object_immutable_reference,
+    templated_object_immutable_ref,
+}
 fail::{
     primitive_mutable_reference,
     non_object_mutable_ref,
@@ -254,28 +255,28 @@ impl TestEnvironment {
             CallArg::Pure(bcs::to_bytes(function_name.as_bytes()).unwrap()),
         ];
 
-        let transaction_data = self
-            .cluster
-            .test_transaction_builder()
-            .await
-            .move_call(
-                self.package_id,
-                "call_site",
-                "call_create_auth_info_using",
-                arguments,
-            )
-            .build();
         // let transaction_data = self
         //     .cluster
         //     .test_transaction_builder()
         //     .await
         //     .move_call(
-        //         IOTA_FRAMEWORK_ADDRESS.into(),
-        //         "account",
-        //         "create_auth_info_v1",
+        //         self.package_id,
+        //         "call_site",
+        //         "call_create_auth_info_using",
         //         arguments,
         //     )
         //     .build();
+        let transaction_data = self
+            .cluster
+            .test_transaction_builder()
+            .await
+            .move_call(
+                IOTA_FRAMEWORK_ADDRESS.into(),
+                "account",
+                "create_auth_info_v1",
+                arguments,
+            )
+            .build();
 
         let transaction = self.cluster.wallet.sign_transaction(&transaction_data);
         self.cluster

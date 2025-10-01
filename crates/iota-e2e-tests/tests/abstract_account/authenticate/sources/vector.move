@@ -1,4 +1,4 @@
-module authenticate::m;
+module authenticate::vector;
 
 use iota::auth_context::AuthContext;
 
