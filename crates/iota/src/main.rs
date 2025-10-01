@@ -84,7 +84,7 @@ async fn main() {
                 .with_env()
                 .init(),
         ),
-        IotaCommand::Analyzer { .. } => None,
+        IotaCommand::Analyzer => None,
         _ => Some(
             telemetry_subscribers::TelemetryConfig::new()
                 .with_log_level("error")
