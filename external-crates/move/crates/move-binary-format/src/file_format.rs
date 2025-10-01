@@ -2696,6 +2696,11 @@ impl CompiledModule {
             })
     }
 
+    // TODO: Needs to be implemented.
+    pub fn authenticators(&self) -> impl Iterator<Item = &FunctionDefinition> {
+        self.function_defs.iter()
+    }
+
     pub fn module_handles(&self) -> &[ModuleHandle] {
         &self.module_handles
     }

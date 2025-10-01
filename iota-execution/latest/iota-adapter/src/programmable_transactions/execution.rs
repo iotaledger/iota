@@ -15,7 +15,9 @@ mod checked {
     use iota_move_natives::object_runtime::ObjectRuntime;
     use iota_protocol_config::ProtocolConfig;
     use iota_types::{
-        IOTA_FRAMEWORK_ADDRESS, auth_context,
+        IOTA_FRAMEWORK_ADDRESS,
+        account::AuthenticatorInfoV1,
+        auth_context,
         base_types::{
             IotaAddress, MoveObjectType, ObjectID, RESOLVED_ASCII_STR, RESOLVED_STD_OPTION,
             RESOLVED_UTF8_STR, TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext,
@@ -31,7 +33,8 @@ mod checked {
             MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
             normalize_deserialized_modules,
         },
-        storage::{PackageObject, get_package_objects},
+        object::{MoveObject, Object, Owner},
+        storage::{PackageObject, Storage, get_package_objects},
         transaction::{Argument, Command, ProgrammableMoveCall, ProgrammableTransaction},
         transfer::RESOLVED_RECEIVING_STRUCT,
         type_input::TypeInput,
@@ -67,11 +70,11 @@ mod checked {
         adapter::substitute_package_id,
         execution_mode::ExecutionMode,
         execution_value::{
-            CommandKind, ExecutionState, ObjectContents, ObjectValue, RawValueType, Value,
-            ensure_serialized_size,
+            CommandKind, ObjectContents, ObjectValue, RawValueType, Value, ensure_serialized_size,
         },
         gas_charger::GasCharger,
         programmable_transactions::context::*,
+        temporary_store::TemporaryStore,
     };
 
     /// Executes a `ProgrammableTransaction` in the specified `ExecutionMode`,
@@ -85,7 +88,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         metrics: Arc<LimitsMetrics>,
         vm: &MoveVM,
-        state_view: &mut dyn ExecutionState,
+        temporary_store: &mut TemporaryStore<'_>,
         tx_context: &mut TxContext,
         gas_charger: &mut GasCharger,
         pt: ProgrammableTransaction,
@@ -96,26 +99,56 @@ mod checked {
             protocol_config,
             metrics,
             vm,
-            state_view,
+            temporary_store,
             tx_context,
             gas_charger,
             inputs,
         )?;
         // execute commands
         let mut mode_results = Mode::empty_results();
+        let mut authenticator_info_objects = vec![];
         for (idx, command) in commands.into_iter().enumerate() {
-            if let Err(err) =
-                execute_command::<Mode>(&mut context, &mut mode_results, command, trace_builder_opt)
-            {
-                let object_runtime: &ObjectRuntime = context.object_runtime();
-                // We still need to record the loaded child objects for replay
-                let loaded_runtime_objects = object_runtime.loaded_runtime_objects();
-                // we do not save the wrapped objects since on error, they should not be
-                // modified
-                drop(context);
-                state_view.save_loaded_runtime_objects(loaded_runtime_objects);
-                return Err(err.with_command_index(idx));
-            };
+            let result = execute_command::<Mode>(
+                &mut context,
+                &mut mode_results,
+                command,
+                trace_builder_opt,
+            );
+
+            match result {
+                Ok(authenticator_infos) => {
+                    let previous_transaction = context.tx_context.digest();
+
+                    for authenticator_info in authenticator_infos {
+                        let move_authenticator_info_object = {
+                            MoveObject::new_from_execution(
+                                AuthenticatorInfoV1::tag().into(),
+                                temporary_store.lamport_timestamp(),
+                                bcs::to_bytes(&authenticator_info).unwrap(),
+                                protocol_config,
+                            )?
+                        };
+
+                        let authenticator_info_object = Object::new_move(
+                            move_authenticator_info_object,
+                            Owner::Immutable,
+                            previous_transaction,
+                        );
+
+                        authenticator_info_objects.push(authenticator_info_object);
+                    }
+                }
+                Err(err) => {
+                    let object_runtime: &ObjectRuntime = context.object_runtime();
+                    // We still need to record the loaded child objects for replay
+                    let loaded_runtime_objects = object_runtime.loaded_runtime_objects();
+                    // we do not save the wrapped objects since on error, they should not be
+                    // modified
+                    drop(context);
+                    temporary_store.save_loaded_runtime_objects(loaded_runtime_objects);
+                    return Err(err.with_command_index(idx));
+                }
+            }
         }
 
         // Save loaded objects table in case we fail in post execution
@@ -130,10 +163,15 @@ mod checked {
 
         // apply changes
         let finished = context.finish::<Mode>();
+
+        for authenticator_info_object in authenticator_info_objects {
+            temporary_store.create_object(authenticator_info_object);
+        }
+
         // Save loaded objects for debug. We dont want to lose the info
-        state_view.save_loaded_runtime_objects(loaded_runtime_objects);
-        state_view.save_wrapped_object_containers(wrapped_object_containers);
-        state_view.record_execution_results(finished?);
+        temporary_store.save_loaded_runtime_objects(loaded_runtime_objects);
+        temporary_store.save_wrapped_object_containers(wrapped_object_containers);
+        temporary_store.record_execution_results(finished?);
         Ok(mode_results)
     }
 
@@ -144,9 +182,9 @@ mod checked {
         mode_results: &mut Mode::ExecutionResults,
         command: Command,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<(), ExecutionError> {
+    ) -> Result<Vec<AuthenticatorInfoV1>, ExecutionError> {
         let mut argument_updates = Mode::empty_arguments();
-        let results = match command {
+        let (results, authenticator_infos) = match command {
             Command::MakeMoveVec(tag_opt, args) if args.is_empty() => {
                 let Some(tag) = tag_opt else {
                     invariant_violation!(
@@ -170,14 +208,17 @@ mod checked {
                     .map_err(|e| context.convert_vm_error(e))?;
                 // BCS layout for any empty vector should be the same
                 let bytes = bcs::to_bytes::<Vec<u8>>(&vec![]).unwrap();
-                vec![Value::Raw(
-                    RawValueType::Loaded {
-                        ty,
-                        abilities,
-                        used_in_non_entry_move_call: false,
-                    },
-                    bytes,
-                )]
+                (
+                    vec![Value::Raw(
+                        RawValueType::Loaded {
+                            ty,
+                            abilities,
+                            used_in_non_entry_move_call: false,
+                        },
+                        bytes,
+                    )],
+                    vec![],
+                )
             }
             Command::MakeMoveVec(tag_opt, args) => {
                 let mut res = vec![];
@@ -224,14 +265,17 @@ mod checked {
                     .get_runtime()
                     .get_type_abilities(&ty)
                     .map_err(|e| context.convert_vm_error(e))?;
-                vec![Value::Raw(
-                    RawValueType::Loaded {
-                        ty,
-                        abilities,
-                        used_in_non_entry_move_call,
-                    },
-                    res,
-                )]
+                (
+                    vec![Value::Raw(
+                        RawValueType::Loaded {
+                            ty,
+                            abilities,
+                            used_in_non_entry_move_call,
+                        },
+                        res,
+                    )],
+                    vec![],
+                )
             }
             Command::TransferObjects(objs, addr_arg) => {
                 let objs: Vec<ObjectValue> = objs
@@ -245,7 +289,7 @@ mod checked {
                     obj.ensure_public_transfer_eligible()?;
                     context.transfer_object(obj, addr)?;
                 }
-                vec![]
+                (vec![], vec![])
             }
             Command::SplitCoins(coin_arg, amount_args) => {
                 let mut obj: ObjectValue = context.borrow_arg_mut(0, coin_arg)?;
@@ -273,7 +317,7 @@ mod checked {
                     })
                     .collect::<Result<_, ExecutionError>>()?;
                 context.restore_arg::<Mode>(&mut argument_updates, coin_arg, Value::Object(obj))?;
-                split_coins
+                (split_coins, vec![])
             }
             Command::MergeCoins(target_arg, coin_args) => {
                 let mut target: ObjectValue = context.borrow_arg_mut(0, target_arg)?;
@@ -313,7 +357,7 @@ mod checked {
                     target_arg,
                     Value::Object(target),
                 )?;
-                vec![]
+                (vec![], vec![])
             }
             Command::MoveCall(move_call) => {
                 let ProgrammableMoveCall {
@@ -354,7 +398,7 @@ mod checked {
                 );
 
                 context.linkage_view.reset_linkage();
-                return_values?
+                (return_values?, vec![])
             }
             Command::Publish(modules, dep_ids) => execute_move_publish::<Mode>(
                 context,
@@ -376,7 +420,7 @@ mod checked {
 
         Mode::finish_command(context, mode_results, argument_updates, &results)?;
         context.push_command_results(results)?;
-        Ok(())
+        Ok(authenticator_infos)
     }
 
     /// Execute a single Move call
@@ -529,7 +573,7 @@ mod checked {
         module_bytes: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectID>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<Vec<Value>, ExecutionError> {
+    ) -> Result<(Vec<Value>, Vec<AuthenticatorInfoV1>), ExecutionError> {
         assert_invariant!(
             !module_bytes.is_empty(),
             "empty package is checked in transaction input checker"
@@ -577,15 +621,20 @@ mod checked {
 
         let values = if Mode::packages_are_predefined() {
             // no upgrade cap for genesis modules
-            vec![]
+            (vec![], vec![])
         } else {
+            let authenticator_infos = create_authenticator_infos(context, &modules, storage_id)?;
+
             let cap = &UpgradeCap::new(context.fresh_id()?, storage_id);
-            vec![Value::Object(context.make_object_value(
-                UpgradeCap::type_().into(),
-                // used_in_non_entry_move_call
-                false,
-                &bcs::to_bytes(cap).unwrap(),
-            )?)]
+            (
+                vec![Value::Object(context.make_object_value(
+                    UpgradeCap::type_().into(),
+                    // used_in_non_entry_move_call
+                    false,
+                    &bcs::to_bytes(cap).unwrap(),
+                )?)],
+                authenticator_infos,
+            )
         };
         Ok(values)
     }
@@ -598,7 +647,7 @@ mod checked {
         dep_ids: Vec<ObjectID>,
         current_package_id: ObjectID,
         upgrade_ticket_arg: Argument,
-    ) -> Result<Vec<Value>, ExecutionError> {
+    ) -> Result<(Vec<Value>, Vec<AuthenticatorInfoV1>), ExecutionError> {
         assert_invariant!(
             !module_bytes.is_empty(),
             "empty package is checked in transaction input checker"
@@ -690,14 +739,44 @@ mod checked {
         )?;
 
         context.write_package(package);
-        Ok(vec![Value::Raw(
-            RawValueType::Loaded {
-                ty: upgrade_receipt_type,
-                abilities: AbilitySet::EMPTY,
-                used_in_non_entry_move_call: false,
-            },
-            bcs::to_bytes(&UpgradeReceipt::new(upgrade_ticket, storage_id)).unwrap(),
-        )])
+
+        let authenticator_infos = create_authenticator_infos(context, &modules, storage_id)?;
+
+        Ok((
+            vec![Value::Raw(
+                RawValueType::Loaded {
+                    ty: upgrade_receipt_type,
+                    abilities: AbilitySet::EMPTY,
+                    used_in_non_entry_move_call: false,
+                },
+                bcs::to_bytes(&UpgradeReceipt::new(upgrade_ticket, storage_id)).unwrap(),
+            )],
+            authenticator_infos,
+        ))
+    }
+
+    fn create_authenticator_infos(
+        context: &mut ExecutionContext<'_, '_, '_>,
+        modules: &[CompiledModule],
+        storage_id: ObjectID,
+    ) -> Result<Vec<AuthenticatorInfoV1>, ExecutionError> {
+        let mut authenticator_infos = Vec::new();
+        for module in modules {
+            for func_def in module.authenticators() {
+                let function_handle = module.function_handle_at(func_def.function);
+                let function_name = module.identifier_at(function_handle.name);
+
+                let authenticator_info = AuthenticatorInfoV1::new(
+                    context.fresh_id()?,
+                    storage_id,
+                    module.name().to_string(),
+                    function_name.to_string(),
+                );
+
+                authenticator_infos.push(authenticator_info);
+            }
+        }
+        Ok(authenticator_infos)
     }
 
     /// Checks the compatibility between an existing Move package and the new

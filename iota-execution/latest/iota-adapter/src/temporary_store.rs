@@ -358,6 +358,10 @@ impl<'backing> TemporaryStore<'backing> {
         self.execution_results.written_objects.insert(id, package);
     }
 
+    pub fn lamport_timestamp(&self) -> SequenceNumber {
+        self.lamport_timestamp
+    }
+
     /// Crate a new objcet. This is used to create objects outside of PT
     /// execution.
     pub fn create_object(&mut self, object: Object) {

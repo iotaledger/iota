@@ -28,6 +28,19 @@ pub struct AuthenticatorInfoV1 {
 }
 
 impl AuthenticatorInfoV1 {
+    /// Create an `AuthenticatorInfoV1` for the newly published package at
+    /// `package_id`, and associate it with the fresh `UID`.
+    pub fn new(_uid: ObjectID, package: ObjectID, module: String, function: String) -> Self {
+        // TODO: `uid` is not used here, but we need it if we want to create an
+        // `AuthenticatorInfoV1` as an immutable shared object.
+        AuthenticatorInfoV1 {
+            // id: UID::new(uid),
+            package,
+            module,
+            function,
+        }
+    }
+
     pub fn tag() -> StructTag {
         StructTag {
             address: IOTA_FRAMEWORK_ADDRESS,
