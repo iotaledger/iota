@@ -146,8 +146,8 @@ export async function setupL1Wallet(
     context: BrowserContext,
     l1ExtensionUrl: string,
     mnemonic: string,
+    testId?: string,
 ): Promise<void> {
-    console.log('Setting up L1 wallet with mnemonic');
     const walletPageL1 = await createPage(context, l1ExtensionUrl);
     try {
         await importL1WalletFromMnemonic(walletPageL1, l1ExtensionUrl, mnemonic);
@@ -157,7 +157,7 @@ export async function setupL1Wallet(
     } finally {
         await walletPageL1.close().catch((e) => console.error('Error closing L1 wallet page:', e));
     }
-    console.log('✅ L1 wallet setup complete');
+    console.log('✅ L1 wallet setup complete', testId);
 }
 
 /**
@@ -167,8 +167,8 @@ export async function setupL2Wallet(
     context: BrowserContext,
     l2ExtensionUrl: string,
     mnemonic: string,
+    testId?: string,
 ): Promise<void> {
-    console.log('Setting up L2 wallet with mnemonic');
     const walletPageL2 = await createPage(context, l2ExtensionUrl);
     try {
         await createL2Wallet(walletPageL2, l2ExtensionUrl, mnemonic);
@@ -179,7 +179,7 @@ export async function setupL2Wallet(
     } finally {
         await walletPageL2.close().catch((e) => console.error('Error closing L2 wallet page:', e));
     }
-    console.log('✅ L2 wallet setup complete');
+    console.log('✅ L2 wallet setup complete', testId);
 }
 
 /**
@@ -191,14 +191,16 @@ export async function setupBridgeWallets(
     l2ExtensionUrl: string,
     mnemonicL1: string,
     mnemonicL2: string,
+    testId?: string,
 ): Promise<void> {
-    await setupL1Wallet(context, l1ExtensionUrl, mnemonicL1);
-    await setupL2Wallet(context, l2ExtensionUrl, mnemonicL2);
+    await setupL1Wallet(context, l1ExtensionUrl, mnemonicL1, testId);
+    await setupL2Wallet(context, l2ExtensionUrl, mnemonicL2, testId);
 }
 
 export async function waitForL1WalletConnected(
     page: Page,
     { timeout = 30000 } = {},
+    testId?: string,
 ): Promise<void> {
     try {
         const senderAddressInput = page.locator('input[name="senderAddress"]');
@@ -209,9 +211,9 @@ export async function waitForL1WalletConnected(
 
         await expect(senderAddressInput).toBeEnabled();
 
-        console.log('✅ L1 wallet connected (senderAddress input is visible)');
+        console.log(`✅ L1 wallet connected (senderAddress input is visible): ${testId}`);
     } catch (error) {
-        console.error('❌ L1 wallet connection failed:', error);
-        throw new Error(`L1 wallet connection check failed: ${error.message}`);
+        console.error('❌ L1 wallet connection failed:', error, testId);
+        throw new Error(`L1 wallet connection check failed: ${error.message}, testId: ${testId}`);
     }
 }
