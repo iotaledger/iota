@@ -303,7 +303,7 @@ const developer = [
             'developer/tutorials/live-concert',
             'developer/tutorials/retail-store',
             'developer/tutorials/validate-university-degree',
-            'developer/tutorials/identity-codelab',
+            'developer/tutorials/identity-workshop',
         ],
     },
     {
