@@ -131,6 +131,15 @@ export interface ClickedHideAssetProperties {
     objectId?: string;
 }
 
+export interface ClickedImportKeystoneProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    sourceFlow?: string;
+}
+
 export interface ClickedImportPassphraseProperties {
     /**
      * | Rule | Value |
@@ -391,6 +400,14 @@ export class ClickedHideAsset implements BaseEvent {
     event_type = 'clicked hide asset';
 
     constructor(public event_properties?: ClickedHideAssetProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class ClickedImportKeystone implements BaseEvent {
+    event_type = 'clicked import keystone';
+
+    constructor(public event_properties?: ClickedImportKeystoneProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -751,6 +768,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ClickedHideAsset(properties), options);
+  }
+
+  /**
+   * clicked import keystone
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20import%20keystone)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. sourceFlow)
+   * @param options Amplitude event options.
+   */
+  clickedImportKeystone(
+    properties?: ClickedImportKeystoneProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ClickedImportKeystone(properties), options);
   }
 
   /**
