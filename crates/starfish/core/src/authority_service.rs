@@ -2050,6 +2050,7 @@ mod tests {
     }
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_with_additional_headers() {
+        telemetry_subscribers::init_for_testing();
         // GIVEN
         let rounds = 50;
         let validators = 50;
