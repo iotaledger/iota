@@ -8,10 +8,15 @@ use std::collections::BTreeMap;
 
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
+use iota_rest_api::CheckpointData;
+use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::{errors::IndexerError, types::IndexerResult};
+use crate::{
+    errors::IndexerError,
+    types::{IndexedCheckpoint, IndexerResult},
+};
 
 pub(crate) const CHECKPOINT_COMMIT_BATCH_SIZE: usize = 100;
 pub(crate) const UNPROCESSED_CHECKPOINT_SIZE_LIMIT: usize = 1000;
@@ -28,10 +33,10 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
     async fn persist(&self, batch: Vec<T>) -> IndexerResult<()>;
 
     /// Reads high watermark of the table DB.
-    async fn get_watermark_hi(&self) -> IndexerResult<Option<u64>>;
+    async fn get_watermark_hi(&self) -> IndexerResult<Option<CommitterWatermark>>;
 
     /// Sets high watermark of the table DB, also update metrics.
-    async fn set_watermark_hi(&self, watermark_hi: u64) -> IndexerResult<()>;
+    async fn set_watermark_hi(&self, watermark_hi: CommitterWatermark) -> IndexerResult<()>;
 
     /// Gets the current max checkpoint that can be committed by the writer.
     ///
@@ -62,7 +67,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
     /// is persisted to.
     async fn persist_sequentially(
         &self,
-        cp_receiver: iota_metrics::metered_channel::Receiver<(u64, T)>,
+        cp_receiver: iota_metrics::metered_channel::Receiver<(CommitterWatermark, T)>,
         cancel: CancellationToken,
     ) -> IndexerResult<()> {
         let checkpoint_commit_batch_size = std::env::var("CHECKPOINT_COMMIT_BATCH_SIZE")
@@ -72,12 +77,15 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
         let mut stream = iota_metrics::metered_channel::ReceiverStream::new(cp_receiver)
             .ready_chunks(checkpoint_commit_batch_size);
 
-        let mut unprocessed = BTreeMap::new();
+        // Mapping of ordered checkpoint data to ensure that we process them in order.
+        // The key is just the checkpoint sequence number, and the tuple is
+        // (CommitterWatermark, T).
+        let mut unprocessed: BTreeMap<u64, (CommitterWatermark, _)> = BTreeMap::new();
         let mut tuple_batch = vec![];
         let mut next_cp_to_process = self
             .get_watermark_hi()
             .await?
-            .map(|n| n.saturating_add(1))
+            .map(|watermark| watermark.cp.saturating_add(1))
             .unwrap_or_default();
 
         loop {
@@ -99,8 +107,8 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
                             info!("transform and load task terminating gracefully");
                             return Ok(());
                         }
-                        for (cp_seq, data) in tuple_chunk {
-                            unprocessed.insert(cp_seq, (cp_seq, data));
+                        for (watermark, data) in tuple_chunk {
+                            unprocessed.insert(watermark.cp, (watermark, data));
                         }
                     }
                     Some(None) => break, // Stream has ended
@@ -121,8 +129,8 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
 
             if !tuple_batch.is_empty() && checkpoint_lag_limiter != 0 {
                 let tuple_batch = std::mem::take(&mut tuple_batch);
-                let (last_checkpoint_seq, _data) = tuple_batch.last().unwrap();
-                let last_checkpoint_seq = last_checkpoint_seq.to_owned();
+                let (committer_watermark, _data) = tuple_batch.last().unwrap();
+                let committer_watermark = committer_watermark.to_owned();
                 let batch = tuple_batch
                     .into_iter()
                     .map(|(_cp_seq, data)| data)
@@ -133,7 +141,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
                         self.name()
                     ))
                 })?;
-                self.set_watermark_hi(last_checkpoint_seq).await?;
+                self.set_watermark_hi(committer_watermark).await?;
             }
         }
         Err(IndexerError::ChannelClosed(format!(
@@ -141,4 +149,103 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
             self.name()
         )))
     }
+}
+
+/// The indexer writer operates on checkpoint data, which contains information
+/// on the current epoch, checkpoint, and transaction. These three numbers form
+/// the watermark upper bound for each committed table.
+#[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
+pub struct CommitterWatermark {
+    pub epoch: u64,
+    pub cp: u64,
+    pub tx: u64,
+}
+impl From<&IndexedCheckpoint> for CommitterWatermark {
+    fn from(checkpoint: &IndexedCheckpoint) -> Self {
+        Self {
+            epoch: checkpoint.epoch,
+            cp: checkpoint.sequence_number,
+            tx: checkpoint.network_total_transactions.saturating_sub(1),
+        }
+    }
+}
+impl From<&CheckpointData> for CommitterWatermark {
+    fn from(checkpoint: &CheckpointData) -> Self {
+        Self {
+            epoch: checkpoint.checkpoint_summary.epoch,
+            cp: checkpoint.checkpoint_summary.sequence_number,
+            tx: checkpoint
+                .checkpoint_summary
+                .network_total_transactions
+                .saturating_sub(1),
+        }
+    }
+}
+/// Enum representing tables that a committer updates.
+#[derive(
+    Debug,
+    Eq,
+    PartialEq,
+    strum_macros::Display,
+    strum_macros::EnumString,
+    strum_macros::EnumIter,
+    strum_macros::AsRefStr,
+    Hash,
+    Serialize,
+    Deserialize,
+    Clone,
+)]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum CommitterTables {
+    // Unpruned tables
+    ChainIdentifier,
+    Display,
+    Epochs,
+    FeatureFlags,
+    Objects,
+    ObjectsVersion,
+    Packages,
+    ProtocolConfigs,
+    // Prunable tables
+    ObjectsHistory,
+    Transactions,
+    Events,
+    EventEmitPackage,
+    EventEmitModule,
+    EventSenders,
+    EventStructInstantiation,
+    EventStructModule,
+    EventStructName,
+    EventStructPackage,
+    TxCallsPkg,
+    TxCallsMod,
+    TxCallsFun,
+    TxChangedObjects,
+    TxDigests,
+    TxInputObjects,
+    TxKinds,
+    TxRecipients,
+    TxSenders,
+    Checkpoints,
+    PrunerCpWatermark,
+}
+/// Enum representing tables that the objects snapshot processor updates.
+#[derive(
+    Debug,
+    Eq,
+    PartialEq,
+    strum_macros::Display,
+    strum_macros::EnumString,
+    strum_macros::EnumIter,
+    strum_macros::AsRefStr,
+    Hash,
+    Serialize,
+    Deserialize,
+    Clone,
+)]
+#[strum(serialize_all = "snake_case")]
+#[serde(rename_all = "snake_case")]
+pub enum ObjectsSnapshotHandlerTables {
+    ObjectsSnapshot,
 }

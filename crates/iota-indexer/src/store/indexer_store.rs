@@ -6,11 +6,12 @@ use std::{any::Any, collections::BTreeMap};
 
 use async_trait::async_trait;
 use diesel::PgConnection;
+use strum::IntoEnumIterator;
 
 use crate::{
     errors::IndexerError,
     ingestion::{
-        common::prepare::CheckpointObjectChanges,
+        common::{persist::CommitterWatermark, prepare::CheckpointObjectChanges},
         primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
     },
     models::{
@@ -31,9 +32,9 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     async fn get_available_checkpoint_range(&self) -> Result<(u64, u64), IndexerError>;
 
-    async fn get_latest_object_snapshot_checkpoint_sequence_number(
+    async fn get_latest_object_snapshot_watermark(
         &self,
-    ) -> Result<Option<u64>, IndexerError>;
+    ) -> Result<Option<CommitterWatermark>, IndexerError>;
 
     async fn get_chain_identifier(&self) -> Result<Option<Vec<u8>>, IndexerError>;
 
@@ -113,6 +114,14 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         conn: &mut PgConnection,
         object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
+
+    /// Update the upper bound of the watermarks for the given tables.
+    async fn update_watermarks_upper_bound<E: IntoEnumIterator>(
+        &self,
+        watermark: CommitterWatermark,
+    ) -> Result<(), IndexerError>
+    where
+        E::Iterator: Iterator<Item: AsRef<str>>;
 
     async fn persist_checkpoint_objects(
         &self,

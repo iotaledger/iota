@@ -6,7 +6,10 @@ use async_trait::async_trait;
 
 use crate::{
     config::SnapshotLagConfig,
-    ingestion::{common::persist::Writer, primary::persist::TransactionObjectChangesToCommit},
+    ingestion::{
+        common::persist::{CommitterWatermark, ObjectsSnapshotHandlerTables, Writer},
+        primary::persist::TransactionObjectChangesToCommit,
+    },
     metrics::IndexerMetrics,
     store::{IndexerStore, PgIndexerStore},
     types::IndexerResult,
@@ -49,18 +52,17 @@ impl Writer<TransactionObjectChangesToCommit> for ObjectSnapshotWriter {
         Ok(())
     }
 
-    // TODO: read watermark table when it's ready.
-    async fn get_watermark_hi(&self) -> IndexerResult<Option<u64>> {
-        self.store
-            .get_latest_object_snapshot_checkpoint_sequence_number()
-            .await
+    async fn get_watermark_hi(&self) -> IndexerResult<Option<CommitterWatermark>> {
+        self.store.get_latest_object_snapshot_watermark().await
     }
 
-    // TODO: update watermark table when it's ready.
-    async fn set_watermark_hi(&self, watermark_hi: u64) -> IndexerResult<()> {
+    async fn set_watermark_hi(&self, watermark: CommitterWatermark) -> IndexerResult<()> {
+        self.store
+            .update_watermarks_upper_bound::<ObjectsSnapshotHandlerTables>(watermark)
+            .await?;
         self.metrics
             .latest_object_snapshot_sequence_number
-            .set(watermark_hi as i64);
+            .set(watermark.cp as i64);
         Ok(())
     }
 

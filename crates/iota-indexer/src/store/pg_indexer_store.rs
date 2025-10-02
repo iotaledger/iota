@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use core::result::Result::Ok;
 use std::{any::Any as StdAny, collections::BTreeMap, time::Duration};
 
@@ -19,6 +18,7 @@ use iota_types::{
     digests::{ChainIdentifier, CheckpointDigest},
 };
 use itertools::Itertools;
+use strum::IntoEnumIterator;
 use tap::TapFallible;
 use tracing::info;
 
@@ -27,9 +27,12 @@ use crate::{
     db::ConnectionPool,
     errors::{Context, IndexerError, IndexerResult},
     ingestion::{
-        common::prepare::{
-            CheckpointObjectChanges, LiveObject, RemovedObject,
-            retain_latest_objects_from_checkpoint_batch,
+        common::{
+            persist::{CommitterWatermark, ObjectsSnapshotHandlerTables},
+            prepare::{
+                CheckpointObjectChanges, LiveObject, RemovedObject,
+                retain_latest_objects_from_checkpoint_batch,
+            },
         },
         primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
     },
@@ -50,6 +53,7 @@ use crate::{
             CheckpointTxGlobalOrder, IndexStatus, OptimisticTransaction, StoredTransaction,
         },
         tx_indices::TxIndexSplit,
+        watermarks::StoredWatermark,
     },
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
     persist_chunk_into_table_in_existing_connection, read_only_blocking,
@@ -60,7 +64,7 @@ use crate::{
         objects_version, optimistic_transactions, packages, protocol_configs, pruner_cp_watermark,
         transactions, tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests,
         tx_global_order, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
-        tx_wrapped_or_deleted_objects,
+        tx_wrapped_or_deleted_objects, watermarks,
     },
     store::IndexerStore,
     transactional_blocking_with_retry,
@@ -386,16 +390,32 @@ impl PgIndexerStore {
         )
     }
 
-    fn get_latest_object_snapshot_checkpoint_sequence_number(
+    fn get_latest_object_snapshot_watermark(
         &self,
-    ) -> Result<Option<u64>, IndexerError> {
+    ) -> Result<Option<CommitterWatermark>, IndexerError> {
         read_only_blocking!(&self.blocking_cp, |conn| {
-            objects_snapshot::dsl::objects_snapshot
-                .select(max(objects_snapshot::checkpoint_sequence_number))
-                .first::<Option<i64>>(conn)
-                .map(|v| v.map(|v| v as u64))
+            watermarks::table
+                .select((
+                    watermarks::epoch_hi_inclusive,
+                    watermarks::checkpoint_hi_inclusive,
+                    watermarks::tx_hi_inclusive,
+                ))
+                .filter(
+                    watermarks::entity
+                        .eq(ObjectsSnapshotHandlerTables::ObjectsSnapshot.to_string()),
+                )
+                .first::<(i64, i64, i64)>(conn)
+                // Handle case where the watermark is not set yet
+                .optional()
+                .map(|v| {
+                    v.map(|(epoch, cp, tx)| CommitterWatermark {
+                        epoch: epoch as u64,
+                        cp: cp as u64,
+                        tx: tx as u64,
+                    })
+                })
         })
-        .context("Failed reading latest object snapshot checkpoint sequence number from PostgresDB")
+        .context("Failed reading latest object snapshot watermark from PostgresDB")
     }
 
     fn persist_display_updates(
@@ -1542,6 +1562,51 @@ impl PgIndexerStore {
         })
     }
 
+    fn update_watermarks_upper_bound<E: IntoEnumIterator>(
+        &self,
+        watermark: CommitterWatermark,
+    ) -> Result<(), IndexerError>
+    where
+        E::Iterator: Iterator<Item: AsRef<str>>,
+    {
+        let guard = self
+            .metrics
+            .checkpoint_db_commit_latency_watermarks
+            .start_timer();
+
+        let upper_bound_updates = E::iter()
+            .map(|table| StoredWatermark::from_upper_bound_update(table.as_ref(), watermark))
+            .collect::<Vec<_>>();
+
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                diesel::insert_into(watermarks::table)
+                    .values(&upper_bound_updates)
+                    .on_conflict(watermarks::entity)
+                    .do_update()
+                    .set((
+                        watermarks::epoch_hi_inclusive.eq(excluded(watermarks::epoch_hi_inclusive)),
+                        watermarks::checkpoint_hi_inclusive
+                            .eq(excluded(watermarks::checkpoint_hi_inclusive)),
+                        watermarks::tx_hi_inclusive.eq(excluded(watermarks::tx_hi_inclusive)),
+                    ))
+                    .execute(conn)
+                    .map_err(IndexerError::from)
+                    .context("Failed to update watermarks upper bound")?;
+                Ok::<(), IndexerError>(())
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
+        .tap_ok(|_| {
+            let elapsed = guard.stop_and_record();
+            info!(elapsed, "Persisted watermarks");
+        })
+        .tap_err(|e| {
+            tracing::error!("Failed to persist watermarks with error: {}", e);
+        })
+    }
+
     async fn execute_in_blocking_worker<F, R>(&self, f: F) -> Result<R, IndexerError>
     where
         F: FnOnce(Self) -> Result<R, IndexerError> + Send + 'static,
@@ -1609,13 +1674,11 @@ impl IndexerStore for PgIndexerStore {
             .await
     }
 
-    async fn get_latest_object_snapshot_checkpoint_sequence_number(
+    async fn get_latest_object_snapshot_watermark(
         &self,
-    ) -> Result<Option<u64>, IndexerError> {
-        self.execute_in_blocking_worker(|this| {
-            this.get_latest_object_snapshot_checkpoint_sequence_number()
-        })
-        .await
+    ) -> Result<Option<CommitterWatermark>, IndexerError> {
+        self.execute_in_blocking_worker(|this| this.get_latest_object_snapshot_watermark())
+            .await
     }
 
     fn persist_objects_in_existing_transaction(
@@ -2027,6 +2090,19 @@ impl IndexerStore for PgIndexerStore {
     async fn refresh_participation_metrics(&self) -> Result<(), IndexerError> {
         self.execute_in_blocking_worker(move |this| this.refresh_participation_metrics())
             .await
+    }
+
+    async fn update_watermarks_upper_bound<E: IntoEnumIterator>(
+        &self,
+        watermark: CommitterWatermark,
+    ) -> Result<(), IndexerError>
+    where
+        E::Iterator: Iterator<Item: AsRef<str>>,
+    {
+        self.execute_in_blocking_worker(move |this| {
+            this.update_watermarks_upper_bound::<E>(watermark)
+        })
+        .await
     }
 
     fn as_any(&self) -> &dyn StdAny {
