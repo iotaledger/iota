@@ -1,4 +1,4 @@
-import { BrowserContext, Page } from '@playwright/test';
+import { BrowserContext, expect, Page } from '@playwright/test';
 import { CONFIG } from '../config/config';
 import { WALLET_CUSTOMRPC_PLACEHOLDER, WALLET_PASSWORD } from '../utils/constants';
 import { createPage } from './browser';
@@ -82,6 +82,7 @@ export async function connectL1Wallet(page: Page, browserContext: BrowserContext
     await page.getByText('IOTA Wallet').click();
 
     const walletPage = await approveWalletConnectPage;
+    await walletPage.waitForLoadState();
     await walletPage.getByRole('button', { name: 'Continue' }).click();
     await walletPage.getByRole('button', { name: 'Connect' }).click();
 }
@@ -96,11 +97,15 @@ export async function connectL2Wallet(page: Page, browserContext: BrowserContext
     });
 
     await connectButton.click();
+    const metamaskButton = page.getByTestId(/metamask/);
+    await metamaskButton.waitFor({ state: 'visible', timeout: 10000 });
+
     const approveDialog = browserContext.waitForEvent('page', { timeout: 20_000 });
-    await page.getByTestId(/metamask/).click();
+
+    await metamaskButton.click();
 
     const walletModal = await approveDialog;
-    await walletModal.waitForLoadState();
+    await walletModal.waitForLoadState('networkidle');
     await walletModal.getByRole('button', { name: 'Connect' }).click();
 }
 
@@ -191,38 +196,22 @@ export async function setupBridgeWallets(
     await setupL2Wallet(context, l2ExtensionUrl, mnemonicL2);
 }
 
-export async function isL1WalletConnected(page: Page): Promise<boolean> {
-    try {
-        const connectButton = page.getByTestId('connect-l1-wallet');
-        const count = await connectButton.count();
-        console.log(`Found ${count} elements with test ID 'connect-l1-wallet'`);
-        return count === 0;
-    } catch (error) {
-        console.log('Error checking L1 wallet connection:', error);
-        return false; // Assume not connected on error
-    }
-}
-
-/**
- * Wait for L1 wallet to connect with timeout and polling
- */
 export async function waitForL1WalletConnected(
     page: Page,
-    { timeout = 20000, pollInterval = 500 } = {},
-): Promise<boolean> {
-    console.log('Waiting for L1 wallet to connect...');
-    const startTime = Date.now();
+    { timeout = 30000 } = {},
+): Promise<void> {
+    try {
+        const senderAddressInput = page.locator('input[name="senderAddress"]');
+        await senderAddressInput.waitFor({
+            state: 'visible',
+            timeout,
+        });
 
-    while (Date.now() - startTime < timeout) {
-        if (await isL1WalletConnected(page)) {
-            console.log('✅ L1 wallet finished connecting successfully');
-            return true;
-        }
+        await expect(senderAddressInput).toBeEnabled();
 
-        console.log(`L1 wallet not connected yet, waiting ${pollInterval}ms...`);
-        await page.waitForTimeout(pollInterval);
+        console.log('✅ L1 wallet connected (senderAddress input is visible)');
+    } catch (error) {
+        console.error('❌ L1 wallet connection failed:', error);
+        throw new Error(`L1 wallet connection check failed: ${error.message}`);
     }
-
-    console.log(`❌ L1 wallet connection timed out after ${timeout}ms`);
-    return false;
 }

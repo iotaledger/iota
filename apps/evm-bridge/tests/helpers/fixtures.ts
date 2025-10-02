@@ -147,12 +147,7 @@ export const test = baseTest.extend<{
             await page.bringToFront();
 
             await connectL1Wallet(page, context);
-            await page.waitForTimeout(500);
-            // Wait for L1 wallet to be connected before proceeding
-            const l1Connected = await waitForL1WalletConnected(page, { timeout: 30000 });
-            if (!l1Connected) {
-                throw new Error('L1 wallet failed to connect within timeout');
-            }
+            await waitForL1WalletConnected(page);
 
             await connectL2Wallet(page, context);
 
@@ -190,13 +185,7 @@ export const test = baseTest.extend<{
             await page.bringToFront();
 
             await connectL1Wallet(page, context);
-            await page.waitForTimeout(500);
-            // Wait for L1 wallet to be connected before proceeding
-            const l1Connected = await waitForL1WalletConnected(page, { timeout: 30000 });
-            if (!l1Connected) {
-                throw new Error('L1 wallet failed to connect within timeout');
-            }
-
+            await waitForL1WalletConnected(page);
             await setReceiverAddress(page, addressL2);
 
             return {
@@ -233,9 +222,7 @@ export const test = baseTest.extend<{
             await page.bringToFront();
 
             await connectL2Wallet(page, context);
-            await page.waitForTimeout(500);
             await toggleBridgeDirection(page);
-            await page.waitForTimeout(500);
             await setReceiverAddress(page, addressL1);
 
             return {
