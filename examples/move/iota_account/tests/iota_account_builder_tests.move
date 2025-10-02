@@ -4,12 +4,16 @@
 #[test_only]
 module iota_account::iota_account_builder_tests;
 
-use iota::account::{Self, AuthenticatorInfoV1};
-use iota::test_scenario::{Self, Scenario};
+use iota::account;
+use iota::test_scenario;
 use iota::test_utils::{assert_eq, assert_ref_eq};
-use iota_account::iota_account::{Self, IOTAccount, DfKey, make_key, create_authenticator_info_v1_for_testing};
-use std::ascii;
-use std::string;
+use iota_account::iota_account::{
+    Self,
+    IOTAccount,
+    DfKey,
+    make_key,
+    create_authenticator_info_v1_for_testing
+};
 
 // ##########################################################################################
 // #                                    IOTAccountBuilder                                   #

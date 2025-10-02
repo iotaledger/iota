@@ -10,11 +10,9 @@ use iota::test_utils::{assert_eq, assert_ref_eq};
 use iota_account::iota_account::{
     Self,
     IOTAccount,
-    DfKey,
     create_iotaccount_for_testing,
     create_authenticator_info_v1_for_testing
 };
-use std::string;
 
 // ##########################################################################################
 // #                                    IOTAccount                                          #
@@ -178,8 +176,7 @@ fun account_can_rotate_reserved_field() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota_account::EMustModifyReservedDynamicField)]
-fun account_cant_rotate_regular_field() {
+fun account_can_rotate_regular_field() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);

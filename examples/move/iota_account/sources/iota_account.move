@@ -17,11 +17,6 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 #[error(code = 2)]
 const ECantModifyReservedDynamicField: vector<u8> =
     b"Restricted dynamic fields cannot be modified directly.";
-/// It should be emitted when only restricted dynamic fields may be modified. For example rotating authenticator
-/// keys.
-#[error(code = 3)]
-const EMustModifyReservedDynamicField: vector<u8> =
-    b"Internal configuration changes can only modify the restricted dynamic fields.";
 
 // --------------------------------------- IOTAccountBuilder ---------------------------------------
 
@@ -170,7 +165,7 @@ public fun add_field<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_df<Name>(self, &name, false);
+    check_reserved_df<Name>(self, &name);
 
     // Add a new field.
     dynamic_field::add(&mut self.id, name, value);
@@ -189,7 +184,7 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_df<Name>(self, &name, false);
+    check_reserved_df<Name>(self, &name);
 
     // Remove a new field and return it.
     dynamic_field::remove(&mut self.id, name)
@@ -219,7 +214,7 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_df<Name>(self, &name, false);
+    check_reserved_df<Name>(self, &name);
 
     // Borrow the related dynamic field.
     dynamic_field::borrow_mut(&mut self.id, name)
@@ -242,7 +237,6 @@ public fun rotate_reserved<Name: copy + drop + store, Value: drop + store>(
     ctx: &TxContext,
 ) {
     ensure_tx_sender_is_account(self, ctx);
-    check_df<Name>(self, &name, true);
 
     let account_id = &mut self.id;
     dynamic_field::remove<_, Value>(account_id, name);
@@ -259,16 +253,9 @@ public fun ensure_tx_sender_is_account(self: &IOTAccount, ctx: &TxContext) {
 
 /// Check if `name` is allowed to be used.
 ///
-/// If `has_to_be_reserved` is set to false, then it returns true if `name` refers to a reserved
-/// dynamic field, otherwise it emits `EMustModifyReservedDynamicField`.
-/// If `has_to_be_reserved` is set to false, then it returns true if `name` doesn't refer to a reserved
-/// dynamic field, otherwise it emits `ECantModifyReservedDynamicField`. It does not check in any way for the existence
-/// of a regular dynamic field.
-public fun check_df<Name: copy + drop + store>(
-    self: &IOTAccount,
-    name: &Name,
-    has_to_be_reserved: bool,
-) {
+/// Checks if `name` refers to a reserved dynamic field, in which case it asserts.
+/// Otherwise it allows execution to continue.
+public fun check_reserved_df<Name: copy + drop + store>(self: &IOTAccount, name: &Name) {
     let key = make_key(*name);
     let reserved_df_names: &vector<DfKey> = dynamic_field::borrow(
         &self.id,
@@ -276,11 +263,7 @@ public fun check_df<Name: copy + drop + store>(
     );
     let reserved_found = reserved_df_names.any!(|reserved| reserved == &key);
 
-    if (has_to_be_reserved) {
-        assert!(reserved_found, EMustModifyReservedDynamicField);
-    } else {
-        assert!(!reserved_found, ECantModifyReservedDynamicField);
-    }
+    assert!(!reserved_found, ECantModifyReservedDynamicField);
 }
 
 // --------------------------------------- Utilities ---------------------------------------
