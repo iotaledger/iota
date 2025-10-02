@@ -7,11 +7,14 @@ use std::{collections::HashSet, time::Duration};
 use anemo::{Result, types::PeerAffinity};
 use fastcrypto::{ed25519::Ed25519PublicKey, traits::KeyPair};
 use futures::stream::FuturesUnordered;
-use iota_config::p2p::AllowlistedPeer;
+use iota_config::{local_ip_utils, p2p::AllowlistedPeer};
 use tokio::time::timeout;
 
 use super::*;
-use crate::utils::{build_network_with_address_and_anemo_config, build_network_with_anemo_config};
+use crate::utils::{
+    build_network_and_key, build_network_with_address_and_anemo_config,
+    build_network_with_anemo_config,
+};
 
 ///////////////////////////////////////////////
 // Helper functions for common test patterns //
@@ -145,11 +148,128 @@ fn create_test_channel() -> (
     (tx, rx)
 }
 
+fn multiaddr_with_available_local_port(address_format: &str) -> Multiaddr {
+    let port = local_ip_utils::get_available_port(&local_ip_utils::localhost_for_testing());
+    address_format
+        .replace("{}", &port.to_string())
+        .parse()
+        .unwrap()
+}
+
 /// Helper to create multiaddr from network's port
 fn local_multiaddr_from_network(network: &Network) -> Multiaddr {
     format!("/dns/localhost/udp/{}", network.local_addr().port())
         .parse()
         .unwrap()
+}
+
+fn assert_known_peers_count(
+    state: &Arc<RwLock<State>>,
+    expected_count: usize,
+    message_format: &str,
+) {
+    let state_guard = state.read().unwrap();
+    assert_eq!(
+        state_guard.known_peers.len(),
+        expected_count,
+        "{}",
+        message_format.replace("{}", &state_guard.known_peers.len().to_string()),
+    );
+}
+
+/// Helper to assert peer is in known_peers
+fn assert_peer_in_known_peers(
+    state: &Arc<RwLock<State>>,
+    peer_id: &PeerId,
+    should_be_known: bool,
+    message_format: &str,
+) {
+    let state_guard = state.read().unwrap();
+    if should_be_known {
+        assert!(
+            state_guard.known_peers.contains_key(peer_id),
+            "{}",
+            message_format.replace("{}", &peer_id.to_string()),
+        );
+    } else {
+        assert!(
+            !state_guard.known_peers.contains_key(peer_id),
+            "{}",
+            message_format.replace("{}", &peer_id.to_string()),
+        );
+    }
+}
+
+fn assert_known_peer_address(
+    state: &Arc<RwLock<State>>,
+    peer_id: &PeerId,
+    expected_address: &Multiaddr,
+    message_format: &str,
+) {
+    let state_guard = state.read().unwrap();
+
+    if let Some(peer_info) = state_guard.known_peers.get(peer_id) {
+        assert!(
+            peer_info.addresses.contains(expected_address),
+            "{}",
+            message_format.replace("{}", &peer_id.to_string()),
+        );
+    } else {
+        panic!("Peer {peer_id} not found in known_peers");
+    }
+}
+
+/// Helper to assert peer is in cooldown
+fn assert_peer_in_cooldown(
+    state: &Arc<RwLock<State>>,
+    peer_id: &PeerId,
+    should_be_in_cooldown: bool,
+    message_format: &str,
+) {
+    let state_guard = state.read().unwrap();
+    if should_be_in_cooldown {
+        assert!(
+            state_guard
+                .address_verification_cooldown
+                .contains_key(peer_id),
+            "{}",
+            message_format.replace("{}", &peer_id.to_string()),
+        );
+    } else {
+        assert!(
+            !state_guard
+                .address_verification_cooldown
+                .contains_key(peer_id),
+            "{}",
+            message_format.replace("{}", &peer_id.to_string()),
+        );
+    }
+}
+
+/// Helper to manually expire a peer's cooldown for testing
+fn expire_peer_cooldown(state: &Arc<RwLock<State>>, peer_id: &PeerId) {
+    let mut state_guard = state.write().unwrap();
+    if let Some(failure_time) = state_guard.address_verification_cooldown.get_mut(peer_id) {
+        *failure_time = std::time::Instant::now() - Duration::from_secs(15 * 60); // 15 minutes ago
+    }
+    // Also update last cleanup time to ensure cleanup runs
+    state_guard.last_cooldown_cleanup = std::time::Instant::now() - Duration::from_secs(10 * 60);
+}
+
+/// Helper to update known peers and return the result for testing
+async fn update_peers_for_test(
+    network: &Network,
+    state: Arc<RwLock<State>>,
+    peers: Vec<SignedNodeInfo>,
+) {
+    update_known_peers(
+        network,
+        state,
+        Metrics::disabled(),
+        peers,
+        Arc::new(HashMap::new()),
+    )
+    .await;
 }
 
 ///////////
@@ -970,6 +1090,470 @@ async fn test_handle_trusted_peer_change_event() -> Result<()> {
     assert_eq!(known_peers[0].peer_id, updated_peers[1].peer_id); // allowlisted and updated
     assert_eq!(known_peers[0].address.len(), 2);
     assert_eq!(known_peers[1].peer_id, peers[2].peer_id); // seed peer
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_address_spoofing_prevention() -> Result<()> {
+    // This test verifies that our address verification prevents malicious actors
+    // from spamming the discovery with multiple peer entries using the same address
+    // but different private keys, or with non-existent addresses.
+
+    let config = P2pConfig::default();
+
+    let (discovery_victim, _server_victim, network_victim, key_victim) =
+        set_up_network(config.clone(), None);
+    let (event_loop_victim, _handle_victim, _state_victim) =
+        start_network(discovery_victim, network_victim.clone(), key_victim);
+
+    // Start the victim node discovery event loop (this is the node that will
+    // receive the attack)
+    tokio::spawn(event_loop_victim.start());
+
+    // Create a legitimate node that will be spoofed
+    let (discovery_legitimate, _server_legitimate, network_legitimate, key_legitimate) =
+        set_up_network(config.clone(), None);
+    let key_legitimate_for_signing = key_legitimate.copy(); // Keep a copy for signing
+    let (mut event_loop_legitimate, _handle_legitimate, _state_legitimate) = start_network(
+        discovery_legitimate,
+        network_legitimate.clone(),
+        key_legitimate,
+    );
+
+    // Set an external address for the legitimate node - use the actual listening
+    // address
+    let address_legitimate = local_multiaddr_from_network(&network_legitimate);
+    event_loop_legitimate.config.external_address = Some(address_legitimate.clone());
+
+    // Start the legitimate node discovery event loop
+    tokio::spawn(event_loop_legitimate.start());
+
+    // Wait for nodes to start up
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let start_timestamp_ms = now_unix();
+
+    // Create legitimate NodeInfo - use the same key that was used to create the
+    // network
+    let signed_peer_info_legitimate = NodeInfo {
+        peer_id: network_legitimate.peer_id(),
+        addresses: vec![address_legitimate.clone()],
+        timestamp_ms: start_timestamp_ms,
+        access_type: AccessType::Public,
+    }
+    .sign(&key_legitimate_for_signing); // Use the actual network key, not a random one
+
+    // ATTACK VECTOR 1: Multiple malicious entries with the SAME address but
+    // different peer IDs. This simulates the attack where a malicious actor
+    // creates multiple "fake" nodes claiming to be at the same address but with
+    // different valid keys
+    let mut malicious_peers = Vec::new();
+
+    for i in 0..5 {
+        // Create different keypairs (different private keys) for each malicious peer
+        let malicious_key = NetworkKeyPair::generate(&mut rand::thread_rng());
+        let malicious_peer_id =
+            anemo::PeerId(malicious_key.public().as_bytes().try_into().unwrap());
+        let timestamp_malicious = start_timestamp_ms + i + 100;
+
+        let signed_peer_info_malicious = NodeInfo {
+            peer_id: malicious_peer_id,
+            addresses: vec![address_legitimate.clone()], // SAME address as legitimate node
+            timestamp_ms: timestamp_malicious,           /* Make sure these have newer timestamps
+                                                          * than legitimate */
+            access_type: AccessType::Public,
+        }
+        .sign(&malicious_key); // Sign with the matching key to pass signature verification
+
+        malicious_peers.push(signed_peer_info_malicious);
+    }
+
+    // ATTACK VECTOR 2: Peer ID spoofing with non-existent address
+    // Malicious actor claims to be a legitimate peer but at a fake
+    // non-existing/non-reachable address
+    let fake_address: Multiaddr = "/dns/localhost/udp/54321".parse()?;
+    let key_malicious_2 = NetworkKeyPair::generate(&mut rand::thread_rng());
+    let peer_id_malicious_2 =
+        anemo::PeerId(key_malicious_2.public().as_bytes().try_into().unwrap());
+    let timestamp_malicious_2 = start_timestamp_ms + 1000; // Newer timestamp
+    let signed_peer_info_spoof_fake_addr = NodeInfo {
+        peer_id: peer_id_malicious_2,
+        addresses: vec![fake_address.clone()], // non-existent address
+        timestamp_ms: timestamp_malicious_2,
+        access_type: AccessType::Public,
+    }
+    .sign(&key_malicious_2);
+
+    malicious_peers.push(signed_peer_info_spoof_fake_addr);
+
+    // ATTACK VECTOR 3: Peer ID spoofing with real existing address of another node
+    // Create another legitimate node to use as the "malicious_address"
+    let (discovery_malicious_3, _server_malicious_3, network_malicious_3, key_malicious_3) =
+        set_up_network(config.clone(), None);
+    let key_malicious_3_for_signing = key_malicious_3.copy(); // Keep a copy for signing
+    let (event_loop_malicious_3, _handle_malicious_3) =
+        discovery_malicious_3.build(network_malicious_3.clone(), key_malicious_3);
+
+    // Start the malicious node discovery event loop
+    tokio::spawn(event_loop_malicious_3.start());
+
+    // Wait for it to start up
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    let timestamp_malicious_3 = start_timestamp_ms + 2000; // Even newer timestamp
+    let address_malicious_3 = local_multiaddr_from_network(&network_malicious_3);
+    let signed_peer_info_spoof_real_addr = NodeInfo {
+        peer_id: network_legitimate.peer_id(), // SAME peer ID as legitimate peer!
+        addresses: vec![address_malicious_3.clone()], // But address of malicious_address
+        timestamp_ms: timestamp_malicious_3,   // Even newer timestamp
+        access_type: AccessType::Public,
+    }
+    .sign(&key_malicious_3_for_signing); // Signed with wrong key - this should fail signature verification
+
+    malicious_peers.push(signed_peer_info_spoof_real_addr);
+
+    // Get the victim's state before the attack
+    let (discovery_victim, _server_victim, network_victim, key_victim) =
+        set_up_network(config, None);
+
+    // Set up the victim's own info to avoid unwrap panics
+    let signed_peer_info_victim = NodeInfo {
+        peer_id: network_victim.peer_id(),
+        addresses: Vec::new(),
+        timestamp_ms: start_timestamp_ms,
+        access_type: AccessType::Public,
+    }
+    .sign(&key_victim);
+
+    let (_event_loop_victim, _handle_victim, state_victim) =
+        start_network(discovery_victim, network_victim.clone(), key_victim);
+    state_victim.write().unwrap().our_info = Some(signed_peer_info_victim);
+
+    // Simulate what happens when the victim receives these peers through discovery
+    // This would normally happen when a malicious node sends these as "known peers"
+    let mut attack_peers = vec![signed_peer_info_legitimate];
+    attack_peers.extend(malicious_peers.clone());
+
+    update_peers_for_test(&network_victim, state_victim.clone(), attack_peers).await;
+
+    // Verify that address deduplication and verification work together correctly
+    let known_peers = state_victim.read().unwrap().known_peers.clone();
+
+    // Address verification should reject malicious peers (wrong peer ID at address,
+    // non-existent address) and keep verified ones only
+    assert_eq!(
+        known_peers.len(),
+        1,
+        "Should have exactly 1 peer (the legitimate one) after filtering out malicious peers. Found {} peers: {:?}",
+        known_peers.len(),
+        known_peers.keys().collect::<Vec<_>>()
+    );
+
+    // Verify it's the legitimate peer that survived
+    assert!(
+        known_peers.contains_key(&network_legitimate.peer_id()),
+        "The legitimate peer should be the one that survived"
+    );
+
+    // Check that if the legitimate peer ID is in known_peers, it has the correct
+    // address
+    if let Some(surviving_peer) = known_peers.get(&network_legitimate.peer_id()) {
+        assert_eq!(
+            surviving_peer.addresses,
+            vec![address_legitimate.clone()],
+            "The surviving peer should have the legitimate address, not a spoofed one"
+        );
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
+    // Test that address conflicts between new peers and existing entries are
+    // resolved correctly
+
+    let config = P2pConfig::default();
+
+    let start_timestamp_ms = now_unix();
+    let timestamp_peer_1 = start_timestamp_ms + 100;
+    let timestamp_peer_2 = start_timestamp_ms + 200;
+    let timestamp_peer_3 = start_timestamp_ms + 150; // Older than 2 but newer than 1
+
+    // Setup a network to act as the victim receiving conflicting peer info
+    let address_victim: Multiaddr = multiaddr_with_available_local_port("/dns/localhost/udp/{}");
+    let (discovery_victim, _server_victim, network_victim, key_victim) = set_up_network(
+        config.clone(),
+        Some(address_victim.clone().to_anemo_address().unwrap()),
+    );
+
+    let signed_peer_info_victim = NodeInfo {
+        peer_id: network_victim.peer_id(),
+        addresses: vec![address_victim],
+        timestamp_ms: start_timestamp_ms,
+        access_type: AccessType::Public,
+    }
+    .sign(&key_victim);
+
+    let (_event_loop_victim, _handle_victim, state_victim) =
+        start_network(discovery_victim, network_victim.clone(), key_victim);
+    state_victim.write().unwrap().our_info = Some(signed_peer_info_victim);
+
+    // Create network 1 first
+    let (discovery_1, _server_1, network_1, key_1) = set_up_network(config.clone(), None);
+    let key_1_for_signing = key_1.copy();
+    let (event_loop_1, handle_1, _state_1) = start_network(discovery_1, network_1.clone(), key_1);
+    let peer_id_1 = network_1.peer_id();
+
+    // Get the address that network 1 is using
+    let shared_socket_addr = network_1.local_addr();
+    let shared_address = local_multiaddr_from_network(&network_1);
+
+    let signed_peer_info_1 = NodeInfo {
+        peer_id: peer_id_1,
+        addresses: vec![shared_address.clone()],
+        timestamp_ms: timestamp_peer_1,
+        access_type: AccessType::Public,
+    }
+    .sign(&key_1_for_signing);
+
+    // Add peer 1 to state using normal update process (should pass verification)
+    update_peers_for_test(
+        &network_victim,
+        state_victim.clone(),
+        vec![signed_peer_info_1],
+    )
+    .await;
+
+    // Verify peer 1 was added
+    {
+        assert_known_peers_count(
+            &state_victim,
+            1,
+            "Should have exactly 1 peer after adding peer 1 but got {}",
+        );
+        assert_peer_in_known_peers(
+            &state_victim,
+            &peer_id_1,
+            true,
+            "Peer 1 should be added initially",
+        );
+        assert_known_peer_address(
+            &state_victim,
+            &peer_id_1,
+            &shared_address,
+            "Peer 1 should have the correct address",
+        );
+    }
+
+    // Shutdown network 1 to free up the address
+    drop(event_loop_1);
+    drop(handle_1);
+    drop(network_1);
+    tokio::time::sleep(Duration::from_millis(300)).await; // Give it time to shut down
+
+    // Create network 2 with the same address that 1 was using
+    let (discovery_2, _server_2, network_2, key_2) =
+        set_up_network(config.clone(), Some(shared_socket_addr.into()));
+    let key_2_for_signing = key_2.copy();
+    let (event_loop_2, handle_2, _state_2) = start_network(discovery_2, network_2.clone(), key_2);
+    let peer_id_2 = network_2.peer_id();
+
+    let signed_peer_info_2 = NodeInfo {
+        peer_id: peer_id_2,
+        addresses: vec![shared_address.clone()], // Same address as peer 1
+        timestamp_ms: timestamp_peer_2,
+        access_type: AccessType::Public,
+    }
+    .sign(&key_2_for_signing);
+
+    // Add peer 2 - this should trigger conflict resolution
+    update_peers_for_test(
+        &network_victim,
+        state_victim.clone(),
+        vec![signed_peer_info_2],
+    )
+    .await;
+
+    // Verify conflict resolution: peer 2 should remain (newer), peer 1 should be
+    // removed
+    {
+        assert_known_peers_count(
+            &state_victim,
+            1,
+            "Should have exactly 1 peer after conflict resolution but got {}",
+        );
+        assert_peer_in_known_peers(
+            &state_victim,
+            &peer_id_1,
+            false,
+            "Older peer 1 should be removed due to address conflict",
+        );
+        assert_peer_in_known_peers(
+            &state_victim,
+            &peer_id_2,
+            true,
+            "Newer peer 2 should be kept",
+        );
+        assert_known_peer_address(
+            &state_victim,
+            &peer_id_2,
+            &shared_address,
+            "Peer 2 should have the correct address",
+        );
+    }
+
+    // Now test the reverse: add peer 3 with an older timestamp than 2 (should be
+    // rejected) Shutdown network 2 first to free up the address for peer 3
+    drop(event_loop_2);
+    drop(handle_2);
+    drop(network_2);
+    tokio::time::sleep(Duration::from_millis(300)).await; // Give it time to shut down
+
+    // Create network 3 with the same address
+    let (discovery_3, _server_3, network_3, key_3) =
+        set_up_network(config.clone(), Some(shared_socket_addr.into()));
+    let key_3_for_signing = key_3.copy();
+    let (_event_loop_3, _handle_3, _state_3) = start_network(discovery_3, network_3.clone(), key_3);
+    let peer_id_3 = network_3.peer_id();
+
+    let signed_peer_info_3 = NodeInfo {
+        peer_id: peer_id_3,
+        addresses: vec![shared_address.clone()], // Same address again
+        timestamp_ms: timestamp_peer_3,
+        access_type: AccessType::Public,
+    }
+    .sign(&key_3_for_signing);
+
+    // Add peer 3 - this should be rejected since 2 (newer) is already present
+    update_peers_for_test(
+        &network_victim,
+        state_victim.clone(),
+        vec![signed_peer_info_3],
+    )
+    .await;
+
+    // Verify that peer 2 is still there and peer 3 was rejected
+    {
+        assert_known_peers_count(
+            &state_victim,
+            1,
+            "Should still have exactly 1 peer after attempting to add older peer 3 but got {}",
+        );
+        assert_peer_in_known_peers(
+            &state_victim,
+            &peer_id_2,
+            true,
+            "Newer peer 2 should still be kept",
+        );
+        assert_peer_in_known_peers(
+            &state_victim,
+            &peer_id_3,
+            false,
+            "Older peer 3 should be rejected due to address conflict",
+        );
+    }
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_address_verification_cooldown_and_cleanup() -> Result<()> {
+    // This test checks the address verification cooldown mechanism.
+
+    // Create a test network and state
+    let (discovery, _server, network, key) = set_up_network(P2pConfig::default(), None);
+
+    // Set up the nodes's own info to avoid unwrap panics
+    let signed_peer_info = NodeInfo {
+        peer_id: network.peer_id(),
+        addresses: Vec::new(),
+        timestamp_ms: now_unix(),
+        access_type: AccessType::Public,
+    }
+    .sign(&key);
+
+    let (_event_loop, _handle, state) = start_network(discovery, network.clone(), key);
+    state.write().unwrap().our_info = Some(signed_peer_info);
+
+    // Create a peer with an unreachable address that will fail verification
+    let (network_other, key_other) = build_network_and_key(|router| router);
+    let peer_id_other = network_other.peer_id();
+
+    // Step 1: Add peer with unreachable address, check that it's in cooldown
+    let peer_info_other = NodeInfo {
+        peer_id: peer_id_other,
+        addresses: vec!["/ip4/192.0.2.1/udp/12345".parse().unwrap()], // Unreachable address
+        timestamp_ms: now_unix(),
+        access_type: AccessType::Public,
+    };
+    let signed_peer_info_other = peer_info_other.sign(&key_other);
+
+    update_peers_for_test(&network, state.clone(), vec![signed_peer_info_other]).await;
+
+    // Verify peer is in cooldown after failed verification
+    assert_peer_in_known_peers(
+        &state,
+        &peer_id_other,
+        false,
+        "Peer should not be in known_peers after failed verification",
+    );
+    assert_peer_in_cooldown(
+        &state,
+        &peer_id_other,
+        true,
+        "Peer should be in verification failure cooldown",
+    );
+
+    // Step 2: Re-add same peer with valid address (should be filtered by cooldown)
+    let peer_info_valid_other = NodeInfo {
+        peer_id: peer_id_other,                                        // Same peer ID
+        addresses: vec![local_multiaddr_from_network(&network_other)], // Valid address
+        timestamp_ms: now_unix() + 1000,                               // Newer timestamp
+        access_type: AccessType::Public,
+    };
+    let signed_peer_info_valid_other = peer_info_valid_other.sign(&key_other);
+
+    update_peers_for_test(
+        &network,
+        state.clone(),
+        vec![signed_peer_info_valid_other.clone()],
+    )
+    .await;
+
+    // Verify peer is still filtered out by cooldown
+    assert_peer_in_known_peers(
+        &state,
+        &peer_id_other,
+        false,
+        "Peer should still not be in known_peers due to cooldown",
+    );
+    assert_peer_in_cooldown(
+        &state,
+        &peer_id_other,
+        true,
+        "Peer should be in verification failure cooldown",
+    );
+
+    // Step 3: Wait for cooldown to pass, re-add peer with valid address
+    expire_peer_cooldown(&state, &peer_id_other);
+
+    update_peers_for_test(&network, state.clone(), vec![signed_peer_info_valid_other]).await;
+
+    // Verify peer is processed normally after cooldown expires
+    assert_peer_in_known_peers(
+        &state,
+        &peer_id_other,
+        true,
+        "Peer should be in known_peers after cooldown",
+    );
+    assert_peer_in_cooldown(
+        &state,
+        &peer_id_other,
+        false,
+        "Peer should not be in verification failure cooldown",
+    );
 
     Ok(())
 }
