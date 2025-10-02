@@ -1,7 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use core::result::Result::Ok;
 use std::{any::Any as StdAny, collections::BTreeMap, time::Duration};
 
@@ -27,7 +26,10 @@ use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
 use crate::{
     db::ConnectionPool,
     errors::{Context, IndexerError},
-    handlers::{CommitterWatermark, EpochToCommit, TransactionObjectChangesToCommit},
+    handlers::{
+        CommitterWatermark, EpochToCommit, ObjectsSnapshotHandlerTables,
+        TransactionObjectChangesToCommit,
+    },
     insert_or_ignore_into,
     metrics::IndexerMetrics,
     models::{
@@ -288,19 +290,32 @@ impl PgIndexerStore {
         .context("Failed reading transaction range from PostgresDB")
     }
 
-    fn get_latest_object_snapshot_checkpoint_sequence_number(
+    fn get_latest_object_snapshot_watermark(
         &self,
-    ) -> Result<Option<u64>, IndexerError> {
+    ) -> Result<Option<CommitterWatermark>, IndexerError> {
         read_only_blocking!(&self.blocking_cp, |conn| {
             watermarks::table
-                .select(watermarks::checkpoint_hi_inclusive)
-                .filter(watermarks::entity.eq("objects_snapshot"))
-                .first::<i64>(conn)
+                .select((
+                    watermarks::epoch_hi_inclusive,
+                    watermarks::checkpoint_hi_inclusive,
+                    watermarks::tx_hi_inclusive,
+                ))
+                .filter(
+                    watermarks::entity
+                        .eq(ObjectsSnapshotHandlerTables::ObjectsSnapshot.to_string()),
+                )
+                .first::<(i64, i64, i64)>(conn)
                 // Handle case where the watermark is not set yet
                 .optional()
-                .map(|v| v.map(|v| v as u64))
+                .map(|v| {
+                    v.map(|(epoch, cp, tx)| CommitterWatermark {
+                        epoch: epoch as u64,
+                        cp: cp as u64,
+                        tx: tx as u64,
+                    })
+                })
         })
-        .context("Failed reading latest object snapshot checkpoint sequence number from PostgresDB")
+        .context("Failed reading latest object snapshot watermark from PostgresDB")
     }
 
     fn persist_display_updates(
@@ -1724,13 +1739,11 @@ impl IndexerStore for PgIndexerStore {
             .await
     }
 
-    async fn get_latest_object_snapshot_checkpoint_sequence_number(
+    async fn get_latest_object_snapshot_watermark(
         &self,
-    ) -> Result<Option<u64>, IndexerError> {
-        self.execute_in_blocking_worker(|this| {
-            this.get_latest_object_snapshot_checkpoint_sequence_number()
-        })
-        .await
+    ) -> Result<Option<CommitterWatermark>, IndexerError> {
+        self.execute_in_blocking_worker(|this| this.get_latest_object_snapshot_watermark())
+            .await
     }
 
     async fn persist_objects(

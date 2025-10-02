@@ -38,9 +38,9 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
 
     async fn get_available_checkpoint_range(&self) -> Result<(u64, u64), IndexerError>;
 
-    async fn get_latest_object_snapshot_checkpoint_sequence_number(
+    async fn get_latest_object_snapshot_watermark(
         &self,
-    ) -> Result<Option<u64>, IndexerError>;
+    ) -> Result<Option<CommitterWatermark>, IndexerError>;
 
     async fn get_chain_identifier(&self) -> Result<Option<Vec<u8>>, IndexerError>;
 

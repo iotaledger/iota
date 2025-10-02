@@ -77,10 +77,8 @@ impl Handler<TransactionObjectChangesToCommit> for ObjectsSnapshotHandler {
         Ok(())
     }
 
-    async fn get_watermark_hi(&self) -> IndexerResult<Option<u64>> {
-        self.store
-            .get_latest_object_snapshot_checkpoint_sequence_number()
-            .await
+    async fn get_watermark_hi(&self) -> IndexerResult<Option<CommitterWatermark>> {
+        self.store.get_latest_object_snapshot_watermark().await
     }
 
     async fn set_watermark_hi(&self, watermark: CommitterWatermark) -> IndexerResult<()> {
@@ -123,7 +121,10 @@ pub async fn start_objects_snapshot_handler(
     let watermark_hi = objects_snapshot_handler.get_watermark_hi().await?;
     let common_handler = CommonHandler::new(Box::new(objects_snapshot_handler.clone()));
     spawn_monitored_task!(common_handler.start_transform_and_load(receiver, cancel));
-    Ok((objects_snapshot_handler, watermark_hi.unwrap_or_default()))
+    Ok((
+        objects_snapshot_handler,
+        watermark_hi.map(|w| w.cp).unwrap_or_default(),
+    ))
 }
 
 impl ObjectsSnapshotHandler {

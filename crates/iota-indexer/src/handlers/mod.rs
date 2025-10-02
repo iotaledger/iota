@@ -104,7 +104,7 @@ impl<T> CommonHandler<T> {
             .handler
             .get_watermark_hi()
             .await?
-            .map(|n| n.saturating_add(1))
+            .map(|watermark| watermark.cp.saturating_add(1))
             .unwrap_or_default();
 
         loop {
@@ -177,7 +177,7 @@ pub trait Handler<T>: Send + Sync {
     async fn load(&self, batch: Vec<T>) -> IndexerResult<()>;
 
     /// read high watermark of the table DB
-    async fn get_watermark_hi(&self) -> IndexerResult<Option<u64>>;
+    async fn get_watermark_hi(&self) -> IndexerResult<Option<CommitterWatermark>>;
 
     /// Updates the relevant entries on the `watermarks` table with the full
     /// `CommitterWatermark`, which tracks the latest epoch, cp, and tx
