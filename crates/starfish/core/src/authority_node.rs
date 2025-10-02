@@ -27,13 +27,13 @@ use crate::{
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
     network::tonic_network::{TonicClient, TonicManager},
+    shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
     transactions_synchronizer::{TransactionsSynchronizer, TransactionsSynchronizerHandle},
 };
-use crate::shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle};
 
 pub struct ConsensusAuthority {
     context: Arc<Context>,
@@ -185,11 +185,8 @@ impl ConsensusAuthority {
             context.clone(),
         );
 
-        let shard_reconstructor = ShardReconstructor::start(
-            context.clone(),
-            dag_state.clone(),
-            core_dispatcher.clone(),
-        );
+        let shard_reconstructor =
+            ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
 
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 

@@ -68,15 +68,15 @@ impl Transaction {
     /// Create a vector of random transactions for testing.
     #[cfg(test)]
     pub fn random_transactions(count: usize, max_len: usize) -> Vec<Self> {
+        use rand::{Rng, RngCore};
+
         let mut rng = rand::thread_rng();
         (0..count)
             .map(|_| {
                 let len = rng.gen_range(0..=max_len);
                 let mut buf = vec![0u8; len];
-                rng.fill(buf.as_mut_slice());
-                Transaction {
-                    data: Bytes::from(buf),
-                }
+                rng.fill_bytes(&mut buf);
+                Transaction { data: Bytes::from(buf) }
             })
             .collect()
     }

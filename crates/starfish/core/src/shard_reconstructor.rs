@@ -6,28 +6,32 @@ use std::{
     sync::Arc,
     time::Duration,
 };
+
 use parking_lot::RwLock;
+use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{
         Mutex, mpsc,
         mpsc::{Receiver, Sender},
     },
+    task::{JoinError, JoinHandle},
     time::{Instant, sleep_until},
 };
-use tokio::task::{JoinError, JoinHandle};
 use tracing::log::{debug, warn};
-use starfish_config::AuthorityIndex;
+
 use crate::{
-    BlockRef, Transaction,
-    block_header::{Shard, TransactionsCommitment, VerifiedTransactions},
+    BlockRef, Transaction, VerifiedBlockHeader,
+    block_header::{
+        BlockHeaderDigest, Shard, ShardWithProof, TransactionsCommitment, VerifiedBlock,
+        VerifiedTransactions,
+    },
     context::Context,
     core_thread::CoreThreadDispatcher,
+    dag_state::DagState,
     decoder::{ShardsDecoder, create_decoder},
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
 };
-use crate::block_header::BlockHeaderDigest;
-use crate::dag_state::DagState;
 
 #[derive(Clone)]
 pub struct ShardAccumulator {
@@ -67,6 +71,42 @@ impl TransactionMessage {
             TransactionMessage::Shard(msg) => &msg.transactions_commitment,
             TransactionMessage::Header(msg) => &msg.commitment,
         }
+    }
+
+    /// Create transaction messages (full, headers, shards) for a given block
+    /// bundle
+    pub fn create_transaction_messages(
+        block: &VerifiedBlock,
+        headers: &[VerifiedBlockHeader],
+        shards: &[ShardWithProof],
+        shard_index: usize,
+    ) -> Vec<TransactionMessage> {
+        let mut messages = Vec::new();
+
+        // Full transaction message
+        let full_msg =
+            FullTransactionMessage::new(block.reference(), block.transactions_commitment());
+        messages.push(TransactionMessage::FullTransaction(full_msg));
+
+        // Header message
+        for header in headers {
+            let header_msg =
+                HeaderMessage::new(header.reference(), block.transactions_commitment());
+            messages.push(TransactionMessage::Header(header_msg));
+        }
+
+        // Shard messages
+        for shard_with_proof in shards {
+            let shard_msg = ShardMessage {
+                block_ref: shard_with_proof.block_ref,
+                transactions_commitment: shard_with_proof.transaction_commitment,
+                shard: shard_with_proof.shard.clone(),
+                shard_index,
+            };
+            messages.push(TransactionMessage::Shard(shard_msg));
+        }
+
+        messages
     }
 }
 
@@ -244,7 +284,7 @@ impl ShardReconstructorHandle {
             match handle.await {
                 Ok(_) => Ok(()),
                 Err(e) if e.is_cancelled() => Ok(()), // expected cancellation
-                Err(e) => Err(e), // propagate panic or other errors
+                Err(e) => Err(e),                     // propagate panic or other errors
             }
         } else {
             Ok(()) // already stopped
@@ -271,7 +311,6 @@ impl<C: CoreThreadDispatcher + 'static> ShardReconstructor<C> {
         })
     }
 }
-
 
 pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     info_length: usize,
@@ -427,25 +466,23 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         }
     }
 
-    /// Evict old accumulators and processed transactions to free memory. We read the dag state to find the
-    /// transaction garbage collection round and evict all accumulators and processed transactions
-    /// below that round.
+    /// Evict old accumulators and processed transactions to free memory. We
+    /// read the dag state to find the transaction garbage collection round
+    /// and evict all accumulators and processed transactions below that
+    /// round.
     fn evict_memory(&mut self) {
         let transaction_gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
 
-        let lower_bound =
-            BlockRef::new(transaction_gc_round, AuthorityIndex::ZERO, BlockHeaderDigest::MIN);
+        let lower_bound = BlockRef::new(
+            transaction_gc_round,
+            AuthorityIndex::ZERO,
+            BlockHeaderDigest::MIN,
+        );
 
-
-        self.processed_transactions = self
-            .processed_transactions
-            .split_off(&lower_bound);
+        self.processed_transactions = self.processed_transactions.split_off(&lower_bound);
 
         let lower_bound_key = (lower_bound, TransactionsCommitment::MIN);
-        self.accumulators = self
-            .accumulators
-            .split_off(&lower_bound_key);
-
+        self.accumulators = self.accumulators.split_off(&lower_bound_key);
     }
 
     /// Send reconstructed transactions to the core
@@ -463,7 +500,9 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
     /// Handle a message and update internal state
     fn handle_transaction_message(&mut self, msg: TransactionMessage) -> ConsensusResult<()> {
-        if self.processed_transactions.contains(msg.block_ref()) || self.reconstruction_queue.contains(msg.block_ref()) {
+        if self.processed_transactions.contains(msg.block_ref())
+            || self.reconstruction_queue.contains(msg.block_ref())
+        {
             return Ok(());
         }
 
@@ -520,8 +559,12 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         if let Some(acc) = accumulators.get(key) {
             if acc.is_ready_to_reconstruct(info_length) {
                 // take ownership out of map
-                let acc = accumulators.remove(key).expect("We should expect the shard accumulator to be present");
-                sender.try_send(acc).map_err(|_| ConsensusError::AccumulatorSenderClosed)?;
+                let acc = accumulators
+                    .remove(key)
+                    .expect("We should expect the shard accumulator to be present");
+                sender
+                    .try_send(acc)
+                    .map_err(|_| ConsensusError::AccumulatorSenderClosed)?;
                 reconstruction_queue.insert(key.0.clone());
             }
         }

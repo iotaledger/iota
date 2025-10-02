@@ -1329,8 +1329,11 @@ impl DagState {
         let transaction_eviction_round = min(transaction_gc_round, header_eviction_round + 1);
         // Construct a dummy BlockRef with the minimum round to split on.
         // All entries < dummy will be removed.
-        let lower_bound =
-            BlockRef::new(transaction_eviction_round, AuthorityIndex::ZERO, BlockHeaderDigest::MIN);
+        let lower_bound = BlockRef::new(
+            transaction_eviction_round,
+            AuthorityIndex::ZERO,
+            BlockHeaderDigest::MIN,
+        );
 
         // Remove entries with round < min_round
         self.recent_transactions = self.recent_transactions.split_off(&lower_bound);
@@ -1339,7 +1342,7 @@ impl DagState {
     /// Return the garbage collection round with respect to the last solid
     /// commit's leader round. Transactions of blocks at or below this round
     /// can be evicted from memory
-    pub(crate) fn gc_round_for_last_solid_commit(&self) -> Round{
+    pub(crate) fn gc_round_for_last_solid_commit(&self) -> Round {
         let last_solid_leader_round = self.last_solid_commit_leader_round;
         if let Some(round) = last_solid_leader_round {
             self.gc_round(round)
@@ -1456,7 +1459,7 @@ impl DagState {
     /// this round which are not yet sequenced will never be sequenced.
     pub(crate) fn gc_round_for_last_commit(&self) -> Round {
         let last_commit_round = self.last_commit_round();
-       self.gc_round(last_commit_round)
+        self.gc_round(last_commit_round)
     }
 
     /// Return the garbage collection round with respect a given round.

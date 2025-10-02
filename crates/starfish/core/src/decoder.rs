@@ -214,47 +214,55 @@ pub(crate) fn create_decoder(context: &Arc<Context>) -> Box<dyn ShardsDecoder + 
         Box::new(TrivialDecoder {})
     }
 }
-
 #[cfg(test)]
-#[test]
-fn decode_should_fail_cases() {
-    let (context, _) = Context::new_for_test(4); // info=2, parity=2
-    let context = Arc::new(context);
-    let mut encoder = create_encoder(&context.clone());
-    let mut decoder = create_decoder(&context.clone());
+mod tests {
+    use std::sync::Arc;
+    use crate::block_header::Shard;
+    use crate::context::Context;
+    use crate::decoder::create_decoder;
+    use crate::encoder::create_encoder;
+    use crate::Transaction;
 
-    let transactions = Transaction::random_transactions(3, 64);
-    let serialized = Transaction::serialize(&transactions).expect("serialization should work");
+    #[test]
+    fn decode_should_fail_cases() {
+        let (context, _) = Context::new_for_test(4); // info=2, parity=2
+        let context = Arc::new(context);
+        let mut encoder = create_encoder(&context.clone());
+        let mut decoder = create_decoder(&context.clone());
 
-    let shards = encoder
-        .encode_serialized_data(&serialized, context.committee.info_length(), 2)
-        .expect("encode should succeed");
+        let transactions = Transaction::random_transactions(3, 64);
+        let serialized = Transaction::serialize(&transactions).expect("serialization should work");
 
-    // Case 1: too few shards (< info_length)
-    let shards_collection: Vec<Option<Shard>> = vec![Some(shards[0].clone()), None, None, None];
-    assert!(
-        decoder
-            .decode_shards(context.committee.info_length(), 2, shards_collection)
-            .is_err()
-    );
+        let shards = encoder
+            .encode_serialized_data(&serialized, context.committee.info_length(), 2)
+            .expect("encode should succeed");
 
-    // Case 2: corrupted shard length
-    let mut shards_collection: Vec<Option<Shard>> = shards.clone().into_iter().map(Some).collect();
-    shards_collection[1] = Some(vec![1, 2, 3]); // wrong size
-    assert!(
-        decoder
-            .decode_shards(context.committee.info_length(), 2, shards_collection)
-            .is_err()
-    );
+        // Case 1: too few shards (< info_length)
+        let shards_collection: Vec<Option<Shard>> = vec![Some(shards[0].clone()), None, None, None];
+        assert!(
+            decoder
+                .decode_shards(context.committee.info_length(), 2, shards_collection)
+                .is_err()
+        );
 
-    // Case 3: missing too many shards (drop 3 shards, parity=2)
-    let mut shards_collection: Vec<Option<Shard>> = shards.into_iter().map(Some).collect();
-    shards_collection[0] = None;
-    shards_collection[1] = None;
-    shards_collection[2] = None;
-    assert!(
-        decoder
-            .decode_shards(context.committee.info_length(), 2, shards_collection)
-            .is_err()
-    );
+        // Case 2: corrupted shard length
+        let mut shards_collection: Vec<Option<Shard>> = shards.clone().into_iter().map(Some).collect();
+        shards_collection[1] = Some(vec![1, 2, 3]); // wrong size
+        assert!(
+            decoder
+                .decode_shards(context.committee.info_length(), 2, shards_collection)
+                .is_err()
+        );
+
+        // Case 3: missing too many shards (drop 3 shards, parity=2)
+        let mut shards_collection: Vec<Option<Shard>> = shards.into_iter().map(Some).collect();
+        shards_collection[0] = None;
+        shards_collection[1] = None;
+        shards_collection[2] = None;
+        assert!(
+            decoder
+                .decode_shards(context.committee.info_length(), 2, shards_collection)
+                .is_err()
+        );
+    }
 }
