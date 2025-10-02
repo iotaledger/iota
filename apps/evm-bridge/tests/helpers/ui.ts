@@ -65,3 +65,18 @@ export async function executeBridgeTransaction(
     const buttonName = isL1 ? 'Approve' : 'Confirm';
     await approvePage.getByRole('button', { name: buttonName }).click();
 }
+
+export async function waitForToastMessage(
+    page: Page,
+    text: string,
+    options = { timeout: 30000 },
+): Promise<void> {
+    try {
+        await page.waitForSelector(`.bg-success-surface:has(.text-on-success:text-is("${text}"))`, {
+            state: 'visible',
+            timeout: options.timeout,
+        });
+    } catch (error) {
+        throw new Error(`Timeout waiting for toast message: "${text}"`);
+    }
+}
