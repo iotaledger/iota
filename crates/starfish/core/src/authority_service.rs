@@ -372,10 +372,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
 
             if shard.block_ref.round >= verified_block.round() {
-                let e = Err(ConsensusError::TooBigShardRoundInABundle {
+                let e = ConsensusError::TooBigShardRoundInABundle {
                     shard_round: shard.block_ref.round,
                     block_round: verified_block.round(),
-                });
+                };
                 self.context
                     .metrics
                     .node_metrics
@@ -383,11 +383,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .with_label_values(&[
                         peer_hostname.as_str(),
                         "handle_subscribed_block_bundle",
-                        "invalid round in header",
+                        e.clone().name(),
                     ])
                     .inc();
-                info!("Invalid shard from {}: {}", peer, e.as_ref().unwrap_err());
-                return e;
+                info!("Invalid shard from {}: {}", peer, e);
+                return Err(e);
             }
 
             let proof_check = TransactionsCommitment::check_merkle_proof(
