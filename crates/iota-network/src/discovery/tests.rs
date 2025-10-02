@@ -2,26 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::HashSet;
+use std::{collections::HashSet, time::Duration};
 
 use anemo::{Result, types::PeerAffinity};
-use fastcrypto::ed25519::Ed25519PublicKey;
+use fastcrypto::{ed25519::Ed25519PublicKey, traits::KeyPair};
 use futures::stream::FuturesUnordered;
 use iota_config::p2p::AllowlistedPeer;
 use tokio::time::timeout;
 
 use super::*;
-use crate::utils::{build_network_and_key, build_network_with_anemo_config};
+use crate::utils::{build_network_with_address_and_anemo_config, build_network_with_anemo_config};
 
 #[tokio::test]
 async fn get_known_peers() -> Result<()> {
     let config = P2pConfig::default();
-    let (UnstartedDiscovery { state, .. }, server) = Builder::new(create_test_channel().1)
-        .config(config)
-        .build_internal();
+
+    let (discovery, server, network, key) = set_up_network(config, None);
+    let key_for_signing = key.copy();
+    let (_event_loop, _handle, state) = start_network(discovery, network.clone(), key);
 
     // Err when own_info not set
     server
+        .inner()
         .get_known_peers_v2(Request::new(()))
         .await
         .unwrap_err();
@@ -33,11 +35,12 @@ async fn get_known_peers() -> Result<()> {
         timestamp_ms: now_unix(),
         access_type: AccessType::Public,
     };
-    state.write().unwrap().our_info = Some(SignedNodeInfo::new_from_data_and_sig(
-        our_info.clone(),
-        Ed25519Signature::default(),
-    ));
+
+    let signed_our_info = our_info.clone().sign(&key_for_signing);
+    state.write().unwrap().our_info = Some(signed_our_info);
+
     let response = server
+        .inner()
         .get_known_peers_v2(Request::new(()))
         .await
         .unwrap()
@@ -46,20 +49,22 @@ async fn get_known_peers() -> Result<()> {
     assert!(response.known_peers.is_empty());
 
     // Normal response with some known peers
-    let other_peer = NodeInfo {
+    let address_other: Multiaddr = "/dns/localhost/udp/1234".parse()?;
+    let peer_info_other = NodeInfo {
         peer_id: PeerId([13; 32]),
-        addresses: Vec::new(),
+        addresses: vec![address_other],
         timestamp_ms: now_unix(),
         access_type: AccessType::Public,
     };
     state.write().unwrap().known_peers.insert(
-        other_peer.peer_id,
+        peer_info_other.peer_id,
         VerifiedSignedNodeInfo::new_unchecked(SignedNodeInfo::new_from_data_and_sig(
-            other_peer.clone(),
+            peer_info_other.clone(),
             Ed25519Signature::default(),
         )),
     );
     let response = server
+        .inner()
         .get_known_peers_v2(Request::new(()))
         .await
         .unwrap()
@@ -71,7 +76,7 @@ async fn get_known_peers() -> Result<()> {
             .into_iter()
             .map(|peer| peer.into_data())
             .collect::<Vec<_>>(),
-        vec![other_peer]
+        vec![peer_info_other]
     );
 
     Ok(())
@@ -80,19 +85,18 @@ async fn get_known_peers() -> Result<()> {
 #[tokio::test]
 async fn make_connection_to_seed_peer() -> Result<()> {
     let mut config = P2pConfig::default();
-    let (builder, server) = Builder::new(create_test_channel().1)
-        .config(config.clone())
-        .build();
-    let (network_1, key_1) = build_network_and_key(|router| router.add_rpc_service(server));
-    let (_event_loop_1, _handle_1) = builder.build(network_1.clone(), key_1);
+
+    let (discovery_1, _server_1, network_1, key_1) = set_up_network(config.clone(), None);
+    let (_event_loop_1, _handle_1, _state_1) = start_network(discovery_1, network_1.clone(), key_1);
 
     config.seed_peers.push(SeedPeer {
         peer_id: None,
-        address: format!("/dns/localhost/udp/{}", network_1.local_addr().port()).parse()?,
+        address: local_multiaddr_from_network(&network_1),
     });
-    let (builder, server) = Builder::new(create_test_channel().1).config(config).build();
-    let (network_2, key_2) = build_network_and_key(|router| router.add_rpc_service(server));
-    let (mut event_loop_2, _handle_2) = builder.build(network_2.clone(), key_2);
+
+    let (discovery_2, _server_2, network_2, key_2) = set_up_network(config.clone(), None);
+    let (mut event_loop_2, _handle_2, _state_2) =
+        start_network(discovery_2, network_2.clone(), key_2);
 
     let (mut subscriber_1, _) = network_1.subscribe()?;
     let (mut subscriber_2, _) = network_2.subscribe()?;
@@ -114,19 +118,18 @@ async fn make_connection_to_seed_peer() -> Result<()> {
 #[tokio::test]
 async fn make_connection_to_seed_peer_with_peer_id() -> Result<()> {
     let mut config = P2pConfig::default();
-    let (builder, server) = Builder::new(create_test_channel().1)
-        .config(config.clone())
-        .build();
-    let (network_1, key_1) = build_network_and_key(|router| router.add_rpc_service(server));
-    let (_event_loop_1, _handle_1) = builder.build(network_1.clone(), key_1);
+
+    let (discovery_1, _server_1, network_1, key_1) = set_up_network(config.clone(), None);
+    let (_event_loop_1, _handle_1, _state_1) = start_network(discovery_1, network_1.clone(), key_1);
 
     config.seed_peers.push(SeedPeer {
         peer_id: Some(network_1.peer_id()),
-        address: format!("/dns/localhost/udp/{}", network_1.local_addr().port()).parse()?,
+        address: local_multiaddr_from_network(&network_1),
     });
-    let (builder, server) = Builder::new(create_test_channel().1).config(config).build();
-    let (network_2, key_2) = build_network_and_key(|router| router.add_rpc_service(server));
-    let (mut event_loop_2, _handle_2) = builder.build(network_2.clone(), key_2);
+
+    let (discovery_2, _server_2, network_2, key_2) = set_up_network(config, None);
+    let (mut event_loop_2, _handle_2, _state_2) =
+        start_network(discovery_2, network_2.clone(), key_2);
 
     let (mut subscriber_1, _) = network_1.subscribe()?;
     let (mut subscriber_2, _) = network_2.subscribe()?;
@@ -147,30 +150,22 @@ async fn make_connection_to_seed_peer_with_peer_id() -> Result<()> {
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn three_nodes_can_connect_via_discovery() -> Result<()> {
-    // Setup the peer that will be the seed for the other two
     let mut config = P2pConfig::default();
-    let (builder, server) = Builder::new(create_test_channel().1)
-        .config(config.clone())
-        .build();
-    let (network_1, key_1) = build_network_and_key(|router| router.add_rpc_service(server));
-    let (event_loop_1, _handle_1) = builder.build(network_1.clone(), key_1);
+
+    // Setup the peer that will be the seed for the other two
+    let (discovery_1, _server_1, network_1, key_1) = set_up_network(config.clone(), None);
+    let (event_loop_1, _handle_1, _state_1) = start_network(discovery_1, network_1.clone(), key_1);
 
     config.seed_peers.push(SeedPeer {
         peer_id: Some(network_1.peer_id()),
-        address: format!("/dns/localhost/udp/{}", network_1.local_addr().port()).parse()?,
+        address: local_multiaddr_from_network(&network_1),
     });
-    let (builder, server) = Builder::new(create_test_channel().1)
-        .config(config.clone())
-        .build();
-    let (network_2, key_2) = build_network_and_key(|router| router.add_rpc_service(server));
-    let (mut event_loop_2, _handle_2) = builder.build(network_2.clone(), key_2);
-    // Set an external_address address for node 2 so that it can share its address
-    event_loop_2.config.external_address =
-        Some(format!("/dns/localhost/udp/{}", network_2.local_addr().port()).parse()?);
 
-    let (builder, server) = Builder::new(create_test_channel().1).config(config).build();
-    let (network_3, key_3) = build_network_and_key(|router| router.add_rpc_service(server));
-    let (event_loop_3, _handle_3) = builder.build(network_3.clone(), key_3);
+    let (discovery_2, _server_2, network_2, key_2) = set_up_network(config.clone(), None);
+    let (event_loop_2, _handle_2, _state_2) = start_network(discovery_2, network_2.clone(), key_2);
+
+    let (discovery_3, _server_3, network_3, key_3) = set_up_network(config, None);
+    let (event_loop_3, _handle_3, _state_3) = start_network(discovery_3, network_3.clone(), key_3);
 
     let (mut subscriber_1, _) = network_1.subscribe()?;
     let (mut subscriber_2, _) = network_2.subscribe()?;
@@ -181,48 +176,89 @@ async fn three_nodes_can_connect_via_discovery() -> Result<()> {
     tokio::spawn(event_loop_2.start());
     tokio::spawn(event_loop_3.start());
 
+    // advance the internal tokio time, so that the "handle_tick"'s are called
+    tokio::time::sleep(Duration::from_secs(15)).await;
+
     let peer_id_1 = network_1.peer_id();
     let peer_id_2 = network_2.peer_id();
     let peer_id_3 = network_3.peer_id();
 
-    // Get two events from node and make sure they're all connected
-    let peers_1 = [subscriber_1.recv().await?, subscriber_1.recv().await?]
-        .into_iter()
-        .map(unwrap_new_peer_event)
-        .collect::<HashSet<_>>();
-    assert!(peers_1.contains(&peer_id_2));
-    assert!(peers_1.contains(&peer_id_3));
+    let mut connected_peers_1 = Vec::new();
+    let mut connected_peers_2 = Vec::new();
+    let mut connected_peers_3 = Vec::new();
 
-    let peers_2 = [subscriber_2.recv().await?, subscriber_2.recv().await?]
-        .into_iter()
-        .map(unwrap_new_peer_event)
-        .collect::<HashSet<_>>();
-    assert!(peers_2.contains(&peer_id_1));
-    assert!(peers_2.contains(&peer_id_3));
+    // Collect all events from each subscriber and filter for NewPeer events
+    tokio::time::timeout(Duration::from_secs(1), async {
+        // Keep collecting until we have at least 2 NewPeer events per node or timeout
+        loop {
+            tokio::select! {
+                event = subscriber_1.recv() => {
+                    if let Ok(PeerEvent::NewPeer(peer_id)) = event {
+                        connected_peers_1.push(peer_id);
+                    }
+                }
+                event = subscriber_2.recv() => {
+                    if let Ok(PeerEvent::NewPeer(peer_id)) = event {
+                        connected_peers_2.push(peer_id);
+                    }
+                }
+                event = subscriber_3.recv() => {
+                    if let Ok(PeerEvent::NewPeer(peer_id)) = event {
+                        connected_peers_3.push(peer_id);
+                    }
+                }
+                _ = tokio::time::sleep(Duration::from_millis(100)) => {
+                    if connected_peers_1.len() >= 2 && connected_peers_2.len() >= 2 && connected_peers_3.len() >= 2 {
+                        break;
+                    }
+                }
+            }
+        }
+    }).await?;
 
-    let peers_3 = [subscriber_3.recv().await?, subscriber_3.recv().await?]
-        .into_iter()
-        .map(unwrap_new_peer_event)
-        .collect::<HashSet<_>>();
-    assert!(peers_3.contains(&peer_id_1));
-    assert!(peers_3.contains(&peer_id_2));
+    // Check that each node is connected to the other two
+    assert!(
+        connected_peers_1.contains(&peer_id_2),
+        "Node 1 should be connected to node 2"
+    );
+    assert!(
+        connected_peers_1.contains(&peer_id_3),
+        "Node 1 should be connected to node 3"
+    );
+
+    assert!(
+        connected_peers_2.contains(&peer_id_1),
+        "Node 2 should be connected to node 1"
+    );
+    assert!(
+        connected_peers_2.contains(&peer_id_3),
+        "Node 2 should be connected to node 3"
+    );
+
+    assert!(
+        connected_peers_3.contains(&peer_id_1),
+        "Node 3 should be connected to node 1"
+    );
+    assert!(
+        connected_peers_3.contains(&peer_id_2),
+        "Node 3 should be connected to node 2"
+    );
 
     Ok(())
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn peers_are_added_from_reconfig_channel() -> Result<()> {
-    let (tx_1, rx_1) = create_test_channel();
     let config = P2pConfig::default();
-    let (builder, server) = Builder::new(rx_1).config(config.clone()).build();
-    let (network_1, key_1) = build_network_and_key(|router| router.add_rpc_service(server));
-    let (event_loop_1, _handle_1) = builder.build(network_1.clone(), key_1);
 
-    let (builder, server) = Builder::new(create_test_channel().1)
-        .config(config.clone())
-        .build();
-    let (network_2, key_2) = build_network_and_key(|router| router.add_rpc_service(server));
-    let (event_loop_2, _handle_2) = builder.build(network_2.clone(), key_2);
+    let (tx_1, rx_1) = create_test_channel();
+
+    let (discovery_1, _server_1, network_1, key_1) =
+        set_up_network_with_trusted_peer_change_rx(config.clone(), None, rx_1);
+    let (event_loop_1, _handle_1, _state_1) = start_network(discovery_1, network_1.clone(), key_1);
+
+    let (discovery_2, _server_2, network_2, key_2) = set_up_network(config.clone(), None);
+    let (event_loop_2, _handle_2, _state_2) = start_network(discovery_2, network_2.clone(), key_2);
 
     let (mut subscriber_1, _) = network_1.subscribe()?;
     let (mut subscriber_2, _) = network_2.subscribe()?;
@@ -248,9 +284,7 @@ async fn peers_are_added_from_reconfig_channel() -> Result<()> {
     // We send peer 1 a new peer info (peer 2) in the channel.
     let peer_2_network_pubkey =
         Ed25519PublicKey(ed25519_consensus::VerificationKey::try_from(peer_id_2.0).unwrap());
-    let peer2_addr: Multiaddr = format!("/dns/localhost/udp/{}", network_2.local_addr().port())
-        .parse()
-        .unwrap();
+    let peer2_addr: Multiaddr = local_multiaddr_from_network(&network_2);
     tx_1.send(TrustedPeerChangeEvent {
         new_committee: vec![PeerInfo {
             peer_id: PeerId(peer_2_network_pubkey.0.to_bytes()),
@@ -322,44 +356,49 @@ async fn test_access_types() {
     };
 
     // Node 1, public
-    let (builder_1, network_1, key_1) = set_up_network(default_p2p_config.clone());
+    let (discovery_1, _server_1, network_1, key_1) =
+        set_up_network(default_p2p_config.clone(), None);
 
     let mut config = default_p2p_config.clone();
     config.seed_peers.push(SeedPeer {
         peer_id: Some(network_1.peer_id()),
-        address: format!("/dns/localhost/udp/{}", network_1.local_addr().port())
-            .parse()
-            .unwrap(),
+        address: local_multiaddr_from_network(&network_1),
     });
 
     // Node 2, public, seed: Node 1, allowlist: Node 7, Node 8
-    let (mut builder_2, network_2, key_2) = set_up_network(config.clone());
+    let (mut discovery_2, _server_2, network_2, key_2) = set_up_network(config.clone(), None);
 
     // Node 3, private, seed: Node 1
-    let (mut builder_3, network_3, key_3) = set_up_network(config.clone());
+    let (mut discovery_3, _server_3, network_3, key_3) = set_up_network(config.clone(), None);
 
     // Node 4, private, allowlist: Node 3, 5, and 6
-    let (mut builder_4, network_4, key_4) = set_up_network(P2pConfig::default());
+    let (mut discovery_4, _server_4, network_4, key_4) = set_up_network(P2pConfig::default(), None);
 
     // Node 5, private, allowlisted: Node 3 and Node 4
-    let (builder_5, network_5, key_5) = {
+    let (discovery_5, _server_5, network_5, key_5) = {
         let mut private_discovery_config = default_private_discovery_config.clone();
         private_discovery_config.allowlisted_peers = vec![
             // Intitially 5 does not know how to contact 3 or 4.
             local_allowlisted_peer(network_3.peer_id(), None),
             local_allowlisted_peer(network_4.peer_id(), Some(network_4.local_addr().port())),
         ];
-        set_up_network(P2pConfig::default().set_discovery_config(private_discovery_config))
+        set_up_network(
+            P2pConfig::default().set_discovery_config(private_discovery_config),
+            None,
+        )
     };
 
     // Node 6, private, allowlisted: Node 4
-    let (builder_6, network_6, key_6) = {
+    let (discovery_6, _server_6, network_6, key_6) = {
         let mut private_discovery_config = default_private_discovery_config.clone();
         private_discovery_config.allowlisted_peers = vec![local_allowlisted_peer(
             network_4.peer_id(),
             Some(network_4.local_addr().port()),
         )];
-        set_up_network(P2pConfig::default().set_discovery_config(private_discovery_config))
+        set_up_network(
+            P2pConfig::default().set_discovery_config(private_discovery_config),
+            None,
+        )
     };
 
     // Node 3: Add Node 4 and Node 5 to allowlist
@@ -368,7 +407,7 @@ async fn test_access_types() {
         local_allowlisted_peer(network_4.peer_id(), Some(network_4.local_addr().port())),
         local_allowlisted_peer(network_5.peer_id(), Some(network_5.local_addr().port())),
     ];
-    builder_3.config.discovery = Some(private_discovery_config);
+    discovery_3.config.discovery = Some(private_discovery_config);
 
     // Node 4: Add Node 3, Node 5, and Node 6 to allowlist
     let mut private_discovery_config = default_private_discovery_config.clone();
@@ -377,18 +416,20 @@ async fn test_access_types() {
         local_allowlisted_peer(network_5.peer_id(), None),
         local_allowlisted_peer(network_6.peer_id(), None),
     ];
-    builder_4.config.discovery = Some(private_discovery_config);
+    discovery_4.config.discovery = Some(private_discovery_config);
 
     // Node 7, private, allowlisted: Node 2, Node 8
-    let (mut builder_7, network_7, key_7) = set_up_network(
+    let (mut discovery_7, _server_7, network_7, key_7) = set_up_network(
         P2pConfig::default().set_discovery_config(default_private_discovery_config.clone()),
+        None,
     );
 
     // Node 9, public
-    let (builder_9, network_9, key_9) = set_up_network(default_p2p_config.clone());
+    let (discovery_9, _server_9, network_9, key_9) =
+        set_up_network(default_p2p_config.clone(), None);
 
     // Node 8, private, allowlisted: Node 7, Node 9
-    let (builder_8, network_8, key_8) = {
+    let (discovery_8, _server_8, network_8, key_8) = {
         let mut private_discovery_config = default_private_discovery_config.clone();
         private_discovery_config.allowlisted_peers = vec![
             local_allowlisted_peer(network_7.peer_id(), Some(network_7.local_addr().port())),
@@ -398,7 +439,10 @@ async fn test_access_types() {
         let mut anemo_config = anemo::Config::default();
         anemo_config.max_concurrent_connections = Some(0);
         p2p_config.anemo_config = Some(anemo_config);
-        set_up_network(p2p_config.set_discovery_config(private_discovery_config))
+        set_up_network(
+            p2p_config.set_discovery_config(private_discovery_config),
+            None,
+        )
     };
 
     // Node 2, Add Node 7 and Node 8 to allowlist
@@ -407,7 +451,7 @@ async fn test_access_types() {
         local_allowlisted_peer(network_7.peer_id(), None),
         local_allowlisted_peer(network_8.peer_id(), None),
     ];
-    builder_2.config.discovery = Some(discovery_config);
+    discovery_2.config.discovery = Some(discovery_config);
 
     // Node 7: Add Node 2, and Node 8 to allowlist
     let mut private_discovery_config = default_private_discovery_config.clone();
@@ -415,29 +459,25 @@ async fn test_access_types() {
         local_allowlisted_peer(network_2.peer_id(), Some(network_2.local_addr().port())),
         local_allowlisted_peer(network_8.peer_id(), Some(network_8.local_addr().port())),
     ];
-    builder_7.config.discovery = Some(private_discovery_config);
+    discovery_7.config.discovery = Some(private_discovery_config);
 
     // Node 10, private, seed: 9
-    let (builder_10, network_10, key_10) = {
+    let (discovery_10, _server_10, network_10, key_10) = {
         let mut p2p_config = default_p2p_config.clone();
         p2p_config.seed_peers.push(SeedPeer {
             peer_id: Some(network_9.peer_id()),
-            address: format!("/dns/localhost/udp/{}", network_9.local_addr().port())
-                .parse()
-                .unwrap(),
+            address: local_multiaddr_from_network(&network_9),
         });
         p2p_config.discovery = Some(default_private_discovery_config.clone());
-        set_up_network(p2p_config.clone())
+        set_up_network(p2p_config.clone(), None)
     };
 
     // Node 11, private, seed: 1, allow: 7, 8
-    let (builder_11, network_11, key_11) = {
+    let (discovery_11, _server_11, network_11, key_11) = {
         let mut p2p_config = default_p2p_config.clone();
         p2p_config.seed_peers.push(SeedPeer {
             peer_id: Some(network_1.peer_id()),
-            address: format!("/dns/localhost/udp/{}", network_1.local_addr().port())
-                .parse()
-                .unwrap(),
+            address: local_multiaddr_from_network(&network_1),
         });
         let mut private_discovery_config = default_private_discovery_config.clone();
         private_discovery_config.allowlisted_peers = vec![
@@ -445,22 +485,22 @@ async fn test_access_types() {
             local_allowlisted_peer(network_7.peer_id(), None),
         ];
         p2p_config.discovery = Some(private_discovery_config);
-        set_up_network(p2p_config)
+        set_up_network(p2p_config, None)
     };
 
-    let (event_loop_1, _handle_1, state_1) = start_network(builder_1, network_1.clone(), key_1);
-    let (event_loop_2, _handle_2, state_2) = start_network(builder_2, network_2.clone(), key_2);
-    let (event_loop_3, _handle_3, state_3) = start_network(builder_3, network_3.clone(), key_3);
-    let (event_loop_4, _handle_4, state_4) = start_network(builder_4, network_4.clone(), key_4);
-    let (event_loop_5, _handle_5, state_5) = start_network(builder_5, network_5.clone(), key_5);
-    let (event_loop_6, _handle_6, state_6) = start_network(builder_6, network_6.clone(), key_6);
-    let (event_loop_7, _handle_7, state_7) = start_network(builder_7, network_7.clone(), key_7);
-    let (event_loop_8, _handle_8, state_8) = start_network(builder_8, network_8.clone(), key_8);
-    let (event_loop_9, _handle_9, state_9) = start_network(builder_9, network_9.clone(), key_9);
+    let (event_loop_1, _handle_1, state_1) = start_network(discovery_1, network_1.clone(), key_1);
+    let (event_loop_2, _handle_2, state_2) = start_network(discovery_2, network_2.clone(), key_2);
+    let (event_loop_3, _handle_3, state_3) = start_network(discovery_3, network_3.clone(), key_3);
+    let (event_loop_4, _handle_4, state_4) = start_network(discovery_4, network_4.clone(), key_4);
+    let (event_loop_5, _handle_5, state_5) = start_network(discovery_5, network_5.clone(), key_5);
+    let (event_loop_6, _handle_6, state_6) = start_network(discovery_6, network_6.clone(), key_6);
+    let (event_loop_7, _handle_7, state_7) = start_network(discovery_7, network_7.clone(), key_7);
+    let (event_loop_8, _handle_8, state_8) = start_network(discovery_8, network_8.clone(), key_8);
+    let (event_loop_9, _handle_9, state_9) = start_network(discovery_9, network_9.clone(), key_9);
     let (event_loop_10, _handle_10, state_10) =
-        start_network(builder_10, network_10.clone(), key_10);
+        start_network(discovery_10, network_10.clone(), key_10);
     let (event_loop_11, _handle_11, state_11) =
-        start_network(builder_11, network_11.clone(), key_11);
+        start_network(discovery_11, network_11.clone(), key_11);
 
     // Start all the event loops
     tokio::spawn(event_loop_1.start());
@@ -645,6 +685,10 @@ async fn test_access_types() {
     );
 }
 
+///////////////////////////////////////////////
+// Helper functions for common test patterns //
+///////////////////////////////////////////////
+
 fn assert_peers(
     self_name: &str,
     network: &Network,
@@ -708,27 +752,56 @@ fn local_allowlisted_peer(peer_id: PeerId, port: Option<u16>) -> AllowlistedPeer
     }
 }
 
-fn set_up_network(p2p_config: P2pConfig) -> (UnstartedDiscovery, Network, NetworkKeyPair) {
+fn set_up_network_with_trusted_peer_change_rx(
+    p2p_config: P2pConfig,
+    address: Option<anemo::types::Address>,
+    trusted_peer_change_rx: watch::Receiver<TrustedPeerChangeEvent>,
+) -> (
+    UnstartedDiscovery,
+    DiscoveryServer<impl Discovery>,
+    Network,
+    NetworkKeyPair,
+) {
     let anemo_config = p2p_config.anemo_config.clone().unwrap_or_default();
-    let (builder, server) = Builder::new(create_test_channel().1)
+
+    let (discovery, server) = Builder::new(trusted_peer_change_rx)
         .config(p2p_config)
         .build();
-    let (network, keypair) =
-        build_network_with_anemo_config(|router| router.add_rpc_service(server), anemo_config);
-    (builder, network, keypair)
+
+    let (network, keypair) = match address {
+        Some(addr) => build_network_with_address_and_anemo_config(
+            |router| router.add_rpc_service(server.clone()),
+            addr,
+            anemo_config,
+        ),
+        None => build_network_with_anemo_config(
+            |router| router.add_rpc_service(server.clone()),
+            anemo_config,
+        ),
+    };
+
+    (discovery, server, network, keypair)
+}
+
+fn set_up_network(
+    p2p_config: P2pConfig,
+    address: Option<anemo::types::Address>,
+) -> (
+    UnstartedDiscovery,
+    DiscoveryServer<impl Discovery>,
+    Network,
+    NetworkKeyPair,
+) {
+    set_up_network_with_trusted_peer_change_rx(p2p_config, address, create_test_channel().1)
 }
 
 fn start_network(
-    builder: UnstartedDiscovery,
+    discovery: UnstartedDiscovery,
     network: Network,
     keypair: NetworkKeyPair,
 ) -> (DiscoveryEventLoop, Handle, Arc<RwLock<State>>) {
-    let (mut event_loop, handle) = builder.build(network.clone(), keypair);
-    event_loop.config.external_address = Some(
-        format!("/dns/localhost/udp/{}", network.local_addr().port())
-            .parse()
-            .unwrap(),
-    );
+    let (mut event_loop, handle) = discovery.build(network.clone(), keypair);
+    event_loop.config.external_address = Some(local_multiaddr_from_network(&network));
     let state = event_loop.state.clone();
     (event_loop, handle, state)
 }
@@ -744,10 +817,17 @@ fn create_test_channel() -> (
     (tx, rx)
 }
 
+/// Helper to create multiaddr from network's port
+fn local_multiaddr_from_network(network: &Network) -> Multiaddr {
+    format!("/dns/localhost/udp/{}", network.local_addr().port())
+        .parse()
+        .unwrap()
+}
+
 #[tokio::test]
 async fn test_handle_trusted_peer_change_event() -> Result<()> {
-    fn mock_multiaddr(id: u16) -> Multiaddr {
-        format!("/dns/mockhost/udp/{id}").parse().unwrap()
+    fn mock_multiaddr(port: u16) -> Multiaddr {
+        format!("/dns/mockhost/udp/{port}").parse().unwrap()
     }
 
     // Create mock peers, good enough for the test
@@ -789,9 +869,10 @@ async fn test_handle_trusted_peer_change_event() -> Result<()> {
 
     // Setup test network and discovery event loop
     let (tx, mut rx) = create_test_channel();
-    let (builder, server) = Builder::new(rx.clone()).config(config).build();
-    let (network, key) = build_network_and_key(|router| router.add_rpc_service(server));
-    let (event_loop, _handle) = builder.build(network.clone(), key);
+    let (discovery, _server, network, key) =
+        set_up_network_with_trusted_peer_change_rx(config.clone(), None, rx.clone());
+    let (event_loop, _handle, _state) = start_network(discovery, network.clone(), key);
+
     let mut peer0 = peers[0].clone();
     peer0.peer_id = network.peer_id();
     peer0.address = vec![
