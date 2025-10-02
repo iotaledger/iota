@@ -225,12 +225,11 @@ public fun has_field<Name: copy + drop + store>(self: &IOTAccount, name: Name): 
     dynamic_field::exists_(&self.id, name)
 }
 
-/// Rotate a reserved dynamic field.
+/// Rotate a dynamic field.
 ///
-/// Only the account itself can call this function and the dynamic field must refer be a
-/// reserved one.
+/// Only the account itself can call this function.
 /// This function cannot change the type of the stored `Value`.
-public fun rotate_reserved<Name: copy + drop + store, Value: drop + store>(
+public fun rotate<Name: copy + drop + store, Value: drop + store>(
     self: &mut IOTAccount,
     name: Name,
     value: Value,

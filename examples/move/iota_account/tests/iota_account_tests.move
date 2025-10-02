@@ -165,7 +165,7 @@ fun account_can_rotate_reserved_field() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
-        account.rotate_reserved(
+        account.rotate(
             account::authenticator_df_name(),
             create_authenticator_info_v1_for_testing(),
             ctx,
@@ -181,7 +181,7 @@ fun account_can_rotate_regular_field() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
-        account.rotate_reserved(
+        account.rotate(
             b"SomeData".to_ascii_string(),
             2u8,
             ctx,
@@ -354,7 +354,7 @@ fun non_account_cant_rotate_reserved_field() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
-        account.rotate_reserved(
+        account.rotate(
             account::authenticator_df_name(),
             create_authenticator_info_v1_for_testing(),
             ctx,
@@ -371,7 +371,7 @@ fun non_account_cant_rotate_regular_field() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
-        account.rotate_reserved(
+        account.rotate(
             b"SomeData".to_ascii_string(),
             2u8,
             ctx,
