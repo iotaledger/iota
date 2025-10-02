@@ -433,7 +433,7 @@ impl AsyncTransactionScheduler {
     }
 
     pub async fn schedule(&self, transactions: Vec<VerifiedExecutableTransaction>) {
-        tracing::trace_span!("AsyncTransactionScheduler::schedule");
+        tracing::trace_span!("transaction_scheduler_enqueue");
         self.sender.send(transactions).await.ok();
     }
 
