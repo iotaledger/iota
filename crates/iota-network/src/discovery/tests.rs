@@ -13,6 +13,149 @@ use tokio::time::timeout;
 use super::*;
 use crate::utils::{build_network_with_address_and_anemo_config, build_network_with_anemo_config};
 
+///////////////////////////////////////////////
+// Helper functions for common test patterns //
+///////////////////////////////////////////////
+
+fn assert_peers(
+    self_name: &str,
+    network: &Network,
+    state: &Arc<RwLock<State>>,
+    expected_network_known_peers: HashSet<PeerId>,
+    expected_network_connected_peers: HashSet<PeerId>,
+    expected_discovery_known_peers: HashSet<PeerId>,
+    expected_discovery_connected_peers: HashSet<PeerId>,
+) {
+    let actual = network
+        .known_peers()
+        .get_all()
+        .iter()
+        .map(|pi| pi.peer_id)
+        .collect::<HashSet<_>>();
+    assert_eq!(
+        actual, expected_network_known_peers,
+        "{self_name} network known peers mismatch. Expected: {expected_network_known_peers:#?}, actual: {actual:#?}",
+    );
+    let actual = network.peers().iter().copied().collect::<HashSet<_>>();
+    assert_eq!(
+        actual, expected_network_connected_peers,
+        "{self_name} network connected peers mismatch. Expected: {expected_network_connected_peers:#?}, actual: {actual:#?}",
+    );
+    let actual = state
+        .read()
+        .unwrap()
+        .known_peers
+        .keys()
+        .cloned()
+        .collect::<HashSet<_>>();
+    assert_eq!(
+        actual, expected_discovery_known_peers,
+        "{self_name} discovery known peers mismatch. Expected: {expected_discovery_known_peers:#?}, actual: {actual:#?}",
+    );
+
+    let actual = state
+        .read()
+        .unwrap()
+        .connected_peers
+        .keys()
+        .cloned()
+        .collect::<HashSet<_>>();
+    assert_eq!(
+        actual, expected_discovery_connected_peers,
+        "{self_name} discovery connected peers mismatch. Expected: {expected_discovery_connected_peers:#?}, actual: {actual:#?}",
+    );
+}
+
+fn unwrap_new_peer_event(event: PeerEvent) -> PeerId {
+    match event {
+        PeerEvent::NewPeer(peer_id) => peer_id,
+        e => panic!("unexpected event: {e:?}"),
+    }
+}
+
+fn local_allowlisted_peer(peer_id: PeerId, port: Option<u16>) -> AllowlistedPeer {
+    AllowlistedPeer {
+        peer_id,
+        address: port.map(|port| format!("/dns/localhost/udp/{port}").parse().unwrap()),
+    }
+}
+
+fn set_up_network_with_trusted_peer_change_rx(
+    p2p_config: P2pConfig,
+    address: Option<anemo::types::Address>,
+    trusted_peer_change_rx: watch::Receiver<TrustedPeerChangeEvent>,
+) -> (
+    UnstartedDiscovery,
+    DiscoveryServer<impl Discovery>,
+    Network,
+    NetworkKeyPair,
+) {
+    let anemo_config = p2p_config.anemo_config.clone().unwrap_or_default();
+
+    let (discovery, server) = Builder::new(trusted_peer_change_rx)
+        .config(p2p_config)
+        .build();
+
+    let (network, keypair) = match address {
+        Some(addr) => build_network_with_address_and_anemo_config(
+            |router| router.add_rpc_service(server.clone()),
+            addr,
+            anemo_config,
+        ),
+        None => build_network_with_anemo_config(
+            |router| router.add_rpc_service(server.clone()),
+            anemo_config,
+        ),
+    };
+
+    (discovery, server, network, keypair)
+}
+
+fn set_up_network(
+    p2p_config: P2pConfig,
+    address: Option<anemo::types::Address>,
+) -> (
+    UnstartedDiscovery,
+    DiscoveryServer<impl Discovery>,
+    Network,
+    NetworkKeyPair,
+) {
+    set_up_network_with_trusted_peer_change_rx(p2p_config, address, create_test_channel().1)
+}
+
+fn start_network(
+    discovery: UnstartedDiscovery,
+    network: Network,
+    keypair: NetworkKeyPair,
+) -> (DiscoveryEventLoop, Handle, Arc<RwLock<State>>) {
+    let (mut event_loop, handle) = discovery.build(network.clone(), keypair);
+    event_loop.config.external_address = Some(local_multiaddr_from_network(&network));
+    let state = event_loop.state.clone();
+    (event_loop, handle, state)
+}
+
+fn create_test_channel() -> (
+    watch::Sender<TrustedPeerChangeEvent>,
+    watch::Receiver<TrustedPeerChangeEvent>,
+) {
+    let (tx, rx) = watch::channel(TrustedPeerChangeEvent {
+        new_committee: vec![],
+        old_committee: vec![],
+    });
+    (tx, rx)
+}
+
+/// Helper to create multiaddr from network's port
+fn local_multiaddr_from_network(network: &Network) -> Multiaddr {
+    format!("/dns/localhost/udp/{}", network.local_addr().port())
+        .parse()
+        .unwrap()
+}
+
+///////////
+// Tests //
+///////////
+
 #[tokio::test]
 async fn get_known_peers() -> Result<()> {
     let config = P2pConfig::default();
@@ -683,145 +826,6 @@ async fn test_access_types() {
         HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
         HashSet::from_iter(vec![peer_id_1, peer_id_2, peer_id_9]),
     );
-}
-
-///////////////////////////////////////////////
-// Helper functions for common test patterns //
-///////////////////////////////////////////////
-
-fn assert_peers(
-    self_name: &str,
-    network: &Network,
-    state: &Arc<RwLock<State>>,
-    expected_network_known_peers: HashSet<PeerId>,
-    expected_network_connected_peers: HashSet<PeerId>,
-    expected_discovery_known_peers: HashSet<PeerId>,
-    expected_discovery_connected_peers: HashSet<PeerId>,
-) {
-    let actual = network
-        .known_peers()
-        .get_all()
-        .iter()
-        .map(|pi| pi.peer_id)
-        .collect::<HashSet<_>>();
-    assert_eq!(
-        actual, expected_network_known_peers,
-        "{self_name} network known peers mismatch. Expected: {expected_network_known_peers:#?}, actual: {actual:#?}",
-    );
-    let actual = network.peers().iter().copied().collect::<HashSet<_>>();
-    assert_eq!(
-        actual, expected_network_connected_peers,
-        "{self_name} network connected peers mismatch. Expected: {expected_network_connected_peers:#?}, actual: {actual:#?}",
-    );
-    let actual = state
-        .read()
-        .unwrap()
-        .known_peers
-        .keys()
-        .cloned()
-        .collect::<HashSet<_>>();
-    assert_eq!(
-        actual, expected_discovery_known_peers,
-        "{self_name} discovery known peers mismatch. Expected: {expected_discovery_known_peers:#?}, actual: {actual:#?}",
-    );
-
-    let actual = state
-        .read()
-        .unwrap()
-        .connected_peers
-        .keys()
-        .cloned()
-        .collect::<HashSet<_>>();
-    assert_eq!(
-        actual, expected_discovery_connected_peers,
-        "{self_name} discovery connected peers mismatch. Expected: {expected_discovery_connected_peers:#?}, actual: {actual:#?}",
-    );
-}
-
-fn unwrap_new_peer_event(event: PeerEvent) -> PeerId {
-    match event {
-        PeerEvent::NewPeer(peer_id) => peer_id,
-        e => panic!("unexpected event: {e:?}"),
-    }
-}
-
-fn local_allowlisted_peer(peer_id: PeerId, port: Option<u16>) -> AllowlistedPeer {
-    AllowlistedPeer {
-        peer_id,
-        address: port.map(|port| format!("/dns/localhost/udp/{port}").parse().unwrap()),
-    }
-}
-
-fn set_up_network_with_trusted_peer_change_rx(
-    p2p_config: P2pConfig,
-    address: Option<anemo::types::Address>,
-    trusted_peer_change_rx: watch::Receiver<TrustedPeerChangeEvent>,
-) -> (
-    UnstartedDiscovery,
-    DiscoveryServer<impl Discovery>,
-    Network,
-    NetworkKeyPair,
-) {
-    let anemo_config = p2p_config.anemo_config.clone().unwrap_or_default();
-
-    let (discovery, server) = Builder::new(trusted_peer_change_rx)
-        .config(p2p_config)
-        .build();
-
-    let (network, keypair) = match address {
-        Some(addr) => build_network_with_address_and_anemo_config(
-            |router| router.add_rpc_service(server.clone()),
-            addr,
-            anemo_config,
-        ),
-        None => build_network_with_anemo_config(
-            |router| router.add_rpc_service(server.clone()),
-            anemo_config,
-        ),
-    };
-
-    (discovery, server, network, keypair)
-}
-
-fn set_up_network(
-    p2p_config: P2pConfig,
-    address: Option<anemo::types::Address>,
-) -> (
-    UnstartedDiscovery,
-    DiscoveryServer<impl Discovery>,
-    Network,
-    NetworkKeyPair,
-) {
-    set_up_network_with_trusted_peer_change_rx(p2p_config, address, create_test_channel().1)
-}
-
-fn start_network(
-    discovery: UnstartedDiscovery,
-    network: Network,
-    keypair: NetworkKeyPair,
-) -> (DiscoveryEventLoop, Handle, Arc<RwLock<State>>) {
-    let (mut event_loop, handle) = discovery.build(network.clone(), keypair);
-    event_loop.config.external_address = Some(local_multiaddr_from_network(&network));
-    let state = event_loop.state.clone();
-    (event_loop, handle, state)
-}
-
-fn create_test_channel() -> (
-    watch::Sender<TrustedPeerChangeEvent>,
-    watch::Receiver<TrustedPeerChangeEvent>,
-) {
-    let (tx, rx) = watch::channel(TrustedPeerChangeEvent {
-        new_committee: vec![],
-        old_committee: vec![],
-    });
-    (tx, rx)
-}
-
-/// Helper to create multiaddr from network's port
-fn local_multiaddr_from_network(network: &Network) -> Multiaddr {
-    format!("/dns/localhost/udp/{}", network.local_addr().port())
-        .parse()
-        .unwrap()
 }
 
 #[tokio::test]
