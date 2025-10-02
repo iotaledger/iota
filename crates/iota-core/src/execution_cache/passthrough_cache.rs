@@ -197,6 +197,7 @@ impl ObjectCacheRead for PassthroughCache {
 }
 
 impl TransactionCacheRead for PassthroughCache {
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
@@ -209,6 +210,7 @@ impl TransactionCacheRead for PassthroughCache {
             .collect())
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
@@ -216,6 +218,7 @@ impl TransactionCacheRead for PassthroughCache {
         self.store.multi_get_executed_effects_digests(digests)
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
@@ -223,6 +226,7 @@ impl TransactionCacheRead for PassthroughCache {
         Ok(self.store.perpetual_tables.effects.multi_get(digests)?)
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
@@ -234,6 +238,7 @@ impl TransactionCacheRead for PassthroughCache {
             .boxed()
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
