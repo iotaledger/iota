@@ -146,8 +146,8 @@ impl WatermarkTask {
 
     /// Initialize the chain identifier if not already initialized.
     ///
-    /// This ensures is initialized only once, regardless of how many times this
-    /// method is called concurrently.
+    /// This ensures it is initialized only once, regardless of how many times
+    /// this method is called concurrently.
     async fn initialize_chain_identifier(&self) {
         let mut interval = tokio::time::interval(self.sleep);
         self.chain_identifier.0.get_or_init(|| async {

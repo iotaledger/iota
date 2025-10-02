@@ -562,7 +562,7 @@ async fn graphql_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     schema: Extension<IotaGraphQLSchema>,
     Extension(watermark_lock): Extension<WatermarkLock>,
-    Extension(chain_identifier_lock): Extension<ChainIdentifierCache>,
+    Extension(chain_identifier_cache): Extension<ChainIdentifierCache>,
     headers: HeaderMap,
     req: GraphQLRequest,
 ) -> (axum::http::Extensions, GraphQLResponse) {
@@ -577,7 +577,7 @@ async fn graphql_handler(
     req.data.insert(addr);
 
     req.data.insert(Watermark::new(watermark_lock).await);
-    req.data.insert(chain_identifier_lock.read());
+    req.data.insert(chain_identifier_cache.read());
 
     let result = schema.execute(req).await;
 
