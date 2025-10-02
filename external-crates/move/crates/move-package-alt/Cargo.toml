@@ -1,0 +1,16 @@
+[package]
+name = "move-package-alt"
+version = "0.1.0"
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[dependencies]
+serde.workspace = true
+serde_spanned.workspace = true
+toml.workspace = true
+toml_edit.workspace = true
+
+[package.metadata.cargo-udeps.ignore]
+normal = ["serde", "serde_spanned", "toml", "toml_edit"]

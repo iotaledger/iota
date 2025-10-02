@@ -7086,6 +7086,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "iota-package-alt"
+version = "1.8.0-alpha"
+dependencies = [
+ "move-package-alt",
+]
+
+[[package]]
 name = "iota-package-dump"
 version = "1.8.0-alpha"
 dependencies = [
@@ -9491,6 +9498,16 @@ dependencies = [
  "vfs",
  "walkdir",
  "whoami",
+]
+
+[[package]]
+name = "move-package-alt"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_spanned",
+ "toml 0.5.11",
+ "toml_edit 0.14.4",
 ]
 
 [[package]]
