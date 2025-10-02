@@ -88,8 +88,6 @@ public fun add_regular_field<Name: copy + drop + store, Value: store>(
 }
 
 /// Finish building the `IOTAccount` and share the object.
-///
-/// The call fails if no authenticator or reserved dynamic fields were set.
 public fun finish(self: IOTAccountBuilder): IOTAccount {
     let IOTAccountBuilder { account } = self;
     account
@@ -98,7 +96,8 @@ public fun finish(self: IOTAccountBuilder): IOTAccount {
 /// Internal key type for reserved dynamic field identifiers.
 ///
 /// They aren't meant to be used by callers/developers as `dynamic_field`
-/// already handles differentiation bet
+/// already handles differentiation better. Only necessary for our internally
+/// managed `ReservedDynamicFields`.
 public struct DfKey has copy, drop, store {
     type_name: std::type_name::TypeName,
     value_bytes: vector<u8>,
