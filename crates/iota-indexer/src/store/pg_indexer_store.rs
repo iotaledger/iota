@@ -71,7 +71,8 @@ use crate::{
     },
 };
 
-/// A cursor representing the global order position of transaction according to tx_global_order table
+/// A cursor representing the global order position of transaction according to
+/// tx_global_order table
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TxGlobalOrderCursor {
     pub global_sequence_number: i64,
@@ -363,9 +364,9 @@ impl PgIndexerStore {
                          ORDER BY global_sequence_number, optimistic_sequence_number
                          FOR UPDATE LIMIT $3
                      )
-                     DELETE FROM optimistic_transactions ot
+                     DELETE FROM optimistic_transactions otx
                      USING ids_to_delete
-                     WHERE (ot.global_sequence_number, ot.optimistic_sequence_number) =
+                     WHERE (otx.global_sequence_number, otx.optimistic_sequence_number) =
                            (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)
                 "#;
                 diesel::sql_query(sql)

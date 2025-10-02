@@ -2,17 +2,19 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::config::PruningOptions;
+use std::path::PathBuf;
+
 use diesel::{QueryableByName, connection::SimpleConnection, sql_types::BigInt};
 use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_metrics::init_metrics;
-use std::path::PathBuf;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 
 use crate::{
     IndexerMetrics,
-    config::{IngestionConfig, IotaNamesOptions, RetentionConfig, SnapshotLagConfig},
+    config::{
+        IngestionConfig, IotaNamesOptions, PruningOptions, RetentionConfig, SnapshotLagConfig,
+    },
     db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,

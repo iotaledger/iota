@@ -101,7 +101,8 @@ impl OptimisticPruner {
         Ok(())
     }
 
-    /// Prunes optimistic transactions in batches until there are no more rows to delete.
+    /// Prunes optimistic transactions in batches until there are no more rows
+    /// to delete.
     async fn prune_in_batches(
         &self,
         epoch_end_global_order: TxGlobalOrderCursor,
@@ -160,8 +161,8 @@ impl OptimisticPruner {
         Ok(Some(epoch_end_global_order))
     }
 
-    /// Deletes a single batch of optimistic transactions up to the given global order.
-    /// Returns the number of deleted rows.
+    /// Deletes a single batch of optimistic transactions up to the given global
+    /// order. Returns the number of deleted rows.
     async fn prune_single_batch(
         &self,
         epoch_end_global_order: TxGlobalOrderCursor,
