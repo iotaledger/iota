@@ -1,0 +1,468 @@
+---
+description: Workshop on Validating a University Degree using IOTA Identity
+tags:
+ - tutorial
+ - rust
+---
+
+# Building a Full-Stack IOTA Identity University Degree Verification System Guided Code Workshop
+
+In this workshop, we will build a production-ready **University Degree Verification system** using **IOTA Identity**, **Rust**, and **React.** By the end of this workshop, you’ll have a complete, end-to-end flow demonstrating how **Issuers**, **Holders**, and **Verifiers** interact in a real-world university degree validation scenario — all powered by IOTA Identity. We will build the application piece-by-piece, focusing on the communication flow for each of the four core identity steps (DID creation, VC issuance, VP creation, and Verification).
+
+## Prerequisites
+
+Before starting this workshop, make sure you have:
+
+- **Rust** (latest stable version) installed → Install Rust
+- **Cargo** (comes with Rust) for building and running projects
+- A **local IOTA network** running with the IOTA Identity contract deployed
+    - See [Local Network Setup](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup)
+    - Ensure you can request test tokens from the faucet
+- A code editor such as **VS Code**
+- (Optional but recommended) Basic familiarity with:
+    - **IOTA Decentralized Identifiers (DIDs)**
+    - **IOTA Verifiable Credentials (VCs)** and **IOTA Verifiable Presentations (VPs)**
+
+## Installing Rust and Cargo on macOS
+
+### Step 1: Install `rustup` (The Rust Installer)
+
+Open your Terminal application and run the following command. This downloads the `rustup-init` script and starts the installation process.
+
+```Bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+You will see a prompt asking you to proceed with installation options:
+
+1. Type `1` (for "Proceed with installation (default)").
+
+2. Press Enter.
+
+### Step 2: Configure Your Shell Environment
+After the installation is complete, the terminal will usually display instructions to update your shell's profile (like `.bash_profile` or `.zshrc`) to ensure the `cargo` command is available everywhere.
+
+To load the environment variables without restarting your terminal, run the command shown in the installation success message. If you are using Zsh (the default shell on modern macOS), run this:
+
+```Bash
+source $HOME/.cargo/env
+```
+
+(If you are using Bash, the command might be `source $HOME/.bashrc` or similar, but the `source $HOME/.cargo/env` command works universally.)
+
+### Step 3: Verify the Installation
+
+You can confirm that both Rust and Cargo are installed correctly and are using the latest stable version.
+
+1. **Check Rust Version:**
+
+```Bash
+rustc --version
+```
+
+Expected Output: `rustc 1.XX.0 (long_hash_string)`
+
+2. **Check Cargo Version:** (Cargo is the build system and package manager that comes with Rust.)
+
+```bash
+cargo --version
+```
+
+Expected `Output: cargo 1.XX.0 (long_hash_string)`
+
+### Step 4: Update (Maintenance)
+
+Since this project requires the latest stable libraries for IOTA Identity, it's a good practice to ensure your toolchain is up-to-date:
+
+```Bash
+rustup update stable
+```
+### Step 5: Local Network Setup
+
+:::info
+Use this page to set up a [Local Network Setup](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup)
+:::
+
+### Step 6: Install VS Code on macOS
+
+1. [Download Visual Studio Code for macOS](https://code.visualstudio.com/docs?dv=osx).
+
+2. Open the browser's download list and locate the downloaded app or archive.
+
+3. If archive, extract the archive contents. Use double-click for some browsers or select the 'magnifying glass' icon with Safari.
+
+4. Drag `Visual Studio Code.app` to the Applications folder, making it available in the macOS Launchpad.
+
+5. Open VS Code from the Applications folder, by double clicking the icon.
+
+6. Add VS Code to your Dock by right-clicking on the icon, located in the Dock, to bring up the context menu and choosing Options, Keep in Dock.
+
+Once those commands run successfully, you'll have everything you need to start the guided coding workshop!
+
+## The Problem
+
+Today, verifying university degrees is a slow, manual, and often costly hurdle. Employers must contact universities or rely on centralized third-party services, which is costly and prone to fraud. Fake certificates can easily circulate.
+
+## The Opportunity
+
+Universities can issue tamper-proof Verifiable Credentials (VCs) that students control using the IOTA Identity product. Students present these credentials to employers, who can instantly verify them on the IOTA network without intermediaries, cutting costs and eliminating fraud.
+
+### What You’ll Build in this Workshop
+
+We're building a complete, production-ready system that connects a modern React frontend to a high-performance Rust backend. You'll learn how the frontend triggers the entire IOTA Identity lifecycle:
+
+- **Holder (Student)**: Creates a DID and stores it securely.
+- **Issuer (University)**: Issues a **Verifiable Credential (VC)** representing the degree.
+- **Holder**: Packages the credential into a **Verifiable Presentation (VP)** and signs it.
+- **Verifier (Employer)**: Verifies the authenticity of the presentation and credentials against the IOTA network.
+
+## Part 1: Project Setup and Architecture
+
+We will create two separate projects that communicate via HTTP: the React Frontend (the user interface) and the Rust Axum Backend (the identity logic engine).
+
+### Step 1.1: Project Initialization
+
+Start by creating the root folder and initializing the two sub-projects.
+
+```bash
+# Create the root folder
+mkdir iota-identity-workshop
+cd iota-identity-workshop
+
+# 1. Initialize the Rust Backend
+mkdir iota-identity-backend
+cd iota-identity-backend
+cargo init
+
+# 2. Set up utility folder for Rust logic
+mkdir -p crates/identity_logic/src
+
+# 3. Initialize the React Frontend
+cd ../iota-identity-frontend
+npm create vite@latest . -- --template react
+npm install
+npm install lucide-react # For icons
+```
+### Explanation:
+
+- What it does: Creates a project structure with a Rust backend (`iota-identity-backend`) and a React frontend (`iota-identity-frontend`). The `cargo init` command sets up a Rust project with a `Cargo.toml` file, while `npm create vite` initializes a React app using Vite for fast development. The `lucide-react` library adds icons for the UI.
+- Why it matters: This sets up a full-stack environment where the frontend handles user interaction and the backend processes IOTA Identity logic. The utility folder (`crates/identity_logic`) will hold shared Rust code.
+- Key concepts:
+    - Rust Backend: Uses Axum for HTTP APIs to handle IOTA Identity operations.
+    - React Frontend: Provides a user-friendly interface to trigger backend actions.
+    - Vite: A modern build tool for fast React development.
+
+## Part 2: Building the Front-to-Back Connection
+
+This section demonstrates how every button on the frontend connects to a specific function on the Rust backend, completing the identity flow.
+
+### Step 2.1: The Communication Layer (`handleApiCall`)
+
+In your **React Frontend** (`src/App.jsx`), this function is the central bridge. It standardizes how all API requests are made, ensuring the required `packageId` and error handling are used for every step.
+
+```JavaScript
+// src/App.jsx (Excerpt: handleApiCall)
+
+const handleApiCall = useCallback(async (step, endpoint, body) => {
+    // ... validation and state updates omitted for brevity ...
+
+    // Sends POST request to Rust API.
+    // NOTE: { packageId, ...body } sends the required packageId plus step-specific data.
+    const response = await fetch(`${apiUrl}${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ packageId, ...body }), 
+    });
+
+    if (!response.ok) {
+        // Essential: Catches Rust's HTTP errors (like 404 or 500) and displays them.
+        const errorText = await response.text();
+        throw new Error(`API returned status ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    setLoadingStep(0);
+    return data; // Returns the result (DID, JWT, or Validation log)
+}, [packageId, apiUrl]);
+```
+
+## Explanation:
+
+- What it does: This function sends HTTP POST requests to the Rust backend’s API endpoints (e.g., `/holder/create-did`). It includes a `packageId` (required for IOTA Identity) and handles errors by checking the response status. The result (e.g., a DID or JWT) is returned to update the frontend state.
+- Why it matters: Centralizes API communication, ensuring consistent error handling and payload formatting across all steps. The `useCallback` hook optimizes performance by memoizing the function.
+- Key concepts:
+    - HTTP POST: Sends data (e.g., `packageId, vcJwt`) to the backend.
+    - Error Handling: Catches HTTP errors (e.g., 404, 500) and displays meaningful messages.
+    - State Updates: Stores results (e.g., DID, JWT) in React state for display.
+
+### Step 2.2: Step 1: Holder Creates DID
+
+| Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored (State) |
+| :--- | :--- | :--- | :--- |
+| **Button Click** (`handleCreateVp`) | `/holder/create-vp` | `{ "vcJwt": "..." }` | `vpJwt` (string) |
+
+**Frontend** (`src/App.jsx`): We define the handler to call the API endpoint and update the state.
+
+```JavaScript
+// src/App.jsx (Holder DID Handler)
+
+const handleCreateDid = async () => {
+    // Calls the Rust endpoint. Body is empty as the DID logic is self-contained.
+    const data = await handleApiCall(1, '/holder/create-did', {}); 
+    if (data && data.did) {
+        setDid(data.did); // Stores the returned DID string
+    }
+};
+
+// This handler is attached to the "Execute Step 1" button.
+```
+
+## Explanation:
+
+- What it does: The handleCreateDid function triggers a POST request to the backend’s /holder/create-did endpoint. It sends an empty body since the backend handles all DID creation logic. The returned DID string is stored in the React state (setDid) for display in the UI.
+- Why it matters: This initiates the IOTA Identity flow by creating a unique identifier for the student (Holder), which is used in later steps (e.g., VC issuance). It connects the frontend button to the backend logic.
+- Key concepts:
+ - DID: A decentralized identifier (e.g., did:iota:...) that uniquely identifies the student.
+ - React State: Stores the DID for display and use in subsequent steps.
+ - API Call: Uses handleApiCall to communicate with the backend.
+
+**Backend** (`src/main.rs`): The Rust function uses the received `package_id` to initialize the client and runs the core creation logic.
+
+```Rust
+// iota-identity-backend/src/main.rs (holder_create_did)
+
+async fn holder_create_did(Json(_body): Json<PackageId>) -> Result<Json<DidResponse>, StatusCode> {
+    // Rust logic calls create_or_load_did, which handles funding and anchoring the DID
+    let (holder_doc, _) = create_or_load_did(
+        "./holder_doc.json", /* ... */
+    ).await.map_err(/* ... error handling ... */)?;
+
+    // Responds to the frontend with the DID string
+    Ok(Json(DidResponse {
+        did: holder_doc.id().to_string(),
+    }))
+}
+```
+## Explanation:
+
+- What it does: The holder_create_did function handles the /holder/create-did endpoint. It calls create_or_load_did (a utility function) to either create a new DID or load an existing one from holder_doc.json. The DID is anchored to the IOTA network, and the function returns a JSON response containing the DID string.
+- Why it matters: This creates the student’s identity on the IOTA network, stored securely using Stronghold. The DID is the foundation for issuing and verifying credentials.
+- Key concepts:
+    - DID Creation: Uses IOTA Identity to generate and publish a DID document.
+    - Stronghold: Securely stores the DID’s private keys.
+    - Axum Endpoint: Handles HTTP requests and returns JSON responses.
+
+### Step 2.3: Step 2: Issuer Issues VC
+
+| Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored |
+| :--- | :--- | :--- | :--- |
+| **Button Click** (`/issuer/issue-vc`) | `packageId` | `{ "vcJwt" (string)}` |
+
+### Frontend (`src/App.jsx`):
+
+```JavaScript
+// src/App.jsx (Issuer VC Handler)
+
+const handleIssueVc = async () => {
+    const data = await handleApiCall(2, '/issuer/issue-vc', {});
+    if (data && data.jwt) {
+        setVcJwt(data.jwt); // Stores the received Verifiable Credential JWT
+    }
+};
+```
+## Explanation
+
+- What it does: The `handleIssueVc` function sends a POST request to the `/issuer/issue-vc` endpoint with an empty body. The backend generates a VC and returns its JWT, which is stored in the React state (`setVcJwt`) for display and use in the next step.
+- Why it matters: This triggers the issuance of a degree credential, which the student can later present to employers. It connects the frontend UI to the backend’s VC logic.
+- Key concepts:
+    - VC: A signed document asserting the student’s degree (e.g., Bachelor of Science).
+    - JWT: The VC is encoded as a JSON Web Token for secure transmission.
+    - React State: Stores the VC JWT for use in VP creation.
+
+**Backend** (`src/main.rs`): The server retrieves the Holder's DID locally (from the file system created in Step 1) and generates the signed VC.
+
+```Rust
+// iota-identity-backend/src/main.rs (issuer_issue_vc)
+
+async fn issuer_issue_vc(Json(_body): Json<PackageId>) -> Result<Json<JwtResponse>, StatusCode> {
+    // 1. Loads Issuer DID, loads Holder DID from local file.
+    // 2. Builds Credential (VC) with subject linked to Holder's DID.
+    // 3. Signs VC with Issuer's private key (from Stronghold).
+
+    // Returns the signed VC JWT string
+    Ok(Json(JwtResponse {
+        jwt: credential_jwt.as_str().to_string(),
+    }))
+}
+```
+
+## Explanation:
+
+- What it does: The `issuer_issue_vc` function handles the `/issuer/issue-vc` endpoint. It loads the Issuer’s DID and the Holder’s DID (from `holder_doc.json`), creates a VC with the student’s degree details (e.g., name, degree type), signs it with the Issuer’s private key (stored in Stronghold), and returns the VC as a JWT string.
+- Why it matters: This creates a tamper-proof degree credential linked to the student’s DID, which can be verified on the IOTA network.
+- Key concepts:
+    - VC Creation: Builds a credential with subject data (e.g., student’s name, degree).
+    - Digital Signature: Uses the Issuer’s private key to sign the VC, ensuring authenticity.
+    - JWT: Encodes the VC for secure sharing with the frontend.
+
+### Step 2.4: Step 3: Holder Creates VP
+
+| Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored |
+| :--- | :--- | :--- | :--- |
+| **Button Click** (`/holder/create-vp`) | `packageId, vcJwt` | `{ "vpJwt string}` |
+
+**Frontend** (`src/App.jsx`): The client sends the received VC back to the server, asking the server to wrap and sign it.
+
+```JavaScript
+// src/App.jsx (Holder VP Handler)
+
+const handleCreateVp = async () => {
+    // FIX: The payload is constructed to send { vcJwt: value } to match the Rust struct's casing.
+    const data = await handleApiCall(3, '/holder/create-vp', { vcJwt }); 
+    if (data && data.jwt) {
+        setVpJwt(data.jwt); // Stores the Verifiable Presentation JWT
+    }
+};
+```
+
+## Explanation:
+
+- What it does: The `handleCreateVp` function sends a POST request to the `/holder/create-vp` endpoint, including the VC JWT (`vcJwt`) from the previous step. The backend returns a VP JWT, which is stored in the React state (`setVpJwt`) for display and verification.
+- Why it matters: This allows the student to create a signed VP, proving they own the VC when presenting it to an employer.
+- Key concepts:
+    - VP: A signed package containing the VC, proving the Holder’s ownership.
+    - Payload: Sends the VC JWT to the backend for inclusion in the VP.
+    - React State: Stores the VP JWT for the final verification step.
+
+**Backend** (`src/main.rs`): The Rust server uses the Holder's key (from Stronghold) to sign the presentation.
+
+```Rust
+// iota-identity-backend/src/main.rs (holder_create_vp)
+
+async fn holder_create_vp(Json(body): Json<VcJwt>) -> Result<Json<JwtResponse>, StatusCode> {
+    // 1. Loads Holder DID and Storage (Stronghold).
+    // 2. Builds Presentation (VP), embedding body.vc_jwt (the VC from the frontend).
+    // 3. Signs VP with Holder's private key, adding nonce/challenge.
+
+    // Returns the signed VP JWT string
+    Ok(Json(JwtResponse {
+        jwt: vp_jwt.as_str().to_string(),
+    }))
+}
+```
+
+## Explanation:
+
+- What it does: The `holder_create_vp` function handles the `/holder/create-vp` endpoint. It loads the Holder’s DID and Stronghold storage, creates a VP embedding the provided VC JWT (`body.vc_jwt`), signs it with the Holder’s private key, and adds a nonce (challenge) for security. The VP JWT is returned to the frontend.
+- Why it matters: The VP proves the student owns the VC and is ready for verification by an employer.
+- Key concepts:
+    - VP Creation: Embeds the VC in a presentation and signs it.
+    - Nonce: A unique challenge (e.g., `challenge-123`) ensures the VP is fresh.
+    - Stronghold: Securely accesses the Holder’s private key for signing.
+
+### Step 2.5: Step 4: Verifier Validates VP (The Final Proof)
+
+| Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored |
+| :--- | :--- | :--- | :--- |
+| **Button Click** (`/verifier/validate`) | `packageId, vpJwt` | `{ "validationOutput log}` |
+
+**Frontend** (`src/App.jsx`):
+
+```JavaScript
+// src/App.jsx (Verifier Validation Handler)
+
+const handleValidateVp = async () => {
+    // Sends the VP JWT to the server for verification.
+    const data = await handleApiCall(4, '/verifier/validate', { vpJwt });
+    if (data) {
+        setValidationOutput(data.output);
+        setIsValidationSuccess(data.success); // Updates UI to show SUCCESS/FAIL
+    }
+};
+```
+
+## Explanation:
+
+- What it does: The `handleValidateVp` function sends a POST request to the `/verifier/validate` endpoint with the VP JWT (`vpJwt`). The backend returns a validation result (log and success boolean), which updates the React state to display the outcome (e.g., “SUCCESS” or “FAIL”) in the UI.
+- Why it matters: This completes the identity flow by verifying the VP’s authenticity, ensuring the degree credential is valid and untampered.
+- Key concepts:
+    - Validation Result: Displays whether the VP and VC are valid.
+    - React State: Updates the UI with the verification log and success status.
+    - API Call: Sends the VP JWT to the backend for network-based verification.
+
+**Backend** (`src/main.rs`): This is the final, network-intensive verification step.
+
+```Rust
+// iota-identity-backend/src/main.rs (verifier_validate)
+
+async fn verifier_validate(Json(body): Json<VpJwt>) -> Result<Json<ValidationResponse>, StatusCode> {
+    // 1. Setup IOTA Resolver client.
+    // 2. Resolve Holder's DID (gets public key from network).
+    // 3. Validate VP signature and challenge.
+    // 4. Resolve Issuer's DID (gets public key from network).
+    // 5. Validate VC signature against Issuer's public key.
+    
+    // Returns the full verification log and success boolean to the frontend.
+    Ok(Json(ValidationResponse { success: true, output }))
+}
+```
+
+## Explanation:
+
+- What it does: The `verifier_validate` function handles the `/verifier/validate` endpoint. It sets up an IOTA resolver to fetch the Holder’s and Issuer’s DID documents from the IOTA network, validates the VP’s signature and nonce, and checks the VC’s signature against the Issuer’s public key. It returns a JSON response with a success boolean and a detailed log.
+- Why it matters: This ensures the VP and VC are authentic, untampered, and issued by a trusted university, completing the degree verification process.
+- Key concepts:
+    - Resolver: Fetches DID documents from the IOTA network to access public keys.
+    - Signature Validation: Verifies the VP and VC signatures to ensure authenticity.
+    - Nonce Check: Confirms the VP’s freshness using the challenge.
+
+This completes the guided workshop, demonstrating the seamless and robust interaction between the React frontend and the Rust Axum backend across all four phases of the IOTA Identity flow.
+
+## Part 3: Running the Application
+
+1. Start the Backend:
+
+```Bash
+cd iota-identity-backend
+cargo run
+```
+
+This starts the Rust Axum server (e.g., at http://localhost:3000).
+
+2. Start the Frontend:
+
+```bash
+cd iota-identity-frontend
+npm run dev
+```
+
+This starts the React app (e.g., at http://localhost:5173).
+
+3. Interact with the UI:
+
+- Click “Execute Step 1” to create the Holder’s DID.
+- Click “Execute Step 2” to issue the VC.
+- Click “Execute Step 3” to create the VP.
+- Click “Execute Step 4” to verify the VP.
+
+## Troubleshooting
+
+- Network Errors: Ensure the IOTA test network is running and `API_ENDPOINT` is set.
+- Dependency Issues: Run `cargo update` or `npm install` to resolve missing dependencies.
+- File Not Found: Verify that `holder_doc.json` exists after Step 1.
+- HTTP Errors: Check the backend logs for issues like invalid `packageId`.
+
+## What You’ve Accomplished
+
+You’ve built a full-stack IOTA Identity application:
+
+- Created a DID for a student (Holder).
+- Issued a tamper-proof degree credential (VC).
+- Packaged the VC into a signed VP.
+- Verified the VP and VC on the IOTA network.
+
+## Workshop tasks
+
+- Add more credential fields (e.g., graduation date) to the VC.
+
+- Implement credential revocation using IOTA Identity.
