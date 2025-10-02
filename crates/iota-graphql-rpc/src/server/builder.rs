@@ -69,7 +69,7 @@ use crate::{
         watermark_task::{Watermark, WatermarkLock, WatermarkTask},
     },
     types::{
-        chain_identifier::{ChainIdentifier, ChainIdentifierCache},
+        chain_identifier::ChainIdentifierCache,
         datatype::IMoveDatatype,
         move_object::IMoveObject,
         object::IObject,
@@ -718,7 +718,7 @@ pub mod tests {
     };
     use iota_indexer::optimistic_indexing::OptimisticTransactionExecutor;
     use iota_sdk::wallet_context::WalletContext;
-    use iota_types::{digests::get_mainnet_chain_identifier, transaction::TransactionData};
+    use iota_types::transaction::TransactionData;
     use uuid::Uuid;
 
     use super::*;
@@ -775,7 +775,7 @@ pub mod tests {
             .context_data(query_id())
             .context_data(ip_address())
             .context_data(watermark)
-            .context_data(ChainIdentifier::from(get_mainnet_chain_identifier()))
+            .context_data(ChainIdentifierCache::default())
             .context_data(metrics)
     }
 
