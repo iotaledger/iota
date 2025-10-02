@@ -164,6 +164,7 @@ export class IotaWallet implements Wallet {
     #connected = async () => {
         this.#setActiveChain(await this.#getActiveNetwork());
         if (!(await this.#hasPermissions(['viewAccount']))) {
+            console.warn('[WalletStandardInterface] No permissions to view accounts granted');
             return;
         }
         const accounts = await this.#getAccounts();
@@ -268,7 +269,10 @@ export class IotaWallet implements Wallet {
                 type: 'has-permissions-request',
                 permissions: permissions,
             }),
-            ({ result }) => result,
+            ({ result }) => {
+                console.log('[WalletStandardInterface] Has Permissions Result:', result);
+                return result;
+            },
         );
     }
 
