@@ -336,7 +336,7 @@ pub struct DiscoveryConfig {
 
 impl DiscoveryConfig {
     pub fn interval_period(&self) -> Duration {
-        const INTERVAL_PERIOD_MS: u64 = 5_000; // 5 seconds
+        const INTERVAL_PERIOD_MS: u64 = 10_000; // 10 seconds
 
         Duration::from_millis(self.interval_period_ms.unwrap_or(INTERVAL_PERIOD_MS))
     }

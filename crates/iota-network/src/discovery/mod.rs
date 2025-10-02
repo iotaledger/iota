@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, hash_map::Entry},
     sync::{Arc, RwLock},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use anemo::{
@@ -36,6 +36,10 @@ const ONE_DAY_MILLISECONDS: u64 = 24 * 60 * 60 * 1_000;
 const MAX_ADDRESS_LENGTH: usize = 300;
 const MAX_PEERS_TO_SEND: usize = 200;
 const MAX_ADDRESSES_PER_PEER: usize = 2;
+const ADDRESS_VERIFICATION_TIMEOUT: Duration = Duration::from_secs(3);
+const ADDRESS_VERIFICATION_TOTAL_TIMEOUT: Duration = Duration::from_secs(8); // Overall timeout for verify_address_ownership to prevent DoS attacks
+const ADDRESS_VERIFICATION_FAILURE_COOLDOWN: Duration = Duration::from_secs(10 * 60); // 10 minutes cooldown
+const COOLDOWN_CLEANUP_INTERVAL: Duration = Duration::from_secs(5 * 60); // Clean up cooldown list every 5 minutes
 
 // Includes the generated Discovery code from the OUT_DIR
 mod generated {
@@ -62,6 +66,12 @@ struct State {
     our_info: Option<SignedNodeInfo>,
     connected_peers: HashMap<PeerId, ()>,
     known_peers: HashMap<PeerId, VerifiedSignedNodeInfo>,
+    /// Cooldown list for peers whose address verification failed recently
+    /// Maps PeerId to the instant when the verification failed.
+    /// Can't be spoofed because the peer_id is part of the signed info.
+    address_verification_cooldown: HashMap<PeerId, Instant>,
+    /// Instant of the last cooldown cleanup
+    last_cooldown_cleanup: Instant,
 }
 
 /// The information necessary to dial another peer.
@@ -336,6 +346,7 @@ impl DiscoveryEventLoop {
                     // Queries the new node for any peers.
                     self.tasks.spawn(query_peer_for_their_known_peers(
                         peer,
+                        self.network.clone(),
                         self.state.clone(),
                         self.metrics.clone(),
                         self.allowlisted_peers.clone(),
@@ -397,19 +408,17 @@ impl DiscoveryEventLoop {
         // Selects a subset of known peers to dial if we're not connected to enough
         // peers.
         let state = self.state.read().unwrap();
-        let eligible = state
+        let eligible: Vec<_> = state
             .known_peers
-            .clone()
-            .into_iter()
-            .filter(|(peer_id, info)| {
-                peer_id != &self.network.peer_id() &&
-                !info.addresses.is_empty() // Peer has addresses we can dial
-                && !state.connected_peers.contains_key(peer_id) // We're not already connected
-                && !self.pending_dials.contains_key(peer_id) // There is no
-                // pending dial to
-                // this node
+            .iter()
+            .filter(|(&peer_id, info)| {
+                peer_id != self.network.peer_id()
+                    && !info.addresses.is_empty() // Peer has addresses we can dial
+                    && !state.connected_peers.contains_key(&peer_id) // We're not already connected
+                    && !self.pending_dials.contains_key(&peer_id) // There is no pending dial to this node
             })
-            .collect::<Vec<_>>();
+            .map(|(&peer_id, info)| (peer_id, info.clone()))
+            .collect();
 
         // No need to connect to any more peers if we're already connected to a bunch
         let number_of_connections = state.connected_peers.len();
@@ -451,6 +460,63 @@ impl DiscoveryEventLoop {
     }
 }
 
+/// Verifies that a peer actually controls the addresses they claim by
+/// attempting to establish a connection. This prevents address spoofing
+/// attacks. Tries all addresses individually and returns the list of
+/// addresses that were successfully verified.
+/// This should only be used for not-yet-connected peers.
+async fn verify_address_ownership(network: &Network, peer_info: &SignedNodeInfo) -> Vec<Multiaddr> {
+    // Try each address individually and collect the ones that work
+    let verification_futures: Vec<_> = peer_info
+        .addresses
+        .iter()
+        .map(|address| {
+            let network = network.clone();
+            let peer_id = peer_info.peer_id;
+            let address = address.clone();
+            Box::pin(async move {
+                if let Ok(anemo_address) = address.to_anemo_address() {
+                    // Try to connect to the claimed address with the claimed peer_id
+                    match tokio::time::timeout(
+                        ADDRESS_VERIFICATION_TIMEOUT,
+                        network.connect_with_peer_id(anemo_address, peer_id),
+                    )
+                    .await
+                    {
+                        Ok(Ok(_connection)) => {
+                            debug!(
+                                "Address verification succeeded for peer {} at address {}",
+                                peer_id, address
+                            );
+
+                            // Disconnect immediately since this was just for verification
+                            let _ = network.disconnect(peer_id);
+                            return Some(address);
+                        }
+                        Ok(Err(e)) => {
+                            debug!(
+                                "Address verification failed for peer {} at address {}: {}",
+                                peer_id, address, e
+                            );
+                        }
+                        Err(_timeout) => {
+                            debug!(
+                                "Address verification timed out for peer {} at address {}",
+                                peer_id, address
+                            );
+                        }
+                    }
+                }
+                None
+            })
+        })
+        .collect();
+
+    // Wait for all verification attempts to complete and collect successful ones
+    let results = futures::future::join_all(verification_futures).await;
+    results.into_iter().flatten().collect()
+}
+
 async fn try_to_connect_to_peer(network: Network, info: NodeInfo) {
     debug!("Connecting to peer {info:?}");
     for multiaddr in &info.addresses {
@@ -462,8 +528,7 @@ async fn try_to_connect_to_peer(network: Network, info: NodeInfo) {
                 .tap_err(|e| {
                     debug!(
                         "error dialing {} at address '{}': {e}",
-                        info.peer_id.short_display(4),
-                        multiaddr
+                        info.peer_id, multiaddr
                     )
                 })
                 .is_ok()
@@ -503,8 +568,50 @@ async fn try_to_connect_to_seed_peers(
     .await;
 }
 
+/// Deduplicates peer infos based on their serialized representation (including
+/// signature). First groups by PeerId for efficiency, then uses BCS
+/// serialization only when there are multiple entries for the same peer.
+fn deduplicate_peers(peers: Vec<SignedNodeInfo>) -> Vec<SignedNodeInfo> {
+    let peers_count = peers.len();
+
+    // First group by PeerId - much more efficient than always serializing
+    let peer_groups = peers.into_iter().fold(
+        HashMap::<PeerId, Vec<SignedNodeInfo>>::with_capacity(peers_count),
+        |mut acc, peer_info| {
+            acc.entry(peer_info.peer_id).or_default().push(peer_info);
+            acc
+        },
+    );
+
+    let mut peers_deduplicated = Vec::with_capacity(peer_groups.len());
+
+    for (_, peer_infos) in peer_groups {
+        match peer_infos.len() {
+            1 => {
+                // No duplicates for this peer - just take the single entry
+                peers_deduplicated.push(peer_infos.into_iter().next().unwrap());
+            }
+            _ => {
+                // Multiple entries for this peer - deduplicate using BCS serialization
+                let peer_deduplicated: HashMap<Vec<u8>, SignedNodeInfo> = peer_infos
+                    .into_iter()
+                    .map(|peer_info| {
+                        let key =
+                            bcs::to_bytes(&peer_info).expect("BCS serialization should not fail");
+                        (key, peer_info)
+                    })
+                    .collect();
+                peers_deduplicated.extend(peer_deduplicated.into_values());
+            }
+        }
+    }
+
+    peers_deduplicated
+}
+
 async fn query_peer_for_their_known_peers(
     peer: Peer,
+    network: Network,
     state: Arc<RwLock<State>>,
     metrics: Metrics,
     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
@@ -528,8 +635,23 @@ async fn query_peer_for_their_known_peers(
                 known_peers
             },
         );
+
     if let Some(found_peers) = found_peers {
-        update_known_peers(state, metrics, found_peers, allowlisted_peers);
+        // Limit each client to MAX_PEERS_TO_SEND (+1 because of the own_info from the
+        // peer)
+        let limited_peers = found_peers
+            .into_iter()
+            .take(MAX_PEERS_TO_SEND + 1)
+            .collect::<Vec<_>>();
+
+        update_known_peers(
+            &network,
+            state,
+            metrics,
+            deduplicate_peers(limited_peers),
+            allowlisted_peers,
+        )
+        .await;
     }
 }
 
@@ -569,7 +691,12 @@ async fn query_connected_peers_for_their_known_peers(
                         if !own_info.addresses.is_empty() {
                             known_peers.push(own_info)
                         }
+                        // Limit each client to MAX_PEERS_TO_SEND (+1 because of the own_info from
+                        // the peer)
                         known_peers
+                            .into_iter()
+                            .take(MAX_PEERS_TO_SEND + 1)
+                            .collect::<Vec<_>>()
                     },
                 )
         })
@@ -580,26 +707,100 @@ async fn query_connected_peers_for_their_known_peers(
         .collect::<Vec<_>>()
         .await;
 
-    update_known_peers(state, metrics, found_peers, allowlisted_peers);
+    update_known_peers(
+        &network,
+        state,
+        metrics,
+        deduplicate_peers(found_peers),
+        allowlisted_peers,
+    )
+    .await;
 }
 
-/// Updates the known peers list with the found peers. The found peer is ignored
-/// if it is too old or too far in the future from our clock.
-/// If a peer is already known, the NodeInfo is updated, otherwise the peer is
-/// inserted.
-fn update_known_peers(
-    state: Arc<RwLock<State>>,
-    metrics: Metrics,
-    found_peers: Vec<SignedNodeInfo>,
-    allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
-) {
-    use std::collections::hash_map::Entry;
+/// Cleans up old entries from the verification failure cooldown list
+fn cleanup_verification_failure_cooldown(state: &Arc<RwLock<State>>, now_instant: Instant) {
+    // Only run cleanup if enough time has passed since the last cleanup
+    if now_instant.duration_since(state.read().unwrap().last_cooldown_cleanup)
+        < COOLDOWN_CLEANUP_INTERVAL
+    {
+        return;
+    }
 
+    let mut state_guard = state.write().unwrap();
+    state_guard.last_cooldown_cleanup = now_instant;
+
+    // Remove entries that have exceeded the cooldown period
+    let initial_size = state_guard.address_verification_cooldown.len();
+    state_guard
+        .address_verification_cooldown
+        .retain(|peer_id, &mut failure_instant| {
+            let should_retain =
+                now_instant.duration_since(failure_instant) < ADDRESS_VERIFICATION_FAILURE_COOLDOWN;
+            if !should_retain {
+                debug!(
+                    "Removing peer {} from verification failure cooldown",
+                    peer_id
+                );
+            }
+            should_retain
+        });
+
+    let removed_count = initial_size - state_guard.address_verification_cooldown.len();
+    if removed_count > 0 {
+        debug!(
+            "Cleaned up {} entries from verification failure cooldown",
+            removed_count
+        );
+    }
+}
+
+fn verify_peer_infos(
+    state: &Arc<RwLock<State>>,
+    found_peers: Vec<Envelope<NodeInfo, Ed25519Signature>>,
+    allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
+    now_instant: Instant,
+) -> Vec<VerifiedSignedNodeInfo> {
     let now_unix = now_unix();
-    let our_peer_id = state.read().unwrap().our_info.clone().unwrap().peer_id;
-    let known_peers = &mut state.write().unwrap().known_peers;
-    // only take the first MAX_PEERS_TO_SEND peers
-    for peer_info in found_peers.into_iter().take(MAX_PEERS_TO_SEND) {
+
+    // Acquire read lock once to get our peer ID and filter peers by cooldown
+    let (our_peer_id, found_peers) = {
+        let state_guard = state.read().unwrap();
+        let our_peer_id = state_guard.our_info.clone().unwrap().peer_id;
+
+        // Filter out peers that are in cooldown while holding the lock
+        let filtered_peers: Vec<_> = found_peers
+            .into_iter()
+            .filter(|peer_info| {
+                // Check if this peer is in the address verification cooldown.
+                // Even if the signature is not checked yet, it would be pointless to verify if
+                // that peer_id is marked for cooldown.
+                match state_guard.address_verification_cooldown.get(&peer_info.peer_id) {
+                    Some(&failure_instant) => {
+                        let time_since_failure = now_instant.duration_since(failure_instant);
+                        if time_since_failure >= ADDRESS_VERIFICATION_FAILURE_COOLDOWN {
+                            true // Cooldown expired
+                        } else {
+                            debug!(
+                                "Peer {} is in verification failure cooldown (failed {:.1}s ago, cooldown: {:.1}s)",
+                                peer_info.peer_id,
+                                time_since_failure.as_secs_f32(),
+                                ADDRESS_VERIFICATION_FAILURE_COOLDOWN.as_secs_f32()
+                            );
+                            false // Still in cooldown
+                        }
+                    }
+                    None => true, // Not in cooldown
+                }
+            })
+            .collect();
+
+        (our_peer_id, filtered_peers)
+    };
+
+    let mut latest_verified_peer_infos: HashMap<PeerId, VerifiedSignedNodeInfo> =
+        HashMap::with_capacity(found_peers.len());
+
+    for peer_info in found_peers.into_iter() {
         // Skip peers whose timestamp is too far in the future from our clock
         // or that are too old
         if peer_info.timestamp_ms > now_unix.saturating_add(30 * 1_000) // 30 seconds
@@ -608,6 +809,7 @@ fn update_known_peers(
             continue;
         }
 
+        // Skip our own info
         if peer_info.peer_id == our_peer_id {
             continue;
         }
@@ -619,13 +821,15 @@ fn update_known_peers(
             continue;
         }
 
-        // Skip entries that have too many addresses as a means to cap the size of a
-        // node's info
-        if peer_info.addresses.len() > MAX_ADDRESSES_PER_PEER {
+        // Skip entries that have no or too many addresses as a means to cap the size of
+        // a node's info. This also means we don't update entries when peers remove all
+        // their addresses. Those entries will eventually be removed after
+        // ONE_DAY_MILLISECONDS.
+        if peer_info.addresses.is_empty() || peer_info.addresses.len() > MAX_ADDRESSES_PER_PEER {
             continue;
         }
 
-        // verify that all addresses provided are valid anemo addresses
+        // Verify that all addresses provided are valid anemo addresses
         if !peer_info
             .addresses
             .iter()
@@ -633,6 +837,8 @@ fn update_known_peers(
         {
             continue;
         }
+
+        // Verify the signature
         let Ok(public_key) = Ed25519PublicKey::from_bytes(&peer_info.peer_id.0) else {
             debug_fatal!(
                 // This should never happen.
@@ -650,28 +856,321 @@ fn update_known_peers(
             // TODO: consider denylisting the source of bad NodeInfo from future requests.
             continue;
         }
-        let peer = VerifiedSignedNodeInfo::new_from_verified(peer_info);
+        let verified_peer_info = VerifiedSignedNodeInfo::new_from_verified(peer_info);
 
-        match known_peers.entry(peer.peer_id) {
-            // Updates the NodeInfo of the peer if it exists.
-            Entry::Occupied(mut o) => {
-                if peer.timestamp_ms > o.get().timestamp_ms {
-                    if o.get().addresses.is_empty() && !peer.addresses.is_empty() {
-                        metrics.inc_num_peers_with_external_address();
+        // Keep only the latest entry for each peer_id based on timestamp
+        latest_verified_peer_infos
+            .entry(verified_peer_info.peer_id)
+            .and_modify(|existing| {
+                if verified_peer_info.timestamp_ms > existing.timestamp_ms {
+                    *existing = verified_peer_info.clone();
+                }
+            })
+            .or_insert(verified_peer_info);
+    }
+
+    latest_verified_peer_infos.into_values().collect()
+}
+
+/// Verifies the addresses of the given peers by attempting to connect to them.
+/// Returns a tuple containing:
+/// - A list of peers along with their successfully verified addresses
+/// - A list of peer IDs that failed verification (to be added to cooldown)
+///
+/// Times out after ADDRESS_VERIFICATION_TOTAL_TIMEOUT to prevent DOS attacks.
+async fn verify_addresses_of_peers(
+    network: &Network,
+    peers: Vec<VerifiedEnvelope<NodeInfo, Ed25519Signature>>,
+) -> (
+    Vec<(VerifiedEnvelope<NodeInfo, Ed25519Signature>, Vec<Multiaddr>)>,
+    Vec<PeerId>,
+) {
+    let peers_count = peers.len();
+    let verification_stream = futures::stream::iter(peers.into_iter().map(|verified_peer_info| {
+        let network = network.clone();
+        async move {
+            let valid_addresses = verify_address_ownership(&network, &verified_peer_info).await;
+            (verified_peer_info, valid_addresses)
+        }
+    }))
+    .buffer_unordered(10); // Limit concurrent verifications to avoid overwhelming the network
+
+    let mut address_verification_results = Vec::with_capacity(peers_count);
+    let mut verification_stream = std::pin::Pin::new(Box::new(verification_stream));
+
+    match tokio::time::timeout(ADDRESS_VERIFICATION_TOTAL_TIMEOUT, async {
+        while let Some(result) = verification_stream.next().await {
+            address_verification_results.push(result);
+        }
+    })
+    .await
+    {
+        Ok(_) => {
+            debug!(
+                "Address verification completed successfully for {} peers",
+                address_verification_results.len()
+            );
+        }
+        Err(_) => {
+            debug!(
+                "Address verification timed out after {}s, but collected {} partial results out of {} peers",
+                ADDRESS_VERIFICATION_TOTAL_TIMEOUT.as_secs(),
+                address_verification_results.len(),
+                peers_count
+            );
+        }
+    };
+
+    // Collect all verified peers with their verified addresses and peers that
+    // failed verification
+    let mut verified_peers = Vec::new();
+    let mut failed_peers = Vec::new();
+
+    for (verified_peer_info, verified_addresses) in address_verification_results {
+        if verified_addresses.is_empty() {
+            info!(
+                "Rejecting peer {} due to failed address verification for all addresses",
+                verified_peer_info.peer_id
+            );
+            failed_peers.push(verified_peer_info.peer_id);
+        } else {
+            verified_peers.push((verified_peer_info, verified_addresses));
+        }
+    }
+
+    (verified_peers, failed_peers)
+}
+
+/// Updates the known peers list with the found peers. The found peer is ignored
+/// if it is too old or too far in the future from our clock.
+/// If a peer is already known, the NodeInfo is updated, otherwise the peer is
+/// inserted if at least one address is verified.
+/// New or changed addresses are verified to prevent spoofing attacks.
+async fn update_known_peers(
+    network: &Network,
+    state: Arc<RwLock<State>>,
+    metrics: Metrics,
+    found_peers: Vec<SignedNodeInfo>,
+    allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
+) {
+    let now_instant = Instant::now();
+
+    // Clean up old entries from the verification failure cooldown
+    cleanup_verification_failure_cooldown(&state, now_instant);
+
+    // Verify all peer infos and filter out invalid ones, filter by latest timestamp
+    // per peer_id. This does not verify address ownership yet.
+    let verified_peer_infos =
+        verify_peer_infos(&state, found_peers, allowlisted_peers.clone(), now_instant);
+
+    if verified_peer_infos.is_empty() {
+        // No verified peers to process, we're done
+        return;
+    }
+
+    // We need to loop over the verified peers and compare them to the existing
+    // known peers. If the timestamp is newer and the addresses have changed, we
+    // need to verify the new addresses and handle potential address conflicts
+    // with existing entries afterwards. If the timestamp is newer but the
+    // addresses are the same, we can just update the timestamp without
+    // verification.
+    let mut peers_to_update_directly = Vec::new();
+    let mut peers_with_addresses_to_verify = Vec::new();
+    {
+        let state_guard = state.read().unwrap();
+        for verified_peer_info in verified_peer_infos {
+            // Skip address verification for allowlisted peers (they are trusted)
+            let is_allowlisted = allowlisted_peers.contains_key(&verified_peer_info.peer_id);
+            let is_connected = state_guard
+                .connected_peers
+                .contains_key(&verified_peer_info.peer_id);
+
+            match state_guard.known_peers.get(&verified_peer_info.peer_id) {
+                Some(existing_peer) => {
+                    // Existing peer, check if the timestamp is newer, otherwise ignore
+                    if verified_peer_info.timestamp_ms > existing_peer.timestamp_ms {
+                        // Check if the addresses have changed
+                        if verified_peer_info.addresses != existing_peer.addresses {
+                            if is_allowlisted || is_connected {
+                                // Allowlisted or connected peers are trusted, skip verification
+                                peers_to_update_directly.push(verified_peer_info);
+                            } else {
+                                // Addresses have changed, we need to verify.
+                                peers_with_addresses_to_verify.push(verified_peer_info);
+                            }
+                        } else {
+                            // Only timestamp changed, no need to verify addresses
+                            peers_to_update_directly.push(verified_peer_info);
+                        }
                     }
-                    if !o.get().addresses.is_empty() && peer.addresses.is_empty() {
-                        metrics.dec_num_peers_with_external_address();
+                }
+                None => {
+                    if is_allowlisted {
+                        // Allowlisted can be added without verification
+                        peers_to_update_directly.push(verified_peer_info);
+                    } else {
+                        // Unknown peer, always verify
+                        peers_with_addresses_to_verify.push(verified_peer_info);
                     }
-                    o.insert(peer);
                 }
             }
-            // Inserts the peer if it doesn't exist.
-            Entry::Vacant(v) => {
-                if !peer.addresses.is_empty() {
+        }
+    }
+
+    if peers_to_update_directly.is_empty() && peers_with_addresses_to_verify.is_empty() {
+        // No peers to update or verify, we're done
+        return;
+    }
+
+    // Verify addresses for peers that need verification
+    let (mut verified_peers, failed_peer_ids) = match peers_with_addresses_to_verify.is_empty() {
+        false => verify_addresses_of_peers(network, peers_with_addresses_to_verify).await,
+        true => Default::default(),
+    };
+
+    // If we have neither verified peers nor peers to update directly, nor failed
+    // peers, we're done
+    if verified_peers.is_empty()
+        && peers_to_update_directly.is_empty()
+        && failed_peer_ids.is_empty()
+    {
+        return;
+    }
+
+    {
+        // First check if multiple verified peers claim the same address
+        let mut address_to_peer: HashMap<Multiaddr, VerifiedSignedNodeInfo> =
+            HashMap::with_capacity(verified_peers.len() * MAX_ADDRESSES_PER_PEER);
+        let mut new_peers_to_reject = HashSet::new();
+        for (new_peer_info, verified_addresses) in &verified_peers {
+            for address in verified_addresses {
+                match address_to_peer.entry(address.clone()) {
+                    // Replaces the peer if the new one is newer.
+                    Entry::Occupied(mut existing_entry) => {
+                        if new_peer_info.timestamp_ms > existing_entry.get().timestamp_ms {
+                            new_peers_to_reject.insert(existing_entry.get().peer_id);
+                            existing_entry.insert(new_peer_info.clone());
+                        } else {
+                            new_peers_to_reject.insert(new_peer_info.peer_id);
+                        }
+                    }
+                    // Inserts the peer if it doesn't exist.
+                    Entry::Vacant(v) => {
+                        v.insert(new_peer_info.clone());
+                    }
+                }
+            }
+        }
+
+        // Update the known peers state with all changes in a single write lock
+        // acquisition.
+        let mut state_guard = state.write().unwrap();
+
+        // Add all failed peers to verification failure cooldown
+        for peer_id in failed_peer_ids {
+            state_guard
+                .address_verification_cooldown
+                .insert(peer_id, now_instant);
+            debug!(
+                "Added peer {} to verification failure cooldown for {:.1}s",
+                peer_id,
+                ADDRESS_VERIFICATION_FAILURE_COOLDOWN.as_secs_f32()
+            );
+        }
+
+        // First insert/update the peers that didn't need verification
+        for peer in peers_to_update_directly {
+            insert_or_update_peer(&mut state_guard, peer, &metrics);
+        }
+
+        if !address_to_peer.is_empty() {
+            // Remove existing peers that have conflicting addresses with the new peers, if
+            // their timestamp is older than the new peer's timestamp. (Skip
+            // connected peers).
+            // Also reject new peers that lost address conflicts or with existing peers
+
+            let mut peers_to_remove = Vec::new();
+            for (peer_id, peer_info) in state_guard.known_peers.iter() {
+                // Skip connected peers as we don't want to disconnect them anyway
+                if state_guard.connected_peers.contains_key(peer_id) {
+                    continue;
+                }
+
+                for address in &peer_info.addresses {
+                    if let Some(new_peer_info) = address_to_peer.get(address) {
+                        // if the peer_id is the same, we will update it later
+                        if new_peer_info.peer_id != *peer_id {
+                            // Conflict detected
+                            if new_peer_info.timestamp_ms > peer_info.timestamp_ms {
+                                debug!(
+                                    "Address conflict: newer peer {} replaces older peer {} for address {}",
+                                    new_peer_info.peer_id, peer_id, address
+                                );
+                                // New peer wins - remove old peer
+                                peers_to_remove.push(*peer_id);
+                                if !peer_info.addresses.is_empty() {
+                                    metrics.dec_num_peers_with_external_address();
+                                }
+                                break; // No need to check other addresses of this peer
+                            } else {
+                                // Existing peer wins - reject this new peer
+                                debug!(
+                                    "Address conflict: existing peer {} keeps address {} over older peer {}",
+                                    peer_id, address, new_peer_info.peer_id
+                                );
+                                new_peers_to_reject.insert(new_peer_info.peer_id);
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Remove the peers that lost conflicts
+            for peer_id in peers_to_remove {
+                state_guard.known_peers.remove(&peer_id);
+            }
+        }
+
+        if !new_peers_to_reject.is_empty() {
+            // Remove new peers that lost address conflicts
+            verified_peers
+                .retain(|(peer_info, _)| !new_peers_to_reject.contains(&peer_info.peer_id));
+        }
+
+        // Insert/update the remaining verified peers
+        for (verified_peer, _) in verified_peers {
+            insert_or_update_peer(&mut state_guard, verified_peer, &metrics);
+        }
+    }
+}
+
+/// Inserts or updates a peer in the known peers list.
+/// If the peer already exists, its NodeInfo is updated only if the new one has
+/// a newer timestamp.
+fn insert_or_update_peer(
+    state_guard: &mut std::sync::RwLockWriteGuard<'_, State>,
+    peer: VerifiedSignedNodeInfo,
+    metrics: &Metrics,
+) {
+    match state_guard.known_peers.entry(peer.peer_id) {
+        // Updates the NodeInfo of the peer if it exists.
+        Entry::Occupied(mut existing_entry) => {
+            if peer.timestamp_ms > existing_entry.get().timestamp_ms {
+                if existing_entry.get().addresses.is_empty() && !peer.addresses.is_empty() {
                     metrics.inc_num_peers_with_external_address();
                 }
-                v.insert(peer);
+                if !existing_entry.get().addresses.is_empty() && peer.addresses.is_empty() {
+                    metrics.dec_num_peers_with_external_address();
+                }
+                existing_entry.insert(peer);
             }
+        }
+        // Inserts the peer if it doesn't exist.
+        Entry::Vacant(v) => {
+            if !peer.addresses.is_empty() {
+                metrics.inc_num_peers_with_external_address();
+            }
+            v.insert(peer);
         }
     }
 }

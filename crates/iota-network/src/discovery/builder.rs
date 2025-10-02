@@ -88,6 +88,8 @@ impl Builder {
             our_info: None,
             connected_peers: HashMap::default(),
             known_peers: HashMap::default(),
+            address_verification_cooldown: HashMap::default(),
+            last_cooldown_cleanup: std::time::Instant::now(),
         }
         .pipe(RwLock::new)
         .pipe(Arc::new);
