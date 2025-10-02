@@ -23,6 +23,7 @@ use iota_types::{
     transaction::SenderSignedData,
 };
 use move_core_types::language_storage::StructTag;
+#[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
