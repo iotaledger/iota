@@ -223,8 +223,8 @@ mod tests {
     use crate::encoder::create_encoder;
     use crate::Transaction;
 
-    #[test]
-    fn decode_should_fail_cases() {
+    #[tokio::test]
+    async fn decode_should_fail_cases() {
         let (context, _) = Context::new_for_test(4); // info=2, parity=2
         let context = Arc::new(context);
         let mut encoder = create_encoder(&context.clone());

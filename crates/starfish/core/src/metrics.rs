@@ -115,6 +115,10 @@ pub(crate) struct NodeMetrics {
     pub(crate) blocks_per_commit_count: Histogram,
     pub(crate) core_add_blocks_batch_size: Histogram,
     pub(crate) core_lock_dequeued: IntCounter,
+    pub(crate) reconstruction_jobs_started: IntCounter,
+    pub(crate) reconstruction_jobs_finished: IntCounter,
+    pub(crate) number_of_shard_accumulators: IntGauge,
+    pub(crate) reconstruction_queue: IntGauge,
     pub(crate) core_lock_enqueued: IntCounter,
     pub(crate) core_skipped_proposals: IntCounterVec,
     pub(crate) highest_accepted_authority_round: IntGaugeVec,
@@ -312,6 +316,16 @@ impl NodeMetrics {
                 "Gap in rounds between current round and the oldest unavailable transaction",
                 registry,
             ).unwrap(),
+            reconstruction_jobs_started: register_int_counter_with_registry!(
+                "reconstruction_jobs_started",
+                "Number of reconstruction jobs spawned",
+                registry,
+            ).unwrap(),
+            reconstruction_jobs_finished: register_int_counter_with_registry!(
+                "reconstruction_jobs_started",
+                "Number of reconstruction jobs finished",
+                registry,
+            ).unwrap(),
             core_lock_dequeued: register_int_counter_with_registry!(
                 "core_lock_dequeued",
                 "Number of dequeued core requests",
@@ -343,6 +357,16 @@ impl NodeMetrics {
                 "accepted_block_headers",
                 "Number of accepted block headers by source (own, others)",
                 &["source"],
+                registry,
+            ).unwrap(),
+            number_of_shard_accumulators: register_int_gauge_with_registry!(
+                "number_of_shard_accumulators",
+                "The number of shard accumulators currently in memory",
+                registry,
+            ).unwrap(),
+            reconstruction_queue: register_int_gauge_with_registry!(
+                "reconstruction_queue",
+                "The current number of pending reconstruction jobs in the queue",
                 registry,
             ).unwrap(),
             dag_state_recent_transactions: register_int_gauge_with_registry!(

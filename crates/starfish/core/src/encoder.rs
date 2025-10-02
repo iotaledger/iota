@@ -149,9 +149,9 @@ mod tests {
     use super::*;
     use crate::{Transaction, context::Context, decoder::create_decoder};
 
-    #[test]
+    #[tokio::test]
     #[should_panic(expected = "Data length must match info length")]
-    fn encode_should_fail_mismatched_length() {
+    async fn encode_should_fail_mismatched_length() {
         let committee_size = 3;
         let (context, _) = Context::new_for_test(committee_size);
         let context = Arc::new(context);
@@ -167,8 +167,8 @@ mod tests {
 
     // Test encoding and decoding with trivial encoder/decoder (no redundancy)
     // for various counts and lengths of random transactions
-    #[test]
-    fn trivial_encoding_decoding_random_transactions() {
+    #[tokio::test]
+    async fn trivial_encoding_decoding_random_transactions() {
         // Committee size == info_length → no parity
         let (context, _) = Context::new_for_test(2);
         let context = Arc::new(context);
@@ -206,8 +206,8 @@ mod tests {
     // counts and lengths of random transactions, randomly dropping up to
     // parity_length shards to simulate successful decoding using parity shards
 
-    #[test]
-    fn reed_solomon_encoding_decoding_random_transactions() {
+    #[tokio::test]
+    async fn reed_solomon_encoding_decoding_random_transactions() {
         for committee_size in 4..10 {
             let (context, _) = Context::new_for_test(committee_size);
             let parity_length = context.committee.parity_length();
