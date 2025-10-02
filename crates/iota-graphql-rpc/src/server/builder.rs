@@ -66,10 +66,10 @@ use crate::{
         exchange_rates_task::TriggerExchangeRatesTask,
         system_package_task::SystemPackageTask,
         version::{check_version_middleware, set_version_middleware},
-        watermark_task::{ChainIdentifierCache, Watermark, WatermarkLock, WatermarkTask},
+        watermark_task::{Watermark, WatermarkLock, WatermarkTask},
     },
     types::{
-        chain_identifier::ChainIdentifier,
+        chain_identifier::{ChainIdentifier, ChainIdentifierCache},
         datatype::IMoveDatatype,
         move_object::IMoveObject,
         object::IObject,
@@ -375,7 +375,6 @@ impl ServerBuilder {
             ))
             .layer(axum::extract::Extension(schema))
             .layer(axum::extract::Extension(watermark_task.lock()))
-            .layer(axum::extract::Extension(watermark_task.chain_id_cache()))
             .layer(Self::cors()?);
 
         Ok(Server {
@@ -505,7 +504,8 @@ impl ServerBuilder {
             .context_data(iota_names_config)
             .context_data(zklogin_config)
             .context_data(metrics.clone())
-            .context_data(config.clone());
+            .context_data(config.clone())
+            .context_data(ChainIdentifierCache::default());
 
         if config.internal_features.feature_gate {
             builder = builder.extension(FeatureGate);
@@ -562,7 +562,6 @@ async fn graphql_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     schema: Extension<IotaGraphQLSchema>,
     Extension(watermark_lock): Extension<WatermarkLock>,
-    Extension(chain_identifier_cache): Extension<ChainIdentifierCache>,
     headers: HeaderMap,
     req: GraphQLRequest,
 ) -> (axum::http::Extensions, GraphQLResponse) {
@@ -577,7 +576,6 @@ async fn graphql_handler(
     req.data.insert(addr);
 
     req.data.insert(Watermark::new(watermark_lock).await);
-    req.data.insert(chain_identifier_cache.read());
 
     let result = schema.execute(req).await;
 

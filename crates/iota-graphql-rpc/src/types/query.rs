@@ -26,7 +26,7 @@ use crate::{
         address::Address,
         available_range::AvailableRange,
         base64::Base64 as GraphQLBase64,
-        chain_identifier::ChainIdentifier,
+        chain_identifier::ChainIdentifierCache,
         checkpoint::{self, Checkpoint, CheckpointId},
         coin::Coin,
         coin_metadata::CoinMetadata,
@@ -60,16 +60,15 @@ impl Query {
     /// First four bytes of the network's genesis checkpoint digest (uniquely
     /// identifies the network).
     async fn chain_identifier(&self, ctx: &Context<'_>) -> Result<String> {
-        // On every GraphQLRequest the chain identifier is injected into the Request
-        // Data in the `graphql_handler` function, if it panic it's a bug, it should be
-        // always present.
-        let chain_id: ChainIdentifier = *ctx.data_unchecked();
+        // the chain identifier cache is added to the context during server
+        // initialization, if it panics it's a bug, it should be always present.
+        let chain_id_cache: &ChainIdentifierCache = ctx.data_unchecked();
 
-        if let Some(id) = chain_id.into_inner() {
-            Ok(id.to_string())
-        } else {
-            Err(Error::Internal("chain identifier not initialized.".into())).extend()
-        }
+        chain_id_cache
+            .read(ctx.data_unchecked(), ctx.data_unchecked())
+            .await
+            .map(|id| id.into_inner().to_string())
+            .extend()
     }
 
     /// Range of checkpoints that the RPC has data available for (for data
