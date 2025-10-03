@@ -26,7 +26,7 @@ use iota_types::{
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, info, instrument, trace_span, warn};
+use tracing::{debug, info, instrument, trace_span, warn};
 
 use crate::{
     authority::{
