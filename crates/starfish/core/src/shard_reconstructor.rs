@@ -19,11 +19,19 @@ use tokio::{
 };
 use tracing::{debug, warn};
 
-use crate::{BlockRef, Transaction, VerifiedBlockHeader, block_header::{
-    BlockHeaderDigest, Shard, ShardWithProof, TransactionsCommitment, VerifiedBlock,
-    VerifiedTransactions,
-}, context::Context, core_thread::CoreThreadDispatcher, dag_state::DagState, decoder::{ShardsDecoder, create_decoder}, encoder::{ShardEncoder, create_encoder}, error::{ConsensusError, ConsensusResult}, Round};
-use crate::block_header::GENESIS_ROUND;
+use crate::{
+    BlockRef, Round, Transaction, VerifiedBlockHeader,
+    block_header::{
+        BlockHeaderDigest, GENESIS_ROUND, Shard, ShardWithProof, TransactionsCommitment,
+        VerifiedBlock, VerifiedTransactions,
+    },
+    context::Context,
+    core_thread::CoreThreadDispatcher,
+    dag_state::DagState,
+    decoder::{ShardsDecoder, create_decoder},
+    encoder::{ShardEncoder, create_encoder},
+    error::{ConsensusError, ConsensusResult},
+};
 
 #[derive(Clone)]
 pub struct ShardAccumulator {
@@ -572,7 +580,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             &self.ready_to_reconstruct_sender,
             self.info_length,
             &key,
-        ).await?;
+        )
+        .await?;
 
         Ok(())
     }
@@ -594,7 +603,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                     .expect("We should expect the shard accumulator to be present");
                 sender
                     .send(acc)
-                    .await.map_err(|_| ConsensusError::AccumulatorSenderClosed)?;
+                    .await
+                    .map_err(|_| ConsensusError::AccumulatorSenderClosed)?;
                 reconstruction_queue.insert(key.0.clone());
             }
         }
