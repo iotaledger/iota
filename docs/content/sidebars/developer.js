@@ -481,13 +481,8 @@ const developer = [
             items: [
                 {
                     type: 'doc',
-                    id: 'developer/workshops/minting-managing-tokens/package',
-                    label: 'Move Package',
-                },
-                {
-                    type: 'doc',
-                    id: 'developer/workshops/minting-managing-tokens/frontend',
-                    label: 'Frontend',
+                    id: 'developer/workshops/minting-managing-tokens/workshop-token-dapp',
+                    label: 'Workshop Token dApp',
                 },
             ],
         },
