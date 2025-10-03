@@ -993,7 +993,7 @@ export class IotaClient {
      */
     async isTransactionIndexedOnNode(input: IsTransactionIndexedOnNodeParams): Promise<boolean> {
         return await this.transport.request({
-            method: 'iotax_isTransactionIndexedOnNode',
+            method: 'iota_isTransactionIndexedOnNode',
             params: [input.digest],
         });
     }
