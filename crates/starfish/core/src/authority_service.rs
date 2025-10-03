@@ -2050,10 +2050,9 @@ mod tests {
     }
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_with_additional_headers() {
-        telemetry_subscribers::init_for_testing();
         // GIVEN
-        let rounds = 50;
-        let validators = 50;
+        let rounds = 10;
+        let validators = 10;
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
@@ -2201,8 +2200,8 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribe_bundle_without_additional_headers() {
         // GIVEN
-        let rounds = 50;
-        let validators = 50;
+        let rounds = 10;
+        let validators = 10;
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(

@@ -603,7 +603,7 @@ mod tests {
     use crate::shard_reconstructor::{FullTransactionMessage, HeaderMessage, ShardMessage, ShardReconstructor, TransactionMessage};
     use crate::storage::mem_store::MemStore;
     use crate::{BlockRef, Round, TestBlockHeader, Transaction, VerifiedBlockHeader};
-    use crate::block_header::{TransactionsCommitment, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions};
+    use crate::block_header::{Shard, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions};
     use crate::commit::CertifiedCommits;
     use crate::core_thread::{CoreError, CoreThreadDispatcher};
     use crate::encoder::create_encoder;
@@ -681,6 +681,52 @@ mod tests {
             unimplemented!()
         }
     }
+
+    /// Prepare a batch of messages simulating the case:
+    /// - FullTransaction for round `i` from authority `j`
+    /// - Headers of all authorities for round `i-1`
+    /// - The j-th shard of every authority's transaction data from round `i-1`
+    /// This simulates the typical case where authority `j` is streaming its block bundles
+    fn prepare_bundle_messages(
+        authority_j: u8,
+        header_cur: VerifiedBlockHeader,
+        headers_prev: &[VerifiedBlockHeader],
+        shards_prev: &[Vec<Shard>], // one Vec<Shard> per authority
+    ) -> Vec<TransactionMessage> {
+        let mut msgs = Vec::new();
+
+        // 1. FullTransaction for round i (authority j)
+        msgs.push(TransactionMessage::FullTransaction(
+            FullTransactionMessage::new(
+                header_cur.reference(),
+                header_cur.transactions_commitment(),
+            ),
+        ));
+
+        // 2. All headers from round i-1
+        for hdr in headers_prev.iter() {
+            msgs.push(TransactionMessage::Header(HeaderMessage::new(
+                hdr.reference(),
+                hdr.transactions_commitment(),
+            )));
+        }
+
+        // 3. The j-th shard of every authority’s transaction data from round i-1
+        let j_index = authority_j as usize;
+        for (auth_index, shards) in shards_prev.iter().enumerate() {
+            if let Some(shard) = shards.get(j_index) {
+                msgs.push(TransactionMessage::Shard(ShardMessage {
+                    block_ref: headers_prev[auth_index].reference(),
+                    transactions_commitment: headers_prev[auth_index].transactions_commitment(),
+                    shard: shard.clone(),
+                    shard_index: j_index,
+                }));
+            }
+        }
+
+        msgs
+    }
+
 
 
     /// Test that reconstruction only triggers after receiving one header and info_length shards
@@ -889,6 +935,141 @@ mod tests {
         // Clean up
         handle.stop().await.expect("We should expect graceful shutdown");
     }
+
+    /// Test reconstruction over multiple rounds with one authority that has a blocked connection
+    #[tokio::test]
+    async fn test_reconstruction_over_multiple_rounds_with_missing_authority() {
+        telemetry_subscribers::init_for_testing();
+
+        // GIVEN
+        let committee_size = 4;
+        let (context, _) = Context::new_for_test(committee_size);
+        let context = Arc::new(context);
+
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+
+        let handle = ShardReconstructor::start(
+            context.clone(),
+            dag_state.clone(),
+            core_dispatcher.clone(),
+        );
+        let tx = handle.transaction_message_sender();
+
+        let mut encoder = create_encoder(&context);
+        let info_len = context.committee.info_length();
+        let parity_len = context.committee.parity_length();
+
+        // Authority that never sends bundles
+        let blocked_authority: u8 = 1;
+
+        // === Create initial round 0 ===
+        let mut headers_prev = Vec::new();
+        let mut shards_prev = Vec::new();
+        for auth in 0..committee_size as u8 {
+            let txs = Transaction::random_transactions(3, 32);
+            let serialized = Transaction::serialize(&txs).unwrap();
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized,
+                &context,
+                &mut encoder,
+            )
+                .unwrap();
+
+            let header = VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(0, auth)
+                    .set_commitment(commitment)
+                    .build(),
+            );
+
+            let shards = encoder.encode_serialized_data(&serialized, info_len, parity_len).unwrap();
+
+            headers_prev.push(header);
+            shards_prev.push(shards);
+        }
+
+        // === Simulate rounds 1..=10 ===
+        for round in 1..=10 {
+            let mut headers_cur = Vec::new();
+            let mut shards_cur = Vec::new();
+
+            // Generate data for all authorities in current round
+            for auth in 0..committee_size as u8 {
+                let txs = Transaction::random_transactions(3, 32);
+                let serialized = Transaction::serialize(&txs).unwrap();
+                let commitment = TransactionsCommitment::compute_transactions_commitment(
+                    &serialized,
+                    &context,
+                    &mut encoder,
+                )
+                    .unwrap();
+
+                let header = VerifiedBlockHeader::new_for_test(
+                    TestBlockHeader::new(round, auth)
+                        .set_commitment(commitment)
+                        .build(),
+                );
+
+                let shards = encoder.encode_serialized_data(&serialized, info_len, parity_len).unwrap();
+
+                headers_cur.push(header);
+                shards_cur.push(shards);
+            }
+
+            // Send bundles from all but the missing authority
+            for auth in 0..committee_size as u8 {
+                if auth == blocked_authority {
+                    continue;
+                }
+
+                let mut msgs = prepare_bundle_messages(
+                    auth,
+                    headers_cur[auth as usize].clone(),
+                    &headers_prev,
+                    &shards_prev,
+                );
+
+                if round == 1 {
+                    // Exclude shards from round 0 for the first round to simulate
+                    msgs.retain(|msg| !matches!(msg, TransactionMessage::Shard(_)) );
+                }
+
+                tx.send(msgs).await.unwrap();
+            }
+
+            // Advance: current round becomes next round's "previous"
+            headers_prev = headers_cur;
+            shards_prev = shards_cur;
+        }
+
+        // WHEN: let the reconstructor work
+        tokio::time::sleep(Duration::from_millis(2000)).await;
+
+        // THEN: we should have reconstructed exactly 9 missing sets (from round 1 to 9)
+        // for the blocked authority
+        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        assert_eq!(
+            fetched.len(),
+            9,
+            "We should reconstruct exactly one missing block per round for the missing authority"
+        );
+
+        // Check all reconstructed transactions correspond to the missing authority
+        for vt in &fetched {
+            assert_eq!(
+                vt.block_ref().author.value(),
+                blocked_authority as usize,
+                "Reconstructed block must belong to the blocked authority"
+            );
+        }
+
+        handle.stop().await.unwrap();
+    }
+
+
+
 
 
 
