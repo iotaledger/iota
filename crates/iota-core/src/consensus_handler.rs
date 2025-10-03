@@ -7,6 +7,7 @@ use std::{
     hash::Hash,
     num::NonZeroUsize,
     sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use arc_swap::ArcSwap;
@@ -25,7 +26,7 @@ use iota_types::{
 };
 use lru::LruCache;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, info, instrument, trace_span, warn};
+use tracing::{debug, error, info, instrument, trace_span, warn};
 
 use crate::{
     authority::{
@@ -223,8 +224,20 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
 
         // (serialized, transaction, output_cert)
         let mut transactions = vec![];
+        let timestamp = consensus_output.commit_timestamp_ms();
         let leader_author = consensus_output.leader_author_index();
         let commit_sub_dag_index = consensus_output.commit_sub_dag_index();
+
+        let system_time_ms = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+
+        let consensus_timestamp_bias_ms = system_time_ms - (timestamp as i64);
+        let consensus_timestamp_bias_seconds = consensus_timestamp_bias_ms as f64 / 1000.0;
+        self.metrics
+            .consensus_timestamp_bias
+            .observe(consensus_timestamp_bias_seconds);
 
         debug!(
             %consensus_output,
