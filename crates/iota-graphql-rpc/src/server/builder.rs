@@ -37,7 +37,6 @@ use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
 use iota_metrics::spawn_monitored_task;
 use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
-use iota_sdk::IotaClientBuilder;
 use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use tokio::{join, net::TcpListener, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
@@ -467,18 +466,7 @@ impl ServerBuilder {
 
         // SDK for talking to fullnode. Used for executing transactions only
         // TODO: fail fast if no url, once we enable mutations fully
-        let (iota_sdk_client, write_api) = if let Some(url) = &config.tx_exec_full_node.node_rpc_url
-        {
-            let iota_sdk_client = IotaClientBuilder::default()
-                .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
-                .max_concurrent_requests(MAX_CONCURRENT_REQUESTS)
-                .build(url)
-                .await
-                .map_err(|e| {
-                    Error::Internal(format!(
-                        "Failed to connect to fullnode {e}. Is the node server running?"
-                    ))
-                })?;
+        let write_api = if let Some(url) = &config.tx_exec_full_node.node_rpc_url {
             let json_rpc_client = get_json_rpc_client(url)?;
             let indexer_store = PgIndexerStore::new(reader.get_pool(), indexer_metrics.clone());
             let optimistic_tx_executor = OptimisticTransactionExecutor::new(
@@ -491,12 +479,12 @@ impl ServerBuilder {
                 WriteApi::new(json_rpc_client, reader),
                 optimistic_tx_executor,
             );
-            (Some(iota_sdk_client), Some(write_api))
+            Some(write_api)
         } else {
             warn!(
                 "No fullnode url found in config. `dryRunTransactionBlock` and `executeTransactionBlock` will not work"
             );
-            (None, None)
+            None
         };
 
         builder = builder
@@ -505,7 +493,6 @@ impl ServerBuilder {
             .context_data(db)
             .context_data(pg_conn_pool)
             .context_data(resolver)
-            .context_data(iota_sdk_client)
             .context_data(write_api)
             .context_data(iota_names_config)
             .context_data(zklogin_config)

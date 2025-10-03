@@ -6339,7 +6339,6 @@ dependencies = [
  "iota-network-stack",
  "iota-package-resolver",
  "iota-rest-api",
- "iota-sdk 1.9.0-alpha",
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
