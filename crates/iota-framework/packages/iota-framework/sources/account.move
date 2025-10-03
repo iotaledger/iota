@@ -3,11 +3,18 @@
 
 module iota::account;
 
+use iota::dynamic_field;
+
 use std::ascii;
+
+#[error(code = 0)]
+const EAuthenticatorInfoV1AlreadyAttached: vector<u8> = b"An `AuthenticatorInfoV1` instance is already attached to the account.";
+#[error(code = 1)]
+const EAuthenticatorInfoV1NotAttached: vector<u8> = b"'AuthenticatorInfoV1' is not attached to the account.";
 
 /// Dynamic field key, where the system will look for a potential
 /// authenticate function.
-const AUTHENTICATOR_DF_NAME: vector<u8> = b"IOTA_AUTHENTICATION";
+public struct AuthenticatorInfoV1Key has copy, drop, store {}
 
 #[allow(unused_field)]
 public struct AuthenticatorInfoV1 has copy, drop, store {
@@ -42,16 +49,55 @@ public fun create_auth_info_v1(
     }
 }
 
+/// Attach the `authenticator` instance to the account.
+/// It will be added as a dynamic field specified by the `AuthenticatorInfoV1Key` name.
+public fun attach_auth_info_v1(account_id: &mut UID, authenticator: AuthenticatorInfoV1) {
+    assert!(!has_auth_info_v1(account_id), EAuthenticatorInfoV1AlreadyAttached);
+    dynamic_field::add(account_id, auth_info_v1_key(), authenticator);
+}
+
+/// Detach the account-related authenticator from the account.
+/// The dynamic field specified by the `AuthenticatorInfoV1Key` name will be removed.
+public fun detach_auth_info_v1(account_id: &mut UID): AuthenticatorInfoV1 {
+    assert!(has_auth_info_v1(account_id), EAuthenticatorInfoV1NotAttached);
+    dynamic_field::remove(account_id, auth_info_v1_key())
+}
+
+/// Rotate the account-related authenticator.
+/// The `authenticator` instance will replace the account dynamic field specified by the `AuthenticatorInfoV1Key` name;
+/// the previous value will be returned.
+public fun rotate_auth_info_v1(account_id: &mut UID, authenticator: AuthenticatorInfoV1): AuthenticatorInfoV1 {
+    assert!(has_auth_info_v1(account_id), EAuthenticatorInfoV1NotAttached);
+
+    let name = auth_info_v1_key();
+
+    let previous_authenticator_info = dynamic_field::remove(account_id, name);
+    dynamic_field::add(account_id, name, authenticator);
+    previous_authenticator_info
+}
+
+/// Borrow the account-related authenticator.
+/// The dynamic field specified by the `AuthenticatorInfoV1Key` name will be returned.
+public fun borrow_auth_info_v1(account_id: &UID): &AuthenticatorInfoV1 {
+    assert!(has_auth_info_v1(account_id), EAuthenticatorInfoV1NotAttached);
+    dynamic_field::borrow(account_id, auth_info_v1_key())
+}
+
+
+/// Check if an authenticator is attached. If a dynamic field with the `AuthenticatorInfoV1Key` name exists.
+public fun has_auth_info_v1(account_id: &UID): bool {
+    dynamic_field::exists_(account_id, auth_info_v1_key())
+}
+
+fun auth_info_v1_key(): AuthenticatorInfoV1Key {
+    AuthenticatorInfoV1Key{}
+}
+
 native fun check_auth_info_v1(
     package: address,
     module_name: &vector<u8>,
     function_name: &vector<u8>,
 );
-
-/// Returns the dynamic field name where the system will look for an authenticate function.
-public fun authenticator_df_name(): vector<u8> {
-    AUTHENTICATOR_DF_NAME
-}
 
 /// Creates an `AuthenticatorInfoV1` instance for testing, skipping validation.
 #[test_only]

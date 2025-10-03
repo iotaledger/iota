@@ -4,7 +4,6 @@
 module iota_account::iota_account;
 
 use iota::account::{Self, AuthenticatorInfoV1};
-use iota::bcs;
 use iota::auth_context::AuthContext;
 use iota::dynamic_field;
 use iota::ecdsa_k1;
@@ -16,8 +15,6 @@ use iota::hex::decode;
 const ETransactionSenderIsNotTheAccount: vector<u8> = b"The user who signed the transaction is not the account.";
 #[error(code = 1)]
 const EOwnerPublicKeyCannotBeUsed: vector<u8> = b"The `OwnerPublicKey` type cannot be used as a name for user-defined dynamic fields.";
-#[error(code = 2)]
-const EAuthenticatorDynamicFieldNameCannotBeUsed: vector<u8> = b"The authenticator dynamic field system name cannot be used as a name for user-defined dynamic fields.";
 
 #[error(code = 10)]
 const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verification failed.";
@@ -57,7 +54,7 @@ public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ct
     dynamic_field::add(&mut id, OwnerPublicKey{}, public_key);
 
     // Add the authenticator info as a dynamic field.
-    dynamic_field::add(&mut id, account::authenticator_df_name(), authenticator);
+    account::attach_auth_info_v1(&mut id, authenticator);
 
     // Create a mutable shared account object.
     iota::transfer::share_object(IOTAccount { id });
@@ -77,7 +74,7 @@ public fun add_field<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_reserved_df_name(&name);
+    check_reserved_df_name<Name>();
 
     // Add a new field.
     dynamic_field::add(&mut self.id, name, value);
@@ -94,7 +91,7 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_reserved_df_name(&name);
+    check_reserved_df_name<Name>();
 
     // Remove a new field and return it.
     dynamic_field::remove(&mut self.id, name)
@@ -121,7 +118,7 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_reserved_df_name(&name);
+    check_reserved_df_name<Name>();
 
     // Borrow the related dynamic field.
     dynamic_field::borrow_mut(&mut self.id, name)
@@ -130,6 +127,13 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
 /// Returns `true` if and only if `self` has a dynamic field with the specified `name`.
 public fun has_field<Name: copy + drop + store>(self: &IOTAccount, name: Name): bool {
     dynamic_field::exists_(&self.id, name)
+}
+
+/// Borrows a reference to the attached `AuthenticatorInfoV1` instance.
+/// This function is not gated to be called only by the account,
+/// anybody can call it to read the account dynamic fields.
+public fun borrow_auth_info_v1(self: &IOTAccount): &AuthenticatorInfoV1 {
+    account::borrow_auth_info_v1(&self.id)
 }
 
 // --------------------------------------- Authentication ---------------------------------------
@@ -154,11 +158,8 @@ public fun rotate_public_key(
     dynamic_field::remove<_, vector<u8>>(account_id, owner_public_key);
     dynamic_field::add(account_id, owner_public_key, public_key);
 
-    // Update the account owner public key dynamic field. It is expected that the field already exists.
-    let authenticator_df_name = account::authenticator_df_name();
-
-    dynamic_field::remove<_, AuthenticatorInfoV1>(account_id, authenticator_df_name);
-    dynamic_field::add(account_id, authenticator_df_name, authenticator);
+    // Update the authenticator info dynamic field. It is expected that the field already exists.
+    account::rotate_auth_info_v1(account_id, authenticator);
 }
 
 // --------------------------------------- Authenticators ---------------------------------------
@@ -227,16 +228,9 @@ fun ensure_tx_sender_is_account(self: &IOTAccount, ctx: &TxContext) {
 }
 
 /// Checks if `name` is allowed to be used for a user-defined dynamic field.
-fun check_reserved_df_name<Name: copy + drop + store>(name: &Name) {
+fun check_reserved_df_name<Name: copy + drop + store>() {
     // Check that `Name` is not `OwnerPublicKey`.
     assert!(std::type_name::get<Name>() != std::type_name::get<OwnerPublicKey>(), EOwnerPublicKeyCannotBeUsed);
-
-    // Check that `name` is not equal to `account::authenticator_df_name()`.
-    assert!(
-        (std::type_name::get<Name>() != std::type_name::get<vector<u8>>()) ||
-        (bcs::to_bytes(name) != bcs::to_bytes(&account::authenticator_df_name())),
-        EAuthenticatorDynamicFieldNameCannotBeUsed
-    );
 }
 
 // --------------------------------------- Test Utilities ---------------------------------------

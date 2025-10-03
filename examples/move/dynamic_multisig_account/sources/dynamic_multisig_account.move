@@ -60,7 +60,7 @@ public fun create(
     // Add all the data as dynamic fields.
     dynamic_field::add(&mut id, members_key(), members);
     dynamic_field::add(&mut id, threshold_key(), threshold);
-    dynamic_field::add(&mut id, account::authenticator_df_name(), authenticator);
+    account::attach_auth_info_v1(&mut id, authenticator);
     dynamic_field::add(&mut id, transactions_key(), transactions::create(ctx));
 
     // Create a mutable shared account object.
@@ -111,7 +111,7 @@ public fun total_approves(self: &DynamicMultisigAccount, transaction_digest: vec
 
 /// Immutably borrows the account authenticator.
 public fun authenticator(self: &DynamicMultisigAccount): &AuthenticatorInfoV1 {
-    dynamic_field::borrow(&self.id, account::authenticator_df_name())
+    account::borrow_auth_info_v1(&self.id)
 }
 
 // --------------------------------------- Transactions ---------------------------------------
@@ -181,7 +181,7 @@ public fun update_account_data(
     // Update the dynamic fields. It is expected that the fields already exist.
     update_dynamic_field(account_id, members_key(), members);
     update_dynamic_field(account_id, threshold_key(), threshold);
-    update_dynamic_field(account_id, account::authenticator_df_name(), authenticator);
+    account::rotate_auth_info_v1(account_id, authenticator);
 }
 
 /// A transaction authenticator.
