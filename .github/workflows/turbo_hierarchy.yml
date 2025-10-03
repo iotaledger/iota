@@ -67,7 +67,7 @@ jobs:
             turbo-${{ runner.os }}-
       - name: Node Sync
         run: |
-          cd sdk/typescript 
+          cd sdk/typescript
           pnpm update-graphql-schemas
           pnpm update-open-rpc-client-types
           cd ../graphql-transport
