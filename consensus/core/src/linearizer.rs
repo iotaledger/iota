@@ -176,8 +176,7 @@ impl Linearizer {
                 .map(|block_opt| block_opt.expect("We should have all blocks in dag state."));
             median_timestamp_by_stake(context, blocks).unwrap_or_else(|e| {
                 panic!(
-                    "Cannot compute median timestamp for leader block {:?} ancestors: {}",
-                    leader_block, e
+                    "Cannot compute median timestamp for leader block {leader_block:?} ancestors: {e}"
                 )
             })
         } else {
