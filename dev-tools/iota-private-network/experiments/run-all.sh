@@ -24,7 +24,7 @@ LOG_INTERVAL=60           # save logs every 60 seconds
 DEFAULT_NETWORK_METRIC=false
 DEFAULT_SPAMMER_ENABLE=false
 DEFAULT_SPAMMER_TPS=100
-DEFAULT_SPAMMER_OBJECTS_PER_TX=10
+DEFAULT_SPAMMER_SIZE="100KiB"
 # ==================================================
 
 # --- Trap termination and normal exit safely ---
@@ -116,10 +116,10 @@ RUN_DURATION=$DEFAULT_RUN_DURATION
 NETWORK_METRIC=$DEFAULT_NETWORK_METRIC
 SPAMMER_ENABLE=$DEFAULT_SPAMMER_ENABLE
 SPAMMER_TPS=$DEFAULT_SPAMMER_TPS
-SPAMMER_OBJECTS_PER_TX=$DEFAULT_SPAMMER_OBJECTS_PER_TX
+SPAMMER_SIZE_PER_TX=$DEFAULT_SPAMMER_SIZE
 
 # --- Parse command-line arguments ---
-while getopts ":n:p:b:g:s:x:l:t:r:mS:T:o:h" opt; do
+while getopts ":n:p:b:g:s:x:l:t:r:mS:T:size:h" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
     p) PROTOCOL="$OPTARG" ;;
@@ -133,7 +133,7 @@ while getopts ":n:p:b:g:s:x:l:t:r:mS:T:o:h" opt; do
     m) NETWORK_METRIC=true ;;
     S) SPAMMER_ENABLE="$OPTARG" ;;
     T) SPAMMER_TPS="$OPTARG" ;;
-    o) SPAMMER_OBJECTS_PER_TX="$OPTARG" ;;
+    size) SPAMMER_SIZE_PER_TX="$OPTARG" ;;
     h) usage; exit 0 ;;
     \?) usage; exit 2 ;;
     :)  usage; exit 2 ;;
@@ -159,7 +159,7 @@ log "Run experiments duration   : $RUN_DURATION s"
 log "Network metrics enabled    : $NETWORK_METRIC"
 log "Spammer enabled            : $SPAMMER_ENABLE"
 log "Spammer TPS                : $SPAMMER_TPS"
-log "Spammer objects per tx     : $SPAMMER_OBJECTS_PER_TX"
+log "Spammer size per tx        : $SPAMMER_SPAMMER_SIZE_PER_TX"
 log "==========================="
 
 # Ensure no old spammer instances are running before we begin
@@ -225,18 +225,18 @@ if [ "$SPAMMER_ENABLE" = true ]; then
       log "Error: Spammer script not found at $SPAMMER_SCRIPT"
       exit 1
     fi
-    log "Starting spammer with TPS=$SPAMMER_TPS, objects per tx=$SPAMMER_OBJECTS_PER_TX, duration=${SPAMMER_DURATION}s..."
+    log "Starting spammer with TPS=$SPAMMER_TPS, size per tx=$SPAMMER_SIZE_PER_TX, duration=${SPAMMER_DURATION}s..."
     if [ -n "${SUDO_USER:-}" ]; then
       log "Detected sudo; running spammer as $SUDO_USER to inherit user Rust toolchain"
       sudo -u "$SUDO_USER" -H bash "$SPAMMER_SCRIPT" \
         -T "$SPAMMER_TPS" \
-        -o "$SPAMMER_OBJECTS_PER_TX" \
+        -size "$SPAMMER_SIZE_PER_TX" \
         -d "${SPAMMER_DURATION}s" \
         > "$LOG_DIR/spammer.log" 2>&1 &
     else
       bash "$SPAMMER_SCRIPT" \
         -T "$SPAMMER_TPS" \
-        -o "$SPAMMER_OBJECTS_PER_TX" \
+        -size "$SPAMMER_SIZE_PER_TX" \
         -d "${SPAMMER_DURATION}s" \
         > "$LOG_DIR/spammer.log" 2>&1 &
     fi
