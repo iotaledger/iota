@@ -100,7 +100,7 @@ usage() {
   echo "Usage: $0 [-n num_validators(4..19)] [-p protocol(mysticeti|starfish)] [-b build_images(true|false)]"
   echo "          [-g geodistributed(true|false)] [-s seed(number)] [-x percent_block_connection(0..100)] [-l percent_loss_packets(0..100)]"
   echo "          [-t run_duration_seconds] [-r percent_restart(0..100)] [-m flag_to_output_network_statistics]"
-  echo "          [-S spammer_enable(true|false)] [-T spammer_tps(number)] [-o spammer_objects_per_tx(number)]"
+  echo "          [-S spammer_enable(true|false)] [-T spammer_tps(number)] [-Z spammer_size_per_tx(KiB) | --size spammer_size_per_tx(KiB)]"
 }
 
 # --- Default values ---
@@ -119,7 +119,7 @@ SPAMMER_TPS=$DEFAULT_SPAMMER_TPS
 SPAMMER_SIZE_PER_TX=$DEFAULT_SPAMMER_SIZE
 
 # --- Parse command-line arguments ---
-while getopts ":n:p:b:g:s:x:l:t:r:mS:T:size:h" opt; do
+while getopts ":n:p:b:g:s:x:l:t:r:mS:T:Z:h" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
     p) PROTOCOL="$OPTARG" ;;
@@ -133,13 +133,30 @@ while getopts ":n:p:b:g:s:x:l:t:r:mS:T:size:h" opt; do
     m) NETWORK_METRIC=true ;;
     S) SPAMMER_ENABLE="$OPTARG" ;;
     T) SPAMMER_TPS="$OPTARG" ;;
-    size) SPAMMER_SIZE_PER_TX="$OPTARG" ;;
+    Z) SPAMMER_SIZE_PER_TX="$OPTARG" ;;
     h) usage; exit 0 ;;
     \?) usage; exit 2 ;;
     :)  usage; exit 2 ;;
   esac
 done
 shift $((OPTIND-1))
+
+# Backward/long-option compatibility for size: accept --size or -size VALUE
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --size|-size)
+      if [ -n "${2:-}" ]; then
+        SPAMMER_SIZE_PER_TX="$2"
+        shift 2
+        continue
+      else
+        log "Error: --size requires a value (e.g., 10KiB)"; exit 2
+      fi
+      ;;
+    --) shift; break ;;
+    *) break ;;
+  esac
+done
 
 # --- Ensure correct directory ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -159,7 +176,7 @@ log "Run experiments duration   : $RUN_DURATION s"
 log "Network metrics enabled    : $NETWORK_METRIC"
 log "Spammer enabled            : $SPAMMER_ENABLE"
 log "Spammer TPS                : $SPAMMER_TPS"
-log "Spammer size per tx        : $SPAMMER_SPAMMER_SIZE_PER_TX"
+log "Spammer size per tx        : $SPAMMER_SIZE_PER_TX"
 log "==========================="
 
 # Ensure no old spammer instances are running before we begin
