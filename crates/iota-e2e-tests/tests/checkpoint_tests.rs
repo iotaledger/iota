@@ -145,14 +145,11 @@ async fn test_checkpoint_timestamps_non_decreasing() {
         let current_checkpoint = checkpoint_store
             .get_checkpoint_by_sequence_number(current_seq)
             .expect("DB error getting current checkpoint")
-            .unwrap_or_else(|| panic!("checkpoint missing for seq {}", current_seq));
+            .unwrap_or_else(|| panic!("checkpoint missing for seq {current_seq}"));
         let current_timestamp = current_checkpoint.timestamp();
         assert!(
             current_timestamp <= prev_timestamp,
-            "Timestamp decreased! current seq {}, {:?} vs {:?}",
-            current_seq,
-            current_timestamp,
-            prev_timestamp,
+            "Timestamp decreased! current seq {current_seq}, {current_timestamp:?} vs {prev_timestamp:?}",
         );
         prev_timestamp = current_timestamp;
         checkpoints_checked += 1;
