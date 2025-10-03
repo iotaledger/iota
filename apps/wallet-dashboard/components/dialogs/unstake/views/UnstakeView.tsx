@@ -94,7 +94,7 @@ export function UnstakeView({
                 onSuccess: (tx) => {
                     toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
-
+                    // TODO add amount unstaked
                     ampli.unstakedIota({
                         validatorAddress: extendedStake.validatorAddress,
                     });

@@ -122,6 +122,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                 );
             },
             onSuccess: (_) => {
+                // TODO verify number sent properly amount
                 ampli.stakedIota({
                     stakedAmount: Number(amountWithoutDecimals),
                     validatorAddress: validatorAddress || '',

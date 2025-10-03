@@ -134,6 +134,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
                 );
             },
             onSuccess: () => {
+                // TODO add amount unstaked, verify it's the same as in wallet-dashboard
                 ampli.unstakedIota({
                     validatorAddress: validatorAddress!,
                 });

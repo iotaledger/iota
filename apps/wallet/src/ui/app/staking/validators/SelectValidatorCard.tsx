@@ -171,6 +171,7 @@ export function SelectValidatorCard() {
                 fullWidth
                 data-testid="select-validator-cta"
                 onClick={() => {
+                    // TODO verify event same as in wallet-dashboard
                     ampli.selectedValidator({
                         validatorName: selectedValidator?.name,
                         validatorAddress: selectedValidator?.address,

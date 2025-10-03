@@ -93,6 +93,7 @@ export function EnterAmountView({
                 onSuccess: (tx) => {
                     onSuccess(tx.digest);
                     toast.success('Stake transaction has been sent');
+                    // fixed in the https://github.com/iotaledger/iota/pull/8737
                     ampli.stakedIota({
                         stakedAmount: Number(parseAmount(values.amount, IOTA_DECIMALS)),
                     });

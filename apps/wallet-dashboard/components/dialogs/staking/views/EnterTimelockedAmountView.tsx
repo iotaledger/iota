@@ -138,6 +138,7 @@ export function EnterTimelockedAmountView({
                 onSuccess: (tx) => {
                     onSuccess?.(tx.digest);
                     toast.success('Stake transaction has been sent');
+                    // TODO need to verify number
                     ampli.timelockStake({
                         stakedAmount: Number(stakedAmount / NANOS_PER_IOTA),
                         validatorAddress: senderAddress,
