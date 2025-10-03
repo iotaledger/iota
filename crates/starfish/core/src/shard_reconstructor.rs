@@ -183,9 +183,8 @@ impl ShardAccumulator {
         }
     }
 
-    /// Update the accumulator with a new shard, returning the new count of
-    /// collected shards
-    fn update_with_shard(&mut self, msg: ShardMessage) -> usize {
+    /// Update the accumulator with a new shard
+    fn update_with_shard(&mut self, msg: ShardMessage) {
         let ShardMessage {
             shard, shard_index, ..
         } = msg;
@@ -193,7 +192,6 @@ impl ShardAccumulator {
             self.collected_shards[shard_index] = Some(shard);
             self.number_shards = self.number_shards + 1;
         }
-        self.number_shards
     }
 
     /// Update the accumulator with a new header
@@ -202,7 +200,7 @@ impl ShardAccumulator {
     }
 
     fn is_ready_to_reconstruct(&self, info_length: usize) -> bool {
-        self.number_shards >= info_length && self.header_verified
+        self.number_shards >= info_length
     }
 
     fn decode_by_codec(&self, codec: &mut Codec) -> ConsensusResult<VerifiedTransactions> {

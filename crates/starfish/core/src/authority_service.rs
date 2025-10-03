@@ -515,7 +515,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .inc_by(digests_to_exclude.len() as u64);
 
         // 9. Prepare transaction messages for shard reconstructor and send them
-        let transactions_messages = TransactionMessage::create_transaction_messages(
+        let transaction_messages = TransactionMessage::create_transaction_messages(
             &verified_block,
             &additional_block_headers,
             &verified_shards,
@@ -523,7 +523,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         );
         if let Err(e) = self
             .transaction_message_sender
-            .send(transactions_messages)
+            .send(transaction_messages)
             .await
         {
             warn!("Failed to send transaction messages to shard reconstructor: {e}");
