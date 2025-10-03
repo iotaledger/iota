@@ -93,6 +93,20 @@ jobs:
           version: "latest"
       - name: Build
         run: pnpm turbo build
+      - name: Node Sync
+        run: |
+          cd sdk/typescript 
+          pnpm update-graphql-schemas
+          pnpm update-open-rpc-client-types
+          cd ../graphql-transport
+          pnpm codegen
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No sync needed"
+          else
+            echo "Sync is needed!"
+            git status
+            exit 1
+          fi
       - name: Test
         env:
           VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
