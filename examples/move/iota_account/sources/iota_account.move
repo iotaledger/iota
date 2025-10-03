@@ -3,7 +3,7 @@
 
 module iota_account::iota_account;
 
-use iota::account;
+use iota::account::{Self, AuthenticatorInfoV1};
 use iota::bcs;
 use iota::dynamic_field;
 
@@ -39,10 +39,7 @@ public struct IOTAccountBuilder {
 ///
 /// The `AuthenticatorInfo` will be attached as a dynamic field under key provided by:
 /// `account::authenticator_df_name()`.
-public fun builder<Authenticator: copy + drop + store>(
-    authenticator: Authenticator,
-    ctx: &mut TxContext,
-): IOTAccountBuilder {
+public fun builder(authenticator: AuthenticatorInfoV1, ctx: &mut TxContext): IOTAccountBuilder {
     let mut builder = IOTAccountBuilder {
         account: IOTAccount { id: object::new(ctx) },
     };
