@@ -222,17 +222,18 @@ public fun has_field<Name: copy + drop + store>(self: &IOTAccount, name: Name): 
 ///
 /// Only the account itself can call this function.
 /// This function cannot change the type of the stored `Value`.
-public fun rotate<Name: copy + drop + store, Value: drop + store>(
+public fun rotate<Name: copy + drop + store, Value: store>(
     self: &mut IOTAccount,
     name: Name,
     value: Value,
     ctx: &TxContext,
-) {
+): Value {
     ensure_tx_sender_is_account(self, ctx);
 
     let account_id = &mut self.id;
-    dynamic_field::remove<_, Value>(account_id, name);
+    let previous_value = dynamic_field::remove<_, Value>(account_id, name);
     dynamic_field::add(account_id, name, value);
+    previous_value
 }
 
 // --------------------------------------- Utilities ---------------------------------------

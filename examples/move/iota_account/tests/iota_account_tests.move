@@ -24,8 +24,6 @@ use iota_account::iota_account::{
 
 // --------------------------------------- Add Field ---------------------------------------
 
-// --------------------------------------- Add Field ---------------------------------------
-
 #[test]
 #[expected_failure(abort_code = iota_account::ECantModifyReservedDynamicField)]
 fun account_cant_add_reserved_dynamic_fields() {
@@ -165,11 +163,12 @@ fun account_can_rotate_reserved_field() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
-        account.rotate(
+        let value = account.rotate(
             account::authenticator_df_name(),
             create_authenticator_info_v1_for_testing(),
             ctx,
         );
+        assert_eq(value, create_authenticator_info_v1_for_testing());
 
         test_scenario::return_shared(account);
     })
@@ -181,11 +180,12 @@ fun account_can_rotate_regular_field() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
-        account.rotate(
+        let value = account.rotate(
             b"SomeData".to_ascii_string(),
             2u8,
             ctx,
         );
+        assert_eq(value, 3u8);
 
         test_scenario::return_shared(account);
     })
