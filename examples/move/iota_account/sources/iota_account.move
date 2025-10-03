@@ -128,6 +128,11 @@ public struct IOTAccount has key {
     id: UID,
 }
 
+/// Return the account's address.
+public fun account_address(self: &IOTAccount): address {
+    self.id.to_address()
+}
+
 /// Share IOTAccount.
 public fun share(self: IOTAccount) {
     iota::transfer::share_object(self);
@@ -261,11 +266,6 @@ public fun check_reserved_dynamic_field_name<Name: copy + drop + store>(
 // --------------------------------------- Test Utilities ---------------------------------------
 
 #[test_only]
-public fun get_address(self: &IOTAccount): address {
-    self.id.to_address()
-}
-
-#[test_only]
 public(package) fun create_iotaccount_for_testing(
     scenario: &mut iota::test_scenario::Scenario,
 ): address {
@@ -276,7 +276,7 @@ public(package) fun create_iotaccount_for_testing(
     let account = builder(authenticator, ctx)
         .add_regular_field(b"SomeData".to_ascii_string(), 3u8)
         .finish();
-    let account_address = account.get_address();
+    let account_address = account.account_address();
 
     share(account);
 

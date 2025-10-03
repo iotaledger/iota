@@ -359,7 +359,7 @@ fun create_iotaccount_with_pk_for_testing(
     scenario.next_tx(@0x0);
 
     let account = scenario.take_shared<IOTAccount>();
-    let account_address = account.get_address();
+    let account_address = account.account_address();
 
     test_scenario::return_shared(account);
 
