@@ -47,6 +47,7 @@ impl ConsensusAuthority {
     /// Starts the `ConsensusAuthority` for the specified network type.
     pub async fn start(
         network_type: ConsensusNetwork,
+        epoch_start_timestamp_ms: u64,
         own_index: AuthorityIndex,
         committee: Committee,
         parameters: Parameters,
@@ -67,6 +68,7 @@ impl ConsensusAuthority {
         match network_type {
             ConsensusNetwork::Tonic => {
                 let authority = AuthorityNode::start(
+                    epoch_start_timestamp_ms,
                     own_index,
                     committee,
                     parameters,
@@ -149,6 +151,7 @@ where
     /// It ensures that the authority node is fully initialized and
     /// ready to participate in the consensus process.
     pub(crate) async fn start(
+        epoch_start_timestamp_ms: u64,
         own_index: AuthorityIndex,
         committee: Committee,
         parameters: Parameters,
@@ -169,8 +172,8 @@ where
         );
         let own_hostname = &committee.authority(own_index).hostname;
         info!(
-            "Starting consensus authority {} {}, {:?}, boot counter {}",
-            own_index, own_hostname, protocol_config.version, boot_counter
+            "Starting consensus authority {own_index} {own_hostname}, {0:?}, epoch start timestamp {epoch_start_timestamp_ms}, boot counter {boot_counter}",
+            protocol_config.version
         );
         info!(
             "Consensus authorities: {}",
@@ -183,6 +186,7 @@ where
         info!("Consensus committee: {:?}", committee);
         let committee_size = committee.size();
         let context = Arc::new(Context::new(
+            epoch_start_timestamp_ms,
             own_index,
             committee,
             parameters,
@@ -464,6 +468,7 @@ mod tests {
 
         let authority = ConsensusAuthority::start(
             network_type,
+            0,
             own_index,
             committee,
             parameters,
@@ -863,6 +868,7 @@ mod tests {
 
         let authority = ConsensusAuthority::start(
             network_type,
+            0,
             index,
             committee,
             parameters,

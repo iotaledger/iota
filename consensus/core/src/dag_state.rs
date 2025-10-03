@@ -118,7 +118,7 @@ impl DagState {
         let cached_rounds = context.parameters.dag_state_cached_rounds as Round;
         let num_authorities = context.committee.size();
 
-        let genesis = genesis_blocks(context.clone())
+        let genesis = genesis_blocks(context.as_ref())
             .into_iter()
             .map(|block| (block.reference(), block))
             .collect();
@@ -2667,7 +2667,7 @@ mod test {
 
         // WHEN no blocks exist then genesis should be returned
         {
-            let genesis = genesis_blocks(context.clone());
+            let genesis = genesis_blocks(context.as_ref());
 
             assert_eq!(dag_state.read().last_quorum(), genesis);
         }
@@ -2721,7 +2721,7 @@ mod test {
 
         // WHEN no blocks exist then genesis should be returned
         {
-            let genesis = genesis_blocks(context.clone());
+            let genesis = genesis_blocks(context.as_ref());
             let my_genesis = genesis
                 .into_iter()
                 .find(|block| block.author() == context.own_index)
