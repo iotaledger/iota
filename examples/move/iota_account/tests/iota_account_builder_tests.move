@@ -10,8 +10,8 @@ use iota::test_utils::{assert_eq, assert_ref_eq};
 use iota_account::iota_account::{
     Self,
     IOTAccount,
-    DfKey,
-    make_key,
+    DynamicFieldKey,
+    make_dynamic_field_key,
     create_authenticator_info_v1_for_testing
 };
 
@@ -53,10 +53,10 @@ fun builder_all_mandatory_fields_set() {
             &create_authenticator_info_v1_for_testing(),
         );
 
-        let reserved_df_keys: &vector<DfKey> = account.borrow_reserved_dynamic_fields();
+        let reserved_df_keys: &vector<DynamicFieldKey> = account.borrow_reserved_dynamic_fields();
         assert!(reserved_df_keys.length() == 2);
-        assert!(reserved_df_keys.contains(&make_key(authenticator_df_name)));
-        assert!(reserved_df_keys.contains(&make_key(reserved_df_example_name)));
+        assert!(reserved_df_keys.contains(&make_dynamic_field_key(authenticator_df_name)));
+        assert!(reserved_df_keys.contains(&make_dynamic_field_key(reserved_df_example_name)));
 
         // Check the ReservedDfName contains the set value.
         assert!(account.has_field(reserved_df_example_name));

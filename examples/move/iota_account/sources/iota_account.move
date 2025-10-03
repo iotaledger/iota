@@ -40,7 +40,11 @@ public fun builder(authenticator: AuthenticatorInfoV1, ctx: &mut TxContext): IOT
     let mut builder = IOTAccountBuilder {
         account: IOTAccount { id: object::new(ctx) },
     };
-    dynamic_field::add(&mut builder.account.id, ReservedDynamicFields {}, vector<DfKey>[]);
+    dynamic_field::add(
+        &mut builder.account.id,
+        ReservedDynamicFields {},
+        vector<DynamicFieldKey>[],
+    );
     builder.add_reserved_field(account::authenticator_df_name(), authenticator)
 }
 
@@ -50,10 +54,10 @@ public fun add_reserved_field<Name: copy + drop + store, Value: store>(
     name: Name,
     value: Value,
 ): IOTAccountBuilder {
-    let field_key = make_key(name);
+    let field_key = make_dynamic_field_key(name);
 
     dynamic_field::add(&mut self.account.id, name, value);
-    let reserved_keys: &mut vector<DfKey> = dynamic_field::borrow_mut(
+    let reserved_keys: &mut vector<DynamicFieldKey> = dynamic_field::borrow_mut(
         &mut self.account.id,
         ReservedDynamicFields {},
     );
@@ -86,13 +90,16 @@ public fun finish(self: IOTAccountBuilder): IOTAccount {
 /// They aren't meant to be used by callers/developers as `dynamic_field`
 /// already handles differentiation better. Only necessary for our internally
 /// managed `ReservedDynamicFields`.
-public struct DfKey has copy, drop, store {
+public struct DynamicFieldKey has copy, drop, store {
     type_name: std::type_name::TypeName,
     value_bytes: vector<u8>,
 }
 
-public(package) fun make_key<KeyType: copy + drop + store>(key: KeyType): DfKey {
-    DfKey {
+// This can't be private as it is used in the IOTAccountBuilder test.
+public(package) fun make_dynamic_field_key<KeyType: copy + drop + store>(
+    key: KeyType,
+): DynamicFieldKey {
+    DynamicFieldKey {
         type_name: std::type_name::get<KeyType>(),
         value_bytes: bcs::to_bytes(&key),
     }
@@ -126,7 +133,7 @@ public fun share(self: IOTAccount) {
     iota::transfer::share_object(self);
 }
 
-public fun borrow_reserved_dynamic_fields(self: &IOTAccount): &vector<DfKey> {
+public fun borrow_reserved_dynamic_fields(self: &IOTAccount): &vector<DynamicFieldKey> {
     self.borrow_field(ReservedDynamicFields {})
 }
 
@@ -235,13 +242,16 @@ public fun ensure_tx_sender_is_account(self: &IOTAccount, ctx: &TxContext) {
 ///
 /// Checks if `name` refers to a reserved dynamic field, in which case it asserts.
 /// Otherwise it allows execution to continue.
-public fun check_reserved_dynamic_field_name<Name: copy + drop + store>(self: &IOTAccount, name: &Name) {
-    let key = make_key(*name);
-    let reserved_df_names: &vector<DfKey> = dynamic_field::borrow(
+public fun check_reserved_dynamic_field_name<Name: copy + drop + store>(
+    self: &IOTAccount,
+    name: &Name,
+) {
+    let key = make_dynamic_field_key(*name);
+    let reserved_dynamic_field_names: &vector<DynamicFieldKey> = dynamic_field::borrow(
         &self.id,
         ReservedDynamicFields {},
     );
-    let reserved_found = reserved_df_names.any!(|reserved| reserved == &key);
+    let reserved_found = reserved_dynamic_field_names.any!(|reserved| reserved == &key);
 
     assert!(!reserved_found, ECantModifyReservedDynamicField);
 }
