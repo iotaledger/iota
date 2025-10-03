@@ -10,17 +10,9 @@ use iota::test_utils::{assert_eq, assert_ref_eq};
 use iota_account::iota_account::{
     Self,
     IOTAccount,
-    create_iotaccount_for_testing,
-    create_authenticator_info_v1_for_testing
 };
-
-// ##########################################################################################
-// #                                    IOTAccount                                          #
-// ##########################################################################################
-
-// ###############################################################################################################
-//                                         Account sender tests
-// ###############################################################################################################
+use iota_account::test_utils::{create_iotaccount_for_testing,
+    create_authenticator_info_v1_for_testing};
 
 // --------------------------------------- Add Field ---------------------------------------
 

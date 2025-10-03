@@ -11,7 +11,8 @@ use iota::hex;
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use iota_account::basic_keyed_account::{Self, create_owner_public_key_for_testing};
-use iota_account::iota_account::{Self, IOTAccount, create_authenticator_info_v1_for_testing};
+use iota_account::iota_account::{Self, IOTAccount};
+use iota_account::test_utils::create_authenticator_info_v1_for_testing;
 
 // --------------------------------------- Create Basic Keyed Account ---------------------------------------
 

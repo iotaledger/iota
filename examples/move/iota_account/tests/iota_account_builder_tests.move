@@ -7,17 +7,8 @@ module iota_account::iota_account_builder_tests;
 use iota::account;
 use iota::test_scenario;
 use iota::test_utils::{assert_eq, assert_ref_eq};
-use iota_account::iota_account::{
-    Self,
-    IOTAccount,
-    DynamicFieldKey,
-    make_dynamic_field_key,
-    create_authenticator_info_v1_for_testing
-};
-
-// ##########################################################################################
-// #                                    IOTAccountBuilder                                   #
-// ##########################################################################################
+use iota_account::iota_account::{Self, IOTAccount, DynamicFieldKey, make_dynamic_field_key};
+use iota_account::test_utils::create_authenticator_info_v1_for_testing;
 
 // -------------------------------- Create IOTAccount --------------------------------
 
