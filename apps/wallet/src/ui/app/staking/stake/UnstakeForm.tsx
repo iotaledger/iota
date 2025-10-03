@@ -76,7 +76,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
         (stakeData as Extract<StakeObject, { estimatedReward: string }>)?.estimatedReward || '0';
     const [rewards, rewardSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalIota] = useFormatCoin({ balance: BigInt(iotaEarned || 0) + totalTokenBalance });
-    const [tokenBalance] = useFormatCoin({ balance: totalTokenBalance });
+    const [tokenBalanceFormatted] = useFormatCoin({ balance: totalTokenBalance });
 
     const {
         data: unstakeData,
@@ -136,10 +136,12 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
             onSuccess: () => {
                 // TODO add amount unstaked, verify it's the same as in wallet-dashboard
                 ampli.unstakedIota({
+                    stakedAmount: Number(tokenBalanceFormatted),
                     validatorAddress: validatorAddress!,
                 });
             },
         });
+
     const handleSubmit = async () => {
         try {
             const response = await unStakeTokenMutateAsync();
@@ -178,7 +180,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
                         <Divider />
                         <KeyValueInfo
                             keyText="Your Stake"
-                            value={tokenBalance}
+                            value={tokenBalanceFormatted}
                             supportingLabel={GAS_SYMBOL}
                             fullwidth
                         />

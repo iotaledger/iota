@@ -41,7 +41,7 @@ import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
-import { CoinFormat, IOTA_TYPE_ARG, NANOS_PER_IOTA, parseAmount } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
@@ -79,6 +79,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     const minAmountTxGasBudget = BigInt(minAmountTransactionData?.gasSummary?.budget ?? 0n);
     const availableBalance = coinBalance - minAmountTxGasBudget;
+
     const [availableBalanceFormatted, symbol] = useFormatCoin({
         balance: availableBalance,
         format: CoinFormat.Full,
@@ -88,6 +89,17 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         () => createValidationSchema(availableBalance, coinSymbol, decimals, minimumStake),
         [availableBalance, coinSymbol, decimals, minimumStake],
     );
+
+    const formik = useFormik<FormValues>({
+        initialValues: INITIAL_VALUES,
+        validationSchema: validationSchema,
+        onSubmit: handleSubmit,
+        validateOnMount: true,
+    });
+    const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
+    const { amount } = values;
+    const amountWithoutDecimals = parseAmount(amount, decimals);
+    const [stakedAmountFormatted] = useFormatCoin({ balance: amountWithoutDecimals });
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
         useMutation({
@@ -123,7 +135,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
             },
             onSuccess: (_) => {
                 ampli.stakedIota({
-                    stakedAmount: Number(amount),
+                    stakedAmount: Number(stakedAmountFormatted),
                     validatorAddress: validatorAddress || '',
                 });
             },
@@ -132,7 +144,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
             },
         });
 
-    const handleSubmit = async (_: FormValues, formikHelpers: FormikHelpers<FormValues>) => {
+    async function handleSubmit(_: FormValues, formikHelpers: FormikHelpers<FormValues>) {
         try {
             const response = await stakeTokenMutateAsync(formikHelpers);
             onSuccess(response);
@@ -146,17 +158,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                 </div>,
             );
         }
-    };
-
-    const formik = useFormik<FormValues>({
-        initialValues: INITIAL_VALUES,
-        validationSchema: validationSchema,
-        onSubmit: handleSubmit,
-        validateOnMount: true,
-    });
-    const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
-    const { amount } = values;
-    const amountWithoutDecimals = parseAmount(amount, decimals);
+    }
 
     const {
         data: newStakeData,

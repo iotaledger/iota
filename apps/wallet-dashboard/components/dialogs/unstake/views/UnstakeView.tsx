@@ -24,7 +24,7 @@ import {
     GAS_BUDGET_ERROR_MESSAGES,
     GAS_BALANCE_TOO_LOW_ID,
 } from '@iota/core';
-import { CoinFormat } from '@iota/iota-sdk/utils';
+import { CoinFormat, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { useCurrentAccount, useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
 import { StakeRewardsPanel, ValidatorStakingData } from '@/components';
@@ -62,13 +62,19 @@ export function UnstakeView({
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionPending } =
         useSignAndExecuteTransaction();
 
-    const { totalStakeOriginal, systemDataResult, delegatedStakeDataResult } =
-        useGetStakingValidatorDetails({
-            accountAddress: activeAddress,
-            validatorAddress: extendedStake.validatorAddress,
-            stakeId: extendedStake.stakedIotaId,
-            unstake: true,
-        });
+    const {
+        totalValidatorStakeFormatted,
+        totalStakeOriginal,
+        systemDataResult,
+        delegatedStakeDataResult,
+    } = useGetStakingValidatorDetails({
+        accountAddress: activeAddress,
+        validatorAddress: extendedStake.validatorAddress,
+        stakeId: extendedStake.stakedIotaId,
+        unstake: true,
+    });
+
+    console.log('st', totalValidatorStakeFormatted, totalStakeOriginal);
 
     const { isLoading: loadingValidators, error: errorValidators } = systemDataResult;
     const {
@@ -94,9 +100,8 @@ export function UnstakeView({
                 onSuccess: (tx) => {
                     toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
-                    // TODO add amount unstaked
                     ampli.unstakedIota({
-                        // stakedAmount:
+                        stakedAmount: Number(BigInt(extendedStake.principal) / NANOS_PER_IOTA),
                         validatorAddress: extendedStake.validatorAddress,
                     });
                 },

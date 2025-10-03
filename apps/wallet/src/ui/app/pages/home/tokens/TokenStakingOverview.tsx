@@ -46,7 +46,6 @@ export function TokenStakingOverview({
 
     function handleOnClick() {
         navigate('/stake');
-        // TODO verify event same as in wallet-dashboard
         ampli.clickedStakeIota({
             isCurrentlyStaking: totalDelegatedStake > 0,
             sourceFlow: 'Home page',
