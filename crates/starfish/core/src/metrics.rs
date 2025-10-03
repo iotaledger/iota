@@ -322,7 +322,7 @@ impl NodeMetrics {
                 registry,
             ).unwrap(),
             reconstruction_jobs_finished: register_int_counter_with_registry!(
-                "reconstruction_jobs_started",
+                "reconstruction_jobs_finished",
                 "Number of reconstruction jobs finished",
                 registry,
             ).unwrap(),

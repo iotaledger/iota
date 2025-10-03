@@ -32,7 +32,6 @@ use crate::{
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
 };
-use crate::metrics::Metrics;
 
 #[derive(Clone)]
 pub struct ShardAccumulator {
@@ -563,7 +562,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         Ok(())
     }
 
-    ///
+    /// If the accumulator for the given key is ready to reconstruct, remove it
+    /// from the map and enqueue it for reconstruction
     fn enqueue_if_ready(
         accumulators: &mut BTreeMap<(BlockRef, TransactionsCommitment), ShardAccumulator>,
         reconstruction_queue: &mut BTreeSet<BlockRef>,
@@ -600,7 +600,7 @@ mod tests {
     use crate::context::Context;
 
     use crate::dag_state::DagState;
-    use crate::shard_reconstructor::{HeaderMessage, ShardMessage, ShardReconstructor, TransactionMessage};
+    use crate::shard_reconstructor::{FullTransactionMessage, HeaderMessage, ShardMessage, ShardReconstructor, TransactionMessage};
     use crate::storage::mem_store::MemStore;
     use crate::{BlockRef, Round, TestBlockHeader, Transaction, VerifiedBlockHeader};
     use crate::block_header::{TransactionsCommitment, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions};
@@ -683,6 +683,7 @@ mod tests {
     }
 
 
+    /// Test that reconstruction only triggers after receiving one header and info_length shards
     #[tokio::test]
     async fn test_reconstruction_triggers_only_after_info_length_shards() {
         telemetry_subscribers::init_for_testing();
@@ -778,6 +779,117 @@ mod tests {
 
         handle.stop().await.expect("We should expect graceful shutdown");
     }
+
+    /// Test that once a FullTransaction message is received, the reconstructor
+    /// stops collecting shards and does not reconstruct even if enough shards
+    /// arrive
+    #[tokio::test]
+    async fn test_stop_collecting_shards_when_full_transaction_arrives() {
+        telemetry_subscribers::init_for_testing();
+
+        // GIVEN
+        let committee_size = 15;
+        let (context, _) = Context::new_for_test(committee_size);
+        let context = Arc::new(context);
+
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+
+        let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
+
+        let handle = ShardReconstructor::start(
+            context.clone(),
+            dag_state.clone(),
+            core_dispatcher.clone(),
+        );
+        let transaction_message_sender = handle.transaction_message_sender();
+
+        // Create block header & transactions
+        let header = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(7, 1).build(),
+        );
+        let block_ref = header.reference();
+
+        let txs = Transaction::random_transactions(5, 64);
+        let serialized = Transaction::serialize(&txs).unwrap();
+
+        let mut encoder = create_encoder(&context);
+        let commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized,
+            &context,
+            &mut encoder,
+        ).unwrap();
+
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.parity_length();
+
+        let all_shards = encoder
+            .encode_serialized_data(&serialized, info_length, parity_length)
+            .unwrap();
+
+        // Shuffle shard indices so it's not always the same missing one
+        let mut rng = thread_rng();
+        let mut indices: Vec<usize> = (0..all_shards.len()).collect();
+        indices.shuffle(&mut rng);
+
+        // Take all but one shard
+        let almost_all = &indices[..info_length - 1];
+        let missing_index = indices[info_length - 1];
+
+        let mut batch = Vec::new();
+        // Add header
+        batch.push(TransactionMessage::Header(HeaderMessage::new(block_ref, commitment)));
+        // Add all shards except the missing one
+        for &i in almost_all {
+            batch.push(TransactionMessage::Shard(ShardMessage {
+                block_ref,
+                transactions_commitment: commitment,
+                shard: all_shards[i].clone(),
+                shard_index: i,
+            }));
+        }
+
+        transaction_message_sender.send(batch).await.unwrap();
+
+        // Wait — should not reconstruct yet
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        assert!(
+            fetched.is_empty(),
+            "With header + (info_length - 1) shards, no reconstruction should happen"
+        );
+
+        // WHEN: send a FullTransaction message. The reconstructor should stop collecting shards
+        transaction_message_sender
+            .send(vec![TransactionMessage::FullTransaction(
+                FullTransactionMessage::new(block_ref, commitment),
+            )])
+            .await
+            .unwrap();
+
+        // Now send ONE more random shard (the missing one to make total info_length)
+        let extra_shard_index = indices[missing_index];
+        transaction_message_sender.send(vec![TransactionMessage::Shard(ShardMessage {
+            block_ref,
+            transactions_commitment: commitment,
+            shard: all_shards[extra_shard_index].clone(),
+            shard_index: extra_shard_index,
+        })])
+            .await
+            .unwrap();
+
+        // Wait and check that no reconstruction happens
+        tokio::time::sleep(Duration::from_millis(600)).await;
+        let fetched = core_dispatcher.get_and_drain_transactions().await;
+        assert!(
+            fetched.is_empty(),
+            "Once FullTransaction is received, reconstructor should ignore shards and not reconstruct"
+        );
+
+        // Clean up
+        handle.stop().await.expect("We should expect graceful shutdown");
+    }
+
 
 
 }
