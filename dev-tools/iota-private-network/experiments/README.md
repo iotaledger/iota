@@ -66,10 +66,10 @@ The experiment suite can optionally include a transaction spammer to generate lo
 ### With spammer enabled:
 
 ```bash
-./run-all.sh -n 4 -p mysticeti -S true -T 150 -o 20
+./run-all.sh -n 4 -p mysticeti -S true -T 100 -Z 10KiB
 ```
 
-This will Launch the spammer from an external repository with the configured transaction rate and shared object parameters.
+This will Launch the spammer from an external repository with the configured transaction rate, TPS=100, and size, 10KiB.
 
 ### Required Setup for Spammer
 

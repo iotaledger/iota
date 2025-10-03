@@ -23,8 +23,8 @@ LOG_DIR="$SCRIPT_DIR/logs" # directory with logs
 LOG_INTERVAL=60           # save logs every 60 seconds
 DEFAULT_NETWORK_METRIC=false
 DEFAULT_SPAMMER_ENABLE=false
-DEFAULT_SPAMMER_TPS=100
-DEFAULT_SPAMMER_SIZE="100KiB"
+DEFAULT_SPAMMER_TPS=10
+DEFAULT_SPAMMER_SIZE="10KiB"
 # ==================================================
 
 # --- Trap termination and normal exit safely ---
