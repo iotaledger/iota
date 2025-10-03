@@ -78,6 +78,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 //             Enable processing and tracking AuthorityCapabilitiesV1 from
 //             non-committee validators in the devnet.
 // Version 14: Switches the consensus protocol to Starfish in devnet.
+//             Enable median-based commit timestamp calculation in consensus in
+//             devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -2252,9 +2254,11 @@ impl ProtocolConfig {
                     }
                 }
                 14 => {
-                    // Switch consensus protocol to Starfish in devnet
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Switch consensus protocol to Starfish in devnet
                         cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
+                        // Enable median-based commit timestamp calculation in consensus in devnet.
+                        cfg.feature_flags.consensus_median_based_commit_timestamp = true;
                     }
                 }
                 // Use this template when making changes:
