@@ -11,8 +11,8 @@ use tabled::{
 };
 
 use crate::{
-    IotaArgument, IotaCallArg, IotaCommand, IotaObjectArg, IotaProgrammableMoveCall,
-    IotaProgrammableTransactionBlock, displays::Pretty,
+    IotaArgument, IotaArgumentV2, IotaCallArg, IotaCommand, IotaObjectArg,
+    IotaProgrammableMoveCall, IotaProgrammableTransactionBlock, displays::Pretty,
 };
 
 impl Display for Pretty<'_, IotaProgrammableTransactionBlock> {
@@ -179,6 +179,21 @@ impl Display for Pretty<'_, IotaArgument> {
             IotaArgument::Input(i) => format!("Input  {i}"),
             IotaArgument::Result(i) => format!("Result {i}"),
             IotaArgument::NestedResult(j, k) => format!("Nested Result {j}: {k}"),
+        };
+        write!(f, "{output}")
+    }
+}
+
+impl Display for Pretty<'_, IotaArgumentV2> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let Pretty(argument) = self;
+
+        let output = match argument {
+            IotaArgumentV2::GasCoin => "GasCoin".to_string(),
+            IotaArgumentV2::Input(i) => format!("Input  {i}"),
+            IotaArgumentV2::Result(i) => format!("Result {i}"),
+            IotaArgumentV2::NestedResult(j, k) => format!("Nested Result {j}: {k}"),
+            IotaArgumentV2::Pure(v) => format!("Pure {v:?}"),
         };
         write!(f, "{output}")
     }

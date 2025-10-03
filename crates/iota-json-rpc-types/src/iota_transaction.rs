@@ -2049,6 +2049,49 @@ impl From<Argument> for IotaArgument {
     }
 }
 
+/// An argument to a transaction in a programmable transaction block
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub enum IotaArgumentV2 {
+    /// The gas coin. The gas coin can only be used by-ref, except for with
+    /// `TransferObjects`, which can use it by-value.
+    GasCoin,
+    /// One of the input objects or primitive values (from
+    /// `ProgrammableTransactionBlock` inputs)
+    Input(u16),
+    /// The result of another transaction (from `ProgrammableTransactionBlock`
+    /// transactions)
+    Result(u16),
+    /// Like a `Result` but it accesses a nested result. Currently, the only
+    /// usage of this is to access a value from a Move call with multiple
+    /// return values.
+    NestedResult(u16, u16),
+    /// A pure value (for batch transactions without an inputs array)
+    Pure(IotaJsonValue),
+}
+
+impl Display for IotaArgumentV2 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::GasCoin => write!(f, "GasCoin"),
+            Self::Input(i) => write!(f, "Input({i})"),
+            Self::Result(i) => write!(f, "Result({i})"),
+            Self::NestedResult(i, j) => write!(f, "NestedResult({i},{j})"),
+            Self::Pure(v) => write!(f, "Pure({v:?})"),
+        }
+    }
+}
+
+impl From<Argument> for IotaArgumentV2 {
+    fn from(value: Argument) -> Self {
+        match value {
+            Argument::GasCoin => Self::GasCoin,
+            Argument::Input(i) => Self::Input(i),
+            Argument::Result(i) => Self::Result(i),
+            Argument::NestedResult(i, j) => Self::NestedResult(i, j),
+        }
+    }
+}
+
 /// The transaction for calling a Move function, either an entry function or a
 /// public function (which cannot return references).
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -2178,6 +2221,7 @@ impl From<TypeTag> for IotaTypeTag {
 pub enum RPCTransactionRequestParams {
     TransferObjectRequestParams(TransferObjectParams),
     MoveCallRequestParams(MoveCallParams),
+    MoveCallRequestParamsV2(MoveCallParamsV2),
 }
 
 #[derive(Serialize, Deserialize, JsonSchema)]
@@ -2196,6 +2240,17 @@ pub struct MoveCallParams {
     #[serde(default)]
     pub type_arguments: Vec<IotaTypeTag>,
     pub arguments: Vec<IotaJsonValue>,
+}
+
+#[derive(Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveCallParamsV2 {
+    pub package_object_id: ObjectID,
+    pub module: String,
+    pub function: String,
+    #[serde(default)]
+    pub type_arguments: Vec<IotaTypeTag>,
+    pub arguments: Vec<IotaArgumentV2>,
 }
 
 #[serde_as]

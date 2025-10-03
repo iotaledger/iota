@@ -4,15 +4,16 @@
 
 use std::{collections::BTreeMap, result::Result};
 
-use anyhow::{Ok, anyhow, bail};
+use anyhow::{anyhow, bail};
 use futures::future::join_all;
 use iota_json::{
-    IotaJsonValue, ResolvedCallArg, is_receiving_argument, resolve_move_function_args,
+    IotaJsonValue, ResolvedCallArg, is_receiving_argument, resolve_call_args,
+    resolve_move_function_args,
 };
-use iota_json_rpc_types::{IotaData, IotaObjectDataOptions, IotaRawData};
+use iota_json_rpc_types::{IotaArgumentV2, IotaData, IotaObjectDataOptions, IotaRawData};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType},
+    base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType, TxContext, TxContextKind},
     gas_coin::GasCoin,
     move_package::MovePackage,
     object::{Object, Owner},
@@ -127,25 +128,7 @@ impl TransactionBuilder {
         type_args: &[TypeTag],
         json_args: Vec<IotaJsonValue>,
     ) -> Result<Vec<Argument>, anyhow::Error> {
-        let object = self
-            .0
-            .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())
-            .await?
-            .into_object()?;
-        let Some(IotaRawData::Package(package)) = object.bcs else {
-            bail!(
-                "Bcs field in object [{}] is missing or not a package.",
-                package_id
-            );
-        };
-        let package: MovePackage = MovePackage::new(
-            package.id,
-            object.version,
-            package.module_map,
-            ProtocolConfig::get_for_min_version().max_move_package_size(),
-            package.type_origin_table,
-            package.linkage_table,
-        )?;
+        let package = self.load_move_package(package_id).await?;
 
         let json_args_and_tokens = resolve_move_function_args(
             &package,
@@ -198,6 +181,115 @@ impl TransactionBuilder {
         Ok(args)
     }
 
+    /// Convert provided Iota arguments for a move function to their
+    /// [`Argument`] representation and check their validity.
+    pub async fn resolve_and_checks_iota_args_v2(
+        &self,
+        builder: &mut ProgrammableTransactionBuilder,
+        package_id: ObjectID,
+        module: &Identifier,
+        function: &Identifier,
+        type_args: &[TypeTag],
+        call_args: Vec<IotaArgumentV2>,
+    ) -> Result<Vec<Argument>, anyhow::Error> {
+        let package = self.load_move_package(package_id).await?;
+
+        let module_compiled = package.deserialize_module(module, &BinaryConfig::standard())?;
+        let function_str = function.as_ident_str();
+        let fdef = module_compiled
+            .function_defs
+            .iter()
+            .find(|fdef| {
+                module_compiled
+                    .identifier_at(module_compiled.function_handle_at(fdef.function).name)
+                    == function_str
+            })
+            .ok_or_else(|| anyhow!("Could not resolve function {function} in module {module}"))?;
+        let function_signature = module_compiled.function_handle_at(fdef.function);
+        let parameters = &module_compiled
+            .signature_at(function_signature.parameters)
+            .0;
+
+        let expected_len = match parameters.last() {
+            Some(param) if TxContext::kind(&module_compiled, param) != TxContextKind::None => {
+                parameters.len() - 1
+            }
+            _ => parameters.len(),
+        };
+
+        if call_args.len() != expected_len {
+            bail!("Expected {expected_len} args, found {}", call_args.len());
+        }
+
+        let mut arguments = Vec::with_capacity(expected_len);
+        let mut objects = BTreeMap::new();
+
+        for (idx, (arg, param)) in call_args
+            .into_iter()
+            .zip(parameters.iter().take(expected_len))
+            .enumerate()
+        {
+            let argument = match arg {
+                IotaArgumentV2::Pure(value) => {
+                    let json_slice = [value];
+                    let param_slice = [param.clone()];
+                    let resolved =
+                        resolve_call_args(&module_compiled, type_args, &json_slice, &param_slice)?;
+                    let resolved_arg = resolved
+                        .into_iter()
+                        .next()
+                        .ok_or_else(|| anyhow!("Unable to resolve pure argument at index {idx}"))?;
+
+                    match resolved_arg {
+                        ResolvedCallArg::Pure(bytes) => builder.input(CallArg::Pure(bytes))?,
+                        ResolvedCallArg::Object(id) => {
+                            let is_mutable = match param {
+                                SignatureToken::MutableReference(_) => true,
+                                _ => !param.is_reference(),
+                            };
+                            let object_arg = self
+                                .get_object_arg(
+                                    id,
+                                    &mut objects,
+                                    is_mutable,
+                                    &module_compiled,
+                                    param,
+                                )
+                                .await?;
+                            builder.input(CallArg::Object(object_arg))?
+                        }
+                        ResolvedCallArg::ObjVec(vec_ids) => {
+                            let mut object_args = Vec::with_capacity(vec_ids.len());
+                            for id in vec_ids {
+                                object_args.push(
+                                    self.get_object_arg(
+                                        id,
+                                        &mut objects,
+                                        false,
+                                        &module_compiled,
+                                        param,
+                                    )
+                                    .await?,
+                                );
+                            }
+                            builder.make_obj_vec(object_args)?
+                        }
+                    }
+                }
+                IotaArgumentV2::Result(idx) => Argument::Result(idx),
+                IotaArgumentV2::NestedResult(idx, nested_idx) => {
+                    Argument::NestedResult(idx, nested_idx)
+                }
+                IotaArgumentV2::Input(idx) => Argument::Input(idx),
+                IotaArgumentV2::GasCoin => Argument::GasCoin,
+            };
+
+            arguments.push(argument);
+        }
+
+        Ok(arguments)
+    }
+
     /// Get the latest object ref for an object.
     pub async fn get_object_ref(&self, object_id: ObjectID) -> anyhow::Result<ObjectRef> {
         // TODO: we should add retrial to reduce the transaction building error rate
@@ -219,5 +311,25 @@ impl TransactionBuilder {
             .into_object()?;
 
         Ok((object.object_ref(), object.object_type()?))
+    }
+
+    // Helper function to load a Move package from an object ID.
+    async fn load_move_package(&self, package_id: ObjectID) -> Result<MovePackage, anyhow::Error> {
+        let object = self
+            .0
+            .get_object_with_options(package_id, IotaObjectDataOptions::bcs_lossless())
+            .await?
+            .into_object()?;
+        let Some(IotaRawData::Package(package)) = object.bcs else {
+            bail!("Bcs field in object [{package_id}] is missing or not a package.");
+        };
+        Ok(MovePackage::new(
+            package.id,
+            object.version,
+            package.module_map,
+            ProtocolConfig::get_for_min_version().max_move_package_size(),
+            package.type_origin_table,
+            package.linkage_table,
+        )?)
     }
 }
