@@ -146,7 +146,7 @@ public fun add_field<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_reserved_df<Name>(self, &name);
+    check_reserved_dynamic_field_name(self, &name);
 
     // Add a new field.
     dynamic_field::add(&mut self.id, name, value);
@@ -165,7 +165,7 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_reserved_df<Name>(self, &name);
+    check_reserved_dynamic_field_name(self, &name);
 
     // Remove a new field and return it.
     dynamic_field::remove(&mut self.id, name)
@@ -195,7 +195,7 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
     ensure_tx_sender_is_account(self, ctx);
 
     // Check if `name` is allowed to be used.
-    check_reserved_df<Name>(self, &name);
+    check_reserved_dynamic_field_name(self, &name);
 
     // Borrow the related dynamic field.
     dynamic_field::borrow_mut(&mut self.id, name)
@@ -235,7 +235,7 @@ public fun ensure_tx_sender_is_account(self: &IOTAccount, ctx: &TxContext) {
 ///
 /// Checks if `name` refers to a reserved dynamic field, in which case it asserts.
 /// Otherwise it allows execution to continue.
-public fun check_reserved_df<Name: copy + drop + store>(self: &IOTAccount, name: &Name) {
+public fun check_reserved_dynamic_field_name<Name: copy + drop + store>(self: &IOTAccount, name: &Name) {
     let key = make_key(*name);
     let reserved_df_names: &vector<DfKey> = dynamic_field::borrow(
         &self.id,
