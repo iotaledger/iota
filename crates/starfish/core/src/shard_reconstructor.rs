@@ -19,19 +19,11 @@ use tokio::{
 };
 use tracing::{debug, warn};
 
-use crate::{
-    BlockRef, Transaction, VerifiedBlockHeader,
-    block_header::{
-        BlockHeaderDigest, Shard, ShardWithProof, TransactionsCommitment, VerifiedBlock,
-        VerifiedTransactions,
-    },
-    context::Context,
-    core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
-    decoder::{ShardsDecoder, create_decoder},
-    encoder::{ShardEncoder, create_encoder},
-    error::{ConsensusError, ConsensusResult},
-};
+use crate::{BlockRef, Transaction, VerifiedBlockHeader, block_header::{
+    BlockHeaderDigest, Shard, ShardWithProof, TransactionsCommitment, VerifiedBlock,
+    VerifiedTransactions,
+}, context::Context, core_thread::CoreThreadDispatcher, dag_state::DagState, decoder::{ShardsDecoder, create_decoder}, encoder::{ShardEncoder, create_encoder}, error::{ConsensusError, ConsensusResult}, Round};
+use crate::block_header::GENESIS_ROUND;
 
 #[derive(Clone)]
 pub struct ShardAccumulator {
@@ -311,6 +303,8 @@ impl<C: CoreThreadDispatcher + 'static> ShardReconstructor<C> {
 }
 
 pub struct ShardReconstructor<C: CoreThreadDispatcher> {
+    /// Shards below this round will not be collected
+    transaction_gc_round: Round,
     info_length: usize,
     total_length: usize,
     context: Arc<Context>,
@@ -347,6 +341,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             context: context.clone(),
             core_dispatcher,
             dag_state,
+            transaction_gc_round: GENESIS_ROUND,
             reconstruction_queue: BTreeSet::new(),
             ready_to_reconstruct_sender: ready_sender,
             ready_to_reconstruct_receiver: Arc::new(Mutex::new(ready_receiver)),
@@ -455,7 +450,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                         }
 
                  () = &mut eviction_timeout => {
-                    // we want to start a new task only if the number of tasks is not too large.
+
+                    // Clean accumulators and processed transaction from memory
                     self.evict_memory();
 
                     eviction_timeout
@@ -484,6 +480,9 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             .set(self.reconstruction_queue.len() as i64);
 
         let transaction_gc_round = self.dag_state.read().gc_round_for_last_solid_commit();
+
+        // Update the internal transaction_gc_round
+        self.transaction_gc_round = transaction_gc_round;
 
         let lower_bound = BlockRef::new(
             transaction_gc_round,
@@ -526,6 +525,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
     async fn handle_transaction_message(&mut self, msg: TransactionMessage) -> ConsensusResult<()> {
         if self.processed_transactions.contains(msg.block_ref())
             || self.reconstruction_queue.contains(msg.block_ref())
+            || msg.block_ref().round < self.transaction_gc_round
         {
             return Ok(());
         }
