@@ -856,7 +856,9 @@ describe('GraphQL IotaClient compatibility', () => {
                         setTimeout(r, 2000);
                     });
                 }
-            } catch {}
+
+                // eslint-disable-next-line no-empty
+            } catch (e) {}
         }
         expect(result).toEqual(true);
 
