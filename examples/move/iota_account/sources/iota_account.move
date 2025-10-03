@@ -25,7 +25,7 @@ const ECantModifyReservedDynamicField: vector<u8> =
 /// The builder is entirely temporary. It cannot be copied, stored or dropped.
 ///
 /// Account implementations are expected to call the builder in a single function call,
-/// add the desired `AuthenticatorInfo` and all reserved dynamic fields necessary for the
+/// add the desired authenticator info and all reserved dynamic fields necessary for the
 /// operation of the account authentication logic.
 /// All reserved field `Name`s will be stored under key `ReservedDynamicFields` which is managed
 /// by the builder.
