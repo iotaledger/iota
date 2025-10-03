@@ -11,6 +11,7 @@ use iota_types::{
     storage::BackingPackageStore,
     transaction::{Command, InputObjectKind, TransactionData, TransactionDataAPI},
 };
+use tracing::instrument;
 macro_rules! deny_if_true {
     ($cond:expr, $msg:expr) => {
         if ($cond) {
@@ -25,6 +26,7 @@ macro_rules! deny_if_true {
 
 /// Check that the provided transaction is allowed to be signed according to the
 /// deny config.
+#[instrument(level = "trace", skip_all, fields(tx_digest = ?tx_data.digest()))]
 pub fn check_transaction_for_signing(
     tx_data: &TransactionData,
     tx_signatures: &[GenericSignature],
@@ -46,6 +48,7 @@ pub fn check_transaction_for_signing(
     Ok(())
 }
 
+#[instrument(level = "trace", skip_all)]
 fn check_receiving_objects(
     filter_config: &TransactionDenyConfig,
     receiving_objects: &[ObjectRef],
@@ -63,6 +66,7 @@ fn check_receiving_objects(
     Ok(())
 }
 
+#[instrument(level = "trace", skip_all)]
 fn check_disabled_features(
     filter_config: &TransactionDenyConfig,
     tx_data: &TransactionData,
@@ -108,6 +112,7 @@ fn check_disabled_features(
     Ok(())
 }
 
+#[instrument(level = "trace", skip_all)]
 fn check_signers(filter_config: &TransactionDenyConfig, tx_data: &TransactionData) -> IotaResult {
     let deny_map = filter_config.get_address_deny_set();
     if deny_map.is_empty() {
@@ -125,6 +130,7 @@ fn check_signers(filter_config: &TransactionDenyConfig, tx_data: &TransactionDat
     Ok(())
 }
 
+#[instrument(level = "trace", skip_all)]
 fn check_input_objects(
     filter_config: &TransactionDenyConfig,
     input_object_kinds: &[InputObjectKind],
@@ -149,6 +155,7 @@ fn check_input_objects(
     Ok(())
 }
 
+#[instrument(level = "trace", skip_all)]
 fn check_package_dependencies(
     filter_config: &TransactionDenyConfig,
     tx_data: &TransactionData,

@@ -34,6 +34,7 @@ enum AmpliAccountType {
     Derived = 'Derived',
     ImportPrivateKey = 'Private Key',
     Ledger = 'Ledger',
+    Keystone = 'Keystone',
 }
 
 export function useCreateAccountsMutation() {
@@ -50,6 +51,7 @@ export function useCreateAccountsMutation() {
         [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
         [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
         [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
+        [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
     };
     return useMutation({
         mutationKey: ['create accounts'],
@@ -137,6 +139,31 @@ export function useCreateAccountsMutation() {
                     type: AccountType.LedgerDerived,
                     accounts: accountsFormValues.accounts,
                     password: password!,
+                });
+            } else if (
+                type === AccountsFormType.ImportKeystone &&
+                validateAccountFormValues(type, accountsFormValues, password)
+            ) {
+                const sourceID = `keystone-${accountsFormValues.masterFingerprint}`;
+                try {
+                    await backgroundClient.createKeystoneAccountSource({
+                        // validateAccountFormValues checks the password
+                        password: password!,
+                        masterFingerprint: accountsFormValues.masterFingerprint,
+                    });
+                } catch {
+                    // Its fine to ignore if the account source already exists
+                }
+
+                await backgroundClient.unlockAccountSourceOrAccount({
+                    password,
+                    id: sourceID,
+                });
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.KeystoneDerived,
+                    accounts: accountsFormValues.accounts,
+                    password: password!,
+                    sourceID,
                 });
             } else {
                 throw new Error(`Create accounts with type ${type} is not implemented yet`);

@@ -25,6 +25,7 @@ feature_flags:
   minimize_child_object_mutations: true
   dependency_linkage_error: true
   additional_multisig_checks: true
+  normalize_ptb_arguments: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000

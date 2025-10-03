@@ -16,6 +16,7 @@ use crate::{
     block_header::BlockHeaderAPI as _,
     context::Context,
     dag_state::DagState,
+    encoder::create_encoder,
     error::ConsensusError,
     network::{NetworkClient, NetworkService},
 };
@@ -114,6 +115,9 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
         let peer_hostname = &context.committee.authority(peer).hostname;
         let mut retries: i64 = 0;
         let mut delay = INITIAL_RETRY_INTERVAL;
+
+        let mut encoder = create_encoder(&context);
+
         'subscription: loop {
             context
                 .metrics
@@ -195,7 +199,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service
-                            .handle_subscribed_block_bundle(peer, block.clone())
+                            .handle_subscribed_block_bundle(peer, block.clone(), &mut encoder)
                             .await;
                         if let Err(e) = result {
                             match e {

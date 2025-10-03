@@ -12,7 +12,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     IndexerMetrics,
-    config::{IngestionConfig, IotaNamesOptions, PruningOptions, SnapshotLagConfig},
+    config::{
+        IngestionConfig, IotaNamesOptions, PruningOptions, RetentionConfig, SnapshotLagConfig,
+    },
     db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
@@ -63,7 +65,8 @@ pub enum IndexerTypeConfig {
     },
     Writer {
         snapshot_config: SnapshotLagConfig,
-        pruning_options: PruningOptions,
+        retention_config: Option<RetentionConfig>,
+        optimistic_pruner_batch_size: Option<u64>,
     },
     AnalyticalWorker,
 }
@@ -77,11 +80,17 @@ impl IndexerTypeConfig {
 
     pub fn writer_mode(
         snapshot_config: Option<SnapshotLagConfig>,
-        epochs_to_keep: Option<u64>,
+        pruning_options: Option<PruningOptions>,
     ) -> Self {
         Self::Writer {
             snapshot_config: snapshot_config.unwrap_or_default(),
-            pruning_options: PruningOptions { epochs_to_keep },
+            retention_config: pruning_options.as_ref().and_then(|pruning_options| {
+                pruning_options
+                    .epochs_to_keep
+                    .map(RetentionConfig::new_with_default_retention_only_for_testing)
+            }),
+            optimistic_pruner_batch_size: pruning_options
+                .and_then(|pruning_options| pruning_options.optimistic_pruner_batch_size),
         }
     }
 }
@@ -152,7 +161,8 @@ pub async fn start_test_indexer_impl(
         }
         IndexerTypeConfig::Writer {
             snapshot_config,
-            pruning_options,
+            retention_config,
+            optimistic_pruner_batch_size,
         } => {
             let store_clone = store.clone();
             let mut ingestion_config = IngestionConfig::default();
@@ -168,7 +178,8 @@ pub async fn start_test_indexer_impl(
                     store_clone,
                     indexer_metrics,
                     snapshot_config,
-                    pruning_options,
+                    retention_config,
+                    optimistic_pruner_batch_size,
                     cancel,
                 )
                 .await
