@@ -9,7 +9,7 @@ import {
     getGasBudgetErrorMessage,
     NO_BALANCE_GENERIC_MESSAGE,
 } from '@iota/core';
-import { CoinFormat, IOTA_DECIMALS, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { useFormikContext } from 'formik';
 import { useSignAndExecuteTransaction } from '@iota/dapp-kit';
 import { EnterAmountDialogLayout } from './EnterAmountDialogLayout';
@@ -47,6 +47,7 @@ export function EnterAmountView({
     const decimals = metadata?.decimals ?? 0;
 
     const amount = parseAmount(values.amount, decimals);
+    const [stakedAmountFormatted] = useFormatCoin({ balance: amount });
 
     const {
         data: newStakeData,
@@ -93,9 +94,8 @@ export function EnterAmountView({
                 onSuccess: (tx) => {
                     onSuccess(tx.digest);
                     toast.success('Stake transaction has been sent');
-                    // fixed in the https://github.com/iotaledger/iota/pull/8737
                     ampli.stakedIota({
-                        stakedAmount: Number(parseAmount(values.amount, IOTA_DECIMALS)),
+                        stakedAmount: Number(stakedAmountFormatted),
                     });
                     resetForm();
                 },

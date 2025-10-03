@@ -79,7 +79,6 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     const minAmountTxGasBudget = BigInt(minAmountTransactionData?.gasSummary?.budget ?? 0n);
     const availableBalance = coinBalance - minAmountTxGasBudget;
-
     const [availableBalanceFormatted, symbol] = useFormatCoin({
         balance: availableBalance,
         format: CoinFormat.Full,

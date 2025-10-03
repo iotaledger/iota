@@ -79,7 +79,6 @@ export function ValidatorsCard() {
     const [totalDelegatedRewardsFormatted] = useFormatCoin({ balance: totalDelegatedRewards });
 
     const handleNewStake = () => {
-        // TODO verify event same as in wallet-dashboard
         ampli.clickedStakeIota({
             isCurrentlyStaking: true,
             sourceFlow: 'Validator card',

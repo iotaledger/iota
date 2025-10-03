@@ -33,7 +33,7 @@ import {
     InfoBoxStyle,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
-import { formatAddress, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Warning } from '@iota/apps-ui-icons';
 import { ampli } from '@/lib/utils/analytics';
@@ -195,7 +195,7 @@ export function DetailsView({
                             if (handleUnstake) {
                                 handleUnstake();
                                 ampli.clickedUnstakeIota({
-                                    stakedAmount: Number(totalStake / NANOS_PER_IOTA),
+                                    stakedAmount: Number(totalStakeFormatted),
                                     validatorAddress: stakedDetails?.validatorAddress,
                                 });
                             }

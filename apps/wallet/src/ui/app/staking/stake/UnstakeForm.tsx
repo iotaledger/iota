@@ -134,14 +134,12 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
                 );
             },
             onSuccess: () => {
-                // TODO add amount unstaked, verify it's the same as in wallet-dashboard
                 ampli.unstakedIota({
                     stakedAmount: Number(tokenBalanceFormatted),
                     validatorAddress: validatorAddress!,
                 });
             },
         });
-
     const handleSubmit = async () => {
         try {
             const response = await unStakeTokenMutateAsync();

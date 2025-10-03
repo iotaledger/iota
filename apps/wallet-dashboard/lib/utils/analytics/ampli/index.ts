@@ -1,4 +1,4 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /* tslint:disable */
@@ -145,6 +145,12 @@ export interface TimelockUnstakeProperties {
 }
 
 export interface UnstakedIotaProperties {
+  /**
+   * | Rule | Value |
+   * |---|---|
+   * | Type | number |
+   */
+  stakedAmount?: number;
   validatorAddress?: string;
 }
 
@@ -317,7 +323,7 @@ export class Ampli {
     this.disabled = options.disabled ?? false;
 
     if (this.amplitude) {
-      console.warn('WARNING: Ampli is already intialized. Ampli.load() should be called once at application startup.');
+      console.warn('WARNING: Ampli is already initialized. Ampli.load() should be called once at application startup.');
       return getVoidPromiseResult();
     }
 
@@ -617,7 +623,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. validatorAddress)
+   * @param properties The event's properties (e.g. stakedAmount)
    * @param options Amplitude event options.
    */
   unstakedIota(

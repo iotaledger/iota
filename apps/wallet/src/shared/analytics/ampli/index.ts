@@ -158,15 +158,6 @@ export interface ClickedImportPrivateKeyProperties {
     sourceFlow?: string;
 }
 
-export interface ClickedImportSeedProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    sourceFlow?: string;
-}
-
 export interface ClickedStakeIotaProperties {
     isCurrentlyStaking?: boolean;
     /**
@@ -634,7 +625,7 @@ export class Ampli {
     this.disabled = options.disabled ?? false;
 
     if (this.amplitude) {
-      console.warn('WARNING: Ampli is already intialized. Ampli.load() should be called once at application startup.');
+      console.warn('WARNING: Ampli is already initialized. Ampli.load() should be called once at application startup.');
       return getVoidPromiseResult();
     }
 
@@ -1157,7 +1148,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. stakedAmount)
+   * @param properties The event's properties (e.g. validatorAddress)
    * @param options Amplitude event options.
    */
   unstakedIota(
