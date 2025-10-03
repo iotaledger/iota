@@ -88,7 +88,7 @@ impl TransactionMessage {
             FullTransactionMessage::new(block.reference(), block.transactions_commitment());
         messages.push(TransactionMessage::FullTransaction(full_msg));
 
-        // Header message
+        // Header messages
         for header in headers {
             let header_msg =
                 HeaderMessage::new(header.reference(), block.transactions_commitment());
@@ -426,8 +426,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                             Some(msgs) => {
                                 for msg in msgs {
                                     // Handle the message and update internal state
-                                    if let Err(e) = self.handle_transaction_message(msg.clone()) {
-                                        debug!("Error when handling transaction message{:?}: {:?}", msg, e);
+                                    if let Err(e) = self.handle_transaction_message(msg.clone()).await {
+                                        warn!("Error when handling transaction message{:?}: {:?}", msg, e);
                                     }
                                 }
                             }
@@ -525,7 +525,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
     }
 
     /// Handle a message and update internal state
-    fn handle_transaction_message(&mut self, msg: TransactionMessage) -> ConsensusResult<()> {
+    async fn handle_transaction_message(&mut self, msg: TransactionMessage) -> ConsensusResult<()> {
         if self.processed_transactions.contains(msg.block_ref())
             || self.reconstruction_queue.contains(msg.block_ref())
         {
@@ -574,14 +574,14 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             &self.ready_to_reconstruct_sender,
             self.info_length,
             &key,
-        )?;
+        ).await?;
 
         Ok(())
     }
 
     /// If the accumulator for the given key is ready to reconstruct, remove it
     /// from the map and enqueue it for reconstruction
-    fn enqueue_if_ready(
+    async fn enqueue_if_ready(
         accumulators: &mut BTreeMap<(BlockRef, TransactionsCommitment), ShardAccumulator>,
         reconstruction_queue: &mut BTreeSet<BlockRef>,
         sender: &Sender<ShardAccumulator>,
@@ -595,8 +595,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                     .remove(key)
                     .expect("We should expect the shard accumulator to be present");
                 sender
-                    .try_send(acc)
-                    .map_err(|_| ConsensusError::AccumulatorSenderClosed)?;
+                    .send(acc)
+                    .await.map_err(|_| ConsensusError::AccumulatorSenderClosed)?;
                 reconstruction_queue.insert(key.0.clone());
             }
         }
