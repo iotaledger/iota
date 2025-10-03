@@ -1993,6 +1993,7 @@ mod tests {
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
+            _source: &'static str,
         ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }

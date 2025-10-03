@@ -391,6 +391,7 @@ impl Core {
     pub(crate) fn add_transactions(
         &mut self,
         transactions: Vec<VerifiedTransactions>,
+        source: &str,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::add_transactions");
         let _s = self
@@ -404,7 +405,7 @@ impl Core {
         // Add transactions to the dag state.
         let mut dag_state_guard = self.dag_state.write();
         for transaction in transactions {
-            dag_state_guard.add_transactions(transaction);
+            dag_state_guard.add_transactions(transaction, source);
         }
         // Safe to drop the guard here as the write/read locks will be asquired in
         // commit_observer

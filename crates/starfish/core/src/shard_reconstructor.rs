@@ -517,7 +517,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
             // Add the transactions to the core
             self.core_dispatcher
-                .add_transactions(transactions)
+                .add_transactions(transactions, "shard_reconstructor")
                 .await
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
@@ -652,7 +652,11 @@ mod tests {
 
     #[async_trait::async_trait]
     impl CoreThreadDispatcher for MockCoreThreadDispatcher {
-        async fn add_transactions(&self, txs: Vec<VerifiedTransactions>) -> Result<(), CoreError> {
+        async fn add_transactions(
+            &self,
+            txs: Vec<VerifiedTransactions>,
+            _source: &'static str,
+        ) -> Result<(), CoreError> {
             let mut guard = self.transactions.lock().await;
             guard.extend(txs);
             Ok(())

@@ -117,6 +117,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_lock_dequeued: IntCounter,
     pub(crate) reconstruction_jobs_started: IntCounter,
     pub(crate) reconstruction_jobs_finished: IntCounter,
+    pub(crate) accepted_transactions: IntCounterVec,
     pub(crate) shard_accumulators: IntGauge,
     pub(crate) reconstruction_lag: Histogram,
     pub(crate) reconstruction_queue: IntGauge,
@@ -331,6 +332,12 @@ impl NodeMetrics {
             reconstruction_jobs_finished: register_int_counter_with_registry!(
                 "reconstruction_jobs_finished",
                 "Number of reconstruction jobs finished",
+                registry,
+            ).unwrap(),
+            accepted_transactions: register_int_counter_vec_with_registry!(
+                "accepted_transactions",
+                "Number of accepted transactions by source (own, others)",
+                &["source"],
                 registry,
             ).unwrap(),
             core_lock_dequeued: register_int_counter_with_registry!(

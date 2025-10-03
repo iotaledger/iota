@@ -329,13 +329,19 @@ impl DagState {
             .inc();
     }
 
-    pub(crate) fn add_transactions(&mut self, transactions: VerifiedTransactions) {
+    pub(crate) fn add_transactions(&mut self, transactions: VerifiedTransactions, source: &str) {
         let block_ref = transactions.block_ref();
         if self
             .recent_transactions
             .insert(block_ref, transactions.clone())
             .is_none()
         {
+            self.context
+                .metrics
+                .node_metrics
+                .accepted_transactions
+                .with_label_values(&[source])
+                .inc();
             tracing::debug!("Adding transactions for block ref: {block_ref}");
             self.transactions_to_write.push(transactions);
             // If a block is not very old, add it to pending acknowledgments
@@ -2277,7 +2283,7 @@ mod test {
         let later_commits = commits.split_off(5);
         dag_state.accept_block_headers(dag_builder.block_headers(1..=5));
         for verified_transactions in dag_builder.transactions(1..=5).into_iter() {
-            dag_state.add_transactions(verified_transactions);
+            dag_state.add_transactions(verified_transactions, "test");
         }
 
         for commit in commits.clone() {
@@ -2298,7 +2304,7 @@ mod test {
         // Add the rest of the block headers, transaction, and commits to the dag state
         dag_state.accept_block_headers(dag_builder.block_headers(6..=num_rounds));
         for verified_transactions in dag_builder.transactions(6..=num_rounds).into_iter() {
-            dag_state.add_transactions(verified_transactions);
+            dag_state.add_transactions(verified_transactions, "test");
         }
         for commit in later_commits.clone() {
             dag_state.add_commit(commit);
@@ -2892,7 +2898,7 @@ mod test {
                     )
                     .unwrap();
             } else {
-                dag_state.add_transactions(block.verified_transactions.clone());
+                dag_state.add_transactions(block.verified_transactions.clone(), "test");
             }
         });
 
@@ -2984,7 +2990,7 @@ mod test {
 
         dag_state.accept_block_headers(dag_builder.block_headers(1..=num_rounds));
         for verified_transactions in dag_builder.transactions(1..=num_rounds).into_iter() {
-            dag_state.add_transactions(verified_transactions);
+            dag_state.add_transactions(verified_transactions, "test");
         }
 
         for commit in commits.clone() {
