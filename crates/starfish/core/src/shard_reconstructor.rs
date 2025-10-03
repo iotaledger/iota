@@ -445,7 +445,8 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                     }
 
                  () = &mut send_to_core_timeout => {
-                    // we want to start a new task only if the number of tasks is not too large.
+
+                    // Grab reconstructed transactions and send them to core to add to the DAG state
                     if let Err(e) = self.send_to_core().await {
                         debug!("Error when sending reconstructed transactions to core: {:?}", e);
                     }
@@ -476,7 +477,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         self.context
             .metrics
             .node_metrics
-            .number_of_shard_accumulators
+            .shard_accumulators
             .set(self.shard_accumulators.len() as i64);
         self.context
             .metrics

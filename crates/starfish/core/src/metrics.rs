@@ -117,7 +117,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_lock_dequeued: IntCounter,
     pub(crate) reconstruction_jobs_started: IntCounter,
     pub(crate) reconstruction_jobs_finished: IntCounter,
-    pub(crate) number_of_shard_accumulators: IntGauge,
+    pub(crate) shard_accumulators: IntGauge,
     pub(crate) reconstruction_queue: IntGauge,
     pub(crate) core_lock_enqueued: IntCounter,
     pub(crate) core_skipped_proposals: IntCounterVec,
@@ -359,8 +359,8 @@ impl NodeMetrics {
                 &["source"],
                 registry,
             ).unwrap(),
-            number_of_shard_accumulators: register_int_gauge_with_registry!(
-                "number_of_shard_accumulators",
+            shard_accumulators: register_int_gauge_with_registry!(
+                "shard_accumulators",
                 "The number of shard accumulators currently in memory",
                 registry,
             ).unwrap(),
