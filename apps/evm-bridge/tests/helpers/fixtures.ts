@@ -215,6 +215,7 @@ export const test = baseTest.extend<{
 
             const page = await createPage(context);
             await page.bringToFront();
+            await page.waitForLoadState('networkidle');
 
             await connectL2Wallet(page, context);
             await toggleBridgeDirection(page);

@@ -97,16 +97,41 @@ export async function connectL2Wallet(page: Page, browserContext: BrowserContext
     });
 
     await connectButton.click();
+
     const metamaskButton = page.getByTestId(/metamask/);
     await metamaskButton.waitFor({ state: 'visible', timeout: 10000 });
 
-    const approveDialog = browserContext.waitForEvent('page', { timeout: 20_000 });
-
+    const approveDialogPromise = waitForMetaMaskDialog(browserContext, page, 30000);
     await metamaskButton.click();
 
-    const walletModal = await approveDialog;
-    await walletModal.waitForLoadState('networkidle');
+    const walletModal = await approveDialogPromise;
+    await walletModal.waitForLoadState();
+
     await walletModal.getByRole('button', { name: 'Connect' }).click();
+}
+
+async function waitForMetaMaskDialog(
+    browserContext: BrowserContext,
+    mainPage: Page,
+    timeout = 20000,
+): Promise<Page> {
+    try {
+        return await browserContext.waitForEvent('page', { timeout });
+    } catch (error) {
+        const allPages = browserContext.pages();
+        const potentialDialogs = allPages.filter(
+            (p) =>
+                p !== mainPage &&
+                p.url().includes('notification') &&
+                p.url().includes('chrome-extension'),
+        );
+
+        if (potentialDialogs.length > 0) {
+            return potentialDialogs[0];
+        }
+
+        throw error;
+    }
 }
 
 export async function addNetworkToMetaMask(l2WalletPage: Page) {
