@@ -443,8 +443,8 @@ impl CongestionTracker {
         congestion_info_map: CongestionInfoMap,
         number_transactions: usize,
     ) {
-        // Store the object IDs that are congested in this checkpoint
-        let congested_objects: std::collections::HashSet<_> =
+        // Store the object IDs that are touched in this checkpoint
+        let touched_objects: std::collections::HashSet<_> =
             congestion_info_map.keys().cloned().collect();
 
         for (object_id, info) in congestion_info_map {
@@ -464,9 +464,9 @@ impl CongestionTracker {
                 });
         }
 
-        // Decay hotness of unaffected objects, and prune if too cold
+        // Decay hotness of untouched objects, and prune if too cold
         for (object_id, _) in self.object_congestion_info.iter() {
-            if !congested_objects.contains(&object_id) {
+            if !touched_objects.contains(&object_id) {
                 self.object_congestion_info
                     .entry(*object_id)
                     .and_compute_with(|maybe_entry| {
@@ -694,7 +694,7 @@ mod tests {
 
         let now = 1000;
 
-        // Congestion events: both objects are congested with different gas price
+        // Congestion events: all objects are congested with different gas price
         // feedback
         let congestion_events = vec![
             TxData {
@@ -743,18 +743,21 @@ mod tests {
 
         tracker.process_congestion_and_clearing_txs_data(now, &congestion_events, &cleared_events);
 
-        // obj1 hotness remains to 0.0 as the gas price feedback is lower than the
-        // reference gas price. obj3's hotness does not change as the 4th
-        // transaction only updates the first object, that is obj2.
         assert!(
             tracker.get_hotness_for_object(&obj1).unwrap() == HOTNESS_ADJUSTMENT_FACTOR * 16.25,
-            "obj1 should have unchanged hotness"
+            "obj1 should have positive hotness"
         );
         assert!(
-            tracker.get_hotness_for_object(&obj2).unwrap()
-                + tracker.get_hotness_for_object(&obj3).unwrap()
-                == HOTNESS_ADJUSTMENT_FACTOR * 200.0,
-            "obj2 should have increased hotness"
+            tracker.get_hotness_for_object(&obj2).unwrap() == HOTNESS_ADJUSTMENT_FACTOR * 200.0,
+            "obj2 should have positive hotness"
+        );
+        // obj3 is included in transactions with obj2, which gets all hotness updates.
+        // Remember that only the object with the largest hotness in a transaction gets
+        // its hotness updated. If hotness is equal, than the first object in the
+        // transaction gets updated.
+        assert!(
+            tracker.get_hotness_for_object(&obj3).unwrap() == 0.0,
+            "obj3 should have 0 hotness"
         );
     }
 
