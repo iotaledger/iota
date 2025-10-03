@@ -11,11 +11,11 @@ use iota::ed25519;
 use iota::hex::decode;
 use iota_account::iota_account::{Self, IOTAccount, ensure_tx_sender_is_account};
 
-#[error(code = 10)]
+#[error(code = 0)]
 const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verification failed.";
-#[error(code = 11)]
+#[error(code = 1)]
 const ESecp256k1VerificationFailed: vector<u8> = b"Secp256k1 authenticator verification failed.";
-#[error(code = 12)]
+#[error(code = 2)]
 const ESecp256r1VerificationFailed: vector<u8> = b"Secp256r1 authenticator verification failed.";
 
 /// A dynamic field key for the account owner public key.
