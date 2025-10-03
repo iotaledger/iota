@@ -141,11 +141,8 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
         });
     }
 
-    console.log('totalStake, ', Number(totalStake / NANOS_PER_IOTA));
-
     function handleUnstake() {
         navigate(stakeByValidatorAddress + '&unstake=true');
-        // TODO verify event same as in wallet-dashboard
         ampli.clickedUnstakeIota({
             stakedAmount: Number(totalStake / NANOS_PER_IOTA),
             validatorAddress,

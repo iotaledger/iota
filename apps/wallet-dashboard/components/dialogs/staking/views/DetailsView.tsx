@@ -33,9 +33,10 @@ import {
     InfoBoxStyle,
     TooltipPosition,
 } from '@iota/apps-ui-kit';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { formatAddress, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Warning } from '@iota/apps-ui-icons';
+import { ampli } from '@/lib/utils/analytics';
 
 interface StakeDialogProps {
     handleClose: () => void;
@@ -53,6 +54,7 @@ export function DetailsView({
     showActiveStatus,
 }: StakeDialogProps): JSX.Element {
     const totalStake = BigInt(stakedDetails?.principal || 0n);
+
     const validatorAddress = stakedDetails?.validatorAddress;
     const {
         isValidatorExpectedToBeInTheCommittee,
@@ -189,7 +191,15 @@ export function DetailsView({
                 <div className="flex w-full gap-sm">
                     <Button
                         type={ButtonType.Secondary}
-                        onClick={handleUnstake}
+                        onClick={() => {
+                            if (handleUnstake) {
+                                handleUnstake();
+                                ampli.clickedUnstakeIota({
+                                    stakedAmount: Number(totalStake / NANOS_PER_IOTA),
+                                    validatorAddress: stakedDetails?.validatorAddress,
+                                });
+                            }
+                        }}
                         text="Unstake"
                         fullWidth
                     />

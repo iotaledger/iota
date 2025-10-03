@@ -42,7 +42,6 @@ import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { isSupplyIncreaseVestingObject } from '@/lib/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useRouter } from 'next/navigation';
-import { ampli } from '@/lib/utils/analytics/ampli';
 
 function StakingDashboardPage(): React.JSX.Element {
     const router = useRouter();
@@ -127,9 +126,6 @@ function StakingDashboardPage(): React.JSX.Element {
     function handleUnstakeClick() {
         setStakeDialogView(undefined);
         openUnstakeDialog();
-        ampli.clickedUnstakeIota({
-            sourceFlow: 'Staking Dashboard',
-        });
     }
 
     function handleUnstakeDialogBack() {

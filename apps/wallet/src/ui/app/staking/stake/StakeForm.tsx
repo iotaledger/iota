@@ -41,7 +41,7 @@ import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
-import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, NANOS_PER_IOTA, parseAmount } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
@@ -122,9 +122,8 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                 );
             },
             onSuccess: (_) => {
-                // TODO verify number sent properly amount
                 ampli.stakedIota({
-                    stakedAmount: Number(amountWithoutDecimals),
+                    stakedAmount: Number(amount),
                     validatorAddress: validatorAddress || '',
                 });
             },
