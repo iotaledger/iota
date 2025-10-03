@@ -3,9 +3,13 @@
 
 module iota_account::iota_account;
 
+// === Imports ===
+
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::bcs;
 use iota::dynamic_field;
+
+// === Errors ===
 
 #[error(code = 0)]
 const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be signed by the account.";
@@ -15,7 +19,13 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 const ECantModifyReservedDynamicField: vector<u8> =
     b"Restricted dynamic fields cannot be modified directly.";
 
-// --------------------------------------- IOTAccountBuilder ---------------------------------------
+// === Constants ===
+
+// === Structs ===
+
+/// The key by which the list of reserved dynamic fields,
+/// can be queried from an `IOTAccount`.
+public struct ReservedDynamicFields has copy, drop, store {}
 
 /// Safely construct an IOTAccount.
 ///
@@ -31,6 +41,39 @@ const ECantModifyReservedDynamicField: vector<u8> =
 public struct IOTAccountBuilder {
     account: IOTAccount,
 }
+
+/// Internal key type for reserved dynamic field identifiers.
+///
+/// They aren't meant to be used by callers/developers as `dynamic_field`
+/// already handles differentiation better. Only necessary for our internally
+/// managed `ReservedDynamicFields`.
+public struct DynamicFieldKey has copy, drop, store {
+    type_name: std::type_name::TypeName,
+    value_bytes: vector<u8>,
+}
+
+/// This struct represents an abstract IOTA account.
+///
+/// It holds all the related data as dynamic fields to simplify updates, migrations and extensions.
+/// It distinguishes between two classes of dynamic fields.
+/// Reserved ones, used for managing the account's internal state, such as unlock times and public keys
+/// and regular ones which can be used for general data storage.
+///
+/// The list of reserved fields is stored as a dynamic field under `ReservedDynamicFields`.
+///
+/// As regular data, dynamic fields may be added and removed as necessary, but reserved ones cannot.
+/// Reserved fields are part of the authentication logic so they should not be removed only rotated.
+///
+/// An `IOTAccount` cannot be constructed directly. To create an `IOTAccount` use `IOTAccountBuilder`.
+public struct IOTAccount has key {
+    id: UID,
+}
+
+// === Events ===
+
+// === Method Aliases ===
+
+// === Public Functions ===
 
 /// Construct an IOTAccountBuilder and set the Authenticator.
 ///
@@ -85,64 +128,10 @@ public fun finish(self: IOTAccountBuilder): IOTAccount {
     account
 }
 
-/// Internal key type for reserved dynamic field identifiers.
-///
-/// They aren't meant to be used by callers/developers as `dynamic_field`
-/// already handles differentiation better. Only necessary for our internally
-/// managed `ReservedDynamicFields`.
-public struct DynamicFieldKey has copy, drop, store {
-    type_name: std::type_name::TypeName,
-    value_bytes: vector<u8>,
-}
-
-// This can't be private as it is used in the IOTAccountBuilder test.
-public(package) fun make_dynamic_field_key<KeyType: copy + drop + store>(
-    key: KeyType,
-): DynamicFieldKey {
-    DynamicFieldKey {
-        type_name: std::type_name::get<KeyType>(),
-        value_bytes: bcs::to_bytes(&key),
-    }
-}
-
-/// The key by which the list of reserved dynamic fields,
-/// can be queried from an `IOTAccount`.
-public struct ReservedDynamicFields has copy, drop, store {}
-
-// ------------------------------------- IOTAccount -----------------------------------------------
-
-/// This struct represents an abstract IOTA account.
-///
-/// It holds all the related data as dynamic fields to simplify updates, migrations and extensions.
-/// It distinguishes between two classes of dynamic fields.
-/// Reserved ones, used for managing the account's internal state, such as unlock times and public keys
-/// and regular ones which can be used for general data storage.
-///
-/// The list of reserved fields is stored as a dynamic field under `ReservedDynamicFields`.
-///
-/// As regular data, dynamic fields may be added and removed as necessary, but reserved ones cannot.
-/// Reserved fields are part of the authentication logic so they should not be removed only rotated.
-///
-/// An `IOTAccount` cannot be constructed directly. To create an `IOTAccount` use `IOTAccountBuilder`.
-public struct IOTAccount has key {
-    id: UID,
-}
-
-/// Return the account's address.
-public fun account_address(self: &IOTAccount): address {
-    self.id.to_address()
-}
-
 /// Share IOTAccount.
 public fun share(self: IOTAccount) {
     iota::transfer::share_object(self);
 }
-
-public fun borrow_reserved_dynamic_fields(self: &IOTAccount): &vector<DynamicFieldKey> {
-    self.borrow_field(ReservedDynamicFields {})
-}
-
-// --------------------------------------- Field Operations ---------------------------------------
 
 /// Adds a new dynamic field to the account.
 ///
@@ -183,17 +172,6 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
     dynamic_field::remove(&mut self.id, name)
 }
 
-/// Borrows a reference to a dynamic field from the account.
-///
-/// This function is not gated to be called only by the account,
-/// anybody can call it to read the account dynamic fields.
-public fun borrow_field<Name: copy + drop + store, Value: store>(
-    self: &IOTAccount,
-    name: Name,
-): &Value {
-    dynamic_field::borrow(&self.id, name)
-}
-
 /// Borrows a mutable reference to a dynamic field from the account.
 ///
 /// Only the account itself can call this function and the dynamic field can't collide with any
@@ -211,11 +189,6 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
 
     // Borrow the related dynamic field.
     dynamic_field::borrow_mut(&mut self.id, name)
-}
-
-/// Returns `true` if and only if `self` has a dynamic field with the specified `name`.
-public fun has_field<Name: copy + drop + store>(self: &IOTAccount, name: Name): bool {
-    dynamic_field::exists_(&self.id, name)
 }
 
 /// Rotate a dynamic field.
@@ -236,8 +209,34 @@ public fun rotate<Name: copy + drop + store, Value: store>(
     previous_value
 }
 
-// --------------------------------------- Utilities ---------------------------------------
-// These utility functions should be used for access validations while implementing an abstracted account.
+// === Public-View Functions ===
+
+/// Return the account's address.
+public fun account_address(self: &IOTAccount): address {
+    self.id.to_address()
+}
+
+/// Borrows a reference to a dynamic field from the account.
+///
+/// This function is not gated to be called only by the account,
+/// anybody can call it to read the account dynamic fields.
+public fun borrow_field<Name: copy + drop + store, Value: store>(
+    self: &IOTAccount,
+    name: Name,
+): &Value {
+    dynamic_field::borrow(&self.id, name)
+}
+
+public fun borrow_reserved_dynamic_fields(self: &IOTAccount): &vector<DynamicFieldKey> {
+    self.borrow_field(ReservedDynamicFields {})
+}
+
+/// Returns `true` if and only if `self` has a dynamic field with the specified `name`.
+public fun has_field<Name: copy + drop + store>(self: &IOTAccount, name: Name): bool {
+    dynamic_field::exists_(&self.id, name)
+}
+
+// === Admin Functions ===
 
 /// Check that the sender of this transaction is the account.
 public fun ensure_tx_sender_is_account(self: &IOTAccount, ctx: &TxContext) {
@@ -262,9 +261,21 @@ public fun check_reserved_dynamic_field_name<Name: copy + drop + store>(
     assert!(!reserved_found, ECantModifyReservedDynamicField);
 }
 
-// --------------------------------------- Utilities ---------------------------------------
+// === Public-Package Functions ===
 
-// --------------------------------------- Test Utilities ---------------------------------------
+// This can't be private as it is used in the IOTAccountBuilder test.
+public(package) fun make_dynamic_field_key<KeyType: copy + drop + store>(
+    key: KeyType,
+): DynamicFieldKey {
+    DynamicFieldKey {
+        type_name: std::type_name::get<KeyType>(),
+        value_bytes: bcs::to_bytes(&key),
+    }
+}
+
+// === Private Functions ===
+
+// === Test Functions ===
 
 #[test_only]
 public(package) fun create_iotaccount_for_testing(

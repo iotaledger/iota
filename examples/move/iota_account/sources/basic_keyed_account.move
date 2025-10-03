@@ -3,6 +3,8 @@
 
 module iota_account::basic_keyed_account;
 
+// === Imports ===
+
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::ecdsa_k1;
@@ -11,6 +13,8 @@ use iota::ed25519;
 use iota::hex::decode;
 use iota_account::iota_account::{Self, IOTAccount, ensure_tx_sender_is_account};
 
+// === Errors ===
+
 #[error(code = 0)]
 const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verification failed.";
 #[error(code = 1)]
@@ -18,10 +22,18 @@ const ESecp256k1VerificationFailed: vector<u8> = b"Secp256k1 authenticator verif
 #[error(code = 2)]
 const ESecp256r1VerificationFailed: vector<u8> = b"Secp256r1 authenticator verification failed.";
 
+// === Constants ===
+
 /// A dynamic field key for the account owner public key.
 public struct OwnerPublicKey has copy, drop, store {}
 
-// --------------------------------------- Creation ---------------------------------------
+// === Structs ===
+
+// === Events ===
+
+// === Method Aliases ===
+
+// === Public Functions ===
 
 /// Creates a new `IOTAccount`  as a shared object with the given authenticator.
 ///
@@ -41,8 +53,6 @@ public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ct
         .finish();
     account.share();
 }
-
-// --------------------------------------- Authenticators ---------------------------------------
 
 /// Ed25519 signature authenticator.
 public fun authenticate_ed25519(
@@ -113,14 +123,20 @@ public fun rotate_public_key(
     account.rotate(authenticator_df_name, authenticator, ctx);
 }
 
-// --------------------------------------- Utilities ---------------------------------------
+// === View Functions ===
 
 /// An utility function to borrow the account-related public key.
 public fun borrow_public_key(account: &IOTAccount): &vector<u8> {
     account.borrow_field(OwnerPublicKey {})
 }
 
-// --------------------------------------- Test Utilities ---------------------------------------
+// === Admin Functions ===
+
+// === Package Functions ===
+
+// === Private Functions ===
+
+// === Test Functions ===
 
 #[test_only]
 public fun create_owner_public_key_for_testing(): OwnerPublicKey {
