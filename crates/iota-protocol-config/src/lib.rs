@@ -80,7 +80,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 // Version 14: Switches the consensus protocol to Starfish in devnet.
 //             Enable median-based commit timestamp calculation in consensus in
 //             devnet.
-
+//             Enforce checkpoint timestamps are non-decreasing for devnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -359,6 +359,10 @@ struct FeatureFlags {
     // leader's ancestors.
     #[serde(skip_serializing_if = "is_false")]
     consensus_median_based_commit_timestamp: bool,
+
+    // If true, enforces checkpoint timestamps are non-decreasing.
+    #[serde(skip_serializing_if = "is_false")]
+    enforce_checkpoint_timestamp_monotonicity: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1409,6 +1413,10 @@ impl ProtocolConfig {
         );
         res
     }
+
+    pub fn enforce_checkpoint_timestamp_monotonicity(&self) -> bool {
+        self.feature_flags.enforce_checkpoint_timestamp_monotonicity
+    }
 }
 
 #[cfg(not(msim))]
@@ -2255,6 +2263,8 @@ impl ProtocolConfig {
                         cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
                         // Enable median-based commit timestamp calculation in consensus in devnet.
                         cfg.feature_flags.consensus_median_based_commit_timestamp = true;
+                        // Enforce checkpoint timestamps are non-decreasing for devnet.
+                        cfg.feature_flags.enforce_checkpoint_timestamp_monotonicity = true;
                     }
                 }
                 // Use this template when making changes:
