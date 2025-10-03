@@ -8,13 +8,10 @@ use iota::bcs;
 use iota::dynamic_field;
 
 #[error(code = 0)]
-const EReservedDynamicFieldsListCannotBeSet: vector<u8> =
-    b"'ReservedDynamicFields' field cannot be set by the user.";
-#[error(code = 1)]
 const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be signed by the account.";
 /// It should be emitted every time when an attempt at modifying a restricted dynamic field was made in
 /// an inappropriate scope. This scope will be defined by the account implementers.
-#[error(code = 2)]
+#[error(code = 1)]
 const ECantModifyReservedDynamicField: vector<u8> =
     b"Restricted dynamic fields cannot be modified directly.";
 
@@ -43,7 +40,7 @@ public fun builder(authenticator: AuthenticatorInfoV1, ctx: &mut TxContext): IOT
     let mut builder = IOTAccountBuilder {
         account: IOTAccount { id: object::new(ctx) },
     };
-    dynamic_field::add(&mut builder.account.id, get_reserved_dynamic_fields(), vector<DfKey>[]);
+    dynamic_field::add(&mut builder.account.id, ReservedDynamicFields {}, vector<DfKey>[]);
     builder.add_reserved_field(account::authenticator_df_name(), authenticator)
 }
 
@@ -54,13 +51,11 @@ public fun add_reserved_field<Name: copy + drop + store, Value: store>(
     value: Value,
 ): IOTAccountBuilder {
     let field_key = make_key(name);
-    let reserved_dynamic_fields_key = get_reserved_dynamic_fields_key();
-    assert!(field_key != reserved_dynamic_fields_key, EReservedDynamicFieldsListCannotBeSet);
 
     dynamic_field::add(&mut self.account.id, name, value);
     let reserved_keys: &mut vector<DfKey> = dynamic_field::borrow_mut(
         &mut self.account.id,
-        get_reserved_dynamic_fields(),
+        ReservedDynamicFields {},
     );
     // No need to check for duplicates, because dynamic_field::add above would fail on colliding keys
     // and in the builder one can only add fields.
@@ -75,10 +70,6 @@ public fun add_regular_field<Name: copy + drop + store, Value: store>(
     name: Name,
     value: Value,
 ): IOTAccountBuilder {
-    let field_key = make_key(name);
-    let reserved_dynamic_fields_key = get_reserved_dynamic_fields_key();
-    assert!(field_key != reserved_dynamic_fields_key, EReservedDynamicFieldsListCannotBeSet);
-
     dynamic_field::add(&mut self.account.id, name, value);
 
     self
@@ -111,16 +102,6 @@ public(package) fun make_key<KeyType: copy + drop + store>(key: KeyType): DfKey 
 /// can be queried from an `IOTAccount`.
 public struct ReservedDynamicFields has copy, drop, store {}
 
-/// Create the key for accessing reserved dynamic fields.
-public fun get_reserved_dynamic_fields(): ReservedDynamicFields {
-    ReservedDynamicFields {}
-}
-
-/// Create a `DfKey` for `ReservedDynamicFields`.
-public(package) fun get_reserved_dynamic_fields_key(): DfKey {
-    make_key(ReservedDynamicFields {})
-}
-
 // ------------------------------------- IOTAccount -----------------------------------------------
 
 /// This struct represents an abstract IOTA account.
@@ -143,6 +124,10 @@ public struct IOTAccount has key {
 /// Share IOTAccount.
 public fun share(self: IOTAccount) {
     iota::transfer::share_object(self);
+}
+
+public fun borrow_reserved_dynamic_fields(self: &IOTAccount): &vector<DfKey> {
+    self.borrow_field(ReservedDynamicFields {})
 }
 
 // --------------------------------------- Field Operations ---------------------------------------
@@ -254,7 +239,7 @@ public fun check_reserved_df<Name: copy + drop + store>(self: &IOTAccount, name:
     let key = make_key(*name);
     let reserved_df_names: &vector<DfKey> = dynamic_field::borrow(
         &self.id,
-        get_reserved_dynamic_fields(),
+        ReservedDynamicFields {},
     );
     let reserved_found = reserved_df_names.any!(|reserved| reserved == &key);
 

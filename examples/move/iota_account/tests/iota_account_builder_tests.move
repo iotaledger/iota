@@ -21,48 +21,6 @@ use iota_account::iota_account::{
 
 // -------------------------------- Create IOTAccount --------------------------------
 
-#[test]
-#[expected_failure(abort_code = iota_account::EReservedDynamicFieldsListCannotBeSet)]
-fun builder_reserved_fields_list_cannot_be_set() {
-    let test_sender = @0x0;
-    let mut scenario_val = test_scenario::begin(test_sender);
-    let scenario = &mut scenario_val;
-
-    let ctx = test_scenario::ctx(scenario);
-
-    let authenticator = create_authenticator_info_v1_for_testing();
-    let account = iota_account::builder(authenticator, ctx)
-        .add_reserved_field(
-            iota_account::get_reserved_dynamic_fields(),
-            vector<DfKey>[],
-        )
-        .finish();
-    account.share();
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-#[expected_failure(abort_code = iota_account::EReservedDynamicFieldsListCannotBeSet)]
-fun builder_reserved_fields_list_cannot_be_set_as_regular() {
-    let test_sender = @0x0;
-    let mut scenario_val = test_scenario::begin(test_sender);
-    let scenario = &mut scenario_val;
-
-    let ctx = test_scenario::ctx(scenario);
-
-    let authenticator = create_authenticator_info_v1_for_testing();
-    let account = iota_account::builder(authenticator, ctx)
-        .add_regular_field(
-            iota_account::get_reserved_dynamic_fields(),
-            vector<DfKey>[],
-        )
-        .finish();
-    account.share();
-
-    test_scenario::end(scenario_val);
-}
-
 public struct ReservedDfName has copy, drop, store {}
 
 #[test]
@@ -95,13 +53,7 @@ fun builder_all_mandatory_fields_set() {
             &create_authenticator_info_v1_for_testing(),
         );
 
-        // Check if reserved dynamic fields list has been set.
-        let reserved_df_name = iota_account::get_reserved_dynamic_fields();
-        assert!(account.has_field(reserved_df_name));
-        // and if it contains the appropriate values.
-        let reserved_df_keys: &vector<DfKey> = account.borrow_field(
-            reserved_df_name,
-        );
+        let reserved_df_keys: &vector<DfKey> = account.borrow_reserved_dynamic_fields();
         assert!(reserved_df_keys.length() == 2);
         assert!(reserved_df_keys.contains(&make_key(authenticator_df_name)));
         assert!(reserved_df_keys.contains(&make_key(reserved_df_example_name)));
