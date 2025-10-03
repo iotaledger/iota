@@ -5,10 +5,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use reed_solomon_simd::ReedSolomonDecoder;
 
-use crate::{
-    Transaction, block_header::Shard, context::Context,
-    error::ConsensusError,
-};
+use crate::{Transaction, block_header::Shard, context::Context, error::ConsensusError};
 
 /// Trait for decoding shard collections using systematic Reed-Solomon decoding
 /// and reconstructing the original transactions.
@@ -217,11 +214,11 @@ pub(crate) fn create_decoder(context: &Arc<Context>) -> Box<dyn ShardsDecoder + 
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
-    use crate::block_header::Shard;
-    use crate::context::Context;
-    use crate::decoder::create_decoder;
-    use crate::encoder::create_encoder;
-    use crate::Transaction;
+
+    use crate::{
+        Transaction, block_header::Shard, context::Context, decoder::create_decoder,
+        encoder::create_encoder,
+    };
 
     #[tokio::test]
     async fn decode_should_fail_cases() {
@@ -246,7 +243,8 @@ mod tests {
         );
 
         // Case 2: corrupted shard length
-        let mut shards_collection: Vec<Option<Shard>> = shards.clone().into_iter().map(Some).collect();
+        let mut shards_collection: Vec<Option<Shard>> =
+            shards.clone().into_iter().map(Some).collect();
         shards_collection[1] = Some(vec![1, 2, 3]); // wrong size
         assert!(
             decoder

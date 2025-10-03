@@ -76,7 +76,9 @@ impl Transaction {
                 let len = rng.gen_range(0..=max_len);
                 let mut buf = vec![0u8; len];
                 rng.fill_bytes(&mut buf);
-                Transaction { data: Bytes::from(buf) }
+                Transaction {
+                    data: Bytes::from(buf),
+                }
             })
             .collect()
     }
