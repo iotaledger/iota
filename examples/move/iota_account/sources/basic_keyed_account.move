@@ -116,7 +116,7 @@ public fun rotate_public_key(
 // --------------------------------------- Utilities ---------------------------------------
 
 /// An utility function to borrow the account-related public key.
-fun borrow_public_key(account: &IOTAccount): &vector<u8> {
+public fun borrow_public_key(account: &IOTAccount): &vector<u8> {
     account.borrow_field(OwnerPublicKey {})
 }
 
