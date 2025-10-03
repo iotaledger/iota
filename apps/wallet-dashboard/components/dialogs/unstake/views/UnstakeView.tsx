@@ -96,6 +96,7 @@ export function UnstakeView({
                     onSuccess(tx);
                     // TODO add amount unstaked
                     ampli.unstakedIota({
+                        // stakedAmount:
                         validatorAddress: extendedStake.validatorAddress,
                     });
                 },

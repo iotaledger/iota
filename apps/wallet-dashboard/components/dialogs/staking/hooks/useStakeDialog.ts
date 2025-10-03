@@ -19,11 +19,12 @@ export function useStakeDialog() {
         setStakeDialogView(undefined);
     }
 
-    function handleNewStake() {
+    function handleNewStake(sourceFlow: string) {
         setSelectedStake(null);
         setStakeDialogView(StakeDialogView.SelectValidator);
         ampli.clickedStakeIota({
             isCurrentlyStaking: true,
+            sourceFlow: sourceFlow,
         });
     }
 

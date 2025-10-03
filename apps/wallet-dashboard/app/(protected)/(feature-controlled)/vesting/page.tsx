@@ -355,7 +355,7 @@ export default function VestingDashboardPage(): JSX.Element {
                             subtitle="Earn Rewards"
                         >
                             <Button
-                                onClick={() => handleNewStake()}
+                                onClick={() => handleNewStake('Vesting Dashboard')}
                                 size={ButtonSize.Small}
                                 type={ButtonType.Outlined}
                                 text="Stake"

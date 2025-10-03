@@ -5,7 +5,7 @@ import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 import { StakeDialog, useStakeDialog } from '../dialogs';
 import { Banner, Theme, useTheme } from '@iota/core';
 
-export function StartStaking() {
+export function StartStaking({ sourceFlow }: { sourceFlow: string }) {
     const { theme } = useTheme();
     const {
         isDialogStakeOpen,
@@ -27,7 +27,7 @@ export function StartStaking() {
         <>
             <Banner videoSrc={videoSrc} title="Start Staking" subtitle="Earn Rewards">
                 <Button
-                    onClick={handleNewStake}
+                    onClick={() => handleNewStake(sourceFlow)}
                     size={ButtonSize.Small}
                     type={ButtonType.Outlined}
                     text="Stake"
