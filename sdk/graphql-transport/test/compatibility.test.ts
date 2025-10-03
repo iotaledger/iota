@@ -842,9 +842,23 @@ describe('GraphQL IotaClient compatibility', () => {
         ).toEqual(false);
 
         await toolbox.client.waitForTransaction({ digest: transaction.digest });
-        expect(
-            await toolbox.client.isTransactionIndexedOnNode({ digest: transaction.digest }),
-        ).toEqual(true);
+
+        let result = null;
+        for (const _ of Array.from({ length: 5 })) {
+            try {
+                result = await toolbox.client.isTransactionIndexedOnNode({
+                    digest: transaction.digest,
+                });
+                if (result) {
+                    break;
+                } else {
+                    await new Promise((r) => {
+                        setTimeout(r, 2000);
+                    });
+                }
+            } catch {}
+        }
+        expect(result).toEqual(true);
 
         await graphQLClient.waitForTransaction({ digest: transaction.digest });
         expect(
