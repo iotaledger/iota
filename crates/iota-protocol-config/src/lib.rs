@@ -77,6 +77,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 13;
 //             of eligible active validators.
 //             Enable processing and tracking AuthorityCapabilitiesV1 from
 //             non-committee validators in the devnet.
+//             Enable median-based commit timestamp calculation in consensus in
+//             devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -2197,6 +2199,8 @@ impl ProtocolConfig {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Enable tracking non-committee eligible active validators in devnet.
                         cfg.feature_flags.track_non_committee_eligible_validators = true;
+                        // Enable median-based commit timestamp calculation in consensus in devnet.
+                        cfg.feature_flags.consensus_median_based_commit_timestamp = true;
                     }
                 }
                 // Use this template when making changes:
