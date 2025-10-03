@@ -118,6 +118,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) reconstruction_jobs_started: IntCounter,
     pub(crate) reconstruction_jobs_finished: IntCounter,
     pub(crate) shard_accumulators: IntGauge,
+    pub(crate) reconstruction_lag: Histogram,
     pub(crate) reconstruction_queue: IntGauge,
     pub(crate) core_lock_enqueued: IntCounter,
     pub(crate) core_skipped_proposals: IntCounterVec,
@@ -297,6 +298,12 @@ impl NodeMetrics {
             blocks_per_commit_count: register_histogram_with_registry!(
                 "blocks_per_commit_count",
                 "The number of blocks per commit.",
+                NUM_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            reconstruction_lag: register_histogram_with_registry!(
+                "reconstruction_lag",
+                "The number of rounds between current round and reconstructed transactions.",
                 NUM_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),

@@ -502,7 +502,19 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
     /// Send reconstructed transactions to the core
     async fn send_to_core(&mut self) -> ConsensusResult<()> {
         let transactions = std::mem::take(&mut self.reconstructed_transactions);
+
         if !transactions.is_empty() {
+            let highest_accepted_round = self.dag_state.read().highest_accepted_round();
+            for transaction in &transactions {
+                let difference =
+                    highest_accepted_round.saturating_sub(transaction.block_ref().round);
+                self.context
+                    .metrics
+                    .node_metrics
+                    .reconstruction_lag
+                    .observe(difference as f64);
+            }
+
             // Add the transactions to the core
             self.core_dispatcher
                 .add_transactions(transactions)
