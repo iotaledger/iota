@@ -80,9 +80,12 @@ That yields the following response:
 
 A resolver is only interested in the `fields` object; if the IRL contains an empty path
 - besides the object ID - the resolver should return it as the resolution result.
-Otherwise, if the path is not empty, it should be converted to a
-[JSON pointer](https://datatracker.ietf.org/doc/html/rfc6901) and derefering it 
-within the context of the `fields` object, to obtain the resolution result.
+Otherwise, if the path is not empty, it should be split into path segments, which are
+used to traverse the `fields` object, segment by segment. When taking a step in the 
+traversal of the object, if the current segment isn't found among the object's properties
+the segment must be searched within the object's `fields` property, if any.
+Furthermore, when the entire path has been traversed, if the resulting object has a `fields`
+property its value is returned instead of the object itself.
 
 For Instance, the result of resolving `iota:mainnet/0x53e4567ccafa5f36ce84c80aa8bc9be64e0d5ae796884274aef3005ae6733809`
 is the JSON object:
