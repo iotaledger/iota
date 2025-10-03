@@ -15,6 +15,7 @@ mod ingestion_tests {
     use iota_indexer::{
         db::get_pool_connection,
         errors::{Context, IndexerError},
+        handlers::TransactionObjectChangesToCommit,
         insert_or_ignore_into,
         models::{
             checkpoints::StoredCheckpoint,
@@ -22,12 +23,16 @@ mod ingestion_tests {
             transactions::{StoredTransaction, TxGlobalOrder},
             tx_indices::StoredTxDigest,
         },
+        rolling::CheckpointObjectChanges,
         schema::{
             checkpoints, objects, objects_snapshot, transactions, tx_digests, tx_global_order,
         },
-        store::{PgIndexerStore, indexer_store::IndexerStore},
+        store::{
+            PgIndexerStore,
+            indexer_store::{IndexerStore, IndexerStoreExt},
+        },
         transactional_blocking_with_retry,
-        types::{EventIndex, TxIndex},
+        types::{EventIndex, IndexedDeletedObject, IndexedObject, TxIndex},
     };
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID, base_types::IotaAddress, effects::TransactionEffectsAPI,
@@ -50,6 +55,58 @@ mod ingestion_tests {
                 .run($query)
                 .map_err(|e| IndexerError::PostgresRead(e.to_string()))
         }};
+    }
+
+    #[tokio::test]
+    pub async fn checkpoint_objects_ingestion() -> Result<(), IndexerError> {
+        let tempdir = tempdir().unwrap();
+        let mut sim = Simulacrum::new();
+        let data_ingestion_path = tempdir.path().to_path_buf();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tests_db"),
+            None,
+        )
+        .await;
+
+        let checkpoint_objects = (0..1000)
+            .map(|_| CheckpointObjectChanges::random())
+            .collect();
+        pg_store
+            .persist_checkpoint_objects(checkpoint_objects)
+            .await?;
+        Ok(())
+    }
+
+    #[tokio::test]
+    pub async fn objects_ingestion() -> Result<(), IndexerError> {
+        let tempdir = tempdir().unwrap();
+        let mut sim = Simulacrum::new();
+        let data_ingestion_path = tempdir.path().to_path_buf();
+        sim.set_data_ingestion_path(data_ingestion_path.clone());
+
+        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
+            Arc::new(sim),
+            data_ingestion_path,
+            None,
+            Some("indexer_ingestion_tests_db"),
+            None,
+        )
+        .await;
+
+        let mut objects = Vec::new();
+        for _ in 0..1000 {
+            objects.push(TransactionObjectChangesToCommit {
+                changed_objects: vec![IndexedObject::random()],
+                deleted_objects: vec![IndexedDeletedObject::random()],
+            });
+        }
+        pg_store.persist_objects(objects).await?;
+        Ok(())
     }
 
     #[tokio::test]

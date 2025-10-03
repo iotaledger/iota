@@ -178,6 +178,8 @@ pub struct IndexerMetrics {
     pub last_pruned_checkpoint: IntGauge,
     pub last_pruned_transaction: IntGauge,
     pub epoch_pruning_latency: Histogram, // not used
+    pub optimistic_pruner_total_rows_pruned: IntCounter,
+    pub optimistic_pruner_batch_duration: Histogram,
 }
 
 impl IndexerMetrics {
@@ -803,6 +805,19 @@ impl IndexerMetrics {
                 "Last pruned transaction sequence number",
                 registry,
             ).unwrap(),
+            optimistic_pruner_total_rows_pruned: register_int_counter_with_registry!(
+                "optimistic_pruner_total_rows_pruned",
+                "Total number of rows pruned by optimistic pruner",
+                registry,
+            )
+                .unwrap(),
+            optimistic_pruner_batch_duration: register_histogram_with_registry!(
+                "optimistic_pruner_batch_duration",
+                "Time spent processing single optimistic pruner batch",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+                .unwrap(),
             epoch_pruning_latency: register_histogram_with_registry!(
                 "epoch_pruning_latency",
                 "Time spent in pruning one epoch",

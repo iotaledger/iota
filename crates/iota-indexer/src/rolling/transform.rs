@@ -51,6 +51,14 @@ impl LiveObject {
     pub(crate) fn object(&self) -> &Object {
         &self.indexed_object.object
     }
+
+    #[cfg(any(test, feature = "pg_integration", feature = "shared_test_runtime"))]
+    fn random() -> Self {
+        Self {
+            indexed_object: IndexedObject::random(),
+            transaction_digest: TransactionDigest::random(),
+        }
+    }
 }
 
 /// Represent an object that is wrapped or deleted at a certain snapshot
@@ -87,12 +95,30 @@ impl RemovedObject {
     pub(crate) fn object_id(&self) -> ObjectID {
         self.indexed_object.object_id
     }
+
+    #[cfg(any(test, feature = "pg_integration", feature = "shared_test_runtime"))]
+    fn random() -> Self {
+        Self {
+            indexed_object: IndexedDeletedObject::random(),
+            transaction_digest: TransactionDigest::random(),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Default)]
-pub(crate) struct CheckpointObjectChanges {
+pub struct CheckpointObjectChanges {
     pub(crate) changed_objects: Vec<LiveObject>,
     pub(crate) deleted_objects: Vec<RemovedObject>,
+}
+
+#[cfg(any(test, feature = "pg_integration", feature = "shared_test_runtime"))]
+impl CheckpointObjectChanges {
+    pub fn random() -> Self {
+        Self {
+            changed_objects: vec![LiveObject::random()],
+            deleted_objects: vec![RemovedObject::random()],
+        }
+    }
 }
 
 impl TryFrom<&CheckpointData> for CheckpointObjectChanges {

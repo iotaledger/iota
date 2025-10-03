@@ -26,20 +26,21 @@ use tracing::{debug, info, warn};
 use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, SignedBlockHeader,
-        TransactionsCommitment, VerifiedBlock, VerifiedTransactions,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
+        SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
+        VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
+    dag_state::{DagState, MAX_HEADERS_PER_BUNDLE, MAX_SHARDS_PER_BUNDLE},
     encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     network::{
-        BlockBundle, BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockAndHeaders,
-        SerializedBlockBundle, SerializedHeaderAndTransactions, SerializedTransactions,
+        BlockBundle, BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
+        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactions,
     },
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
@@ -157,13 +158,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         // 1. Create a verified block and make some preliminary checks
-        let serialized_block_and_headers =
-            SerializedBlockAndHeaders::try_from(serialized_block_bundle)?;
+        let serialized_block_bundle_parts =
+            SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
         let SerializedHeaderAndTransactions {
             serialized_block_header,
             serialized_transactions,
         } = SerializedHeaderAndTransactions::try_from(SerializedBlock {
-            serialized_block: serialized_block_and_headers.serialized_block,
+            serialized_block: serialized_block_bundle_parts.serialized_block,
         })?;
 
         let signed_block_header: SignedBlockHeader =
@@ -200,15 +201,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
         }
-
-        if signed_block_header.transactions_commitment()
-            != TransactionsCommitment::compute_transactions_commitment(
-                &serialized_transactions,
-                &self.context,
-                encoder,
-            )
-            .expect("we should expect correct computation of the transactions commitment")
-        {
+        let (transaction_commitment, our_shard, proof_for_shard) = TransactionsCommitment::compute_merkle_root_shard_and_proof(
+            &serialized_transactions,
+            &self.context,
+            encoder,
+        )
+            .expect("we should expect correct computation of the transactions commitment, our shard and its proof");
+        if signed_block_header.transactions_commitment() != transaction_commitment {
             return Err(ConsensusError::TransactionCommitmentFailure {
                 round: signed_block_header.round(),
                 author: signed_block_header.author(),
@@ -282,15 +281,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 4. Create block headers from bytes from a bundle
 
-        if serialized_block_and_headers.serialized_headers.len() > MAX_HEADERS_PER_BUNDLE {
+        if serialized_block_bundle_parts.serialized_headers.len() > MAX_HEADERS_PER_BUNDLE {
             return Err(ConsensusError::TooManyHeadersInABundle {
-                count: serialized_block_and_headers.serialized_headers.len(),
+                count: serialized_block_bundle_parts.serialized_headers.len(),
                 limit: MAX_HEADERS_PER_BUNDLE,
             });
         }
 
         let mut additional_block_headers = vec![];
-        for serialized_header in serialized_block_and_headers.serialized_headers {
+        for serialized_header in serialized_block_bundle_parts.serialized_headers {
             let digest = VerifiedBlockHeader::compute_digest(&serialized_header);
             if self.received_block_headers.contains(&digest) {
                 self.context
@@ -351,22 +350,88 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             );
 
             additional_block_headers.push(verified_block_header);
-            self.context
-                .metrics
-                .node_metrics
-                .valid_headers_in_bundles
-                .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
-                .inc();
         }
+        self.context
+            .metrics
+            .node_metrics
+            .valid_headers_in_bundles
+            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .inc_by(additional_block_headers.len() as u64);
 
-        // 5. Observe headers and the block for the commit votes. When local commit is
+        // 5. Collect shards from a bundle and check their proofs.
+        if serialized_block_bundle_parts.serialized_shards.len() > MAX_SHARDS_PER_BUNDLE {
+            return Err(ConsensusError::TooManyShardsInABundle {
+                count: serialized_block_bundle_parts.serialized_shards.len(),
+                limit: MAX_SHARDS_PER_BUNDLE,
+            });
+        }
+        // TODO: use correct type
+        let mut shards_for_decoder: Vec<ShardWithProof> = vec![];
+        for serialized_shard in serialized_block_bundle_parts.serialized_shards.iter() {
+            let shard: ShardWithProof =
+                bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
+
+            if shard.block_ref.round >= verified_block.round() {
+                let e = ConsensusError::TooBigShardRoundInABundle {
+                    shard_round: shard.block_ref.round,
+                    block_round: verified_block.round(),
+                };
+                self.context
+                    .metrics
+                    .node_metrics
+                    .invalid_shard_in_bundles
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        "handle_subscribed_block_bundle",
+                        e.clone().name(),
+                    ])
+                    .inc();
+                info!("Invalid shard from {}: {}", peer, e);
+                return Err(e);
+            }
+
+            let proof_check = TransactionsCommitment::check_merkle_proof(
+                shard.clone(),
+                self.context.committee.size(),
+                peer.value(),
+            );
+            if proof_check {
+                shards_for_decoder.push(shard);
+            } else {
+                let e = ConsensusError::IncorrectShardProof {
+                    peer,
+                    round: shard.block_ref.round,
+                };
+                self.context
+                    .metrics
+                    .node_metrics
+                    .invalid_shard_in_bundles
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        "handle_subscribed_block_bundle",
+                        e.clone().name(),
+                    ])
+                    .inc();
+                info!("Invalid shard from {}: {}", peer, e);
+                return Err(e);
+            }
+        }
+        self.context
+            .metrics
+            .node_metrics
+            .valid_shards_in_bundles
+            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .inc_by(shards_for_decoder.len() as u64);
+        // TODO: send to decoders
+
+        // 6. Observe headers and the block for the commit votes. When local commit is
         // lagging too much, commit sync loop will trigger fetching.
         for block_header in additional_block_headers.iter() {
             self.commit_vote_monitor.observe_block(block_header);
         }
         self.commit_vote_monitor.observe_block(&verified_block);
 
-        // 6. Reject blocks when local commit index is lagging too far from quorum
+        // 7. Reject blocks when local commit index is lagging too far from quorum
         //    commit
         // index.
         //
@@ -407,7 +472,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
-        // 7. Add digests to filter. Exclude from the vector those that are already
+        // 8. Add digests to filter. Exclude from the vector those that are already
         //    inserted
         let mut digests_to_add_to_filter = vec![];
         for block_header in additional_block_headers.iter() {
@@ -445,7 +510,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(digests_to_exclude.len() as u64);
 
-        // 8. Add additional headers from bundle to dag, receive missing ancestors for
+        // 9. Add additional headers from bundle to dag, receive missing ancestors for
         //    them
         // Normally, there should be no missing ancestors, as the headers are sent in
         // order of increasing rounds.
@@ -455,7 +520,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
-        // 9. Add block to dag, add its missing ancestors to the set
+        // 10. Add the block to dag, add its missing ancestors to the set
         let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
             .add_blocks(vec![verified_block])
@@ -464,9 +529,27 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         missing_ancestors.extend(missing_block_ancestors);
         missing_committed_txns.extend(missing_block_committed_transactions);
+        // 11. Add our shard from the received block and its proof to the dag_state
+        let shard_for_core = ShardWithProof {
+            shard: our_shard,
+            transaction_commitment,
+            proof: proof_for_shard,
+            block_ref,
+        };
+        let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
+            .map_err(ConsensusError::SerializationFailure)?
+            .into();
+        let shard_for_core = VerifiedOwnShard {
+            serialized_shard: serialized_shard_for_core,
+            block_ref,
+        };
+        self.core_dispatcher
+            .add_shards(vec![shard_for_core])
+            .await
+            .map_err(|_| ConsensusError::Shutdown)?;
 
         if !missing_ancestors.is_empty() {
-            // 10. schedule the fetching of missing ancestors from this peer
+            // 12. schedule the fetching of missing ancestors from this peer
             if let Err(err) = self
                 .synchronizer
                 .fetch_headers(missing_ancestors, peer)
@@ -531,10 +614,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 let mut dag_state_guard = dag_state.write();
                 let block_headers =
                     dag_state_guard.take_unknown_headers_for_authority(peer, block.round());
+                let serialized_shards =
+                    dag_state_guard.take_unknown_shards_for_authority(peer, block.round());
                 drop(dag_state_guard);
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: block_headers,
+                    serialized_shards,
                 };
                 async move {
                     match SerializedBlockBundle::try_from(block_bundle) {
@@ -1098,7 +1184,7 @@ mod tests {
         },
         block_header::{
             BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, TransactionsCommitment,
-            VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+            VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -1114,7 +1200,7 @@ mod tests {
         leader_schedule::LeaderSchedule,
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
-            SerializedBlockAndHeaders, SerializedBlockBundle, SerializedHeaderAndTransactions,
+            SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
             SerializedTransactions,
         },
         storage::{Store, mem_store::MemStore},
@@ -1489,9 +1575,10 @@ mod tests {
         let big_block_bundle = BlockBundle {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
+            serialized_shards: vec![],
         };
         let serialized_big_block_bundle = SerializedBlockBundle::try_from(
-            SerializedBlockAndHeaders::try_from(big_block_bundle).unwrap(),
+            SerializedBlockBundleParts::try_from(big_block_bundle).unwrap(),
         )
         .unwrap();
 
@@ -1516,9 +1603,10 @@ mod tests {
         let block_bundle_with_big_rounds = BlockBundle {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
+            serialized_shards: vec![],
         };
         let serialized_block_bundle_with_big_round = SerializedBlockBundle::try_from(
-            SerializedBlockAndHeaders::try_from(block_bundle_with_big_rounds).unwrap(),
+            SerializedBlockBundleParts::try_from(block_bundle_with_big_rounds).unwrap(),
         )
         .unwrap();
 
@@ -1551,9 +1639,10 @@ mod tests {
         let block_bundle = BlockBundle {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
+            serialized_shards: vec![],
         };
         let serialized_block_bundle = SerializedBlockBundle::try_from(
-            SerializedBlockAndHeaders::try_from(block_bundle).unwrap(),
+            SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
         )
         .unwrap();
 
@@ -1867,6 +1956,10 @@ mod tests {
             unimplemented!("Unimplemented")
         }
 
+        async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
+            Ok(())
+        }
+
         async fn get_missing_transaction_data(
             &self,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
@@ -2031,9 +2124,10 @@ mod tests {
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: headers,
+                    serialized_shards: vec![],
                 };
                 let serialized_block_bundle = SerializedBlockBundle::try_from(
-                    SerializedBlockAndHeaders::try_from(block_bundle).unwrap(),
+                    SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
                 )
                 .unwrap();
                 authority_service
@@ -2167,9 +2261,10 @@ mod tests {
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: vec![],
+                    serialized_shards: vec![],
                 };
                 let serialized_block_bundle = SerializedBlockBundle::try_from(
-                    SerializedBlockAndHeaders::try_from(block_bundle).unwrap(),
+                    SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
                 )
                 .unwrap();
                 authority_service
@@ -2361,7 +2456,8 @@ mod tests {
 
         // Check the correctness of the received blocks
         for (i, bundle) in received_bundles.into_iter().enumerate() {
-            let serialized_block_and_headers = SerializedBlockAndHeaders::try_from(bundle).unwrap();
+            let serialized_block_and_headers =
+                SerializedBlockBundleParts::try_from(bundle).unwrap();
             let SerializedHeaderAndTransactions {
                 serialized_block_header,
                 serialized_transactions,
@@ -2426,7 +2522,8 @@ mod tests {
 
         // Check blocks from the second batch
         for (i, bundle) in received_bundles.into_iter().enumerate() {
-            let serialized_block_and_headers = SerializedBlockAndHeaders::try_from(bundle).unwrap();
+            let serialized_block_and_headers =
+                SerializedBlockBundleParts::try_from(bundle).unwrap();
             let SerializedHeaderAndTransactions {
                 serialized_block_header,
                 serialized_transactions,

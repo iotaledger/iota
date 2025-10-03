@@ -1068,7 +1068,7 @@ mod tests {
         Round, TestBlockHeader,
         block_header::{
             BlockHeaderDigest, BlockRef, TransactionsCommitment, VerifiedBlock,
-            VerifiedBlockHeader, VerifiedTransactions,
+            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange},
@@ -2065,6 +2065,9 @@ mod tests {
             Ok(())
         }
 
+        async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
+            unimplemented!("Unimplemented")
+        }
         async fn get_missing_transaction_data(
             &self,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {

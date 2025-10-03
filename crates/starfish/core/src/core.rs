@@ -32,7 +32,7 @@ use crate::{
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
         Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions,
+        VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
@@ -122,7 +122,7 @@ pub(crate) struct Core {
     /// hasn't been initialised yet.
     last_known_proposed_round: Option<Round>,
     /// Encoder is used to encode transactions into a longer vector of shards
-    encoder: Box<dyn ShardEncoder + Send>,
+    encoder: Box<dyn ShardEncoder + Send + Sync>,
 }
 
 impl Core {
@@ -419,6 +419,31 @@ impl Core {
         Ok(())
     }
 
+    /// Adds shards to the DAG state. The proof is assumed to be already checked
+    pub(crate) fn add_shards(
+        &mut self,
+        serialized_shards: Vec<VerifiedOwnShard>,
+    ) -> ConsensusResult<()> {
+        let _scope = monitored_scope("Core::add_transactions");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::add_shards"])
+            .start_timer();
+
+        // Add shards to the dag state.
+        let mut dag_state_guard = self.dag_state.write();
+        for serialized_shard in serialized_shards {
+            dag_state_guard.add_shard(serialized_shard);
+        }
+        // Safe to drop the guard here as the write/read locks will be asquired in
+        // commit_observer
+        drop(dag_state_guard);
+        Ok(())
+    }
+
     // Adds the certified commits that have been synced via the commit syncer. We
     // are using the commit info to skip running the decision
     // rule and immediately commit the corresponding leaders and sub dags.
@@ -633,21 +658,15 @@ impl Core {
         // be done in the end of the method.
         let (transactions, ack_transactions, _limit_reached) = self.transaction_consumer.next();
         // Serialize the transaction
-        let info_length = self.context.committee.info_length();
-        let parity_length = self.context.committee.size() - info_length;
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("We should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
-
-        let encoded_shards = self
-            .encoder
-            .encode_serialized_data(&serialized_transactions, info_length, parity_length)
-            .expect("We should expect correct encoding of the shards");
-
-        let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
-            .expect(
-                "We should expect correct computation of the Merkle root for encoded transactions",
-            );
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized_transactions,
+            &self.context,
+            &mut self.encoder,
+        )
+        .expect("We should expect correct computation of the Merkle root for encoded transactions");
 
         self.context
             .metrics

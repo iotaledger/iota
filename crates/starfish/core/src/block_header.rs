@@ -11,7 +11,7 @@ use std::{
 
 use bytes::Bytes;
 use fastcrypto::hash::{Digest, HashFunction};
-use rs_merkle::MerkleTree;
+use rs_merkle::{MerkleProof, MerkleTree};
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use starfish_config::{
@@ -417,12 +417,45 @@ impl AsRef<[u8]> for BlockHeaderDigest {
 // explicitly the transaction data.
 #[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TransactionsCommitment([u8; starfish_config::DIGEST_LENGTH]);
+pub type MerkleProofBytes = Vec<u8>;
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub(crate) struct ShardWithProof {
+    pub(crate) shard: Shard,
+    pub(crate) transaction_commitment: TransactionsCommitment,
+    pub(crate) proof: MerkleProofBytes,
+    pub(crate) block_ref: BlockRef,
+}
+
+pub(crate) struct VerifiedOwnShard {
+    pub(crate) serialized_shard: Bytes,
+    pub(crate) block_ref: BlockRef,
+}
 
 impl TransactionsCommitment {
     /// Lexicographic min & max digest.
     pub const MIN: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
     pub const MAX: Self = Self([u8::MAX; starfish_config::DIGEST_LENGTH]);
     pub const DEFAULT_FOR_TEST: Self = Self([u8::MIN; starfish_config::DIGEST_LENGTH]);
+
+    pub(crate) fn compute_merkle_root_shard_and_proof(
+        serialized_transactions: &Bytes,
+        context: &Arc<Context>,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+    ) -> ConsensusResult<(TransactionsCommitment, Shard, MerkleProofBytes)> {
+        let info_length = context.committee.info_length();
+        let parity_length = context.committee.size() - info_length;
+        let encoded_shards =
+            encoder.encode_serialized_data(serialized_transactions, info_length, parity_length)?;
+        let own_index = context.own_index;
+        let (transactions_commitment, merkle_proof) =
+            TransactionsCommitment::compute_merkle_root_and_proof(&encoded_shards, own_index)?;
+        Ok((
+            transactions_commitment,
+            encoded_shards[own_index].clone(),
+            merkle_proof,
+        ))
+    }
 
     pub(crate) fn compute_transactions_commitment(
         serialized_transactions: &Bytes,
@@ -435,16 +468,18 @@ impl TransactionsCommitment {
             .encode_serialized_data(serialized_transactions, info_length, parity_length)
             .expect("We should expect correct encoding of the shards");
 
-        let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
-            .expect(
-                "We should expect correct computation of the Merkle root for encoded transactions",
-            );
+        let (transactions_commitment, _) = TransactionsCommitment::compute_merkle_root_and_proof(
+            &encoded_shards,
+            context.own_index,
+        )
+        .expect("We should expect correct computation of the Merkle root for encoded transactions");
         Ok(transactions_commitment)
     }
 
-    pub(crate) fn compute_merkle_root(
+    pub(crate) fn compute_merkle_root_and_proof(
         encoded_statements: &Vec<Shard>,
-    ) -> ConsensusResult<TransactionsCommitment> {
+        own_index: AuthorityIndex,
+    ) -> ConsensusResult<(TransactionsCommitment, MerkleProofBytes)> {
         let mut leaves: Vec<[u8; DefaultHashFunction::OUTPUT_SIZE]> = Vec::new();
         for shard in encoded_statements {
             let mut hasher = DefaultHashFunction::new();
@@ -457,7 +492,28 @@ impl TransactionsCommitment {
             .root()
             .ok_or("couldn't get the merkle root")
             .unwrap();
-        Ok(TransactionsCommitment(merkle_root))
+
+        let indices_to_prove = vec![own_index.value()];
+        let merkle_proof = merkle_tree.proof(&indices_to_prove);
+        let merkle_proof_bytes = merkle_proof.to_bytes();
+        Ok((TransactionsCommitment(merkle_root), merkle_proof_bytes))
+    }
+
+    pub(crate) fn check_merkle_proof(
+        shard: ShardWithProof,
+        tree_size: usize,
+        leaf_index: usize,
+    ) -> bool {
+        let mut hasher = DefaultHashFunction::new();
+        hasher.update(shard.shard);
+        let leaf = hasher.finalize().into();
+        let proof = MerkleProof::<DefaultHashFunctionWrapper>::try_from(shard.proof).unwrap();
+        proof.verify(
+            shard.transaction_commitment.0,
+            &[leaf_index],
+            &[leaf],
+            tree_size,
+        )
     }
 }
 
