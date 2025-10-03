@@ -351,6 +351,12 @@ struct FeatureFlags {
     // active validators are used for selecting the committee (default behavior).
     #[serde(skip_serializing_if = "is_false")]
     select_committee_supporting_next_epoch_version: bool,
+
+    // If true, then it (1) will not enforce monotonicity checks for a block's ancestors and (2)
+    // calculates the commit's timestamp based on the median timestamp of the leader's
+    // ancestors.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_median_based_commit_timestamp: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1490,6 +1496,19 @@ impl ProtocolConfig {
         POISON_VERSION_METHODS.with(|p| p.load(Ordering::Relaxed))
     }
 
+    pub fn consensus_median_based_commit_timestamp(&self) -> bool {
+        let res = if cfg!(msim) {
+            true
+        } else {
+            self.feature_flags.consensus_median_based_commit_timestamp
+        };
+        assert!(
+            !res || self.gc_depth() > 0,
+            "The consensus median based commit timestamp requires GC to be enabled"
+        );
+        res
+    }
+
     pub fn convert_type_argument_error(&self) -> bool {
         self.feature_flags.convert_type_argument_error
     }
@@ -2409,6 +2428,10 @@ impl ProtocolConfig {
     pub fn set_select_committee_supporting_next_epoch_version(&mut self, val: bool) {
         self.feature_flags
             .select_committee_supporting_next_epoch_version = val;
+    }
+
+    pub fn set_consensus_median_based_commit_timestamp_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_median_based_commit_timestamp = val;
     }
 }
 
