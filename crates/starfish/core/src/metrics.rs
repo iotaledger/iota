@@ -122,6 +122,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) accepted_block_headers: IntCounterVec,
     pub(crate) dag_state_recent_transactions: IntGauge,
     pub(crate) dag_state_recent_headers: IntGauge,
+    pub(crate) dag_state_recent_shards: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
@@ -142,6 +143,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) filtered_headers_in_bundles: IntCounterVec,
     pub(crate) received_unique_headers_from_bundles: IntCounterVec,
     pub(crate) processed_duplicated_headers_in_bundles: IntCounterVec,
+    pub(crate) invalid_shard_in_bundles: IntCounterVec,
+    pub(crate) valid_shards_in_bundles: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -352,6 +355,11 @@ impl NodeMetrics {
                 "Number of recent block headers cached in the DagState",
                 registry,
             ).unwrap(),
+            dag_state_recent_shards: register_int_gauge_with_registry!(
+                "dag_state_recent_shards",
+                "Number of recent shards cached in the DagState",
+                registry,
+            ).unwrap(),
             dag_state_recent_refs: register_int_gauge_with_registry!(
                 "dag_state_recent_refs",
                 "Number of recent refs cached in the DagState",
@@ -452,7 +460,7 @@ impl NodeMetrics {
             ).unwrap(),
             invalid_headers_in_bundles: register_int_counter_vec_with_registry!(
                 "invalid_headers_in_bundles",
-                "Number of invalid block headers received from block bundles per sender authority",
+                "Number of block bundles that contain invalid header per sender authority",
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
@@ -477,6 +485,18 @@ impl NodeMetrics {
             processed_duplicated_headers_in_bundles: register_int_counter_vec_with_registry!(
                 "processed_duplicated_headers_in_bundles",
                 "Number of times block headers from bundles were not filtered and processed extra time (i.e. deserialized and verified) per sender authority",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            invalid_shard_in_bundles: register_int_counter_vec_with_registry!(
+                "invalid_shard_in_bundles",
+                "Number of block bundles that contain invalid shards per sender authority",
+                &["authority", "source", "error"],
+                registry,
+            ).unwrap(),
+            valid_shards_in_bundles: register_int_counter_vec_with_registry!(
+                "valid_shards_in_bundles",
+                "Number of valid shards received from block bundles per sender authority",
                 &["authority", "source"],
                 registry,
             ).unwrap(),

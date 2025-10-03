@@ -1555,6 +1555,9 @@ impl DagState {
             .dag_state_recent_headers
             .set(self.recent_block_headers.len() as i64);
         metrics
+            .dag_state_recent_shards
+            .set(self.recent_shards.len() as i64);
+        metrics
             .dag_state_recent_transactions
             .set(self.recent_transactions.len() as i64);
         metrics.dag_state_recent_refs.set(

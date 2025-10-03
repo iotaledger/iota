@@ -350,13 +350,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             );
 
             additional_block_headers.push(verified_block_header);
-            self.context
-                .metrics
-                .node_metrics
-                .valid_headers_in_bundles
-                .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
-                .inc();
         }
+        self.context
+            .metrics
+            .node_metrics
+            .valid_headers_in_bundles
+            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .inc_by(additional_block_headers.len() as u64);
 
         // 5. Collect shards from a bundle and check their proofs.
         if serialized_block_bundle_parts.serialized_shards.len() > MAX_SHARDS_PER_BUNDLE {
@@ -370,6 +370,26 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         for serialized_shard in serialized_block_bundle_parts.serialized_shards.iter() {
             let shard: ShardWithProof =
                 bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
+
+            if shard.block_ref.round >= verified_block.round() {
+                let e = ConsensusError::TooBigShardRoundInABundle {
+                    shard_round: shard.block_ref.round,
+                    block_round: verified_block.round(),
+                };
+                self.context
+                    .metrics
+                    .node_metrics
+                    .invalid_shard_in_bundles
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        "handle_subscribed_block_bundle",
+                        e.clone().name(),
+                    ])
+                    .inc();
+                info!("Invalid shard from {}: {}", peer, e);
+                return Err(e);
+            }
+
             let proof_check = TransactionsCommitment::check_merkle_proof(
                 shard.clone(),
                 self.context.committee.size(),
@@ -378,12 +398,30 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             if proof_check {
                 shards_for_decoder.push(shard);
             } else {
-                return Err(ConsensusError::IncorrectShardProof {
+                let e = ConsensusError::IncorrectShardProof {
                     peer,
                     round: shard.block_ref.round,
-                });
+                };
+                self.context
+                    .metrics
+                    .node_metrics
+                    .invalid_shard_in_bundles
+                    .with_label_values(&[
+                        peer_hostname.as_str(),
+                        "handle_subscribed_block_bundle",
+                        e.clone().name(),
+                    ])
+                    .inc();
+                info!("Invalid shard from {}: {}", peer, e);
+                return Err(e);
             }
         }
+        self.context
+            .metrics
+            .node_metrics
+            .valid_shards_in_bundles
+            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .inc_by(shards_for_decoder.len() as u64);
         // TODO: send to decoders
 
         // 6. Observe headers and the block for the commit votes. When local commit is
