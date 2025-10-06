@@ -10,4 +10,8 @@ publish = false
 workspace = true
 
 [dependencies]
+# external dependencies
+serde.workspace = true
+
+# internal dependencies
 move-package-alt.workspace = true
