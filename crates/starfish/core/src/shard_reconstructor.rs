@@ -38,7 +38,6 @@ const EVICTION_TIMEOUT: Duration = Duration::from_secs(1);
 const SEND_TO_CORE_RECONSTRUCTED_TXS_TIMEOUT: Duration = Duration::from_millis(100);
 const NUMBER_OF_RECONSTRUCTION_WORKERS: usize = 5;
 
-
 /// Using transaction messages we update the state of shard reconstructor
 /// Two types of messages are supported: full transaction and shard
 #[derive(Clone, Debug)]
@@ -47,8 +46,8 @@ pub(crate) enum TransactionMessage {
     Shard(ShardMessage),
 }
 
-/// Shard message contains shard with index and the reference to a block corresponding to the shard
-/// and the commitment in the respected block header
+/// Shard message contains shard with index and the reference to a block
+/// corresponding to the shard and the commitment in the respected block header
 #[derive(Clone, Debug)]
 pub(crate) struct ShardMessage {
     block_ref: BlockRef,
@@ -57,8 +56,8 @@ pub(crate) struct ShardMessage {
     shard_index: usize,
 }
 
-/// Full transaction message acknowledge that the respected transactions from a given block were verified
-/// and locally available
+/// Full transaction message acknowledge that the respected transactions from a
+/// given block were verified and locally available
 #[derive(Clone, Debug)]
 pub(crate) struct FullTransactionMessage {
     block_ref: BlockRef,
@@ -90,11 +89,10 @@ impl TransactionMessage {
         let mut messages = Vec::new();
 
         // Full transaction message
-        let full_msg =
-            FullTransactionMessage {
-                block_ref: block.reference(),
-                transactions_commitment: block.transactions_commitment(),
-            };
+        let full_msg = FullTransactionMessage {
+            block_ref: block.reference(),
+            transactions_commitment: block.transactions_commitment(),
+        };
         messages.push(TransactionMessage::FullTransaction(full_msg));
 
         // Shard messages
@@ -112,9 +110,9 @@ impl TransactionMessage {
     }
 }
 
-
-/// A basic structure that represents the collection of shards for a given block reference and transaction
-/// commitment. We track the number of shards and the shard themselves
+/// A basic structure that represents the collection of shards for a given block
+/// reference and transaction commitment. We track the number of shards and the
+/// shard themselves
 #[derive(Clone)]
 pub struct ShardAccumulator {
     /// Reference to the block these shards correspond to
@@ -146,7 +144,6 @@ impl ShardAccumulator {
         }
     }
 
-
     /// Update the accumulator with a new shard
     fn update_with_shard(&mut self, msg: ShardMessage) {
         let ShardMessage {
@@ -158,14 +155,15 @@ impl ShardAccumulator {
         }
     }
 
-
-    /// The condition to reconstruct the transaction data is by relying on the number of shards
+    /// The condition to reconstruct the transaction data is by relying on the
+    /// number of shards
     fn is_ready_to_reconstruct(&self, info_length: usize) -> bool {
         self.number_shards >= info_length
     }
 
-    /// We use Codec to decode the transaction data from collected shards. Once reconstructed,
-    /// we encode and verify that the transaction commitment was computed correctly
+    /// We use Codec to decode the transaction data from collected shards. Once
+    /// reconstructed, we encode and verify that the transaction commitment
+    /// was computed correctly
     fn decode_by_codec(&self, codec: &mut Codec) -> ConsensusResult<VerifiedTransactions> {
         let transactions = codec.decoder.decode_shards(
             codec.info_length,
@@ -218,10 +216,10 @@ impl Codec {
     }
 }
 
-
-/// By keeping this handle, we continue running ShardCollector, responsible for shard collection, and
-/// given number of shard reconstructor workers.
-/// One field, transaction_message_sender, can be cloned to send transaction messages to the internal ShardReconstructor
+/// By keeping this handle, we continue running ShardCollector, responsible for
+/// shard collection, and given number of shard reconstructor workers.
+/// One field, transaction_message_sender, can be cloned to send transaction
+/// messages to the internal ShardReconstructor
 pub struct ShardReconstructorHandle {
     pub transaction_message_sender: Sender<Vec<TransactionMessage>>,
     join_handle: Mutex<Option<JoinHandle<()>>>,
@@ -271,11 +269,12 @@ impl<C: CoreThreadDispatcher + 'static> ShardReconstructor<C> {
     }
 }
 
-/// The main structure responsible for collecting shards and reconstructing transaction data
-/// once enough shards are collected. Keeps track of already locally available transaction data.
-/// The transaction is reconstructed only when it is still not locally available and enough shards are reconstructed.
-/// The structure periodically sends data to the core. In addition, eviction mechanism is implemented by relying on
-/// the transaction GC round.
+/// The main structure responsible for collecting shards and reconstructing
+/// transaction data once enough shards are collected. Keeps track of already
+/// locally available transaction data. The transaction is reconstructed only
+/// when it is still not locally available and enough shards are reconstructed.
+/// The structure periodically sends data to the core. In addition, eviction
+/// mechanism is implemented by relying on the transaction GC round.
 pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     /// Shards below this round will not be collected
     transaction_gc_round: Round,
@@ -284,14 +283,17 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     /// The total number of shards
     total_length: usize,
     context: Arc<Context>,
-    /// Already processed transaction either by authority service or by shard reconstructor
+    /// Already processed transaction either by authority service or by shard
+    /// reconstructor
     processed_transactions: BTreeSet<BlockRef>,
-    /// A cache of reconstructed transactions that will be periodically sent in the core
+    /// A cache of reconstructed transactions that will be periodically sent in
+    /// the core
     reconstructed_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
-    /// A map of all shard accumulators. Periodically evicted. Keyed by a pair (BlockRef, TransactionsCommitment)
-    /// since it is possible to m
+    /// A map of all shard accumulators. Periodically evicted. Keyed by a pair
+    /// (BlockRef, TransactionsCommitment) since it is possible to m
     shard_accumulators: BTreeMap<(BlockRef, TransactionsCommitment), ShardAccumulator>,
-    /// Use only read access to the dag state to read the transaction GC round and check whether the respected headers are available
+    /// Use only read access to the dag state to read the transaction GC round
+    /// and check whether the respected headers are available
     dag_state: Arc<RwLock<DagState>>,
     /// The receiver for transaction message sent from the authority service
     transaction_message_receiver: Receiver<Vec<TransactionMessage>>,
@@ -488,14 +490,14 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         let transactions_map = std::mem::take(&mut self.reconstructed_transactions);
         let block_refs: Vec<BlockRef> = transactions_map
             .iter()
-            .map(|block_ref, txs| { block_ref })
+            .map(|(block_ref, _txs)| *block_ref)
             .collect();
         // In most cases, all reconstructed transactions will go to the core
         let mut ready_to_be_sent_transactions = Vec::new();
         let mut to_stay_transactions = BTreeMap::new();
 
-        // We introduce a check about the existence of block headers to ensure that for every transaction,
-        // we have the respected header in the dag state
+        // We introduce a check about the existence of block headers to ensure that for
+        // every transaction, we have the respected header in the dag state
         let exists_vec = {
             #[cfg(not(test))]
             {
@@ -507,7 +509,9 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                 vec![true; block_refs.len()]
             }
         };
-        for (exists, (block_ref, transactions)) in exists_vec.into_iter().zip(transactions_map.into_iter()) {
+        for (exists, (block_ref, transactions)) in
+            exists_vec.into_iter().zip(transactions_map.into_iter())
+        {
             if exists {
                 ready_to_be_sent_transactions.push(transactions);
             } else {
@@ -551,23 +555,18 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             return Ok(());
         }
 
-        let key = (
-            msg.block_ref(),
-            msg.transactions_commitment(),
-        );
+        let key = (msg.block_ref(), msg.transactions_commitment());
         let total_length = self.total_length;
 
         match msg {
-            TransactionMessage::Shard(shard_msg) => {
-                match self.shard_accumulators.entry(key) {
-                    Entry::Vacant(v) => {
-                        v.insert(ShardAccumulator::new_with_shard(shard_msg, total_length));
-                    }
-                    Entry::Occupied(mut o) => {
-                        o.get_mut().update_with_shard(shard_msg);
-                    }
+            TransactionMessage::Shard(shard_msg) => match self.shard_accumulators.entry(key) {
+                Entry::Vacant(v) => {
+                    v.insert(ShardAccumulator::new_with_shard(shard_msg, total_length));
                 }
-            }
+                Entry::Occupied(mut o) => {
+                    o.get_mut().update_with_shard(shard_msg);
+                }
+            },
 
             TransactionMessage::FullTransaction(full_msg) => {
                 self.processed_transactions.insert(full_msg.block_ref);
@@ -638,8 +637,7 @@ mod tests {
         dag_state::DagState,
         encoder::create_encoder,
         shard_reconstructor::{
-            FullTransactionMessage, ShardMessage, ShardReconstructor,
-            TransactionMessage,
+            FullTransactionMessage, ShardMessage, ShardReconstructor, TransactionMessage,
         },
         storage::mem_store::MemStore,
     };
@@ -750,8 +748,8 @@ mod tests {
     ///  Prepare a batch of messages simulating the case:
     /// - FullTransaction for round `i` from authority `j`
     /// - The j-th shard of every authority's transaction data from round `i-1`
-    ///   This simulates the typical case where authority is streaming its
-    ///   block bundles
+    ///   This simulates the typical case where authority is streaming its block
+    ///   bundles
     fn prepare_bundle_messages(
         authority_j: u8,
         header_cur: VerifiedBlockHeader,
@@ -765,7 +763,7 @@ mod tests {
             FullTransactionMessage {
                 block_ref: header_cur.reference(),
                 transactions_commitment: header_cur.transactions_commitment(),
-            }
+            },
         ));
 
         // 2. The j-th shard of every authority’s transaction data from round i-1
@@ -962,7 +960,10 @@ mod tests {
         // collecting shards
         transaction_message_sender
             .send(vec![TransactionMessage::FullTransaction(
-                FullTransactionMessage{block_ref, transactions_commitment },
+                FullTransactionMessage {
+                    block_ref,
+                    transactions_commitment,
+                },
             )])
             .await
             .unwrap();
