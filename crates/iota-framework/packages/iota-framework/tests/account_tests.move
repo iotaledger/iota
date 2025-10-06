@@ -44,13 +44,6 @@ fun authenticator_info_v1_happy_path() {
 
         assert_eq(account::has_auth_info_v1(account_id), true);
         assert_ref_eq(account::borrow_auth_info_v1(account_id), &updated_authenticator_info);
-
-        // Detach the `AuthenticatorInfoV1` instance from the account.
-        let detached_authenticator_info = account::detach_auth_info_v1(account_id);
-
-        assert_eq(detached_authenticator_info, updated_authenticator_info);
-
-        assert_eq(account::has_auth_info_v1(account_id), false);
     });
 }
 
@@ -73,45 +66,8 @@ fun authenticator_info_v1_double_attach() {
 
 #[test]
 #[expected_failure(abort_code = account::EAuthenticatorInfoV1NotAttached)]
-fun authenticator_info_v1_detach_non_existent() {
-    account_test_mut!(|_, account_id| {
-        // Detach a non-existing `AuthenticatorInfoV1` instance.
-        account::detach_auth_info_v1(account_id);
-    });
-}
-
-#[test]
-#[expected_failure(abort_code = account::EAuthenticatorInfoV1NotAttached)]
-fun authenticator_info_v1_double_detach() {
-    account_test_mut!(|_, account_id| {
-        let authenticator_info = create_default_authenticator_info_v1_for_testing();
-
-        account::attach_auth_info_v1(account_id, authenticator_info);
-        account::detach_auth_info_v1(account_id);
-
-        // Detach a non-existing `AuthenticatorInfoV1` instance.
-        account::detach_auth_info_v1(account_id);
-    });
-}
-
-#[test]
-#[expected_failure(abort_code = account::EAuthenticatorInfoV1NotAttached)]
 fun authenticator_info_v1_borrow_non_existent() {
     account_test!(|_, account_id| {
-        // Borrow a non-existing `AuthenticatorInfoV1` instance.
-        account::borrow_auth_info_v1(account_id);
-    });
-}
-
-#[test]
-#[expected_failure(abort_code = account::EAuthenticatorInfoV1NotAttached)]
-fun authenticator_info_v1_borrow_after_detach() {
-    account_test_mut!(|_, account_id| {
-        let authenticator_info = create_default_authenticator_info_v1_for_testing();
-
-        account::attach_auth_info_v1(account_id, authenticator_info);
-        account::detach_auth_info_v1(account_id);
-
         // Borrow a non-existing `AuthenticatorInfoV1` instance.
         account::borrow_auth_info_v1(account_id);
     });
@@ -122,20 +78,6 @@ fun authenticator_info_v1_borrow_after_detach() {
 fun authenticator_info_v1_rotate_non_existent() {
     account_test_mut!(|_, account_id| {
         let authenticator_info = create_default_authenticator_info_v1_for_testing();
-
-        // Rotate a non-existing `AuthenticatorInfoV1` instance.
-        account::rotate_auth_info_v1(account_id, authenticator_info);
-    });
-}
-
-#[test]
-#[expected_failure(abort_code = account::EAuthenticatorInfoV1NotAttached)]
-fun authenticator_info_v1_rotate_after_detach() {
-    account_test_mut!(|_, account_id| {
-        let authenticator_info = create_default_authenticator_info_v1_for_testing();
-
-        account::attach_auth_info_v1(account_id, authenticator_info);
-        account::detach_auth_info_v1(account_id);
 
         // Rotate a non-existing `AuthenticatorInfoV1` instance.
         account::rotate_auth_info_v1(account_id, authenticator_info);

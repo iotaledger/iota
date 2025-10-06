@@ -57,13 +57,6 @@ public fun attach_auth_info_v1(account_id: &mut UID, authenticator: Authenticato
     dynamic_field::add(account_id, auth_info_v1_key(), authenticator);
 }
 
-/// Detach the account-related authenticator from the account.
-/// The dynamic field specified by the `AuthenticatorInfoV1Key` name will be removed.
-public fun detach_auth_info_v1(account_id: &mut UID): AuthenticatorInfoV1 {
-    assert!(has_auth_info_v1(account_id), EAuthenticatorInfoV1NotAttached);
-    dynamic_field::remove(account_id, auth_info_v1_key())
-}
-
 /// Rotate the account-related authenticator.
 /// The `authenticator` instance will replace the account dynamic field specified by the `AuthenticatorInfoV1Key` name;
 /// the previous value will be returned.

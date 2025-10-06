@@ -1327,9 +1327,6 @@ create_auth_info_v1
 attach_auth_info_v1
 	public fun
 	0x2::account
-detach_auth_info_v1
-	public fun
-	0x2::account
 rotate_auth_info_v1
 	public fun
 	0x2::account
