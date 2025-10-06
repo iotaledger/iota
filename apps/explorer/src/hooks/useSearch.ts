@@ -84,13 +84,13 @@ const getResultsForAddress = async (
 
         if (!nameRecord || !nameRecord.targetAddress) return null;
 
-        const exists = await addressExists(client, nameRecord.targetAddress);
+        const addrHasActivity = await addressHasActivity(client, nameRecord.targetAddress);
 
         return [
             {
                 id: nameRecord.targetAddress,
                 label: nameRecord.targetAddress,
-                type: exists ? 'address' : 'object',
+                type: addrHasActivity ? 'address' : 'object',
             },
         ];
     }
@@ -122,22 +122,15 @@ const getResultsForAddress = async (
     ];
 };
 
-async function addressExists(client: IotaClient, address: string): Promise<boolean> {
+async function addressHasActivity(client: IotaClient, address: string): Promise<boolean> {
     const normalized = normalizeIotaObjectId(address);
     if (!isValidIotaAddress(normalized)) return false;
-
     try {
-        const fromTransactions = await client.queryTransactionBlocks({
-            filter: { FromAddress: normalized },
+        const fromOrTo = await client.queryTransactionBlocks({
+            filter: { FromOrToAddress: { addr: normalized } },
             limit: 1,
         });
-        if (fromTransactions.data.length > 0) return true;
-
-        const toTransactions = await client.queryTransactionBlocks({
-            filter: { ToAddress: normalized },
-            limit: 1,
-        });
-        if (toTransactions.data.length > 0) return true;
+        if (fromOrTo?.data?.length > 0) return true;
 
         const ownedObjects = await client.getOwnedObjects({
             owner: normalized,
