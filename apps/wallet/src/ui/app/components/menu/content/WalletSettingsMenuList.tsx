@@ -40,7 +40,7 @@ import {
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK, DISCORD_SUPPORT_LINK } from '@iota/core';
-import { openInNewTab } from '_src/ui/app/helpers/openInNewTab';
+import { handleOpenInANewTab } from '_src/ui/app/helpers/handleOpenInANewTab';
 import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 
 export function MenuList() {
@@ -132,7 +132,7 @@ export function MenuList() {
         {
             title: 'Expand View',
             icon: <Expand />,
-            onClick: () => openInNewTab('/tokens'),
+            onClick: () => handleOpenInANewTab('/tokens'),
             hidden: !isAppPopup,
         },
         {

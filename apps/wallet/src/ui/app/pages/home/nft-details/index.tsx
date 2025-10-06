@@ -10,7 +10,7 @@ import cl from 'clsx';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
 import { NEW_TAB_ACCOUNT_TYPES } from '_src/shared/accountTypes';
-import { openInNewTab } from '_src/ui/app/helpers/openInNewTab';
+import { handleOpenInANewTab } from '_src/ui/app/helpers/handleOpenInANewTab';
 import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 
 export function NFTDetailsPage() {
@@ -61,7 +61,7 @@ export function NFTDetailsPage() {
             const needNewTab = NEW_TAB_ACCOUNT_TYPES.includes(activeAccount?.type) && !isTabView;
 
             if (needNewTab) {
-                openInNewTab(destination);
+                handleOpenInANewTab(destination);
                 return;
             }
         }
