@@ -519,6 +519,12 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             }
         }
         self.reconstructed_transactions = to_stay_transactions;
+        self.context
+            .metrics
+            .node_metrics
+            .reconstructed_transactions_unknown
+            .set(self.reconstructed_transactions.len() as i64);
+
         ready_to_be_sent_transactions
     }
 

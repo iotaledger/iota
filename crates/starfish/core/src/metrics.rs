@@ -120,6 +120,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) accepted_transactions: IntCounterVec,
     pub(crate) shard_accumulators: IntGauge,
     pub(crate) reconstruction_lag: Histogram,
+    pub(crate) reconstructed_transactions_unknown: IntGauge,
     pub(crate) reconstruction_queue: IntGauge,
     pub(crate) core_lock_enqueued: IntCounter,
     pub(crate) core_skipped_proposals: IntCounterVec,
@@ -382,6 +383,11 @@ impl NodeMetrics {
                 "reconstruction_queue",
                 "The current number of pending reconstruction jobs in the queue",
                 registry,
+            ).unwrap(),
+            reconstructed_transactions_unknown: register_int_gauge_with_registry!(
+            "reconstructed_transactions_unknown",
+            "The current number of reconstructed transactions which are unknown to dag state",
+            registry,
             ).unwrap(),
             dag_state_recent_transactions: register_int_gauge_with_registry!(
                 "dag_state_recent_transactions",
