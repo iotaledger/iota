@@ -10,10 +10,10 @@ use crate::types::{iota_address::IotaAddress, object::Object};
 /// Represents the source of an object change (derived from transaction kind)
 #[derive(Clone, Debug)]
 pub(crate) enum ObjectChangeSource {
-    /// Object change from a stored (checkpointed) transaction
-    Stored,
-    /// Object change from an optimistic (not yet checkpointed) transaction
-    ExecutedOptimistically,
+    /// Object change from a checkpointed transaction
+    Checkpointed,
+    /// Object change from an executed (not yet checkpointed) transaction
+    Executed,
     /// Object change from a dry run transaction (dryRunTransactionBlock)
     DryRun,
 }
@@ -41,10 +41,8 @@ impl ObjectChange {
         };
 
         let object_lookup = match self.source {
-            ObjectChangeSource::ExecutedOptimistically => {
-                Object::at_optimistic_version(version.value())
-            }
-            ObjectChangeSource::Stored | ObjectChangeSource::DryRun => {
+            ObjectChangeSource::Executed => Object::at_optimistic_version(version.value()),
+            ObjectChangeSource::Checkpointed | ObjectChangeSource::DryRun => {
                 Object::at_version(version.value(), self.checkpoint_viewed_at)
             }
         };
@@ -60,10 +58,8 @@ impl ObjectChange {
         };
 
         let object_lookup = match self.source {
-            ObjectChangeSource::ExecutedOptimistically => {
-                Object::at_optimistic_version(version.value())
-            }
-            ObjectChangeSource::Stored | ObjectChangeSource::DryRun => {
+            ObjectChangeSource::Executed => Object::at_optimistic_version(version.value()),
+            ObjectChangeSource::Checkpointed | ObjectChangeSource::DryRun => {
                 Object::at_version(version.value(), self.checkpoint_viewed_at)
             }
         };

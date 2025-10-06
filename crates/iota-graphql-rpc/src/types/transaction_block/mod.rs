@@ -64,15 +64,16 @@ pub(crate) struct TransactionBlock {
 
 #[derive(Clone, Debug)]
 pub(crate) enum TransactionBlockInner {
-    /// A transaction block that has been indexed and stored in the database,
-    /// containing all information that the other two variants have, and more.
-    Stored {
+    /// A transaction block that has been checkpointed and stored in the
+    /// database, containing all information that the other two variants
+    /// have, and more.
+    Checkpointed {
         stored_tx: StoredTransaction,
         native: NativeSenderSignedData,
     },
-    /// A transaction block that has been executed but not yet indexed,
-    /// stored in the optimistic transactions table.
-    ExecutedOptimistically {
+    /// A transaction block that has been executed and indexed without
+    /// checkpoint information.
+    Executed {
         optimistic_tx: OptimisticTransaction,
         native: NativeSenderSignedData,
     },
@@ -160,16 +161,17 @@ impl TransactionBlock {
     /// If the owner of the gas object(s) is not the same as the sender, the
     /// transaction block is a sponsored transaction block.
     async fn gas_input(&self, ctx: &Context<'_>) -> Option<GasInput> {
-        let checkpoint_viewed_at = if matches!(self.inner, TransactionBlockInner::Stored { .. }) {
-            self.checkpoint_viewed_at
-        } else {
-            // Non-stored transactions have a sentinel checkpoint_viewed_at value that
-            // generally prevents access to further queries, but inputs should
-            // generally be available so try to access them at the high
-            // watermark.
-            let Watermark { checkpoint, .. } = *ctx.data_unchecked();
-            checkpoint
-        };
+        let checkpoint_viewed_at =
+            if matches!(self.inner, TransactionBlockInner::Checkpointed { .. }) {
+                self.checkpoint_viewed_at
+            } else {
+                // Non-checkpointed transactions have a sentinel checkpoint_viewed_at value that
+                // generally prevents access to further queries, but inputs should
+                // generally be available so try to access them at the high
+                // watermark.
+                let Watermark { checkpoint, .. } = *ctx.data_unchecked();
+                checkpoint
+            };
 
         Some(GasInput::from(
             self.native().gas_data(),
@@ -221,10 +223,10 @@ impl TransactionBlock {
     /// and Base64 encoded.
     async fn bcs(&self) -> Option<Base64> {
         match &self.inner {
-            TransactionBlockInner::Stored { stored_tx, .. } => {
+            TransactionBlockInner::Checkpointed { stored_tx, .. } => {
                 Some(Base64::from(&stored_tx.raw_transaction))
             }
-            TransactionBlockInner::ExecutedOptimistically { optimistic_tx, .. } => {
+            TransactionBlockInner::Executed { optimistic_tx, .. } => {
                 Some(Base64::from(&optimistic_tx.raw_transaction))
             }
 
@@ -237,10 +239,8 @@ impl TransactionBlock {
 impl TransactionBlock {
     fn native(&self) -> &NativeTransactionData {
         match &self.inner {
-            TransactionBlockInner::Stored { native, .. } => native.transaction_data(),
-            TransactionBlockInner::ExecutedOptimistically { native, .. } => {
-                native.transaction_data()
-            }
+            TransactionBlockInner::Checkpointed { native, .. } => native.transaction_data(),
+            TransactionBlockInner::Executed { native, .. } => native.transaction_data(),
 
             TransactionBlockInner::DryRun { tx_data, .. } => tx_data,
         }
@@ -248,8 +248,8 @@ impl TransactionBlock {
 
     fn native_signed_data(&self) -> Option<&NativeSenderSignedData> {
         match &self.inner {
-            TransactionBlockInner::Stored { native, .. } => Some(native),
-            TransactionBlockInner::ExecutedOptimistically { native, .. } => Some(native),
+            TransactionBlockInner::Checkpointed { native, .. } => Some(native),
+            TransactionBlockInner::Executed { native, .. } => Some(native),
 
             TransactionBlockInner::DryRun { .. } => None,
         }
@@ -516,7 +516,7 @@ impl TryFrom<StoredTransaction> for TransactionBlockInner {
         let native = bcs::from_bytes(&stored_tx.raw_transaction)
             .map_err(|e| Error::Internal(format!("Error deserializing transaction block: {e}")))?;
 
-        Ok(TransactionBlockInner::Stored { stored_tx, native })
+        Ok(TransactionBlockInner::Checkpointed { stored_tx, native })
     }
 }
 
@@ -530,7 +530,7 @@ impl TryFrom<OptimisticTransaction> for TransactionBlockInner {
             ))
         })?;
 
-        Ok(TransactionBlockInner::ExecutedOptimistically {
+        Ok(TransactionBlockInner::Executed {
             optimistic_tx,
             native,
         })
@@ -543,10 +543,10 @@ impl TryFrom<TransactionBlockEffects> for TransactionBlock {
     fn try_from(effects: TransactionBlockEffects) -> Result<Self, Error> {
         let checkpoint_viewed_at = effects.checkpoint_viewed_at;
         let inner = match effects.kind {
-            TransactionBlockEffectsKind::Stored { stored_tx, .. } => {
+            TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
                 TransactionBlockInner::try_from(stored_tx.clone())
             }
-            TransactionBlockEffectsKind::ExecutedOptimistically { optimistic_tx, .. } => {
+            TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
                 TransactionBlockInner::try_from(optimistic_tx.clone())
             }
 
