@@ -11,8 +11,8 @@ import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
 import { NEW_TAB_ACCOUNT_TYPES } from '_src/shared/accountTypes';
-import { openInNewTab } from '_src/ui/app/helpers/openInNewTab';
 import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
+import { openInNewTab } from '_src/shared/utils';
 
 export function NFTDetailsPage() {
     const navigate = useNavigate();
