@@ -176,7 +176,6 @@ pub(crate) enum TransactionArgument {
     GasCoin(GasCoin),
     Input(Input),
     Result(TxResult),
-    Pure(PureArg),
 }
 
 /// Access to the gas inputs, after they have been smashed into one coin. The
@@ -208,13 +207,6 @@ pub(crate) struct TxResult {
     /// the individual result among the multiple results from that command
     /// (also 0-indexed).
     ix: Option<u16>,
-}
-
-/// A pure value argument.
-#[derive(SimpleObject, Clone, Debug, Eq, PartialEq)]
-pub(crate) struct PureArg {
-    /// The JSON representation of the pure value.
-    value: String,
 }
 
 /// A user transaction that allows the interleaving of native commands (like
