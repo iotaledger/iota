@@ -261,7 +261,7 @@ export function moveDataToRpcContent(data: MoveData, layout: MoveTypeLayout): Mo
             return null;
         }
 
-        if (typeof layout !== 'object' || !layout || !('struct' in layout)) {
+        if (typeof layout !== 'object' || !('struct' in layout)) {
             throw new Error(`Invalid layout for Option data: ${JSON.stringify(layout)}`);
         }
 
