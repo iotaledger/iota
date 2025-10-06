@@ -96,6 +96,7 @@ export function EnterAmountView({
                     toast.success('Stake transaction has been sent');
                     ampli.stakedIota({
                         stakedAmount: Number(stakedAmountFormatted),
+                        validatorAddress: selectedValidator,
                     });
                     resetForm();
                 },
