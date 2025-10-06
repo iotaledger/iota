@@ -5127,12 +5127,14 @@ async fn test_choose_next_system_packages() {
         capabilities.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(1), vec![]), result);
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.1, vec![]);
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     // for decided version
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0, // decided protocol version
+        result.2, // protocol digest
         &active_validators,
         &capabilities,
     );
@@ -5152,12 +5154,14 @@ async fn test_choose_next_system_packages() {
         capabilities.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(1), vec![]), result);
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.1, vec![]);
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     // for decided version
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0, // decided protocol version
+        result.2, // protocol digest
         &active_validators,
         &capabilities,
     );
@@ -5172,12 +5176,14 @@ async fn test_choose_next_system_packages() {
         capabilities.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.1, sort(vec![o1, o2]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     // for decided version
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0, // decided protocol version (ver(2))
+        result.2, // protocol digest
         &active_validators,
         &capabilities,
     );
@@ -5197,11 +5203,13 @@ async fn test_choose_next_system_packages() {
         capabilities.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(1), vec![]), result);
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.1, vec![]);
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &active_validators,
         &capabilities,
     );
@@ -5221,11 +5229,13 @@ async fn test_choose_next_system_packages() {
         capabilities.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.1, sort(vec![o1, o2]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &active_validators,
         &capabilities,
     );
@@ -5245,11 +5255,13 @@ async fn test_choose_next_system_packages() {
         capabilities.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(1), vec![]), result);
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.1, vec![]);
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &active_validators,
         &capabilities,
     );
@@ -5269,11 +5281,13 @@ async fn test_choose_next_system_packages() {
         capabilities.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(3), sort(vec![o1, o2])), result);
+    assert_eq!(result.0, ver(3));
+    assert_eq!(result.1, sort(vec![o1, o2]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &active_validators,
         &capabilities,
     );
@@ -5293,11 +5307,13 @@ async fn test_choose_next_system_packages() {
         capabilities.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(1), vec![]), result);
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.1, vec![]);
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &active_validators,
         &capabilities,
     );
@@ -5318,11 +5334,13 @@ async fn test_choose_next_system_packages() {
         capabilities.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(3), sort(vec![o1, o2])), result);
+    assert_eq!(result.0, ver(3));
+    assert_eq!(result.1, sort(vec![o1, o2]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &active_validators,
         &capabilities,
     );
@@ -5345,11 +5363,13 @@ async fn test_choose_next_system_packages() {
         capabilities.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(1), sort(vec![])), result);
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.1, sort(vec![]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &active_validators,
         &capabilities,
     );
@@ -5372,11 +5392,13 @@ async fn test_choose_next_system_packages() {
         capabilities.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(1), sort(vec![])), result);
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.1, sort(vec![]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &active_validators,
         &capabilities,
     );
@@ -5420,12 +5442,14 @@ async fn test_choose_next_system_packages() {
         capabilities_with_zero_weight.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.1, sort(vec![o1, o2]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     // including zero-weight authorities
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &all_active_validators,
         &capabilities_with_zero_weight,
     );
@@ -5449,11 +5473,13 @@ async fn test_choose_next_system_packages() {
         capabilities_higher_version.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.1, sort(vec![o1, o2]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &all_active_validators,
         &capabilities_higher_version,
     );
@@ -5477,11 +5503,13 @@ async fn test_choose_next_system_packages() {
         capabilities_lower_version.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(3), sort(vec![o1, o2])), result);
+    assert_eq!(result.0, ver(3));
+    assert_eq!(result.1, sort(vec![o1, o2]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &all_active_validators,
         &capabilities_lower_version,
     );
@@ -5505,11 +5533,13 @@ async fn test_choose_next_system_packages() {
         capabilities_different_objects.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.1, sort(vec![o1, o2]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &all_active_validators,
         &capabilities_different_objects,
     );
@@ -5535,11 +5565,13 @@ async fn test_choose_next_system_packages() {
         capabilities_only_zero_weight.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(1), vec![]), result);
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.1, vec![]);
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &all_active_validators,
         &capabilities_only_zero_weight,
     );
@@ -5565,11 +5597,13 @@ async fn test_choose_next_system_packages() {
         capabilities_conflicting_zero_weight.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.1, sort(vec![o1, o2]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &all_active_validators,
         &capabilities_conflicting_zero_weight,
     );
@@ -5596,11 +5630,13 @@ async fn test_choose_next_system_packages() {
         capabilities_mixed_agreement.clone(),
         protocol_config.buffer_stake_for_protocol_upgrade_bps(),
     );
-    assert_eq!((ver(2), sort(vec![o1, o2])), result);
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.1, sort(vec![o1, o2]));
 
     // Verify get_validators_supporting_protocol_version returns correct validators
     let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
         result.0,
+        result.2,
         &all_active_validators,
         &capabilities_mixed_agreement,
     );

@@ -62,7 +62,7 @@ use iota_types::{
         default_hash,
     },
     deny_list_v1::check_coin_deny_list_v1_during_signing,
-    digests::{ChainIdentifier, TransactionEventsDigest},
+    digests::{ChainIdentifier, Digest, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
@@ -4621,7 +4621,7 @@ impl AuthorityState {
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         mut buffer_stake_bps: u64,
-    ) -> Option<(ProtocolVersion, Vec<ObjectRef>)> {
+    ) -> Option<(ProtocolVersion, Vec<ObjectRef>, Digest)> {
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -4693,7 +4693,7 @@ impl AuthorityState {
                 );
 
                 let has_support = total_votes >= effective_threshold;
-                has_support.then_some((proposed_protocol_version, packages))
+                has_support.then_some((proposed_protocol_version, packages, digest))
             })
     }
 
@@ -4705,14 +4705,15 @@ impl AuthorityState {
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         buffer_stake_bps: u64,
-    ) -> (ProtocolVersion, Vec<ObjectRef>) {
+    ) -> (ProtocolVersion, Vec<ObjectRef>, Digest) {
         let mut next_protocol_version = current_protocol_version;
         let mut system_packages = vec![];
+        let mut protocol_version_digest = Digest::ZERO;
 
         // Finds the highest supported protocol version and system packages by
         // incrementing the proposed protocol version by one until no further
         // upgrades are supported.
-        while let Some((version, packages)) = Self::is_protocol_version_supported_v1(
+        while let Some((version, packages, digest)) = Self::is_protocol_version_supported_v1(
             next_protocol_version + 1,
             committee,
             capabilities.clone(),
@@ -4720,17 +4721,23 @@ impl AuthorityState {
         ) {
             next_protocol_version = version;
             system_packages = packages;
+            protocol_version_digest = digest;
         }
 
-        (next_protocol_version, system_packages)
+        (
+            next_protocol_version,
+            system_packages,
+            protocol_version_digest,
+        )
     }
 
     /// Returns the indices of validators that support the given protocol
-    /// version. This includes both committee and non-committee validators
-    /// based on their capabilities. Uses active validators instead of committee
-    /// indices.
+    /// version and digest. This includes both committee and non-committee
+    /// validators based on their capabilities. Uses active validators
+    /// instead of committee indices.
     fn get_validators_supporting_protocol_version(
         target_protocol_version: ProtocolVersion,
+        target_digest: Digest,
         active_validators: &[AuthorityPublicKey],
         capabilities: &[AuthorityCapabilitiesV1],
     ) -> Vec<u64> {
@@ -4738,17 +4745,18 @@ impl AuthorityState {
 
         for capability in capabilities {
             // Check if this validator supports the target protocol version and digest
-            if capability
+            if let Some(digest) = capability
                 .supported_protocol_versions
                 .get_version_digest(target_protocol_version)
-                .is_some()
             {
-                // Find the validator's index in the active validators list
-                if let Some(index) = active_validators
-                    .iter()
-                    .position(|name| AuthorityName::from(name) == capability.authority)
-                {
-                    eligible_validators.push(index as u64);
+                if digest == target_digest {
+                    // Find the validator's index in the active validators list
+                    if let Some(index) = active_validators
+                        .iter()
+                        .position(|name| AuthorityName::from(name) == capability.authority)
+                    {
+                        eligible_validators.push(index as u64);
+                    }
                 }
             }
         }
@@ -4855,7 +4863,7 @@ impl AuthorityState {
         let authority_capabilities = epoch_store
             .get_capabilities_v1()
             .expect("read capabilities from db cannot fail");
-        let (next_epoch_protocol_version, next_epoch_system_packages) =
+        let (next_epoch_protocol_version, next_epoch_system_packages, next_epoch_protocol_digest) =
             Self::choose_protocol_version_and_system_packages_v1(
                 epoch_store.protocol_version(),
                 epoch_store.committee(),
@@ -4904,6 +4912,7 @@ impl AuthorityState {
             if config.track_non_committee_eligible_validators() {
                 eligible_active_validators = Self::get_validators_supporting_protocol_version(
                     next_epoch_protocol_version,
+                    next_epoch_protocol_digest,
                     &active_validators,
                     &authority_capabilities,
                 );
