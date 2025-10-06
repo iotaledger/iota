@@ -13,6 +13,7 @@ use iota::test_utils::{assert_eq, assert_ref_eq};
 use iotaccount::basic_keyed_account::{Self, borrow_public_key};
 use iotaccount::iotaccount::{Self, IOTAccount};
 use iotaccount::test_utils::create_authenticator_info_v1_for_testing;
+use std::ascii;
 
 // --------------------------------------- Create Basic Keyed Account ---------------------------------------
 
@@ -336,6 +337,76 @@ fun test_authenticate_secp256r1_wrong_signature() {
             &auth_ctx,
             &ctx,
         );
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+// --------------------------------------- Public Key Rotation ---------------------------------------
+
+#[test]
+fun test_rotate_account_public_key() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+    let starting_public_key = b"42";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, starting_public_key);
+
+    scenario.next_tx(account_address);
+    {
+        let mut account = scenario.take_shared<IOTAccount>();
+
+        let public_key = b"24";
+        let authenticator = account::create_auth_info_v1_for_testing(
+            @0x2,
+            ascii::string(b"module2"),
+            ascii::string(b"function2"),
+        );
+        let ctx = test_scenario::ctx(scenario);
+
+        basic_keyed_account::rotate_public_key(&mut account, public_key, authenticator, ctx);
+
+        assert_eq(*borrow_public_key(&account), public_key);
+
+        let authenticator_df_name = account::authenticator_df_name();
+        assert!(account.has_field(authenticator_df_name));
+        assert_ref_eq(account.borrow_field(authenticator_df_name), &authenticator);
+
+        test_scenario::return_shared(account);
+    };
+
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
+fun test_rotate_account_public_key_wrong_sender() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+
+    let starting_public_key = b"42";
+    create_iotaccount_with_pk_for_testing(scenario, starting_public_key);
+
+    scenario.next_tx(@0x0);
+    {
+        let mut account = scenario.take_shared<IOTAccount>();
+
+        let public_key = b"24";
+        let authenticator = account::create_auth_info_v1_for_testing(
+            @0x2,
+            ascii::string(b"module2"),
+            ascii::string(b"function2"),
+        );
+        let ctx = test_scenario::ctx(scenario);
+
+        basic_keyed_account::rotate_public_key(&mut account, public_key, authenticator, ctx);
+
+        assert_eq(*borrow_public_key(&account), public_key);
+
+        let authenticator_df_name = account::authenticator_df_name();
+        assert!(account.has_field(authenticator_df_name));
+        assert_ref_eq(account.borrow_field(authenticator_df_name), &authenticator);
 
         test_scenario::return_shared(account);
     };
