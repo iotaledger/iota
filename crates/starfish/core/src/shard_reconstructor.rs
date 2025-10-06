@@ -488,10 +488,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
     async fn get_transactions_with_headers_in_dag_state(&mut self) -> Vec<VerifiedTransactions> {
         let transactions_map = std::mem::take(&mut self.reconstructed_transactions);
-        let block_refs: Vec<BlockRef> = transactions_map
-            .iter()
-            .map(|(block_ref, _txs)| *block_ref)
-            .collect();
+        let block_refs: Vec<BlockRef> = transactions_map.keys().copied().collect();
         // In most cases, all reconstructed transactions will go to the core
         let mut ready_to_be_sent_transactions = Vec::new();
         let mut to_stay_transactions = BTreeMap::new();
