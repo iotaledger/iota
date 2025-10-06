@@ -196,16 +196,18 @@ impl TransactionBuilder {
 
         let module_compiled = package.deserialize_module(module, &BinaryConfig::standard())?;
         let function_str = function.as_ident_str();
-        let fdef = module_compiled
+        let function_def = module_compiled
             .function_defs
             .iter()
-            .find(|fdef| {
-                module_compiled
-                    .identifier_at(module_compiled.function_handle_at(fdef.function).name)
-                    == function_str
+            .find(|function_def| {
+                module_compiled.identifier_at(
+                    module_compiled
+                        .function_handle_at(function_def.function)
+                        .name,
+                ) == function_str
             })
             .ok_or_else(|| anyhow!("Could not resolve function {function} in module {module}"))?;
-        let function_signature = module_compiled.function_handle_at(fdef.function);
+        let function_signature = module_compiled.function_handle_at(function_def.function);
         let parameters = &module_compiled
             .signature_at(function_signature.parameters)
             .0;
