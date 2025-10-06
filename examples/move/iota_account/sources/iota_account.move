@@ -12,7 +12,8 @@ use iota::ed25519;
 use iota::hex::decode;
 
 #[error(code = 0)]
-const ETransactionSenderIsNotTheAccount: vector<u8> = b"The user who signed the transaction is not the account.";
+const ETransactionSenderIsNotTheAccount: vector<u8> =
+    b"The user who signed the transaction is not the account.";
 
 #[error(code = 10)]
 const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verification failed.";
@@ -33,13 +34,13 @@ public struct IOTAccount has key {
 // --------------------------------------- Creation ---------------------------------------
 
 /// Creates a new `IOTAccount`  as a shared object with the given authenticator.
-/// 
+///
 /// `authenticator` is expected to have a signature like the following:
 ///
 /// public fun authenticate(self: &IOTAccount, signature: vector<u8>, _: &AuthContext, _: &TxContext) { ... }
-/// 
+///
 /// to allow to verify the `signature` parameter against the public key stored in the account.
-/// 
+///
 /// There are several ready-made authenticators available in this module:
 /// - `authenticate_ed25519`
 /// - `authenticate_secp256k1`
@@ -49,7 +50,7 @@ public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ct
     let mut id = object::new(ctx);
 
     // Add the account owner public key as a dynamic field.
-    dynamic_field::add(&mut id, OwnerPublicKey{}, public_key);
+    dynamic_field::add(&mut id, OwnerPublicKey {}, public_key);
 
     // Add the authenticator info as a dynamic field.
     account::attach_auth_info_v1(&mut id, authenticator);
@@ -129,7 +130,7 @@ public fun borrow_auth_info_v1(self: &IOTAccount): &AuthenticatorInfoV1 {
 /// This function is not gated to be called only by the account,
 /// anybody can call it to read the account dynamic fields.
 public fun borrow_public_key(self: &IOTAccount): &vector<u8> {
-    dynamic_field::borrow(&self.id, OwnerPublicKey{})
+    dynamic_field::borrow(&self.id, OwnerPublicKey {})
 }
 
 // --------------------------------------- Authentication ---------------------------------------
@@ -141,7 +142,7 @@ public fun rotate_public_key(
     self: &mut IOTAccount,
     public_key: vector<u8>,
     authenticator: AuthenticatorInfoV1,
-    ctx: &TxContext
+    ctx: &TxContext,
 ) {
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
@@ -149,7 +150,7 @@ public fun rotate_public_key(
     let account_id = &mut self.id;
 
     // Update the account owner public key dynamic field. It is expected that the field already exists.
-    let owner_public_key = OwnerPublicKey{};
+    let owner_public_key = OwnerPublicKey {};
 
     dynamic_field::remove<_, vector<u8>>(account_id, owner_public_key);
     dynamic_field::add(account_id, owner_public_key, public_key);
@@ -173,7 +174,7 @@ public fun authenticate_ed25519(
     // Check the signature.
     assert!(
         ed25519::ed25519_verify(&decode(signature), self.borrow_public_key(), ctx.digest()),
-        EEd25519VerificationFailed
+        EEd25519VerificationFailed,
     );
 }
 
@@ -190,7 +191,7 @@ public fun authenticate_secp256k1(
     // Check the signature.
     assert!(
         ecdsa_k1::secp256k1_verify(&decode(signature), self.borrow_public_key(), ctx.digest(), 0),
-        ESecp256k1VerificationFailed
+        ESecp256k1VerificationFailed,
     );
 }
 
@@ -207,7 +208,7 @@ public fun authenticate_secp256r1(
     // Check the signature.
     assert!(
         ecdsa_r1::secp256r1_verify(&decode(signature), self.borrow_public_key(), ctx.digest(), 0),
-        ESecp256r1VerificationFailed
+        ESecp256r1VerificationFailed,
     );
 }
 

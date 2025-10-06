@@ -5,7 +5,6 @@ module dynamic_multisig_account::dynamic_multisig_account;
 
 use dynamic_multisig_account::members::{Self, Members};
 use dynamic_multisig_account::transactions::{Self, Transactions};
-
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::dynamic_field;
@@ -13,13 +12,16 @@ use iota::dynamic_field;
 // --------------------------------------- Errors ---------------------------------------
 
 #[error(code = 0)]
-const ETotalMembersWeightLessThanThreshold: vector<u8> = b"The members weight is less than the threshold.";
+const ETotalMembersWeightLessThanThreshold: vector<u8> =
+    b"The members weight is less than the threshold.";
 #[error(code = 1)]
 const EThresholdIsZero: vector<u8> = b"The threshold can not be equal to 0.";
 #[error(code = 2)]
-const ETransactionSenderIsNotTheAccount: vector<u8> = b"The user who signed the transaction is not the account.";
+const ETransactionSenderIsNotTheAccount: vector<u8> =
+    b"The user who signed the transaction is not the account.";
 #[error(code = 3)]
-const ETransactionDoesNotHaveSufficientApprovals: vector<u8> = b"The transaction does not have sufficient approvals.";
+const ETransactionDoesNotHaveSufficientApprovals: vector<u8> =
+    b"The transaction does not have sufficient approvals.";
 
 // -------------------------------- Dynamic Field Names --------------------------------
 
@@ -46,7 +48,7 @@ public fun create(
     members_weights: vector<u64>,
     threshold: u64,
     authenticator: AuthenticatorInfoV1,
-    ctx: &mut TxContext
+    ctx: &mut TxContext,
 ) {
     // Create a `Members` instance.
     let members = members::create(members_addresses, members_weights);
@@ -121,7 +123,7 @@ public fun authenticator(self: &DynamicMultisigAccount): &AuthenticatorInfoV1 {
 public fun propose_transaction(
     self: &mut DynamicMultisigAccount,
     transaction_digest: vector<u8>,
-    ctx: &TxContext
+    ctx: &TxContext,
 ) {
     // Get the member who proposed the transaction.
     let member_address = *self.members().borrow(ctx.sender()).addr();
@@ -131,7 +133,11 @@ public fun propose_transaction(
 }
 
 /// Approves a proposed transaction.
-public fun approve_transaction(self: &mut DynamicMultisigAccount, transaction_digest: vector<u8>, ctx: &TxContext) {
+public fun approve_transaction(
+    self: &mut DynamicMultisigAccount,
+    transaction_digest: vector<u8>,
+    ctx: &TxContext,
+) {
     // Get the member who approved the transaction.
     let member_address = *self.members().borrow(ctx.sender()).addr();
 
@@ -145,7 +151,11 @@ public fun approve_transaction(self: &mut DynamicMultisigAccount, transaction_di
 /// Removes a transaction.
 /// It can be removed ether it was executed or not.
 /// Can be removed only by the account itself, that means that this call must be approved by the account members.
-public fun remove_transaction(self: &mut DynamicMultisigAccount, transaction_digest: vector<u8>, ctx: &TxContext) {
+public fun remove_transaction(
+    self: &mut DynamicMultisigAccount,
+    transaction_digest: vector<u8>,
+    ctx: &TxContext,
+) {
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
 
@@ -165,7 +175,7 @@ public fun update_account_data(
     members_weights: vector<u64>,
     threshold: u64,
     authenticator: AuthenticatorInfoV1,
-    ctx: &TxContext
+    ctx: &TxContext,
 ) {
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
@@ -185,7 +195,7 @@ public fun update_account_data(
 }
 
 /// A transaction authenticator.
-/// 
+///
 /// Checks that the sender of this transaction is the account.
 /// The total weight of the members who approved the transaction must be greater than or equal to the threshold.
 /// If the members list is changed after the transaction proposal, only the members who are still in the list
@@ -195,7 +205,10 @@ public fun authenticate(self: &DynamicMultisigAccount, _: &AuthContext, ctx: &Tx
     ensure_tx_sender_is_account(self, ctx);
 
     // Check that the transaction is approved.
-    assert!(self.total_approves(*ctx.digest()) >= self.threshold(), ETransactionDoesNotHaveSufficientApprovals);
+    assert!(
+        self.total_approves(*ctx.digest()) >= self.threshold(),
+        ETransactionDoesNotHaveSufficientApprovals,
+    );
 }
 
 // --------------------------------------- Utilities ---------------------------------------
@@ -207,17 +220,17 @@ fun ensure_tx_sender_is_account(self: &DynamicMultisigAccount, ctx: &TxContext) 
 
 /// Returns the dynamic field name used to store the members information.
 fun members_key(): MembersKey {
-    MembersKey{}
+    MembersKey {}
 }
 
 /// Returns the dynamic field name used to store the threshold.
 fun threshold_key(): ThresholdKey {
-    ThresholdKey{}
+    ThresholdKey {}
 }
 
 /// Returns the dynamic field name used to store the transactions.
 fun transactions_key(): TransactionsKey {
-    TransactionsKey{}
+    TransactionsKey {}
 }
 
 /// Mutably borrows the account transactions.
@@ -226,10 +239,10 @@ fun transactions_mut(self: &mut DynamicMultisigAccount): &mut Transactions {
 }
 
 /// Verifies the threshold.
-fun verify_threshold(members: &Members, threshold: u64 ) {
+fun verify_threshold(members: &Members, threshold: u64) {
     // Check that the threshold is not zero.
     assert!(threshold != 0, EThresholdIsZero);
-    // Check that the total members weight is greater than or equal to the threshold.  
+    // Check that the total members weight is greater than or equal to the threshold.
     assert!(members.total_weight() >= threshold, ETotalMembersWeightLessThanThreshold);
 }
 
@@ -238,7 +251,7 @@ fun verify_threshold(members: &Members, threshold: u64 ) {
 fun update_dynamic_field<Name: copy + drop + store, Value: store>(
     account_id: &mut UID,
     name: Name,
-    value: Value
+    value: Value,
 ): Value {
     let previous_value = dynamic_field::remove(account_id, name);
     dynamic_field::add(account_id, name, value);

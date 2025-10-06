@@ -4,13 +4,14 @@
 module iota::account;
 
 use iota::dynamic_field;
-
 use std::ascii;
 
 #[error(code = 0)]
-const EAuthenticatorInfoV1AlreadyAttached: vector<u8> = b"An `AuthenticatorInfoV1` instance is already attached to the account.";
+const EAuthenticatorInfoV1AlreadyAttached: vector<u8> =
+    b"An `AuthenticatorInfoV1` instance is already attached to the account.";
 #[error(code = 1)]
-const EAuthenticatorInfoV1NotAttached: vector<u8> = b"'AuthenticatorInfoV1' is not attached to the account.";
+const EAuthenticatorInfoV1NotAttached: vector<u8> =
+    b"'AuthenticatorInfoV1' is not attached to the account.";
 
 /// Dynamic field key, where the system will look for a potential
 /// authenticate function.
@@ -66,7 +67,10 @@ public fun detach_auth_info_v1(account_id: &mut UID): AuthenticatorInfoV1 {
 /// Rotate the account-related authenticator.
 /// The `authenticator` instance will replace the account dynamic field specified by the `AuthenticatorInfoV1Key` name;
 /// the previous value will be returned.
-public fun rotate_auth_info_v1(account_id: &mut UID, authenticator: AuthenticatorInfoV1): AuthenticatorInfoV1 {
+public fun rotate_auth_info_v1(
+    account_id: &mut UID,
+    authenticator: AuthenticatorInfoV1,
+): AuthenticatorInfoV1 {
     assert!(has_auth_info_v1(account_id), EAuthenticatorInfoV1NotAttached);
 
     let name = auth_info_v1_key();
@@ -83,14 +87,13 @@ public fun borrow_auth_info_v1(account_id: &UID): &AuthenticatorInfoV1 {
     dynamic_field::borrow(account_id, auth_info_v1_key())
 }
 
-
 /// Check if an authenticator is attached. If a dynamic field with the `AuthenticatorInfoV1Key` name exists.
 public fun has_auth_info_v1(account_id: &UID): bool {
     dynamic_field::exists_(account_id, auth_info_v1_key())
 }
 
 fun auth_info_v1_key(): AuthenticatorInfoV1Key {
-    AuthenticatorInfoV1Key{}
+    AuthenticatorInfoV1Key {}
 }
 
 native fun check_auth_info_v1(
@@ -106,5 +109,5 @@ public fun create_auth_info_v1_for_testing(
     module_name: ascii::String,
     function_name: ascii::String,
 ): AuthenticatorInfoV1 {
-    AuthenticatorInfoV1{ package: package.to_id(), module_name, function_name }
+    AuthenticatorInfoV1 { package: package.to_id(), module_name, function_name }
 }

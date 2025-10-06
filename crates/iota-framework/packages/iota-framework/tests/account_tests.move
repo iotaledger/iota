@@ -7,7 +7,6 @@ module iota::account_tests;
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{Self, assert_eq, assert_ref_eq};
-
 use std::ascii;
 
 // This struct is used as an account for testing.
@@ -30,9 +29,16 @@ fun authenticator_info_v1_happy_path() {
         assert_ref_eq(account::borrow_auth_info_v1(account_id), &default_authenticator_info);
 
         // Rotate the `AuthenticatorInfoV1` instance.
-        let updated_authenticator_info = account::create_auth_info_v1_for_testing(@0x2, ascii::string(b"module2"), ascii::string(b"function2"));
+        let updated_authenticator_info = account::create_auth_info_v1_for_testing(
+            @0x2,
+            ascii::string(b"module2"),
+            ascii::string(b"function2"),
+        );
 
-        let previous_authenticator_info = account::rotate_auth_info_v1(account_id, updated_authenticator_info);
+        let previous_authenticator_info = account::rotate_auth_info_v1(
+            account_id,
+            updated_authenticator_info,
+        );
 
         assert_eq(previous_authenticator_info, default_authenticator_info);
 
@@ -53,7 +59,11 @@ fun authenticator_info_v1_happy_path() {
 fun authenticator_info_v1_double_attach() {
     account_test_mut!(|_, account_id| {
         let authenticator_info_1 = create_default_authenticator_info_v1_for_testing();
-        let authenticator_info_2 = account::create_auth_info_v1_for_testing(@0x2, ascii::string(b"module2"), ascii::string(b"function2"));
+        let authenticator_info_2 = account::create_auth_info_v1_for_testing(
+            @0x2,
+            ascii::string(b"module2"),
+            ascii::string(b"function2"),
+        );
 
         account::attach_auth_info_v1(account_id, authenticator_info_1);
         // Attach another `AuthenticatorInfoV1` instance that is forbidden.
@@ -133,11 +143,15 @@ fun authenticator_info_v1_rotate_after_detach() {
 }
 
 fun create_test_account(scenario: &mut Scenario): TestAccount {
-    TestAccount{id: object::new(test_scenario::ctx(scenario))}
+    TestAccount { id: object::new(test_scenario::ctx(scenario)) }
 }
 
 fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
-    account::create_auth_info_v1_for_testing(@0x1, ascii::string(b"module"), ascii::string(b"function"))
+    account::create_auth_info_v1_for_testing(
+        @0x1,
+        ascii::string(b"module"),
+        ascii::string(b"function"),
+    )
 }
 
 macro fun account_test($f: |&mut Scenario, &UID|) {

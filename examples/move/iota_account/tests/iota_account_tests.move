@@ -4,23 +4,20 @@
 #[test_only]
 module iota_account::iota_account_tests;
 
-use std::ascii;
-use std::string;
-
-use iota::hex;
 use iota::account::{Self, AuthenticatorInfoV1};
-use iota::ecdsa_k1;
 use iota::auth_context::{Self, AuthContext};
+use iota::ecdsa_k1;
+use iota::hex;
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
-
 use iota_account::iota_account::{Self, IOTAccount};
+use std::ascii;
+use std::string;
 
 // --------------------------------------- Basic Scenario ---------------------------------------
 
 #[test]
 fun test_account_creation() {
-
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let account_address = create_iotaccount_for_testing(scenario);
@@ -51,7 +48,11 @@ fun test_rotate_account_public_key() {
         let mut account = scenario.take_shared<IOTAccount>();
 
         let public_key = b"24";
-        let authenticator = account::create_auth_info_v1_for_testing(@0x2, ascii::string(b"module2"), ascii::string(b"function2"));
+        let authenticator = account::create_auth_info_v1_for_testing(
+            @0x2,
+            ascii::string(b"module2"),
+            ascii::string(b"function2"),
+        );
         let ctx = test_scenario::ctx(scenario);
 
         account.rotate_public_key(public_key, authenticator, ctx);
@@ -78,7 +79,11 @@ fun test_rotate_account_public_key_wrong_sender() {
         let mut account = scenario.take_shared<IOTAccount>();
 
         let public_key = b"24";
-        let authenticator = account::create_auth_info_v1_for_testing(@0x2, ascii::string(b"module2"), ascii::string(b"function2"));
+        let authenticator = account::create_auth_info_v1_for_testing(
+            @0x2,
+            ascii::string(b"module2"),
+            ascii::string(b"function2"),
+        );
         let ctx = test_scenario::ctx(scenario);
 
         account.rotate_public_key(public_key, authenticator, ctx);
@@ -106,8 +111,13 @@ fun test_user_defined_dynamic_field() {
 
         check_dynamic_field(&mut account, 42, 42, ctx);
         check_dynamic_field(&mut account, b"vector", b"vector", ctx);
-        check_dynamic_field(&mut account, string::utf8(b"std::string"), string::utf8(b"std::string"), ctx);
-        check_dynamic_field(&mut account, TestObject{}, TestObject{}, ctx);
+        check_dynamic_field(
+            &mut account,
+            string::utf8(b"std::string"),
+            string::utf8(b"std::string"),
+            ctx,
+        );
+        check_dynamic_field(&mut account, TestObject {}, TestObject {}, ctx);
 
         test_scenario::return_shared(account);
     };
@@ -517,18 +527,28 @@ fun test_authenticate_secp256r1_wrong_signature() {
 // --------------------------------------- Test Utilities ---------------------------------------
 
 fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
-    account::create_auth_info_v1_for_testing(@0x1, ascii::string(b"module"), ascii::string(b"function"))
+    account::create_auth_info_v1_for_testing(
+        @0x1,
+        ascii::string(b"module"),
+        ascii::string(b"function"),
+    )
 }
 
 fun create_iotaccount_for_testing(scenario: &mut Scenario): address {
     create_iotaccount_for_testing_impl(scenario, option::none())
 }
 
-fun create_iotaccount_with_pk_for_testing(scenario: &mut Scenario, public_key: vector<u8>): address {
+fun create_iotaccount_with_pk_for_testing(
+    scenario: &mut Scenario,
+    public_key: vector<u8>,
+): address {
     create_iotaccount_for_testing_impl(scenario, option::some(public_key))
 }
 
-fun create_iotaccount_for_testing_impl(scenario: &mut Scenario, public_key: Option<vector<u8>>): address {
+fun create_iotaccount_for_testing_impl(
+    scenario: &mut Scenario,
+    public_key: Option<vector<u8>>,
+): address {
     let ctx = test_scenario::ctx(scenario);
 
     let public_key = public_key.destroy_or!(public_key_for_testing());

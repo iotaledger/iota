@@ -8,11 +8,14 @@ use iota::table::{Self, Table};
 // --------------------------------------- Errors ---------------------------------------
 
 #[error(code = 0)]
-const ETransactionIsAlreadyApprovedByTheMember: vector<u8> = b"The transaction is already approved by the member.";
+const ETransactionIsAlreadyApprovedByTheMember: vector<u8> =
+    b"The transaction is already approved by the member.";
 #[error(code = 1)]
-const ETransactionAlreadyExists: vector<u8> = b"A transaction with the provided digest already exists.";
+const ETransactionAlreadyExists: vector<u8> =
+    b"A transaction with the provided digest already exists.";
 #[error(code = 2)]
-const ETransactionDoesNotExist: vector<u8> = b"A transaction with the provided digest does not exist.";
+const ETransactionDoesNotExist: vector<u8> =
+    b"A transaction with the provided digest does not exist.";
 
 // ----------------------------------- Data Structures -----------------------------------
 
@@ -34,7 +37,7 @@ public struct Transactions has store {
 
 /// Creates a `Transactions` instance.
 public(package) fun create(ctx: &mut TxContext): Transactions {
-    Transactions{ table: table::new(ctx) }
+    Transactions { table: table::new(ctx) }
 }
 
 // ------------------------------------- Transactions -------------------------------------
@@ -60,12 +63,15 @@ public(package) fun add(self: &mut Transactions, digest: vector<u8>, member: add
     assert!(!self.table.contains(digest), ETransactionAlreadyExists);
 
     // Add the transaction.
-    self.table.add(digest, Transaction{digest, approves: vector[ member ]});
+    self.table.add(digest, Transaction { digest, approves: vector[member] });
 }
 
 /// Removes a transaction from the account.
 /// Returns the digest and the addresses of the members who approved the transaction.
-public(package) fun remove(self: &mut Transactions, digest: vector<u8>): (vector<u8>, vector<address>) {
+public(package) fun remove(
+    self: &mut Transactions,
+    digest: vector<u8>,
+): (vector<u8>, vector<address>) {
     // Ensure that the transaction exists.
     assert!(self.table.contains(digest), ETransactionDoesNotExist);
 
@@ -87,17 +93,14 @@ public fun approves(self: &Transaction): &vector<address> {
 
 /// Adds the approval of the member to the transaction.
 public(package) fun add_approval(self: &mut Transaction, member: address) {
-    assert!(
-        !self.approves.contains(&member),
-        ETransactionIsAlreadyApprovedByTheMember
-    );
+    assert!(!self.approves.contains(&member), ETransactionIsAlreadyApprovedByTheMember);
 
     self.approves.push_back(member);
 }
 
 /// Unpacks the transaction into its components and deletes it.
 fun unpack(self: Transaction): (vector<u8>, vector<address>) {
-    let Transaction {digest, approves} = self;
+    let Transaction { digest, approves } = self;
 
     (digest, approves)
 }
