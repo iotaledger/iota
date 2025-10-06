@@ -227,8 +227,8 @@ pub(crate) enum ObjectLookup {
         checkpoint_viewed_at: u64,
     },
 
-    /// Variant analogous to VersionAt but for optimistic transactions,
-    /// using the most recent not checkpointed data,
+    /// Variant analogous to [`VersionAt`](Self::VersionAt) but for optimistic
+    /// transactions, using the most recent not checkpointed data,
     /// not bound by any checkpoint sequence number.
     OptimisticVersion {
         /// The exact version of the object to be fetched.
