@@ -91,7 +91,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
         useMutation({
-            mutationFn: async (formikHelpers: FormikHelpers<FormValues>) => {
+            mutationFn: async () => {
                 if (!transaction || !signer) {
                     throw new Error('Failed, missing required field');
                 }
@@ -113,20 +113,12 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                             await signer.client.waitForTransaction({
                                 digest: tx.digest,
                             });
-                            return { tx, formikHelpers };
+                            return { tx };
                         } finally {
                             span?.end();
                         }
                     },
                 );
-            },
-            onSuccess: ({ tx, formikHelpers }) => {
-                ampli.stakedIota({
-                    stakedAmount: Number(amount),
-                    validatorAddress: validatorAddress || '',
-                });
-                formikHelpers.resetForm();
-                onSuccess(tx);
             },
             onError: (error) => {
                 throw error;
@@ -135,7 +127,17 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     const handleSubmit = async (_: FormValues, formikHelpers: FormikHelpers<FormValues>) => {
         try {
-            await stakeTokenMutateAsync(formikHelpers);
+            await stakeTokenMutateAsync(undefined, {
+                onSuccess(data) {
+                    console.log('Stake successful', data);
+                    ampli.stakedIota({
+                        stakedAmount: Number(amount),
+                        validatorAddress: validatorAddress || '',
+                    });
+                    formikHelpers.resetForm();
+                    onSuccess(data.tx);
+                },
+            });
         } catch (error) {
             toast.error(
                 <div className="flex max-w-xs flex-col overflow-hidden">
