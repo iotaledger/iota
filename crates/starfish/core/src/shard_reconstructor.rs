@@ -287,7 +287,7 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     /// Already processed transaction either by authority service or by shard reconstructor
     processed_transactions: BTreeSet<BlockRef>,
     /// A cache of reconstructed transactions that will be periodically sent in the core
-    reconstructed_transactions: Vec<VerifiedTransactions>,
+    reconstructed_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
     /// A map of all shard accumulators. Periodically evicted. Keyed by a pair (BlockRef, TransactionsCommitment)
     /// since it is possible to m
     shard_accumulators: BTreeMap<(BlockRef, TransactionsCommitment), ShardAccumulator>,
@@ -336,7 +336,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
             reconstructed_transactions_sender: result_sender,
             reconstructed_transactions_receiver: result_receiver,
             processed_transactions: BTreeSet::new(),
-            reconstructed_transactions: Vec::new(),
+            reconstructed_transactions: BTreeMap::new(),
             shard_accumulators: BTreeMap::new(),
             transaction_message_receiver,
         };
@@ -422,7 +422,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                     Some(verified_transactions) = self.reconstructed_transactions_receiver.recv() => {
                         self.processed_transactions.insert(verified_transactions.block_ref());
                         self.reconstruction_queue.remove(&verified_transactions.block_ref());
-                        self.reconstructed_transactions.push(verified_transactions);
+                        self.reconstructed_transactions.insert(verified_transactions.block_ref(), verified_transactions);
                     }
 
                  () = &mut send_to_core_timeout => {
@@ -479,17 +479,48 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
         );
 
         self.processed_transactions = self.processed_transactions.split_off(&lower_bound);
-
+        self.reconstructed_transactions = self.reconstructed_transactions.split_off(&lower_bound);
         let lower_bound_key = (lower_bound, TransactionsCommitment::MIN);
         self.shard_accumulators = self.shard_accumulators.split_off(&lower_bound_key);
     }
 
+    async fn get_transactions_with_headers_in_dag_state(&mut self) -> Vec<VerifiedTransactions> {
+        let transactions_map = std::mem::take(&mut self.reconstructed_transactions);
+        let block_refs: Vec<BlockRef> = transactions_map
+            .iter()
+            .map(|block_ref, txs| { block_ref })
+            .collect();
+        // In most cases, all reconstructed transactions will go to the core
+        let mut ready_to_be_sent_transactions = Vec::new();
+        let mut to_stay_transactions = BTreeMap::new();
+
+        // We introduce a check about the existence of block headers to ensure that for every transaction,
+        // we have the respected header in the dag state
+        let exists_vec = {
+            #[cfg(not(test))]
+            {
+                self.dag_state.read().contains_block_headers(block_refs)
+            }
+
+            #[cfg(test)]
+            {
+                vec![true; block_refs.len()]
+            }
+        };
+        for (exists, (block_ref, transactions)) in exists_vec.into_iter().zip(transactions_map.into_iter()) {
+            if exists {
+                ready_to_be_sent_transactions.push(transactions);
+            } else {
+                to_stay_transactions.insert(block_ref, transactions);
+            }
+        }
+        self.reconstructed_transactions = to_stay_transactions;
+        ready_to_be_sent_transactions
+    }
+
     /// Send reconstructed transactions to the core
     async fn send_to_core(&mut self) -> ConsensusResult<()> {
-        let transactions = std::mem::take(&mut self.reconstructed_transactions);
-
-
-
+        let transactions = self.get_transactions_with_headers_in_dag_state().await;
         if !transactions.is_empty() {
             let highest_accepted_round = self.dag_state.read().highest_accepted_round();
             for transaction in &transactions {
