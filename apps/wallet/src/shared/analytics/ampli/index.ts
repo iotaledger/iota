@@ -116,6 +116,15 @@ export interface ClickedCreateNewAccountProperties {
     sourceFlow?: string;
 }
 
+export interface ClickedCreatePasskeyProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    sourceFlow?: string;
+}
+
 export interface ClickedHideAssetProperties {
     /**
      * | Rule | Value |
@@ -150,6 +159,15 @@ export interface ClickedImportPassphraseProperties {
 }
 
 export interface ClickedImportPrivateKeyProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    sourceFlow?: string;
+}
+
+export interface ClickedImportSeedProperties {
     /**
      * | Rule | Value |
      * |---|---|
@@ -359,6 +377,12 @@ export interface UnstakedIotaProperties {
     /**
      * | Rule | Value |
      * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
      * | Regex |  |
      */
     validatorAddress?: string;
@@ -392,6 +416,14 @@ export class ClickedCreateNewAccount implements BaseEvent {
     event_type = 'clicked create new account';
 
     constructor(public event_properties?: ClickedCreateNewAccountProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class ClickedCreatePasskey implements BaseEvent {
+    event_type = 'clicked create passkey';
+
+    constructor(public event_properties?: ClickedCreatePasskeyProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -619,7 +651,7 @@ export class Ampli {
     this.disabled = options.disabled ?? false;
 
     if (this.amplitude) {
-      console.warn('WARNING: Ampli is already initialized. Ampli.load() should be called once at application startup.');
+      console.warn('WARNING: Ampli is already intialized. Ampli.load() should be called once at application startup.');
       return getVoidPromiseResult();
     }
 
@@ -759,6 +791,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ClickedCreateNewAccount(properties), options);
+  }
+
+  /**
+   * clicked create passkey
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20create%20passkey)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. sourceFlow)
+   * @param options Amplitude event options.
+   */
+  clickedCreatePasskey(
+    properties?: ClickedCreatePasskeyProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ClickedCreatePasskey(properties), options);
   }
 
   /**
@@ -1142,7 +1191,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. validatorAddress)
+   * @param properties The event's properties (e.g. stakedAmount)
    * @param options Amplitude event options.
    */
   unstakedIota(
