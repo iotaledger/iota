@@ -26,6 +26,7 @@ import { useAppSelector, useCheckCameraPermissionStatus, useCreateAccountsMutati
 import { AppType } from '../../redux/slices/app/appType';
 import { Create, ImportPass, Key, Seed, Ledger, Keystone } from '@iota/apps-ui-icons';
 import Browser from 'webextension-polyfill';
+import { openInNewTab } from '_src/shared/utils';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
     const currentURL = new URL(window.location.href);
@@ -141,6 +142,10 @@ export function AddAccountPage() {
                 break;
             case AccountsFormType.Passkey:
                 ampli.clickedImportPrivateKey({ sourceFlow });
+                if (isPopup) {
+                    openInNewTab('/accounts/import-passkey');
+                    break;
+                }
                 navigate('/accounts/import-passkey');
                 break;
             case AccountsFormType.ImportSeed:
