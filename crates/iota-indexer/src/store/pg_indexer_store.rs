@@ -47,9 +47,12 @@ use crate::{
     },
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
     persist_chunk_into_table_in_existing_connection, read_only_blocking,
-    rolling::transform::{
-        CheckpointObjectChanges, LiveObject, RemovedObject,
-        retain_latest_objects_from_checkpoint_batch,
+    rolling::{
+        error::IndexerResult,
+        transform::{
+            CheckpointObjectChanges, LiveObject, RemovedObject,
+            retain_latest_objects_from_checkpoint_batch,
+        },
     },
     schema::{
         chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
@@ -67,6 +70,14 @@ use crate::{
         IndexedPackage, IndexedTransaction, TxIndex, TxIndexV2,
     },
 };
+
+/// A cursor representing the global order position of transaction according to
+/// tx_global_order table
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TxGlobalOrderCursor {
+    pub global_sequence_number: i64,
+    pub optimistic_sequence_number: i64,
+}
 
 #[macro_export]
 macro_rules! chunk {
@@ -157,6 +168,13 @@ impl PgIndexerStore {
 
     pub fn blocking_cp(&self) -> ConnectionPool {
         self.blocking_cp.clone()
+    }
+
+    pub(crate) async fn get_latest_epoch_id_in_blocking_worker(
+        &self,
+    ) -> Result<Option<u64>, IndexerError> {
+        self.execute_in_blocking_worker(move |this| this.get_latest_epoch_id())
+            .await
     }
 
     pub fn get_latest_epoch_id(&self) -> Result<Option<u64>, IndexerError> {
@@ -266,7 +284,9 @@ impl PgIndexerStore {
                 .first::<(i64, Option<i64>)>(conn)
                 .map(|(min, max)| (min as u64, max.map(|v| v as u64)))
         })
-        .context("Failed reading checkpoint range from PostgresDB")
+        .context(
+            format!("failed reading checkpoint range from PostgresDB for epoch {epoch}").as_str(),
+        )
     }
 
     fn get_transaction_range_for_checkpoint(
@@ -283,7 +303,88 @@ impl PgIndexerStore {
                 .first::<(i64, i64)>(conn)
                 .map(|(min, max)| (min as u64, max as u64))
         })
-        .context("Failed reading transaction range from PostgresDB")
+        .context(
+            format!("failed reading transaction range from PostgresDB for checkpoint {checkpoint}")
+                .as_str(),
+        )
+    }
+
+    pub(crate) async fn get_global_order_for_tx_seq_in_blocking_worker(
+        &self,
+        tx_seq: i64,
+    ) -> Result<TxGlobalOrderCursor, IndexerError> {
+        self.execute_in_blocking_worker(move |this| this.get_global_order_for_tx_seq(tx_seq))
+            .await
+    }
+
+    fn get_global_order_for_tx_seq(
+        &self,
+        tx_seq: i64,
+    ) -> Result<TxGlobalOrderCursor, IndexerError> {
+        let result = read_only_blocking!(&self.blocking_cp, |conn| {
+            tx_global_order::dsl::tx_global_order
+                .select((
+                    tx_global_order::global_sequence_number,
+                    tx_global_order::optimistic_sequence_number,
+                ))
+                .filter(tx_global_order::chk_tx_sequence_number.eq(tx_seq))
+                .first::<(i64, i64)>(conn)
+        })
+        .context(
+            format!("failed reading global sequence number from PostgresDB for tx seq {tx_seq}")
+                .as_str(),
+        )?;
+        let (global_sequence_number, optimistic_sequence_number) = result;
+        Ok(TxGlobalOrderCursor {
+            global_sequence_number,
+            optimistic_sequence_number,
+        })
+    }
+
+    pub(crate) async fn prune_optimistic_transactions_up_to_in_blocking_worker(
+        &self,
+        to: TxGlobalOrderCursor,
+        limit: i64,
+    ) -> IndexerResult<usize> {
+        self.execute_in_blocking_worker(move |this| {
+            this.prune_optimistic_transactions_up_to(to, limit)
+        })
+        .await
+    }
+
+    fn prune_optimistic_transactions_up_to(
+        &self,
+        to: TxGlobalOrderCursor,
+        limit: i64,
+    ) -> IndexerResult<usize> {
+        transactional_blocking_with_retry!(
+            &self.blocking_cp,
+            |conn| {
+                let sql = r#"
+                    WITH ids_to_delete AS (
+                         SELECT global_sequence_number, optimistic_sequence_number
+                         FROM optimistic_transactions
+                         WHERE (global_sequence_number, optimistic_sequence_number) <= ($1, $2)
+                         ORDER BY global_sequence_number, optimistic_sequence_number
+                         FOR UPDATE LIMIT $3
+                     )
+                     DELETE FROM optimistic_transactions otx
+                     USING ids_to_delete
+                     WHERE (otx.global_sequence_number, otx.optimistic_sequence_number) =
+                           (ids_to_delete.global_sequence_number, ids_to_delete.optimistic_sequence_number)
+                "#;
+                diesel::sql_query(sql)
+                    .bind::<BigInt, _>(to.global_sequence_number)
+                    .bind::<BigInt, _>(to.optimistic_sequence_number)
+                    .bind::<BigInt, _>(limit)
+                    .execute(conn)
+                    .map_err(IndexerError::from)
+                    .context(
+                        format!("failed to prune optimistic_transactions table to {to:?} with limit {limit}").as_str(),
+                    )
+            },
+            PG_DB_COMMIT_SLEEP_DURATION
+        )
     }
 
     fn get_latest_object_snapshot_checkpoint_sequence_number(
@@ -1585,7 +1686,7 @@ impl PgIndexerStore {
                 .select(epochs::network_total_transactions)
                 .get_result::<Option<i64>>(conn)
         })
-        .context("Failed to get network total transactions in epoch")
+        .context(format!("failed to get network total transactions in epoch {epoch}").as_str())
         .map(|option| option.map(|v| v as u64))
     }
 
@@ -1713,39 +1814,20 @@ impl IndexerStore for PgIndexerStore {
         let mutation_futures = object_mutation_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_object_mutation_chunk(c)));
-        futures::future::try_join_all(mutation_futures)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    "Failed to join persist_object_mutation_chunk futures: {}",
-                    e
-                );
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object mutation chunks: {e:?}"
-                ))
-            })?;
         let deletion_futures = object_deletion_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_object_deletion_chunk(c)));
-        futures::future::try_join_all(deletion_futures)
+        futures::future::try_join_all(mutation_futures.chain(deletion_futures))
             .await
             .map_err(|e| {
-                tracing::error!(
-                    "Failed to join persist_object_deletion_chunk futures: {}",
-                    e
-                );
+                tracing::error!("Failed to join futures for persisting object chunks: {e}",);
                 IndexerError::from(e)
             })?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
                 IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object deletion chunks: {e:?}"
+                    "Failed to persist all object mutation and deletion chunks: {e:?}"
                 ))
             })?;
 
@@ -2348,40 +2430,19 @@ impl IndexerStoreExt for PgIndexerStore {
         let mutation_futures = mutation_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_changed_objects(c)));
-        futures::future::try_join_all(mutation_futures)
-            .await
-            .map_err(|e| {
-                tracing::error!(
-                    "Failed to join persist_object_mutation_chunk futures: {}",
-                    e
-                );
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object mutation chunks: {e:?}",
-                ))
-            })?;
         let deletion_futures = deletion_chunks
             .into_iter()
             .map(|c| self.spawn_blocking_task(move |this| this.persist_removed_objects(c)));
-        futures::future::try_join_all(deletion_futures)
+        futures::future::try_join_all(mutation_futures.chain(deletion_futures))
             .await
             .map_err(|e| {
-                tracing::error!(
-                    "Failed to join persist_object_deletion_chunk futures: {}",
-                    e
-                );
+                tracing::error!("Failed to join futures for persisting objects: {e}");
                 IndexerError::from(e)
             })?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object deletion chunks: {e:?}",
-                ))
+                IndexerError::PostgresWrite(format!("Failed to persist all object chunks: {e:?}",))
             })?;
 
         let elapsed = guard.stop_and_record();
@@ -2483,11 +2544,11 @@ fn make_objects_history_to_commit(
     deleted_objects.into_iter().chain(mutated_objects).collect()
 }
 
-/// Partition object changes into deletions and mutations,
-/// within partition of mutations or deletions, retain the latest with highest
-/// version; For overlappings of mutations and deletions, only keep one with
-/// higher version. This is necessary b/c after this step, DB commit will be
-/// done in parallel and not in order.
+/// Partitions object changes into deletions and mutations.
+///
+/// Retains only the highest version of each object among deletions and
+/// mutations. This allows concurrent insertion into the DB of the resulting
+/// partitions.
 fn retain_latest_indexed_objects(
     tx_object_changes: Vec<TransactionObjectChangesToCommit>,
 ) -> (Vec<IndexedObject>, Vec<IndexedDeletedObject>) {

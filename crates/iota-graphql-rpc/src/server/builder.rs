@@ -69,6 +69,7 @@ use crate::{
         watermark_task::{Watermark, WatermarkLock, WatermarkTask},
     },
     types::{
+        chain_identifier::ChainIdentifierCache,
         datatype::IMoveDatatype,
         move_object::IMoveObject,
         object::IObject,
@@ -503,7 +504,8 @@ impl ServerBuilder {
             .context_data(iota_names_config)
             .context_data(zklogin_config)
             .context_data(metrics.clone())
-            .context_data(config.clone());
+            .context_data(config.clone())
+            .context_data(ChainIdentifierCache::default());
 
         if config.internal_features.feature_gate {
             builder = builder.extension(FeatureGate);
@@ -750,6 +752,7 @@ pub mod tests {
             service_config.limits.clone(),
             metrics.clone(),
         );
+        let loader = DataLoader::new(db.clone());
         let pg_conn_pool = PgManager::new(reader);
         let cancellation_token = CancellationToken::new();
         let watermark = Watermark {
@@ -766,11 +769,13 @@ pub mod tests {
         );
         ServerBuilder::new(state)
             .context_data(db)
+            .context_data(loader)
             .context_data(pg_conn_pool)
             .context_data(service_config)
             .context_data(query_id())
             .context_data(ip_address())
             .context_data(watermark)
+            .context_data(ChainIdentifierCache::default())
             .context_data(metrics)
     }
 
@@ -839,7 +844,7 @@ pub mod tests {
             schema.execute(query).await
         }
 
-        let query = "{ chainIdentifier }";
+        let query = r#"{ checkpoint(id: {sequenceNumber: 0 }) { digest }}"#;
         let timeout = Duration::from_millis(1000);
         let delay = Duration::from_millis(100);
 

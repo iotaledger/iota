@@ -57,9 +57,11 @@ mod test_dag_parser;
 
 /// Exported consensus API.
 pub use authority_node::ConsensusAuthority;
+#[cfg(test)]
+pub use block_header::TestBlockHeader;
 pub use block_header::{BlockHeaderAPI, BlockRef, Round};
 /// Exported API for testing.
-pub use block_header::{TestBlockHeader, Transaction, VerifiedBlockHeader};
+pub use block_header::{Transaction, VerifiedBlockHeader};
 pub use commit::{CommitDigest, CommitIndex, CommitRef, CommittedSubDag};
 pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};
 pub use network::tonic_network::to_socket_addr;

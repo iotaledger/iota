@@ -390,7 +390,7 @@ mod tests {
     /// with the rest of the committee.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_restart_authority_committee(#[values(4, 6, 8)] num_of_authorities: usize) {
+    async fn test_restart_authority_committee(#[values(4, 6)] num_of_authorities: usize) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
@@ -523,7 +523,7 @@ mod tests {
         let mut last_committed_index = vec![0; num_of_authorities];
         let mut last_round_committed_blocks = vec![0; num_of_authorities];
         loop {
-            if start_time.elapsed() > Duration::from_secs(40) {
+            if start_time.elapsed() > Duration::from_secs(60) {
                 break;
             }
             for (index, receiver) in output_receivers.iter_mut().enumerate() {

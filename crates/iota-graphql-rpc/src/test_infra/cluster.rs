@@ -7,6 +7,7 @@ use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 use iota_graphql_rpc_client::simple_client::SimpleClient;
 pub use iota_indexer::config::SnapshotLagConfig;
 use iota_indexer::{
+    config::PruningOptions,
     errors::IndexerError,
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::{IndexerTypeConfig, force_delete_database, start_test_indexer_impl},
@@ -140,7 +141,13 @@ pub async fn serve_executor(
         true,
         None,
         format!("http://{executor_server_url}"),
-        IndexerTypeConfig::writer_mode(snapshot_config.clone(), epochs_to_keep),
+        IndexerTypeConfig::writer_mode(
+            snapshot_config.clone(),
+            Some(PruningOptions {
+                epochs_to_keep,
+                ..Default::default()
+            }),
+        ),
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
