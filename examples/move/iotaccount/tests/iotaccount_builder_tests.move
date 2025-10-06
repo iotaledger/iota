@@ -56,30 +56,7 @@ fun builder_all_mandatory_fields_set() {
 
 #[test]
 #[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
-fun attempting_to_add_a_field_as_reserved_then_regular() {
-    let test_sender = @0x0;
-    let mut scenario_val = test_scenario::begin(test_sender);
-    let scenario = &mut scenario_val;
-
-    let ctx = test_scenario::ctx(scenario);
-    let authenticator = create_authenticator_info_v1_for_testing();
-
-    let field_name = b"SomeData".to_ascii_string();
-    let account = iotaccount::builder(authenticator, ctx)
-        .add_dynamic_field(
-            field_name,
-            3,
-        )
-        .add_dynamic_field(field_name, 3)
-        .finish();
-    account.share();
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-#[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
-fun attempting_to_add_a_field_as_regular_then_reserved() {
+fun attempting_to_add_same_dynamic_field_twice() {
     let test_sender = @0x0;
     let mut scenario_val = test_scenario::begin(test_sender);
     let scenario = &mut scenario_val;
@@ -101,7 +78,7 @@ fun attempting_to_add_a_field_as_regular_then_reserved() {
 }
 
 #[test]
-fun reserved_fields_list_observe_the_value_not_just_the_type() {
+fun dynamic_fields_observe_the_value_not_just_the_type() {
     let test_sender = @0x0;
     let mut scenario_val = test_scenario::begin(test_sender);
     let scenario = &mut scenario_val;
