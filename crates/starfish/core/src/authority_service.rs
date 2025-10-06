@@ -517,7 +517,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // 9. Prepare transaction messages for shard reconstructor and send them
         let transaction_messages = TransactionMessage::create_transaction_messages(
             &verified_block,
-            &additional_block_headers,
             &verified_shards,
             peer.value(),
         );
