@@ -72,6 +72,7 @@ use iota_types::{
     execution_status::ExecutionStatus,
     fp_ensure,
     gas::{GasCostSummary, IotaGasStatus},
+    gas_coin::NANOS_PER_IOTA,
     inner_temporary_store::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
         WrittenObjects,
@@ -344,7 +345,8 @@ const GAS_LATENCY_RATIO_BUCKETS: &[f64] = &[
     3000.0, 4000.0, 5000.0, 6000.0, 7000.0, 8000.0, 9000.0, 10000.0, 50000.0, 100000.0, 1000000.0,
 ];
 
-pub const DEV_INSPECT_GAS_COIN_VALUE: u64 = 1_000_000_000_000;
+/// Gas coin value used in dev-inspect and dry-runs if no gas coin was provided.
+pub const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
 
 impl AuthorityMetrics {
     pub fn new(registry: &prometheus::Registry) -> AuthorityMetrics {
@@ -857,7 +859,7 @@ impl AuthorityState {
     /// This is a private method and should be kept that way. It doesn't check
     /// whether the provided transaction is a system transaction, and hence
     /// can only be called internally.
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     async fn handle_transaction_impl(
         &self,
         transaction: VerifiedTransaction,
@@ -932,7 +934,7 @@ impl AuthorityState {
     }
 
     /// Initiate a new transaction.
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(name = "handle_transaction", level = "trace", skip_all)]
     pub async fn handle_transaction(
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1773,13 +1775,13 @@ impl AuthorityState {
         let reference_gas_price = epoch_store.reference_gas_price();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.gas_owner();
-            // use a 1B iota coin
-            const NANOS_TO_IOTA: u64 = 1_000_000_000;
-            const DRY_RUN_IOTA: u64 = 1_000_000_000;
-            let max_coin_value = NANOS_TO_IOTA * DRY_RUN_IOTA;
             let gas_object_id = ObjectID::random();
             let gas_object = Object::new_move(
-                MoveObject::new_gas_coin(OBJECT_START_VERSION, gas_object_id, max_coin_value),
+                MoveObject::new_gas_coin(
+                    OBJECT_START_VERSION,
+                    gas_object_id,
+                    SIMULATION_GAS_COIN_VALUE,
+                ),
                 Owner::AddressOwner(sender),
                 TransactionDigest::genesis_marker(),
             );
@@ -1964,13 +1966,13 @@ impl AuthorityState {
         let mut gas_object_refs = transaction.gas().to_vec();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.gas_owner();
-            // use a 1B iota coin
-            const NANOS_TO_IOTA: u64 = 1_000_000_000;
-            const DRY_RUN_IOTA: u64 = 1_000_000_000;
-            let max_coin_value = NANOS_TO_IOTA * DRY_RUN_IOTA;
             let gas_object_id = ObjectID::MAX;
             let gas_object = Object::new_move(
-                MoveObject::new_gas_coin(OBJECT_START_VERSION, gas_object_id, max_coin_value),
+                MoveObject::new_gas_coin(
+                    OBJECT_START_VERSION,
+                    gas_object_id,
+                    SIMULATION_GAS_COIN_VALUE,
+                ),
                 Owner::AddressOwner(sender),
                 TransactionDigest::genesis_marker(),
             );
@@ -2127,7 +2129,7 @@ impl AuthorityState {
 
         // Create and use a dummy gas object if there is no gas object provided.
         let dummy_gas_object = Object::new_gas_with_balance_and_owner_for_testing(
-            DEV_INSPECT_GAS_COIN_VALUE,
+            SIMULATION_GAS_COIN_VALUE,
             transaction.gas_owner(),
         );
 
@@ -2255,6 +2257,7 @@ impl AuthorityState {
         Ok(epoch_store.reference_gas_price())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn try_is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
         self.get_transaction_cache_reader()
             .try_is_tx_already_executed(digest)
@@ -2898,6 +2901,7 @@ impl AuthorityState {
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
         let epoch = epoch_store.epoch();
+        let rgp = epoch_store.reference_gas_price();
         let state = Arc::new(AuthorityState {
             name,
             secret,
@@ -2920,7 +2924,7 @@ impl AuthorityState {
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
             chain_identifier,
-            congestion_tracker: Arc::new(CongestionTracker::new()),
+            congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
         });
 
         // Start a task to execute ready certificates.

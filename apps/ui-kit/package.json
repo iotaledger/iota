@@ -1,6 +1,6 @@
 {
     "name": "@iota/apps-ui-kit",
-    "version": "0.7.2",
+    "version": "0.7.3",
     "sideEffects": false,
     "repository": {
         "type": "git",

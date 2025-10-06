@@ -3,6 +3,7 @@
 
 use std::{path::PathBuf, str::FromStr, sync::Arc};
 
+use fastcrypto::traits::Signer;
 use iota_indexer::store::PgIndexerStore;
 use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{
@@ -20,7 +21,7 @@ use iota_types::{
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
@@ -765,23 +766,17 @@ async fn create_trusted_coins(
     Ok((coin_name, imm_coin_name))
 }
 
-async fn execute_move_call(
+pub async fn execute_move_call(
     client: &HttpClient,
     address: IotaAddress,
-    account_keypair: &IotaKeyPair,
+    account_keypair: &dyn Signer<Signature>,
     package_object_id: ObjectID,
     module: String,
     function: String,
     type_arguments: Vec<IotaTypeTag>,
     arguments: Vec<IotaJsonValue>,
+    gas: Option<ObjectID>,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
-    let coins = client
-        .get_coins(address, None, None, Some(1))
-        .await
-        .unwrap()
-        .data;
-    let gas = &coins[0];
-
     let transaction_bytes: TransactionBlockBytes = client
         .move_call(
             address,
@@ -790,7 +785,7 @@ async fn execute_move_call(
             function,
             type_arguments,
             arguments,
-            Some(gas.coin_object_id),
+            gas,
             10_000_000.into(),
             None,
         )
@@ -805,7 +800,11 @@ async fn execute_move_call(
         .execute_transaction_block(
             tx_bytes,
             signatures,
-            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_effects()
+                    .with_events(),
+            ),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
@@ -842,6 +841,7 @@ async fn mint_trusted_coin(
         "mint_and_transfer".into(),
         type_args![coin_name.clone()].unwrap(),
         call_args![treasury_cap, amount, address].unwrap(),
+        None,
     )
     .await?;
     assert_eq!(tx_response.status_ok(), Some(true));
@@ -917,6 +917,7 @@ async fn create_migrated_coin_manager_coins(
             "migrate_to_manager".into(),
             type_args![coin_name, coin_manager_coin_name].unwrap(),
             call_args![guardian, treasury_cap, coin_metadata].unwrap(),
+            None,
         )
         .await?;
         assert_eq!(tx_response.status_ok(), Some(true));
@@ -969,6 +970,7 @@ async fn create_migrated_coin_manager_coins(
             ]
             .unwrap(),
             call_args![guardian, treasury_cap, coin_metadata].unwrap(),
+            None,
         )
         .await?;
         assert_eq!(tx_response.status_ok(), Some(true));
@@ -984,6 +986,7 @@ async fn create_migrated_coin_manager_coins(
             "hide_metadata".into(),
             type_args![immutable_metadata_coin_name].unwrap(),
             call_args![coin_metadata].unwrap(),
+            None,
         )
         .await?;
         assert_eq!(tx_response.status_ok(), Some(true));
@@ -1128,5 +1131,5 @@ async fn transfer_all_coins(
         .await
         .unwrap();
 
-    execute_tx_and_wait_for_indexer(indexer_client, cluster, store, tx_bytes, keypair).await;
+    execute_tx_and_wait_for_indexer(indexer_client, store, tx_bytes, keypair).await;
 }

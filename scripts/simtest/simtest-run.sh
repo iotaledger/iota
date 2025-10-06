@@ -8,9 +8,12 @@
 MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS:-180000}
 # Override the default dir for logs output:
 SIMTEST_LOGS_DIR="${SIMTEST_LOGS_DIR:-"$HOME/simtest_logs"}"
+# Set default consensus implementation:
+CONSENSUS_PROTOCOL=${CONSENSUS_PROTOCOL:-mysticeti}
 
 echo "Running simulator tests at commit $(git rev-parse HEAD)"
 echo "Using MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS} from env var"
+echo "Using CONSENSUS_PROTOCOL=${CONSENSUS_PROTOCOL}"
 
 # Function to handle SIGINT signal (Ctrl+C)
 cleanup() {
@@ -60,7 +63,7 @@ echo "================================================"
 echo "Running e2e simtests with $TEST_NUM iterations"
 echo "================================================"
 date
-echo "Using MSIM_TEST_SEED=${MSIM_TEST_SEED}, MSIM_TEST_NUM=${TEST_NUM}, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
+echo "Using MSIM_TEST_SEED=${MSIM_TEST_SEED}, MSIM_TEST_NUM=${TEST_NUM}, CONSENSUS_PROTOCOL=${CONSENSUS_PROTOCOL}, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
 
 # This command runs many different tests, so it already uses all CPUs fairly efficiently, and
 # don't need to be done inside of the for loop below.
@@ -68,6 +71,7 @@ echo "Using MSIM_TEST_SEED=${MSIM_TEST_SEED}, MSIM_TEST_NUM=${TEST_NUM}, TEST_FI
 MSIM_TEST_SEED=${MSIM_TEST_SEED} \
 MSIM_TEST_NUM=${TEST_NUM} \
 MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS} \
+CONSENSUS_PROTOCOL=${CONSENSUS_PROTOCOL} \
 scripts/simtest/cargo-simtest simtest \
   --color always \
   --test-threads "$NUM_CPUS" \
@@ -89,13 +93,14 @@ date
 for WORKER_NUMBER in `seq 1 $WORKERS_COUNT`; do
   SUB_SEED="$WORKER_NUMBER$DATE"
   LOG_FILE="$LOG_DIR/log-$SUB_SEED"
-  echo "Iteration $WORKER_NUMBER using MSIM_TEST_SEED=${SUB_SEED}, MSIM_TEST_NUM=1, SIM_STRESS_TEST_DURATION_SECS=300, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
+  echo "Iteration $WORKER_NUMBER using MSIM_TEST_SEED=${SUB_SEED}, MSIM_TEST_NUM=1, CONSENSUS_PROTOCOL=${CONSENSUS_PROTOCOL}, SIM_STRESS_TEST_DURATION_SECS=300, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
 
   # --test-threads 1 is important: parallelism is achieved via the for loop
   MSIM_TEST_SEED="$SUB_SEED" \
   MSIM_TEST_NUM=1 \
   MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS} \
   SIM_STRESS_TEST_DURATION_SECS=300 \
+  CONSENSUS_PROTOCOL=${CONSENSUS_PROTOCOL} \
   scripts/simtest/cargo-simtest simtest \
     --color always \
     --test-threads 1 \
@@ -116,12 +121,13 @@ date
 
 # Check for determinism in stress simtests
 LOG_FILE="$LOG_DIR/determinism-log"
-echo "Using MSIM_TEST_SEED=${MSIM_TEST_SEED}, MSIM_TEST_NUM=1, MSIM_TEST_CHECK_DETERMINISM=1, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
+echo "Using MSIM_TEST_SEED=${MSIM_TEST_SEED}, MSIM_TEST_NUM=1, CONSENSUS_PROTOCOL=${CONSENSUS_PROTOCOL}, MSIM_TEST_CHECK_DETERMINISM=1, TEST_FILTER=${FINAL_TEST_FILTER}, logging to $LOG_FILE"
 
 MSIM_TEST_SEED=${MSIM_TEST_SEED} \
 MSIM_TEST_NUM=1 \
 MSIM_WATCHDOG_TIMEOUT_MS=${MSIM_WATCHDOG_TIMEOUT_MS} \
 MSIM_TEST_CHECK_DETERMINISM=1 \
+CONSENSUS_PROTOCOL=${CONSENSUS_PROTOCOL} \
 scripts/simtest/cargo-simtest simtest \
   --color always \
   --test-threads "$NUM_CPUS" \

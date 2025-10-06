@@ -331,7 +331,7 @@ async fn direct_skip_missing_leader_block() {
     if let DecidedLeader::Skip(leader) = sequence[2] {
         assert_eq!(
             leader.authority,
-            AuthorityIndex::new_for_test(leader_round_3),
+            AuthorityIndex::new_for_test(leader_round_3 as u8),
         );
         assert_eq!(leader.round, leader_round_3);
     } else {
@@ -490,7 +490,7 @@ async fn indirect_skip() {
             assert_eq!(block.round(), (idx + 1) as Round);
             assert_eq!(
                 block.author(),
-                AuthorityIndex::new_for_test((idx + 1) as u32 % 4)
+                AuthorityIndex::new_for_test((idx + 1) as u8 % 4)
             );
         } else if let DecidedLeader::Skip(ref slot) = decided_leader {
             assert_eq!(slot.round, 4 as Round);
