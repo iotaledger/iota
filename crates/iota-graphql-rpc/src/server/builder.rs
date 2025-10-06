@@ -553,9 +553,10 @@ pub fn export_schema() -> String {
     schema_builder().finish().sdl()
 }
 
-/// Entry point for graphql requests. Each request is stamped with a unique ID,
-/// a `ShowUsage` flag if set in the request headers, and the watermark as set
-/// by the background task.
+/// Entry point for graphql requests.
+///
+/// Each request is stamped with a unique ID, a `ShowUsage` flag if set in the
+/// request headers, and the watermark as set by the background task.
 async fn graphql_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     schema: Extension<IotaGraphQLSchema>,
@@ -586,9 +587,11 @@ async fn graphql_handler(
     (extensions, result.into())
 }
 
-/// Entry point for graphql streaming requests. Each request is stamped with a
-/// unique ID, a `ShowUsage` flag if set in the request headers and tracks the
-/// connection information produced by the client.
+/// Entry point for graphql streaming requests.
+///
+/// Each request is stamped with a unique ID, a `ShowUsage` flag if set in the
+/// request headers and tracks the connection information produced by the
+/// client.
 async fn subscription_handler(
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
     Extension(schema): Extension<IotaGraphQLSchema>,

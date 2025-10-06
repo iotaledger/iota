@@ -16,6 +16,9 @@ use crate::types::{
 #[derive(OneofObject, Clone, Debug, Eq, PartialEq)]
 pub(crate) enum SubscriptionEventFilter {
     /// Filter incoming events by emitting module.
+    ///
+    /// - Filter by package: "0x02"
+    /// - Filter by module: "0x02::coin"
     EmittingModule(ModuleFilter),
 }
 
@@ -44,6 +47,10 @@ pub(crate) enum SubscriptionTransactionFilter {
     /// Filter incoming transactions by signing address.
     SigningAddress(IotaAddress),
     /// Filter incoming transactions by package, module, or function name.
+    ///
+    /// - Filter by package: "0x03"
+    /// - Filter by module: "0x03::iota_system"
+    /// - Filter by function: "0x03::iota_system::request_add_stake"
     Function(FqNameFilter),
 }
 
