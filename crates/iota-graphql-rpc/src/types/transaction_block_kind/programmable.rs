@@ -445,19 +445,3 @@ impl From<IotaArgument> for TransactionArgument {
         }
     }
 }
-
-// impl From<IotaArgumentV2> for TransactionArgument {
-//     fn from(argument: IotaArgumentV2) -> Self {
-//         use IotaArgumentV2 as S;
-//         use TransactionArgument as A;
-//         match argument {
-//             S::GasCoin => A::GasCoin(GasCoin { dummy: None }),
-//             S::Input(ix) => A::Input(Input { ix }),
-//             S::Result(cmd) => A::Result(TxResult { cmd, ix: None }),
-//             S::NestedResult(cmd, ix) => A::Result(TxResult { cmd, ix:
-// Some(ix) }),             S::Pure(v) => A::Pure(PureArg {
-//                 value: format!("{v:?}"),
-//             }),
-//         }
-//     }
-// }

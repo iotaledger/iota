@@ -190,7 +190,7 @@ impl Display for Pretty<'_, IotaArgumentV2> {
 
         let output = match argument {
             IotaArgumentV2::GasCoin => "GasCoin".to_string(),
-            IotaArgumentV2::Input(i) => format!("Input  {i}"),
+            IotaArgumentV2::Input(i) => format!("Input {i}"),
             IotaArgumentV2::Result(i) => format!("Result {i}"),
             IotaArgumentV2::NestedResult(j, k) => format!("Nested Result {j}: {k}"),
             IotaArgumentV2::Pure(v) => format!("Pure {v:?}"),
