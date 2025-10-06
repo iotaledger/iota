@@ -969,7 +969,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         // Add the transactions to the core
         core_dispatcher
-            .add_transactions(transactions, "transactions_synchronizer")
+            .add_transactions(transactions, "Transactions synchronizer")
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 

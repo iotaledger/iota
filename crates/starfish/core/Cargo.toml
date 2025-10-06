@@ -57,7 +57,6 @@ iota-protocol-config.workspace = true
 iota-tls.workspace = true
 shared-crypto.workspace = true
 starfish-config.workspace = true
-time = "0.3.36"
 typed-store.workspace = true
 
 [dev-dependencies]

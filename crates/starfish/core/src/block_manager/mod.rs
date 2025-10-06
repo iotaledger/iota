@@ -88,7 +88,7 @@ impl BlockManager {
             if exists[i] {
                 self.dag_state
                     .write()
-                    .add_transactions(block.verified_transactions, "block streaming");
+                    .add_transactions(block.verified_transactions, "Block streaming");
             } else {
                 self.suspended_blocks.insert(block.reference(), block);
             }

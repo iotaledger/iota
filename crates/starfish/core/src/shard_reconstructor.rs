@@ -290,7 +290,9 @@ pub struct ShardReconstructor<C: CoreThreadDispatcher> {
     /// the core
     reconstructed_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
     /// A map of all shard accumulators. Periodically evicted. Keyed by a pair
-    /// (BlockRef, TransactionsCommitment) since it is possible to m
+    /// (BlockRef, TransactionsCommitment) since transaction commitment is not
+    /// supposed to be verified against the block ref when receiving by
+    /// ShardReconstructor
     shard_accumulators: BTreeMap<(BlockRef, TransactionsCommitment), ShardAccumulator>,
     /// Use only read access to the dag state to read the transaction GC round
     /// and check whether the respected headers are available
@@ -369,12 +371,16 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                                         "Successfully reconstructed transactions for block {:?}",
                                         shard_accumulator.block_ref
                                     );
-                                    let _ = result_tx.send(verified_transactions).await;
+                                    if let Err(err) = result_tx.send(verified_transactions).await {
+                                        warn!(
+                                            "Failed to send the result to shard accumulator {err}"
+                                        );
+                                    }
                                 }
-                                Err(e) => {
+                                Err(err) => {
                                     warn!(
                                         "Failed to reconstruct transactions for block {:?}: {:?}",
-                                        shard_accumulator.block_ref, e
+                                        shard_accumulator.block_ref, err
                                     );
                                 }
                             }
@@ -488,34 +494,45 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
     async fn get_transactions_with_headers_in_dag_state(&mut self) -> Vec<VerifiedTransactions> {
         let transactions_map = std::mem::take(&mut self.reconstructed_transactions);
-        let block_refs: Vec<BlockRef> = transactions_map.keys().copied().collect();
         // In most cases, all reconstructed transactions will go to the core
         let mut ready_to_be_sent_transactions = Vec::new();
-        let mut to_stay_transactions = BTreeMap::new();
 
         // We introduce a check about the existence of block headers to ensure that for
         // every transaction, we have the respected header in the dag state
-        let exists_vec = {
+        self.reconstructed_transactions = {
             #[cfg(not(test))]
             {
-                self.dag_state.read().contains_block_headers(block_refs)
+                let mut to_stay_transactions = BTreeMap::new();
+                let block_headers_opt = {
+                    let block_refs: Vec<BlockRef> = transactions_map.keys().copied().collect();
+                    self.dag_state.read().get_block_headers(&block_refs)
+                };
+                for (block_header_opt, (block_ref, transactions)) in block_headers_opt
+                    .into_iter()
+                    .zip(transactions_map.into_iter())
+                {
+                    if let Some(block_header) = block_header_opt {
+                        // Check the correctness of the transactions commitment
+                        assert_eq!(
+                            block_header.transactions_commitment(),
+                            transactions.transactions_commitment(),
+                            "The network has at least f+1 Byzantine validators"
+                        );
+                        ready_to_be_sent_transactions.push(transactions);
+                    } else {
+                        to_stay_transactions.insert(block_ref, transactions);
+                    }
+                }
+                to_stay_transactions
             }
-
             #[cfg(test)]
             {
-                vec![true; block_refs.len()]
+                for transactions in transactions_map.values() {
+                    ready_to_be_sent_transactions.push(transactions.clone());
+                }
+                BTreeMap::new()
             }
         };
-        for (exists, (block_ref, transactions)) in
-            exists_vec.into_iter().zip(transactions_map.into_iter())
-        {
-            if exists {
-                ready_to_be_sent_transactions.push(transactions);
-            } else {
-                to_stay_transactions.insert(block_ref, transactions);
-            }
-        }
-        self.reconstructed_transactions = to_stay_transactions;
         self.context
             .metrics
             .node_metrics
@@ -542,7 +559,7 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
 
             // Add the transactions to the core
             self.core_dispatcher
-                .add_transactions(transactions, "shard_reconstructor")
+                .add_transactions(transactions, "Shard reconstructor")
                 .await
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
