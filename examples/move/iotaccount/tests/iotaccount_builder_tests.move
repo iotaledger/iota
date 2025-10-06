@@ -2,13 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module iota_account::iota_account_builder_tests;
+module iotaccount::iotaccount_builder_tests;
 
 use iota::account;
 use iota::test_scenario;
 use iota::test_utils::{assert_eq, assert_ref_eq};
-use iota_account::iota_account::{Self, IOTAccount, DynamicFieldKey, make_dynamic_field_key};
-use iota_account::test_utils::create_authenticator_info_v1_for_testing;
+use iotaccount::iotaccount::{Self, IOTAccount, DynamicFieldKey, make_dynamic_field_key};
+use iotaccount::test_utils::create_authenticator_info_v1_for_testing;
 
 // -------------------------------- Create IOTAccount --------------------------------
 
@@ -27,7 +27,7 @@ fun builder_all_mandatory_fields_set() {
     let authenticator = create_authenticator_info_v1_for_testing();
     // Any field value can be set as a reserved, and for the purposes of this test
     // the exact value doesn't matter.
-    let account = iota_account::builder(authenticator, ctx)
+    let account = iotaccount::builder(authenticator, ctx)
         .add_reserved_field(reserved_df_example_name, 6)
         .finish();
     account.share();
@@ -70,7 +70,7 @@ fun attempting_to_add_a_field_as_reserved_then_regular() {
     let authenticator = create_authenticator_info_v1_for_testing();
 
     let field_name = b"SomeData".to_ascii_string();
-    let account = iota_account::builder(authenticator, ctx)
+    let account = iotaccount::builder(authenticator, ctx)
         .add_reserved_field(
             field_name,
             3,
@@ -93,7 +93,7 @@ fun attempting_to_add_a_field_as_regular_then_reserved() {
     let authenticator = create_authenticator_info_v1_for_testing();
 
     let field_name = b"SomeData".to_ascii_string();
-    let account = iota_account::builder(authenticator, ctx)
+    let account = iotaccount::builder(authenticator, ctx)
         .add_regular_field(field_name, 3)
         .add_reserved_field(
             field_name,
@@ -118,7 +118,7 @@ fun reserved_fields_list_observe_the_value_not_just_the_type() {
     // are different.
     let field_name = b"SomeData".to_ascii_string();
     let another_name = b"DifferentData".to_ascii_string();
-    let account = iota_account::builder(authenticator, ctx)
+    let account = iotaccount::builder(authenticator, ctx)
         .add_reserved_field(
             field_name,
             3,

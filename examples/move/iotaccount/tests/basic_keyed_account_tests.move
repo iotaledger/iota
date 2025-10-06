@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module iota_account::basic_keyed_account_tests;
+module iotaccount::basic_keyed_account_tests;
 
 use iota::account;
 use iota::auth_context::{Self, AuthContext};
@@ -10,9 +10,9 @@ use iota::ecdsa_k1;
 use iota::hex;
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
-use iota_account::basic_keyed_account::{Self, create_owner_public_key_for_testing};
-use iota_account::iota_account::{Self, IOTAccount};
-use iota_account::test_utils::create_authenticator_info_v1_for_testing;
+use iotaccount::basic_keyed_account::{Self, create_owner_public_key_for_testing};
+use iotaccount::iotaccount::{Self, IOTAccount};
+use iotaccount::test_utils::create_authenticator_info_v1_for_testing;
 
 // --------------------------------------- Create Basic Keyed Account ---------------------------------------
 
@@ -82,7 +82,7 @@ fun test_authenticate_ed25519() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun test_authenticate_ed25519_wrong_sender() {
     let sender = @0x1;
     let mut scenario_val = test_scenario::begin(sender);
@@ -181,7 +181,7 @@ fun test_authenticate_secp256k1() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun test_authenticate_secp256k1_wrong_sender() {
     let sender = @0x1;
     let mut scenario_val = test_scenario::begin(sender);
@@ -280,7 +280,7 @@ fun test_authenticate_secp256r1() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun test_authenticate_secp256r1_wrong_sender() {
     let sender = @0x1;
     let mut scenario_val = test_scenario::begin(sender);

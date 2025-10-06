@@ -2,10 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module iota_account::test_utils;
+module iotaccount::test_utils;
 
 use iota::account;
-use iota_account::iota_account::{builder, share};
+use iotaccount::iotaccount::{builder, share};
 
 #[test_only]
 public fun create_iotaccount_for_testing(scenario: &mut iota::test_scenario::Scenario): address {
@@ -28,7 +28,7 @@ public fun create_authenticator_info_v1_for_testing(): account::AuthenticatorInf
     // The exact values don't matter in these tests.
     account::create_auth_info_v1_for_testing(
         @0x1,
-        std::ascii::string(b"iota_account"),
+        std::ascii::string(b"iotaccount"),
         std::ascii::string(b"authenticate"),
     )
 }

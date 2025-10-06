@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module iota_account::basic_keyed_account;
+module iotaccount::basic_keyed_account;
 
 // === Imports ===
 
@@ -11,7 +11,7 @@ use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
 use iota::hex::decode;
-use iota_account::iota_account::{Self, IOTAccount, ensure_tx_sender_is_account};
+use iotaccount::iotaccount::{Self, IOTAccount, ensure_tx_sender_is_account};
 
 // === Errors ===
 
@@ -48,7 +48,7 @@ public struct OwnerPublicKey has copy, drop, store {}
 /// - `authenticate_secp256k1`
 /// - `authenticate_secp256r1`
 public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
-    let account = iota_account::builder(authenticator, ctx)
+    let account = iotaccount::builder(authenticator, ctx)
         .add_reserved_field(OwnerPublicKey {}, public_key)
         .finish();
     account.share();

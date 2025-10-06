@@ -2,22 +2,22 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test_only]
-module iota_account::iota_account_tests;
+module iotaccount::iotaccount_tests;
 
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
-use iota_account::iota_account::{
+use iotaccount::iotaccount::{
     Self,
     IOTAccount,
 };
-use iota_account::test_utils::{create_iotaccount_for_testing,
+use iotaccount::test_utils::{create_iotaccount_for_testing,
     create_authenticator_info_v1_for_testing};
 
 // --------------------------------------- Add Field ---------------------------------------
 
 #[test]
-#[expected_failure(abort_code = iota_account::ECantModifyReservedDynamicField)]
+#[expected_failure(abort_code = iotaccount::ECantModifyReservedDynamicField)]
 fun account_cant_add_reserved_dynamic_fields() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -84,7 +84,7 @@ fun account_can_modify_regular_dynamic_fields() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota_account::ECantModifyReservedDynamicField)]
+#[expected_failure(abort_code = iotaccount::ECantModifyReservedDynamicField)]
 fun account_cant_modify_reserved_dynamic_fields() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -111,7 +111,7 @@ fun account_can_remove_regular_dynamic_fields() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota_account::ECantModifyReservedDynamicField)]
+#[expected_failure(abort_code = iotaccount::ECantModifyReservedDynamicField)]
 fun account_cant_remove_reserved_dynamic_fields() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -204,7 +204,7 @@ macro fun account_sender($f: |&mut Scenario|) {
 // --------------------------------------- Add Field ---------------------------------------
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_add_reserved_dynamic_fields() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -217,7 +217,7 @@ fun non_account_cant_add_reserved_dynamic_fields() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_add_regular_dynamic_fields() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -260,7 +260,7 @@ fun non_account_can_read_reserved_dynamic_fields() {
 // --------------------------------------- Borrow Mut Dynamic Field ---------------------------------------
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_modify_regular_dynamic_fields() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -273,7 +273,7 @@ fun non_account_cant_modify_regular_dynamic_fields() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_modify_reserved_dynamic_fields() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -288,7 +288,7 @@ fun non_account_cant_modify_reserved_dynamic_fields() {
 // --------------------------------------- Remove Dynamic Field ---------------------------------------
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_remove_regular_dynamic_fields() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -301,7 +301,7 @@ fun non_account_cant_remove_regular_dynamic_fields() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_remove_reserved_dynamic_fields() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -340,7 +340,7 @@ fun non_account_can_query_reserved_dynamic_field_existence() {
 // ---------------------------------- Rotate reserved field -------------------------------------
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_rotate_reserved_field() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -357,7 +357,7 @@ fun non_account_cant_rotate_reserved_field() {
 }
 
 #[test]
-#[expected_failure(abort_code = iota_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun non_account_cant_rotate_regular_field() {
     non_account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();

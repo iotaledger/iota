@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module iota_account::iota_account;
+module iotaccount::iotaccount;
 
 // === Imports ===
 
