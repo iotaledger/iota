@@ -14,7 +14,7 @@ public fun create_iotaccount_for_testing(scenario: &mut iota::test_scenario::Sce
     let authenticator = create_authenticator_info_v1_for_testing();
 
     let account = builder(authenticator, ctx)
-        .add_regular_field(b"SomeData".to_ascii_string(), 3u8)
+        .add_dynamic_field(b"SomeData".to_ascii_string(), 3u8)
         .finish();
     let account_address = account.account_address();
 

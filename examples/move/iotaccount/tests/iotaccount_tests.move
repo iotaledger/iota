@@ -7,17 +7,16 @@ module iotaccount::iotaccount_tests;
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
-use iotaccount::iotaccount::{
-    Self,
-    IOTAccount,
+use iotaccount::iotaccount::{Self, IOTAccount};
+use iotaccount::test_utils::{
+    create_iotaccount_for_testing,
+    create_authenticator_info_v1_for_testing
 };
-use iotaccount::test_utils::{create_iotaccount_for_testing,
-    create_authenticator_info_v1_for_testing};
 
 // --------------------------------------- Add Field ---------------------------------------
 
 #[test]
-#[expected_failure(abort_code = iotaccount::ECantModifyReservedDynamicField)]
+#[expected_failure(abort_code = iota::dynamic_field::EFieldAlreadyExists)]
 fun account_cant_add_reserved_dynamic_fields() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -84,7 +83,7 @@ fun account_can_modify_regular_dynamic_fields() {
 }
 
 #[test]
-#[expected_failure(abort_code = iotaccount::ECantModifyReservedDynamicField)]
+#[expected_failure(abort_code = iotaccount::EAuthenticatorDynamicFieldNameCannotBeUsed)]
 fun account_cant_modify_reserved_dynamic_fields() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -111,7 +110,7 @@ fun account_can_remove_regular_dynamic_fields() {
 }
 
 #[test]
-#[expected_failure(abort_code = iotaccount::ECantModifyReservedDynamicField)]
+#[expected_failure(abort_code = iotaccount::EAuthenticatorDynamicFieldNameCannotBeUsed)]
 fun account_cant_remove_reserved_dynamic_fields() {
     account_sender!(|scenario| {
         let mut account = scenario.take_shared<IOTAccount>();

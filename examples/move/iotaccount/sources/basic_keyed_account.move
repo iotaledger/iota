@@ -49,7 +49,7 @@ public struct OwnerPublicKey has copy, drop, store {}
 /// - `authenticate_secp256r1`
 public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
     let account = iotaccount::builder(authenticator, ctx)
-        .add_reserved_field(OwnerPublicKey {}, public_key)
+        .add_dynamic_field(OwnerPublicKey {}, public_key)
         .finish();
     account.share();
 }

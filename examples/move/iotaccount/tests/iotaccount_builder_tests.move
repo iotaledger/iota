@@ -7,7 +7,7 @@ module iotaccount::iotaccount_builder_tests;
 use iota::account;
 use iota::test_scenario;
 use iota::test_utils::{assert_eq, assert_ref_eq};
-use iotaccount::iotaccount::{Self, IOTAccount, DynamicFieldKey, make_dynamic_field_key};
+use iotaccount::iotaccount::{Self, IOTAccount};
 use iotaccount::test_utils::create_authenticator_info_v1_for_testing;
 
 // -------------------------------- Create IOTAccount --------------------------------
@@ -28,7 +28,7 @@ fun builder_all_mandatory_fields_set() {
     // Any field value can be set as a reserved, and for the purposes of this test
     // the exact value doesn't matter.
     let account = iotaccount::builder(authenticator, ctx)
-        .add_reserved_field(reserved_df_example_name, 6)
+        .add_dynamic_field(reserved_df_example_name, 6)
         .finish();
     account.share();
 
@@ -43,11 +43,6 @@ fun builder_all_mandatory_fields_set() {
             account.borrow_field(authenticator_df_name),
             &create_authenticator_info_v1_for_testing(),
         );
-
-        let reserved_df_keys: &vector<DynamicFieldKey> = account.borrow_reserved_dynamic_fields();
-        assert!(reserved_df_keys.length() == 2);
-        assert!(reserved_df_keys.contains(&make_dynamic_field_key(authenticator_df_name)));
-        assert!(reserved_df_keys.contains(&make_dynamic_field_key(reserved_df_example_name)));
 
         // Check the ReservedDfName contains the set value.
         assert!(account.has_field(reserved_df_example_name));
@@ -71,11 +66,11 @@ fun attempting_to_add_a_field_as_reserved_then_regular() {
 
     let field_name = b"SomeData".to_ascii_string();
     let account = iotaccount::builder(authenticator, ctx)
-        .add_reserved_field(
+        .add_dynamic_field(
             field_name,
             3,
         )
-        .add_regular_field(field_name, 3)
+        .add_dynamic_field(field_name, 3)
         .finish();
     account.share();
 
@@ -94,8 +89,8 @@ fun attempting_to_add_a_field_as_regular_then_reserved() {
 
     let field_name = b"SomeData".to_ascii_string();
     let account = iotaccount::builder(authenticator, ctx)
-        .add_regular_field(field_name, 3)
-        .add_reserved_field(
+        .add_dynamic_field(field_name, 3)
+        .add_dynamic_field(
             field_name,
             3,
         )
@@ -119,11 +114,11 @@ fun reserved_fields_list_observe_the_value_not_just_the_type() {
     let field_name = b"SomeData".to_ascii_string();
     let another_name = b"DifferentData".to_ascii_string();
     let account = iotaccount::builder(authenticator, ctx)
-        .add_reserved_field(
+        .add_dynamic_field(
             field_name,
             3,
         )
-        .add_reserved_field(
+        .add_dynamic_field(
             another_name,
             3,
         )
