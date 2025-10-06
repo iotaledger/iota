@@ -20,9 +20,9 @@ use fastcrypto::{
     hash::{Blake2b256, HashFunction},
     traits::{KeyPair as _, Signer as _, ToFromBytes as _, VerifyingKey as _},
 };
+use rs_merkle::Hasher;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::INTENT_PREFIX_LENGTH;
-
 /// Network key is used for TLS and as the network identity of the authority.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct NetworkPublicKey(ed25519::Ed25519PublicKey);
@@ -172,5 +172,18 @@ impl AuthorityKeyPair {
 /// Defines algorithm and format of block and commit digests.
 // TODO: change Blake2b256 to Blake3 when starting optimizations
 pub type DefaultHashFunction = Blake2b256;
+
+#[derive(Clone)]
+pub struct DefaultHashFunctionWrapper;
+
+impl Hasher for DefaultHashFunctionWrapper {
+    type Hash = [u8; DefaultHashFunction::OUTPUT_SIZE];
+    fn hash(data: &[u8]) -> [u8; DefaultHashFunction::OUTPUT_SIZE] {
+        let mut hasher = DefaultHashFunction::new();
+        hasher.update(data);
+        hasher.finalize().into()
+    }
+}
+
 pub const DIGEST_LENGTH: usize = DefaultHashFunction::OUTPUT_SIZE;
 pub const INTENT_MESSAGE_LENGTH: usize = INTENT_PREFIX_LENGTH + DIGEST_LENGTH;

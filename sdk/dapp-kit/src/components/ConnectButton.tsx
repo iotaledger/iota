@@ -13,16 +13,22 @@ import { Button } from './ui/Button.js';
 type ConnectButtonProps = {
     connectText?: ReactNode;
     size?: React.ComponentProps<typeof Button>['size'];
+    iotaNamesEnabled?: boolean;
 } & React.ComponentProps<typeof Button>;
 
 export function ConnectButton({
     connectText = 'Connect Wallet',
     size,
+    iotaNamesEnabled = true,
     ...buttonProps
 }: ConnectButtonProps) {
     const currentAccount = useCurrentAccount();
     return currentAccount ? (
-        <AccountDropdownMenu currentAccount={currentAccount} size={size} />
+        <AccountDropdownMenu
+            currentAccount={currentAccount}
+            size={size}
+            iotaNamesEnabled={iotaNamesEnabled}
+        />
     ) : (
         <ConnectModal
             trigger={

@@ -19,8 +19,8 @@ use super::{CommitInfo, Store, WriteBatch};
 use crate::{
     Transaction,
     block_header::{
-        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, SignedBlockHeader,
-        TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
+        BlockHeaderAPI as _, BlockHeaderDigest, BlockRef, Round, SignedBlockHeader, VerifiedBlock,
+        VerifiedBlockHeader, VerifiedTransactions,
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
@@ -30,7 +30,7 @@ use crate::{
 pub(crate) struct RocksDBStore {
     /// Stores SignedBlockHeader by refs.
     block_headers: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
-    /// Stores Transactions by refs.
+    /// Stores Transactions by refs
     transactions: DBMap<(Round, AuthorityIndex, BlockHeaderDigest), Bytes>,
     /// A secondary index that orders refs first by authors.
     digests_by_authorities: DBMap<(AuthorityIndex, Round, BlockHeaderDigest), ()>,
@@ -272,16 +272,35 @@ impl Store for RocksDBStore {
             .iter()
             .map(|r| (r.round, r.author, r.digest))
             .collect::<Vec<_>>();
-        let serialized_transactions = self.transactions.multi_get(keys)?;
+        let serialized_vec_transactions = self.transactions.multi_get(keys.clone())?;
+        // read headers to collect commitment
+        // TODO::optimize it later by storing commitment separately or together with
+        // transactions
+        let serialized_block_headers = self.block_headers.multi_get(keys)?;
         let mut result = Vec::with_capacity(refs.len());
-        for (i, serialized) in serialized_transactions.into_iter().enumerate() {
-            if let Some(bytes) = serialized {
-                let transactions: Vec<Transaction> =
-                    bcs::from_bytes(&bytes).map_err(ConsensusError::MalformedTransactions)?;
-                let commitment = TransactionsCommitment::compute_transactions_commitment(&bytes)
-                    .expect("computation of the transactions commitment should not fail");
-                let verified = VerifiedTransactions::new(transactions, refs[i], commitment, bytes);
-                result.push(Some(verified));
+        for ((block_ref, serialized_block_header), serialized_transactions) in refs
+            .iter()
+            .zip(serialized_block_headers)
+            .zip(serialized_vec_transactions)
+        {
+            if let (Some(serialized_block_header), Some(serialized_transactions)) =
+                (serialized_block_header, serialized_transactions)
+            {
+                let signed_block_header: SignedBlockHeader =
+                    bcs::from_bytes(&serialized_block_header)
+                        .map_err(ConsensusError::MalformedHeader)?;
+                let transactions: Vec<Transaction> = bcs::from_bytes(&serialized_transactions)
+                    .map_err(ConsensusError::MalformedTransactions)?;
+
+                // We don't check the transactions commitment as it's loaded from storage.
+                let verified_transactions = VerifiedTransactions::new(
+                    transactions,
+                    *block_ref,
+                    signed_block_header.transactions_commitment(),
+                    serialized_transactions,
+                );
+
+                result.push(Some(verified_transactions));
             } else {
                 result.push(None);
             }
