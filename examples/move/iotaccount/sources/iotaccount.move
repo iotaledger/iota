@@ -4,7 +4,6 @@
 module iotaccount::iotaccount;
 
 use iota::account::{Self, AuthenticatorInfoV1};
-use iota::bcs;
 use iota::dynamic_field;
 
 // === Imports ===
@@ -13,9 +12,6 @@ use iota::dynamic_field;
 
 #[error(code = 0)]
 const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be signed by the account.";
-#[error(code = 1)]
-const EAuthenticatorDynamicFieldNameCannotBeUsed: vector<u8> =
-    b"The authenticator dynamic field system name cannot be used as a name for user-defined dynamic fields.";
 
 // === Constants ===
 
@@ -118,8 +114,6 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
 
-    ensure_authenticator_not_modified(&name);
-
     // Remove a new field and return it.
     dynamic_field::remove(&mut self.id, name)
 }
@@ -135,8 +129,6 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
 ): &mut Value {
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
-
-    ensure_authenticator_not_modified(&name);
 
     // Borrow the related dynamic field.
     dynamic_field::borrow_mut(&mut self.id, name)
@@ -193,15 +185,5 @@ public fun ensure_tx_sender_is_account(self: &IOTAccount, ctx: &TxContext) {
 // === Public-Package Functions ===
 
 // === Private Functions ===
-
-/// Checks if `name` does not equal `account::authenticator_df_name()`.
-fun ensure_authenticator_not_modified<Name: copy + drop + store>(name: &Name) {
-    // Check that `name` is not equal to `account::authenticator_df_name()`.
-    assert!(
-        (std::type_name::get<Name>() != std::type_name::get<vector<u8>>()) ||
-        (bcs::to_bytes(name) != bcs::to_bytes(&account::authenticator_df_name())),
-        EAuthenticatorDynamicFieldNameCannotBeUsed,
-    );
-}
 
 // === Test Functions ===

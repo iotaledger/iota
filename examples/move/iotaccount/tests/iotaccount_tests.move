@@ -82,19 +82,6 @@ fun account_can_modify_regular_dynamic_fields() {
     })
 }
 
-#[test]
-#[expected_failure(abort_code = iotaccount::EAuthenticatorDynamicFieldNameCannotBeUsed)]
-fun account_cant_modify_reserved_dynamic_fields() {
-    account_sender!(|scenario| {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
-
-        let _: &mut u8 = account.borrow_field_mut(account::authenticator_df_name(), ctx);
-
-        test_scenario::return_shared(account);
-    })
-}
-
 // --------------------------------------- Remove Dynamic Field ---------------------------------------
 
 #[test]
@@ -104,19 +91,6 @@ fun account_can_remove_regular_dynamic_fields() {
         let ctx = test_scenario::ctx(scenario);
 
         account.remove_field<_, u8>(b"SomeData".to_ascii_string(), ctx);
-
-        test_scenario::return_shared(account);
-    })
-}
-
-#[test]
-#[expected_failure(abort_code = iotaccount::EAuthenticatorDynamicFieldNameCannotBeUsed)]
-fun account_cant_remove_reserved_dynamic_fields() {
-    account_sender!(|scenario| {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
-
-        account.remove_field<_, u8>(account::authenticator_df_name(), ctx);
 
         test_scenario::return_shared(account);
     })
