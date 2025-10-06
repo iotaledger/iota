@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use async_graphql::{Context, Subscription};
+use async_graphql::{Context, OutputType, SimpleObject, Subscription, Union};
 use futures::{Stream, StreamExt, future};
 use iota_indexer::{
     indexer_reader::IndexerReader,
@@ -24,6 +24,30 @@ use crate::{
 
 mod filter;
 
+/// Notifies that the subscription consumer has fallen behind the live
+/// subscription stream and missed one or more payloads.
+#[derive(SimpleObject, Clone)]
+pub(crate) struct Lagged {
+    /// Number of missed payloads since the previous emitted one.
+    count: u64,
+}
+
+/// Possible responses from a subscription.
+///
+/// It could be one of the following:
+/// - A successful payload from the subscription stream.
+/// - A notice that the subscription has been lagged behind the network with the
+///   number of lost payloads.
+#[derive(Union, Clone)]
+#[graphql(concrete(name = "EventSubscriptionPayload", params(Event)))]
+#[graphql(concrete(name = "TransactionBlockSubscriptionPayload", params(TransactionBlock)))]
+pub(crate) enum SubscriptionItem<T: OutputType> {
+    /// Successfully received payload from the subscription stream.
+    Payload(T),
+    /// A notice that the subscription has been lagged behind the network.
+    Lagged(Lagged),
+}
+
 /// Subscribe to events and transactions from the IOTA network.
 pub struct Subscription;
 
@@ -36,7 +60,7 @@ impl Subscription {
         &self,
         ctx: &Context<'_>,
         filter: Option<SubscriptionTransactionFilter>,
-    ) -> impl Stream<Item = Result<TransactionBlock, Error>> {
+    ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> {
         let streams = ctx.data_unchecked::<GraphQLStream>().clone();
         streams.subscribe_transactions(filter.map(Into::<StreamTransactionFilter>::into))
     }
@@ -48,7 +72,7 @@ impl Subscription {
         &self,
         ctx: &Context<'_>,
         filter: Option<SubscriptionEventFilter>,
-    ) -> impl Stream<Item = Result<Event, Error>> {
+    ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> {
         let streams = ctx.data_unchecked::<GraphQLStream>().clone();
         streams.subscribe_events(filter.map(Into::<StreamEventFilter>::into))
     }
@@ -92,7 +116,7 @@ impl GraphQLStream {
     pub(crate) fn subscribe_transactions(
         &self,
         filter: Option<StreamTransactionFilter>,
-    ) -> impl Stream<Item = Result<TransactionBlock, Error>> {
+    ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> {
         self.streamer
             .subscribe_transactions()
             // - Some(Some(item)): Yield the item and continue the stream.
@@ -104,10 +128,14 @@ impl GraphQLStream {
                     return future::ready(None);
                 }
 
-                let Ok(stored) = stored.inspect_err(|BroadcastStreamRecvError::Lagged(count)| {
-                    warn!("subscriber lagging by {count} messages")
-                }) else {
-                    return future::ready(Some(None));
+                let stored = match stored {
+                    Ok(stored) => stored,
+                    Err(BroadcastStreamRecvError::Lagged(count)) => {
+                        warn!("subscriber lagging by {count} messages");
+                        return future::ready(Some(Some(Ok(SubscriptionItem::Lagged(Lagged {
+                            count,
+                        })))));
+                    }
                 };
 
                 if !Self::matches_filter(filter.as_ref(), &stored) {
@@ -121,7 +149,7 @@ impl GraphQLStream {
                             inner,
                             checkpoint_viewed_at,
                         };
-                        future::ready(Some(Some(Ok(tx))))
+                        future::ready(Some(Some(Ok(SubscriptionItem::Payload(tx)))))
                     }
                     Err(e) => {
                         *should_terminate_stream = true;
@@ -136,7 +164,7 @@ impl GraphQLStream {
     pub(crate) fn subscribe_events(
         &self,
         filter: Option<StreamEventFilter>,
-    ) -> impl Stream<Item = Result<Event, Error>> {
+    ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> {
         self.streamer
             .subscribe_events()
             // - Some(Some(item)): Yield the item and continue the stream.
@@ -148,10 +176,14 @@ impl GraphQLStream {
                     return future::ready(None);
                 }
 
-                let Ok(stored) = stored.inspect_err(|BroadcastStreamRecvError::Lagged(count)| {
-                    warn!("subscriber lagging by {count} messages")
-                }) else {
-                    return future::ready(Some(None));
+                let stored = match stored {
+                    Ok(stored) => stored,
+                    Err(BroadcastStreamRecvError::Lagged(count)) => {
+                        warn!("subscriber lagging by {count} messages");
+                        return future::ready(Some(Some(Ok(SubscriptionItem::Lagged(Lagged {
+                            count,
+                        })))));
+                    }
                 };
 
                 if !Self::matches_filter(filter.as_ref(), &stored) {
@@ -159,7 +191,7 @@ impl GraphQLStream {
                 }
 
                 match Event::try_from_stored_event(stored, 0) {
-                    Ok(ev) => future::ready(Some(Some(Ok(ev)))),
+                    Ok(ev) => future::ready(Some(Some(Ok(SubscriptionItem::Payload(ev))))),
                     Err(e) => {
                         *should_terminate_stream = true;
                         future::ready(Some(Some(Err(e))))

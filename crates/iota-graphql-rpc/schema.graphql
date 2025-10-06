@@ -1380,6 +1380,16 @@ input EventFilter {
 }
 
 """
+Possible responses from a subscription.
+
+It could be one of the following:
+- A successful payload from the subscription stream.
+- A notice that the subscription has been lagged behind the network with the
+number of lost payloads.
+"""
+union EventSubscriptionPayload = Event | Lagged
+
+"""
 The result of an execution, including errors that occurred during said
 execution.
 """
@@ -1694,6 +1704,17 @@ scalar IotaAddress
 Arbitrary JSON data.
 """
 scalar JSON
+
+"""
+Notifies that the subscription consumer has fallen behind the live
+subscription stream and missed one or more payloads.
+"""
+type Lagged {
+	"""
+	Number of missed payloads since the previous emitted one.
+	"""
+	count: Int!
+}
 
 """
 Information used by a package to link to a specific version of its
@@ -4285,13 +4306,13 @@ type Subscription {
 	
 	If no filter is provided, all transactions will be returned.
 	"""
-	transactions(filter: SubscriptionTransactionFilter): TransactionBlock!
+	transactions(filter: SubscriptionTransactionFilter): TransactionBlockSubscriptionPayload!
 	"""
 	Subscribe to incoming events from the IOTA network.
 	
 	If no filter is provided, all events will be returned.
 	"""
-	events(filter: SubscriptionEventFilter): Event!
+	events(filter: SubscriptionEventFilter): EventSubscriptionPayload!
 }
 
 """
@@ -4300,6 +4321,9 @@ Filter incoming events in a subscription.
 input SubscriptionEventFilter @oneOf {
 	"""
 	Filter incoming events by emitting module.
+	
+	- Filter by package: "0x02"
+	- Filter by module: "0x02::coin"
 	"""
 	emittingModule: String
 }
@@ -4318,6 +4342,10 @@ input SubscriptionTransactionFilter @oneOf {
 	signingAddress: IotaAddress
 	"""
 	Filter incoming transactions by package, module, or function name.
+	
+	- Filter by package: "0x03"
+	- Filter by module: "0x03::iota_system"
+	- Filter by function: "0x03::iota_system::request_add_stake"
 	"""
 	function: String
 }
@@ -4573,6 +4601,16 @@ enum TransactionBlockKindInput {
 	"""
 	END_OF_EPOCH_TX
 }
+
+"""
+Possible responses from a subscription.
+
+It could be one of the following:
+- A successful payload from the subscription stream.
+- A notice that the subscription has been lagged behind the network with the
+number of lost payloads.
+"""
+union TransactionBlockSubscriptionPayload = TransactionBlock | Lagged
 
 union TransactionInput = OwnedOrImmutable | SharedInput | Receiving | Pure
 
