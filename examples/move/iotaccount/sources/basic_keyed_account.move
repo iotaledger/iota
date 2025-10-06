@@ -137,8 +137,3 @@ public fun borrow_public_key(account: &IOTAccount): &vector<u8> {
 // === Private Functions ===
 
 // === Test Functions ===
-
-#[test_only]
-public fun create_owner_public_key_for_testing(): OwnerPublicKey {
-    OwnerPublicKey {}
-}

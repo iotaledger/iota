@@ -10,7 +10,7 @@ use iota::ecdsa_k1;
 use iota::hex;
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
-use iotaccount::basic_keyed_account::{Self, create_owner_public_key_for_testing};
+use iotaccount::basic_keyed_account::{Self, borrow_public_key};
 use iotaccount::iotaccount::{Self, IOTAccount};
 use iotaccount::test_utils::create_authenticator_info_v1_for_testing;
 
@@ -39,9 +39,7 @@ fun account_created() {
             &create_authenticator_info_v1_for_testing(),
         );
 
-        let owner_public_key = create_owner_public_key_for_testing();
-        assert!(account.has_field(owner_public_key));
-        assert_eq(*account.borrow_field(owner_public_key), public_key);
+        assert_eq(*borrow_public_key(&account), public_key);
 
         test_scenario::return_shared(account);
     };

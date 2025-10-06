@@ -7,7 +7,6 @@ module iotaccount::test_utils;
 use iota::account;
 use iotaccount::iotaccount::{builder, share};
 
-#[test_only]
 public fun create_iotaccount_for_testing(scenario: &mut iota::test_scenario::Scenario): address {
     let ctx = iota::test_scenario::ctx(scenario);
 
@@ -23,7 +22,6 @@ public fun create_iotaccount_for_testing(scenario: &mut iota::test_scenario::Sce
     account_address
 }
 
-#[test_only]
 public fun create_authenticator_info_v1_for_testing(): account::AuthenticatorInfoV1 {
     // The exact values don't matter in these tests.
     account::create_auth_info_v1_for_testing(
