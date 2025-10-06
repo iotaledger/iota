@@ -29,11 +29,7 @@ fun test_account_creation() {
     {
         let account = scenario.take_shared<IOTAccount>();
 
-        let public_key_df_name = iota_account::create_owner_public_key_for_testing();
-
-        assert!(account.has_field(public_key_df_name));
-        assert_ref_eq(account.borrow_field(public_key_df_name), &public_key_for_testing());
-
+        assert_ref_eq(account.borrow_public_key(), &public_key_for_testing());
         assert_ref_eq(account.borrow_auth_info_v1(), &create_authenticator_info_v1_for_testing());
 
         test_scenario::return_shared(account);
@@ -60,11 +56,7 @@ fun test_rotate_account_public_key() {
 
         account.rotate_public_key(public_key, authenticator, ctx);
 
-        let public_key_df_name = iota_account::create_owner_public_key_for_testing();
-
-        assert!(account.has_field(public_key_df_name));
-        assert_ref_eq(account.borrow_field(public_key_df_name), &public_key);
-
+        assert_ref_eq(account.borrow_public_key(), &public_key);
         assert_ref_eq(account.borrow_auth_info_v1(), &authenticator);
 
         test_scenario::return_shared(account);
@@ -146,26 +138,6 @@ fun test_add_user_defined_dynamic_field_wrong_sender() {
     test_scenario::end(scenario_val);
 }
 
-#[test]
-#[expected_failure(abort_code = iota_account::EOwnerPublicKeyCannotBeUsed)]
-fun test_add_user_defined_dynamic_field_owner_public_key() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
-
-        account.add_field(iota_account::create_owner_public_key_for_testing(), 42, ctx);
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
 // --------------------------------------- Remove Dynamic Field ---------------------------------------
 
 #[test]
@@ -182,26 +154,6 @@ fun test_remove_user_defined_dynamic_field_wrong_sender() {
         let ctx = test_scenario::ctx(scenario);
 
         account.remove_field<_, u64>(42, ctx);
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-#[expected_failure(abort_code = iota_account::EOwnerPublicKeyCannotBeUsed)]
-fun test_remove_user_defined_dynamic_field_owner_public_key() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
-
-        account.remove_field<_, vector<u64>>(iota_account::create_owner_public_key_for_testing(), ctx);
 
         test_scenario::return_shared(account);
     };
@@ -235,24 +187,6 @@ fun test_borrow_user_defined_dynamic_field_wrong_sender() {
         let account = scenario.take_shared<IOTAccount>();
 
         assert_ref_eq(account.borrow_field(name), &value);
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-fun test_borrow_user_defined_dynamic_field_owner_public_key() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
-        let account = scenario.take_shared<IOTAccount>();
-
-        assert_ref_eq(account.borrow_field(iota_account::create_owner_public_key_for_testing()), &public_key_for_testing());
 
         test_scenario::return_shared(account);
     };
@@ -295,26 +229,6 @@ fun test_borrow_mut_user_defined_dynamic_field_wrong_sender() {
     test_scenario::end(scenario_val);
 }
 
-#[test]
-#[expected_failure(abort_code = iota_account::EOwnerPublicKeyCannotBeUsed)]
-fun test_borrow_mut_user_defined_dynamic_field_owner_public_key() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = test_scenario::ctx(scenario);
-
-        account.borrow_field_mut<_, vector<u64>>(iota_account::create_owner_public_key_for_testing(), ctx);
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
 // --------------------------------------- Has Dynamic Field ---------------------------------------
 
 #[test]
@@ -341,24 +255,6 @@ fun test_has_user_defined_dynamic_field_wrong_sender() {
         let account = scenario.take_shared<IOTAccount>();
 
         assert!(account.has_field(name));
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-fun test_has_user_defined_dynamic_field_owner_public_key() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let account_address = create_iotaccount_for_testing(scenario);
-
-    scenario.next_tx(account_address);
-    {
-        let account = scenario.take_shared<IOTAccount>();
-
-        assert!(account.has_field(iota_account::create_owner_public_key_for_testing()));
 
         test_scenario::return_shared(account);
     };
@@ -668,6 +564,8 @@ fun check_dynamic_field<Name: copy + drop + store, Value: store + copy + drop>(
     value: Value,
     ctx: &TxContext,
 ) {
+    assert!(!account.has_field(name));
+
     account.add_field(name, value, ctx);
 
     assert!(account.has_field(name));

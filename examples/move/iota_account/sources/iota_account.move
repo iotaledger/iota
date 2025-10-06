@@ -13,8 +13,6 @@ use iota::hex::decode;
 
 #[error(code = 0)]
 const ETransactionSenderIsNotTheAccount: vector<u8> = b"The user who signed the transaction is not the account.";
-#[error(code = 1)]
-const EOwnerPublicKeyCannotBeUsed: vector<u8> = b"The `OwnerPublicKey` type cannot be used as a name for user-defined dynamic fields.";
 
 #[error(code = 10)]
 const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verification failed.";
@@ -73,9 +71,6 @@ public fun add_field<Name: copy + drop + store, Value: store>(
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
 
-    // Check if `name` is allowed to be used.
-    check_reserved_df_name<Name>();
-
     // Add a new field.
     dynamic_field::add(&mut self.id, name, value);
 }
@@ -89,9 +84,6 @@ public fun remove_field<Name: copy + drop + store, Value: store>(
 ): Value {
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
-
-    // Check if `name` is allowed to be used.
-    check_reserved_df_name<Name>();
 
     // Remove a new field and return it.
     dynamic_field::remove(&mut self.id, name)
@@ -117,9 +109,6 @@ public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
 
-    // Check if `name` is allowed to be used.
-    check_reserved_df_name<Name>();
-
     // Borrow the related dynamic field.
     dynamic_field::borrow_mut(&mut self.id, name)
 }
@@ -134,6 +123,13 @@ public fun has_field<Name: copy + drop + store>(self: &IOTAccount, name: Name): 
 /// anybody can call it to read the account dynamic fields.
 public fun borrow_auth_info_v1(self: &IOTAccount): &AuthenticatorInfoV1 {
     account::borrow_auth_info_v1(&self.id)
+}
+
+/// Borrows a reference to the account-related public key.
+/// This function is not gated to be called only by the account,
+/// anybody can call it to read the account dynamic fields.
+public fun borrow_public_key(self: &IOTAccount): &vector<u8> {
+    dynamic_field::borrow(&self.id, OwnerPublicKey{})
 }
 
 // --------------------------------------- Authentication ---------------------------------------
@@ -217,28 +213,12 @@ public fun authenticate_secp256r1(
 
 // --------------------------------------- Utilities ---------------------------------------
 
-/// An utility function to borrow the account-related public key.
-fun borrow_public_key(self: &IOTAccount): &vector<u8> {
-    dynamic_field::borrow(&self.id, OwnerPublicKey{})
-}
-
 /// Checks that the sender of this transaction is the account.
 fun ensure_tx_sender_is_account(self: &IOTAccount, ctx: &TxContext) {
     assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
 }
 
-/// Checks if `name` is allowed to be used for a user-defined dynamic field.
-fun check_reserved_df_name<Name: copy + drop + store>() {
-    // Check that `Name` is not `OwnerPublicKey`.
-    assert!(std::type_name::get<Name>() != std::type_name::get<OwnerPublicKey>(), EOwnerPublicKeyCannotBeUsed);
-}
-
 // --------------------------------------- Test Utilities ---------------------------------------
-
-#[test_only]
-public fun create_owner_public_key_for_testing(): OwnerPublicKey {
-    OwnerPublicKey{}
-}
 
 #[test_only]
 public fun get_address(self: &IOTAccount): address {
