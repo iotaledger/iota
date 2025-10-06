@@ -5,7 +5,7 @@
 use std::{
     collections::{HashMap, HashSet, hash_map::Entry},
     sync::{Arc, RwLock},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use anemo::{
@@ -31,15 +31,10 @@ use tokio::{
 };
 use tracing::{debug, info, trace};
 
-const TIMEOUT: Duration = Duration::from_secs(1);
 const ONE_DAY_MILLISECONDS: u64 = 24 * 60 * 60 * 1_000;
 const MAX_ADDRESS_LENGTH: usize = 300;
 const MAX_PEERS_TO_SEND: usize = 200;
 const MAX_ADDRESSES_PER_PEER: usize = 2;
-const ADDRESS_VERIFICATION_TIMEOUT: Duration = Duration::from_secs(3);
-const ADDRESS_VERIFICATION_TOTAL_TIMEOUT: Duration = Duration::from_secs(8); // Overall timeout for verify_address_ownership to prevent DoS attacks
-const ADDRESS_VERIFICATION_FAILURE_COOLDOWN: Duration = Duration::from_secs(10 * 60); // 10 minutes cooldown
-const COOLDOWN_CLEANUP_INTERVAL: Duration = Duration::from_secs(5 * 60); // Clean up cooldown list every 5 minutes
 
 // Includes the generated Discovery code from the OUT_DIR
 mod generated {
@@ -350,6 +345,7 @@ impl DiscoveryEventLoop {
                         self.state.clone(),
                         self.metrics.clone(),
                         self.allowlisted_peers.clone(),
+                        self.discovery_config.clone(),
                     ));
                 }
             }
@@ -465,7 +461,11 @@ impl DiscoveryEventLoop {
 /// attacks. Tries all addresses individually and returns the list of
 /// addresses that were successfully verified.
 /// This should only be used for not-yet-connected peers.
-async fn verify_address_ownership(network: &Network, peer_info: &SignedNodeInfo) -> Vec<Multiaddr> {
+async fn verify_address_ownership(
+    network: &Network,
+    peer_info: &SignedNodeInfo,
+    config: &DiscoveryConfig,
+) -> Vec<Multiaddr> {
     // Try each address individually and collect the ones that work
     let verification_futures: Vec<_> = peer_info
         .addresses
@@ -478,7 +478,7 @@ async fn verify_address_ownership(network: &Network, peer_info: &SignedNodeInfo)
                 if let Ok(anemo_address) = address.to_anemo_address() {
                     // Try to connect to the claimed address with the claimed peer_id
                     match tokio::time::timeout(
-                        ADDRESS_VERIFICATION_TIMEOUT,
+                        config.address_verification_timeout(),
                         network.connect_with_peer_id(anemo_address, peer_id),
                     )
                     .await
@@ -615,10 +615,11 @@ async fn query_peer_for_their_known_peers(
     state: Arc<RwLock<State>>,
     metrics: Metrics,
     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
+    config: Arc<DiscoveryConfig>,
 ) {
     let mut client = DiscoveryClient::new(peer);
 
-    let request = Request::new(()).with_timeout(TIMEOUT);
+    let request = Request::new(()).with_timeout(config.peer_query_timeout());
     let found_peers = client
         .get_known_peers_v2(request)
         .await
@@ -650,6 +651,7 @@ async fn query_peer_for_their_known_peers(
             metrics,
             deduplicate_peers(limited_peers),
             allowlisted_peers,
+            &config,
         )
         .await;
     }
@@ -672,12 +674,14 @@ async fn query_connected_peers_for_their_known_peers(
         .flat_map(|id| network.peer(id))
         .choose_multiple(&mut rand::thread_rng(), config.peers_to_query());
 
+    let peer_query_timeout = config.peer_query_timeout();
+
     // Queries the selected neighbors for their known peers in parallel.
     let found_peers = peers_to_query
         .into_iter()
         .map(DiscoveryClient::new)
         .map(|mut client| async move {
-            let request = Request::new(()).with_timeout(TIMEOUT);
+            let request = Request::new(()).with_timeout(peer_query_timeout);
             client
                 .get_known_peers_v2(request)
                 .await
@@ -713,15 +717,25 @@ async fn query_connected_peers_for_their_known_peers(
         metrics,
         deduplicate_peers(found_peers),
         allowlisted_peers,
+        &config,
     )
     .await;
 }
 
 /// Cleans up old entries from the verification failure cooldown list
-fn cleanup_verification_failure_cooldown(state: &Arc<RwLock<State>>, now_instant: Instant) {
+fn cleanup_verification_failure_cooldown(
+    state: &Arc<RwLock<State>>,
+    now_instant: Instant,
+    config: &DiscoveryConfig,
+) {
+    // Skip cleanup if cooldown is disabled
+    if !config.is_address_verification_cooldown_enabled() {
+        return;
+    }
+
     // Only run cleanup if enough time has passed since the last cleanup
     if now_instant.duration_since(state.read().unwrap().last_cooldown_cleanup)
-        < COOLDOWN_CLEANUP_INTERVAL
+        < config.cooldown_cleanup_interval()
     {
         return;
     }
@@ -731,11 +745,11 @@ fn cleanup_verification_failure_cooldown(state: &Arc<RwLock<State>>, now_instant
 
     // Remove entries that have exceeded the cooldown period
     let initial_size = state_guard.address_verification_cooldown.len();
+    let cooldown_duration = config.address_verification_failure_cooldown();
     state_guard
         .address_verification_cooldown
         .retain(|peer_id, &mut failure_instant| {
-            let should_retain =
-                now_instant.duration_since(failure_instant) < ADDRESS_VERIFICATION_FAILURE_COOLDOWN;
+            let should_retain = now_instant.duration_since(failure_instant) < cooldown_duration;
             if !should_retain {
                 debug!(
                     "Removing peer {} from verification failure cooldown",
@@ -759,6 +773,7 @@ fn verify_peer_infos(
     found_peers: Vec<Envelope<NodeInfo, Ed25519Signature>>,
     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
     now_instant: Instant,
+    config: &DiscoveryConfig,
 ) -> Vec<VerifiedSignedNodeInfo> {
     let now_unix = now_unix();
 
@@ -771,20 +786,26 @@ fn verify_peer_infos(
         let filtered_peers: Vec<_> = found_peers
             .into_iter()
             .filter(|peer_info| {
+                // Skip cooldown check if it's disabled
+                if !config.is_address_verification_cooldown_enabled() {
+                    return true;
+                }
+
                 // Check if this peer is in the address verification cooldown.
                 // Even if the signature is not checked yet, it would be pointless to verify if
                 // that peer_id is marked for cooldown.
                 match state_guard.address_verification_cooldown.get(&peer_info.peer_id) {
                     Some(&failure_instant) => {
                         let time_since_failure = now_instant.duration_since(failure_instant);
-                        if time_since_failure >= ADDRESS_VERIFICATION_FAILURE_COOLDOWN {
+                        let cooldown_duration = config.address_verification_failure_cooldown();
+                        if time_since_failure >= cooldown_duration {
                             true // Cooldown expired
                         } else {
                             debug!(
                                 "Peer {} is in verification failure cooldown (failed {:.1}s ago, cooldown: {:.1}s)",
                                 peer_info.peer_id,
                                 time_since_failure.as_secs_f32(),
-                                ADDRESS_VERIFICATION_FAILURE_COOLDOWN.as_secs_f32()
+                                cooldown_duration.as_secs_f32()
                             );
                             false // Still in cooldown
                         }
@@ -877,10 +898,11 @@ fn verify_peer_infos(
 /// - A list of peers along with their successfully verified addresses
 /// - A list of peer IDs that failed verification (to be added to cooldown)
 ///
-/// Times out after ADDRESS_VERIFICATION_TOTAL_TIMEOUT to prevent DOS attacks.
+/// Times out after the configured total timeout to prevent DOS attacks.
 async fn verify_addresses_of_peers(
     network: &Network,
     peers: Vec<VerifiedEnvelope<NodeInfo, Ed25519Signature>>,
+    config: &DiscoveryConfig,
 ) -> (
     Vec<(VerifiedEnvelope<NodeInfo, Ed25519Signature>, Vec<Multiaddr>)>,
     Vec<PeerId>,
@@ -889,16 +911,17 @@ async fn verify_addresses_of_peers(
     let verification_stream = futures::stream::iter(peers.into_iter().map(|verified_peer_info| {
         let network = network.clone();
         async move {
-            let valid_addresses = verify_address_ownership(&network, &verified_peer_info).await;
+            let valid_addresses =
+                verify_address_ownership(&network, &verified_peer_info, config).await;
             (verified_peer_info, valid_addresses)
         }
     }))
-    .buffer_unordered(10); // Limit concurrent verifications to avoid overwhelming the network
+    .buffer_unordered(config.max_concurrent_address_verifications()); // Limit concurrent verifications to avoid overwhelming the network
 
     let mut address_verification_results = Vec::with_capacity(peers_count);
     let mut verification_stream = std::pin::Pin::new(Box::new(verification_stream));
 
-    match tokio::time::timeout(ADDRESS_VERIFICATION_TOTAL_TIMEOUT, async {
+    match tokio::time::timeout(config.address_verification_total_timeout(), async {
         while let Some(result) = verification_stream.next().await {
             address_verification_results.push(result);
         }
@@ -914,7 +937,7 @@ async fn verify_addresses_of_peers(
         Err(_) => {
             debug!(
                 "Address verification timed out after {}s, but collected {} partial results out of {} peers",
-                ADDRESS_VERIFICATION_TOTAL_TIMEOUT.as_secs(),
+                config.address_verification_total_timeout().as_secs(),
                 address_verification_results.len(),
                 peers_count
             );
@@ -952,16 +975,22 @@ async fn update_known_peers(
     metrics: Metrics,
     found_peers: Vec<SignedNodeInfo>,
     allowlisted_peers: Arc<HashMap<PeerId, Option<Multiaddr>>>,
+    config: &DiscoveryConfig,
 ) {
     let now_instant = Instant::now();
 
     // Clean up old entries from the verification failure cooldown
-    cleanup_verification_failure_cooldown(&state, now_instant);
+    cleanup_verification_failure_cooldown(&state, now_instant, config);
 
     // Verify all peer infos and filter out invalid ones, filter by latest timestamp
     // per peer_id. This does not verify address ownership yet.
-    let verified_peer_infos =
-        verify_peer_infos(&state, found_peers, allowlisted_peers.clone(), now_instant);
+    let verified_peer_infos = verify_peer_infos(
+        &state,
+        found_peers,
+        allowlisted_peers.clone(),
+        now_instant,
+        config,
+    );
 
     if verified_peer_infos.is_empty() {
         // No verified peers to process, we're done
@@ -1024,7 +1053,7 @@ async fn update_known_peers(
 
     // Verify addresses for peers that need verification
     let (mut verified_peers, failed_peer_ids) = match peers_with_addresses_to_verify.is_empty() {
-        false => verify_addresses_of_peers(network, peers_with_addresses_to_verify).await,
+        false => verify_addresses_of_peers(network, peers_with_addresses_to_verify, config).await,
         true => Default::default(),
     };
 
@@ -1066,16 +1095,18 @@ async fn update_known_peers(
         // acquisition.
         let mut state_guard = state.write().unwrap();
 
-        // Add all failed peers to verification failure cooldown
-        for peer_id in failed_peer_ids {
-            state_guard
-                .address_verification_cooldown
-                .insert(peer_id, now_instant);
-            debug!(
-                "Added peer {} to verification failure cooldown for {:.1}s",
-                peer_id,
-                ADDRESS_VERIFICATION_FAILURE_COOLDOWN.as_secs_f32()
-            );
+        // Add all failed peers to verification failure cooldown (if enabled)
+        if config.is_address_verification_cooldown_enabled() {
+            for peer_id in failed_peer_ids {
+                state_guard
+                    .address_verification_cooldown
+                    .insert(peer_id, now_instant);
+                debug!(
+                    "Added peer {} to verification failure cooldown for {:.1}s",
+                    peer_id,
+                    config.address_verification_failure_cooldown().as_secs_f32()
+                );
+            }
         }
 
         // First insert/update the peers that didn't need verification

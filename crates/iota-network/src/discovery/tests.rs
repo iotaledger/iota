@@ -262,12 +262,14 @@ async fn update_peers_for_test(
     state: Arc<RwLock<State>>,
     peers: Vec<SignedNodeInfo>,
 ) {
+    let config = DiscoveryConfig::default();
     update_known_peers(
         network,
         state,
         Metrics::disabled(),
         peers,
         Arc::new(HashMap::new()),
+        &config,
     )
     .await;
 }
