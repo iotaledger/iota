@@ -279,13 +279,21 @@ async fn read_and_contain_transactions(
         VerifiedBlock::new_for_test(TestBlockHeader::new(11, 3).build()),
         VerifiedBlock::new_for_test(TestBlockHeader::new(12, 1).build()),
     ];
-
+    // Write transactions to store
     let written_transactions: Vec<_> = written_blocks
         .iter()
         .map(|b| b.verified_transactions.clone())
         .collect();
     store
         .write(WriteBatch::default().transactions(written_transactions))
+        .unwrap();
+    // Also write headers since we read transaction commitment from headers now
+    let written_headers = written_blocks
+        .iter()
+        .map(|b| b.verified_block_header.clone())
+        .collect();
+    store
+        .write(WriteBatch::default().block_headers(written_headers))
         .unwrap();
 
     // Test reading all transactions

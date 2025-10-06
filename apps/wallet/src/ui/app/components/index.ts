@@ -31,3 +31,4 @@ export * from './transactions-card';
 export * from './user-approve-container';
 export * from './filters-tags';
 export * from './MovedAssetNotification';
+export * from './AccountList';

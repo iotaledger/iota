@@ -2405,6 +2405,7 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn get_new_jwks(&self, round: u64) -> IotaResult<Vec<ActiveJwk>> {
         self.consensus_quarantine.read().get_new_jwks(self, round)
     }

@@ -6,11 +6,15 @@
 mod tests {
     use std::{sync::Arc, time::Duration};
 
-    use fastcrypto::encoding::{Base64, Encoding};
+    use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
+    use fastcrypto::encoding::{Base58, Base64, Encoding};
     use iota_graphql_rpc::{
         client::{ClientError, simple_client::GraphqlQueryVariable},
         config::ConnectionConfig,
         test_infra::cluster::{DEFAULT_INTERNAL_DATA_SOURCE_PORT, ExecutorCluster},
+    };
+    use iota_indexer::{
+        run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
     use iota_types::{
         IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_ADDRESS,
@@ -406,6 +410,24 @@ mod tests {
             .as_str()
             .unwrap();
         assert_eq!(sender_read, sender.to_string());
+
+        // Check that optimistic indexing happened
+        let digest_bytes = Base58::decode(digest).unwrap();
+        let pool = cluster.indexer_store.blocking_cp();
+
+        let count: i64 = run_query_async!(&pool, move |conn| {
+            optimistic_transactions::table
+                .filter(optimistic_transactions::transaction_digest.eq(&digest_bytes))
+                .count()
+                .get_result(conn)
+        })
+        .unwrap();
+
+        assert_eq!(
+            count, 1,
+            "Transaction should be present in optimistic_transactions table"
+        );
+
         cluster.cleanup_resources().await
     }
 
@@ -849,11 +871,25 @@ mod tests {
         cluster
             .wait_for_checkpoint_catchup(0, Duration::from_secs(10))
             .await;
-        // timeout test includes mutation timeout, which requires a [IotaClient] to be
-        // able to run the test, and a transaction. [WalletContext] gives access
-        // to everything that's needed.
+        // timeout test includes mutation timeout, which requires an
+        // [OptimisticTransactionExecutor] to be able to run the test, and a
+        // transaction. [WalletContext] gives access to all other components that are
+        // needed.
         let wallet = &cluster.validator_fullnode_handle.wallet;
-        test_timeout_impl(wallet).await;
+        let store = &cluster.indexer_store;
+        let fn_rpc_url = &cluster.validator_fullnode_handle.fullnode_handle.rpc_url;
+        let indexer_metrics = store.get_metrics();
+        let indexer_reader = iota_indexer::indexer_reader::IndexerReader::new(store.blocking_cp());
+
+        let optimistic_tx_executor =
+            iota_indexer::optimistic_indexing::OptimisticTransactionExecutor::new(
+                fn_rpc_url,
+                indexer_reader,
+                store.clone(),
+                indexer_metrics,
+            );
+
+        test_timeout_impl(wallet, &optimistic_tx_executor).await;
         cluster.cleanup_resources().await
     }
 

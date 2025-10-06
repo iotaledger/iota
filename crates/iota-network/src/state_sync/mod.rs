@@ -549,7 +549,7 @@ where
     }
 
     // Handle a checkpoint that we received from consensus
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", name = "checkpoint_received_from_consensus", skip_all)]
     fn handle_checkpoint_from_consensus(&mut self, checkpoint: Box<VerifiedCheckpoint>) {
         // Always check previous_digest matches in case there is a gap between
         // state sync and consensus.
@@ -565,10 +565,17 @@ where
             );
         }
 
-        let latest_checkpoint = self
-            .store
-            .try_get_highest_verified_checkpoint()
-            .expect("store operation should not fail");
+        let latest_checkpoint = {
+            let _span = tracing::trace_span!(
+                "try_get_highest_verified_checkpoint",
+                sequence_number = checkpoint.sequence_number(),
+            )
+            .entered();
+
+            self.store
+                .try_get_highest_verified_checkpoint()
+                .expect("store operation should not fail")
+        };
 
         // If this is an older checkpoint, just ignore it
         if latest_checkpoint.sequence_number() >= checkpoint.sequence_number() {
@@ -619,6 +626,12 @@ where
             ..
         }) = checkpoint.end_of_epoch_data.as_ref()
         {
+            let _span = tracing::trace_span!(
+                "store_next_committee",
+                sequence_number = checkpoint.sequence_number(),
+            )
+            .entered();
+
             let next_committee = next_epoch_committee.iter().cloned().collect();
             let committee =
                 Committee::new(checkpoint.epoch().checked_add(1).unwrap(), next_committee);
@@ -627,12 +640,20 @@ where
                 .expect("store operation should not fail");
         }
 
-        self.store
-            .try_update_highest_verified_checkpoint(&checkpoint)
-            .expect("store operation should not fail");
-        self.store
-            .try_update_highest_synced_checkpoint(&checkpoint)
-            .expect("store operation should not fail");
+        {
+            let _span = tracing::trace_span!(
+                "try_update_synced_verified_checkpoint",
+                sequence_number = checkpoint.sequence_number(),
+            )
+            .entered();
+
+            self.store
+                .try_update_highest_verified_checkpoint(&checkpoint)
+                .expect("store operation should not fail");
+            self.store
+                .try_update_highest_synced_checkpoint(&checkpoint)
+                .expect("store operation should not fail");
+        }
 
         // We don't care if no one is listening as this is a broadcast channel
         let _ = self.checkpoint_event_sender.send(checkpoint.clone());
@@ -1153,6 +1174,13 @@ where
         current = checkpoint.clone();
         // Insert the newly verified checkpoint into our store, which will bump our
         // highest verified checkpoint watermark as well.
+        let _span = tracing::trace_span!(
+            "checkpoint_received_from_state_sync",
+            id = %checkpoint.digest(),
+            checkpoint_seq = %checkpoint.sequence_number(),
+            epoch = %checkpoint.epoch()
+        )
+        .entered();
         store
             .try_insert_checkpoint(&checkpoint)
             .expect("store operation should not fail");
