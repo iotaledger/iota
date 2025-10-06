@@ -46,9 +46,9 @@ import { ReceiveTokensDialog } from './ReceiveTokensDialog';
 import { OverviewHint } from './OverviewHint';
 import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
 import { MigrationDialog } from './MigrationDialog';
-import { handleOpenInANewTab } from '_src/ui/app/helpers/handleOpenInANewTab';
 import { NEW_TAB_ACCOUNT_TYPES } from '_src/shared/accountTypes';
 import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
+import { openInNewTab } from '_src/shared/utils';
 
 export function TokenDetails() {
     const navigate = useNavigate();
@@ -173,7 +173,7 @@ export function TokenDetails() {
                 : '/send';
 
             if (shouldOpenNewTab) {
-                handleOpenInANewTab(destination);
+                openInNewTab(destination);
             } else {
                 navigate(destination);
             }
