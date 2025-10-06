@@ -1320,6 +1320,34 @@ impl DagState {
         votes
     }
 
+    /// Clean up old cached data for each authority, all cached blocks
+    /// are guaranteed to be persisted. Used after flushing.
+    pub(crate) fn evict_headers(&mut self) {
+        for (authority_index, _) in self.context.committee.authorities() {
+            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let recent_refs = &mut self.recent_headers_refs_by_authority[authority_index];
+
+            // Evict everything below split_key
+            let split_key =
+                BlockRef::new(eviction_round + 1, authority_index, BlockHeaderDigest::MIN);
+
+            let to_keep = recent_refs.split_off(&split_key);
+            let evicted = std::mem::replace(recent_refs, to_keep);
+
+            // Remove evicted headers from recent_block_headers
+            for block_ref in &evicted {
+                self.recent_block_headers.remove(block_ref);
+            }
+            self.evicted_rounds[authority_index] = eviction_round;
+        }
+    }
+
+    /// Clean up old shards. Used after flushing.
+    pub(crate) fn evict_shards(&mut self) {
+        self.recent_shards
+            .retain(|block_ref, _| block_ref.round > self.evicted_rounds[block_ref.author]);
+    }
+
     /// Function removes stalled transactions that are older than
     /// "last consume leader round minus MAX_TRANSACTIONS_ACK_DEPTH minus
     /// MAX_LINEARIZER_DEPTH"
@@ -1519,26 +1547,11 @@ impl DagState {
             .dag_state_store_write_count
             .inc();
 
-        // Clean up old cached data for each authority after flushing, all cached blocks
-        // are guaranteed to be persisted.
-        for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = self.calculate_authority_eviction_round(authority_index);
-            let recent_refs = &mut self.recent_headers_refs_by_authority[authority_index];
+        // Clean up old headers
+        self.evict_headers();
 
-            // Evict everything below split_key
-            let split_key =
-                BlockRef::new(eviction_round + 1, authority_index, BlockHeaderDigest::MIN);
-
-            let to_keep = recent_refs.split_off(&split_key);
-            let evicted = std::mem::replace(recent_refs, to_keep);
-
-            // Remove evicted headers from recent_block_headers
-            for block_ref in &evicted {
-                self.recent_block_headers.remove(block_ref);
-            }
-
-            self.evicted_rounds[authority_index] = eviction_round;
-        }
+        // Evict old shards
+        self.evict_shards();
 
         // Clean up old transactions depending on the last solid leader round.
         self.evict_transactions();
