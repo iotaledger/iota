@@ -4934,7 +4934,7 @@ impl AuthorityState {
 
                 if eligible_validators_weight < effective_threshold {
                     error!(
-                        "Eligible validators weight {eligible_validators_weight} is less than effective threshold {effective_threshold} (quorum: {quorum_threshold}, buffer: {buffer_stake}). \
+                        "Eligible validators weight {eligible_validators_weight} is less than effective threshold {effective_threshold}. \
                         This could indicate a bug in validator selection logic or inconsistency with protocol version decision.",
                     );
                     // Pass all active validator indices as eligible validators
