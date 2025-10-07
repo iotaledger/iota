@@ -801,8 +801,8 @@ pub fn resolve_move_function_args(
 }
 
 /// Resolve the JSON args of a function into the expected formats to make them
-/// usable by Move call. This version does not check the argument count to allow
-/// results.
+/// usable by Move call. This version only optionally checks the argument count
+/// to allow using it in combination with result arguments.
 pub fn resolve_move_function_args_inner(
     package: &MovePackage,
     module_ident: Identifier,
