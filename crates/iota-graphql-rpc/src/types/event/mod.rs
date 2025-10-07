@@ -11,7 +11,10 @@ use async_graphql::{
 use cursor::EvLookup;
 use diesel::{ExpressionMethods, QueryDsl};
 use iota_indexer::{
-    models::{events::StoredEvent, transactions::StoredTransaction},
+    models::{
+        events::StoredEvent,
+        transactions::{OptimisticTransaction, StoredTransaction},
+    },
     schema::{checkpoints, events},
 };
 use iota_types::{
@@ -243,6 +246,7 @@ impl Event {
             ))
         })?;
 
+        let with_prefix = true;
         let stored_event = StoredEvent {
             tx_sequence_number: stored_tx.tx_sequence_number,
             event_sequence_number: idx as i64,
@@ -250,11 +254,48 @@ impl Event {
             senders: vec![Some(native_event.sender.to_vec())],
             package: native_event.package_id.to_vec(),
             module: native_event.transaction_module.to_string(),
-            event_type: native_event
-                .type_
-                .to_canonical_string(/* with_prefix */ true),
+            event_type: native_event.type_.to_canonical_string(with_prefix),
             bcs: native_event.contents.clone(),
             timestamp_ms: stored_tx.timestamp_ms,
+        };
+
+        Ok(Self {
+            stored: Some(stored_event),
+            native: native_event,
+            checkpoint_viewed_at,
+        })
+    }
+
+    pub(crate) fn try_from_optimistic_transaction(
+        optimistic_tx: &OptimisticTransaction,
+        idx: usize,
+        checkpoint_viewed_at: u64,
+    ) -> Result<Self, Error> {
+        let Some(serialized_event) = &optimistic_tx.get_event_at_idx(idx) else {
+            return Err(Error::Internal(format!(
+                "Could not find event with event_sequence_number {idx} at optimistic transaction {}",
+                optimistic_tx.optimistic_sequence_number
+            )));
+        };
+
+        let native_event: NativeEvent = bcs::from_bytes(serialized_event).map_err(|_| {
+            Error::Internal(format!(
+                "Failed to deserialize event with {idx} at optimistic transaction {}",
+                optimistic_tx.optimistic_sequence_number
+            ))
+        })?;
+
+        let with_prefix = true;
+        let stored_event = StoredEvent {
+            tx_sequence_number: optimistic_tx.optimistic_sequence_number,
+            event_sequence_number: idx as i64,
+            transaction_digest: optimistic_tx.transaction_digest.clone(),
+            senders: vec![Some(native_event.sender.to_vec())],
+            package: native_event.package_id.to_vec(),
+            module: native_event.transaction_module.to_string(),
+            event_type: native_event.type_.to_canonical_string(with_prefix),
+            bcs: native_event.contents.clone(),
+            timestamp_ms: -1, // Optimistic transactions don't have timestamps yet
         };
 
         Ok(Self {
