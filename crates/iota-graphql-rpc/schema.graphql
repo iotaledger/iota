@@ -1393,6 +1393,16 @@ input EventFilter {
 }
 
 """
+Possible responses from a subscription.
+
+It could be one of the following:
+- A successful payload from the subscription stream.
+- A notice that the subscription has been lagged behind the network with the
+number of lost payloads.
+"""
+union EventSubscriptionPayload = Event | Lagged
+
+"""
 The result of an execution, including errors that occurred during said
 execution.
 """
@@ -1716,6 +1726,17 @@ scalar IotaAddress
 Arbitrary JSON data.
 """
 scalar JSON
+
+"""
+Notifies that the subscription consumer has fallen behind the live
+subscription stream and missed one or more payloads.
+"""
+type Lagged {
+	"""
+	Number of missed payloads since the previous emitted one.
+	"""
+	count: Int!
+}
 
 """
 Information used by a package to link to a specific version of its
@@ -4333,6 +4354,56 @@ type StorageFund {
 	nonRefundableBalance: BigInt
 }
 
+type Subscription {
+	"""
+	Subscribe to incoming transactions from the IOTA network.
+	
+	If no filter is provided, all transactions will be returned.
+	"""
+	transactions(filter: SubscriptionTransactionFilter): TransactionBlockSubscriptionPayload!
+	"""
+	Subscribe to incoming events from the IOTA network.
+	
+	If no filter is provided, all events will be returned.
+	"""
+	events(filter: SubscriptionEventFilter): EventSubscriptionPayload!
+}
+
+"""
+Filter incoming events in a subscription.
+"""
+input SubscriptionEventFilter @oneOf {
+	"""
+	Filter incoming events by emitting module.
+	
+	- Filter by package: "0x02"
+	- Filter by module: "0x02::coin"
+	"""
+	emittingModule: String
+}
+
+"""
+Filter incoming transactions in a subscription.
+"""
+input SubscriptionTransactionFilter @oneOf {
+	"""
+	Filter incoming transactions by kind.
+	"""
+	kind: TransactionBlockKindInput
+	"""
+	Filter incoming transactions by signing address.
+	"""
+	signingAddress: IotaAddress
+	"""
+	Filter incoming transactions by package, module, or function name.
+	
+	- Filter by package: "0x03"
+	- Filter by module: "0x03::iota_system"
+	- Filter by function: "0x03::iota_system::request_add_stake"
+	"""
+	function: String
+}
+
 """
 Details of the system that are decided during genesis.
 """
@@ -4635,6 +4706,16 @@ enum TransactionBlockKindInput {
 	"""
 	END_OF_EPOCH_TX
 }
+
+"""
+Possible responses from a subscription.
+
+It could be one of the following:
+- A successful payload from the subscription stream.
+- A notice that the subscription has been lagged behind the network with the
+number of lost payloads.
+"""
+union TransactionBlockSubscriptionPayload = TransactionBlock | Lagged
 
 union TransactionInput = OwnedOrImmutable | SharedInput | Receiving | Pure
 
@@ -5058,10 +5139,15 @@ Directs the executor to include this field or fragment only when the `if` argume
 """
 directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 """
+Indicates that an Input Object is a OneOf Input Object (and thus requires exactly one of its field be provided)
+"""
+directive @oneOf on INPUT_OBJECT
+"""
 Directs the executor to skip this field or fragment when the `if` argument is true.
 """
 directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 schema {
 	query: Query
 	mutation: Mutation
+	subscription: Subscription
 }
