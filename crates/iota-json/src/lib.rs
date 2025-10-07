@@ -790,27 +790,6 @@ pub fn resolve_move_function_args(
     type_args: &[TypeTag],
     combined_args_json: Vec<IotaJsonValue>,
 ) -> Result<Vec<(ResolvedCallArg, SignatureToken)>, anyhow::Error> {
-    resolve_move_function_args_inner(
-        package,
-        module_ident,
-        function,
-        type_args,
-        combined_args_json,
-        true,
-    )
-}
-
-/// Resolve the JSON args of a function into the expected formats to make them
-/// usable by Move call. This version only optionally checks the argument count
-/// to allow using it in combination with result arguments.
-pub fn resolve_move_function_args_inner(
-    package: &MovePackage,
-    module_ident: Identifier,
-    function: Identifier,
-    type_args: &[TypeTag],
-    combined_args_json: Vec<IotaJsonValue>,
-    check_args_count: bool,
-) -> Result<Vec<(ResolvedCallArg, SignatureToken)>, anyhow::Error> {
     // Extract the expected function signature
     let module = package.deserialize_module(&module_ident, &BinaryConfig::standard())?;
     let function_str = function.as_ident_str();
@@ -820,24 +799,29 @@ pub fn resolve_move_function_args_inner(
         .find(|fdef| {
             module.identifier_at(module.function_handle_at(fdef.function).name) == function_str
         })
-        .ok_or_else(|| anyhow!("Could not resolve function {function} in module {module_ident}"))?;
+        .ok_or_else(|| {
+            anyhow!(
+                "Could not resolve function {} in module {}",
+                function,
+                module_ident
+            )
+        })?;
     let function_signature = module.function_handle_at(fdef.function);
     let parameters = &module.signature_at(function_signature.parameters).0;
 
-    if check_args_count {
-        // Lengths have to match, less one, due to TxContext
-        let expected_len = match parameters.last() {
-            Some(param) if TxContext::kind(&module, param) != TxContextKind::None => {
-                parameters.len() - 1
-            }
-            _ => parameters.len(),
-        };
-        if combined_args_json.len() != expected_len {
-            bail!(
-                "Expected {expected_len} args, found {}",
-                combined_args_json.len()
-            );
+    // Lengths have to match, less one, due to TxContext
+    let expected_len = match parameters.last() {
+        Some(param) if TxContext::kind(&module, param) != TxContextKind::None => {
+            parameters.len() - 1
         }
+        _ => parameters.len(),
+    };
+    if combined_args_json.len() != expected_len {
+        bail!(
+            "Expected {} args, found {}",
+            expected_len,
+            combined_args_json.len()
+        );
     }
 
     // Check that the args are valid and convert to the correct format
