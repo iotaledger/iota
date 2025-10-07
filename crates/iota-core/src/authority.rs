@@ -4708,7 +4708,7 @@ impl AuthorityState {
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         buffer_stake_bps: u64,
-    ) -> (ProtocolVersion, Vec<ObjectRef>, Digest) {
+    ) -> (ProtocolVersion, Digest, Vec<ObjectRef>) {
         let mut next_protocol_version = current_protocol_version;
         let mut system_packages = vec![];
         let mut protocol_version_digest = current_protocol_digest;
@@ -4729,8 +4729,8 @@ impl AuthorityState {
 
         (
             next_protocol_version,
-            system_packages,
             protocol_version_digest,
+            system_packages,
         )
     }
 
@@ -4866,7 +4866,7 @@ impl AuthorityState {
         let authority_capabilities = epoch_store
             .get_capabilities_v1()
             .expect("read capabilities from db cannot fail");
-        let (next_epoch_protocol_version, next_epoch_system_packages, next_epoch_protocol_digest) =
+        let (next_epoch_protocol_version, next_epoch_protocol_digest, next_epoch_system_packages) =
             Self::choose_protocol_version_and_system_packages_v1(
                 epoch_store.protocol_version(),
                 SupportedProtocolVersionsWithHashes::protocol_config_digest(
