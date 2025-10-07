@@ -1414,7 +1414,7 @@ impl DagState {
             }
             taken.push(*ack);
         }
-        
+
         if let Some(last) = taken.last() {
             last_ack = Some(*last);
         }

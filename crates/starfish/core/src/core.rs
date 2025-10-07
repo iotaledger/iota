@@ -682,14 +682,17 @@ impl Core {
             .write()
             .take_acknowledgments(MAX_ACKNOWLEDGMENTS_PER_BLOCK);
 
-
         self.context
             .metrics
             .node_metrics
             .proposed_block_acknowledgments
             .observe(acknowledgments.len() as f64);
         for acknowledgment in &acknowledgments {
-            let authority = &self.context.committee.authority(acknowledgment.author).hostname;
+            let authority = &self
+                .context
+                .committee
+                .authority(acknowledgment.author)
+                .hostname;
             self.context
                 .metrics
                 .node_metrics
