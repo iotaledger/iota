@@ -440,6 +440,11 @@ type ChangeEpochTransactionV2 {
 	Validators write these packages out when running the transaction.
 	"""
 	systemPackages(first: Int, after: String, last: Int, before: String): MovePackageConnection!
+	"""
+	The list of active validators eligible for committee selection for the
+	next epoch.
+	"""
+	eligibleActiveValidators: [BigInt!]
 }
 
 """
@@ -1155,6 +1160,9 @@ type Epoch {
 	referenceGasPrice: BigInt
 	"""
 	Validator related properties, including the active validators.
+	
+	For epochs other than the current the data provided refer to the start
+	of the epoch.
 	"""
 	validatorSet: ValidatorSet
 	"""
@@ -4754,17 +4762,18 @@ type Validator {
 	"""
 	poolTokenBalance: BigInt
 	"""
-	Pending stake amount for this epoch.
+	Pending stake amount for the current epoch, emptied at epoch boundaries.
+	Zero for past epochs.
 	"""
 	pendingStake: BigInt
 	"""
 	Pending stake withdrawn during the current epoch, emptied at epoch
-	boundaries.
+	boundaries. Zero for past epochs.
 	"""
 	pendingTotalIotaWithdraw: BigInt
 	"""
 	Pending pool token withdrawn during the current epoch, emptied at epoch
-	boundaries.
+	boundaries. Zero for past epochs.
 	"""
 	pendingPoolTokenWithdraw: BigInt
 	"""
