@@ -1625,8 +1625,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -1720,8 +1719,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -1816,8 +1814,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -1913,8 +1910,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -2822,7 +2818,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 70
+            "y": 46
           },
           "id": 183,
           "options": {
@@ -2916,7 +2912,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 70
+            "y": 46
           },
           "id": 184,
           "options": {
@@ -3014,7 +3010,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 78
+            "y": 54
           },
           "id": 180,
           "options": {
@@ -3036,7 +3032,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(consensus_filtered_headers_in_bundles[1m])",
+              "expr": "sum by (authority) (\n  rate(consensus_filtered_headers_in_bundles[1m])\n)",
               "instant": false,
               "legendFormat": "{{host}}",
               "range": true,
@@ -3108,7 +3104,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 78
+            "y": 54
           },
           "id": 181,
           "options": {
@@ -3186,7 +3182,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -3201,7 +3198,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 86
+            "y": 62
           },
           "id": 182,
           "options": {
@@ -3223,7 +3220,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(consensus_valid_headers_in_bundles[1m])",
+              "expr": "sum by (authority) (\n  rate(consensus_valid_headers_in_bundles[1m])\n)\n",
               "instant": false,
               "legendFormat": "__auto",
               "range": true,
@@ -3279,7 +3276,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -3294,7 +3292,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 86
+            "y": 62
           },
           "id": 185,
           "options": {
@@ -3387,8 +3385,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -3482,8 +3479,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -3577,8 +3573,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -3672,8 +3667,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -3771,8 +3765,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -3870,8 +3863,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5477,8 +5469,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5603,8 +5594,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5729,8 +5719,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -5830,8 +5819,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -10683,6 +10671,6 @@
   "timezone": "Europe/Berlin",
   "title": "IOTA Starfish Overview",
   "uid": "StarfishOverview",
-  "version": 11,
+  "version": 12,
   "weekStart": ""
 }
