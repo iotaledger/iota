@@ -1351,7 +1351,13 @@ impl ProtocolConfig {
     }
 
     pub fn select_committee_from_eligible_validators(&self) -> bool {
-        self.feature_flags.select_committee_from_eligible_validators
+        let res = self.feature_flags.select_committee_from_eligible_validators;
+        assert!(
+            !res || (self.protocol_defined_base_fee()
+                && self.max_committee_members_count_as_option().is_some()),
+            "select_committee_from_eligible_validators requires protocol_defined_base_fee and max_committee_members_count to be set"
+        );
+        res
     }
 
     pub fn track_non_committee_eligible_validators(&self) -> bool {
