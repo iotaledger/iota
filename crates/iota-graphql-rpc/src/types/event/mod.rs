@@ -264,7 +264,7 @@ impl Event {
         })
     }
 
-    fn try_from_stored_event(
+    pub(crate) fn try_from_stored_event(
         stored: StoredEvent,
         checkpoint_viewed_at: u64,
     ) -> Result<Self, Error> {
