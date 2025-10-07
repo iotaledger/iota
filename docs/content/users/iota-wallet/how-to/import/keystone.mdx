@@ -1,0 +1,58 @@
+---
+description: A guide on how to setup your Keystone device with the IOTA Wallet, including installation and setup instructions.
+teams:
+   - iotaledger/tooling
+tags: [iota-wallet]
+pagination_prev: users/iota-wallet/how-to/import
+pagination_next: users/iota-wallet/how-to/import/balance-finder
+---
+
+# Importing Wallet from Keystone Device
+
+This guide walks you through using IOTA Wallet with your Keystone device. By connecting your Keystone, you can add up to 10 accounts to IOTA Wallet and use them like any other account.
+The added benefit is that your private keys remain securely stored in your Keystone, a cold storage wallet, giving you full control over your assets.
+
+## Requirements
+
+Before connecting your Keystone device to IOTA Wallet, ensure the following:
+
+- Install the latest version of [IOTA Wallet](https://chromewebstore.google.com/detail/iota-wallet/iidjkmdceolghepehaaddojmnjnkkija) from the Chrome Web Store.
+- Set up your Keystone device and update it to the latest firmware.
+- Make sure you have IOTA enabled under `Manage Assets` in your Keystone device.
+
+## Import Accounts from Your Keystone Device
+
+To import accounts from your Keystone into IOTA Wallet:
+
+1. Open [IOTA Wallet](https://chromewebstore.google.com/detail/iota-wallet/iidjkmdceolghepehaaddojmnjnkkija) and enter your password.
+2. Go to `Accounts` by clicking on the address at the top of the `Home` section.
+
+![Accounts](/img/users/iota-wallet/how-to/multi-account/navigate-to-accounts.png)
+
+3. Click `Add Profile`.
+
+![Add Profile](/img/users/iota-wallet/how-to/multi-account/click-add-profile.png)
+
+4. Select the `Keystone` entry from the `Hardware Wallets` section.
+
+![Import From Keystone](/img/users/iota-wallet/how-to/keystone/import-from-keystone.png)
+
+5. Follow the [`Connecting Software Wallet`](https://guide.keyst.one/docs/connecting-software-wallets-to-keystone#b3e3dc25b31a42ffa102cd5346b0b894) instruction from Keystone to show the QR code on your Keystone device choosing the IOTA Wallet as the software wallet.
+
+6. Use your computer's camera to scan the animated QR code displayed on your Keystone
+
+![Scan QR Code option](/img/users/iota-wallet/how-to/keystone/scan-qr.png)
+
+7. After the scan was successful, select the accounts you want to import and click `Finish`.
+
+8. Enter your password and click `Verify`.
+
+![Verify Password](/img/users/iota-wallet/how-to/ledger/verify-password.png)
+
+Your imported Keystone accounts will appear under the `Keystone` cluster on the `Manage Accounts` screen.
+
+:::tip Sigingn Transactions
+
+If you want to learn how to send a transaction using your Keystone device and the IOTA Wallet, check out the [`Using Keystone Wallet](../basics.mdx#using-keystone-wallet) guide.
+
+:::

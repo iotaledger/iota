@@ -33,8 +33,7 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     handlers::{
-        CheckpointDataToCommitV2, EpochToCommit, TransactionObjectChangesToCommit,
-        committer::start_tx_checkpoint_commit_task_v2,
+        EpochToCommit, TransactionObjectChangesToCommit,
         tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
     },
     metrics::IndexerMetrics,
@@ -42,6 +41,10 @@ use crate::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
+    },
+    rolling::{
+        persist::{CheckpointDataToCommit, start_tx_checkpoint_commit_task},
+        transform::CheckpointObjectChanges,
     },
     store::{IndexerStore, PgIndexerStore},
     types::{
@@ -73,7 +76,7 @@ pub async fn new_handlers(
         );
 
     let metrics_clone = metrics.clone();
-    spawn_monitored_task!(start_tx_checkpoint_commit_task_v2(
+    spawn_monitored_task!(start_tx_checkpoint_commit_task(
         state,
         metrics_clone,
         indexed_checkpoint_receiver,
@@ -85,8 +88,24 @@ pub async fn new_handlers(
 
 pub struct CheckpointHandler {
     metrics: IndexerMetrics,
-    indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommitV2>,
+    indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
 }
+
+pub type IndexedTransactionComponents = (
+    IndexedTransaction,
+    TxIndex,
+    Vec<IndexedEvent>,
+    Vec<EventIndex>,
+    BTreeMap<String, StoredDisplay>,
+);
+
+pub(crate) type IndexedTransactionComponentsV2 = (
+    IndexedTransaction,
+    TxIndexV2,
+    Vec<IndexedEvent>,
+    Vec<EventIndex>,
+    BTreeMap<String, StoredDisplay>,
+);
 
 #[async_trait]
 impl Worker for CheckpointHandler {
@@ -141,7 +160,7 @@ impl Worker for CheckpointHandler {
 impl CheckpointHandler {
     fn new(
         metrics: IndexerMetrics,
-        indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommitV2>,
+        indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
     ) -> Self {
         Self {
             metrics,
@@ -246,7 +265,7 @@ impl CheckpointHandler {
         data: &CheckpointData,
         metrics: Arc<IndexerMetrics>,
         packages: Vec<IndexedPackage>,
-    ) -> Result<CheckpointDataToCommitV2, IndexerError> {
+    ) -> Result<CheckpointDataToCommit, IndexerError> {
         let checkpoint_seq = data.checkpoint_summary.sequence_number;
         info!(checkpoint_seq, "Indexing checkpoint data blob");
 
@@ -254,8 +273,7 @@ impl CheckpointHandler {
         let epoch = Self::index_epoch(data).await?;
 
         // Index Objects
-        let object_changes: TransactionObjectChangesToCommit =
-            Self::index_objects(data, &metrics).await?;
+        let object_changes = Self::index_checkpoint_objects(data, &metrics).await?;
         let object_history_changes: TransactionObjectChangesToCommit =
             Self::index_objects_history(data).await?;
         let object_versions = Self::derive_object_versions(&object_history_changes);
@@ -305,7 +323,7 @@ impl CheckpointHandler {
             checkpoint.sequence_number, time_now_ms, checkpoint.timestamp_ms
         );
 
-        Ok(CheckpointDataToCommitV2 {
+        Ok(CheckpointDataToCommit {
             checkpoint,
             transactions: db_transactions,
             events: db_events,
@@ -393,13 +411,7 @@ impl CheckpointHandler {
         checkpoint_seq: CheckpointSequenceNumber,
         checkpoint_timestamp_ms: u64,
         metrics: &IndexerMetrics,
-    ) -> IndexerResult<(
-        IndexedTransaction,
-        TxIndex,
-        Vec<IndexedEvent>,
-        Vec<EventIndex>,
-        BTreeMap<String, StoredDisplay>,
-    )> {
+    ) -> IndexerResult<IndexedTransactionComponents> {
         let CheckpointTransaction {
             transaction: sender_signed_data,
             effects: fx,
@@ -532,19 +544,13 @@ impl CheckpointHandler {
         ))
     }
 
-    async fn index_transaction_v2(
+    pub(crate) async fn index_transaction_v2(
         tx: &CheckpointTransaction,
         tx_sequence_number: u64,
         checkpoint_seq: CheckpointSequenceNumber,
         checkpoint_timestamp_ms: u64,
         metrics: &IndexerMetrics,
-    ) -> IndexerResult<(
-        IndexedTransaction,
-        TxIndexV2,
-        Vec<IndexedEvent>,
-        Vec<EventIndex>,
-        BTreeMap<String, StoredDisplay>,
-    )> {
+    ) -> IndexerResult<IndexedTransactionComponentsV2> {
         let CheckpointTransaction {
             transaction: sender_signed_data,
             effects: fx,
@@ -690,6 +696,14 @@ impl CheckpointHandler {
         ))
     }
 
+    pub(crate) async fn index_checkpoint_objects(
+        data: &CheckpointData,
+        metrics: &IndexerMetrics,
+    ) -> Result<CheckpointObjectChanges, IndexerError> {
+        let _timer = metrics.indexing_objects_latency.start_timer();
+        data.try_into()
+    }
+
     pub(crate) async fn index_objects(
         data: &CheckpointData,
         metrics: &IndexerMetrics,
@@ -803,7 +817,7 @@ impl CheckpointHandler {
 
 /// If `o` is a dynamic `Field<K, V>`, determine whether it represents a Dynamic
 /// Field or a Dynamic Object Field based on its type.
-fn try_extract_df_kind(o: &Object) -> IndexerResult<Option<DynamicFieldType>> {
+pub(crate) fn try_extract_df_kind(o: &Object) -> IndexerResult<Option<DynamicFieldType>> {
     // Skip if not a move object
     let Some(move_object) = o.data.try_as_move() else {
         return Ok(None);

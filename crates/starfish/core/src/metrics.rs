@@ -115,13 +115,21 @@ pub(crate) struct NodeMetrics {
     pub(crate) blocks_per_commit_count: Histogram,
     pub(crate) core_add_blocks_batch_size: Histogram,
     pub(crate) core_lock_dequeued: IntCounter,
+    pub(crate) reconstruction_jobs_started: IntCounter,
+    pub(crate) reconstruction_jobs_finished: IntCounter,
+    pub(crate) accepted_transactions: IntCounterVec,
+    pub(crate) shard_accumulators: IntGauge,
+    pub(crate) reconstruction_lag: Histogram,
+    pub(crate) reconstructed_transactions_unknown: IntGauge,
+    pub(crate) reconstruction_queue: IntGauge,
     pub(crate) core_lock_enqueued: IntCounter,
     pub(crate) core_skipped_proposals: IntCounterVec,
     pub(crate) highest_accepted_authority_round: IntGaugeVec,
     pub(crate) highest_accepted_round: IntGauge,
-    pub(crate) accepted_blocks: IntCounterVec,
+    pub(crate) accepted_block_headers: IntCounterVec,
     pub(crate) dag_state_recent_transactions: IntGauge,
     pub(crate) dag_state_recent_headers: IntGauge,
+    pub(crate) dag_state_recent_shards: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
@@ -142,6 +150,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) filtered_headers_in_bundles: IntCounterVec,
     pub(crate) received_unique_headers_from_bundles: IntCounterVec,
     pub(crate) processed_duplicated_headers_in_bundles: IntCounterVec,
+    pub(crate) invalid_shard_in_bundles: IntCounterVec,
+    pub(crate) valid_shards_in_bundles: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -293,6 +303,12 @@ impl NodeMetrics {
                 NUM_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
+            reconstruction_lag: register_histogram_with_registry!(
+                "reconstruction_lag",
+                "The number of rounds between current round and reconstructed transactions.",
+                NUM_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
             core_add_blocks_batch_size: register_histogram_with_registry!(
                 "core_add_blocks_batch_size",
                 "The number of blocks received from Core for processing on a single batch",
@@ -307,6 +323,22 @@ impl NodeMetrics {
             gap_to_unavailable_transactions: register_int_gauge_with_registry!(
                 "gap_to_unavailable_transactions",
                 "Gap in rounds between current round and the oldest unavailable transaction",
+                registry,
+            ).unwrap(),
+            reconstruction_jobs_started: register_int_counter_with_registry!(
+                "reconstruction_jobs_started",
+                "Number of reconstruction jobs spawned",
+                registry,
+            ).unwrap(),
+            reconstruction_jobs_finished: register_int_counter_with_registry!(
+                "reconstruction_jobs_finished",
+                "Number of reconstruction jobs finished",
+                registry,
+            ).unwrap(),
+            accepted_transactions: register_int_counter_vec_with_registry!(
+                "accepted_transactions",
+                "Number of accepted transactions by source (own, others)",
+                &["source"],
                 registry,
             ).unwrap(),
             core_lock_dequeued: register_int_counter_with_registry!(
@@ -336,11 +368,26 @@ impl NodeMetrics {
                 "The highest round where a block has been accepted. Resets on restart.",
                 registry,
             ).unwrap(),
-            accepted_blocks: register_int_counter_vec_with_registry!(
-                "accepted_blocks",
-                "Number of accepted blocks by source (own, others)",
+            accepted_block_headers: register_int_counter_vec_with_registry!(
+                "accepted_block_headers",
+                "Number of accepted block headers by source (own, others)",
                 &["source"],
                 registry,
+            ).unwrap(),
+            shard_accumulators: register_int_gauge_with_registry!(
+                "shard_accumulators",
+                "The number of shard accumulators currently in memory",
+                registry,
+            ).unwrap(),
+            reconstruction_queue: register_int_gauge_with_registry!(
+                "reconstruction_queue",
+                "The current number of pending reconstruction jobs in the queue",
+                registry,
+            ).unwrap(),
+            reconstructed_transactions_unknown: register_int_gauge_with_registry!(
+            "reconstructed_transactions_unknown",
+            "The current number of reconstructed transactions which are unknown to dag state",
+            registry,
             ).unwrap(),
             dag_state_recent_transactions: register_int_gauge_with_registry!(
                 "dag_state_recent_transactions",
@@ -350,6 +397,11 @@ impl NodeMetrics {
             dag_state_recent_headers: register_int_gauge_with_registry!(
                 "dag_state_recent_headers",
                 "Number of recent block headers cached in the DagState",
+                registry,
+            ).unwrap(),
+            dag_state_recent_shards: register_int_gauge_with_registry!(
+                "dag_state_recent_shards",
+                "Number of recent shards cached in the DagState",
                 registry,
             ).unwrap(),
             dag_state_recent_refs: register_int_gauge_with_registry!(
@@ -452,7 +504,7 @@ impl NodeMetrics {
             ).unwrap(),
             invalid_headers_in_bundles: register_int_counter_vec_with_registry!(
                 "invalid_headers_in_bundles",
-                "Number of invalid block headers received from block bundles per sender authority",
+                "Number of block bundles that contain invalid header per sender authority",
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
@@ -477,6 +529,18 @@ impl NodeMetrics {
             processed_duplicated_headers_in_bundles: register_int_counter_vec_with_registry!(
                 "processed_duplicated_headers_in_bundles",
                 "Number of times block headers from bundles were not filtered and processed extra time (i.e. deserialized and verified) per sender authority",
+                &["authority", "source"],
+                registry,
+            ).unwrap(),
+            invalid_shard_in_bundles: register_int_counter_vec_with_registry!(
+                "invalid_shard_in_bundles",
+                "Number of block bundles that contain invalid shards per sender authority",
+                &["authority", "source", "error"],
+                registry,
+            ).unwrap(),
+            valid_shards_in_bundles: register_int_counter_vec_with_registry!(
+                "valid_shards_in_bundles",
+                "Number of valid shards received from block bundles per sender authority",
                 &["authority", "source"],
                 registry,
             ).unwrap(),

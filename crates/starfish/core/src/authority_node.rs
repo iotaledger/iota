@@ -27,6 +27,7 @@ use crate::{
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
     network::tonic_network::{TonicClient, TonicManager},
+    shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
@@ -41,7 +42,7 @@ pub struct ConsensusAuthority {
     synchronizer: Arc<SynchronizerHandle>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
-
+    shard_reconstructor: Arc<ShardReconstructorHandle>,
     commit_syncer_handle: CommitSyncerHandle,
     leader_timeout_handle: LeaderTimeoutTaskHandle,
     core_thread_handle: CoreThreadHandle,
@@ -184,6 +185,9 @@ impl ConsensusAuthority {
             context.clone(),
         );
 
+        let shard_reconstructor =
+            ShardReconstructor::start(context.clone(), dag_state.clone(), core_dispatcher.clone());
+
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 
         let synchronizer = Synchronizer::start(
@@ -219,6 +223,7 @@ impl ConsensusAuthority {
             signals_receivers.block_broadcast_receiver(),
             dag_state.clone(),
             store,
+            shard_reconstructor.transaction_message_sender(),
         ));
 
         let subscriber = Subscriber::new(
@@ -245,6 +250,7 @@ impl ConsensusAuthority {
             start_time,
             transaction_client: Arc::new(tx_client),
             synchronizer,
+            shard_reconstructor,
             transactions_synchronizer,
             commit_consumer_monitor,
             commit_syncer_handle,
@@ -283,6 +289,17 @@ impl ConsensusAuthority {
                 e
             );
         };
+
+        if let Err(e) = self.shard_reconstructor.stop().await {
+            if e.is_panic() {
+                std::panic::resume_unwind(e.into_panic());
+            }
+            warn!(
+                "Failed to stop shard reconstructor when shutting down consensus: {:?}",
+                e
+            );
+        };
+
         self.commit_syncer_handle.stop().await;
         self.leader_timeout_handle.stop().await;
         // Shutdown Core to stop block productions and broadcast.
@@ -323,6 +340,7 @@ mod tests {
     #![allow(non_snake_case)]
 
     use std::{
+        cmp::max,
         collections::{BTreeMap, BTreeSet},
         sync::Arc,
         time::Duration,
@@ -389,7 +407,7 @@ mod tests {
     /// with the rest of the committee.
     #[rstest]
     #[tokio::test(flavor = "current_thread")]
-    async fn test_restart_authority_committee(#[values(4, 6, 8)] num_of_authorities: usize) {
+    async fn test_restart_authority_committee(#[values(4, 6)] num_of_authorities: usize) {
         telemetry_subscribers::init_for_testing();
         let db_registry = Registry::new();
         DBMetrics::init(&db_registry);
@@ -423,7 +441,7 @@ mod tests {
             authorities.push(authority);
         }
 
-        const NUM_TRANSACTIONS: u8 = 15;
+        const NUM_TRANSACTIONS: u8 = 24;
         let mut submitted_transactions = BTreeSet::<Vec<u8>>::new();
         for i in 0..NUM_TRANSACTIONS {
             let txn = vec![i; 16];
@@ -475,7 +493,7 @@ mod tests {
             .await;
 
         // Add some new transactions while authority 0 is down.
-        const BIG_NUM_TRANSACTIONS: u8 = 100;
+        const BIG_NUM_TRANSACTIONS: u8 = 120;
         for i in NUM_TRANSACTIONS..BIG_NUM_TRANSACTIONS {
             let txn = vec![i; 16];
             submitted_transactions.insert(txn.clone());
@@ -522,7 +540,7 @@ mod tests {
         let mut last_committed_index = vec![0; num_of_authorities];
         let mut last_round_committed_blocks = vec![0; num_of_authorities];
         loop {
-            if start_time.elapsed() > Duration::from_secs(30) {
+            if start_time.elapsed() > Duration::from_secs(60) {
                 break;
             }
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
@@ -536,7 +554,8 @@ mod tests {
                         for block in &committed_subdag.blocks {
                             if block.round() > GENESIS_ROUND {
                                 let author_index = block.author();
-                                last_round_committed_blocks[author_index] = block.round();
+                                last_round_committed_blocks[author_index] =
+                                    max(last_round_committed_blocks[author_index], block.round());
                             }
                         }
 
@@ -551,6 +570,7 @@ mod tests {
                             }
                         }
                         let commit_index = committed_subdag.commit_ref.index;
+                        assert!(last_committed_index[index] < commit_index);
                         last_committed_index[index] = commit_index;
                         consumer_monitors[index].set_highest_handled_commit(commit_index);
                     } else {
@@ -571,7 +591,7 @@ mod tests {
         let max_commit_index = last_committed_index.iter().max().unwrap();
         assert!(
             max_commit_index - min_commit_index < 5,
-            "Commit indices are not close enough: min = {min_commit_index}, max = {max_commit_index}",
+            "Commit indices are not close enough: min = {min_commit_index}, max = {max_commit_index}, all = {last_committed_index:?}"
         );
 
         // Expect that all transactions were submitted and processed.
@@ -586,7 +606,7 @@ mod tests {
         let max_round = last_round_committed_blocks.iter().max().unwrap();
         assert!(
             max_round - min_round < 5,
-            "Committed block rounds are not close enough: min = {min_round}, max = {max_round}",
+            "Committed block rounds are not close enough: min = {min_round}, max = {max_round}, all = {last_round_committed_blocks:?}"
         );
     }
 

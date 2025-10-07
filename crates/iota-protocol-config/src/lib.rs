@@ -72,6 +72,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 12;
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
 // Version 12: Enable the gas price feedback mechanism in all networks.
+//             Enable the normalization of PTB arguments.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -317,6 +318,11 @@ struct FeatureFlags {
     // If true enable additional multisig checks.
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
+
+    // If true, enables the normalization of PTB arguments but does not yet enable splatting
+    // `Result`s of length not equal to 1
+    #[serde(skip_serializing_if = "is_false")]
+    normalize_ptb_arguments: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1322,6 +1328,10 @@ impl ProtocolConfig {
         // parameters.
         0
     }
+
+    pub fn normalize_ptb_arguments(&self) -> bool {
+        self.feature_flags.normalize_ptb_arguments
+    }
 }
 
 #[cfg(not(msim))]
@@ -2132,6 +2142,9 @@ impl ProtocolConfig {
                     // cancelled due to congestion in all networks
                     cfg.feature_flags
                         .congestion_control_gas_price_feedback_mechanism = true;
+
+                    // Enable normalization of PTB arguments in all networks.
+                    cfg.feature_flags.normalize_ptb_arguments = true;
                 }
                 // Use this template when making changes:
                 //

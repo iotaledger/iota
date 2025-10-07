@@ -20,6 +20,9 @@ pub(crate) enum ConsensusError {
     #[error("Error deserializing block header: {0}")]
     MalformedHeader(bcs::Error),
 
+    #[error("Error deserializing shard with proof: {0}")]
+    MalformedShard(bcs::Error),
+
     #[error("Error deserializing block transactions: {0}")]
     MalformedTransactions(bcs::Error),
 
@@ -107,6 +110,11 @@ pub(crate) enum ConsensusError {
         author: AuthorityIndex,
         peer: AuthorityIndex,
     },
+    #[error(
+        "After reconstruction, the transaction commitment does not match the commitment in the block {}",
+        block_ref
+    )]
+    TransactionCommitmentMismatch { block_ref: BlockRef },
 
     #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
     SynchronizerSaturated(AuthorityIndex),
@@ -200,6 +208,9 @@ pub(crate) enum ConsensusError {
     #[error("Request timeout: {0:?}")]
     NetworkRequestTimeout(String),
 
+    #[error("Accumulator sender has shut down!")]
+    AccumulatorSenderClosed,
+
     #[error("Consensus has shut down!")]
     Shutdown,
 
@@ -231,6 +242,20 @@ pub(crate) enum ConsensusError {
     )]
     TooBigHeaderRoundInABundle {
         header_round: Round,
+        block_round: Round,
+    },
+
+    #[error("Block bundle contains too many shards: {count} > {limit}")]
+    TooManyShardsInABundle { count: usize, limit: usize },
+
+    #[error("Block bundle from {peer} contains shard from round {round} with incorrect proof")]
+    IncorrectShardProof { peer: AuthorityIndex, round: Round },
+
+    #[error(
+        "Round of the shard in a bundle is greater or equal to the block round: {shard_round} >= {block_round}"
+    )]
+    TooBigShardRoundInABundle {
+        shard_round: Round,
         block_round: Round,
     },
 }
