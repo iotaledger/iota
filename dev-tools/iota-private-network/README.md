@@ -145,3 +145,4 @@ Here are some examples of how to set the `TRACE_FILTER` variable based on your t
 - Trace the **checkpoint lifecycle** only, set `TRACE_FILTER=[checkpoint_received_from_state_sync]=trace,[checkpoint_received_from_consensus]=trace`
 - Trace the **transaction lifecycle** only, set `TRACE_FILTER=[handle_consensus_output]=trace,[tx_orchestrator_execute_transaction_block]=trace,[json_rpc_api_execute_transaction_block]=trace`.
   - Trace the transaction sequencing only, set `TRACE_FILTER=[transactions_sequencing]=trace`.
+  - Trace the transaction execution only, set `TRACE_FILTER=[transaction_manager_enqueue_transactions]=trace,[start_execute_pending_certs]=trace`.

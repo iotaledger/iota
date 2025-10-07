@@ -1180,7 +1180,7 @@ impl AuthorityState {
     /// execute_certificate() should be called instead.
     ///
     /// Should only be called within iota-core.
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?certificate.digest()))]
     pub fn try_execute_immediately(
         &self,
         certificate: &VerifiedExecutableTransaction,
