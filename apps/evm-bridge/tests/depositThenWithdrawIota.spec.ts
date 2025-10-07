@@ -17,6 +17,7 @@ test.describe.serial('Deposit then withdraw Iota roundtrip', () => {
     let shared: TestContext;
 
     test.beforeAll('setup L1/L2 wallets', async ({ browserWithBothExtensionsSetup }) => {
+        test.setTimeout(THREE_MINUTES);
         const persistentSetup = await browserWithBothExtensionsSetup('depositThenWithdrawIota');
         shared = persistentSetup;
     });

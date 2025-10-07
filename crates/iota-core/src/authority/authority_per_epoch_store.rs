@@ -206,6 +206,7 @@ impl DeferredTransaction {
 /// Represents a scheduling result: a transaction can be either scheduled
 /// for execution, or deferred for some reason. Scheduling result is
 /// returned by the `try_schedule` method of `AuthorityPerEpochStore`.
+#[derive(Debug)]
 pub(crate) enum SchedulingResult {
     /// Scheduling result indicating that a transaction is scheduled to be
     /// executed at start time
@@ -1768,6 +1769,7 @@ impl AuthorityPerEpochStore {
     }
 
     // factoring of the above
+    #[instrument(level = "trace", skip_all)]
     fn load_deferred_transactions(
         &self,
         output: &mut ConsensusCommitOutput,
@@ -1903,6 +1905,7 @@ impl AuthorityPerEpochStore {
             .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
     }
 
+    #[instrument("transactions_sequencing", level = "trace", skip_all, fields(cert_digest = ?cert.digest(), scheduling_result = tracing::field::Empty))]
     fn try_schedule(
         &self,
         cert: &VerifiedExecutableTransaction,
@@ -1924,13 +1927,17 @@ impl AuthorityPerEpochStore {
                         .deferred_from_round()
                 })
                 .unwrap_or(commit_round);
-            return SchedulingResult::Defer(
+            let result = SchedulingResult::Defer(
                 DeferralKey::new_for_randomness(deferred_from_round),
                 DeferralReason::RandomnessNotReady,
             );
+
+            // Record the result of scheduling for tracing.
+            tracing::Span::current().record("scheduling_result", tracing::field::debug(&result));
+            return result;
         }
 
-        if let Some(max_execution_duration_per_commit) =
+        let result = if let Some(max_execution_duration_per_commit) =
             self.get_max_execution_duration_per_commit()
         {
             // Initialise the free execution slots for the objects that are not in the
@@ -1957,7 +1964,11 @@ impl AuthorityPerEpochStore {
             // If we don't have a max execution duration, we don't need to check for
             // congestion.
             SchedulingResult::Schedule(0)
-        }
+        };
+
+        // Record the result of scheduling for tracing.
+        tracing::Span::current().record("scheduling_result", tracing::field::debug(&result));
+        result
     }
 
     /// Assign a sequence number for the shared objects of the input transaction
@@ -2690,7 +2701,7 @@ impl AuthorityPerEpochStore {
             .expect("test should not be write past end of epoch")
     }
 
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn process_consensus_transactions_and_commit_boundary<
         C: CheckpointServiceNotify,
     >(
@@ -3193,7 +3204,7 @@ impl AuthorityPerEpochStore {
     /// - Verify and initialize the state to execute the certificates. Return
     ///   VerifiedCertificates for each executable certificate
     /// - Or update the state for checkpoint or epoch change protocol.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument("process_consensus_transactions", level = "trace", skip_all)]
     #[expect(clippy::type_complexity)]
     pub(crate) async fn process_consensus_transactions<C: CheckpointServiceNotify>(
         &self,

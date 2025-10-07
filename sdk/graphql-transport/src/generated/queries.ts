@@ -1498,7 +1498,12 @@ export type Epoch = {
    * epoch.
    */
   transactionBlocks: TransactionBlockConnection;
-  /** Validator related properties, including the active validators. */
+  /**
+   * Validator related properties, including the active validators.
+   *
+   * For epochs other than the current the data provided refer to the start
+   * of the epoch.
+   */
   validatorSet?: Maybe<ValidatorSet>;
 };
 
@@ -5562,14 +5567,17 @@ export type Validator = {
   operationCap?: Maybe<MoveObject>;
   /**
    * Pending pool token withdrawn during the current epoch, emptied at epoch
-   * boundaries.
+   * boundaries. Zero for past epochs.
    */
   pendingPoolTokenWithdraw?: Maybe<Scalars['BigInt']['output']>;
-  /** Pending stake amount for this epoch. */
+  /**
+   * Pending stake amount for the current epoch, emptied at epoch boundaries.
+   * Zero for past epochs.
+   */
   pendingStake?: Maybe<Scalars['BigInt']['output']>;
   /**
    * Pending stake withdrawn during the current epoch, emptied at epoch
-   * boundaries.
+   * boundaries. Zero for past epochs.
    */
   pendingTotalIotaWithdraw?: Maybe<Scalars['BigInt']['output']>;
   /** Total number of pool tokens issued by the pool. */
