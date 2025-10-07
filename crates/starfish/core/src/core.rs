@@ -689,13 +689,13 @@ impl Core {
             .proposed_block_acknowledgments
             .observe(acknowledgments.len() as f64);
         for acknowledgment in &acknowledgments {
-            let authority = &self.context.committee.authority(acknowledgment.author()).hostname;
+            let authority = &self.context.committee.authority(acknowledgment.author).hostname;
             self.context
                 .metrics
                 .node_metrics
                 .proposed_block_acknowledgments_depth
                 .with_label_values(&[authority])
-                .observe(clock_round.saturating_sub(acknowledgment.round()).into());
+                .observe(clock_round.saturating_sub(acknowledgment.round).into());
         }
 
         // Consume the commit votes to be included.
