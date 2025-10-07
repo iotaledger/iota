@@ -828,14 +828,13 @@ export type Coin = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -1076,14 +1075,13 @@ export type CoinMetadata = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -1887,7 +1885,16 @@ export type IObject = {
   previousTransactionBlock?: Maybe<TransactionBlock>;
   /** The transaction blocks that sent objects to this object. */
   receivedTransactionBlocks: TransactionBlockConnection;
-  /** The current status of the object as read from the off-chain store. The possible states are: NOT_INDEXED, the object is loaded from serialized data, such as the contents of a genesis or system package upgrade transaction. LIVE, the version returned is the most recent for the object, and it is not deleted or wrapped at that version. HISTORICAL, the object was referenced at a specific version or checkpoint, so is fetched from historical tables and may not be the latest version of the object. WRAPPED_OR_DELETED, the object is deleted or wrapped and only partial information can be loaded. */
+  /**
+   * The current status of the object as read from the off-chain store. The
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
+   */
   status: ObjectKind;
   storageRebate?: Maybe<Scalars['BigInt']['output']>;
   version: Scalars['UInt53']['output'];
@@ -2562,14 +2569,13 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -2872,14 +2878,13 @@ export type MovePackage = IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -3224,13 +3229,13 @@ export type Mutation = {
    * that was not possible. A transaction is final when its effects are
    * guaranteed on chain (it cannot be revoked).
    *
-   * There may be a delay between transaction finality and when GraphQL
-   * requests (including the request that issued the transaction) reflect
-   * its effects. As a result, queries that depend on indexing the state
-   * of the chain (e.g. contents of output objects, address-level balance
-   * information at the time of the transaction), must wait for indexing to
-   * catch up by polling for the transaction digest using
-   * `Query.transactionBlock`.
+   * Transaction effects are now available immediately after execution
+   * through `Query.transactionBlock`. However, other queries that depend
+   * on the chain’s indexed state (e.g., address-level balance updates)
+   * may still lag until the transaction has been checkpointed.
+   * To confirm that a transaction has been included in a checkpoint, query
+   * `Query.transactionBlock` and check whether the `effects.checkpoint`
+   * field is set (or `null` if not yet checkpointed).
    */
   executeTransactionBlock: ExecutionResult;
 };
@@ -3367,14 +3372,13 @@ export type NameRegistration = IMoveObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -3603,14 +3607,13 @@ export type Object = IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -5023,14 +5026,13 @@ export type StakedIota = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
