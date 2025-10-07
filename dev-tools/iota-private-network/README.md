@@ -130,12 +130,19 @@ For example, to start a **Starfish** consensus protocol with 10 validators:
 
 To enable span tracing for the nodes, you need to modify the docker-compose.yaml file to include the necessary environment variables for each node.
 
-for example, for fullnode-1, you would add the following environment variables:
+for example, for fullnode-1, you would add the following environment variables, note that you need to duplicate the environment variables from `x-common-fullnode` section, because the `environment` key overrides the inherited one:
 
 ```yaml
-- OTLP_ENDPOINT=http://tempo:4317 # The endpoint of the Tempo instance
-- OTEL_SERVICE_NAME=fullnode-1 # A unique name for the service, it could be later used to filter traces in Grafana
-- TRACE_FILTER=warn # The trace filter level, you can adjust it based on your needs
+environment:
+  - RUST_BACKTRACE=1
+  - RUST_LOG=info,iota_core=debug,iota_network=debug,iota_node=debug,jsonrpsee=error
+  - RPC_WORKER_THREAD=12
+  - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
+  - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000
+  - OTLP_ENDPOINT=http://tempo:4317 # The endpoint of the Tempo instance
+  - OTEL_SERVICE_NAME=fullnode-1 # A unique name for the service, it could be later used to filter traces in Grafana
+  # The trace filter level, you can adjust it based on your needs
+  - TRACE_FILTER=[checkpoint_received_from_state_sync]=trace,[checkpoint_received_from_consensus]=trace,[handle_consensus_output]=trace,[tx_orchestrator_execute_transaction_block]=trace,[json_rpc_api_execute_transaction_block]=trace
 ```
 
 The `TRACE_FILTER` variable follows the rules defined in the [tracing documentation](https://crates.io/crates/tracing-filter).
