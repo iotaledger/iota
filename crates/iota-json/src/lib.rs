@@ -820,13 +820,7 @@ pub fn resolve_move_function_args_inner(
         .find(|fdef| {
             module.identifier_at(module.function_handle_at(fdef.function).name) == function_str
         })
-        .ok_or_else(|| {
-            anyhow!(
-                "Could not resolve function {} in module {}",
-                function,
-                module_ident
-            )
-        })?;
+        .ok_or_else(|| anyhow!("Could not resolve function {function} in module {module_ident}"))?;
     let function_signature = module.function_handle_at(fdef.function);
     let parameters = &module.signature_at(function_signature.parameters).0;
 
@@ -840,8 +834,7 @@ pub fn resolve_move_function_args_inner(
         };
         if combined_args_json.len() != expected_len {
             bail!(
-                "Expected {} args, found {}",
-                expected_len,
+                "Expected {expected_len} args, found {}",
                 combined_args_json.len()
             );
         }
