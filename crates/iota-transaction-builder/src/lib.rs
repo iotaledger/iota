@@ -466,9 +466,10 @@ impl TransactionBuilder {
         Ok(())
     }
 
-    /// Add a single move call to the provided
+    /// Adds a single move call to the provided
     /// [`ProgrammableTransactionBuilder`].
-    /// Accepting PtbInput so one can also provide results from previous move
+    ///
+    /// Accepting [`PtbInput`] so one can also provide results from previous move
     /// calls.
     pub async fn single_move_call_with_ptb_inputs(
         &self,
