@@ -107,7 +107,9 @@ use iota_types::{
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
     },
-    supported_protocol_versions::{ProtocolConfig, SupportedProtocolVersions},
+    supported_protocol_versions::{
+        ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
+    },
     transaction::*,
     transaction_executor::SimulateTransactionResult,
 };
@@ -4702,13 +4704,14 @@ impl AuthorityState {
     /// returns the current protocol version and system packages.
     fn choose_protocol_version_and_system_packages_v1(
         current_protocol_version: ProtocolVersion,
+        current_protocol_digest: Digest,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         buffer_stake_bps: u64,
     ) -> (ProtocolVersion, Vec<ObjectRef>, Digest) {
         let mut next_protocol_version = current_protocol_version;
         let mut system_packages = vec![];
-        let mut protocol_version_digest = Digest::ZERO;
+        let mut protocol_version_digest = current_protocol_digest;
 
         // Finds the highest supported protocol version and system packages by
         // incrementing the proposed protocol version by one until no further
@@ -4866,6 +4869,9 @@ impl AuthorityState {
         let (next_epoch_protocol_version, next_epoch_system_packages, next_epoch_protocol_digest) =
             Self::choose_protocol_version_and_system_packages_v1(
                 epoch_store.protocol_version(),
+                SupportedProtocolVersionsWithHashes::protocol_config_digest(
+                    epoch_store.protocol_config(),
+                ),
                 epoch_store.committee(),
                 authority_capabilities.clone(),
                 buffer_stake_bps,

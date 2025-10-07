@@ -5102,8 +5102,10 @@ async fn test_choose_next_system_packages() {
 
     let committee = Committee::new_simple_test_committee().0;
     let v = &committee.voting_rights;
-    let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-    protocol_config.set_buffer_stake_for_protocol_upgrade_bps_for_testing(7500);
+    let protocol_config_digest = SupportedProtocolVersionsWithHashes::protocol_config_digest(
+        &ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown),
+    );
+    let buffer_stake_for_protocol_upgrade_bps_for_testing = 7500;
 
     // Create an active validators list for testing
     // get_validators_supporting_protocol_version
@@ -5123,9 +5125,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(1));
     assert_eq!(result.1, vec![]);
@@ -5150,9 +5153,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(1));
     assert_eq!(result.1, vec![]);
@@ -5168,13 +5172,14 @@ async fn test_choose_next_system_packages() {
     assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators still support version 1
 
     // Now 2f+1 is enough to upgrade
-    protocol_config.set_buffer_stake_for_protocol_upgrade_bps_for_testing(0);
+    let buffer_stake_for_protocol_upgrade_bps_for_testing = 0;
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(2));
     assert_eq!(result.1, sort(vec![o1, o2]));
@@ -5199,9 +5204,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(1));
     assert_eq!(result.1, vec![]);
@@ -5225,9 +5231,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(2));
     assert_eq!(result.1, sort(vec![o1, o2]));
@@ -5251,9 +5258,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(1));
     assert_eq!(result.1, vec![]);
@@ -5277,9 +5285,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(3));
     assert_eq!(result.1, sort(vec![o1, o2]));
@@ -5303,9 +5312,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(1));
     assert_eq!(result.1, vec![]);
@@ -5330,9 +5340,10 @@ async fn test_choose_next_system_packages() {
     // upgrade to 3 which is the highest supported version
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(3));
     assert_eq!(result.1, sort(vec![o1, o2]));
@@ -5359,9 +5370,10 @@ async fn test_choose_next_system_packages() {
     // won't happen until everyone moves to 3.
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(1));
     assert_eq!(result.1, sort(vec![]));
@@ -5388,9 +5400,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(1));
     assert_eq!(result.1, sort(vec![]));
@@ -5438,9 +5451,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities_with_zero_weight.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(2));
     assert_eq!(result.1, sort(vec![o1, o2]));
@@ -5469,9 +5483,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities_higher_version.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(2));
     assert_eq!(result.1, sort(vec![o1, o2]));
@@ -5499,9 +5514,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities_lower_version.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(3));
     assert_eq!(result.1, sort(vec![o1, o2]));
@@ -5529,9 +5545,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities_different_objects.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(2));
     assert_eq!(result.1, sort(vec![o1, o2]));
@@ -5561,9 +5578,10 @@ async fn test_choose_next_system_packages() {
     // Should not upgrade since zero-weight authorities cannot form a quorum
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities_only_zero_weight.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(1));
     assert_eq!(result.1, vec![]);
@@ -5593,9 +5611,10 @@ async fn test_choose_next_system_packages() {
     // Should upgrade to v2 with o1,o2 despite zero-weight conflicting opinions
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities_conflicting_zero_weight.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(2));
     assert_eq!(result.1, sort(vec![o1, o2]));
@@ -5626,9 +5645,10 @@ async fn test_choose_next_system_packages() {
 
     let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
         ProtocolVersion::MIN,
+        protocol_config_digest,
         &committee,
         capabilities_mixed_agreement.clone(),
-        protocol_config.buffer_stake_for_protocol_upgrade_bps(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
     assert_eq!(result.0, ver(2));
     assert_eq!(result.1, sort(vec![o1, o2]));
