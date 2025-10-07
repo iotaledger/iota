@@ -1,10 +1,14 @@
-// Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import Browser from 'webextension-polyfill';
 
-export const MAIN_UI_URL = Browser.runtime.getURL('ui.html');
+export function openInNewTab(pathname?: string) {
+    const baseUrl = Browser.runtime.getURL('ui.html');
 
-export function openInNewTab() {
-    return Browser.tabs.create({ url: MAIN_UI_URL });
+    const query = new URLSearchParams({ type: 'tab' });
+
+    const finalUrl = `${baseUrl}?${query.toString()}${pathname ? `#${pathname}` : ''}`;
+
+    return Browser.tabs.create({ url: finalUrl });
 }
