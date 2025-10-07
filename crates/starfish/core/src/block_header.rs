@@ -64,6 +64,24 @@ impl Transaction {
         let bytes = bcs::to_bytes(transactions).map_err(ConsensusError::SerializationFailure)?;
         Ok(bytes.into())
     }
+
+    /// Create a vector of random transactions for testing.
+    #[cfg(test)]
+    pub fn random_transactions(count: usize, max_len: usize) -> Vec<Self> {
+        use rand::{Rng, RngCore};
+
+        let mut rng = rand::thread_rng();
+        (0..count)
+            .map(|_| {
+                let len = rng.gen_range(0..=max_len);
+                let mut buf = vec![0u8; len];
+                rng.fill_bytes(&mut buf);
+                Transaction {
+                    data: Bytes::from(buf),
+                }
+            })
+            .collect()
+    }
 }
 
 /// A block header includes references to previous round blocks and a commitment
