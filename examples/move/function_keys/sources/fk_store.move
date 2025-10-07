@@ -13,7 +13,7 @@ module function_keys::fk_store;
 
 use iota::programmable_transaction::{Command, move_call_data};
 use iota::vec_set::{Self, VecSet};
-use iota_account::iota_account::IOTAccount;
+use iotaccount::iotaccount::IOTAccount;
 
 #[error(code = 0)]
 const EFunctionKeyAlreadyAdded: vector<u8> = b"The function key has been added already";

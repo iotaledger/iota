@@ -23,7 +23,8 @@ use iota::hex;
 use iota::programmable_transaction::{Self as ptb, Command};
 use iota::test_scenario::{Self as scen, Scenario};
 use iota::tx_context as txc;
-use iota_account::iota_account::{Self as iacc, IOTAccount};
+use iotaccount::basic_keyed_account as iacc;
+use iotaccount::iotaccount::{account_address, IOTAccount};
 use std::ascii;
 
 // ----------------------------------------------------------------------------
@@ -422,7 +423,7 @@ fun create_iotaccount_for_testing_impl(
     scen::next_tx(scenario, @0x0);
 
     let account = scen::take_shared<IOTAccount>(scenario);
-    let account_address = iacc::get_address(&account);
+    let account_address = account.account_address();
     scen::return_shared(account);
 
     account_address

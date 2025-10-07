@@ -6,7 +6,7 @@ edition = "2024" # edition = "legacy" to use legacy (pre-2024) Move
 
 [dependencies]
 Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
-iota_account = { local = "../../move/iota_account" }
+iotaccount = { local = "../../move/iotaccount" }
 
 [addresses]
 function_keys = "0x0"

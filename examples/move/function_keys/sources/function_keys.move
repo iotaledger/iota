@@ -28,7 +28,8 @@ use function_keys::fk_store::{
     is_allowed
 };
 use iota::auth_context::AuthContext;
-use iota_account::iota_account::{authenticate_ed25519, IOTAccount};
+use iotaccount::basic_keyed_account::authenticate_ed25519;
+use iotaccount::iotaccount::IOTAccount;
 
 // --------------------
 // Errors
