@@ -598,7 +598,7 @@ fn build_json_rpc_client(rpc_client_url: &str) -> Result<HttpClient, Error> {
         .max_concurrent_requests(MAX_CONCURRENT_REQUESTS);
 
     builder.build(rpc_client_url).map_err(|e| {
-        warn!("Failed to get new Http client with error: {:?}", e);
+        warn!("Failed to get new Http client with error: {e:?}");
         Error::Internal(format!(
             "Failed to initialize fullnode RPC client with error: {e:?}"
         ))
