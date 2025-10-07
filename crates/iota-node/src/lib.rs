@@ -158,7 +158,7 @@ mod handle;
 pub mod metrics;
 
 pub struct ValidatorComponents {
-    validator_server_handle: ValidatorServerHandle,
+    validator_server_handle: SpawnOnce,
     validator_overload_monitor_handle: Option<JoinHandle<()>>,
     consensus_manager: ConsensusManager,
     consensus_store_pruner: ConsensusStorePruner,
@@ -1365,7 +1365,7 @@ impl IotaNode {
         consensus_store_pruner: ConsensusStorePruner,
         accumulator: Weak<StateAccumulator>,
         backpressure_manager: Arc<BackpressureManager>,
-        validator_server_handle: ValidatorServerHandle,
+        validator_server_handle: SpawnOnce,
         validator_overload_monitor_handle: Option<JoinHandle<()>>,
         checkpoint_metrics: Arc<CheckpointMetrics>,
         iota_node_metrics: Arc<IotaNodeMetrics>,
@@ -1548,7 +1548,7 @@ impl IotaNode {
         state: Arc<AuthorityState>,
         consensus_adapter: Arc<ConsensusAdapter>,
         prometheus_registry: &Registry,
-    ) -> Result<ValidatorServerHandle> {
+    ) -> Result<SpawnOnce> {
         let validator_service = ValidatorService::new(
             state.clone(),
             consensus_adapter,
@@ -1576,7 +1576,7 @@ impl IotaNode {
             let server = server_builder
                 .bind(&network_address, Some(tls_config))
                 .await
-                .map_err(|err| anyhow!(err.to_string()))?;
+                .map_err(|err| anyhow!("Failed to bind to {network_address}: {err}"))?;
 
             let local_addr = server.local_addr();
             info!("Listening to traffic on {local_addr}");
@@ -1584,12 +1584,7 @@ impl IotaNode {
             Ok(server)
         };
 
-        let serve_future = move |server: iota_network_stack::server::Server| {
-            Box::pin(async move { server.serve().await.map_err(|e| anyhow!(e.to_string())) })
-                as BoxFuture<'static, Result<()>>
-        };
-
-        Ok(ValidatorServerHandle::new(bind_future, serve_future))
+        Ok(SpawnOnce::new(bind_future))
     }
 
     /// Re-executes pending consensus certificates, which may not have been
@@ -2322,54 +2317,42 @@ impl IotaNode {
 type ServerFuture =
     Box<dyn Fn(iota_network_stack::server::Server) -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
-struct ValidatorServerHandle {
-    // Mutex is only needed to make ValidatorServerHandle Send
-    bind_future: Option<Mutex<BoxFuture<'static, Result<iota_network_stack::server::Server>>>>,
-    serve_future: Option<ServerFuture>,
-    server_handle: Option<iota_http::ServerHandle>,
+enum SpawnOnce {
+    // Mutex is only needed to make SpawnOnce Sync
+    Unstarted(Mutex<BoxFuture<'static, Result<iota_network_stack::server::Server>>>),
+    #[allow(unused)]
+    Started(iota_http::ServerHandle),
 }
 
-impl ValidatorServerHandle {
-    pub fn new<F>(
-        bind_future: impl Future<Output = Result<iota_network_stack::server::Server>>
-        + Send
-        + Sync
-        + 'static,
-        serve_future: F,
-    ) -> Self
-    where
-        F: Fn(iota_network_stack::server::Server) -> BoxFuture<'static, Result<()>>
-            + Send
-            + Sync
-            + 'static,
-    {
-        Self {
-            bind_future: Some(Mutex::new(Box::pin(bind_future))),
-            serve_future: Some(Box::new(serve_future)),
-            server_handle: None,
-        }
+impl SpawnOnce {
+    pub fn new(
+        future: impl Future<Output = Result<iota_network_stack::server::Server>> + Send + 'static,
+    ) -> Self {
+        Self::Unstarted(Mutex::new(Box::pin(future)))
     }
 
-    pub async fn start(mut self) -> Self {
-        if let Some(bind_fn) = self.bind_future.take() {
-            let server = bind_fn
-                .into_inner()
-                .await
-                .expect("Failed to bind validator gRPC server");
-
-            // Get the server handle to allow graceful shutdown later.
-            self.server_handle = Some(server.handle().clone());
-
-            if let Some(serve_fn) = self.serve_future.take() {
-                tokio::spawn(serve_fn(server));
+    pub async fn start(self) -> Self {
+        match self {
+            Self::Unstarted(future) => {
+                let server = future
+                    .into_inner()
+                    .await
+                    .unwrap_or_else(|err| panic!("Failed to start validator gRPC server: {err}"));
+                let handle = server.handle().clone();
+                let _ = tokio::spawn(async move {
+                    if let Err(err) = server.serve().await {
+                        info!("Server stopped: {err}");
+                    }
+                    info!("Server stopped");
+                });
+                Self::Started(handle)
             }
+            Self::Started(_) => self,
         }
-
-        self
     }
 
     pub fn shutdown(self) {
-        if let Some(handle) = self.server_handle {
+        if let SpawnOnce::Started(handle) = self {
             handle.trigger_shutdown();
         }
     }
