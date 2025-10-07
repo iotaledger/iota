@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use async_graphql::{Context, OutputType, SimpleObject, Subscription, Union};
-use futures::{Stream, StreamExt, future};
+use futures::{Stream, StreamExt, TryStreamExt, future};
 use iota_indexer::{
     indexer_reader::IndexerReader,
     stream::{IndexerStreamer, StreamEventFilter, StreamTransactionFilter},
@@ -119,45 +119,34 @@ impl GraphQLStream {
     ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> {
         self.streamer
             .subscribe_transactions()
-            // - Some(Some(item)): Yield the item and continue the stream.
-            // - Some(None): Do not yield an item, but continue the stream (used for filtering).
-            // - None: Crucially, this signal stops the entire stream immediately, which is what we
-            // need for server-side dropping of the stream.
-            .scan(false, move |should_terminate_stream, stored| {
+            .try_filter(move |stored| future::ready(Self::matches_filter(filter.as_ref(), stored)))
+            .then(|stored| {
+                let subscription_item = match stored {
+                    Ok(stored) => {
+                        let checkpoint_viewed_at = stored.checkpoint_sequence_number as u64;
+                        TransactionBlockInner::try_from(stored).map(|inner| {
+                            SubscriptionItem::Payload(TransactionBlock {
+                                inner,
+                                checkpoint_viewed_at,
+                            })
+                        })
+                    }
+                    Err(BroadcastStreamRecvError::Lagged(count)) => {
+                        warn!("subscriber lagging by {count} messages");
+                        Ok(SubscriptionItem::Lagged(Lagged { count }))
+                    }
+                };
+                future::ready(subscription_item)
+            })
+            // intercept the error, send it to the client and terminate the stream.
+            .scan(false, |should_terminate_stream, subscription_item| {
                 if *should_terminate_stream {
                     return future::ready(None);
                 }
-
-                let stored = match stored {
-                    Ok(stored) => stored,
-                    Err(BroadcastStreamRecvError::Lagged(count)) => {
-                        warn!("subscriber lagging by {count} messages");
-                        return future::ready(Some(Some(Ok(SubscriptionItem::Lagged(Lagged {
-                            count,
-                        })))));
-                    }
-                };
-
-                if !Self::matches_filter(filter.as_ref(), &stored) {
-                    return future::ready(Some(None));
-                }
-
-                let checkpoint_viewed_at = stored.checkpoint_sequence_number as u64;
-                match TransactionBlockInner::try_from(stored) {
-                    Ok(inner) => {
-                        let tx = TransactionBlock {
-                            inner,
-                            checkpoint_viewed_at,
-                        };
-                        future::ready(Some(Some(Ok(SubscriptionItem::Payload(tx)))))
-                    }
-                    Err(e) => {
-                        *should_terminate_stream = true;
-                        future::ready(Some(Some(Err(e))))
-                    }
-                }
+                future::ready(Some(
+                    subscription_item.inspect_err(|_| *should_terminate_stream = true),
+                ))
             })
-            .filter_map(future::ready)
     }
 
     /// Subscribe to events from IOTA Network.
@@ -167,37 +156,27 @@ impl GraphQLStream {
     ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> {
         self.streamer
             .subscribe_events()
-            // - Some(Some(item)): Yield the item and continue the stream.
-            // - Some(None): Do not yield an item, but continue the stream (used for filtering).
-            // - None: Crucially, this signal stops the entire stream immediately, which is what we
-            // need for server-side dropping of the stream.
-            .scan(false, move |should_terminate_stream, stored| {
+            .try_filter(move |stored| future::ready(Self::matches_filter(filter.as_ref(), stored)))
+            .then(|stored| {
+                let subscription_item = match stored {
+                    Ok(stored) => {
+                        Event::try_from_stored_event(stored, 0).map(SubscriptionItem::Payload)
+                    }
+                    Err(BroadcastStreamRecvError::Lagged(count)) => {
+                        warn!("subscriber lagging by {count} messages");
+                        Ok(SubscriptionItem::Lagged(Lagged { count }))
+                    }
+                };
+                future::ready(subscription_item)
+            })
+            // intercept the error, send it to the client and terminate the stream.
+            .scan(false, |should_terminate_stream, subscription_item| {
                 if *should_terminate_stream {
                     return future::ready(None);
                 }
-
-                let stored = match stored {
-                    Ok(stored) => stored,
-                    Err(BroadcastStreamRecvError::Lagged(count)) => {
-                        warn!("subscriber lagging by {count} messages");
-                        return future::ready(Some(Some(Ok(SubscriptionItem::Lagged(Lagged {
-                            count,
-                        })))));
-                    }
-                };
-
-                if !Self::matches_filter(filter.as_ref(), &stored) {
-                    return future::ready(Some(None));
-                }
-
-                match Event::try_from_stored_event(stored, 0) {
-                    Ok(ev) => future::ready(Some(Some(Ok(SubscriptionItem::Payload(ev))))),
-                    Err(e) => {
-                        *should_terminate_stream = true;
-                        future::ready(Some(Some(Err(e))))
-                    }
-                }
+                future::ready(Some(
+                    subscription_item.inspect_err(|_| *should_terminate_stream = true),
+                ))
             })
-            .filter_map(future::ready)
     }
 }
