@@ -4677,11 +4677,7 @@ impl AuthorityState {
 
                 let total_votes = stake_aggregator.total_votes();
                 let quorum_threshold = committee.quorum_threshold();
-                let f = committee.total_votes() - committee.quorum_threshold();
-
-                // multiple by buffer_stake_bps / 10000, rounded up.
-                let buffer_stake = (f * buffer_stake_bps).div_ceil(10000);
-                let effective_threshold = quorum_threshold + buffer_stake;
+                let effective_threshold = committee.effective_threshold(buffer_stake_bps);
 
                 info!(
                     protocol_config_digest = ?digest,
@@ -4934,10 +4930,7 @@ impl AuthorityState {
                 // Use the same effective threshold calculation that was used to decide the
                 // protocol version
                 let committee = epoch_store.committee();
-                let quorum_threshold = committee.quorum_threshold();
-                let f = committee.total_votes() - quorum_threshold;
-                let buffer_stake = (f * buffer_stake_bps).div_ceil(10000);
-                let effective_threshold = quorum_threshold + buffer_stake;
+                let effective_threshold = committee.effective_threshold(buffer_stake_bps);
 
                 if eligible_validators_weight < effective_threshold {
                     error!(
@@ -4945,8 +4938,7 @@ impl AuthorityState {
                         This could indicate a bug in validator selection logic or inconsistency with protocol version decision.",
                     );
                     // Pass all active validator indices as eligible validators
-                    // to perform selection among all of
-                    // them.
+                    // to perform selection among all of them.
                     eligible_active_validators = (0..active_validators.len() as u64).collect();
                 }
             }
