@@ -29,6 +29,7 @@ use iota_graphql_rpc_headers::LIMITS_HEADER;
 use iota_indexer::{
     apis::{OptimisticWriteApi, WriteApi},
     db::{get_pool_connection, setup_postgres::check_db_migration_consistency},
+    indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
     optimistic_indexing::OptimisticTransactionExecutor,
     store::PgIndexerStore,
@@ -445,7 +446,7 @@ impl ServerBuilder {
             // time).
             config.service.limits.request_timeout_ms.into(),
         )
-        .map_err(|e| Error::Internal(format!("Failed to create pg connection pool: {e}")))?;
+        .map_err(|e| Error::ServerInit(format!("Failed to create pg connection pool: {e}")))?;
 
         // DB
         let db = Db::new(
@@ -464,28 +465,12 @@ impl ServerBuilder {
         builder.db_reader = Some(db.clone());
         builder.resolver = Some(resolver.clone());
 
-        // SDK for talking to fullnode. Used for executing transactions only
-        // TODO: fail fast if no url, once we enable mutations fully
-        let write_api = if let Some(url) = &config.tx_exec_full_node.node_rpc_url {
-            let json_rpc_client = get_json_rpc_client(url)?;
-            let indexer_store = PgIndexerStore::new(reader.get_pool(), indexer_metrics.clone());
-            let optimistic_tx_executor = OptimisticTransactionExecutor::new(
-                url,
-                reader.clone(),
-                indexer_store,
-                indexer_metrics.clone(),
-            );
-            let write_api = OptimisticWriteApi::new(
-                WriteApi::new(json_rpc_client, reader),
-                optimistic_tx_executor,
-            );
-            Some(write_api)
-        } else {
-            warn!(
-                "No fullnode url found in config. `dryRunTransactionBlock` and `executeTransactionBlock` will not work"
-            );
-            None
+        let Some(fullnode_url) = config.tx_exec_full_node.node_rpc_url.as_ref() else {
+            return Err(Error::ServerInit(
+                "No fullnode url found in config".to_string(),
+            ));
         };
+        let write_api = build_write_api(fullnode_url, reader, indexer_metrics)?;
 
         builder = builder
             .context_data(config.service.clone())
@@ -583,15 +568,26 @@ async fn graphql_handler(
 pub(crate) fn get_write_api<'ctx>(
     ctx: &'ctx Context<'_>,
 ) -> Result<&'ctx OptimisticWriteApi, Error> {
-    let write_api: &Option<OptimisticWriteApi> = ctx
-        .data()
-        .map_err(|_| Error::Internal("Unable to get node execution interface".to_string()))?;
-    write_api
-        .as_ref()
-        .ok_or_else(|| Error::Internal("Node execution interface not initialized".to_string()))
+    ctx.data_opt()
+        .ok_or_else(|| Error::Internal("Unable to get node execution interface".to_string()))
 }
 
-fn get_json_rpc_client(rpc_client_url: &str) -> Result<HttpClient, Error> {
+fn build_write_api(
+    fullnode_url: &str,
+    reader: IndexerReader,
+    metrics: IndexerMetrics,
+) -> Result<OptimisticWriteApi, Error> {
+    let json_rpc_client = build_json_rpc_client(fullnode_url)?;
+    let indexer_store = PgIndexerStore::new(reader.get_pool(), metrics.clone());
+    let optimistic_tx_executor =
+        OptimisticTransactionExecutor::new(fullnode_url, reader.clone(), indexer_store, metrics);
+    Ok(OptimisticWriteApi::new(
+        WriteApi::new(json_rpc_client, reader),
+        optimistic_tx_executor,
+    ))
+}
+
+fn build_json_rpc_client(rpc_client_url: &str) -> Result<HttpClient, Error> {
     let mut headers = HeaderMap::new();
     headers.insert(CLIENT_SDK_TYPE_HEADER, HeaderValue::from_static("graphql"));
 
@@ -863,7 +859,7 @@ pub mod tests {
         let fn_rpc_url = &cluster.validator_fullnode_handle.fullnode_handle.rpc_url;
         let indexer_metrics = store.get_metrics();
         let indexer_reader = iota_indexer::indexer_reader::IndexerReader::new(store.blocking_cp());
-        let json_rpc_client = get_json_rpc_client(fn_rpc_url).unwrap();
+        let json_rpc_client = build_json_rpc_client(fn_rpc_url).unwrap();
 
         let optimistic_tx_executor =
             iota_indexer::optimistic_indexing::OptimisticTransactionExecutor::new(
