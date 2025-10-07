@@ -4623,7 +4623,7 @@ impl AuthorityState {
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         mut buffer_stake_bps: u64,
-    ) -> Option<(ProtocolVersion, Vec<ObjectRef>, Digest)> {
+    ) -> Option<(ProtocolVersion, Digest, Vec<ObjectRef>)> {
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -4691,7 +4691,7 @@ impl AuthorityState {
                 );
 
                 let has_support = total_votes >= effective_threshold;
-                has_support.then_some((proposed_protocol_version, packages, digest))
+                has_support.then_some((proposed_protocol_version, digest, packages))
             })
     }
 
@@ -4712,15 +4712,15 @@ impl AuthorityState {
         // Finds the highest supported protocol version and system packages by
         // incrementing the proposed protocol version by one until no further
         // upgrades are supported.
-        while let Some((version, packages, digest)) = Self::is_protocol_version_supported_v1(
+        while let Some((version, digest, packages)) = Self::is_protocol_version_supported_v1(
             next_protocol_version + 1,
             committee,
             capabilities.clone(),
             buffer_stake_bps,
         ) {
             next_protocol_version = version;
-            system_packages = packages;
             protocol_version_digest = digest;
+            system_packages = packages;
         }
 
         (
