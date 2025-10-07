@@ -802,8 +802,9 @@ fn verify_peer_infos(
                             true // Cooldown expired
                         } else {
                             debug!(
-                                "Peer {} is in verification failure cooldown (failed {:.1}s ago, cooldown: {:.1}s)",
+                                "Peer {} ({}) is in verification failure cooldown (failed {:.1}s ago, cooldown: {:.1}s)",
                                 peer_info.peer_id,
+                                peer_info.addresses.iter().map(|a| a.to_string()).collect::<Vec<_>>().join(", "),
                                 time_since_failure.as_secs_f32(),
                                 cooldown_duration.as_secs_f32()
                             );
@@ -905,7 +906,7 @@ async fn verify_addresses_of_peers(
     config: &DiscoveryConfig,
 ) -> (
     Vec<(VerifiedEnvelope<NodeInfo, Ed25519Signature>, Vec<Multiaddr>)>,
-    Vec<PeerId>,
+    Vec<NodeInfo>,
 ) {
     let peers_count = peers.len();
     let verification_stream = futures::stream::iter(peers.into_iter().map(|verified_peer_info| {
@@ -952,10 +953,16 @@ async fn verify_addresses_of_peers(
     for (verified_peer_info, verified_addresses) in address_verification_results {
         if verified_addresses.is_empty() {
             info!(
-                "Rejecting peer {} due to failed address verification for all addresses",
-                verified_peer_info.peer_id
+                "Rejecting peer {} ({}) due to failed address verification for all addresses",
+                verified_peer_info.peer_id,
+                verified_peer_info
+                    .addresses
+                    .iter()
+                    .map(|a| a.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
             );
-            failed_peers.push(verified_peer_info.peer_id);
+            failed_peers.push(verified_peer_info.data().to_owned());
         } else {
             verified_peers.push((verified_peer_info, verified_addresses));
         }
@@ -1052,7 +1059,7 @@ async fn update_known_peers(
     }
 
     // Verify addresses for peers that need verification
-    let (mut verified_peers, failed_peer_ids) = match peers_with_addresses_to_verify.is_empty() {
+    let (mut verified_peers, failed_peer_infos) = match peers_with_addresses_to_verify.is_empty() {
         false => verify_addresses_of_peers(network, peers_with_addresses_to_verify, config).await,
         true => Default::default(),
     };
@@ -1061,7 +1068,7 @@ async fn update_known_peers(
     // peers, we're done
     if verified_peers.is_empty()
         && peers_to_update_directly.is_empty()
-        && failed_peer_ids.is_empty()
+        && failed_peer_infos.is_empty()
     {
         return;
     }
@@ -1097,13 +1104,19 @@ async fn update_known_peers(
 
         // Add all failed peers to verification failure cooldown (if enabled)
         if config.is_address_verification_cooldown_enabled() {
-            for peer_id in failed_peer_ids {
+            for peer_info in failed_peer_infos {
                 state_guard
                     .address_verification_cooldown
-                    .insert(peer_id, now_instant);
+                    .insert(peer_info.peer_id, now_instant);
                 debug!(
-                    "Added peer {} to verification failure cooldown for {:.1}s",
-                    peer_id,
+                    "Added peer {} ({}) to verification failure cooldown for {:.1}s",
+                    peer_info.peer_id,
+                    peer_info
+                        .addresses
+                        .iter()
+                        .map(|a| a.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", "),
                     config.address_verification_failure_cooldown().as_secs_f32()
                 );
             }
