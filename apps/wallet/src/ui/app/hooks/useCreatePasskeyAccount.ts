@@ -40,10 +40,12 @@ export function useCreatePasskeyAccount() {
                 throw new Error('Failed to initialize passkey');
             }
 
+            const credentialId = passkeyKeypair.getCredentialId();
             return {
                 address: passkeyKeypair.getPublicKey().toIotaAddress(),
                 publicKey: passkeyKeypair.getPublicKey().toBase64(),
                 providerOptions: options,
+                credentialId: credentialId ? Array.from(credentialId) : undefined,
             };
         } catch (error) {
             throw new Error(
