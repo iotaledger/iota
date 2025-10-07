@@ -4,13 +4,14 @@
 #[test_only]
 module dynamic_multisig_account::dynamic_multisig_account_tests;
 
-use dynamic_multisig_account::dynamic_multisig_account::{Self, DynamicMultisigAccount};
+use dynamic_multisig_account::dynamic_multisig_account;
 use dynamic_multisig_account::members;
 use dynamic_multisig_account::transactions;
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::{Self, AuthContext};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
+use iotaccount::iotaccount::{Self, IOTAccount};
 use std::ascii;
 
 const TRANSACTION_DIGEST: vector<u8> =
@@ -24,13 +25,16 @@ fun test_account_creation() {
         // Check the account after creation.
         scenario.next_tx(@0x0);
         {
-            let account = scenario.take_shared<DynamicMultisigAccount>();
+            let account = scenario.take_shared<IOTAccount>();
 
-            assert_eq(account.members().addresses(), vector[@0x1, @0x2, @0x3]);
-            assert_eq(account.members().weights(), vector[1, 2, 3]);
-            assert_eq(account.threshold(), 3);
+            assert_eq(
+                dynamic_multisig_account::members(&account).addresses(),
+                vector[@0x1, @0x2, @0x3],
+            );
+            assert_eq(dynamic_multisig_account::members(&account).weights(), vector[1, 2, 3]);
+            assert_eq(dynamic_multisig_account::threshold(&account), 3);
             assert_ref_eq(
-                account.authenticator(),
+                account.borrow_auth_info_v1(),
                 &create_default_authenticator_info_v1_for_testing(),
             );
 
@@ -40,14 +44,21 @@ fun test_account_creation() {
         // Propose a transaction.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
             // The transaction does not exist
-            assert_eq(account.transactions().contains(TRANSACTION_DIGEST), false);
+            assert_eq(
+                dynamic_multisig_account::transactions(&account).contains(TRANSACTION_DIGEST),
+                false,
+            );
             // and has no approvals yet.
-            assert_eq(account.total_approves(TRANSACTION_DIGEST), 0);
+            assert_eq(dynamic_multisig_account::total_approves(&account, TRANSACTION_DIGEST), 0);
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -55,9 +66,11 @@ fun test_account_creation() {
         // Approve the transaction.
         scenario.next_tx(@0x2);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            let transaction = account.transactions().borrow(TRANSACTION_DIGEST);
+            let transaction = dynamic_multisig_account::transactions(&account).borrow(
+                TRANSACTION_DIGEST,
+            );
 
             // The transaction now exists
             assert_eq(transaction.digest(), TRANSACTION_DIGEST);
@@ -65,9 +78,13 @@ fun test_account_creation() {
             assert_ref_eq(transaction.approves(), &vector[@0x1]);
 
             // The approval weight of the transaction equals to the weight of the proposer.
-            assert_eq(account.total_approves(TRANSACTION_DIGEST), 1);
+            assert_eq(dynamic_multisig_account::total_approves(&account, TRANSACTION_DIGEST), 1);
 
-            account.approve_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::approve_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -75,16 +92,18 @@ fun test_account_creation() {
         // Authenticate the transaction.
         scenario.next_tx(account_address);
         {
-            let account = scenario.take_shared<DynamicMultisigAccount>();
+            let account = scenario.take_shared<IOTAccount>();
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
-            let transaction = account.transactions().borrow(TRANSACTION_DIGEST);
+            let transaction = dynamic_multisig_account::transactions(&account).borrow(
+                TRANSACTION_DIGEST,
+            );
 
             // The transaction now has two approvals
             assert_ref_eq(transaction.approves(), &vector[@0x1, @0x2]);
             // with total weight which is enough to reach the threshold.
-            assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
+            assert_eq(dynamic_multisig_account::total_approves(&account, TRANSACTION_DIGEST), 3);
 
             dynamic_multisig_account::authenticate(&account, &auth_ctx, &tx_ctx);
 
@@ -94,13 +113,20 @@ fun test_account_creation() {
         // Remove the transaction.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.remove_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::remove_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             // The transaction is removed.
-            assert_eq(account.transactions().contains(TRANSACTION_DIGEST), false);
-            assert_eq(account.total_approves(TRANSACTION_DIGEST), 0);
+            assert_eq(
+                dynamic_multisig_account::transactions(&account).contains(TRANSACTION_DIGEST),
+                false,
+            );
+            assert_eq(dynamic_multisig_account::total_approves(&account, TRANSACTION_DIGEST), 0);
 
             test_scenario::return_shared(account);
         };
@@ -220,9 +246,13 @@ fun test_transaction_propose_several() {
         // Propose a transaction.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(transaction_digest_1, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                transaction_digest_1,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -230,9 +260,13 @@ fun test_transaction_propose_several() {
         // Propose a second transaction.
         scenario.next_tx(@0x2);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(transaction_digest_2, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                transaction_digest_2,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -240,9 +274,13 @@ fun test_transaction_propose_several() {
         // Propose a third transaction.
         scenario.next_tx(@0x3);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(transaction_digest_3, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                transaction_digest_3,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -250,11 +288,17 @@ fun test_transaction_propose_several() {
         // Check the transactions.
         scenario.next_tx(@0x0);
         {
-            let account = scenario.take_shared<DynamicMultisigAccount>();
+            let account = scenario.take_shared<IOTAccount>();
 
-            let transaction_1 = account.transactions().borrow(transaction_digest_1);
-            let transaction_2 = account.transactions().borrow(transaction_digest_2);
-            let transaction_3 = account.transactions().borrow(transaction_digest_3);
+            let transaction_1 = dynamic_multisig_account::transactions(&account).borrow(
+                transaction_digest_1,
+            );
+            let transaction_2 = dynamic_multisig_account::transactions(&account).borrow(
+                transaction_digest_2,
+            );
+            let transaction_3 = dynamic_multisig_account::transactions(&account).borrow(
+                transaction_digest_3,
+            );
 
             assert_eq(transaction_1.digest(), transaction_digest_1);
             assert_eq(transaction_2.digest(), transaction_digest_2);
@@ -276,9 +320,13 @@ fun test_transaction_not_member_proposal() {
         // Propose a transaction by not a member.
         scenario.next_tx(@0xA);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -292,9 +340,13 @@ fun test_transaction_not_member_approve() {
         // Propose a transaction.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -302,9 +354,13 @@ fun test_transaction_not_member_approve() {
         // Approve the transaction by not a member.
         scenario.next_tx(@0xA);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.approve_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::approve_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -312,15 +368,19 @@ fun test_transaction_not_member_approve() {
 }
 
 #[test]
-#[expected_failure(abort_code = dynamic_multisig_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun test_transaction_remove_not_by_account() {
     account_test!(|scenario, _| {
         // Propose a transaction.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -328,9 +388,13 @@ fun test_transaction_remove_not_by_account() {
         // Remove the transaction by not the account.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.remove_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::remove_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -344,9 +408,13 @@ fun test_transaction_approve_by_proposer() {
         // Propose a transaction.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -354,9 +422,13 @@ fun test_transaction_approve_by_proposer() {
         // Approve the transaction with the same sender.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.approve_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::approve_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -370,9 +442,13 @@ fun test_transaction_double_proposal() {
         // Propose a transaction.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -380,9 +456,13 @@ fun test_transaction_double_proposal() {
         // Propose the transaction once again.
         scenario.next_tx(@0x2);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -396,9 +476,13 @@ fun test_transaction_double_approve() {
         // Propose a transaction.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -406,9 +490,13 @@ fun test_transaction_double_approve() {
         // Approve the transaction.
         scenario.next_tx(@0x2);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.approve_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::approve_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -416,9 +504,13 @@ fun test_transaction_double_approve() {
         // Approve the transaction with the same sender.
         scenario.next_tx(@0x2);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.approve_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::approve_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -432,9 +524,13 @@ fun test_transaction_remove_non_existent() {
         // Remove the not-existent transaction.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.remove_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::remove_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -448,9 +544,13 @@ fun test_transaction_double_remove() {
         // Propose a transaction.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -458,9 +558,13 @@ fun test_transaction_double_remove() {
         // Remove the transaction.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.remove_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::remove_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -468,9 +572,13 @@ fun test_transaction_double_remove() {
         // Remove the transaction again.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.remove_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::remove_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -485,7 +593,7 @@ fun test_account_updating() {
         // Update the account data.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
             let ctx = test_scenario::ctx(scenario);
 
@@ -495,7 +603,8 @@ fun test_account_updating() {
             let threshold = 15;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(
+            dynamic_multisig_account::update_account_data(
+                &mut account,
                 members_addresses,
                 members_weights,
                 threshold,
@@ -503,10 +612,10 @@ fun test_account_updating() {
                 ctx,
             );
 
-            assert_eq(account.members().addresses(), members_addresses);
-            assert_eq(account.members().weights(), members_weights);
-            assert_eq(account.threshold(), threshold);
-            assert_ref_eq(account.authenticator(), &authenticator);
+            assert_eq(dynamic_multisig_account::members(&account).addresses(), members_addresses);
+            assert_eq(dynamic_multisig_account::members(&account).weights(), members_weights);
+            assert_eq(dynamic_multisig_account::threshold(&account), threshold);
+            assert_ref_eq(account.borrow_auth_info_v1(), &authenticator);
 
             test_scenario::return_shared(account);
         };
@@ -514,13 +623,13 @@ fun test_account_updating() {
 }
 
 #[test]
-#[expected_failure(abort_code = dynamic_multisig_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun test_account_updating_with_not_account() {
     account_test!(|scenario, _| {
         // Update the account data by not the account.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
             let ctx = test_scenario::ctx(scenario);
 
@@ -529,7 +638,8 @@ fun test_account_updating_with_not_account() {
             let threshold = 10;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(
+            dynamic_multisig_account::update_account_data(
+                &mut account,
                 members_addresses,
                 members_weights,
                 threshold,
@@ -549,7 +659,7 @@ fun test_account_updating_with_inconsistent_members() {
         // Update the account data.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
             let ctx = test_scenario::ctx(scenario);
 
@@ -559,7 +669,8 @@ fun test_account_updating_with_inconsistent_members() {
             let threshold = 10;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(
+            dynamic_multisig_account::update_account_data(
+                &mut account,
                 members_addresses,
                 members_weights,
                 threshold,
@@ -579,7 +690,7 @@ fun test_account_updating_with_members_duplicate() {
         // Update the account data.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
             let ctx = test_scenario::ctx(scenario);
 
@@ -589,7 +700,8 @@ fun test_account_updating_with_members_duplicate() {
             let threshold = 10;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(
+            dynamic_multisig_account::update_account_data(
+                &mut account,
                 members_addresses,
                 members_weights,
                 threshold,
@@ -609,7 +721,7 @@ fun test_account_updating_with_zero_threshold() {
         // Update the account data.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
             let ctx = test_scenario::ctx(scenario);
 
@@ -619,7 +731,8 @@ fun test_account_updating_with_zero_threshold() {
             let threshold = 0;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(
+            dynamic_multisig_account::update_account_data(
+                &mut account,
                 members_addresses,
                 members_weights,
                 threshold,
@@ -639,7 +752,7 @@ fun test_account_updating_with_inconsistent_threshold() {
         // Update the account data.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
             let ctx = test_scenario::ctx(scenario);
 
@@ -649,7 +762,8 @@ fun test_account_updating_with_inconsistent_threshold() {
             let threshold = 16;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(
+            dynamic_multisig_account::update_account_data(
+                &mut account,
                 members_addresses,
                 members_weights,
                 threshold,
@@ -665,19 +779,23 @@ fun test_account_updating_with_inconsistent_threshold() {
 // --------------------------------------- Authentication ---------------------------------------
 
 #[test]
-#[expected_failure(abort_code = dynamic_multisig_account::ETransactionSenderIsNotTheAccount)]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
 fun test_authenticate_by_not_account() {
     account_test!(|scenario, _| {
         // Propose a transaction.
         scenario.next_tx(@0x3);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
-            assert_eq(account.threshold(), 3);
+            assert_eq(dynamic_multisig_account::threshold(&account), 3);
             // The transaction has enough approves weight and can be executed.
-            assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
+            assert_eq(dynamic_multisig_account::total_approves(&account, TRANSACTION_DIGEST), 3);
 
             test_scenario::return_shared(account);
         };
@@ -685,7 +803,7 @@ fun test_authenticate_by_not_account() {
         // Authenticate the transaction by not the account.
         scenario.next_tx(@0x3);
         {
-            let account = scenario.take_shared<DynamicMultisigAccount>();
+            let account = scenario.take_shared<IOTAccount>();
             let tx_ctx = create_tx_context_for_testing(@0x3, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
@@ -707,13 +825,17 @@ fun test_authenticate_not_enough_total_weight() {
         // Propose a transaction.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
-            assert_eq(account.threshold(), 3);
+            assert_eq(dynamic_multisig_account::threshold(&account), 3);
             // The transaction has not enough approves to be executed.
-            assert_eq(account.total_approves(TRANSACTION_DIGEST), 1);
+            assert_eq(dynamic_multisig_account::total_approves(&account, TRANSACTION_DIGEST), 1);
 
             test_scenario::return_shared(account);
         };
@@ -721,7 +843,7 @@ fun test_authenticate_not_enough_total_weight() {
         // Authenticate the transaction.
         scenario.next_tx(account_address);
         {
-            let account = scenario.take_shared<DynamicMultisigAccount>();
+            let account = scenario.take_shared<IOTAccount>();
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
@@ -743,13 +865,17 @@ fun test_authenticate_not_enough_total_weight_after_update() {
         // Propose a transaction.
         scenario.next_tx(@0x3);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
-            assert_eq(account.threshold(), 3);
+            assert_eq(dynamic_multisig_account::threshold(&account), 3);
             // The transaction has enough approves weight and can be executed.
-            assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
+            assert_eq(dynamic_multisig_account::total_approves(&account, TRANSACTION_DIGEST), 3);
 
             test_scenario::return_shared(account);
         };
@@ -757,7 +883,7 @@ fun test_authenticate_not_enough_total_weight_after_update() {
         // Update the account data.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
             let ctx = test_scenario::ctx(scenario);
 
@@ -767,7 +893,8 @@ fun test_authenticate_not_enough_total_weight_after_update() {
             let threshold = 3;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(
+            dynamic_multisig_account::update_account_data(
+                &mut account,
                 members_addresses,
                 members_weights,
                 threshold,
@@ -781,7 +908,7 @@ fun test_authenticate_not_enough_total_weight_after_update() {
         // Authenticate the transaction.
         scenario.next_tx(account_address);
         {
-            let account = scenario.take_shared<DynamicMultisigAccount>();
+            let account = scenario.take_shared<IOTAccount>();
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
@@ -803,9 +930,13 @@ fun test_authenticate_member_removed_during_update() {
         // Propose a transaction.
         scenario.next_tx(@0x1);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -813,13 +944,17 @@ fun test_authenticate_member_removed_during_update() {
         // Approve the transaction.
         scenario.next_tx(@0x2);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.approve_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::approve_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
-            assert_eq(account.threshold(), 3);
+            assert_eq(dynamic_multisig_account::threshold(&account), 3);
             // The transaction has enough approves weight and can be executed.
-            assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
+            assert_eq(dynamic_multisig_account::total_approves(&account, TRANSACTION_DIGEST), 3);
 
             test_scenario::return_shared(account);
         };
@@ -827,7 +962,7 @@ fun test_authenticate_member_removed_during_update() {
         // Update the account data.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
             let ctx = test_scenario::ctx(scenario);
 
@@ -837,7 +972,8 @@ fun test_authenticate_member_removed_during_update() {
             let threshold = 3;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(
+            dynamic_multisig_account::update_account_data(
+                &mut account,
                 members_addresses,
                 members_weights,
                 threshold,
@@ -851,7 +987,7 @@ fun test_authenticate_member_removed_during_update() {
         // Authenticate the transaction.
         scenario.next_tx(account_address);
         {
-            let account = scenario.take_shared<DynamicMultisigAccount>();
+            let account = scenario.take_shared<IOTAccount>();
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
@@ -873,13 +1009,17 @@ fun test_authenticate_threshold_changed_during_update() {
         // Propose a transaction.
         scenario.next_tx(@0x3);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
-            account.propose_transaction(TRANSACTION_DIGEST, test_scenario::ctx(scenario));
+            dynamic_multisig_account::propose_transaction(
+                &mut account,
+                TRANSACTION_DIGEST,
+                test_scenario::ctx(scenario),
+            );
 
-            assert_eq(account.threshold(), 3);
+            assert_eq(dynamic_multisig_account::threshold(&account), 3);
             // The transaction has enough approves weight and can be executed.
-            assert_eq(account.total_approves(TRANSACTION_DIGEST), 3);
+            assert_eq(dynamic_multisig_account::total_approves(&account, TRANSACTION_DIGEST), 3);
 
             test_scenario::return_shared(account);
         };
@@ -887,7 +1027,7 @@ fun test_authenticate_threshold_changed_during_update() {
         // Update the account data.
         scenario.next_tx(account_address);
         {
-            let mut account = scenario.take_shared<DynamicMultisigAccount>();
+            let mut account = scenario.take_shared<IOTAccount>();
 
             let ctx = test_scenario::ctx(scenario);
 
@@ -897,7 +1037,8 @@ fun test_authenticate_threshold_changed_during_update() {
             let threshold = 4;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(
+            dynamic_multisig_account::update_account_data(
+                &mut account,
                 members_addresses,
                 members_weights,
                 threshold,
@@ -911,7 +1052,7 @@ fun test_authenticate_threshold_changed_during_update() {
         // Authenticate the transaction.
         scenario.next_tx(account_address);
         {
-            let account = scenario.take_shared<DynamicMultisigAccount>();
+            let account = scenario.take_shared<IOTAccount>();
             let tx_ctx = create_tx_context_for_testing(account_address, TRANSACTION_DIGEST);
             let auth_ctx = create_auth_context_for_testing();
 
@@ -958,8 +1099,8 @@ fun create_account_for_testing(scenario: &mut Scenario): address {
 
     scenario.next_tx(@0x0);
 
-    let account = scenario.take_shared<DynamicMultisigAccount>();
-    let account_address = account.get_address();
+    let account = scenario.take_shared<IOTAccount>();
+    let account_address = account.account_address();
 
     test_scenario::return_shared(account);
 

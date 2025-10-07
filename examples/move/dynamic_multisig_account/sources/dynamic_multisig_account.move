@@ -5,9 +5,9 @@ module dynamic_multisig_account::dynamic_multisig_account;
 
 use dynamic_multisig_account::members::{Self, Members};
 use dynamic_multisig_account::transactions::{Self, Transactions};
-use iota::account::{Self, AuthenticatorInfoV1};
+use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
-use iota::dynamic_field;
+use iotaccount::iotaccount::{Self, IOTAccount};
 
 // --------------------------------------- Errors ---------------------------------------
 
@@ -17,9 +17,6 @@ const ETotalMembersWeightLessThanThreshold: vector<u8> =
 #[error(code = 1)]
 const EThresholdIsZero: vector<u8> = b"The threshold can not be equal to 0.";
 #[error(code = 2)]
-const ETransactionSenderIsNotTheAccount: vector<u8> =
-    b"The user who signed the transaction is not the account.";
-#[error(code = 3)]
 const ETransactionDoesNotHaveSufficientApprovals: vector<u8> =
     b"The transaction does not have sufficient approvals.";
 
@@ -31,13 +28,6 @@ public struct MembersKey has copy, drop, store {}
 public struct ThresholdKey has copy, drop, store {}
 /// A dynamic field key for the transactions.
 public struct TransactionsKey has copy, drop, store {}
-
-// ---------------------------------- Data Structures ----------------------------------
-
-/// This struct represents a dynamic multisig account.
-public struct DynamicMultisigAccount has key {
-    id: UID,
-}
 
 // -------------------------------------- Creation --------------------------------------
 
@@ -56,50 +46,43 @@ public fun create(
     // Verify the provided data consistency.
     verify_threshold(&members, threshold);
 
-    // Create a UID for an account object.
-    let mut id = object::new(ctx);
+    // Create an account object.
+    let account = iotaccount::builder(authenticator, ctx)
+        .add_dynamic_field(members_key(), members)
+        .add_dynamic_field(threshold_key(), threshold)
+        .add_dynamic_field(transactions_key(), transactions::create(ctx))
+        .finish();
 
-    // Add all the data as dynamic fields.
-    dynamic_field::add(&mut id, members_key(), members);
-    dynamic_field::add(&mut id, threshold_key(), threshold);
-    account::attach_auth_info_v1(&mut id, authenticator);
-    dynamic_field::add(&mut id, transactions_key(), transactions::create(ctx));
-
-    // Create a mutable shared account object.
-    iota::transfer::share_object(DynamicMultisigAccount { id });
+    // Share the account object.
+    account.share();
 }
 
 // --------------------------------------- View Functions ---------------------------------------
 
-/// Returns the account address.
-public fun get_address(self: &DynamicMultisigAccount): address {
-    self.id.to_address()
-}
-
 /// Borrows the account threshold.
-public fun threshold(self: &DynamicMultisigAccount): u64 {
-    *dynamic_field::borrow(&self.id, threshold_key())
+public fun threshold(self: &IOTAccount): u64 {
+    *self.borrow_field(threshold_key())
 }
 
 /// Immutably borrows the account members.
-public fun members(self: &DynamicMultisigAccount): &Members {
-    dynamic_field::borrow(&self.id, members_key())
+public fun members(self: &IOTAccount): &Members {
+    self.borrow_field(members_key())
 }
 
 /// Immutably borrows the account transactions.
-public fun transactions(self: &DynamicMultisigAccount): &Transactions {
-    dynamic_field::borrow(&self.id, transactions_key())
+public fun transactions(self: &IOTAccount): &Transactions {
+    self.borrow_field(transactions_key())
 }
 
 /// Returns the total weight of the members who approved the transaction with the provided digest.
-public fun total_approves(self: &DynamicMultisigAccount, transaction_digest: vector<u8>): u64 {
+public fun total_approves(self: &IOTAccount, transaction_digest: vector<u8>): u64 {
     // If the transaction does not exist, the total approves is zero.
-    if (!self.transactions().contains(transaction_digest)) {
+    if (!transactions(self).contains(transaction_digest)) {
         return 0
     };
 
-    let members = self.members();
-    let transaction = self.transactions().borrow(transaction_digest);
+    let members = members(self);
+    let transaction = transactions(self).borrow(transaction_digest);
 
     // Calculate the total weight of the members who approved the transaction.
     let mut total_approves = 0;
@@ -111,38 +94,33 @@ public fun total_approves(self: &DynamicMultisigAccount, transaction_digest: vec
     total_approves
 }
 
-/// Immutably borrows the account authenticator.
-public fun authenticator(self: &DynamicMultisigAccount): &AuthenticatorInfoV1 {
-    account::borrow_auth_info_v1(&self.id)
-}
-
 // --------------------------------------- Transactions ---------------------------------------
 
 /// Proposes a new transaction to be approved by the account members.
 /// The member who proposes the transaction is added as the first approver.
 public fun propose_transaction(
-    self: &mut DynamicMultisigAccount,
+    self: &mut IOTAccount,
     transaction_digest: vector<u8>,
     ctx: &TxContext,
 ) {
     // Get the member who proposed the transaction.
-    let member_address = *self.members().borrow(ctx.sender()).addr();
+    let member_address = *members(self).borrow(ctx.sender()).addr();
 
     // Store the transaction.
-    self.transactions_mut().add(transaction_digest, member_address);
+    transactions_mut(self, ctx).add(transaction_digest, member_address);
 }
 
 /// Approves a proposed transaction.
 public fun approve_transaction(
-    self: &mut DynamicMultisigAccount,
+    self: &mut IOTAccount,
     transaction_digest: vector<u8>,
     ctx: &TxContext,
 ) {
     // Get the member who approved the transaction.
-    let member_address = *self.members().borrow(ctx.sender()).addr();
+    let member_address = *members(self).borrow(ctx.sender()).addr();
 
     // Get the transaction.
-    let transaction = self.transactions_mut().borrow_mut(transaction_digest);
+    let transaction = transactions_mut(self, ctx).borrow_mut(transaction_digest);
 
     // Approve the transaction.
     transaction.add_approval(member_address);
@@ -152,15 +130,15 @@ public fun approve_transaction(
 /// It can be removed ether it was executed or not.
 /// Can be removed only by the account itself, that means that this call must be approved by the account members.
 public fun remove_transaction(
-    self: &mut DynamicMultisigAccount,
+    self: &mut IOTAccount,
     transaction_digest: vector<u8>,
     ctx: &TxContext,
 ) {
     // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(self, ctx);
+    self.ensure_tx_sender_is_account(ctx);
 
     // Remove the transaction.
-    self.transactions_mut().remove(transaction_digest);
+    transactions_mut(self, ctx).remove(transaction_digest);
 }
 
 // --------------------------------------- Authentication ---------------------------------------
@@ -170,7 +148,7 @@ public fun remove_transaction(
 /// The transactions that are proposed but not yet executed can have approves from members
 /// who are not in the new members list. These approves will be ignored when checking if the transaction is approved.
 public fun update_account_data(
-    self: &mut DynamicMultisigAccount,
+    self: &mut IOTAccount,
     members_addresses: vector<address>,
     members_weights: vector<u64>,
     threshold: u64,
@@ -178,7 +156,7 @@ public fun update_account_data(
     ctx: &TxContext,
 ) {
     // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(self, ctx);
+    self.ensure_tx_sender_is_account(ctx);
 
     // Create a `Members` instance.
     let members = members::create(members_addresses, members_weights);
@@ -186,12 +164,10 @@ public fun update_account_data(
     // Verify the provided data consistency.
     verify_threshold(&members, threshold);
 
-    let account_id = &mut self.id;
-
     // Update the dynamic fields. It is expected that the fields already exist.
-    update_dynamic_field(account_id, members_key(), members);
-    update_dynamic_field(account_id, threshold_key(), threshold);
-    account::rotate_auth_info_v1(account_id, authenticator);
+    self.rotate_field(members_key(), members, ctx);
+    self.rotate_field(threshold_key(), threshold, ctx);
+    self.rotate_auth_info_v1(authenticator, ctx);
 }
 
 /// A transaction authenticator.
@@ -200,23 +176,18 @@ public fun update_account_data(
 /// The total weight of the members who approved the transaction must be greater than or equal to the threshold.
 /// If the members list is changed after the transaction proposal, only the members who are still in the list
 /// are considered for the approval. Their weights are taken from the current members list.
-public fun authenticate(self: &DynamicMultisigAccount, _: &AuthContext, ctx: &TxContext) {
+public fun authenticate(self: &IOTAccount, _: &AuthContext, ctx: &TxContext) {
     // Check that the sender of this transaction is the account.
-    ensure_tx_sender_is_account(self, ctx);
+    self.ensure_tx_sender_is_account(ctx);
 
     // Check that the transaction is approved.
     assert!(
-        self.total_approves(*ctx.digest()) >= self.threshold(),
+        total_approves(self, *ctx.digest()) >= threshold(self),
         ETransactionDoesNotHaveSufficientApprovals,
     );
 }
 
 // --------------------------------------- Utilities ---------------------------------------
-
-/// Checks that the sender of this transaction is the account.
-fun ensure_tx_sender_is_account(self: &DynamicMultisigAccount, ctx: &TxContext) {
-    assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
-}
 
 /// Returns the dynamic field name used to store the members information.
 fun members_key(): MembersKey {
@@ -234,8 +205,8 @@ fun transactions_key(): TransactionsKey {
 }
 
 /// Mutably borrows the account transactions.
-fun transactions_mut(self: &mut DynamicMultisigAccount): &mut Transactions {
-    dynamic_field::borrow_mut(&mut self.id, transactions_key())
+fun transactions_mut(self: &mut IOTAccount, ctx: &TxContext): &mut Transactions {
+    self.borrow_field_mut(transactions_key(), ctx)
 }
 
 /// Verifies the threshold.
@@ -244,16 +215,4 @@ fun verify_threshold(members: &Members, threshold: u64) {
     assert!(threshold != 0, EThresholdIsZero);
     // Check that the total members weight is greater than or equal to the threshold.
     assert!(members.total_weight() >= threshold, ETotalMembersWeightLessThanThreshold);
-}
-
-/// Updates a dynamic field value and returns the previous one.
-/// It is supposed that the dynamic field with the given name already exists.
-fun update_dynamic_field<Name: copy + drop + store, Value: store>(
-    account_id: &mut UID,
-    name: Name,
-    value: Value,
-): Value {
-    let previous_value = dynamic_field::remove(account_id, name);
-    dynamic_field::add(account_id, name, value);
-    previous_value
 }
