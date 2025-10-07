@@ -608,12 +608,7 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
             .find(|coin| coin.coin_object_id == coin_to_split.coin_object_id)
             .unwrap()
             .balance;
-        let other_coins = http_client
-            .get_coins(other_address, None, None, Some(100))
-            .await
-            .unwrap()
-            .data;
-        let new_coin_balances: Vec<u64> = other_coins
+        let new_coin_balances: Vec<u64> = coins
             .iter()
             .filter(|coin| created_coin_ids.contains(&coin.coin_object_id))
             .map(|coin| coin.balance)
