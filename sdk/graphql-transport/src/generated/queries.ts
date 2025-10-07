@@ -1498,7 +1498,12 @@ export type Epoch = {
    * epoch.
    */
   transactionBlocks: TransactionBlockConnection;
-  /** Validator related properties, including the active validators. */
+  /**
+   * Validator related properties, including the active validators.
+   *
+   * For epochs other than the current the data provided refer to the start
+   * of the epoch.
+   */
   validatorSet?: Maybe<ValidatorSet>;
 };
 
@@ -5562,14 +5567,17 @@ export type Validator = {
   operationCap?: Maybe<MoveObject>;
   /**
    * Pending pool token withdrawn during the current epoch, emptied at epoch
-   * boundaries.
+   * boundaries. Zero for past epochs.
    */
   pendingPoolTokenWithdraw?: Maybe<Scalars['BigInt']['output']>;
-  /** Pending stake amount for this epoch. */
+  /**
+   * Pending stake amount for the current epoch, emptied at epoch boundaries.
+   * Zero for past epochs.
+   */
   pendingStake?: Maybe<Scalars['BigInt']['output']>;
   /**
    * Pending stake withdrawn during the current epoch, emptied at epoch
-   * boundaries.
+   * boundaries. Zero for past epochs.
    */
   pendingTotalIotaWithdraw?: Maybe<Scalars['BigInt']['output']>;
   /** Total number of pool tokens issued by the pool. */
@@ -5864,10 +5872,17 @@ export type GetTypeLayoutQuery = { __typename?: 'Query', type: { __typename?: 'M
 export type GetDynamicFieldObjectQueryVariables = Exact<{
   parentId: Scalars['IotaAddress']['input'];
   name: DynamicFieldName;
+  showBcs?: InputMaybe<Scalars['Boolean']['input']>;
+  showContent?: InputMaybe<Scalars['Boolean']['input']>;
+  showDisplay?: InputMaybe<Scalars['Boolean']['input']>;
+  showType?: InputMaybe<Scalars['Boolean']['input']>;
+  showOwner?: InputMaybe<Scalars['Boolean']['input']>;
+  showPreviousTransaction?: InputMaybe<Scalars['Boolean']['input']>;
+  showStorageRebate?: InputMaybe<Scalars['Boolean']['input']>;
 }>;
 
 
-export type GetDynamicFieldObjectQuery = { __typename?: 'Query', owner?: { __typename?: 'Owner', dynamicObjectField?: { __typename?: 'DynamicField', value?: { __typename: 'MoveObject', owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any, digest?: string | null, version: any, storageRebate?: any | null, owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any } | null } | { __typename: 'Shared' } | null, previousTransactionBlock?: { __typename?: 'TransactionBlock', digest?: string | null } | null, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', data: any, type: { __typename?: 'MoveType', repr: string, layout: any } } | null } | null } | null } | { __typename: 'Shared' } | null } | { __typename: 'MoveValue' } | null } | null } | null };
+export type GetDynamicFieldObjectQuery = { __typename?: 'Query', owner?: { __typename?: 'Owner', dynamicObjectField?: { __typename?: 'DynamicField', value?: { __typename: 'MoveObject', owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any, digest?: string | null, version: any, storageRebate?: any | null, display?: Array<{ __typename?: 'DisplayEntry', key: string, value?: string | null, error?: string | null }> | null, owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any } | null } | { __typename: 'Shared' } | null, previousTransactionBlock?: { __typename?: 'TransactionBlock', digest?: string | null } | null, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', data: any, type: { __typename?: 'MoveType', repr: string, layout: any, signature: any } } | null } | null } | null } | { __typename: 'Shared' } | null } | { __typename: 'MoveValue' } | null } | null } | null };
 
 export type GetDynamicFieldsQueryVariables = Exact<{
   parentId: Scalars['IotaAddress']['input'];
@@ -7599,7 +7614,7 @@ export const GetTypeLayoutDocument = new TypedDocumentString(`
 }
     `) as unknown as TypedDocumentString<GetTypeLayoutQuery, GetTypeLayoutQueryVariables>;
 export const GetDynamicFieldObjectDocument = new TypedDocumentString(`
-    query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!) {
+    query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!, $showBcs: Boolean = false, $showContent: Boolean = false, $showDisplay: Boolean = false, $showType: Boolean = false, $showOwner: Boolean = false, $showPreviousTransaction: Boolean = false, $showStorageRebate: Boolean = false) {
   owner(address: $parentId) {
     dynamicObjectField(name: $name) {
       value {
@@ -7612,8 +7627,13 @@ export const GetDynamicFieldObjectDocument = new TypedDocumentString(`
                 address
                 digest
                 version
-                storageRebate
-                owner {
+                display @include(if: $showDisplay) {
+                  key
+                  value
+                  error
+                }
+                storageRebate @include(if: $showStorageRebate)
+                owner @include(if: $showOwner) {
                   __typename
                   ... on Parent {
                     parent {
@@ -7621,10 +7641,27 @@ export const GetDynamicFieldObjectDocument = new TypedDocumentString(`
                     }
                   }
                 }
-                previousTransactionBlock {
+                previousTransactionBlock @include(if: $showPreviousTransaction) {
                   digest
                 }
-                asMoveObject {
+                asMoveObject @include(if: $showType) {
+                  contents {
+                    type {
+                      repr
+                    }
+                  }
+                }
+                asMoveObject @include(if: $showContent) {
+                  contents {
+                    data
+                    type {
+                      repr
+                      layout
+                      signature
+                    }
+                  }
+                }
+                asMoveObject @include(if: $showBcs) {
                   contents {
                     data
                     type {

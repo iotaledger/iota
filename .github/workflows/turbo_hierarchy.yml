@@ -37,6 +37,49 @@ jobs:
         uses: "./.github/actions/diffs"
         id: diff
 
+  sync:
+    name: ts-sdk sync with Node Changes
+    runs-on: self-hosted-x64
+    concurrency:
+      group: turbo-sync-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 2
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+      - name: Install Nodejs
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Turbo Cache
+        id: turbo-cache
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+      - name: Node Sync
+        run: |
+          cd sdk/typescript
+          pnpm update-graphql-schemas
+          pnpm update-open-rpc-client-types
+          cd ../graphql-transport
+          pnpm codegen
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No sync needed"
+          else
+            echo "Sync is needed!"
+            git status
+            exit 1
+          fi
+
   audit:
     name: pnpm audit
     runs-on: self-hosted-x64

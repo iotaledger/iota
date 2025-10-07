@@ -32,13 +32,14 @@ use crate::{
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
         Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions,
+        VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
     commit_observer::CommitObserver,
     context::Context,
     dag_state::DagState,
+    encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -120,6 +121,8 @@ pub(crate) struct Core {
     /// None it means that the last block sync mechanism is enabled, but it
     /// hasn't been initialised yet.
     last_known_proposed_round: Option<Round>,
+    /// Encoder is used to encode transactions into a longer vector of shards
+    encoder: Box<dyn ShardEncoder + Send + Sync>,
 }
 
 impl Core {
@@ -171,6 +174,8 @@ impl Core {
             Some(0)
         };
 
+        let encoder = create_encoder(&context);
+
         Self {
             context,
             last_signaled_round,
@@ -187,6 +192,7 @@ impl Core {
             block_signer,
             dag_state,
             last_known_proposed_round: min_propose_round,
+            encoder,
         }
         .recover()
     }
@@ -385,6 +391,7 @@ impl Core {
     pub(crate) fn add_transactions(
         &mut self,
         transactions: Vec<VerifiedTransactions>,
+        source: &str,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::add_transactions");
         let _s = self
@@ -398,7 +405,7 @@ impl Core {
         // Add transactions to the dag state.
         let mut dag_state_guard = self.dag_state.write();
         for transaction in transactions {
-            dag_state_guard.add_transactions(transaction);
+            dag_state_guard.add_transactions(transaction, source);
         }
         // Safe to drop the guard here as the write/read locks will be asquired in
         // commit_observer
@@ -410,6 +417,31 @@ impl Core {
         // creating any new commits.
         self.commit_observer.handle_commit(Vec::new())?;
 
+        Ok(())
+    }
+
+    /// Adds shards to the DAG state. The proof is assumed to be already checked
+    pub(crate) fn add_shards(
+        &mut self,
+        serialized_shards: Vec<VerifiedOwnShard>,
+    ) -> ConsensusResult<()> {
+        let _scope = monitored_scope("Core::add_transactions");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::add_shards"])
+            .start_timer();
+
+        // Add shards to the dag state.
+        let mut dag_state_guard = self.dag_state.write();
+        for serialized_shard in serialized_shards {
+            dag_state_guard.add_shard(serialized_shard);
+        }
+        // Safe to drop the guard here as the write/read locks will be asquired in
+        // commit_observer
+        drop(dag_state_guard);
         Ok(())
     }
 
@@ -630,9 +662,12 @@ impl Core {
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("We should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
-        let transactions_commitment =
-            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                .expect("We should expect correct computation of the transactions commitment");
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized_transactions,
+            &self.context,
+            &mut self.encoder,
+        )
+        .expect("We should expect correct computation of the Merkle root for encoded transactions");
 
         self.context
             .metrics
@@ -863,7 +898,7 @@ impl Core {
 
         self.transaction_consumer.notify_own_transactions_status(
             committed_transaction_refs,
-            self.dag_state.read().gc_round(),
+            self.dag_state.read().gc_round_for_last_commit(),
         );
 
         Ok((committed_sub_dags, all_missing_committed_txns))
@@ -878,7 +913,7 @@ impl Core {
             .scope_processing_time
             .with_label_values(&["Core::get_missing_blocks"])
             .start_timer();
-        self.block_manager.missing_block_headers()
+        self.block_manager.blocks_to_fetch()
     }
     pub(crate) fn get_missing_transaction_data(
         &self,
@@ -1568,6 +1603,7 @@ mod test {
             store.clone(),
             leader_schedule.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // First send some transactions, since the block will be created once we recover
         // core
@@ -1645,9 +1681,12 @@ mod test {
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("we should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
-        let transactions_commitment =
-            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                .expect("we should expect correct computation of the transactions commitment");
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized_transactions,
+            &context,
+            &mut encoder,
+        )
+        .expect("we should expect correct computation of the transactions commitment");
 
         // a new block should have been created during recovery.
         let verified_block = block_receiver

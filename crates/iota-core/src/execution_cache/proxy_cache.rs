@@ -19,6 +19,7 @@ use iota_types::{
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
+use tracing::instrument;
 
 use super::{
     CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,
@@ -215,6 +216,7 @@ impl ObjectCacheRead for ProxyCache {
 }
 
 impl TransactionCacheRead for ProxyCache {
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
@@ -222,6 +224,7 @@ impl TransactionCacheRead for ProxyCache {
         delegate_method!(self.try_multi_get_transaction_blocks(digests))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
@@ -229,6 +232,7 @@ impl TransactionCacheRead for ProxyCache {
         delegate_method!(self.try_multi_get_executed_effects_digests(digests))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
@@ -236,6 +240,7 @@ impl TransactionCacheRead for ProxyCache {
         delegate_method!(self.try_multi_get_effects(digests))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
@@ -243,6 +248,7 @@ impl TransactionCacheRead for ProxyCache {
         delegate_method!(self.try_notify_read_executed_effects_digests(digests))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
@@ -260,6 +266,7 @@ impl ExecutionCacheWrite for ProxyCache {
         delegate_method!(self.try_write_transaction_outputs(epoch_id, tx_outputs))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,

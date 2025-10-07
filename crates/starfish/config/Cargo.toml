@@ -13,6 +13,7 @@ workspace = true
 # external dependencies
 fastcrypto.workspace = true
 rand.workspace = true
+rs_merkle = "1.5.0"
 serde.workspace = true
 
 # internal dependencies

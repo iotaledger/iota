@@ -1776,6 +1776,7 @@ impl ObjectCacheRead for WritebackCache {
 }
 
 impl TransactionCacheRead for WritebackCache {
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
@@ -1835,6 +1836,7 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
@@ -1900,6 +1902,7 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
@@ -1961,6 +1964,7 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
@@ -1972,6 +1976,7 @@ impl TransactionCacheRead for WritebackCache {
             .boxed()
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
