@@ -10,7 +10,7 @@ use iota_json::{
     IotaJsonValue, ResolvedCallArg, is_receiving_argument, resolve_call_args,
     resolve_move_function_args,
 };
-use iota_json_rpc_types::{IotaArgumentV2, IotaData, IotaObjectDataOptions, IotaRawData};
+use iota_json_rpc_types::{IotaArgument, IotaData, IotaObjectDataOptions, IotaRawData, PtbInput};
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::{IotaAddress, ObjectID, ObjectRef, ObjectType, TxContext, TxContextKind},
@@ -181,16 +181,16 @@ impl TransactionBuilder {
         Ok(args)
     }
 
-    /// Convert provided Iota arguments for a move function to their
+    /// Convert provided PtbInput's for a move function to their
     /// [`Argument`] representation and check their validity.
-    pub async fn resolve_and_checks_iota_args_v2(
+    pub async fn resolve_and_check_call_args(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
         package_id: ObjectID,
         module: &Identifier,
         function: &Identifier,
         type_args: &[TypeTag],
-        call_args: Vec<IotaArgumentV2>,
+        call_args: Vec<PtbInput>,
     ) -> Result<Vec<Argument>, anyhow::Error> {
         let package = self.load_move_package(package_id).await?;
 
@@ -232,7 +232,7 @@ impl TransactionBuilder {
             .enumerate()
         {
             let argument = match arg {
-                IotaArgumentV2::Pure(value) => {
+                PtbInput::CallArg(value) => {
                     let json_slice = [value];
                     let param_slice = [param.clone()];
                     let resolved =
@@ -278,12 +278,14 @@ impl TransactionBuilder {
                         }
                     }
                 }
-                IotaArgumentV2::Result(idx) => Argument::Result(idx),
-                IotaArgumentV2::NestedResult(idx, nested_idx) => {
-                    Argument::NestedResult(idx, nested_idx)
-                }
-                IotaArgumentV2::Input(idx) => Argument::Input(idx),
-                IotaArgumentV2::GasCoin => Argument::GasCoin,
+                PtbInput::PtbRef(iota_arg) => match iota_arg {
+                    IotaArgument::GasCoin => Argument::GasCoin,
+                    IotaArgument::Input(idx) => Argument::Input(idx),
+                    IotaArgument::Result(idx) => Argument::Result(idx),
+                    IotaArgument::NestedResult(idx, nested_idx) => {
+                        Argument::NestedResult(idx, nested_idx)
+                    }
+                },
             };
 
             arguments.push(argument);

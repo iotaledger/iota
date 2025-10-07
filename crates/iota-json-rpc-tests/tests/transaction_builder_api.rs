@@ -10,9 +10,9 @@ use iota_json_rpc_api::{
     CoinReadApiClient, IndexerApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
 };
 use iota_json_rpc_types::{
-    IotaArgumentV2, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI,
+    IotaArgument, IotaObjectDataOptions, IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, MoveCallParams,
-    MoveCallParamsV2, ObjectChange, RPCTransactionRequestParams, TransactionBlockBytes,
+    ObjectChange, PtbInput, RPCTransactionRequestParams, TransactionBlockBytes,
     TransferObjectParams,
 };
 use iota_macros::sim_test;
@@ -569,7 +569,10 @@ async fn test_batch_transaction() -> Result<(), anyhow::Error> {
                     module: "pay".to_string(),
                     function: "split".to_string(),
                     type_arguments: type_args![GAS::type_tag()]?,
-                    arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?,
+                    arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?
+                        .into_iter()
+                        .map(PtbInput::CallArg)
+                        .collect(),
                 }),
                 RPCTransactionRequestParams::TransferObjectRequestParams(TransferObjectParams {
                     recipient: other_address,
@@ -664,16 +667,19 @@ async fn test_batch_transaction_with_result() -> Result<(), anyhow::Error> {
                     module: "coin".to_string(),
                     function: "split".to_string(),
                     type_arguments: type_args![GAS::type_tag()]?,
-                    arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?,
+                    arguments: call_args!(coin_to_split.coin_object_id, amount_to_split)?
+                        .into_iter()
+                        .map(PtbInput::CallArg)
+                        .collect(),
                 }),
-                RPCTransactionRequestParams::MoveCallRequestParamsV2(MoveCallParamsV2 {
+                RPCTransactionRequestParams::MoveCallRequestParams(MoveCallParams {
                     package_object_id: ObjectID::new(IOTA_FRAMEWORK_ADDRESS.into_bytes()),
                     module: "transfer".to_string(),
                     function: "public_transfer".to_string(),
                     type_arguments: type_args![Coin::type_(GAS::type_tag())]?,
                     arguments: vec![
-                        IotaArgumentV2::Result(0),
-                        IotaArgumentV2::Pure(call_arg!(other_address)?),
+                        PtbInput::PtbRef(IotaArgument::Result(0)),
+                        PtbInput::CallArg(call_arg!(other_address)?),
                     ],
                 }),
             ],

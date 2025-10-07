@@ -12,8 +12,7 @@ use anyhow::bail;
 use async_trait::async_trait;
 use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    IotaArgumentV2, IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag,
-    RPCTransactionRequestParams,
+    IotaObjectDataOptions, IotaObjectResponse, IotaTypeTag, PtbInput, RPCTransactionRequestParams,
 };
 use iota_types::{
     IOTA_FRAMEWORK_PACKAGE_ID,
@@ -469,14 +468,16 @@ impl TransactionBuilder {
 
     /// Add a single move call to the provided
     /// [`ProgrammableTransactionBuilder`].
-    async fn single_move_call_v2(
+    /// Accepting PtbInput so one can also provide results from previous move
+    /// calls.
+    pub async fn single_move_call_with_ptb_inputs(
         &self,
         builder: &mut ProgrammableTransactionBuilder,
         package: ObjectID,
         module: &str,
         function: &str,
         type_args: Vec<IotaTypeTag>,
-        call_args: Vec<IotaArgumentV2>,
+        call_args: Vec<PtbInput>,
     ) -> anyhow::Result<()> {
         let module = Identifier::from_str(module)?;
         let function = Identifier::from_str(function)?;
@@ -486,14 +487,14 @@ impl TransactionBuilder {
             .map(|ty| ty.try_into())
             .collect::<Result<Vec<_>, _>>()?;
 
-        let arguments = self
-            .resolve_and_checks_iota_args_v2(
+        let call_args = self
+            .resolve_and_check_call_args(
                 builder, package, &module, &function, &type_args, call_args,
             )
             .await?;
 
         builder.command(Command::move_call(
-            package, module, function, type_args, arguments,
+            package, module, function, type_args, call_args,
         ));
         Ok(())
     }
@@ -726,18 +727,7 @@ impl TransactionBuilder {
                         .await?
                 }
                 RPCTransactionRequestParams::MoveCallRequestParams(param) => {
-                    self.single_move_call(
-                        &mut builder,
-                        param.package_object_id,
-                        &param.module,
-                        &param.function,
-                        param.type_arguments,
-                        param.arguments,
-                    )
-                    .await?
-                }
-                RPCTransactionRequestParams::MoveCallRequestParamsV2(param) => {
-                    self.single_move_call_v2(
+                    self.single_move_call_with_ptb_inputs(
                         &mut builder,
                         param.package_object_id,
                         &param.module,
