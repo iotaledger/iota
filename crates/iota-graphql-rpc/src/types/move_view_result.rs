@@ -48,8 +48,8 @@ impl TryFrom<IotaMoveValue> for Json {
     fn try_from(value: IotaMoveValue) -> Result<Self, Error> {
         let json = serde_json::to_value(value).map_err(|e| Error::Internal(e.to_string()))?;
 
-        Ok(Self(
-            Value::try_from(json).map_err(|e| Error::Internal(e.to_string()))?,
-        ))
+        Value::try_from(json)
+            .map_err(|e| Error::Internal(e.to_string()))
+            .map(Self)
     }
 }
