@@ -2314,9 +2314,6 @@ impl IotaNode {
     }
 }
 
-type ServerFuture =
-    Box<dyn Fn(iota_network_stack::server::Server) -> BoxFuture<'static, Result<()>> + Send + Sync>;
-
 enum SpawnOnce {
     // Mutex is only needed to make SpawnOnce Sync
     Unstarted(Mutex<BoxFuture<'static, Result<iota_network_stack::server::Server>>>),
@@ -2339,7 +2336,7 @@ impl SpawnOnce {
                     .await
                     .unwrap_or_else(|err| panic!("Failed to start validator gRPC server: {err}"));
                 let handle = server.handle().clone();
-                let _ = tokio::spawn(async move {
+                tokio::spawn(async move {
                     if let Err(err) = server.serve().await {
                         info!("Server stopped: {err}");
                     }
