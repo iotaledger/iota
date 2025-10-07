@@ -273,13 +273,20 @@ pnpm run dev
 - Open the provided URL (usually http://localhost:3000) in a browser to interact with the dApp.
 - This section prepares the environment to launch the frontend connected to your deployed Move contract on IOTA.
 
-## Core Functions 
-
-### Layout
+## Implementation Section Layout
 
 (**Smart Contract** -> **Frontend** (User/Admin Interactions) -> **Tests** For Move Package):
 
-### Initialization (init Function)
+Our implementation follows this pattern for each feature:
+- **Smart Contract** - Move package code with blockchain logic
+- **Frontend** - User/Admin interactions through React components  
+- **Tests** - Move package tests for validation
+
+**Dashboard Interface of the dApp**
+
+![Dashboard Interface](/img/developer/workshops/minting-managing-tokens/Dashboard-user-connected.png)
+
+## Initialization (init Function)
 
 The `init` function is called once at the contract deployment to set up the initial state of the WKT token ecosystem.
 
@@ -305,12 +312,15 @@ https://github.com/iota-community/workshops/blob/cf7b277a01da9e6e957dcca9f1671d8
 https://github.com/iota-community/workshops/blob/96ab4afde0218b858e91dc7b34f5f5e3c0dd8030/workshop-module-7/token_contract/tests/token_contract_tests.move#L1-L44
 ```
 
-### Admin Functions
+## Admin Functions
+
+Admin functions provide the control panel for our token ecosystem, allowing authorized administrators to manage coupon distribution, configure badge settings, and maintain system security. These functions are protected to ensure only the contract admin can perform critical management operations.
+
 Admin functions allow the authorized admin to manage coupon codes, badges, configurations, and transfer admin rights. Authorization is enforced by asserting the transaction sender matches the stored `faucet.admin` address.
 
 **Move package code**:
 
-`Add Coupon Code`
+### `Add Coupon Code`
 
 Allows the admin to add a coupon code to the contract for token claims.
 
@@ -321,7 +331,7 @@ https://github.com/iota-community/workshops/blob/cf7b277a01da9e6e957dcca9f1671d8
 - Converts coupon code bytes to string.
 - Inserts the coupon code as active into coupon_codes map.
 
-`Remove Coupon Code`
+### `Remove Coupon Code`
 
 Allows the admin to remove a coupon code.
 
@@ -331,7 +341,7 @@ https://github.com/iota-community/workshops/blob/cf7b277a01da9e6e957dcca9f1671d8
 - Checks admin authority.
 - Removes the coupon code from coupon_codes.
 
-`Transfer Admin Rights`
+### `Transfer Admin Rights`
 
 Transfers the admin role to a new address.
 
@@ -341,7 +351,7 @@ https://github.com/iota-community/workshops/blob/cf7b277a01da9e6e957dcca9f1671d8
 - Ensures only current admin can transfer adminship.
 - Updates admin address in Faucet.
 
-`Set Auto Badge Configuration`
+### `Set Auto Badge Configuration`
 
 Configures the Workshop ID and URL for automatic badge minting on first payment.
 
@@ -351,7 +361,7 @@ https://github.com/iota-community/workshops/blob/cf7b277a01da9e6e957dcca9f1671d8
 - Only admin can set.
 - Updates the `auto_badge_workshop_id` and `auto_badge_url`.
 
-`Mint Badge`
+### `Mint Badge`
 
 Manually mints a WorkshopBadge NFT to a recipient.
 
@@ -363,7 +373,6 @@ https://github.com/iota-community/workshops/blob/cf7b277a01da9e6e957dcca9f1671d8
 - Increments badge count.
 - Transfers the badge to the recipient.
 - Emits `BadgeMinted` event with badge details.
-
 
 **Frontend Admin Interaction**:
 
@@ -394,16 +403,31 @@ https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578
 ```move reference
 https://github.com/iota-community/workshops/blob/96ab4afde0218b858e91dc7b34f5f5e3c0dd8030/workshop-module-7/token_contract/tests/token_contract_tests.move#L47-L93
 ```
+**Admin Panel Coupon Management Interface**
 
+![Coupon Management](/img/developer/workshops/minting-managing-tokens/admin-panel-badge.png)
 
-### User Functions
+**Admin Panel Auto Badge Configuration Interface**
+
+![Auto Badge Configuration](/img/developer/workshops/minting-managing-tokens/admin-panel-coupon.png)
+
+**Admin Panel Manual Badge Minting Interface**
+
+![Manual Badge Minting](/img/developer/workshops/minting-managing-tokens/admin-panel-mint.png)
+
+## User Functions
+
+User functions form the core engagement layer of our dApp, enabling participants to acquire tokens, earn badges, and interact with each other. These functions create the vibrant token economy that drives user participation and community growth.
+
 Users interact with the contract primarily through token claims, coupon redemption, badge redemption, and payments.
 
-#### Token Claim System
+### Token Claim System
+
+The token claim system provides two pathways for users to acquire WKT tokens: daily claims for regular engagement and coupon-based claims for targeted distribution. This dual approach balances consistent rewards with flexible promotional opportunities.
 
 **Move package code**:
 
-`Claim Daily Tokens`
+### `Claim Daily Tokens`
 
 Allows users to claim 10 WKT tokens once per UTC day.
 
@@ -414,7 +438,7 @@ https://github.com/iota-community/workshops/blob/cf7b277a01da9e6e957dcca9f1671d8
 - Mints 10 WKT tokens and transfers to the caller.
 - Emits a `TokensClaimed` event with claim details.
 
-`Claim Tokens with Coupon`
+### `Claim Tokens with Coupon`
 
 Enables users to claim tokens using an admin-issued coupon code.
 
@@ -473,11 +497,27 @@ https://github.com/iota-community/workshops/blob/96ab4afde0218b858e91dc7b34f5f5e
 https://github.com/iota-community/workshops/blob/96ab4afde0218b858e91dc7b34f5f5e3c0dd8030/workshop-module-7/token_contract/tests/token_contract_tests.move#L146-L184
 ```
 
-#### Badge Redemption
+### Daily Token Claim Faucet And Coupon Claim Interface
+
+**Faucet Daily Token Claim Interface**
+
+![Faucet Daily Token Claim](/img/developer/workshops/minting-managing-tokens/faucet-claim-daily.png)
+
+**Faucet Daily Claim Disabled Interface**
+
+![Faucet Daily Claim Disabled](/img/developer/workshops/minting-managing-tokens/faucet-claim-disable.png)
+
+**Coupon Token Claim Interface**
+
+![Coupon Token Claim](/img/developer/workshops/minting-managing-tokens/coupon-claim-code.png)
+
+### Badge Redemption System
+
+The badge redemption system allows users to convert their earned WorkshopBadge NFTs back into utility tokens, creating a circular economy where achievements can be monetized. This feature enhances badge value and provides additional utility for user accomplishments.
 
 **Move package code**:
 
-`Redeem Badge`
+### `Redeem Badge`
 
 Users can burn a WorkshopBadge NFT to redeem 30 WKT tokens.
 
@@ -526,11 +566,28 @@ https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578
 https://github.com/iota-community/workshops/blob/96ab4afde0218b858e91dc7b34f5f5e3c0dd8030/workshop-module-7/token_contract/tests/token_contract_tests.move#L186-L273
 ```
 
-#### Peer-to-Peer Payments with Auto Badge Minting on their First Payment
+### Redeem Badge and Badge Gallery Interface
+
+**Redeem Badge Interface**
+
+![Redeem Badge Interface](/img/developer/workshops/minting-managing-tokens/redeem-badge-id.png)
+
+**Already Redeemed Badge Interface**
+
+![Already Redeemed Badge Interface](/img/developer/workshops/minting-managing-tokens/redeem-badge-success.png)
+
+**Badge Gallery Interface**
+
+![Badge Gallery Interface](/img/developer/workshops/minting-managing-tokens/badge-gallery.png)
+
+
+#### Peer-to-Peer Payments System (with Auto Badge Minting on their First Payment)
+
+The payment system enables direct token transfers between users, with optional automatic badge minting to reward first-time transactions. This creates a complete economic ecosystem where users can exchange value while earning recognition for their participation.
 
 **Move package code**:
 
-`Make Payment`
+### `Make Payment`
 
 Facilitates peer-to-peer payments with WKT tokens and auto-badge minting on first payment if admin had configured the nft badge from there end.
 
@@ -570,6 +627,17 @@ https://github.com/iota-community/workshops/blob/34cb987cf56ed174f392c372c8c4578
 https://github.com/iota-community/workshops/blob/96ab4afde0218b858e91dc7b34f5f5e3c0dd8030/workshop-module-7/token_contract/tests/token_contract_tests.move#L275-L334
 ```
 
+### Make Payment Interface and confetti on new badge mint
+
+**Make Payment Interface**
+
+![Make Payment Interface](/img/developer/workshops/minting-managing-tokens/make-payment.png)
+
+**Confetti Celebration on New Badge Mint**
+
+![Confetti Celebration on New Badge Mint](/img/developer/workshops/minting-managing-tokens/first-payment-badge-mint.png)
+
+## Run Unit Tests
 
 You can use the following command in the package root to run any unit tests you have created.
 
