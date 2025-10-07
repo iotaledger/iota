@@ -25,22 +25,19 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 /// add the desired authenticator info and dynamic fields.
 public struct AbstractAccountBuilder {
     account: AbstractAccount,
+    cap: AbstractCap,
 }
 
-/// This struct represents an abstract account.
-///
-/// It holds all the related data as dynamic fields to simplify updates, migrations and extensions.
-/// It distinguishes between two classes of dynamic fields.
-/// Reserved ones, used for managing the account's internal state, such as unlock times and public keys
-/// and regular ones which can be used for general data storage.
-///
-/// The list of reserved fields is stored as a dynamic field under `ReservedDynamicFields`.
-///
-/// As regular data, dynamic fields may be added and removed as necessary, but reserved ones cannot.
-/// Reserved fields are part of the authentication logic so they should not be removed only rotated.
+/// This struct represents an abstract account. It holds all the related data as dynamic fields
+/// to simplify updates, migrations and extensions.
 ///
 /// An `AbstractAccount` cannot be constructed directly. To create an `AbstractAccount` use `AbstractAccountBuilder`.
 public struct AbstractAccount has key {
+    id: UID,
+}
+
+/// This struct represents an admin capability that can be used to prove ownership of an account.
+public struct AbstractCap has key, store {
     id: UID,
 }
 
@@ -62,6 +59,7 @@ public fun builder(
     // without for some reason, so it has been removed.
     let builder = AbstractAccountBuilder {
         account: AbstractAccount { id: object::new(ctx) },
+        cap: AbstractCap { id: object::new(ctx) },
     };
     builder.add_dynamic_field(account::authenticator_df_name(), authenticator)
 }
@@ -78,9 +76,9 @@ public fun add_dynamic_field<Name: copy + drop + store, Value: store>(
 }
 
 /// Finish building the `AbstractAccount` and share the object.
-public fun finish(self: AbstractAccountBuilder): AbstractAccount {
-    let AbstractAccountBuilder { account } = self;
-    account
+public fun finish(self: AbstractAccountBuilder): (AbstractAccount, AbstractCap) {
+    let AbstractAccountBuilder { account, cap } = self;
+    (account, cap)
 }
 
 /// Share AbstractAccount.
@@ -92,12 +90,16 @@ public fun uid(self: &AbstractAccount): &UID {
     &self.id
 }
 
-public fun uid_mut(self: &mut AbstractAccount, ctx: &TxContext): &mut UID {
+// === Admin Functions ===
+
+public fun create_abstract_cap(self: &mut AbstractAccount, ctx: &mut TxContext): AbstractCap {
     ensure_tx_sender_is_account(self, ctx);
-    &mut self.id
+    AbstractCap { id: object::new(ctx) }
 }
 
-// === Admin Functions ===
+public fun uid_mut(self: &mut AbstractAccount, _: &AbstractCap): &mut UID {
+    &mut self.id
+}
 
 /// Check that the sender of this transaction is the account.
 public fun ensure_tx_sender_is_account(self: &AbstractAccount, ctx: &TxContext) {
