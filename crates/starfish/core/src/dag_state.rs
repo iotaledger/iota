@@ -33,6 +33,8 @@ use crate::{
     threshold_clock::ThresholdClock,
 };
 
+const MAX_ROUND_GAP_FOR_USEFUL_SHARDS: usize = 5;
+
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
 /// The rest of blocks are stored on disk.
@@ -1343,6 +1345,36 @@ impl DagState {
         to_take
     }
 
+    fn take_block_refs_of_useful_shards_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        round_upper_bound_exclusive: Round,
+        useful_authorities: BTreeSet<AuthorityIndex>,
+    ) -> Vec<BlockRef> {
+        let set = &mut self.shards_not_known_by_authority[authority_index.value()];
+
+        // Collect candidate block_refs we want to take out
+        let mut to_take = Vec::new();
+
+        for block_ref in set.iter() {
+            if to_take.len() >= MAX_SHARDS_PER_BUNDLE
+                || block_ref.round >= round_upper_bound_exclusive
+            {
+                break;
+            }
+            if useful_authorities.contains(&block_ref.author) {
+                to_take.push(*block_ref);
+            }
+        }
+
+        // Remove the references from the set and update cordial knowledge
+        for block_ref in &to_take {
+            set.remove(block_ref);
+        }
+
+        to_take
+    }
+
     /// Retrieves up to `MAX_HEADERS_PER_BUNDLE` previously unknown block
     /// headers for the given authority, restricted to rounds strictly below
     /// `round_upper_bound_exclusive`.
@@ -1391,34 +1423,39 @@ impl DagState {
             .collect()
     }
 
-    pub(crate) fn take_unknown_shards_for_authority(
+    pub(crate) fn take_useful_shards_for_authority(
         &mut self,
         authority_index: AuthorityIndex,
         round_upper_bound_exclusive: Round,
+        useful_authorities: BTreeSet<AuthorityIndex>,
     ) -> Vec<Bytes> {
-        let mut set = mem::take(&mut self.shards_not_known_by_authority[authority_index.value()]);
+        let block_refs = self.take_block_refs_of_useful_shards_for_authority(
+            authority_index,
+            round_upper_bound_exclusive,
+            useful_authorities,
+        );
+        block_refs
+            .iter()
+            .map(|block_ref| {
+                self.recent_shards
+                    .get(block_ref)
+                    .expect("Shard should be in DagState")
+                    .clone()
+            })
+            .collect::<Vec<_>>()
+    }
 
-        let split_point = {
-            let round_bound = BlockRef::new(
-                round_upper_bound_exclusive,
-                AuthorityIndex::MIN,
-                BlockHeaderDigest::MIN,
-            );
-            let nth_element = set
-                .iter()
-                .nth(self.context.parameters.max_shards_per_bundle)
-                .map_or(round_bound, |x| *x);
-            min(nth_element, round_bound)
-        };
-
-        self.shards_not_known_by_authority[authority_index.value()] = set.split_off(&split_point);
-        let mut shards: Vec<Bytes> = vec![];
-        for block_ref in set.into_iter() {
-            if let Some(shard) = self.recent_shards.get(&block_ref) {
-                shards.push(shard.clone());
+    pub(crate) fn get_useful_shards_authors(
+        last_useful_round: Vec<Round>,
+        block_round: Round,
+    ) -> BTreeSet<AuthorityIndex> {
+        let mut useful_authorities = BTreeSet::new();
+        for (i, round) in last_useful_round.iter().enumerate() {
+            if block_round - round < MAX_ROUND_GAP_FOR_USEFUL_SHARDS as u32 {
+                useful_authorities.insert(AuthorityIndex::from(i as u8));
             }
         }
-        shards
+        useful_authorities
     }
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
         let mut votes = Vec::new();
