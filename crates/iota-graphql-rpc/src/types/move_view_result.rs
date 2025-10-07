@@ -8,6 +8,12 @@ use serde::Serialize;
 use crate::{error::Error, types::json::Json};
 
 /// The result of a move-view function call.
+///
+/// Execution errors are captured in the `error` field, in which
+/// case the `results` field will be `None`.
+///
+/// On success, the `results` field will contain the return values of the
+/// move view function, and the `error` field will be `None`.
 #[derive(Clone, Debug, Serialize, Default, SimpleObject)]
 pub(crate) struct MoveViewResult {
     /// Execution error from executing the move view call.

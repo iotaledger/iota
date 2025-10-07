@@ -585,10 +585,10 @@ pub(crate) fn get_write_api<'ctx>(
 ) -> Result<&'ctx OptimisticWriteApi, Error> {
     let write_api: &Option<OptimisticWriteApi> = ctx
         .data()
-        .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))?;
+        .map_err(|_| Error::Internal("Unable to get node execution interface".to_string()))?;
     write_api
         .as_ref()
-        .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
+        .ok_or_else(|| Error::Internal("Node execution interface not initialized".to_string()))
 }
 
 fn get_json_rpc_client(rpc_client_url: &str) -> Result<HttpClient, Error> {
