@@ -6,6 +6,12 @@
 //! The tests in this module are meant to test the creation of an abstracted
 //! account and sending of a TX through it using a Move-based Ed25519
 //! authentication.
+//!
+//! The tests make use of the `./tests/abstract_account/abstract_account` Move
+//! package, which contains a basic implementation of an abstract account
+//! inspired by the `examples/move/iotaccount` implementation. This is needed in
+//! order to not depend on an external folder and to enable easier changes to
+//! the Move code.
 
 use fastcrypto::{
     ed25519::Ed25519Signature,
