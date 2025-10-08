@@ -8,9 +8,16 @@ use async_graphql::{
 };
 use fastcrypto::encoding::{Base64 as FBase64, Encoding};
 use iota_indexer::models::transactions::{OptimisticTransaction, StoredTransaction};
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_json_rpc_types::{
+    IotaExecutionStatus, IotaTransactionBlockEffects, ObjectChange as RpcObjectChange,
+};
 use iota_package_resolver::{CleverError, ErrorConstants};
 use iota_types::{
-    effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
+    effects::{
+        ObjectChange as NativeObjectChange, TransactionEffects as NativeTransactionEffects,
+        TransactionEffectsAPI,
+    },
     event::Event as NativeEvent,
     execution_status::{
         ExecutionFailureStatus, ExecutionStatus as NativeExecutionStatus, MoveLocation,
@@ -61,12 +68,14 @@ pub(crate) enum TransactionBlockEffectsKind {
     Checkpointed {
         stored_tx: StoredTransaction,
         native: NativeTransactionEffects,
+        rpc: IotaTransactionBlockEffects,
     },
     /// A transaction block that has been executed and indexed without
     /// checkpoint information.
     Executed {
         optimistic_tx: OptimisticTransaction,
         native: NativeTransactionEffects,
+        rpc: IotaTransactionBlockEffects,
     },
 
     /// A transaction block that has been executed via dryRunTransactionBlock.
@@ -74,8 +83,11 @@ pub(crate) enum TransactionBlockEffectsKind {
     /// balanceChanges.
     DryRun {
         tx_data: NativeTransactionData,
-        native: NativeTransactionEffects,
+        native_effects: Option<NativeTransactionEffects>,
+        rpc: IotaTransactionBlockEffects,
+        rpc_object_changes: Vec<RpcObjectChange>,
         events: Vec<NativeEvent>,
+        balance_changes: Vec<Vec<u8>>,
     },
 }
 
@@ -109,9 +121,10 @@ impl TransactionBlockEffects {
 
     /// Whether the transaction executed successfully or not.
     async fn status(&self) -> Option<ExecutionStatus> {
-        Some(match self.native().status() {
-            NativeExecutionStatus::Success => ExecutionStatus::Success,
-            NativeExecutionStatus::Failure { .. } => ExecutionStatus::Failure,
+        let rpc = self.rpc();
+        Some(match rpc.status() {
+            IotaExecutionStatus::Success => ExecutionStatus::Success,
+            IotaExecutionStatus::Failure { .. } => ExecutionStatus::Failure,
         })
     }
 
@@ -119,7 +132,15 @@ impl TransactionBlockEffects {
     /// created or modified by this transaction, immediately following this
     /// transaction.
     async fn lamport_version(&self) -> UInt53 {
-        self.native().lamport_version().value().into()
+        let rpc = self.rpc();
+        let lamport_version = rpc
+            .created()
+            .iter()
+            .chain(rpc.mutated().iter())
+            .map(|obj| obj.reference.version)
+            .max()
+            .unwrap_or_else(|| 1.into());
+        lamport_version.value().into()
     }
 
     /// The reason for a transaction failure, if it did fail.
@@ -128,7 +149,22 @@ impl TransactionBlockEffects {
     /// displaying the abort code and location.
     async fn errors(&self, ctx: &Context<'_>) -> Result<Option<String>> {
         let resolver: &PackageResolver = ctx.data_unchecked();
-        let status = self.resolve_native_status_impl(resolver).await?;
+
+        // Check if native() is available for detailed error resolution
+        let status = if self.native().is_some() {
+            // Use the full resolve_native_status_impl for detailed error information
+            self.resolve_native_status_impl(resolver).await?
+        } else {
+            // Fall back to simple error string from rpc() when native() is None
+            match self.rpc().status() {
+                IotaExecutionStatus::Success => {
+                    return Ok(None);
+                }
+                IotaExecutionStatus::Failure { error } => {
+                    return Ok(Some(error.clone()));
+                }
+            }
+        };
 
         match status {
             NativeExecutionStatus::Success => Ok(None),
@@ -226,7 +262,8 @@ impl TransactionBlockEffects {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         let mut connection = Connection::new(false, false);
 
-        let dependencies = self.native().dependencies();
+        let rpc = self.rpc();
+        let dependencies: Vec<_> = rpc.dependencies().to_vec();
 
         let Some(consistent_page) =
             page.paginate_consistent_indices(dependencies.len(), self.checkpoint_viewed_at)?
@@ -271,7 +308,10 @@ impl TransactionBlockEffects {
 
     /// Effects to the gas object.
     async fn gas_effects(&self) -> Option<GasEffects> {
-        Some(GasEffects::from(self.native(), self.checkpoint_viewed_at))
+        Some(GasEffects::from_rpc_effects(
+            self.rpc(),
+            self.checkpoint_viewed_at,
+        ))
     }
 
     /// Shared objects that are referenced by but not changed by this
@@ -287,7 +327,10 @@ impl TransactionBlockEffects {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         let mut connection = Connection::new(false, false);
 
-        let input_shared_objects = self.native().input_shared_objects();
+        let input_shared_objects: Vec<_> = match self.native() {
+            Some(native) => native.input_shared_objects(),
+            None => return Ok(connection),
+        };
 
         let Some(consistent_page) = page
             .paginate_consistent_indices(input_shared_objects.len(), self.checkpoint_viewed_at)?
@@ -326,7 +369,27 @@ impl TransactionBlockEffects {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
         let mut connection = Connection::new(false, false);
 
-        let object_changes = self.native().object_changes();
+        let object_changes: Vec<_> = match &self.kind {
+            TransactionBlockEffectsKind::Checkpointed { native, .. }
+            | TransactionBlockEffectsKind::Executed { native, .. } => native.object_changes(),
+            TransactionBlockEffectsKind::DryRun {
+                native_effects,
+                rpc_object_changes,
+                ..
+            } => {
+                // Use native effects if available, otherwise convert RPC object changes
+                if let Some(native) = native_effects {
+                    native.object_changes()
+                } else if !rpc_object_changes.is_empty() {
+                    rpc_object_changes
+                        .iter()
+                        .map(Self::rpc_to_native_object_change)
+                        .collect()
+                } else {
+                    return Ok(connection);
+                }
+            }
+        };
 
         let Some(consistent_page) =
             page.paginate_consistent_indices(object_changes.len(), self.checkpoint_viewed_at)?
@@ -379,8 +442,9 @@ impl TransactionBlockEffects {
             TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
                 optimistic_tx.get_balance_len()
             }
-            // DryRun variant doesn't have balance changes available
-            _ => return Ok(connection),
+            TransactionBlockEffectsKind::DryRun {
+                balance_changes, ..
+            } => balance_changes.len(),
         };
 
         let Some(consistent_page) =
@@ -400,14 +464,16 @@ impl TransactionBlockEffects {
                 TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
                     optimistic_tx.get_balance_at_idx(c.ix)
                 }
-                _ => None,
+                TransactionBlockEffectsKind::DryRun {
+                    balance_changes, ..
+                } => balance_changes.get(c.ix).cloned(),
             };
 
             let Some(serialized) = serialized else {
                 continue;
             };
 
-            let balance_change = BalanceChange::read(&serialized, c.c).extend()?;
+            let balance_change = BalanceChange::read(serialized.as_slice(), c.c).extend()?;
             connection
                 .edges
                 .push(Edge::new(c.encode_cursor(), balance_change));
@@ -476,13 +542,10 @@ impl TransactionBlockEffects {
 
     /// The epoch this transaction was finalized in.
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(
-            ctx,
-            Some(self.native().executed_epoch()),
-            self.checkpoint_viewed_at,
-        )
-        .await
-        .extend()
+        let rpc = self.rpc();
+        Epoch::query(ctx, Some(rpc.executed_epoch()), self.checkpoint_viewed_at)
+            .await
+            .extend()
     }
 
     /// The checkpoint this transaction was finalized in.
@@ -503,29 +566,49 @@ impl TransactionBlockEffects {
     }
 
     /// Base64 encoded bcs serialization of the on-chain transaction effects.
-    async fn bcs(&self) -> Result<Base64> {
+    async fn bcs(&self) -> Result<Option<Base64>> {
         let bytes = match &self.kind {
             TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
-                stored_tx.raw_effects.clone()
+                Some(stored_tx.raw_effects.clone())
             }
             TransactionBlockEffectsKind::Executed { optimistic_tx, .. } => {
-                optimistic_tx.raw_effects.clone()
+                Some(optimistic_tx.raw_effects.clone())
             }
-            _ => bcs::to_bytes(&self.native())
-                .map_err(|e| Error::Internal(format!("Error serializing transaction effects: {e}")))
-                .extend()?,
+            TransactionBlockEffectsKind::DryRun { native_effects, .. } => {
+                // Only return BCS data if native effects are available
+                match native_effects {
+                    Some(native) => Some(
+                        bcs::to_bytes(native)
+                            .map_err(|e| {
+                                Error::Internal(format!(
+                                    "Error serializing transaction effects: {e}"
+                                ))
+                            })
+                            .extend()?,
+                    ),
+                    None => None,
+                }
+            }
         };
 
-        Ok(Base64::from(bytes))
+        Ok(bytes.map(Base64::from))
     }
 }
 
 impl TransactionBlockEffects {
-    fn native(&self) -> &NativeTransactionEffects {
+    fn rpc(&self) -> &IotaTransactionBlockEffects {
         match &self.kind {
-            TransactionBlockEffectsKind::Checkpointed { native, .. } => native,
-            TransactionBlockEffectsKind::DryRun { native, .. } => native,
-            TransactionBlockEffectsKind::Executed { native, .. } => native,
+            TransactionBlockEffectsKind::Checkpointed { rpc, .. } => rpc,
+            TransactionBlockEffectsKind::DryRun { rpc, .. } => rpc,
+            TransactionBlockEffectsKind::Executed { rpc, .. } => rpc,
+        }
+    }
+
+    fn native(&self) -> Option<&NativeTransactionEffects> {
+        match &self.kind {
+            TransactionBlockEffectsKind::Checkpointed { native, .. } => Some(native),
+            TransactionBlockEffectsKind::DryRun { native_effects, .. } => native_effects.as_ref(),
+            TransactionBlockEffectsKind::Executed { native, .. } => Some(native),
         }
     }
 
@@ -559,6 +642,75 @@ impl TransactionBlockEffects {
     ///   transaction, this will return Ok(None).
     /// * If the transaction was a programmable transaction, this will return
     ///   Ok(Some(tx)).
+    /// Convert RPC ObjectChange to native ObjectChange format
+    fn rpc_to_native_object_change(rpc_change: &RpcObjectChange) -> NativeObjectChange {
+        use iota_types::effects::IDOperation;
+
+        match rpc_change {
+            RpcObjectChange::Published { package_id, .. } => NativeObjectChange {
+                id: *package_id,
+                input_version: None,
+                input_digest: None,
+                output_version: Some(1u64.into()),
+                output_digest: None,
+                id_operation: IDOperation::Created,
+            },
+            RpcObjectChange::Transferred {
+                object_id, version, ..
+            } => NativeObjectChange {
+                id: *object_id,
+                input_version: None,
+                input_digest: None,
+                output_version: Some(*version),
+                output_digest: None,
+                id_operation: IDOperation::None,
+            },
+            RpcObjectChange::Mutated {
+                object_id,
+                version,
+                previous_version,
+                ..
+            } => NativeObjectChange {
+                id: *object_id,
+                input_version: Some(*previous_version),
+                input_digest: None,
+                output_version: Some(*version),
+                output_digest: None,
+                id_operation: IDOperation::None,
+            },
+            RpcObjectChange::Deleted {
+                object_id, version, ..
+            } => NativeObjectChange {
+                id: *object_id,
+                input_version: Some(*version),
+                input_digest: None,
+                output_version: None,
+                output_digest: None,
+                id_operation: IDOperation::Deleted,
+            },
+            RpcObjectChange::Wrapped {
+                object_id, version, ..
+            } => NativeObjectChange {
+                id: *object_id,
+                input_version: Some(*version),
+                input_digest: None,
+                output_version: None,
+                output_digest: None,
+                id_operation: IDOperation::Deleted,
+            },
+            RpcObjectChange::Created {
+                object_id, version, ..
+            } => NativeObjectChange {
+                id: *object_id,
+                input_version: None,
+                input_digest: None,
+                output_version: Some(*version),
+                output_digest: None,
+                id_operation: IDOperation::Created,
+            },
+        }
+    }
+
     fn programmable_transaction(&self) -> Result<Option<ProgrammableTransaction>> {
         let tx_data = self.transaction_data()?;
         match tx_data.into_kind() {
@@ -577,7 +729,7 @@ impl TransactionBlockEffects {
         &self,
         resolver: &PackageResolver,
     ) -> Result<NativeExecutionStatus> {
-        let mut status = self.native().status().clone();
+        let mut status = self.native().as_ref().unwrap().status().clone();
         if let NativeExecutionStatus::Failure {
             error:
                 ExecutionFailureStatus::MoveAbort(MoveLocation { module, .. }, _)
@@ -624,15 +776,22 @@ impl TryFrom<OptimisticTransaction> for TransactionBlockEffectsKind {
     type Error = Error;
 
     fn try_from(optimistic_tx: OptimisticTransaction) -> Result<Self, Error> {
-        let native = bcs::from_bytes(&optimistic_tx.raw_effects).map_err(|e| {
+        let native: NativeTransactionEffects = bcs::from_bytes(&optimistic_tx.raw_effects).map_err(|e| {
             Error::Internal(format!(
                 "Failed to deserialize NativeTransactionEffects from optimistic transaction: {e}"
+            ))
+        })?;
+
+        let rpc: IotaTransactionBlockEffects = native.clone().try_into().map_err(|e| {
+            Error::Internal(format!(
+                "Failed to convert native effects to RPC effects: {e}"
             ))
         })?;
 
         Ok(TransactionBlockEffectsKind::Executed {
             optimistic_tx,
             native,
+            rpc,
         })
     }
 }
@@ -656,14 +815,22 @@ impl TryFrom<TransactionBlock> for TransactionBlockEffectsKind {
     fn try_from(block: TransactionBlock) -> Result<Self, Error> {
         match block.inner {
             TransactionBlockInner::Checkpointed { stored_tx, .. } => {
-                bcs::from_bytes(&stored_tx.raw_effects)
-                    .map(|native| TransactionBlockEffectsKind::Checkpointed {
-                        stored_tx: stored_tx.clone(),
-                        native,
-                    })
+                let native: NativeTransactionEffects = bcs::from_bytes(&stored_tx.raw_effects)
                     .map_err(|e| {
                         Error::Internal(format!("Error deserializing transaction effects: {e}"))
-                    })
+                    })?;
+
+                let rpc: IotaTransactionBlockEffects = native.clone().try_into().map_err(|e| {
+                    Error::Internal(format!(
+                        "Failed to convert native effects to RPC effects: {e}"
+                    ))
+                })?;
+
+                Ok(TransactionBlockEffectsKind::Checkpointed {
+                    stored_tx: stored_tx.clone(),
+                    native,
+                    rpc,
+                })
             }
             TransactionBlockInner::Executed { optimistic_tx, .. } => {
                 TransactionBlockEffectsKind::try_from(optimistic_tx.clone())
@@ -671,12 +838,18 @@ impl TryFrom<TransactionBlock> for TransactionBlockEffectsKind {
 
             TransactionBlockInner::DryRun {
                 tx_data,
-                effects,
+                native_effects,
+                rpc,
+                rpc_object_changes,
                 events,
+                balance_changes,
             } => Ok(TransactionBlockEffectsKind::DryRun {
                 tx_data,
-                native: effects,
+                native_effects,
+                rpc,
+                rpc_object_changes,
                 events,
+                balance_changes,
             }),
         }
     }

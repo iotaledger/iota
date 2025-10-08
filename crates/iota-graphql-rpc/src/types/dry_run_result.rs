@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::*;
-use iota_json_rpc_types::{DevInspectResults, IotaExecutionResult};
+use iota_json_rpc_types::{DevInspectResults, DryRunTransactionBlockResponse, IotaExecutionResult};
 use iota_types::{
     TypeTag, effects::TransactionEffects as NativeTransactionEffects,
     transaction::TransactionData as NativeTransactionData,
@@ -128,8 +128,15 @@ impl TryFrom<DevInspectResults> for DryRunResult {
         let transaction = Some(TransactionBlock {
             inner: TransactionBlockInner::DryRun {
                 tx_data,
-                effects,
+                native_effects: Some(effects.clone()),
+                rpc: effects.try_into().map_err(|e| {
+                    Error::Internal(format!(
+                        "Failed to convert native effects to RPC effects: {e}"
+                    ))
+                })?,
+                rpc_object_changes: Vec::new(), // DevInspectResults doesn't have object changes
                 events,
+                balance_changes: Vec::new(), // DevInspectResults doesn't have balance changes
             },
             // set to u64::MAX, as dry running a transaction makes use of a fullnode's state, which
             // is typically ahead of the indexed state.
@@ -137,6 +144,54 @@ impl TryFrom<DevInspectResults> for DryRunResult {
         });
         Ok(Self {
             error: dev_inspect_results.error,
+            results,
+            transaction,
+        })
+    }
+}
+
+impl DryRunResult {
+    pub fn from_dry_run_response(
+        dry_run_response: DryRunTransactionBlockResponse,
+        tx_data: NativeTransactionData,
+    ) -> Result<Self, crate::error::Error> {
+        // DryRunTransactionBlockResponse doesn't have execution results like DevInspectResults
+        let results = None;
+
+        let events = dry_run_response
+            .events
+            .data
+            .into_iter()
+            .map(|e| e.into())
+            .collect();
+
+        // Serialize balance changes for storage
+        let serialized_balance_changes: Result<Vec<Vec<u8>>, Error> = dry_run_response
+            .balance_changes
+            .iter()
+            .map(|bc| {
+                bcs::to_bytes(bc).map_err(|e| {
+                    Error::Internal(format!("Failed to serialize balance change: {e}"))
+                })
+            })
+            .collect();
+
+        let transaction = Some(TransactionBlock {
+            inner: TransactionBlockInner::DryRun {
+                tx_data,
+                native_effects: None,
+                rpc: dry_run_response.effects,
+                rpc_object_changes: dry_run_response.object_changes,
+                events,
+                balance_changes: serialized_balance_changes?,
+            },
+            // set to u64::MAX, as dry running a transaction makes use of a fullnode's state, which
+            // is typically ahead of the indexed state.
+            checkpoint_viewed_at: u64::MAX,
+        });
+
+        Ok(Self {
+            error: None, // DryRunTransactionBlockResponse doesn't have error field
             results,
             transaction,
         })

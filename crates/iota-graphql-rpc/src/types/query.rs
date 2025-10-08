@@ -13,7 +13,7 @@ use iota_types::{
     TypeTag,
     gas_coin::GAS,
     supported_protocol_versions::Chain,
-    transaction::{TransactionData, TransactionDataAPI, TransactionKind},
+    transaction::{TransactionData, TransactionKind},
 };
 use move_core_types::account_address::AccountAddress;
 use serde::de::DeserializeOwned;
@@ -190,17 +190,20 @@ impl Query {
                     gas_objects,
                 )
             } else {
-                // This implies `TransactionData`
+                // This implies `TransactionData` - use dry_run to get balance changes
                 let tx_data = deserialize_tx_data::<TransactionData>(&tx_bytes)?;
 
-                (
-                    tx_data.sender(),
-                    tx_data.clone().into_kind(),
-                    Some(tx_data.gas_price().into()),
-                    Some(tx_data.gas_owner()),
-                    Some(tx_data.gas_budget().into()),
-                    Some(tx_data.gas().to_vec()),
-                )
+                let tx_bytes_base64 =
+                    Base64::from_bytes(&bcs::to_bytes(&tx_data).map_err(|e| {
+                        Error::Client(format!("Failed to serialize transaction data: {e}"))
+                    })?);
+
+                let dry_run_response = write_api
+                    .dry_run_transaction_block(tx_bytes_base64)
+                    .await
+                    .map_err(|e| Error::Client(e.to_string()))?;
+
+                return DryRunResult::from_dry_run_response(dry_run_response, tx_data).extend();
             };
 
         let dev_inspect_args = DevInspectArgs {

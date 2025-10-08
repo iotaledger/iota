@@ -724,6 +724,131 @@ mod tests {
                 }
             }
         }"#;
+
+        let query_new = r#"{
+          dryRunTransactionBlock(txBytes: $tx) {
+            transaction {
+                digest
+                indexedOnNode
+                sender {
+                    address
+                }
+                gasInput {
+                    gasSponsor {
+                        address
+                    }
+                    gasPrice
+                }
+                effects {
+                  transactionBlock {
+                    digest
+                  }
+                  status
+                  lamportVersion
+                  errors
+                  dependencies {
+                    edges {
+                      node {
+                        digest
+                      }
+                    }
+                  }
+                  gasEffects {
+                    gasObject {
+                      iotaNamesDefaultName
+                      digest
+                      storageRebate
+                      bcs
+                    }
+                    gasSummary {
+                      computationCost
+                      computationCostBurned
+                      storageCost
+                      storageRebate
+                      nonRefundableStorageFee
+                    }
+                  }
+
+                  unchangedSharedObjects {
+                    edges {
+                      node {
+                        __typename
+                      }
+                    }
+                  }
+                  objectChanges {
+                    edges {
+                      node {
+                        idCreated
+                        idDeleted
+                      }
+                    }
+                  }
+                  balanceChanges {
+                    edges {
+                      node {
+                        amount
+                      }
+                    }
+                  }
+                  events {
+                    edges {
+                      node {
+                        timestamp
+                      }
+                    }
+                  }
+                  timestamp
+                  epoch {
+                    referenceGasPrice
+                    endTimestamp
+                    totalCheckpoints
+                    totalTransactions
+                    totalGasFees
+                    totalStakeRewards
+                    fundSize
+                    netInflow
+                    fundInflow
+                    fundOutflow
+                    systemStateVersion
+                    iotaTotalSupply
+                    iotaTreasuryCapId
+                    liveObjectSetDigest
+                  }
+                  checkpoint {
+                    previousCheckpointDigest
+                    networkTotalTransactions
+                  }
+                }
+            }
+            error
+            results {
+              mutatedReferences {
+                input {
+                  __typename
+                  ... on Input {
+                    ix
+                  }
+                  ... on Result {
+                    cmd
+                    ix
+                  }
+                }
+                type {
+                  repr
+                }
+              }
+              returnValues {
+                type {
+                  repr
+                }
+                bcs
+              }
+            }
+
+          }
+        }"#;
+
         let variables = vec![GraphqlQueryVariable {
             name: "tx".to_string(),
             ty: "String!".to_string(),
@@ -731,7 +856,7 @@ mod tests {
         }];
         let res = cluster
             .graphql_client
-            .execute_to_graphql(query.to_string(), true, variables, vec![])
+            .execute_to_graphql(query_new.to_string(), true, variables, vec![])
             .await
             .unwrap();
         let binding = res.response_body().data.clone().into_json().unwrap();
@@ -752,7 +877,7 @@ mod tests {
         assert_eq!(sender_read, sender.to_string());
         let indexed_on_node = tx.get("indexedOnNode").unwrap().as_bool().unwrap();
         assert!(!indexed_on_node);
-        assert!(res.get("results").unwrap().is_array());
+        assert!(res.get("results").unwrap().is_null(), "{}", res);
         cluster.cleanup_resources().await
     }
 

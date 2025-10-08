@@ -2,8 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
-
 use async_graphql::{connection::CursorType, dataloader::Loader, *};
 use connection::Edge;
 use cursor::TxLookup;
@@ -14,6 +12,7 @@ use iota_indexer::{
     schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
 use iota_json_rpc_api::ReadApiClient;
+use iota_json_rpc_types::{IotaTransactionBlockEffects, ObjectChange as RpcObjectChange};
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     effects::TransactionEffects as NativeTransactionEffects,
@@ -25,6 +24,7 @@ use iota_types::{
     },
 };
 use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, HashMap};
 
 use crate::{
     config::ServiceConfig,
@@ -84,8 +84,11 @@ pub(crate) enum TransactionBlockInner {
     /// `NativeTransactionData` is present.
     DryRun {
         tx_data: NativeTransactionData,
-        effects: NativeTransactionEffects,
+        native_effects: Option<NativeTransactionEffects>,
+        rpc: IotaTransactionBlockEffects,
+        rpc_object_changes: Vec<RpcObjectChange>,
         events: Vec<NativeEvent>,
+        balance_changes: Vec<Vec<u8>>,
     },
 }
 
@@ -651,12 +654,18 @@ impl TryFrom<TransactionBlockEffects> for TransactionBlock {
 
             TransactionBlockEffectsKind::DryRun {
                 tx_data,
-                native,
+                native_effects,
+                rpc,
+                rpc_object_changes,
                 events,
+                balance_changes,
             } => Ok(TransactionBlockInner::DryRun {
                 tx_data: tx_data.clone(),
-                effects: native.clone(),
+                native_effects: native_effects.clone(),
+                rpc: rpc.clone(),
+                rpc_object_changes: rpc_object_changes.clone(),
                 events: events.clone(),
+                balance_changes: balance_changes.clone(),
             }),
         }?;
 

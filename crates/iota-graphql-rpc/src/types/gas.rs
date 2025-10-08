@@ -3,11 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::{connection::Connection, *};
-use iota_types::{
-    effects::{TransactionEffects as NativeTransactionEffects, TransactionEffectsAPI},
-    gas::GasCostSummary as NativeGasCostSummary,
-    transaction::GasData,
-};
+use iota_json_rpc_types::IotaTransactionBlockEffects;
+use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
+use iota_types::{gas::GasCostSummary as NativeGasCostSummary, transaction::GasData};
 
 use crate::types::{
     address::Address,
@@ -160,12 +158,15 @@ impl GasEffects {
     /// which this `GasEffects` was queried for. This is stored on
     /// `GasEffects` so that when viewing that entity's state, it will be as
     /// if it was read at the same checkpoint.
-    pub(crate) fn from(effects: &NativeTransactionEffects, checkpoint_viewed_at: u64) -> Self {
-        let ((id, version, _digest), _owner) = effects.gas_object();
+    pub(crate) fn from_rpc_effects(
+        effects: &IotaTransactionBlockEffects,
+        checkpoint_viewed_at: u64,
+    ) -> Self {
+        let gas_obj = effects.gas_object();
         Self {
             summary: GasCostSummary::from(effects.gas_cost_summary()),
-            object_id: IotaAddress::from(id),
-            object_version: version.value(),
+            object_id: IotaAddress::from(gas_obj.reference.object_id),
+            object_version: gas_obj.reference.version.value(),
             checkpoint_viewed_at,
         }
     }
