@@ -8,6 +8,7 @@
 
 set -euo pipefail
 PARENT_BASHPID=${BASHPID}
+CLEANING=false
 
 # =================== CONSTANTS ===================
 DEFAULT_NUM_VALIDATORS=4
@@ -40,6 +41,20 @@ cleanup_and_kill() {
     if [ "${BASHPID}" != "${PARENT_BASHPID}" ]; then
           return
     fi
+
+    # Re-entrancy guard: run cleanup only once and ignore further signals during teardown
+    if [ "${CLEANING}" = true ]; then
+        log "cleanup already running; returning"
+        return
+    fi
+    CLEANING=true
+
+    # Disable traps for SIGINT/SIGTERM/EXIT to avoid recursive invocations while cleaning
+    trap - SIGINT SIGTERM EXIT
+    # Ignore further SIGINT/SIGTERM from the terminal during teardown
+    trap '' SIGINT SIGTERM
+
+    # Allow cleanup commands to continue even if one fails
     set +e
     # Ensure log targets exist even if EXIT happens before normal init
     : "${SCRIPT_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
@@ -295,13 +310,13 @@ if [ "$SPAMMER_ENABLE" = true ]; then
       log "Detected sudo; running spammer as $SUDO_USER to inherit user Rust toolchain"
       sudo -u "$SUDO_USER" -H bash "$SPAMMER_SCRIPT" \
         -T "$SPAMMER_TPS" \
-        -size "$SPAMMER_SIZE_PER_TX" \
+        -s "$SPAMMER_SIZE_PER_TX" \
         -d "${SPAMMER_DURATION}s" \
         > "$LOG_DIR/spammer.log" 2>&1 &
     else
       bash "$SPAMMER_SCRIPT" \
         -T "$SPAMMER_TPS" \
-        -size "$SPAMMER_SIZE_PER_TX" \
+        -s "$SPAMMER_SIZE_PER_TX" \
         -d "${SPAMMER_DURATION}s" \
         > "$LOG_DIR/spammer.log" 2>&1 &
     fi
