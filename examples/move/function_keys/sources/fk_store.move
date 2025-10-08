@@ -17,12 +17,15 @@ use iota::vec_set::{Self, VecSet};
 use iotaccount::iotaccount::IOTAccount;
 
 #[error(code = 0)]
-const EFunctionKeyAlreadyAdded: vector<u8> = b"The function key has been added already";
+const EFunctionKeysStoreAlreadyAttached: vector<u8> = b"The function keys store has been attached already";
 
 #[error(code = 1)]
-const EFunctionKeyDoesNotExist: vector<u8> = b"The function key does not exist";
+const EFunctionKeyAlreadyAdded: vector<u8> = b"The function key has been added already";
 
 #[error(code = 2)]
+const EFunctionKeyDoesNotExist: vector<u8> = b"The function key does not exist";
+
+#[error(code = 3)]
 const EPublicKeyNotFound: vector<u8> = b"Public key entry not found";
 
 // =========================
@@ -53,10 +56,11 @@ public struct FunctionKeysStore has store {
 // =========================
 // Accessors / helpers
 // =========================
-public fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
+fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
 
-public fun new_fk_store(ctx: &mut TxContext): FunctionKeysStore {
-    FunctionKeysStore { function_keys: tbl::new<vector<u8>, VecSet<FunctionKey>>(ctx) }
+public fun attach_fk_store(account: &mut IOTAccount, ctx: &mut TxContext) {
+    assert!(!account.has_field(fk_store_key()), EFunctionKeysStoreAlreadyAttached);
+    account.add_field(fk_store_key(), FunctionKeysStore { function_keys: tbl::new<vector<u8>, VecSet<FunctionKey>>(ctx) }, ctx);
 }
 
 public fun fk_store_exists(account: &IOTAccount): bool {

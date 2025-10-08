@@ -18,8 +18,7 @@ module function_keys::function_keys;
 use function_keys::fk_store::{
     extract_func_key,
     FunctionKey,
-    fk_store_key,
-    new_fk_store,
+    attach_fk_store,
     borrow_fk_store,
     borrow_fk_store_mut,
     fk_store_exists,
@@ -36,22 +35,23 @@ use iotaccount::iotaccount::IOTAccount;
 // Errors
 // --------------------
 
-/// DF already exists (double init).
-const EFunctionKeysAlreadyInitialized: u64 = 1;
 /// DF missing (forgot to `create`).
-const EFunctionKeysNotInitialized: u64 = 2;
+#[error(code = 0)]
+const EFunctionKeysNotInitialized: vector<u8> = b"The function key has not been initializaed";
 /// PTB does not contain **exactly one** command.
-const EInvalidAmountOfCommands: u64 = 3;
+#[error(code = 1)]
+const EInvalidAmountOfCommands: vector<u8> = b"Invalid number of commands";
 /// Called function not in the allow-set.
-const EUnauthorized: u64 = 4;
+#[error(code = 2)]
+const EUnauthorized: vector<u8> = b"Function key is not the allowed set";
 /// Ed225519 verification has failed.
-const EEd25519VerificationFailed: u64 = 5;
+#[error(code = 3)]
+const EEd25519VerificationFailed: vector<u8> = b"Ed25519 verification has failed";
+
 
 /// Initializes the Function Keys store under the given `account`.
 public fun create(account: &mut IOTAccount, ctx: &mut TxContext) {
-    assert!(!account.has_field(fk_store_key()), EFunctionKeysAlreadyInitialized);
-    let fk_store = new_fk_store(ctx);
-    account.add_field(fk_store_key(), fk_store, ctx);
+    attach_fk_store(account, ctx);
 }
 
 /// Grants (allows) a `FunctionKey` under a specific `pub_key`.
