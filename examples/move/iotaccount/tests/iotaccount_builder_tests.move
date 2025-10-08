@@ -4,7 +4,6 @@
 #[test_only]
 module iotaccount::iotaccount_builder_tests;
 
-use iota::account;
 use iota::test_scenario;
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use iotaccount::iotaccount::{Self, IOTAccount};
@@ -12,7 +11,7 @@ use iotaccount::test_utils::create_authenticator_info_v1_for_testing;
 
 // -------------------------------- Create IOTAccount --------------------------------
 
-public struct ReservedDfName has copy, drop, store {}
+public struct DynamicFieldKey has copy, drop, store {}
 
 #[test]
 fun builder_all_mandatory_fields_set() {
@@ -22,13 +21,13 @@ fun builder_all_mandatory_fields_set() {
 
     let ctx = test_scenario::ctx(scenario);
 
-    let reserved_df_example_name = ReservedDfName {};
+    let dynamic_field_key = DynamicFieldKey {};
 
     let authenticator = create_authenticator_info_v1_for_testing();
-    // Any field value can be set as a reserved, and for the purposes of this test
+    // Any field value can be set as a dynamic field, and for the purposes of this test
     // the exact value doesn't matter.
     let account = iotaccount::builder(authenticator, ctx)
-        .add_dynamic_field(reserved_df_example_name, 6)
+        .add_dynamic_field(dynamic_field_key, 6)
         .finish();
     account.share();
 
@@ -37,16 +36,14 @@ fun builder_all_mandatory_fields_set() {
         let account = scenario.take_shared<IOTAccount>();
 
         // Check if authenticator has been set.
-        let authenticator_df_name = account::authenticator_df_name();
-        assert!(account.has_field(authenticator_df_name));
         assert_ref_eq(
-            account.borrow_field(authenticator_df_name),
+            account.borrow_auth_info_v1(),
             &create_authenticator_info_v1_for_testing(),
         );
 
-        // Check the ReservedDfName contains the set value.
-        assert!(account.has_field(reserved_df_example_name));
-        assert_eq(*account.borrow_field(reserved_df_example_name), 6);
+        // Check the added dynamic field contains the set value.
+        assert!(account.has_field(dynamic_field_key));
+        assert_eq(*account.borrow_field(dynamic_field_key), 6);
 
         test_scenario::return_shared(account);
     };

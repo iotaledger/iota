@@ -5289,8 +5289,8 @@ impl AuthorityState {
 
         let authenticator_info_field_id = dynamic_field::derive_dynamic_field_id(
             auth_account_object_id,
-            &account::authenticator_df_name_type_tag(),
-            &account::authenticator_df_name_as_bcs_bytes(),
+            &account::AuthenticatorInfoV1Key::tag().into(),
+            &account::AuthenticatorInfoV1Key::default().to_bcs_bytes(),
         )
         .map_err(|_| UserInputError::UnableToGetMoveAuthenticatorId {
             account_object_id: auth_account_object_id,

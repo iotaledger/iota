@@ -3,9 +3,7 @@
 
 module iotaccount::basic_keyed_account;
 
-// === Imports ===
-
-use iota::account::{Self, AuthenticatorInfoV1};
+use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
@@ -115,12 +113,10 @@ public fun rotate_public_key(
     ctx: &TxContext,
 ) {
     // Update the account owner public key dynamic field. It is expected that the field already exists.
-    let owner_public_key = OwnerPublicKey {};
-    account.rotate(owner_public_key, public_key, ctx);
+    account.rotate_field(OwnerPublicKey {}, public_key, ctx);
 
     // Update the account owner public key dynamic field. It is expected that the field already exists.
-    let authenticator_df_name = account::authenticator_df_name();
-    account.rotate(authenticator_df_name, authenticator, ctx);
+    account.rotate_auth_info_v1(authenticator, ctx);
 }
 
 // === View Functions ===

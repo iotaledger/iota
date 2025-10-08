@@ -7,15 +7,14 @@ module dynamic_multisig_account::dynamic_multisig_account_tests;
 use dynamic_multisig_account::dynamic_multisig_account::{Self, DynamicMultisigAccount};
 use dynamic_multisig_account::members;
 use dynamic_multisig_account::transactions;
-
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::{Self, AuthContext};
 use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
-
 use std::ascii;
 
-const TRANSACTION_DIGEST: vector<u8> = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+const TRANSACTION_DIGEST: vector<u8> =
+    x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
 
 // --------------------------------------- Basic Scenario ---------------------------------------
 
@@ -30,7 +29,10 @@ fun test_account_creation() {
             assert_eq(account.members().addresses(), vector[@0x1, @0x2, @0x3]);
             assert_eq(account.members().weights(), vector[1, 2, 3]);
             assert_eq(account.threshold(), 3);
-            assert_ref_eq(account.authenticator(), &create_default_authenticator_info_v1_for_testing());
+            assert_ref_eq(
+                account.authenticator(),
+                &create_default_authenticator_info_v1_for_testing(),
+            );
 
             test_scenario::return_shared(account);
         };
@@ -120,7 +122,13 @@ fun test_account_creation_with_inconsistent_members() {
     let threshold = 3;
     let authenticator = create_default_authenticator_info_v1_for_testing();
 
-    dynamic_multisig_account::create(members_addresses, members_weights, threshold, authenticator, ctx);
+    dynamic_multisig_account::create(
+        members_addresses,
+        members_weights,
+        threshold,
+        authenticator,
+        ctx,
+    );
 
     test_scenario::end(scenario_val);
 }
@@ -138,7 +146,13 @@ fun test_account_creation_with_members_duplicate() {
     let threshold = 3;
     let authenticator = create_default_authenticator_info_v1_for_testing();
 
-    dynamic_multisig_account::create(members_addresses, members_weights, threshold, authenticator, ctx);
+    dynamic_multisig_account::create(
+        members_addresses,
+        members_weights,
+        threshold,
+        authenticator,
+        ctx,
+    );
 
     test_scenario::end(scenario_val);
 }
@@ -156,7 +170,13 @@ fun test_account_creation_with_zero_threshold() {
     let threshold = 0;
     let authenticator = create_default_authenticator_info_v1_for_testing();
 
-    dynamic_multisig_account::create(members_addresses, members_weights, threshold, authenticator, ctx);
+    dynamic_multisig_account::create(
+        members_addresses,
+        members_weights,
+        threshold,
+        authenticator,
+        ctx,
+    );
 
     test_scenario::end(scenario_val);
 }
@@ -174,7 +194,13 @@ fun test_account_creation_with_inconsistent_threshold() {
     let threshold = 7;
     let authenticator = create_default_authenticator_info_v1_for_testing();
 
-    dynamic_multisig_account::create(members_addresses, members_weights, threshold, authenticator, ctx);
+    dynamic_multisig_account::create(
+        members_addresses,
+        members_weights,
+        threshold,
+        authenticator,
+        ctx,
+    );
 
     test_scenario::end(scenario_val);
 }
@@ -184,9 +210,12 @@ fun test_account_creation_with_inconsistent_threshold() {
 #[test]
 fun test_transaction_propose_several() {
     account_test!(|scenario, _| {
-        let transaction_digest_1 = x"1111111111111111111111111111111111111111111111111111111111111111";
-        let transaction_digest_2 = x"2222222222222222222222222222222222222222222222222222222222222222";
-        let transaction_digest_3 = x"3333333333333333333333333333333333333333333333333333333333333333";
+        let transaction_digest_1 =
+            x"1111111111111111111111111111111111111111111111111111111111111111";
+        let transaction_digest_2 =
+            x"2222222222222222222222222222222222222222222222222222222222222222";
+        let transaction_digest_3 =
+            x"3333333333333333333333333333333333333333333333333333333333333333";
 
         // Propose a transaction.
         scenario.next_tx(@0x1);
@@ -466,7 +495,13 @@ fun test_account_updating() {
             let threshold = 15;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(members_addresses, members_weights, threshold, authenticator, ctx);
+            account.update_account_data(
+                members_addresses,
+                members_weights,
+                threshold,
+                authenticator,
+                ctx,
+            );
 
             assert_eq(account.members().addresses(), members_addresses);
             assert_eq(account.members().weights(), members_weights);
@@ -494,7 +529,13 @@ fun test_account_updating_with_not_account() {
             let threshold = 10;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(members_addresses, members_weights, threshold, authenticator, ctx);
+            account.update_account_data(
+                members_addresses,
+                members_weights,
+                threshold,
+                authenticator,
+                ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -518,7 +559,13 @@ fun test_account_updating_with_inconsistent_members() {
             let threshold = 10;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(members_addresses, members_weights, threshold, authenticator, ctx);
+            account.update_account_data(
+                members_addresses,
+                members_weights,
+                threshold,
+                authenticator,
+                ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -542,7 +589,13 @@ fun test_account_updating_with_members_duplicate() {
             let threshold = 10;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(members_addresses, members_weights, threshold, authenticator, ctx);
+            account.update_account_data(
+                members_addresses,
+                members_weights,
+                threshold,
+                authenticator,
+                ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -566,7 +619,13 @@ fun test_account_updating_with_zero_threshold() {
             let threshold = 0;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(members_addresses, members_weights, threshold, authenticator, ctx);
+            account.update_account_data(
+                members_addresses,
+                members_weights,
+                threshold,
+                authenticator,
+                ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -590,7 +649,13 @@ fun test_account_updating_with_inconsistent_threshold() {
             let threshold = 16;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(members_addresses, members_weights, threshold, authenticator, ctx);
+            account.update_account_data(
+                members_addresses,
+                members_weights,
+                threshold,
+                authenticator,
+                ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -632,7 +697,11 @@ fun test_authenticate_by_not_account() {
 }
 
 #[test]
-#[expected_failure(abort_code = dynamic_multisig_account::ETransactionDoesNotHaveSufficientApprovals)]
+#[
+    expected_failure(
+        abort_code = dynamic_multisig_account::ETransactionDoesNotHaveSufficientApprovals,
+    ),
+]
 fun test_authenticate_not_enough_total_weight() {
     account_test!(|scenario, account_address| {
         // Propose a transaction.
@@ -664,7 +733,11 @@ fun test_authenticate_not_enough_total_weight() {
 }
 
 #[test]
-#[expected_failure(abort_code = dynamic_multisig_account::ETransactionDoesNotHaveSufficientApprovals)]
+#[
+    expected_failure(
+        abort_code = dynamic_multisig_account::ETransactionDoesNotHaveSufficientApprovals,
+    ),
+]
 fun test_authenticate_not_enough_total_weight_after_update() {
     account_test!(|scenario, account_address| {
         // Propose a transaction.
@@ -694,7 +767,13 @@ fun test_authenticate_not_enough_total_weight_after_update() {
             let threshold = 3;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(members_addresses, members_weights, threshold, authenticator, ctx);
+            account.update_account_data(
+                members_addresses,
+                members_weights,
+                threshold,
+                authenticator,
+                ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -714,7 +793,11 @@ fun test_authenticate_not_enough_total_weight_after_update() {
 }
 
 #[test]
-#[expected_failure(abort_code = dynamic_multisig_account::ETransactionDoesNotHaveSufficientApprovals)]
+#[
+    expected_failure(
+        abort_code = dynamic_multisig_account::ETransactionDoesNotHaveSufficientApprovals,
+    ),
+]
 fun test_authenticate_member_removed_during_update() {
     account_test!(|scenario, account_address| {
         // Propose a transaction.
@@ -754,7 +837,13 @@ fun test_authenticate_member_removed_during_update() {
             let threshold = 3;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(members_addresses, members_weights, threshold, authenticator, ctx);
+            account.update_account_data(
+                members_addresses,
+                members_weights,
+                threshold,
+                authenticator,
+                ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -774,7 +863,11 @@ fun test_authenticate_member_removed_during_update() {
 }
 
 #[test]
-#[expected_failure(abort_code = dynamic_multisig_account::ETransactionDoesNotHaveSufficientApprovals)]
+#[
+    expected_failure(
+        abort_code = dynamic_multisig_account::ETransactionDoesNotHaveSufficientApprovals,
+    ),
+]
 fun test_authenticate_threshold_changed_during_update() {
     account_test!(|scenario, account_address| {
         // Propose a transaction.
@@ -804,7 +897,13 @@ fun test_authenticate_threshold_changed_during_update() {
             let threshold = 4;
             let authenticator = create_authenticator_info_v1_for_testing(b"function2");
 
-            account.update_account_data(members_addresses, members_weights, threshold, authenticator, ctx);
+            account.update_account_data(
+                members_addresses,
+                members_weights,
+                threshold,
+                authenticator,
+                ctx,
+            );
 
             test_scenario::return_shared(account);
         };
@@ -826,11 +925,19 @@ fun test_authenticate_threshold_changed_during_update() {
 // --------------------------------------- Test Utilities ---------------------------------------
 
 fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
-    account::create_auth_info_v1_for_testing(@0x1, ascii::string(b"module"), ascii::string(b"function"))
+    account::create_auth_info_v1_for_testing(
+        @0x1,
+        ascii::string(b"module"),
+        ascii::string(b"function"),
+    )
 }
 
 fun create_authenticator_info_v1_for_testing(function: vector<u8>): AuthenticatorInfoV1 {
-    account::create_auth_info_v1_for_testing(@0x1, ascii::string(function), ascii::string(b"function"))
+    account::create_auth_info_v1_for_testing(
+        @0x1,
+        ascii::string(function),
+        ascii::string(b"function"),
+    )
 }
 
 fun create_account_for_testing(scenario: &mut Scenario): address {
@@ -841,7 +948,13 @@ fun create_account_for_testing(scenario: &mut Scenario): address {
     let threshold = 3;
     let authenticator = create_default_authenticator_info_v1_for_testing();
 
-    dynamic_multisig_account::create(members_addresses, members_weights, threshold, authenticator, ctx);
+    dynamic_multisig_account::create(
+        members_addresses,
+        members_weights,
+        threshold,
+        authenticator,
+        ctx,
+    );
 
     scenario.next_tx(@0x0);
 

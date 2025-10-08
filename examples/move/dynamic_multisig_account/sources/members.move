@@ -6,9 +6,11 @@ module dynamic_multisig_account::members;
 // --------------------------------------- Errors ---------------------------------------
 
 #[error(code = 0)]
-const EMembersComponentsHaveDifferentLengths: vector<u8> = b"The members components have different lengths.";
+const EMembersComponentsHaveDifferentLengths: vector<u8> =
+    b"The members components have different lengths.";
 #[error(code = 1)]
-const EMembersMustNotContainDuplicates: vector<u8> = b"The list of members must not contain duplicates.";
+const EMembersMustNotContainDuplicates: vector<u8> =
+    b"The list of members must not contain duplicates.";
 #[error(code = 2)]
 const EMemberIsNotFound: vector<u8> = b"The member with the provided address is not found.";
 
@@ -40,7 +42,7 @@ public(package) fun create(addresses: vector<address>, weights: vector<u64>): Me
     // Create a `Members` instance.
     let list = addresses.zip_map!(weights, |addr, weight| Member { addr, weight });
 
-    Members{ list }
+    Members { list }
 }
 
 // --------------------------------------- Members ---------------------------------------

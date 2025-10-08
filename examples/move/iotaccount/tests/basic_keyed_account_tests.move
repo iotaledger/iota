@@ -33,10 +33,8 @@ fun account_created() {
         let account = scenario.take_shared<IOTAccount>();
 
         // Check if authenticator has been set.
-        let authenticator_df_name = account::authenticator_df_name();
-        assert!(account.has_field(authenticator_df_name));
         assert_ref_eq(
-            account.borrow_field(authenticator_df_name),
+            account.borrow_auth_info_v1(),
             &create_authenticator_info_v1_for_testing(),
         );
 
@@ -368,10 +366,7 @@ fun test_rotate_account_public_key() {
         basic_keyed_account::rotate_public_key(&mut account, public_key, authenticator, ctx);
 
         assert_eq(*borrow_public_key(&account), public_key);
-
-        let authenticator_df_name = account::authenticator_df_name();
-        assert!(account.has_field(authenticator_df_name));
-        assert_ref_eq(account.borrow_field(authenticator_df_name), &authenticator);
+        assert_ref_eq(account.borrow_auth_info_v1(), &authenticator);
 
         test_scenario::return_shared(account);
     };
@@ -401,12 +396,6 @@ fun test_rotate_account_public_key_wrong_sender() {
         let ctx = test_scenario::ctx(scenario);
 
         basic_keyed_account::rotate_public_key(&mut account, public_key, authenticator, ctx);
-
-        assert_eq(*borrow_public_key(&account), public_key);
-
-        let authenticator_df_name = account::authenticator_df_name();
-        assert!(account.has_field(authenticator_df_name));
-        assert_ref_eq(account.borrow_field(authenticator_df_name), &authenticator);
 
         test_scenario::return_shared(account);
     };
