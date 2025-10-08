@@ -1,6 +1,6 @@
 [package]
 name = "nft_marketplace"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 Iota = { local = "../../../../crates/iota-framework/packages/iota-framework" }

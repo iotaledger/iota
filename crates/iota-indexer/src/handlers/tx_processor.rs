@@ -6,11 +6,11 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
-use iota_rest_api::CheckpointData;
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     digests::TransactionDigest,
     effects::{TransactionEffects, TransactionEffectsAPI},
+    full_checkpoint_content::CheckpointData,
     object::Object,
     transaction::{TransactionData, TransactionDataAPI},
 };

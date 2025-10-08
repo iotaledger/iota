@@ -160,7 +160,7 @@ iota client ptb \
 
 #### 9.2(Optional) Calculate the Royalties For the Item
 
-You can use the following [move-call](https://docs.iota.org/references/cli/ptb#move-call) to get the royalties for any given product by calling the `kiosk::royalty_rule::fee_amount` function
+You can use the following [move-call](https://docs.iota.org/developer/references/cli/ptb#move-call) to get the royalties for any given product by calling the `kiosk::royalty_rule::fee_amount` function
 and assign it to a `royalties_amount` variable. In this case, the Jeans item:
 
 ```bash
@@ -169,7 +169,7 @@ and assign it to a `royalties_amount` variable. In this case, the Jeans item:
 
 #### 9.3 Create a Payment Coin With a Specific Amount (Price + Optional Royalties)
 
-You can use the following command to [split your gas tokens](https://docs.iota.org/references/cli/ptb#split-destroy-and-merge-coins) to pay for the item's price and royalties:
+You can use the following command to [split your gas tokens](https://docs.iota.org/developer/references/cli/ptb#split-destroy-and-merge-coins) to pay for the item's price and royalties:
 
 ```bash
 --split-coins gas "[item_price, royalties_amount]" --assign payment_coins \
@@ -178,7 +178,7 @@ You can use the following command to [split your gas tokens](https://docs.iota.o
 
 #### 9.4 Buy an Item Using `payment_coins.0`
 
-You can use the following [move-call](https://docs.iota.org/references/cli/ptb#move-call) to pay the owner the item's price.
+You can use the following [move-call](https://docs.iota.org/developer/references/cli/ptb#move-call) to pay the owner the item's price.
 If the royalty rule is enabled, an additional royalty fee, calculated as a percentage of the initial item price, is also
 paid.
 Once both payments are completed, the item is ready for transfer to the buyer.
@@ -192,7 +192,7 @@ To purchase the item:
 #### 9.5 Transfer an Item to the Buyer
 
 Finally, you can set up the
-[public_transfer](https://docs.iota.org/references/framework/iota/transfer#function-public_transfer) to
+[public_transfer](https://docs.iota.org/developer/references/framework/iota/transfer#function-public_transfer) to
 transfer the purchased item to the buyer:
 
 ```bash

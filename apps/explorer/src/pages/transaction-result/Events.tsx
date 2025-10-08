@@ -40,9 +40,9 @@ function Event({ event, divider }: { event: IotaEvent; divider: boolean }): JSX.
                             objectId={event.packageId}
                             queryStrings={{ module: event.transactionModule }}
                             label={`${formatAddress(event.packageId)}::${event.transactionModule}`}
+                            copyText={event.packageId}
                         />
                     }
-                    copyText={event.packageId}
                     fullwidth
                     isTruncated
                 />

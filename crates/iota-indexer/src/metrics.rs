@@ -123,9 +123,11 @@ pub struct IndexerMetrics {
     pub checkpoint_db_commit_latency_tx_insertion_order_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects: Histogram,
     pub checkpoint_db_commit_latency_objects_snapshot: Histogram,
+    pub checkpoint_db_commit_latency_objects_version: Histogram,
     pub checkpoint_db_commit_latency_objects_history: Histogram,
     pub checkpoint_db_commit_latency_objects_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects_snapshot_chunks: Histogram,
+    pub checkpoint_db_commit_latency_objects_version_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects_history_chunks: Histogram,
     pub checkpoint_db_commit_latency_events: Histogram,
     pub checkpoint_db_commit_latency_events_chunks: Histogram,
@@ -176,6 +178,8 @@ pub struct IndexerMetrics {
     pub last_pruned_checkpoint: IntGauge,
     pub last_pruned_transaction: IntGauge,
     pub epoch_pruning_latency: Histogram, // not used
+    pub optimistic_pruner_total_rows_pruned: IntCounter,
+    pub optimistic_pruner_batch_duration: Histogram,
 }
 
 impl IndexerMetrics {
@@ -474,6 +478,12 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
+            checkpoint_db_commit_latency_objects_version: register_histogram_with_registry!(
+                "checkpoint_db_commit_latency_objects_version",
+                "Time spent committing objects version",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
             checkpoint_db_commit_latency_objects_history: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_history",
                 "Time spent committing objects history",
@@ -494,6 +504,12 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
+            checkpoint_db_commit_latency_objects_version_chunks: register_histogram_with_registry!(
+                "checkpoint_db_commit_latency_objects_version_chunks",
+                "Time spent committing objects version chunks",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
             checkpoint_db_commit_latency_objects_history_chunks: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_history_chunks",
                 "Time spent committing objects history chunks",
@@ -789,6 +805,19 @@ impl IndexerMetrics {
                 "Last pruned transaction sequence number",
                 registry,
             ).unwrap(),
+            optimistic_pruner_total_rows_pruned: register_int_counter_with_registry!(
+                "optimistic_pruner_total_rows_pruned",
+                "Total number of rows pruned by optimistic pruner",
+                registry,
+            )
+                .unwrap(),
+            optimistic_pruner_batch_duration: register_histogram_with_registry!(
+                "optimistic_pruner_batch_duration",
+                "Time spent processing single optimistic pruner batch",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+                .unwrap(),
             epoch_pruning_latency: register_histogram_with_registry!(
                 "epoch_pruning_latency",
                 "Time spent in pruning one epoch",

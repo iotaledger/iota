@@ -95,8 +95,8 @@ pub(crate) enum ConsensusError {
     #[error("Failed to verify the block's signature: {0}")]
     SignatureVerificationFailure(FastCryptoError),
 
-    #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
-    SynchronizerSaturated(AuthorityIndex),
+    #[error("Synchronizer for fetching blocks directly from ([{0}],{1}) is saturated")]
+    SynchronizerSaturated(AuthorityIndex, String),
 
     #[error("Block {block_ref:?} rejected: {reason}")]
     BlockRejected { block_ref: BlockRef, reason: String },

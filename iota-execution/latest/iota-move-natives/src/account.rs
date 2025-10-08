@@ -36,7 +36,7 @@ pub fn check_auth_info_v1(
     // charge gas
     let account_create_auth_info_v1_impl_params = context
         .extensions_mut()
-        .get::<NativesCostTable>()
+        .get::<NativesCostTable>()?
         .account_check_auth_info_v1_params;
 
     let check_auth_info_v1_cost_base = account_create_auth_info_v1_impl_params
@@ -69,7 +69,7 @@ pub fn check_auth_info_v1(
     // by this function as the user cannot write such a requirement down at the
     // moment) or it must be loaded. Either because it is in a completely
     // different package or its for this package, but a different version.
-    let raw_module_loader = &context.extensions().get::<RawModuleLoader>();
+    let raw_module_loader = &context.extensions().get::<RawModuleLoader>()?;
     let Some(compiled_module) = raw_module_loader.get_module(&package_id, &module_identifier)
     else {
         return Err(

@@ -8,17 +8,21 @@ use std::{
     time::Duration,
 };
 
+use diesel::{QueryDsl, RunQueryDsl};
 use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_indexer::{
-    config::{IotaNamesOptions, JsonRpcConfig, SnapshotLagConfig},
+    config::{IotaNamesOptions, JsonRpcConfig, PruningOptions, SnapshotLagConfig},
     db::{ConnectionPoolConfig, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
+    metrics::IndexerMetrics,
+    read_only_blocking,
+    schema::optimistic_transactions,
     store::{PgIndexerStore, indexer_store::IndexerStore},
-    test_utils::{DBInitHook, IndexerTypeConfig, start_test_indexer},
+    test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
-use iota_json_rpc_api::ReadApiClient;
+use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
 use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
 use iota_metrics::init_metrics;
 use iota_types::{
@@ -36,7 +40,6 @@ use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{runtime::Runtime, task::JoinHandle};
 
-const POSTGRES_URL: &str = "postgres://postgres:postgrespw@localhost:5432";
 const DEFAULT_DB: &str = "iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
 const DEFAULT_INDEXER_PORT: u16 = 9005;
@@ -119,7 +122,7 @@ impl SimulacrumTestSetup {
 pub async fn start_test_cluster_with_read_write_indexer(
     database_name: Option<&str>,
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
-    epochs_to_keep: Option<u64>,
+    pruning_options: Option<PruningOptions>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
     let mut builder = TestClusterBuilder::new();
 
@@ -131,12 +134,12 @@ pub async fn start_test_cluster_with_read_write_indexer(
 
     // start indexer in write mode
     let (pg_store, _pg_store_handle, _) = start_test_indexer(
-        get_indexer_db_url(database_name),
+        db_url(database_name.unwrap_or(DEFAULT_DB)),
         // reset the existing db
         true,
         None,
         cluster.rpc_url().to_string(),
-        IndexerTypeConfig::writer_mode(None, epochs_to_keep),
+        IndexerTypeConfig::writer_mode(None, pruning_options),
         None,
     )
     .await;
@@ -150,13 +153,6 @@ pub async fn start_test_cluster_with_read_write_indexer(
         .unwrap();
 
     (cluster, pg_store, rpc_client)
-}
-
-pub fn get_indexer_db_url(database_name: Option<&str>) -> String {
-    database_name.map_or_else(
-        || format!("{POSTGRES_URL}/{DEFAULT_DB}"),
-        |db_name| format!("{POSTGRES_URL}/{db_name}"),
-    )
 }
 
 /// Wait for the indexer to catch up to the given checkpoint sequence number
@@ -221,6 +217,43 @@ pub async fn indexer_wait_for_object(
     .expect("Timeout waiting for indexer to catchup to given object's sequence number");
 }
 
+pub async fn get_optimistic_transactions_count(pg_store: &PgIndexerStore) -> u64 {
+    let blocking_cp = pg_store.blocking_cp();
+    tokio::task::spawn_blocking(move || {
+        read_only_blocking!(&blocking_cp, |conn| {
+            optimistic_transactions::table
+                .count()
+                .get_result::<i64>(conn)
+        })
+    })
+    .await
+    .unwrap()
+    .unwrap() as u64
+}
+
+pub async fn indexer_wait_for_optimistic_transactions_count(
+    pg_store: &PgIndexerStore,
+    expected_transactions_count: u64,
+) {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let optimistic_transactions_count = get_optimistic_transactions_count(pg_store).await;
+            if optimistic_transactions_count == expected_transactions_count {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("Timeout waiting for indexer to prune optimistic transactions");
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // check once again, to ensure match was not accidental
+    let optimistic_transactions_count = get_optimistic_transactions_count(pg_store).await;
+    assert_eq!(optimistic_transactions_count, expected_transactions_count);
+}
+
 /// Wait for the indexer to prune the given checkpoint number
 pub async fn indexer_wait_for_checkpoint_pruned(
     pg_store: &PgIndexerStore,
@@ -269,19 +302,42 @@ pub async fn indexer_wait_for_transaction(
 
 pub async fn execute_tx_and_wait_for_indexer(
     indexer_client: &HttpClient,
-    cluster: &TestCluster,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,
     keypair: &dyn Signer<Signature>,
-) {
+) -> TransactionDigest {
+    let digest = execute_tx_must_succeed(indexer_client, tx_bytes, keypair).await;
+    indexer_wait_for_transaction(digest, store, indexer_client).await;
+    digest
+}
+
+pub async fn execute_tx_must_succeed(
+    indexer_client: &HttpClient,
+    tx_bytes: TransactionBlockBytes,
+    keypair: &dyn Signer<Signature>,
+) -> TransactionDigest {
     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
-    let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
-    indexer_wait_for_transaction(res.digest, store, indexer_client).await;
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+    let indexer_tx_response = indexer_client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        indexer_tx_response.status_ok(),
+        Some(true),
+        "Transaction failed: {indexer_tx_response:?}"
+    );
+    *txn.digest()
 }
 
 /// Start an Indexer instance in `Read` mode
 fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Option<&str>) -> u16 {
-    let db_url = get_indexer_db_url(database_name);
+    let db_url = db_url(database_name.unwrap_or(DEFAULT_DB));
     let port = get_available_port(DEFAULT_INDEXER_IP);
 
     let config = JsonRpcConfig {
@@ -301,8 +357,13 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
 
     let registry = prometheus::Registry::default();
     init_metrics(&registry);
+    let metrics = IndexerMetrics::new(&registry);
 
-    tokio::spawn(async move { Indexer::start_reader(&config, &registry, pool).await });
+    let store = create_pg_store(&db_url, false);
+
+    tokio::spawn(
+        async move { Indexer::start_reader(&config, store, &registry, pool, metrics).await },
+    );
     port
 }
 
@@ -343,7 +404,7 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
     });
     // Starts indexer
     let (pg_store, pg_handle, _) = start_test_indexer(
-        get_indexer_db_url(database_name),
+        db_url(database_name.unwrap_or(DEFAULT_DB)),
         true,
         db_init_hook,
         format!("http://{server_url}"),

@@ -7,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use tracing::{error, info};
+use tracing::{info, warn};
 
 use crate::{get_metrics, spawn_logged_monitored_task};
 
@@ -41,12 +41,12 @@ const ALERT_THRESHOLD: Duration = Duration::from_millis(500);
 // is detected.
 #[inline(never)]
 extern "C" fn thread_monitor_report_stall(duration_ms: u64) {
-    error!("Thread stalled for {}ms", duration_ms);
+    warn!("Thread stalled for {}ms", duration_ms);
 }
 
 #[inline(never)]
 extern "C" fn thread_monitor_report_stall_cleared(duration_ms: u64) {
-    error!("Thread stall cleared after {}ms", duration_ms);
+    warn!("Thread stall cleared after {}ms", duration_ms);
 }
 
 /// Monitors temporary stalls in tokio scheduling every MONITOR_INTERVAL.

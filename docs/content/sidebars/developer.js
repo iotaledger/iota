@@ -5,7 +5,8 @@
 const tsSDK = require('./ts-sdk');
 const iotaEvm = require('./iota-evm');
 const notarization = require("./notarization");
-const iotaIdentity = require('./identity');
+const hierarchies = require('./hierarchies');
+const identity = require('./identity');
 
 import frameworkCategoryLink from '../developer/references/framework/iota/_category_.json';
 import systemCategoryLink from '../developer/references/framework/iota_system/_category_.json';
@@ -518,8 +519,6 @@ const developer = [
             'developer/advanced/create-review-rating-dao-with-multisig',
         ],
     },
-    'developer/exchange-integration',
-    'developer/dev-cheat-sheet',
     {
         type: 'category',
         label: 'Challenges',
@@ -619,14 +618,19 @@ const developer = [
         items: [
             {
                 type: 'category',
-                label: 'IOTA Identity',
+                label: 'Identity',
                 collapsed: true,
-                items: iotaIdentity,
+                items: identity,
             },
             {
                 type: 'category',
                 label: 'Notarization',
                 items: notarization,
+            },
+            {
+                type: 'category',
+                label: 'Hierarchies',
+                items: hierarchies,
             },
         ]
     },
@@ -636,5 +640,6 @@ const developer = [
         items: iotaEvm,
     },
     'developer/exchange-integration',
+    'developer/dev-cheat-sheet',
 ];
 module.exports = developer;

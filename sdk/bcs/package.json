@@ -1,6 +1,6 @@
 {
     "name": "@iota/bcs",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "description": "BCS - Canonical Binary Serialization implementation for JavaScript",
     "license": "Apache-2.0",
     "author": "IOTA Foundation <info@iota.org>",

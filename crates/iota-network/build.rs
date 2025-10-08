@@ -121,15 +121,6 @@ fn build_anemo_services(out_dir: &Path) {
         .package("iota")
         .method(
             anemo_build::manual::Method::builder()
-                .name("get_known_peers")
-                .route_name("GetKnownPeers")
-                .request_type("()")
-                .response_type("crate::discovery::GetKnownPeersResponse")
-                .codec_path(codec_path)
-                .build(),
-        )
-        .method(
-            anemo_build::manual::Method::builder()
                 .name("get_known_peers_v2")
                 .route_name("GetKnownPeersV2")
                 .request_type("()")

@@ -1,5 +1,39 @@
 # @iota/kiosk
 
+## 0.4.8
+
+### Patch Changes
+
+-   Updated dependencies [3244c29]
+    -   @iota/iota-sdk@1.6.1
+
+## 0.4.7
+
+### Patch Changes
+
+-   Updated dependencies [c5543f0]
+-   Updated dependencies [bd17ba9]
+-   Updated dependencies [0accdb0]
+    -   @iota/iota-sdk@1.6.0
+
+## 0.4.6
+
+### Patch Changes
+
+-   3c1d088: Fix doc comment on `getKiosk` command
+-   Updated dependencies [40576ed]
+-   Updated dependencies [61b0944]
+-   Updated dependencies [966f83c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [733df30]
+-   Updated dependencies [13ca264]
+-   Updated dependencies [5bbafa8]
+-   Updated dependencies [28ce666]
+-   Updated dependencies [c855f8c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [464c15a]
+    -   @iota/iota-sdk@1.5.0
+
 ## 0.4.5
 
 ### Patch Changes

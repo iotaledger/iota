@@ -679,7 +679,7 @@ where
     if bytes.len() != priv_length + pub_key_length {
         return Err(IotaError::KeyConversion(format!(
             "Invalid input byte length, expected {}: {}",
-            priv_length,
+            priv_length + pub_key_length,
             bytes.len()
         )));
     }

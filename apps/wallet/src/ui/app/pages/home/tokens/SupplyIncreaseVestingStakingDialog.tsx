@@ -40,7 +40,7 @@ export function SupplyIncreaseVestingStakingDialog({
                         >
                             <div className="flex w-full flex-wrap justify-start gap-xs text-body-sm text-iota-primary-30 dark:text-iota-primary-80">
                                 <Link
-                                    to="https://docs.iota.org/about-iota/iota-wallet-dashboard/how-to/vesting"
+                                    to="https://docs.iota.org/users/iota-wallet-dashboard/how-to/vesting"
                                     target="_blank"
                                     rel="noreferrer"
                                     className="flex items-center gap-x-xxs underline"

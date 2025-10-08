@@ -12,12 +12,14 @@ use iota_types::{
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
+    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
+use tracing::instrument;
 
 use super::{
     CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,
@@ -214,6 +216,7 @@ impl ObjectCacheRead for ProxyCache {
 }
 
 impl TransactionCacheRead for ProxyCache {
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
@@ -221,6 +224,7 @@ impl TransactionCacheRead for ProxyCache {
         delegate_method!(self.try_multi_get_transaction_blocks(digests))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
@@ -228,6 +232,7 @@ impl TransactionCacheRead for ProxyCache {
         delegate_method!(self.try_multi_get_executed_effects_digests(digests))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
@@ -235,6 +240,7 @@ impl TransactionCacheRead for ProxyCache {
         delegate_method!(self.try_multi_get_effects(digests))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
@@ -242,6 +248,7 @@ impl TransactionCacheRead for ProxyCache {
         delegate_method!(self.try_notify_read_executed_effects_digests(digests))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
@@ -255,16 +262,17 @@ impl ExecutionCacheWrite for ProxyCache {
         &self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'_, IotaResult> {
+    ) -> IotaResult {
         delegate_method!(self.try_write_transaction_outputs(epoch_id, tx_outputs))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, IotaResult> {
+    ) -> IotaResult {
         delegate_method!(self.try_acquire_transaction_locks(
             epoch_store,
             owned_input_objects,
@@ -310,26 +318,16 @@ impl AccumulatorStore for ProxyCache {
 }
 
 impl ExecutionCacheCommit for ProxyCache {
-    fn try_commit_transaction_outputs<'a>(
-        &'a self,
+    fn try_commit_transaction_outputs(
+        &self,
         epoch: EpochId,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult> {
+        digests: &[TransactionDigest],
+    ) -> IotaResult {
         delegate_method!(self.try_commit_transaction_outputs(epoch, digests))
     }
 
-    fn try_persist_transactions<'a>(
-        &'a self,
-        digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult> {
-        delegate_method!(self.try_persist_transactions(digests))
-    }
-
-    fn persist_transactions_and_effects(
-        &self,
-        digests: &[(TransactionDigest, TransactionEffectsDigest)],
-    ) {
-        delegate_method!(self.persist_transactions_and_effects(digests))
+    fn try_persist_transaction(&self, tx: &VerifiedExecutableTransaction) -> IotaResult {
+        delegate_method!(self.try_persist_transaction(tx))
     }
 
     fn approximate_pending_transaction_count(&self) -> u64 {

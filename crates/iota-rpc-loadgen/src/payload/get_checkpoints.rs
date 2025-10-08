@@ -12,7 +12,7 @@ use iota_json_rpc_types::CheckpointId;
 use iota_types::base_types::TransactionDigest;
 use itertools::Itertools;
 use tokio::sync::Mutex;
-use tracing::{debug, error, info, log::warn};
+use tracing::{debug, error, info, warn};
 
 use crate::payload::{
     GetCheckpoints, ProcessPayload, RpcCommandProcessor, SignerInfo,

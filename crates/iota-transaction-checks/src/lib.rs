@@ -79,7 +79,7 @@ mod checked {
         }
     }
 
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn check_transaction_input(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -255,6 +255,7 @@ mod checked {
     }
 
     // Common checks performed for transactions and certificates.
+    #[instrument(level = "trace", skip_all)]
     fn check_transaction_input_inner(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -284,6 +285,7 @@ mod checked {
         Ok(gas_status)
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn check_receiving_objects(
         input_objects: &InputObjects,
         receiving_objects: &ReceivingObjects,

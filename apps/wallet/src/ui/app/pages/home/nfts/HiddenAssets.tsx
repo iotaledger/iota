@@ -10,7 +10,7 @@ interface HiddenAssetsProps {
 
 export function HiddenAssets({ items }: HiddenAssetsProps) {
     return (
-        <div className="flex w-full flex-col overflow-y-auto">
+        <div className="flex w-full flex-col">
             {items?.map((object) => <HiddenAsset key={object.data!.objectId} {...object} />)}
         </div>
     );

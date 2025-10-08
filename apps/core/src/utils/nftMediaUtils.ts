@@ -25,6 +25,7 @@ const SUPPORTED_IMAGE_MIMETYPES = [
     'image/webp',
     'image/x-icon',
     'image/tiff',
+    'image/svg+xml',
 ];
 
 interface ResolveNFTMediaTypeReturn {

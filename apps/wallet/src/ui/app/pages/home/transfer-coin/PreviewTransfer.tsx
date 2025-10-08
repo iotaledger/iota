@@ -4,9 +4,14 @@
 
 import { ExplorerLink, ExplorerLinkType, TxnAmount } from '_components';
 import { useActiveAddress } from '_hooks';
-import { parseAmount, useCoinMetadata, useFormatCoin, useGetIotaNameRecord } from '@iota/core';
+import {
+    NamedAddressTooltip,
+    useCoinMetadata,
+    useFormatCoin,
+    useGetIotaNameRecord,
+} from '@iota/core';
 import { Divider, KeyValueInfo } from '@iota/apps-ui-kit';
-import { CoinFormat, formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatAddress, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 
 export type PreviewTransferProps = {
     coinType: string;
@@ -62,12 +67,17 @@ export function PreviewTransfer({
                 <KeyValueInfo
                     keyText={'To'}
                     value={
-                        <ExplorerLink
-                            type={ExplorerLinkType.Address}
+                        <NamedAddressTooltip
                             address={nameRecord?.targetAddress || to}
+                            name={nameRecord?.name}
                         >
-                            {nameRecord ? nameRecord.name : formatAddress(to || '')}
-                        </ExplorerLink>
+                            <ExplorerLink
+                                type={ExplorerLinkType.Address}
+                                address={nameRecord?.targetAddress || to}
+                            >
+                                {nameRecord ? nameRecord.name : formatAddress(to || '')}
+                            </ExplorerLink>
+                        </NamedAddressTooltip>
                     }
                     fullwidth
                 />

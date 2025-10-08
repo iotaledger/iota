@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 12;
+pub const MAX_PROTOCOL_VERSION: u64 = 14;
 
 // Record history of protocol version allocations here:
 //
@@ -71,7 +71,10 @@ pub const MAX_PROTOCOL_VERSION: u64 = 12;
 //             Add additional signature checks
 //             Add additional linkage checks
 // Version 11: Framework fix regarding candidate validator commission rate.
-// Version 12: Max authentication gas budget property.
+// Version 12: Enable the gas price feedback mechanism in all networks.
+//             Enable the normalization of PTB arguments.
+// Version 13: 
+// Version 14: Max authentication gas budget property.
 //             Introduce gas cost for 'check_auth_info_v1_cost_base'.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
@@ -318,6 +321,11 @@ struct FeatureFlags {
     // If true enable additional multisig checks.
     #[serde(skip_serializing_if = "is_false")]
     additional_multisig_checks: bool,
+
+    // If true, enables the normalization of PTB arguments but does not yet enable splatting
+    // `Result`s of length not equal to 1
+    #[serde(skip_serializing_if = "is_false")]
+    normalize_ptb_arguments: bool,
 
     // If true, enables the authentication of account using Move code.
     #[serde(skip_serializing_if = "is_false")]
@@ -1333,6 +1341,16 @@ impl ProtocolConfig {
     pub fn additional_multisig_checks(&self) -> bool {
         self.feature_flags.additional_multisig_checks
     }
+
+    pub fn consensus_num_requested_prior_commits_at_startup(&self) -> u32 {
+        // TODO: this will eventually be the max of some number of other
+        // parameters.
+        0
+    }
+
+    pub fn normalize_ptb_arguments(&self) -> bool {
+        self.feature_flags.normalize_ptb_arguments
+    }
 }
 
 #[cfg(not(msim))]
@@ -2143,7 +2161,19 @@ impl ProtocolConfig {
                     // changes
                 }
                 12 => {
-                    // TODO: determine required networks
+                    // Enable the gas price feedback mechanism for transactions
+                    // cancelled due to congestion in all networks
+                    cfg.feature_flags
+                        .congestion_control_gas_price_feedback_mechanism = true;
+
+                    // Enable normalization of PTB arguments in all networks.
+                    cfg.feature_flags.normalize_ptb_arguments = true;
+                }
+                13 => { 
+
+                }
+                14 => {
+                    // Enable AA in all networks that are not mainnet or testnet.
                     if chain != Chain::Mainnet && chain != Chain::Testnet {
                         // max auth gas budget is in NANOS and an absolute value 1IOTA
                         cfg.max_auth_gas = Some(1_000_000_000);

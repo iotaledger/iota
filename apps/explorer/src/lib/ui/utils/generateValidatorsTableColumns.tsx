@@ -57,6 +57,7 @@ function ValidatorWithImage({
     ) : (
         <ValidatorLink
             address={validator.iotaAddress}
+            showAddressAlias={false}
             onClick={() =>
                 ampli.clickedValidatorRow({
                     sourceFlow: 'Epoch details',

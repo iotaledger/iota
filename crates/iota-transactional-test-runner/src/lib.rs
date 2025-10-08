@@ -180,7 +180,6 @@ impl TransactionalAdapter for ValidatorWithFullnode {
     ) -> IotaResult<DryRunTransactionBlockResponse> {
         self.fullnode
             .dry_exec_transaction(transaction_block, transaction_digest)
-            .await
             .map(|result| result.0)
     }
 

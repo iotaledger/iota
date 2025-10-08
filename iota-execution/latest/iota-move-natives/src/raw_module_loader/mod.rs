@@ -5,6 +5,7 @@ use better_any::{Tid, TidAble};
 use iota_types::{base_types::ObjectID, storage::BackingPackageStore};
 use move_binary_format::CompiledModule;
 use move_core_types::identifier::IdentStr;
+use move_vm_runtime::native_extensions::NativeExtensionMarker;
 
 /// A raw module loader extension for native functions.
 ///
@@ -18,6 +19,8 @@ use move_core_types::identifier::IdentStr;
 pub struct RawModuleLoader<'package_store> {
     package_store: &'package_store dyn BackingPackageStore,
 }
+
+impl<'package_store> NativeExtensionMarker<'package_store> for RawModuleLoader<'package_store> {}
 
 impl<'package_store> RawModuleLoader<'package_store> {
     pub fn new(package_store: &'package_store dyn BackingPackageStore) -> Self {

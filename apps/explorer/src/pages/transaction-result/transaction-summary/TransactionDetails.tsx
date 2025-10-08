@@ -25,9 +25,11 @@ export function TransactionDetails({
             {sender && (
                 <DisplayStats
                     label="Sender"
-                    value={<AddressLink address={sender} />}
-                    copyText={sender}
-                    onCopySuccess={onCopySuccess}
+                    value={
+                        <div className="flex flex-col gap-y-xxs">
+                            <AddressLink address={sender} copyText={sender} />
+                        </div>
+                    }
                 />
             )}
             {checkpoint && (

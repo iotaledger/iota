@@ -24,4 +24,5 @@ export enum Feature {
     KnownAddressAlias = 'known-address-alias',
     KnownIotaEVMCoinTypes = 'known-iota-evm-coin-types',
     IotaNames = 'iota-names',
+    ValidatorAddressAlias = 'validator-address-alias',
 }

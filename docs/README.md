@@ -38,10 +38,10 @@ If you'd like to view the Vercel preview before your changes are ready for revie
 
 IOTA is for the community. Contribute for the benefit of all.
 
-- [Docs contributing guidelines](https://docs.iota.org/references/contribute/contribution-process)
-- [Repo contributing guidelines](https://docs.iota.org/references/contribute/contribute-to-iota-repos)
-- [Style guide](https://docs.iota.org/references/contribute/style-guide)
-- [Code of conduct](https://docs.iota.org/references/contribute/code-of-conduct)
+- [Docs contributing guidelines](https://docs.iota.org/developer/references/contribute/contribution-process)
+- [Repo contributing guidelines](https://docs.iota.org/developer/references/contribute/contribute-to-iota-repos)
+- [Style guide](https://docs.iota.org/developer/references/contribute/style-guide)
+- [Code of conduct](https://docs.iota.org/developer/references/contribute/code-of-conduct)
 
 ## License
 

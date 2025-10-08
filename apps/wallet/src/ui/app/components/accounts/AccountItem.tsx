@@ -30,7 +30,7 @@ export function AccountItem({
 }: AccountItemProps) {
     const { data: accounts } = useAccounts();
     const account = accounts?.find((account) => account.id === accountID);
-    const { data: iotaName } = useGetDefaultIotaName(account?.address, true);
+    const { data: iotaName } = useGetDefaultIotaName(account?.address);
 
     const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const copyAddress = useCopyToClipboard(account?.address || '', {

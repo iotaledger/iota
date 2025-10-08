@@ -215,7 +215,7 @@ async fn test_generate_lock_file() {
 
         [move]
         version = 3
-        manifest_digest = "78ED00C216B5A73463BD935B7AD1AB6CAF8ECA9ACD7FFCC19F3462EBD1D83EC3"
+        manifest_digest = "37689E9F9E5809521FA06520D55141982F5B8F26F5C55DE4E88FA63D73E1FEFF"
         deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
         dependencies = [
           { id = "Examples", name = "Examples" },
@@ -244,7 +244,7 @@ async fn test_generate_lock_file() {
 
         [move.toolchain-version]
         compiler-version = "0.0.1"
-        edition = "2024.beta"
+        edition = "2024"
         flavor = "iota"
     "##]];
     expected.assert_eq(lock_file_contents.as_str());

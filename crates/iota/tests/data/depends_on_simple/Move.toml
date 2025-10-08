@@ -1,6 +1,6 @@
 [package]
 name = "depends_on_simple"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 simple = { local = "../simple" }

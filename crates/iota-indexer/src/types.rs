@@ -23,6 +23,8 @@ use iota_types::{
     transaction::SenderSignedData,
 };
 use move_core_types::language_storage::StructTag;
+#[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -427,11 +429,43 @@ impl IndexedObject {
     }
 }
 
+#[cfg(any(feature = "pg_integration", feature = "shared_test_runtime", test))]
+impl IndexedObject {
+    pub fn random() -> Self {
+        let mut rng = rand::thread_rng();
+        let random_address = IotaAddress::random_for_testing_only();
+        IndexedObject {
+            checkpoint_sequence_number: rng.gen(),
+            object: Object::with_owner_for_testing(random_address),
+            df_kind: {
+                let random_value = rng.gen_range(0..3);
+                match random_value {
+                    0 => Some(DynamicFieldType::DynamicField),
+                    1 => Some(DynamicFieldType::DynamicObject),
+                    _ => None,
+                }
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct IndexedDeletedObject {
     pub object_id: ObjectID,
     pub object_version: u64,
     pub checkpoint_sequence_number: u64,
+}
+
+#[cfg(any(feature = "pg_integration", feature = "shared_test_runtime", test))]
+impl IndexedDeletedObject {
+    pub fn random() -> Self {
+        let mut rng = rand::thread_rng();
+        IndexedDeletedObject {
+            object_id: ObjectID::random(),
+            object_version: rng.gen(),
+            checkpoint_sequence_number: rng.gen(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -533,7 +567,7 @@ pub(crate) struct TxIndexExt {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct TxIndexV2 {
+pub struct TxIndexV2 {
     pub(crate) base: TxIndex,
     pub(crate) ext: TxIndexExt,
 }

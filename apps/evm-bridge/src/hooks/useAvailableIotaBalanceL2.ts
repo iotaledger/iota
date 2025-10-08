@@ -2,8 +2,7 @@ import { useAccount, useBalance } from 'wagmi';
 import { useGasEstimateL2 } from './useGasEstimateL2';
 import { MINIMUM_SEND_AMOUNT } from '../lib/constants';
 import { formatEther } from 'viem';
-import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
-import { parseAmount } from '@iota/core';
+import { IOTA_DECIMALS, parseAmount } from '@iota/iota-sdk/utils';
 
 const GENERIC_IOTA_ADDRESS = '0x1111111111111111111111111111111111111111111111111111111111111111';
 

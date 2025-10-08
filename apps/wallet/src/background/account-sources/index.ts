@@ -14,6 +14,7 @@ import { AccountSourceType, type AccountSourceSerialized } from './accountSource
 import { MnemonicAccountSource } from './mnemonicAccountSource';
 import { SeedAccountSource } from './seedAccountSource';
 import { toEntropy } from '_src/shared/utils';
+import { KeystoneAccountSource } from './keystoneAccountSource';
 
 function toAccountSource(accountSource: AccountSourceSerialized) {
     if (MnemonicAccountSource.isOfType(accountSource)) {
@@ -21,6 +22,9 @@ function toAccountSource(accountSource: AccountSourceSerialized) {
     }
     if (SeedAccountSource.isOfType(accountSource)) {
         return new SeedAccountSource(accountSource.id);
+    }
+    if (KeystoneAccountSource.isOfType(accountSource)) {
+        return new KeystoneAccountSource(accountSource.id);
     }
     throw new Error(`Unknown account source of type ${accountSource.type}`);
 }
@@ -67,6 +71,15 @@ async function createAccountSource({ type, params }: MethodPayload<'createAccoun
                     await SeedAccountSource.createNew({
                         password,
                         seed: params.seed,
+                    }),
+                )
+            ).toUISerialized();
+        case AccountSourceType.Keystone:
+            return (
+                await KeystoneAccountSource.save(
+                    await KeystoneAccountSource.createNew({
+                        password,
+                        masterFingerprint: params.masterFingerprint,
                     }),
                 )
             ).toUISerialized();
