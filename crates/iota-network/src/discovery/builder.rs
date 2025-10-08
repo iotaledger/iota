@@ -88,6 +88,7 @@ impl Builder {
             our_info: None,
             connected_peers: HashMap::default(),
             known_peers: HashMap::default(),
+            address_verification_cooldown: HashMap::default(),
         }
         .pipe(RwLock::new)
         .pipe(Arc::new);

@@ -6989,7 +6989,6 @@ dependencies = [
  "futures",
  "governor",
  "iota-archival",
- "iota-common",
  "iota-config",
  "iota-macros",
  "iota-metrics",
