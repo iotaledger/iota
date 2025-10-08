@@ -40,6 +40,7 @@ cleanup_and_kill() {
     if [ "${BASHPID}" != "${PARENT_BASHPID}" ]; then
           return
     fi
+    set +e
     # Ensure log targets exist even if EXIT happens before normal init
     : "${SCRIPT_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
     : "${LOG_DIR:=${SCRIPT_DIR}/logs}"
@@ -78,7 +79,10 @@ cleanup_and_kill() {
 
         CLEANED_UP=true
         echo "Stopping all background scripts and validators..."
-        kill -- -$$ &> /dev/null   # silently kill all children
+        # Stop background jobs started by this script without signaling the shell itself
+        if pids=$(pgrep -P $$); then
+          kill $pids &>/dev/null || true
+        fi
         echo "Delegating Docker teardown to external script: $CLEANUP_SCRIPT"
 
         if [ -f "$CLEANUP_SCRIPT" ]; then
