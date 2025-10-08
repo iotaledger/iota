@@ -54,6 +54,7 @@ import {
     GetTransactionBlockDocument,
     GetTypeLayoutDocument,
     GetValidatorsApyDocument,
+    IsTransactionIndexedOnNodeDocument,
     MultiGetObjectsDocument,
     MultiGetTransactionBlocksDocument,
     PaginateCheckpointTransactionBlocksDocument,
@@ -1459,6 +1460,19 @@ export const RPC_METHODS: {
             attributes,
             featureFlags,
         };
+    },
+
+    async isTransactionIndexedOnNode(transport, [digest]): Promise<boolean> {
+        const isTransactionIndexedOnNode = await transport.graphqlQuery(
+            {
+                query: IsTransactionIndexedOnNodeDocument,
+                variables: {
+                    digest,
+                },
+            },
+            (data) => data.isTransactionIndexedOnNode,
+        );
+        return isTransactionIndexedOnNode;
     },
 };
 

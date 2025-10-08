@@ -16,7 +16,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
-    build_optimistic_json_rpc_server,
+    build_json_rpc_server,
     config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::ConnectionPool,
     errors::IndexerError,
@@ -157,10 +157,9 @@ impl Indexer {
             env!("CARGO_PKG_VERSION")
         );
         let indexer_reader = IndexerReader::new(connection_pool);
-        let handle =
-            build_optimistic_json_rpc_server(store, registry, indexer_reader, config, metrics)
-                .await
-                .expect("Json rpc server should not run into errors upon start.");
+        let handle = build_json_rpc_server(store, registry, indexer_reader, config, metrics)
+            .await
+            .expect("Json rpc server should not run into errors upon start.");
         tokio::spawn(async move { handle.stopped().await })
             .await
             .expect("Rpc server task failed");

@@ -90,6 +90,7 @@ impl RpcExampleProvider {
             self.get_past_object_example(),
             self.get_owned_objects(),
             self.get_total_transaction_blocks(),
+            self.iota_is_transaction_indexed_on_node(),
             self.get_transaction_block(),
             self.query_transaction_blocks(),
             self.get_events(),
@@ -517,6 +518,18 @@ impl RpcExampleProvider {
                 "Gets total number of transactions on the network.",
                 vec![],
                 json!("2451485"),
+            )],
+        )
+    }
+
+    fn iota_is_transaction_indexed_on_node(&mut self) -> Examples {
+        let digest = TransactionDigest::generate(self.rng.clone());
+        Examples::new(
+            "iota_isTransactionIndexedOnNode",
+            vec![ExamplePairing::new(
+                "Returns if the transaction has been indexed on the fullnode.",
+                vec![("digest", json!(digest))],
+                json!(true),
             )],
         )
     }

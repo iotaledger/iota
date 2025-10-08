@@ -2374,6 +2374,47 @@
       ]
     },
     {
+      "name": "iota_isTransactionIndexedOnNode",
+      "tags": [
+        {
+          "name": "Read API"
+        }
+      ],
+      "description": "Return if the transaction has been indexed on the fullnode.",
+      "params": [
+        {
+          "name": "digest",
+          "description": "the digest of the queried transaction",
+          "required": true,
+          "schema": {
+            "$ref": "#/components/schemas/TransactionDigest"
+          }
+        }
+      ],
+      "result": {
+        "name": "bool",
+        "required": true,
+        "schema": {
+          "type": "boolean"
+        }
+      },
+      "examples": [
+        {
+          "name": "Returns if the transaction has been indexed on the fullnode.",
+          "params": [
+            {
+              "name": "digest",
+              "value": "Gox564afxEVubGFZPXbDSCiirfN1QYVdMR3pivs34HoC"
+            }
+          ],
+          "result": {
+            "name": "Result",
+            "value": true
+          }
+        }
+      ]
+    },
+    {
       "name": "iota_multiGetObjects",
       "tags": [
         {

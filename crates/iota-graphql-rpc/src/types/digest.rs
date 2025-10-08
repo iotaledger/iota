@@ -75,6 +75,12 @@ impl From<TransactionDigest> for Digest {
     }
 }
 
+impl From<Digest> for TransactionDigest {
+    fn from(digest: Digest) -> Self {
+        Self::new(digest.0)
+    }
+}
+
 impl fmt::Display for Digest {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", Base58::encode(self.0))
