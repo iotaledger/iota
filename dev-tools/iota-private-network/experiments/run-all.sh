@@ -78,35 +78,35 @@ cleanup_and_kill() {
         fi
 
         CLEANED_UP=true
-        echo "Stopping all background scripts and validators..."
+        log "Stopping all background scripts and validators..."
         # Stop background jobs started by this script without signaling the shell itself
         if pids=$(pgrep -P $$); then
           kill $pids &>/dev/null || true
         fi
-        echo "Delegating Docker teardown to external script: $CLEANUP_SCRIPT"
+        log "Delegating Docker teardown to external script: $CLEANUP_SCRIPT"
 
         if [ -f "$CLEANUP_SCRIPT" ]; then
           if command -v sudo >/dev/null 2>&1; then
-            echo "Running teardown with sudo: $CLEANUP_SCRIPT"
+            log "Running teardown with sudo: $CLEANUP_SCRIPT"
             if ! sudo bash -lc "cd '$NETWORK_DIR' && ./$(basename "$CLEANUP_SCRIPT")"; then
               rc=$?
-              echo "ERROR: cleanup script failed with exit code $rc (sudo)"
+              log "ERROR: cleanup script failed with exit code $rc (sudo)"
             else
-              echo "External cleanup script finished successfully (sudo)."
+              log "External cleanup script finished successfully (sudo)."
             fi
           else
-            echo "sudo not found; running teardown without sudo: $CLEANUP_SCRIPT"
+            log "sudo not found; running teardown without sudo: $CLEANUP_SCRIPT"
             if ! (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT"); then
               rc=$?
-              echo "ERROR: cleanup script failed with exit code $rc (no sudo)"
+              log "ERROR: cleanup script failed with exit code $rc (no sudo)"
             else
-              echo "External cleanup script finished successfully (no sudo)."
+              log "External cleanup script finished successfully (no sudo)."
             fi
           fi
         else
-          echo "FATAL: External cleanup script not found at $CLEANUP_SCRIPT. Containers may persist."
+          log "FATAL: External cleanup script not found at $CLEANUP_SCRIPT. Containers may persist."
         fi
-        echo "Containers after cleanup:"
+        log "Containers after cleanup:"
         docker ps --format 'table {{.Names}}\t{{.Status}}' | tee -a "$LOG_FILE" || true
     fi
 }
