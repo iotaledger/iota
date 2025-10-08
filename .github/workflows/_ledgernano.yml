@@ -33,7 +33,12 @@ jobs:
           mv nanox/iota sdk/ledgerjs-hw-app-iota/tests/iota
 
       - name: Start speculos simulator
-        run: docker run --rm -d -p 5000:5000 -v $(pwd)/sdk/ledgerjs-hw-app-iota/tests:/app ghcr.io/ledgerhq/speculos --api-port 5000 --display headless /app/iota
+        run: |
+          # Start the container in detached mode and capture its ID
+          container_id=$(docker run --rm -d -p 5000:5000 -v $(pwd)/sdk/ledgerjs-hw-app-iota/tests:/app ghcr.io/ledgerhq/speculos --api-port 5000 --display headless /app/iota)
+
+          # Print logs for 5 seconds
+          timeout 5 docker logs -f $container_id || true
 
       - name: Run TS SDK ledgernano tests
         run: pnpm --filter @iota/ledgerjs-hw-app-iota test

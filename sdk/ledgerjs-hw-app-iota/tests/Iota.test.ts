@@ -10,15 +10,27 @@ import Iota from '../src/Iota';
 
 const API_PORT: number = 5000;
 const SPECULOS_BASE_URL: string = `http://127.0.0.1:${API_PORT}`;
-
-// Before running the tests you need to install speculos and start the iota app with it.
-// If the binary is not available, download it:
-// gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanox.tar.gz ledger-app-iota-v1.0.0
+const SPECULOS_HTTP_TRANSPORT_OPTS = {
+    apiPort: API_PORT.toString(),
+};
+const TEST_TIMEOUT_MS = 20000;
+const WAIT_TIME_MS = 5000;
+// Before running the tests, pull the speculos Docker image and download the ledgernano binary.
+// Then start the speculos simulator and run the tests.
+//
+// Pull speculos docker image:
+// docker pull ghcr.io/ledgerhq/speculos
+//
+// Download ledgernano binary:
+// curl -L -o nanox.tar.gz https://github.com/iotaledger/ledger-app-iota/releases/download/ledger-app-iota-v1.0.0/nanox.tar.gz
 // tar -xvf nanox.tar.gz
-// sudo apt-get install qemu-user-static libxcb-xinerama0 // might be needed for speculos to work
-// pip install speculos
-// Finally to start the emulator:
-// speculos --api-port 5000 --display headless ./sdk/ledgerjs-hw-app-iota/tests/iota
+// mv nanox/iota sdk/ledgerjs-hw-app-iota/tests/iota
+//
+// Start speculos simulator:
+// docker run --rm -d -p 5000:5000 -v $(pwd)/sdk/ledgerjs-hw-app-iota/tests:/app ghcr.io/ledgerhq/speculos --api-port 5000 --display headless /app/iota
+//
+// Run tests:
+// pnpm --filter @iota/ledgerjs-hw-app-iota test
 describe.sequential('Test ledgerjs-hw-app-iota', () => {
     it('Iota init', async () => {
         const transport = await openTransportReplayer(RecordStore.fromString(''));
@@ -27,7 +39,7 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
     });
 
     it('Test address generation', async () => {
-        const transport = await SpeculosHttpTransport.open({});
+        const transport = await SpeculosHttpTransport.open(SPECULOS_HTTP_TRANSPORT_OPTS);
         const ledgerClient = new Iota(transport);
 
         const { publicKey } = await ledgerClient.getPublicKey(`m/44'/4218'/0'/0'/0'`);
@@ -38,8 +50,8 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
         );
     });
 
-    it('Test address generation with display', { timeout: 10000 }, async () => {
-        const transport = await SpeculosHttpTransport.open({});
+    it('Test address generation with display', { timeout: TEST_TIMEOUT_MS }, async () => {
+        const transport = await SpeculosHttpTransport.open(SPECULOS_HTTP_TRANSPORT_OPTS);
         const ledgerClient = new Iota(transport);
 
         let addressReceived = false;
@@ -60,14 +72,14 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
             await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
         }
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
-        await new Promise((r) => setInterval(r, 4000));
+        await new Promise((r) => setInterval(r, WAIT_TIME_MS));
         if (!addressReceived) {
             throw new Error(`Didn't receive address in time`);
         }
     });
 
-    it('Test signing', { timeout: 20000 }, async () => {
-        const transport = await SpeculosHttpTransport.open({});
+    it('Test signing', { timeout: TEST_TIMEOUT_MS }, async () => {
+        const transport = await SpeculosHttpTransport.open(SPECULOS_HTTP_TRANSPORT_OPTS);
         const ledgerClient = new Iota(transport);
         let signatureReceived = false;
         ledgerClient
@@ -89,19 +101,19 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
             .catch((err) => {
                 throw new Error(err);
             });
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, WAIT_TIME_MS));
         // Send requests to approve the tx
         for (let i = 0; i < 7; i++) {
             await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
         }
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
-        await new Promise((resolve) => setTimeout(resolve, 6000));
+        await new Promise((resolve) => setTimeout(resolve, WAIT_TIME_MS));
         if (!signatureReceived) {
             throw new Error(`Didn't receive signature in time`);
         }
     });
 
-    it('Test blind signing', { timeout: 20000 }, async () => {
+    it('Test blind signing', { timeout: TEST_TIMEOUT_MS }, async () => {
         // Enable blind signing
         await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
@@ -109,7 +121,7 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
         await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
 
-        const transport = await SpeculosHttpTransport.open({});
+        const transport = await SpeculosHttpTransport.open(SPECULOS_HTTP_TRANSPORT_OPTS);
         const ledgerClient = new Iota(transport);
         let signatureReceived = false;
         ledgerClient
@@ -131,14 +143,14 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
             .catch((err) => {
                 throw new Error(err);
             });
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => setTimeout(resolve, WAIT_TIME_MS));
         // Send requests to approve the tx
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
         for (let i = 0; i < 3; i++) {
             await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
         }
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
-        await new Promise((resolve) => setTimeout(resolve, 6000));
+        await new Promise((resolve) => setTimeout(resolve, WAIT_TIME_MS));
         if (!signatureReceived) {
             throw new Error(`Didn't receive signature in time`);
         }
