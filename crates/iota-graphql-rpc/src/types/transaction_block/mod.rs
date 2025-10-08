@@ -92,7 +92,7 @@ pub(crate) enum TransactionBlockInner {
 impl TransactionBlockInner {
     /// Returns if the transaction is included in a checkpoint.
     fn is_checkpointed(&self) -> bool {
-        let TransactionBlockInner::Stored { stored_tx, .. } = &self else {
+        let TransactionBlockInner::Checkpointed { stored_tx, .. } = &self else {
             return false;
         };
         stored_tx.checkpoint_sequence_number >= 0

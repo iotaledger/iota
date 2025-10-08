@@ -91,6 +91,7 @@ impl PassthroughCache {
 }
 
 impl ObjectCacheRead for PassthroughCache {
+    #[instrument(level = "trace", skip_all, fields(package_id))]
     fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.package_cache
             .get_package_object(package_id, &*self.store)
@@ -101,10 +102,12 @@ impl ObjectCacheRead for PassthroughCache {
             .force_reload_system_packages(system_package_ids.iter().cloned(), self);
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id = ?id))]
     fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
         self.store.try_get_object(id).map_err(Into::into)
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id, version))]
     fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
@@ -113,6 +116,7 @@ impl ObjectCacheRead for PassthroughCache {
         Ok(self.store.try_get_object_by_key(object_id, version)?)
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
@@ -120,6 +124,7 @@ impl ObjectCacheRead for PassthroughCache {
         Ok(self.store.try_multi_get_objects_by_key(object_keys)?)
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id, version))]
     fn try_object_exists_by_key(
         &self,
         object_id: &ObjectID,
@@ -128,10 +133,12 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.object_exists_by_key(object_id, version)
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
         self.store.multi_object_exists_by_key(object_keys)
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id))]
     fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectID,
@@ -139,6 +146,7 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.get_latest_object_ref_or_tombstone(object_id)
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id))]
     fn try_get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
@@ -146,6 +154,7 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.get_latest_object_or_tombstone(object_id)
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id, version_bound))]
     fn try_find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
