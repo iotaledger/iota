@@ -25,6 +25,10 @@ DEFAULT_NETWORK_METRIC=false
 DEFAULT_SPAMMER_ENABLE=false
 DEFAULT_SPAMMER_TPS=10
 DEFAULT_SPAMMER_SIZE="10KiB"
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Set the root directory of the private network (one level up from experiments)
+NETWORK_DIR="$(dirname "$SCRIPT_DIR")"
 # ==================================================
 
 # --- Trap termination and normal exit safely ---
@@ -60,8 +64,8 @@ cleanup_and_kill() {
         CLEANED_UP=true
         echo "Stopping all background scripts and validators..."
         kill -- -$$ &> /dev/null   # silently kill all children
-        (cd .. && docker compose down &> /dev/null)  # silent cleanup
-        docker rm -f faucet-1 &> /dev/null || true
+        (cd "NETWORK_DIR" && docker compose down &> /dev/null)  # silent cleanup
+        (cd "NETWORK_DIR" && docker rm -f faucet-1 &> /dev/null) || true
     fi
 }
 
@@ -84,10 +88,10 @@ trap cleanup_and_kill SIGINT SIGTERM EXIT
 # --- Prepare log directory ---
 mkdir -p "$LOG_DIR"
 
-# Initial timestamp for the log file
+# --- Initial timestamp for the log file ---
 LOG_FILE="$LOG_DIR/experiment_script_latest.log"
 
-# Overwrite the log file at the beginning
+# --- Overwrite the log file at the beginning ---
 : > "$LOG_FILE"
 
 # --- Logging helper ---
@@ -141,23 +145,6 @@ while getopts ":n:p:b:g:s:x:l:t:r:mS:T:Z:h" opt; do
 done
 shift $((OPTIND-1))
 
-# Backward/long-option compatibility for size: accept --size or -size VALUE
-while [ $# -gt 0 ]; do
-  case "$1" in
-    --size|-size)
-      if [ -n "${2:-}" ]; then
-        SPAMMER_SIZE_PER_TX="$2"
-        shift 2
-        continue
-      else
-        log "Error: --size requires a value (e.g., 10KiB)"; exit 2
-      fi
-      ;;
-    --) shift; break ;;
-    *) break ;;
-  esac
-done
-
 # --- Ensure correct directory ---
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 [[ "$(basename "$SCRIPT_DIR")" != "experiments" ]] && { log "Error: run from experiments/"; exit 1; }
@@ -179,7 +166,7 @@ log "Spammer TPS                : $SPAMMER_TPS"
 log "Spammer size per tx        : $SPAMMER_SIZE_PER_TX"
 log "==========================="
 
-# Ensure no old spammer instances are running before we begin
+# --- Ensure no old spammer instances are running before we begin ---
 kill_spammer_processes || true
 
 # --- 1) Build images (optional) ---
@@ -225,7 +212,7 @@ cd - >/dev/null
     -g "$GEODISTRIBUTED" \
     -o "$LOG_FILE" &
 
-# --- Launch spammer if enabled ---
+# --- 6) Launch spammer if enabled ---
 if [ "$SPAMMER_ENABLE" = true ]; then
     # Ensure faucet-1 is running (required by spammer)
     log "Starting faucet-1..."
@@ -288,7 +275,7 @@ for ((i=1; i<=NUM_VALIDATORS; i++)); do
   log "Saved final log for $v to $LOG_DIR/experiment-${v}-${TIMESTAMP}.log"
 done
 
-# Copy main experiment log with timestamp
+# --- Copy main experiment log with timestamp ---
 cp "$LOG_FILE" "$LOG_DIR/experiment_script_${TIMESTAMP}.log"
 
 log "All steps completed. Cleanup will run on script exit."
