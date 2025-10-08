@@ -123,10 +123,10 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// useful to them (communicated inside their block bundles).
     /// Keyed by the peer’s AuthorityIndex.
     useful_authorities_to_peer: Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
-    /// For each peer `i`, stores a vector where each entry at index `j`
-    /// represents the last round in which a received bundle from peer `i`
-    /// contained a useful shard from a block created by authority `j`.
-    last_round_with_useful_shards_from_peer: Arc<RwLock<Vec<Vec<Round>>>>,
+    /// For each peer, stores the latest round in which a received block bundle
+    /// from any peer included a useful shard originating from a block
+    /// created by authority `i`.
+    last_round_with_useful_shards_from_peer: Arc<RwLock<Vec<Round>>>,
     /// For each peer `i`, stores a set of authority indices representing the
     /// authors of blocks whose shards were reported as useful by peer `i`.
     peers_reporting_useful_shards: Arc<RwLock<Vec<BTreeSet<AuthorityIndex>>>>,
@@ -167,10 +167,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             useful_authorities_to_peer: Arc::new(RwLock::new(BTreeMap::new())),
             transaction_message_sender,
             last_round_with_useful_shards_from_peer: Arc::new(RwLock::new(vec![
-                vec![
-                    GENESIS_ROUND;
-                    committee_size
-                ];
+                GENESIS_ROUND;
                 committee_size
             ])),
             peers_reporting_useful_shards: Arc::new(RwLock::new(vec![
@@ -644,8 +641,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             let mut last_round_with_useful_shards_from_peer_write_guard =
                 self.last_round_with_useful_shards_from_peer.write();
             for author in useful_shard_authors {
-                last_round_with_useful_shards_from_peer_write_guard[peer][author] = max(
-                    last_round_with_useful_shards_from_peer_write_guard[peer][author],
+                last_round_with_useful_shards_from_peer_write_guard[author] = max(
+                    last_round_with_useful_shards_from_peer_write_guard[author],
                     block_round,
                 );
             }
@@ -748,7 +745,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 let last_round_with_useful_shards_from_peer_guard =
                     last_round_with_useful_shards_from_peer.read();
                 let last_round_with_useful_shards_from_peer_read =
-                    last_round_with_useful_shards_from_peer_guard[peer].clone();
+                    last_round_with_useful_shards_from_peer_guard.clone();
                 drop(last_round_with_useful_shards_from_peer_guard);
 
                 let mut dag_state_guard = dag_state.write();
