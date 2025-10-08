@@ -29,6 +29,7 @@ DEFAULT_SPAMMER_SIZE="10KiB"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Set the root directory of the private network (one level up from experiments)
 NETWORK_DIR="$(dirname "$SCRIPT_DIR")"
+CLEANUP_SCRIPT="$NETWORK_DIR/cleanup.sh"
 # ==================================================
 
 # --- Trap termination and normal exit safely ---
@@ -64,8 +65,21 @@ cleanup_and_kill() {
         CLEANED_UP=true
         echo "Stopping all background scripts and validators..."
         kill -- -$$ &> /dev/null   # silently kill all children
-        log "Executing docker compose down from $NETWORK_DIR (logging output to $LOG_FILE)"
-                (cd "$NETWORK_DIR" && docker compose down --remove-orphans)
+        log "Delegating Docker teardown to external script: $CLEANUP_SCRIPT"
+            if [ -f "$CLEANUP_SCRIPT" ]; then
+            # Execute the working external script using its correct execution context (sudo/root)
+            # The 'cd' ensures the external script runs in the correct directory for its 'docker compose down'
+              if [ -n "${SUDO_USER:-}" ]; then
+                 # Use sudo -u if the main script was run with sudo, preserving ownership logic
+                sudo -u "$SUDO_USER" -H bash -c "cd '$NETWORK_DIR' && '$CLEANUP_SCRIPT' || true"
+                else
+                  # Run directly if the main script was not run with sudo
+                  (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT") || true
+                fi
+                  log "External cleanup script finished."
+                else
+                  log "FATAL: External cleanup script not found at $CLEANUP_SCRIPT. Containers may persist."
+                fi
     fi
 }
 
