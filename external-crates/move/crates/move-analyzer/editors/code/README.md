@@ -100,6 +100,8 @@ Move source file (a file with a `.move` file extension) and:
   - inlay hints:
     - types: local declarations, lambda parameters, variant and struct pattern matching
     - parameter names at function calls
+  - auto-fixes:
+    - unbound types and functions (auto-import or full qualification)
 - If the opened Move source file is located within a buildable project, and you have the `iota`
   binary installed, you can build and (locally)
   test this project using `Move: Build a Move package` and `Move: Test a Move package` commands from
