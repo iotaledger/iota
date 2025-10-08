@@ -13,7 +13,6 @@ use crate::{
     models::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
-        objects::{StoredDeletedObject, StoredObject},
         transactions::{CheckpointTxGlobalOrder, OptimisticTransaction},
     },
     rolling::transform::CheckpointObjectChanges,
@@ -21,12 +20,6 @@ use crate::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
     },
 };
-
-#[expect(clippy::large_enum_variant)]
-pub enum ObjectsToCommit {
-    MutatedObject(StoredObject),
-    DeletedObject(StoredDeletedObject),
-}
 
 #[async_trait]
 pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
