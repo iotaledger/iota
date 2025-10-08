@@ -167,15 +167,6 @@ export interface ClickedImportPrivateKeyProperties {
     sourceFlow?: string;
 }
 
-export interface ClickedImportSeedProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Regex |  |
-     */
-    sourceFlow?: string;
-}
-
 export interface ClickedStakeIotaProperties {
     isCurrentlyStaking?: boolean;
     /**
@@ -374,12 +365,6 @@ export interface UnpinnedCoinProperties {
 }
 
 export interface UnstakedIotaProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    stakedAmount?: number;
     /**
      * | Rule | Value |
      * |---|---|
@@ -1191,7 +1176,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. stakedAmount)
+   * @param properties The event's properties (e.g. validatorAddress)
    * @param options Amplitude event options.
    */
   unstakedIota(
