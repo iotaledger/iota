@@ -48,8 +48,6 @@ cleanup_and_kill() {
     mkdir -p "$LOG_DIR" 2>/dev/null || true
     touch "$LOG_FILE" 2>/dev/null || true
     log "BEGIN cleanup_and_kill (pid=$$, user=$(id -un))"
-    log "Containers before cleanup:"
-    docker ps --format 'table {{.Names}}\t{{.Status}}' | tee -a "$LOG_FILE" || true
     kill_spammer_processes || true
     if [ "$CLEANED_UP" = false ]; then
         # --- Print final network statistics to terminal ---
@@ -106,8 +104,6 @@ cleanup_and_kill() {
         else
           log "FATAL: External cleanup script not found at $CLEANUP_SCRIPT. Containers may persist."
         fi
-        log "Containers after cleanup:"
-        docker ps --format 'table {{.Names}}\t{{.Status}}' | tee -a "$LOG_FILE" || true
     fi
 }
 
