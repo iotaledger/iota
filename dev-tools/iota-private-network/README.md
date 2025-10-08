@@ -125,3 +125,24 @@ For example, to start a **Starfish** consensus protocol with 10 validators:
 
 - postgres_replica:
   - PostgreSQL: http://127.0.0.1:5433
+
+## Span Tracing with Tempo
+
+To enable span tracing for the nodes, you need to modify the docker-compose.yaml file to include the necessary environment variables for each node.
+
+for example, for fullnode-1, you would add the following environment variables:
+
+```yaml
+- OTLP_ENDPOINT=http://tempo:4317 # The endpoint of the Tempo instance
+- OTEL_SERVICE_NAME=fullnode-1 # A unique name for the service, it could be later used to filter traces in Grafana
+- TRACE_FILTER=warn # The trace filter level, you can adjust it based on your needs
+```
+
+The `TRACE_FILTER` variable follows the rules defined in the [tracing documentation](https://crates.io/crates/tracing-filter).
+
+Here are some examples of how to set the `TRACE_FILTER` variable based on your tracing needs:
+
+- Trace the **checkpoint lifecycle** only, set `TRACE_FILTER=[checkpoint_received_from_state_sync]=trace,[checkpoint_received_from_consensus]=trace`
+- Trace the **transaction lifecycle** only, set `TRACE_FILTER=[handle_consensus_output]=trace,[tx_orchestrator_execute_transaction_block]=trace,[json_rpc_api_execute_transaction_block]=trace`.
+  - Trace the transaction sequencing only, set `TRACE_FILTER=[transactions_sequencing]=trace`.
+  - Trace the transaction execution only, set `TRACE_FILTER=[transaction_manager_enqueue_transactions]=trace,[start_execute_pending_certs]=trace`.

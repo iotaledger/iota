@@ -63,7 +63,7 @@ telemetry-subscribers.workspace = true
 
 [features]
 pg_integration = ["dep:rand"]
-shared_test_runtime = []
+shared_test_runtime = ["dep:rand"]
 
 [dev-dependencies]
 # external dependencies

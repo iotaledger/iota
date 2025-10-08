@@ -16,13 +16,13 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
-    build_optimistic_json_rpc_server,
+    build_json_rpc_server,
     config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::ConnectionPool,
     errors::IndexerError,
     handlers::{
         checkpoint_handler::new_handlers, objects_snapshot_handler::start_objects_snapshot_handler,
-        pruner::Pruner,
+        optimistic_pruner::OptimisticPruner, pruner::Pruner,
     },
     indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
@@ -39,6 +39,7 @@ impl Indexer {
         metrics: IndexerMetrics,
         snapshot_config: SnapshotLagConfig,
         retention_config: Option<RetentionConfig>,
+        optimistic_pruner_batch_size: Option<u64>,
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
@@ -75,6 +76,19 @@ impl Indexer {
             let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
             let cancel_clone = cancel.clone();
             spawn_monitored_task!(pruner.start(cancel_clone));
+        }
+
+        if let Some(optimistic_pruner_batch_size) = optimistic_pruner_batch_size {
+            info!("Starting indexer optimistic tables pruner");
+            let optimistic_pruner = OptimisticPruner::new(
+                store.clone(),
+                optimistic_pruner_batch_size,
+                metrics.clone(),
+            )?;
+            let cancellation_token_for_optimistic_pruner = cancel.child_token();
+            spawn_monitored_task!(
+                optimistic_pruner.start(cancellation_token_for_optimistic_pruner)
+            );
         }
 
         // If we already have chain identifier indexed (i.e. the first checkpoint has
@@ -143,10 +157,9 @@ impl Indexer {
             env!("CARGO_PKG_VERSION")
         );
         let indexer_reader = IndexerReader::new(connection_pool);
-        let handle =
-            build_optimistic_json_rpc_server(store, registry, indexer_reader, config, metrics)
-                .await
-                .expect("Json rpc server should not run into errors upon start.");
+        let handle = build_json_rpc_server(store, registry, indexer_reader, config, metrics)
+            .await
+            .expect("Json rpc server should not run into errors upon start.");
         tokio::spawn(async move { handle.stopped().await })
             .await
             .expect("Rpc server task failed");

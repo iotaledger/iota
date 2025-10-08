@@ -44,7 +44,7 @@ use tokio::{
     task::JoinHandle,
     time::timeout,
 };
-use tracing::{Instrument, debug, error, error_span, info, instrument, warn};
+use tracing::{Instrument, debug, error, info, instrument, trace_span, warn};
 
 use crate::{
     authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
@@ -150,7 +150,7 @@ impl<A> TransactionOrchestrator<A>
 where
     A: AuthorityAPI + Send + Sync + 'static + Clone,
 {
-    #[instrument(name = "tx_orchestrator_execute_transaction_block", level = "debug", skip_all,
+    #[instrument(name = "tx_orchestrator_execute_transaction_block", level = "trace", skip_all,
     fields(
         tx_digest = ?request.transaction.digest(),
         tx_type = ?request_type,
@@ -245,6 +245,7 @@ where
     // TODO check if tx is already executed on this node.
     // Note: since EffectsCert is not stored today, we need to gather that from
     // validators (and maybe store it for caching purposes)
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?request.transaction.digest()))]
     pub async fn execute_transaction_impl(
         &self,
         epoch_store: &AuthorityPerEpochStore,
@@ -404,10 +405,7 @@ where
                 epoch_store,
             ),
         )
-        .instrument(error_span!(
-            "transaction_orchestrator::local_execution",
-            ?tx_digest
-        ))
+        .instrument(trace_span!("local_execution"))
         .await
         {
             Err(_elapsed) => {

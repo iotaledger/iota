@@ -13,7 +13,7 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tracing::error;
+use tracing::{error, instrument};
 
 use crate::{
     IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, MoveTypeTagTrait,
@@ -120,6 +120,7 @@ impl MoveTypeTagTrait for GlobalPauseKey {
     }
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn check_coin_deny_list_v1_during_signing(
     address: IotaAddress,
     input_objects: &CheckedInputObjects,
@@ -215,6 +216,7 @@ fn check_new_regulated_coin_owners(
     Ok(())
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn get_per_type_coin_deny_list_v1(
     coin_type: &String,
     object_store: &dyn ObjectStore,
@@ -231,6 +233,7 @@ pub fn get_per_type_coin_deny_list_v1(
     Some(config)
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn check_address_denied_by_config(
     deny_config: &Config,
     address: IotaAddress,
@@ -241,6 +244,7 @@ pub fn check_address_denied_by_config(
     read_config_setting(object_store, deny_config, address_key, cur_epoch).unwrap_or(false)
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn check_global_pause(
     deny_config: &Config,
     object_store: &dyn ObjectStore,
@@ -297,6 +301,7 @@ where
 /// Returns all unique coin types in canonical string form from the input
 /// objects and receiving objects. It filters out IOTA coins since it's known
 /// that it's not a regulated coin.
+#[instrument(level = "trace", skip_all)]
 fn input_object_coin_types_for_denylist_check(
     input_objects: &CheckedInputObjects,
     receiving_objects: &ReceivingObjects,

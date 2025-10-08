@@ -1,5 +1,14 @@
 # @iota/apps-ui-kit
 
+## 0.7.3
+
+### Patch Changes
+
+-   6bfb900: Avoid overflowing situations in components
+-   6ce4a20: improve components for names compatibility
+-   Updated dependencies [65fafe4]
+    -   @iota/apps-ui-icons@0.4.2
+
 ## 0.7.2
 
 ### Patch Changes

@@ -140,7 +140,7 @@ export function EnterTimelockedAmountView({
                     toast.success('Stake transaction has been sent');
                     ampli.timelockStake({
                         stakedAmount: Number(stakedAmount / NANOS_PER_IOTA),
-                        validatorAddress: senderAddress,
+                        validatorAddress: selectedValidator,
                     });
                     resetForm();
                 },

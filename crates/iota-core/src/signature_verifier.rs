@@ -33,7 +33,7 @@ use tokio::{
     sync::oneshot,
     time::{Duration, timeout},
 };
-use tracing::debug;
+use tracing::{debug, instrument};
 // Maximum amount of time we wait for a batch to fill up before verifying a
 // partial batch.
 const BATCH_TIMEOUT_MS: Duration = Duration::from_millis(10);
@@ -385,6 +385,7 @@ impl SignatureVerifier {
         self.jwks.read().clone()
     }
 
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?signed_tx.digest()))]
     pub fn verify_tx(&self, signed_tx: &SenderSignedData) -> IotaResult {
         self.signed_data_cache.is_verified(
             signed_tx.full_message_digest(),

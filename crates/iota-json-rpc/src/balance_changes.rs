@@ -22,6 +22,7 @@ use iota_types::{
 };
 use move_core_types::language_storage::TypeTag;
 use tokio::sync::RwLock;
+use tracing::instrument;
 
 pub async fn get_balance_changes_from_effect<P: ObjectProvider<Error = E>, E>(
     object_provider: &P,
@@ -216,6 +217,7 @@ impl<P> ObjectProviderCache<P> {
         }
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn new_with_output_objects(provider: P, output_objects: Vec<Object>) -> Self {
         let mut object_cache = BTreeMap::new();
         let mut last_version_cache = BTreeMap::new();
