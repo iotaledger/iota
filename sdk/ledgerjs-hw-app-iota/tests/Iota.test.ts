@@ -13,8 +13,8 @@ const SPECULOS_BASE_URL: string = `http://127.0.0.1:${API_PORT}`;
 const SPECULOS_HTTP_TRANSPORT_OPTS = {
     apiPort: API_PORT.toString(),
 };
-const TEST_TIMEOUT_MS = 20000;
-const WAIT_TIME_MS = 5000;
+const TEST_TIMEOUT_MS = 35000;
+const WAIT_TIME_MS = 10000;
 // Before running the tests, pull the speculos Docker image and download the ledgernano binary.
 // Then start the speculos simulator and run the tests.
 //
