@@ -27,10 +27,7 @@ mod ingestion_tests {
         schema::{
             checkpoints, objects, objects_snapshot, transactions, tx_digests, tx_global_order,
         },
-        store::{
-            PgIndexerStore,
-            indexer_store::{IndexerStore, IndexerStoreExt},
-        },
+        store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
         types::{EventIndex, IndexedDeletedObject, IndexedObject, TxIndex},
     };
@@ -443,7 +440,7 @@ mod ingestion_tests {
         // trigger the large vectors to be split into chunks of
         // PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX.
         let tx_indices = std::iter::repeat_with(TxIndex::random).take(1000).collect();
-        pg_store.persist_tx_indices_v2(tx_indices).await?;
+        pg_store.persist_tx_indices(tx_indices).await?;
         Ok(())
     }
 

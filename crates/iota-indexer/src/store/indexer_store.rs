@@ -123,10 +123,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         conn: &mut PgConnection,
         object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
-}
 
-#[async_trait]
-pub trait IndexerStoreExt: IndexerStore {
     async fn persist_checkpoint_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
@@ -142,5 +139,5 @@ pub trait IndexerStoreExt: IndexerStore {
         tx_order: Vec<CheckpointTxGlobalOrder>,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_tx_indices_v2(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
+    async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 }

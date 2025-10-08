@@ -63,7 +63,7 @@ use crate::{
         tx_global_order, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
         tx_wrapped_or_deleted_objects,
     },
-    store::{IndexerStore, IndexerStoreExt},
+    store::IndexerStore,
     transactional_blocking_with_retry,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
@@ -2227,10 +2227,8 @@ impl IndexerStore for PgIndexerStore {
         )?;
         Ok(())
     }
-}
-#[async_trait]
-impl IndexerStoreExt for PgIndexerStore {
-    async fn persist_tx_indices_v2(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError> {
+
+    async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError> {
         if indices.is_empty() {
             return Ok(());
         }

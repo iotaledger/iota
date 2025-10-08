@@ -16,7 +16,7 @@ use crate::{
     metrics::IndexerMetrics,
     models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
     rolling::transform::CheckpointObjectChanges,
-    store::{IndexerStore, IndexerStoreExt, PgIndexerStore},
+    store::{IndexerStore, PgIndexerStore},
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction,
         IndexerResult, TxIndex,
@@ -162,7 +162,7 @@ async fn commit_checkpoints(
         let _step_1_guard = metrics.checkpoint_db_commit_latency_step_1.start_timer();
         let mut persist_tasks = vec![
             state.persist_transactions(tx_batch),
-            state.persist_tx_indices_v2(tx_indices_batch),
+            state.persist_tx_indices(tx_indices_batch),
             state.persist_tx_global_order(tx_global_order_batch.clone()),
             state.persist_events(events_batch),
             state.persist_event_indices(event_indices_batch),
