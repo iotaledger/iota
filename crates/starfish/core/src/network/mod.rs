@@ -272,8 +272,8 @@ fn authority_set_to_bitmask(authorities: &BTreeSet<AuthorityIndex>) -> [u64; 4] 
 
 fn bitmask_to_authority_set(bitmask: [u64; 4]) -> BTreeSet<AuthorityIndex> {
     let mut set = BTreeSet::new();
-    for array_index in 0..4 {
-        let mut bits = bitmask[array_index];
+    for (array_index, &bits) in bitmask.iter().enumerate() {
+        let mut bits = bits;
         let base = array_index * 64;
         while bits != 0 {
             let bit = bits.trailing_zeros() as usize;
@@ -283,6 +283,7 @@ fn bitmask_to_authority_set(bitmask: [u64; 4]) -> BTreeSet<AuthorityIndex> {
     }
     set
 }
+
 impl SerializedBlockBundleParts {
     pub(crate) fn useful_authorities(&self) -> BTreeSet<AuthorityIndex> {
         bitmask_to_authority_set(self.useful_authorities_bitmask)
