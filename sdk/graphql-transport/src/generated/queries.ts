@@ -4344,6 +4344,8 @@ export type Query = {
    * error.
    */
   events: EventConnection;
+  /** Check if a transaction is indexed on the fullnode. */
+  isTransactionIndexedOnNode: Scalars['Boolean']['output'];
   /**
    * The latest version of the package at `address`.
    *
@@ -4530,6 +4532,11 @@ export type QueryEventsArgs = {
   filter?: InputMaybe<EventFilter>;
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryIsTransactionIndexedOnNodeArgs = {
+  digest: Scalars['String']['input'];
 };
 
 
@@ -5223,6 +5230,21 @@ export type TransactionBlock = {
    * transaction block is a sponsored transaction block.
    */
   gasInput?: Maybe<GasInput>;
+  /**
+   * Returns whether the transaction has been indexed on the fullnode.
+   *
+   * This makes a request to the fullnode if the transaction is not part of
+   * a checkpoint to resolve the index status on the node.
+   *
+   * However, as this relies on the transaction data being already
+   * constructed or fetched from the backing database, it only makes
+   * sense to be used with `Mutation.executeTransactionBlock` on the
+   * resulting effects.
+   *
+   * Otherwise, it is recommended that you use
+   * `Query.isTransactionIndexedOnNode` for optimal performance.
+   */
+  indexedOnNode?: Maybe<Scalars['Boolean']['output']>;
   /**
    * The type of this transaction as well as the commands and/or parameters
    * comprising the transaction of this kind.
@@ -6010,6 +6032,13 @@ export type ResolveNameServiceNamesQueryVariables = Exact<{
 
 
 export type ResolveNameServiceNamesQuery = { __typename?: 'Query', address?: { __typename?: 'Address', iotaNamesRegistrations: { __typename?: 'NameRegistrationConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'NameRegistration', name: string }> } } | null };
+
+export type IsTransactionIndexedOnNodeQueryVariables = Exact<{
+  digest: Scalars['String']['input'];
+}>;
+
+
+export type IsTransactionIndexedOnNodeQuery = { __typename?: 'Query', isTransactionIndexedOnNode: boolean };
 
 export type GetOwnedObjectsQueryVariables = Exact<{
   owner: Scalars['IotaAddress']['input'];
@@ -8222,6 +8251,11 @@ export const ResolveNameServiceNamesDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ResolveNameServiceNamesQuery, ResolveNameServiceNamesQueryVariables>;
+export const IsTransactionIndexedOnNodeDocument = new TypedDocumentString(`
+    query IsTransactionIndexedOnNode($digest: String!) {
+  isTransactionIndexedOnNode(digest: $digest)
+}
+    `) as unknown as TypedDocumentString<IsTransactionIndexedOnNodeQuery, IsTransactionIndexedOnNodeQueryVariables>;
 export const GetOwnedObjectsDocument = new TypedDocumentString(`
     query getOwnedObjects($owner: IotaAddress!, $limit: Int, $cursor: String, $showBcs: Boolean = false, $showContent: Boolean = false, $showDisplay: Boolean = false, $showType: Boolean = false, $showOwner: Boolean = false, $showPreviousTransaction: Boolean = false, $showStorageRebate: Boolean = false, $filter: ObjectFilter) {
   address(address: $owner) {

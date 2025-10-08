@@ -3576,6 +3576,10 @@ type Query {
 	"""
 	dryRunTransactionBlock(txBytes: String!, txMeta: TransactionMetadata, skipChecks: Boolean): DryRunResult!
 	"""
+	Check if a transaction is indexed on the fullnode.
+	"""
+	isTransactionIndexedOnNode(digest: String!): Boolean!
+	"""
 	Look up an Owner by its IotaAddress.
 	
 	`rootVersion` represents the version of the root object in some nested
@@ -4371,6 +4375,21 @@ type TransactionBlock {
 	and Base64 encoded.
 	"""
 	bcs: Base64
+	"""
+	Returns whether the transaction has been indexed on the fullnode.
+	
+	This makes a request to the fullnode if the transaction is not part of
+	a checkpoint to resolve the index status on the node.
+	
+	However, as this relies on the transaction data being already
+	constructed or fetched from the backing database, it only makes
+	sense to be used with `Mutation.executeTransactionBlock` on the
+	resulting effects.
+	
+	Otherwise, it is recommended that you use
+	`Query.isTransactionIndexedOnNode` for optimal performance.
+	"""
+	indexedOnNode: Boolean
 }
 
 type TransactionBlockConnection {

@@ -10,7 +10,7 @@ use std::{
 };
 
 use async_graphql::{
-    EmptySubscription, Schema, SchemaBuilder,
+    Context, EmptySubscription, ResultExt, Schema, SchemaBuilder,
     extensions::{ApolloTracing, ExtensionFactory, Tracing},
 };
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
@@ -34,7 +34,7 @@ use iota_indexer::{
 use iota_metrics::spawn_monitored_task;
 use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
-use iota_sdk::IotaClientBuilder;
+use iota_sdk::{IotaClient, IotaClientBuilder};
 use tokio::{join, net::TcpListener, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
 use tower::{Layer, Service};
@@ -548,6 +548,19 @@ fn schema_builder() -> SchemaBuilder<Query, Mutation, EmptySubscription> {
         .register_output_type::<IObject>()
         .register_output_type::<IOwner>()
         .register_output_type::<IMoveDatatype>()
+}
+
+pub(crate) fn get_fullnode_client<'ctx>(
+    ctx: &'ctx Context<'_>,
+) -> async_graphql::Result<&'ctx IotaClient> {
+    let iota_sdk_client: &Option<IotaClient> = ctx
+        .data()
+        .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
+        .extend()?;
+    iota_sdk_client
+        .as_ref()
+        .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
+        .extend()
 }
 
 /// Return the string representation of the schema used by this server.

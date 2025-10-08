@@ -109,7 +109,8 @@
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
         "update-graphql-schemas": "pnpm tsx scripts/update-graphql-schemas.ts",
         "update-open-rpc-client-types": "pnpm tsx scripts/generate.ts",
-        "generate-schema": "gql.tada generate-output"
+        "generate-schema": "gql.tada generate-output",
+        "codegen": "pnpm update-graphql-schemas && pnpm update-open-rpc-client-types"
     },
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues/new"

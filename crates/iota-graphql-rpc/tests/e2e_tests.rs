@@ -13,14 +13,15 @@ mod tests {
         config::ConnectionConfig,
         test_infra::cluster::{DEFAULT_INTERNAL_DATA_SOURCE_PORT, ExecutorCluster},
     };
+    use iota_graphql_rpc_client::{response::GraphqlResponse, simple_client::SimpleClient};
     use iota_indexer::{
         run_query_async, schema::optimistic_transactions, spawn_read_only_blocking,
     };
     use iota_types::{
         IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, STARDUST_ADDRESS,
-        digests::ChainIdentifier,
+        digests::{ChainIdentifier, TransactionDigest},
         gas_coin::GAS,
-        transaction::{CallArg, ObjectArg, TransactionDataAPI},
+        transaction::{CallArg, ObjectArg, Transaction, TransactionDataAPI},
     };
     use rand::{SeedableRng, rngs::StdRng};
     use serde_json::json;
@@ -28,6 +29,51 @@ mod tests {
     use simulacrum::Simulacrum;
     use tempfile::tempdir;
     use tokio::time::sleep;
+
+    async fn mutation_execute_transaction(
+        client: &SimpleClient,
+        signed_tx: &Transaction,
+    ) -> GraphqlResponse {
+        let (tx_bytes, sigs) = signed_tx.to_tx_bytes_and_signatures();
+        let tx_bytes = tx_bytes.encoded();
+        let sigs = sigs.iter().map(|sig| sig.encoded()).collect::<Vec<_>>();
+
+        let mutation = r#"{ executeTransactionBlock(txBytes: $tx,  signatures: $sigs) { effects { transactionBlock { digest } } errors}}"#;
+
+        let variables = vec![
+            GraphqlQueryVariable {
+                name: "tx".to_string(),
+                ty: "String!".to_string(),
+                value: json!(tx_bytes),
+            },
+            GraphqlQueryVariable {
+                name: "sigs".to_string(),
+                ty: "[String!]!".to_string(),
+                value: json!(sigs),
+            },
+        ];
+        client
+            .execute_mutation_to_graphql(mutation.to_string(), variables)
+            .await
+            .unwrap()
+    }
+
+    async fn query_is_transaction_indexed_on_node(client: &SimpleClient, digest: &str) -> bool {
+        let query = "{ isTransactionIndexedOnNode(digest: $digest) }";
+        let variables = vec![GraphqlQueryVariable {
+            name: "digest".to_string(),
+            ty: "String!".to_string(),
+            value: json!(digest),
+        }];
+        let resp = client
+            .execute_to_graphql(query.to_string(), false, variables.clone(), vec![])
+            .await
+            .unwrap()
+            .response_body_json();
+        resp["data"]["isTransactionIndexedOnNode"]
+            .as_bool()
+            .unwrap()
+    }
 
     async fn prep_executor_cluster() -> (ConnectionConfig, ExecutorCluster) {
         let rng = StdRng::from_seed([12; 32]);
@@ -313,66 +359,71 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_transaction_execution() {
-        let _guard = telemetry_subscribers::TelemetryConfig::new()
-            .with_env()
-            .init();
-
+    async fn test_transaction_is_indexed_on_node() {
         let cluster =
             iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
                 .await;
 
-        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
-
-        let sender = addresses[0];
-        let recipient = addresses[1];
-        let tx = cluster
-            .validator_fullnode_handle
-            .test_transaction_builder()
+        let tx = cluster.build_transfer_iota_for_test().await;
+        let signed_tx = cluster.sign_transaction(&tx);
+        let raw_response = mutation_execute_transaction(&cluster.graphql_client, &signed_tx)
             .await
-            .transfer_iota(Some(1_000), recipient)
-            .build();
-        let signed_tx = cluster
-            .validator_fullnode_handle
-            .wallet
-            .sign_transaction(&tx);
-        let original_digest = signed_tx.digest();
-        let (tx_bytes, sigs) = signed_tx.to_tx_bytes_and_signatures();
-        let tx_bytes = tx_bytes.encoded();
-        let sigs = sigs.iter().map(|sig| sig.encoded()).collect::<Vec<_>>();
+            .response_body_json();
+        let response = &raw_response["data"]["executeTransactionBlock"];
 
-        let mutation = r#"{ executeTransactionBlock(txBytes: $tx,  signatures: $sigs) { effects { transactionBlock { digest } } errors}}"#;
-
-        let variables = vec![
-            GraphqlQueryVariable {
-                name: "tx".to_string(),
-                ty: "String!".to_string(),
-                value: json!(tx_bytes),
-            },
-            GraphqlQueryVariable {
-                name: "sigs".to_string(),
-                ty: "[String!]!".to_string(),
-                value: json!(sigs),
-            },
-        ];
-        let res = cluster
-            .graphql_client
-            .execute_mutation_to_graphql(mutation.to_string(), variables)
-            .await
-            .unwrap();
-        let binding = res.response_body().data.clone().into_json().unwrap();
-        let res = binding.get("executeTransactionBlock").unwrap();
-
-        let digest = res
-            .get("effects")
-            .unwrap()
-            .get("transactionBlock")
-            .unwrap()
-            .get("digest")
-            .unwrap()
+        let digest = response["effects"]["transactionBlock"]["digest"]
             .as_str()
             .unwrap();
-        assert!(res.get("errors").unwrap().is_null());
+
+        // wait for the transaction to be indexed on the node
+        tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if !query_is_transaction_indexed_on_node(&cluster.graphql_client, digest).await {
+                    tokio::time::sleep(Duration::from_millis(100)).await;
+                } else {
+                    break;
+                }
+            }
+        })
+        .await
+        .unwrap();
+
+        cluster.cleanup_resources().await
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_transaction_not_indexed_on_node() {
+        let cluster =
+            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
+                .await;
+        let digest = TransactionDigest::generate(StdRng::from_seed([12; 32])).to_string();
+
+        assert!(
+            !query_is_transaction_indexed_on_node(&cluster.graphql_client, digest.as_str()).await
+        );
+        cluster.cleanup_resources().await
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_transaction_execution() {
+        let cluster =
+            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
+                .await;
+
+        let tx = cluster.build_transfer_iota_for_test().await;
+        let signed_tx = cluster.sign_transaction(&tx);
+        let original_digest = signed_tx.digest();
+        let raw_response = mutation_execute_transaction(&cluster.graphql_client, &signed_tx)
+            .await
+            .response_body_json();
+        let response = &raw_response["data"]["executeTransactionBlock"];
+
+        let digest = response["effects"]["transactionBlock"]["digest"]
+            .as_str()
+            .unwrap();
+        assert!(raw_response["errors"].is_null());
         assert_eq!(digest, original_digest.to_string());
 
         // Wait for the transaction to be committed and indexed
@@ -381,6 +432,7 @@ mod tests {
         let query = r#"
             {
                 transactionBlock(digest: $dig){
+                    indexedOnNode
                     sender {
                         address
                     }
@@ -393,23 +445,19 @@ mod tests {
             ty: "String!".to_string(),
             value: json!(digest),
         }];
-        let res = cluster
+        let raw_response = cluster
             .graphql_client
             .execute_to_graphql(query.to_string(), true, variables, vec![])
             .await
-            .unwrap();
+            .unwrap()
+            .response_body_json();
 
-        let binding = res.response_body().data.clone().into_json().unwrap();
-        let sender_read = binding
-            .get("transactionBlock")
-            .unwrap()
-            .get("sender")
-            .unwrap()
-            .get("address")
-            .unwrap()
-            .as_str()
-            .unwrap();
-        assert_eq!(sender_read, sender.to_string());
+        let tx = &raw_response["data"]["transactionBlock"];
+
+        let sender_read = tx["sender"]["address"].as_str().unwrap();
+        assert_eq!(sender_read, signed_tx.sender_address().to_string());
+        let indexed_on_node = tx.get("indexedOnNode").unwrap().as_bool().unwrap();
+        assert!(indexed_on_node);
 
         // Check that optimistic indexing happened
         let digest_bytes = Base58::decode(digest).unwrap();
@@ -567,21 +615,14 @@ mod tests {
             iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
                 .await;
 
-        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
-
-        let sender = addresses[0];
-        let recipient = addresses[1];
-        let tx = cluster
-            .validator_fullnode_handle
-            .test_transaction_builder()
-            .await
-            .transfer_iota(Some(1_000), recipient)
-            .build();
+        let tx = cluster.build_transfer_iota_for_test().await;
         let tx_bytes = Base64::encode(bcs::to_bytes(&tx).unwrap());
+        let sender = tx.sender();
 
         let query = r#"{ dryRunTransactionBlock(txBytes: $tx) {
                 transaction {
                     digest
+                    indexedOnNode
                     sender {
                         address
                     }
@@ -631,13 +672,12 @@ mod tests {
         let binding = res.response_body().data.clone().into_json().unwrap();
         let res = binding.get("dryRunTransactionBlock").unwrap();
 
-        let digest = res.get("transaction").unwrap().get("digest").unwrap();
+        let tx = res.get("transaction").unwrap();
+        let digest = tx.get("digest").unwrap();
         // Dry run txn does not have digest
         assert!(digest.is_null());
         assert!(res.get("error").unwrap().is_null());
-        let sender_read = res
-            .get("transaction")
-            .unwrap()
+        let sender_read = tx
             .get("sender")
             .unwrap()
             .get("address")
@@ -645,6 +685,8 @@ mod tests {
             .as_str()
             .unwrap();
         assert_eq!(sender_read, sender.to_string());
+        let indexed_on_node = tx.get("indexedOnNode").unwrap().as_bool().unwrap();
+        assert!(!indexed_on_node);
         assert!(res.get("results").unwrap().is_array());
         cluster.cleanup_resources().await
     }

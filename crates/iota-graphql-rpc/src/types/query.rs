@@ -6,8 +6,8 @@ use std::str::FromStr;
 
 use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
+use iota_json_rpc_api::ReadApiClient;
 use iota_json_rpc_types::DevInspectArgs;
-use iota_sdk::IotaClient;
 use iota_types::{
     TypeTag,
     gas_coin::GAS,
@@ -21,7 +21,7 @@ use crate::{
     connection::ScanConnection,
     error::Error,
     mutation::Mutation,
-    server::watermark_task::Watermark,
+    server::{builder::get_fullnode_client, watermark_task::Watermark},
     types::{
         address::Address,
         available_range::AvailableRange,
@@ -114,14 +114,7 @@ impl Query {
     ) -> Result<DryRunResult> {
         let skip_checks = skip_checks.unwrap_or(false);
 
-        let iota_sdk_client: &Option<IotaClient> = ctx
-            .data()
-            .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
-            .extend()?;
-        let iota_sdk_client = iota_sdk_client
-            .as_ref()
-            .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
-            .extend()?;
+        let iota_sdk_client = get_fullnode_client(ctx)?;
 
         let (sender_address, tx_kind, gas_price, gas_sponsor, gas_budget, gas_objects) =
             if let Some(TransactionMetadata {
@@ -188,6 +181,19 @@ impl Query {
             .await?;
 
         DryRunResult::try_from(res).extend()
+    }
+
+    /// Check if a transaction is indexed on the fullnode.
+    async fn is_transaction_indexed_on_node(
+        &self,
+        ctx: &Context<'_>,
+        digest: Digest,
+    ) -> Result<bool> {
+        let fullnode_client = get_fullnode_client(ctx)?;
+        Ok(fullnode_client
+            .http()
+            .is_transaction_indexed_on_node(digest.into())
+            .await?)
     }
 
     /// Look up an Owner by its IotaAddress.

@@ -67,15 +67,11 @@ jobs:
             turbo-${{ runner.os }}-
       - name: Node Sync
         run: |
-          cd sdk/typescript
-          pnpm update-graphql-schemas
-          pnpm update-open-rpc-client-types
-          cd ../graphql-transport
           pnpm codegen
           if [ -z "$(git status --porcelain)" ]; then
             echo "No sync needed"
           else
-            echo "Sync is needed!"
+            echo "Sync is needed! Run: 'pnpm codegen' in the root."
             git status
             exit 1
           fi
