@@ -64,22 +64,8 @@ cleanup_and_kill() {
         CLEANED_UP=true
         echo "Stopping all background scripts and validators..."
         kill -- -$$ &> /dev/null   # silently kill all children
-        if [ -n "${SUDO_USER:-}" ]; then
-                    log "Executing docker compose down as original user: $SUDO_USER"
-
-                    # Use 'sudo -u' to switch user and environment (-H)
-                    # The entire command is run by bash -c for proper quoting/execution
-                    sudo -u "$SUDO_USER" -H bash -c "(cd '$NETWORK_DIR' && docker compose down &> /dev/null)"
-
-                    # Redundant faucet removal, also as the original user
-                    log "Running safety net removal for faucet-1 as $SUDO_USER..."
-                    sudo -u "$SUDO_USER" -H bash -c "(cd '$NETWORK_DIR' && docker compose rm -f faucet-1 &> /dev/null)" || true
-                else
-                    # Execute as the current user (if the script was NOT run with sudo)
-                    log "Executing docker compose down from $NETWORK_DIR as current user."
-                    (cd "$NETWORK_DIR" && docker compose down &> /dev/null)
-                    docker rm -f faucet-1 &> /dev/null || true
-                fi
+        log "Executing docker compose down from $NETWORK_DIR (logging output to $LOG_FILE)"
+                (cd "$NETWORK_DIR" && docker compose down --remove-orphans)
     fi
 }
 
