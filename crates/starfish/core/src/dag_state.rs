@@ -1326,7 +1326,7 @@ impl DagState {
                 break;
             }
             if useful_authorities.contains(&block_ref.author) {
-                to_take.push(block_ref.clone());
+                to_take.push(*block_ref);
             }
         }
 
