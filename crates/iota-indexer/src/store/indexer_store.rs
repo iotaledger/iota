@@ -19,7 +19,6 @@ use crate::{
     rolling::transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
-        TxIndexV2,
     },
 };
 
@@ -84,8 +83,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         transaction: OptimisticTransaction,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
-
     async fn persist_events(&self, events: Vec<IndexedEvent>) -> Result<(), IndexerError>;
 
     async fn persist_event_indices(
@@ -145,5 +142,5 @@ pub trait IndexerStoreExt: IndexerStore {
         tx_order: Vec<CheckpointTxGlobalOrder>,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_tx_indices_v2(&self, indices: Vec<TxIndexV2>) -> Result<(), IndexerError>;
+    async fn persist_tx_indices_v2(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 }

@@ -443,7 +443,7 @@ mod ingestion_tests {
         // trigger the large vectors to be split into chunks of
         // PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX.
         let tx_indices = std::iter::repeat_with(TxIndex::random).take(1000).collect();
-        pg_store.persist_tx_indices(tx_indices).await?;
+        pg_store.persist_tx_indices_v2(tx_indices).await?;
         Ok(())
     }
 

@@ -23,7 +23,7 @@ use crate::{
     handlers::{
         TransactionObjectChangesToCommit,
         checkpoint_handler::{
-            CheckpointHandler, IndexedTransactionComponentsV2, try_extract_df_kind,
+            CheckpointHandler, IndexedTransactionComponents, try_extract_df_kind,
         },
     },
     indexer_reader::IndexerReader,
@@ -407,10 +407,10 @@ impl<'a> TransactionExtractor<'a> {
 
     fn get_indexed_transactions_events_and_displays(
         &self,
-    ) -> IndexerResult<IndexedTransactionComponentsV2> {
+    ) -> IndexerResult<IndexedTransactionComponents> {
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
-            CheckpointHandler::index_transaction_v2(
+            CheckpointHandler::index_transaction(
                 self.full_tx_data,
                 self.optimistic_sequence_number,
                 0, // checkpoint sequence number - unknown

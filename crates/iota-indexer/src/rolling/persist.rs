@@ -19,7 +19,7 @@ use crate::{
     store::{IndexerStore, IndexerStoreExt, PgIndexerStore},
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction,
-        IndexerResult, TxIndexV2,
+        IndexerResult, TxIndex,
     },
 };
 
@@ -29,7 +29,7 @@ pub(crate) struct CheckpointDataToCommit {
     pub(crate) transactions: Vec<IndexedTransaction>,
     pub(crate) events: Vec<IndexedEvent>,
     pub(crate) event_indices: Vec<EventIndex>,
-    pub(crate) tx_indices: Vec<TxIndexV2>,
+    pub(crate) tx_indices: Vec<TxIndex>,
     pub(crate) display_updates: BTreeMap<String, StoredDisplay>,
     pub(crate) object_changes: CheckpointObjectChanges,
     pub(crate) object_history_changes: TransactionObjectChangesToCommit,
