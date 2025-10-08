@@ -7,6 +7,7 @@
 # Run from: iota/dev-tools/iota-private-network/experiments/
 
 set -euo pipefail
+PARENT_BASHPID=${BASHPID}
 
 # =================== CONSTANTS ===================
 DEFAULT_NUM_VALIDATORS=4
@@ -35,6 +36,19 @@ CLEANUP_SCRIPT="$NETWORK_DIR/cleanup.sh"
 # --- Trap termination and normal exit safely ---
 CLEANED_UP=false
 cleanup_and_kill() {
+    # Ensure only the original parent shell runs the EXIT trap (avoid subshell-triggered cleanup)
+    if [ "${BASHPID}" != "${PARENT_BASHPID}" ]; then
+          return
+    fi
+    # Ensure log targets exist even if EXIT happens before normal init
+    : "${SCRIPT_DIR:=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
+    : "${LOG_DIR:=${SCRIPT_DIR}/logs}"
+    : "${LOG_FILE:=${LOG_DIR}/experiment_script_latest.log}"
+    mkdir -p "$LOG_DIR" 2>/dev/null || true
+    touch "$LOG_FILE" 2>/dev/null || true
+    log "BEGIN cleanup_and_kill (pid=$$, user=$(id -un))"
+    log "Containers before cleanup:"
+    docker ps --format 'table {{.Names}}\t{{.Status}}' | tee -a "$LOG_FILE" || true
     kill_spammer_processes || true
     if [ "$CLEANED_UP" = false ]; then
         # --- Print final network statistics to terminal ---
@@ -68,22 +82,28 @@ cleanup_and_kill() {
         log "Delegating Docker teardown to external script: $CLEANUP_SCRIPT"
 
         if [ -f "$CLEANUP_SCRIPT" ]; then
-          # Ensure we run cleanup with sufficient docker privileges
-          if [ "$(id -u)" -ne 0 ]; then
-            if command -v sudo >/dev/null 2>&1; then
-              # use sudo to ensure docker socket access
-              sudo bash -lc "cd '$NETWORK_DIR' && '$CLEANUP_SCRIPT'"
+          if command -v sudo >/dev/null 2>&1; then
+            log "Running teardown with sudo: $CLEANUP_SCRIPT"
+            if ! sudo bash -lc "cd '$NETWORK_DIR' && ./$(basename "$CLEANUP_SCRIPT")"; then
+              rc=$?
+              log "ERROR: cleanup script failed with exit code $rc (sudo)"
             else
-              (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT")
+              log "External cleanup script finished successfully (sudo)."
             fi
           else
-            # already root
-            (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT")
+            log "sudo not found; running teardown without sudo: $CLEANUP_SCRIPT"
+            if ! (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT"); then
+              rc=$?
+              log "ERROR: cleanup script failed with exit code $rc (no sudo)"
+            else
+              log "External cleanup script finished successfully (no sudo)."
+            fi
           fi
-          log "External cleanup script finished."
         else
           log "FATAL: External cleanup script not found at $CLEANUP_SCRIPT. Containers may persist."
         fi
+        log "Containers after cleanup:"
+        docker ps --format 'table {{.Names}}\t{{.Status}}' | tee -a "$LOG_FILE" || true
     fi
 }
 
@@ -184,6 +204,29 @@ log "Spammer TPS                : $SPAMMER_TPS"
 log "Spammer size per tx        : $SPAMMER_SIZE_PER_TX"
 log "==========================="
 
+# --- Pre-clean to ensure a fresh start (explicit, not via trap) ---
+log "Pre-clean: invoking cleanup to ensure a fresh state before starting experiments..."
+if [ -f "$CLEANUP_SCRIPT" ]; then
+  if command -v sudo >/dev/null 2>&1; then
+    log "Pre-clean (sudo): $CLEANUP_SCRIPT"
+    if ! sudo bash -lc "cd '$NETWORK_DIR' && ./$(basename "$CLEANUP_SCRIPT")"; then
+      rc=$?
+      log "ERROR: pre-clean failed with exit code $rc — continuing anyway"
+    else
+      log "Pre-clean completed successfully."
+    fi
+  else
+    log "Pre-clean (no sudo): $CLEANUP_SCRIPT"
+    if ! (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT"); then
+      rc=$?
+      log "ERROR: pre-clean failed with exit code $rc — continuing anyway"
+    else
+      log "Pre-clean completed successfully."
+    fi
+  fi
+else
+  log "WARNING: cleanup script not found at $CLEANUP_SCRIPT; skipping pre-clean."
+fi
 # --- Ensure no old spammer instances are running before we begin ---
 kill_spammer_processes || true
 
