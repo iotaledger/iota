@@ -12,6 +12,7 @@
 module function_keys::fk_store;
 
 use iota::programmable_transaction::{Command, move_call_data};
+use iota::table::{Self as tbl, Table};
 use iota::vec_set::{Self, VecSet};
 use iotaccount::iotaccount::IOTAccount;
 
@@ -20,6 +21,9 @@ const EFunctionKeyAlreadyAdded: vector<u8> = b"The function key has been added a
 
 #[error(code = 1)]
 const EFunctionKeyDoesNotExist: vector<u8> = b"The function key does not exist";
+
+#[error(code = 2)]
+const EPublicKeyNotFound: vector<u8> = b"Public key entry not found";
 
 // =========================
 // Types
@@ -43,40 +47,30 @@ public struct FunctionKey has copy, drop, store {
 /// Value stored under the `FunctionKeysName` dynamic field of an account.
 /// A **set** of allowed function keys modeled with `VecSet<FunctionKey>`.
 public struct FunctionKeysStore has store {
-    function_keys: VecSet<FunctionKey>,
+    function_keys: Table<vector<u8>, VecSet<FunctionKey>>,
 }
 
 // =========================
 // Accessors / helpers
 // =========================
-
-/// Returns the **dynamic field key** used to access the Function Keys store.
 public fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
 
-/// Creates an **empty** Function Keys store.
-public fun new_store(): FunctionKeysStore {
-    FunctionKeysStore { function_keys: vec_set::empty() }
+public fun new_fk_store(ctx: &mut TxContext): FunctionKeysStore {
+    FunctionKeysStore { function_keys: tbl::new<vector<u8>, VecSet<FunctionKey>>(ctx) }
 }
 
-/// Checks whether the account has an initialized Function Keys store.
-/// Useful for gating admin/auth flows.
-public fun store_exists(account: &IOTAccount): bool {
+public fun fk_store_exists(account: &IOTAccount): bool {
     account.has_field(fk_store_key())
 }
 
-/// Borrows the store **immutably** (aborts if missing).
-public fun borrow_store(account: &IOTAccount): &FunctionKeysStore {
+public fun borrow_fk_store(account: &IOTAccount): &FunctionKeysStore {
     account.borrow_field(fk_store_key())
 }
 
-/// Borrows the store **mutably** (aborts if missing).
-/// Passing `ctx` aligns with the account’s DF mutation rules.
-public fun borrow_store_mut(account: &mut IOTAccount, ctx: &TxContext): &mut FunctionKeysStore {
+public fun borrow_fk_store_mut(account: &mut IOTAccount, ctx: &TxContext): &mut FunctionKeysStore {
     account.borrow_field_mut(fk_store_key(), ctx)
 }
 
-/// Constructs a canonical `FunctionKey` for `(package, module, function)`.
-/// The inputs should be the **same canonical bytes** used by the PTB builder.
 public fun make_func_key(
     package: address,
     module_name: vector<u8>,
@@ -86,51 +80,52 @@ public fun make_func_key(
 }
 
 // =========================
-/* Allow-set operations */
+// Per-pubkey allow-set ops
 // =========================
 
-/// **Allow** a function key.
-///
-/// Behavior:
-/// - **Aborts** with `EFunctionKeyAlreadyAdded` if `fk` is already present.
-/// - Otherwise inserts it into the set.
-public fun allow(self: &mut FunctionKeysStore, fk: FunctionKey) {
-    assert!(!self.function_keys.contains(&fk), EFunctionKeyAlreadyAdded);
-    self.function_keys.insert(fk);
+/// Ensure a VecSet exists for `pub_key`; if absent, create an empty set.
+/// Returns a &mut to the set.
+public fun ensure_key_entry(
+    store: &mut FunctionKeysStore,
+    pub_key: vector<u8>,
+): &mut VecSet<FunctionKey> {
+    if (!tbl::contains(&store.function_keys, pub_key)) {
+        tbl::add(&mut store.function_keys, pub_key, vec_set::empty());
+    };
+    tbl::borrow_mut(&mut store.function_keys, pub_key)
 }
 
-/// **Disallow** a function key.
-///
-/// Behavior:
-/// - **Aborts** with `EFunctionKeyDoesNotExist` if `fk` is not in the set.
-/// - Otherwise removes it.
-///
-/// Note: `VecSet::remove` consumes a value equal to the element to be removed.
-/// We pass `&fk` for the existence check, then the set consumes an owned copy.
-public fun disallow(self: &mut FunctionKeysStore, fk: &FunctionKey) {
-    assert!(self.function_keys.contains(fk), EFunctionKeyDoesNotExist);
-    self.function_keys.remove(fk);
+/// **Allow** a function key for a specific public key.
+public fun allow(store: &mut FunctionKeysStore, pub_key: vector<u8>, fk: FunctionKey) {
+    let entry = ensure_key_entry(store, pub_key);
+    assert!(!entry.contains(&fk), EFunctionKeyAlreadyAdded);
+    entry.insert(fk);
 }
 
-/// Returns `true` iff the function key is currently **allowed**.
-public fun is_allowed(self: &FunctionKeysStore, fk: &FunctionKey): bool {
-    self.function_keys.contains(fk)
+/// **Disallow** a function key for a specific public key.
+public fun disallow(store: &mut FunctionKeysStore, pub_key: vector<u8>, fk: &FunctionKey) {
+    assert!(tbl::contains(&store.function_keys, pub_key), EPublicKeyNotFound);
+    let entry = tbl::borrow_mut(&mut store.function_keys, pub_key);
+    assert!(entry.contains(fk), EFunctionKeyDoesNotExist);
+    entry.remove(fk);
 }
 
-/// Extracts a `FunctionKey` from a PTB `Command`.
-///
-/// Precondition: `cmd` **must** be a `MoveCall`. The authenticator guarantees
-/// PTB command shape; this helper focuses on decoding the Command.
-///
-/// Implementation detail:
-/// - `move_call_data(cmd)` exposes `(package_id, module_name, function_name)`
-/// - We convert `package_id` → `address`, and `.as_bytes()` for the names.
-///
+/// Query: is `fk` allowed for `pub_key`?
+public fun is_allowed(store: &FunctionKeysStore, pub_key: vector<u8>, fk: &FunctionKey): bool {
+    if (!tbl::contains(&store.function_keys, pub_key)) return false;
+    let entry = tbl::borrow(&store.function_keys, pub_key);
+    entry.contains(fk)
+}
+
+// =========================
+// PTB helper
+// =========================
+
+/// Extracts a canonical `FunctionKey` from a PTB `Command::MoveCall`.
 public fun extract_func_key(cmd: &Command): FunctionKey {
-    let prog_move_call = move_call_data(cmd);
-    let package = prog_move_call.package_id().to_address();
-    let module_name = prog_move_call.module_name().as_bytes();
-    let function_name = prog_move_call.function_name().as_bytes();
-
+    let mc = move_call_data(cmd);
+    let package = mc.package_id().to_address();
+    let module_name = mc.module_name().as_bytes();
+    let function_name = mc.function_name().as_bytes();
     make_func_key(package, *module_name, *function_name)
 }

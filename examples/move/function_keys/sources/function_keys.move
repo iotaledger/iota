@@ -19,16 +19,17 @@ use function_keys::fk_store::{
     extract_func_key,
     FunctionKey,
     fk_store_key,
-    new_store,
-    borrow_store,
-    borrow_store_mut,
-    store_exists,
+    new_fk_store,
+    borrow_fk_store,
+    borrow_fk_store_mut,
+    fk_store_exists,
     allow,
     disallow,
     is_allowed
 };
 use iota::auth_context::AuthContext;
-use iotaccount::basic_keyed_account::authenticate_ed25519;
+use iota::ed25519;
+use iota::hex::decode;
 use iotaccount::iotaccount::IOTAccount;
 
 // --------------------
@@ -43,48 +44,51 @@ const EFunctionKeysNotInitialized: u64 = 2;
 const EInvalidAmountOfCommands: u64 = 3;
 /// Called function not in the allow-set.
 const EUnauthorized: u64 = 4;
+/// Ed225519 verification has failed.
+const EEd25519VerificationFailed: u64 = 5;
 
 /// Initializes the Function Keys store under the given `account`.
 public fun create(account: &mut IOTAccount, ctx: &mut TxContext) {
     assert!(!account.has_field(fk_store_key()), EFunctionKeysAlreadyInitialized);
-
-    let fk_store = new_store();
+    let fk_store = new_fk_store(ctx);
     account.add_field(fk_store_key(), fk_store, ctx);
 }
 
-/// Grants (allows) a `FunctionKey` for this account.
-///
-/// Behavior:
-/// - Aborts if the store is not initialized (`create` not called).
-/// - Aborts if `func_key` already present (via `fk_store::allow`).
-public fun grant_permission(account: &mut IOTAccount, func_key: FunctionKey, ctx: &mut TxContext) {
+/// Grants (allows) a `FunctionKey` under a specific `pub_key`.
+/// - Only the account owner may mutate their DF.
+public fun grant_permission(
+    account: &mut IOTAccount,
+    pub_key: vector<u8>,
+    func_key: FunctionKey,
+    ctx: &mut TxContext,
+) {
     account.ensure_tx_sender_is_account(ctx);
-    assert!(store_exists(account), EFunctionKeysNotInitialized);
+    assert!(fk_store_exists(account), EFunctionKeysNotInitialized);
 
-    let fk_store = borrow_store_mut(account, ctx);
-    fk_store.allow(func_key);
+    let fk_store = borrow_fk_store_mut(account, ctx);
+    fk_store.allow(pub_key, func_key);
 }
 
-/// Revokes (disallows) a `FunctionKey` for this account.
-///
-/// Behavior:
-/// - Aborts if missing (via `fk_store::disallow`).
-///
-public fun revoke_permission(account: &mut IOTAccount, func_key: &FunctionKey, ctx: &TxContext) {
+/// Revokes (disallows) a `FunctionKey` under a specific `pub_key`.
+public fun revoke_permission(
+    account: &mut IOTAccount,
+    pub_key: vector<u8>,
+    func_key: &FunctionKey,
+    ctx: &TxContext,
+) {
     account.ensure_tx_sender_is_account(ctx);
-    assert!(store_exists(account), EFunctionKeysNotInitialized);
+    assert!(fk_store_exists(account), EFunctionKeysNotInitialized);
 
-    let fk_store = borrow_store_mut(account, ctx);
-    fk_store.disallow(func_key);
+    let fk_store = borrow_fk_store_mut(account, ctx);
+    fk_store.disallow(pub_key, func_key);
 }
 
-/// Read-only query for membership in the allow-set.
-public fun has_permission(account: &IOTAccount, func_key: &FunctionKey): bool {
-    if (!store_exists(account)) return false;
-    let fk_store = borrow_store(account);
-    fk_store.is_allowed(func_key)
+/// Read-only query for membership in the per-pubkey allow-set.
+public fun has_permission(account: &IOTAccount, pub_key: vector<u8>, func_key: &FunctionKey): bool {
+    if (!fk_store_exists(account)) return false;
+    let fk_store = borrow_fk_store(account);
+    fk_store.is_allowed(pub_key, func_key)
 }
-
 // --------------------
 // Authenticator
 // --------------------
@@ -105,18 +109,23 @@ public fun has_permission(account: &IOTAccount, func_key: &FunctionKey): bool {
 /// - `EUnauthorized` if the call target isn’t allowed.
 public fun authenticate(
     account: &IOTAccount,
+    pub_key: vector<u8>,
     signature: vector<u8>,
     auth_ctx: &AuthContext,
     ctx: &TxContext,
 ) {
-    assert!(store_exists(account), EFunctionKeysNotInitialized);
+    assert!(fk_store_exists(account), EFunctionKeysNotInitialized);
 
-    authenticate_ed25519(account, signature, auth_ctx, ctx);
+    // Check the signature.
+    assert!(
+        ed25519::ed25519_verify(&decode(signature), &pub_key, ctx.digest()),
+        EEd25519VerificationFailed,
+    );
 
     // PTB MUST contain exactly one command.
     assert!(auth_ctx.tx_commands().length() == 1, EInvalidAmountOfCommands);
 
     let func_key = extract_func_key(&auth_ctx.tx_commands()[0]);
-    let store = borrow_store(account);
-    assert!(store.is_allowed(&func_key), EUnauthorized);
+    let fk_store = borrow_fk_store(account);
+    assert!(fk_store.is_allowed(pub_key, &func_key), EUnauthorized);
 }

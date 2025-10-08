@@ -40,7 +40,7 @@ fun test_fk_authenticate_happy_path() {
     let account_address = create_iotaccount_with_pk_for_testing(scenario, ed25519_pk);
     let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
 
-    // TX 1: init store + grant permission
+    // TX 1: init store + grant permission for this pub_key
     scenario.next_tx(account_address);
     {
         let mut account = scenario.take_shared<IOTAccount>();
@@ -49,9 +49,9 @@ fun test_fk_authenticate_happy_path() {
         // initialize FK store
         function_keys::create(&mut account, ctx);
 
-        // allow @0x123::wallet::withdraw
+        // allow @0x123::wallet::withdraw for ed25519_pk
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
-        function_keys::grant_permission(&mut account, fk, ctx);
+        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
 
         scen::return_shared(account);
     };
@@ -78,7 +78,8 @@ fun test_fk_authenticate_happy_path() {
 
         function_keys::authenticate(
             &account,
-            hex::encode(signature), // hex-encode, like iotaccount tests
+            ed25519_pk,
+            hex::encode(signature),
             &auth_ctx,
             &ctx,
         );
@@ -109,9 +110,9 @@ fun test_fk_authenticate_unauthorized() {
         let ctx = scen::ctx(scenario);
         function_keys::create(&mut account, ctx);
 
-        // allow withdraw only
+        // allow withdraw only for this pub_key
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
-        function_keys::grant_permission(&mut account, fk, ctx);
+        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
 
         scen::return_shared(account);
     };
@@ -139,6 +140,7 @@ fun test_fk_authenticate_unauthorized() {
 
         function_keys::authenticate(
             &account,
+            ed25519_pk,
             hex::encode(signature),
             &auth_ctx,
             &ctx,
@@ -171,7 +173,7 @@ fun test_fk_authenticate_too_many_commands() {
         function_keys::create(&mut account, ctx);
 
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
-        function_keys::grant_permission(&mut account, fk, ctx);
+        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
 
         scen::return_shared(account);
     };
@@ -207,6 +209,7 @@ fun test_fk_authenticate_too_many_commands() {
 
         function_keys::authenticate(
             &account,
+            ed25519_pk,
             hex::encode(signature),
             &auth_ctx,
             &ctx,
@@ -239,8 +242,8 @@ fun test_fk_revoke_then_fails() {
 
         function_keys::create(&mut account, ctx);
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
-        function_keys::grant_permission(&mut account, fk, ctx);
-        function_keys::revoke_permission(&mut account, &fk, ctx);
+        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
+        function_keys::revoke_permission(&mut account, ed25519_pk, &fk, ctx);
 
         scen::return_shared(account);
     };
@@ -268,6 +271,7 @@ fun test_fk_revoke_then_fails() {
 
         function_keys::authenticate(
             &account,
+            ed25519_pk,
             hex::encode(signature),
             &auth_ctx,
             &ctx,
@@ -302,10 +306,10 @@ fun test_fk_double_add_should_fail() {
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
 
         // First add OK
-        function_keys::grant_permission(&mut account, fk, ctx);
+        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
 
-        // Second add must fail with EFunctionKeyAlreadyAdded
-        function_keys::grant_permission(&mut account, fk, ctx);
+        // Second add must fail with EFunctionKeyAlreadyAdded for the same pub_key
+        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
 
         scen::return_shared(account);
     };
@@ -314,7 +318,7 @@ fun test_fk_double_add_should_fail() {
 }
 
 // ----------------------------------------------------------------------------
-// Try to remove function key that hasn't been added → EFunctionKeysNotInitialized
+// Try to remove function key that hasn't been added → EFunctionKeyDoesNotExist
 // ----------------------------------------------------------------------------
 #[test]
 #[expected_failure(abort_code = store::EFunctionKeyDoesNotExist)]
@@ -333,9 +337,13 @@ fun test_fk_remove_missing_should_fail() {
 
         function_keys::create(&mut account, ctx);
 
-        // Try to remove a function key that was never added
+        // Ensure the pub_key bucket exists by granting a different function first
+        let fk_granted = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
+        function_keys::grant_permission(&mut account, ed25519_pk, fk_granted, ctx);
+
+        // Now try to remove a function key that was never added (same pub_key)
         let fk_other = make_func_key(package_id.to_address(), b"wallet", b"deposit");
-        function_keys::revoke_permission(&mut account, &fk_other, ctx);
+        function_keys::revoke_permission(&mut account, ed25519_pk, &fk_other, ctx);
 
         scen::return_shared(account);
     };
@@ -379,6 +387,7 @@ fun test_fk_authenticate_without_init() {
 
         function_keys::authenticate(
             &account,
+            ed25519_pk,
             hex::encode(signature),
             &auth_ctx,
             &ctx,
