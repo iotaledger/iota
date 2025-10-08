@@ -79,30 +79,30 @@ cleanup_and_kill() {
         CLEANED_UP=true
         echo "Stopping all background scripts and validators..."
         kill -- -$$ &> /dev/null   # silently kill all children
-        log "Delegating Docker teardown to external script: $CLEANUP_SCRIPT"
+        echo "Delegating Docker teardown to external script: $CLEANUP_SCRIPT"
 
         if [ -f "$CLEANUP_SCRIPT" ]; then
           if command -v sudo >/dev/null 2>&1; then
-            log "Running teardown with sudo: $CLEANUP_SCRIPT"
+            echo "Running teardown with sudo: $CLEANUP_SCRIPT"
             if ! sudo bash -lc "cd '$NETWORK_DIR' && ./$(basename "$CLEANUP_SCRIPT")"; then
               rc=$?
-              log "ERROR: cleanup script failed with exit code $rc (sudo)"
+              echo "ERROR: cleanup script failed with exit code $rc (sudo)"
             else
-              log "External cleanup script finished successfully (sudo)."
+              echo "External cleanup script finished successfully (sudo)."
             fi
           else
-            log "sudo not found; running teardown without sudo: $CLEANUP_SCRIPT"
+            echo "sudo not found; running teardown without sudo: $CLEANUP_SCRIPT"
             if ! (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT"); then
               rc=$?
-              log "ERROR: cleanup script failed with exit code $rc (no sudo)"
+              echo "ERROR: cleanup script failed with exit code $rc (no sudo)"
             else
-              log "External cleanup script finished successfully (no sudo)."
+              echo "External cleanup script finished successfully (no sudo)."
             fi
           fi
         else
-          log "FATAL: External cleanup script not found at $CLEANUP_SCRIPT. Containers may persist."
+          echo "FATAL: External cleanup script not found at $CLEANUP_SCRIPT. Containers may persist."
         fi
-        log "Containers after cleanup:"
+        echo "Containers after cleanup:"
         docker ps --format 'table {{.Names}}\t{{.Status}}' | tee -a "$LOG_FILE" || true
     fi
 }
