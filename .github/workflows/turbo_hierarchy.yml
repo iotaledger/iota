@@ -71,7 +71,7 @@ jobs:
           if [ -z "$(git status --porcelain)" ]; then
             echo "No sync needed"
           else
-            echo "Sync is needed! Run: 'pnpm codegen` in the root."
+            echo "Sync is needed! Run: 'pnpm codegen' in the root."
             git status
             exit 1
           fi
