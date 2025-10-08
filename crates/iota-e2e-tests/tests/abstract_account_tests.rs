@@ -35,6 +35,8 @@ use test_cluster::{TestCluster, TestClusterBuilder};
 
 const ABSTRACTACCOUNT_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
 const ABSTRACTACCOUNT_MODULE_NAME: &str = "abstract_account";
+const ABSTRACTACCOUNT_CREATE_MODULE_NAME: &str = "basic_keyed_aa";
+const ABSTRACTACCOUNT_AUTHENTICATE_MODULE_NAME: &str = "basic_keyed_aa";
 const ABSTRACTACCOUNT_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
 const ABSTRACTACCOUNT_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
 
@@ -245,7 +247,7 @@ impl TestEnvironment {
             // create auth info
             let arguments = vec![
                 builder.pure(abstractaccount_package_id)?,
-                builder.pure(ABSTRACTACCOUNT_MODULE_NAME)?,
+                builder.pure(ABSTRACTACCOUNT_AUTHENTICATE_MODULE_NAME)?,
                 builder.pure(authenticate_fn_name)?,
             ];
             if let Argument::Result(authenticator_info_v1) = builder.programmable_move_call(
@@ -262,7 +264,7 @@ impl TestEnvironment {
                 ];
                 builder.programmable_move_call(
                     abstractaccount_package_id,
-                    ident_str!(ABSTRACTACCOUNT_MODULE_NAME).to_owned(),
+                    ident_str!(ABSTRACTACCOUNT_CREATE_MODULE_NAME).to_owned(),
                     ident_str!("create").to_owned(),
                     vec![],
                     arguments,

@@ -6,8 +6,6 @@ module abstract_account::abstract_account;
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::dynamic_field;
 
-// === Imports ===
-
 // === Errors ===
 
 #[error(code = 0)]
@@ -25,19 +23,15 @@ const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be sign
 /// add the desired authenticator info and dynamic fields.
 public struct AbstractAccountBuilder {
     account: AbstractAccount,
-    cap: AbstractCap,
 }
 
-/// This struct represents an abstract account. It holds all the related data as dynamic fields
-/// to simplify updates, migrations and extensions.
+/// This struct represents an abstract account.
+///
+/// It holds all the related data as dynamic fields to simplify updates, migrations and extensions.
+/// Arbitrary dynamic fields may be added and removed as necessary.
 ///
 /// An `AbstractAccount` cannot be constructed directly. To create an `AbstractAccount` use `AbstractAccountBuilder`.
 public struct AbstractAccount has key {
-    id: UID,
-}
-
-/// This struct represents an admin capability that can be used to prove ownership of an account.
-public struct AbstractCap has key, store {
     id: UID,
 }
 
@@ -49,36 +43,33 @@ public struct AbstractCap has key, store {
 
 /// Construct an AbstractAccountBuilder and set the Authenticator.
 ///
-/// The `AuthenticatorInfo` will be attached as a dynamic field under key provided by:
-/// `account::authenticator_df_name()`.
+/// The `AuthenticatorInfo` will be attached to the account being built.
 public fun builder(
     authenticator: AuthenticatorInfoV1,
     ctx: &mut TxContext,
 ): AbstractAccountBuilder {
-    // Builder should be mutable, but that triggers a compiler warning and it works
-    // without for some reason, so it has been removed.
-    let builder = AbstractAccountBuilder {
+    let mut builder = AbstractAccountBuilder {
         account: AbstractAccount { id: object::new(ctx) },
-        cap: AbstractCap { id: object::new(ctx) },
     };
-    builder.add_dynamic_field(account::authenticator_df_name(), authenticator)
+
+    account::attach_auth_info_v1(&mut builder.account.id, authenticator);
+    builder
 }
 
-/// Attach a `Value` as a regular dynamic field to the builder.
+/// Attach a `Value` as a dynamic field to the account being built.
 public fun add_dynamic_field<Name: copy + drop + store, Value: store>(
     mut self: AbstractAccountBuilder,
     name: Name,
     value: Value,
 ): AbstractAccountBuilder {
     dynamic_field::add(&mut self.account.id, name, value);
-
     self
 }
 
 /// Finish building the `AbstractAccount` and share the object.
-public fun finish(self: AbstractAccountBuilder): (AbstractAccount, AbstractCap) {
-    let AbstractAccountBuilder { account, cap } = self;
-    (account, cap)
+public fun finish(self: AbstractAccountBuilder): AbstractAccount {
+    let AbstractAccountBuilder { account } = self;
+    account
 }
 
 /// Share AbstractAccount.
@@ -86,20 +77,114 @@ public fun share(self: AbstractAccount) {
     iota::transfer::share_object(self);
 }
 
-public fun uid(self: &AbstractAccount): &UID {
-    &self.id
+/// Adds a new dynamic field to the account.
+///
+/// Only the account itself can call this function.
+public fun add_field<Name: copy + drop + store, Value: store>(
+    self: &mut AbstractAccount,
+    name: Name,
+    value: Value,
+    ctx: &TxContext,
+) {
+    // Check that the sender of this transaction is the account.
+    ensure_tx_sender_is_account(self, ctx);
+
+    // Add a new field.
+    dynamic_field::add(&mut self.id, name, value);
+}
+
+/// Removes a dynamic field from the account.
+///
+/// Only the account itself can call this function.
+public fun remove_field<Name: copy + drop + store, Value: store>(
+    self: &mut AbstractAccount,
+    name: Name,
+    ctx: &TxContext,
+): Value {
+    // Check that the sender of this transaction is the account.
+    ensure_tx_sender_is_account(self, ctx);
+
+    // Remove a new field and return it.
+    dynamic_field::remove(&mut self.id, name)
+}
+
+/// Borrows a mutable reference to a dynamic field from the account.
+///
+/// Only the account itself can call this function.
+public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
+    self: &mut AbstractAccount,
+    name: Name,
+    ctx: &TxContext,
+): &mut Value {
+    // Check that the sender of this transaction is the account.
+    ensure_tx_sender_is_account(self, ctx);
+
+    // Borrow the related dynamic field.
+    dynamic_field::borrow_mut(&mut self.id, name)
+}
+
+/// Rotate a dynamic field.
+///
+/// Only the account itself can call this function.
+/// This function cannot change the type of the stored `Value`.
+public fun rotate_field<Name: copy + drop + store, Value: store>(
+    self: &mut AbstractAccount,
+    name: Name,
+    value: Value,
+    ctx: &TxContext,
+): Value {
+    ensure_tx_sender_is_account(self, ctx);
+
+    let account_id = &mut self.id;
+    let previous_value = dynamic_field::remove<_, Value>(account_id, name);
+    dynamic_field::add(account_id, name, value);
+    previous_value
+}
+
+/// Rotate the attached authenticator.
+///
+/// Only the account itself can call this function.
+public fun rotate_auth_info_v1(
+    self: &mut AbstractAccount,
+    authenticator: AuthenticatorInfoV1,
+    ctx: &TxContext,
+): AuthenticatorInfoV1 {
+    ensure_tx_sender_is_account(self, ctx);
+
+    account::rotate_auth_info_v1(&mut self.id, authenticator)
+}
+
+// === Public-View Functions ===
+
+/// Return the account's address.
+public fun account_address(self: &AbstractAccount): address {
+    self.id.to_address()
+}
+
+/// Borrows a reference to a dynamic field from the account.
+///
+/// This function is not gated to be called only by the account,
+/// anybody can call it to read the account dynamic fields.
+public fun borrow_field<Name: copy + drop + store, Value: store>(
+    self: &AbstractAccount,
+    name: Name,
+): &Value {
+    dynamic_field::borrow(&self.id, name)
+}
+
+/// Returns `true` if and only if `self` has a dynamic field with the specified `name`.
+public fun has_field<Name: copy + drop + store>(self: &AbstractAccount, name: Name): bool {
+    dynamic_field::exists_(&self.id, name)
+}
+
+/// Borrows a reference to the attached `AuthenticatorInfoV1` instance.
+/// This function is not gated to be called only by the account,
+/// anybody can call it to read the attached authenticator.
+public fun borrow_auth_info_v1(self: &AbstractAccount): &AuthenticatorInfoV1 {
+    account::borrow_auth_info_v1(&self.id)
 }
 
 // === Admin Functions ===
-
-public fun create_abstract_cap(self: &mut AbstractAccount, ctx: &mut TxContext): AbstractCap {
-    ensure_tx_sender_is_account(self, ctx);
-    AbstractCap { id: object::new(ctx) }
-}
-
-public fun uid_mut(self: &mut AbstractAccount, _: &AbstractCap): &mut UID {
-    &mut self.id
-}
 
 /// Check that the sender of this transaction is the account.
 public fun ensure_tx_sender_is_account(self: &AbstractAccount, ctx: &TxContext) {

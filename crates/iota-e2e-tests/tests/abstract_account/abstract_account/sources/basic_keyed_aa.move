@@ -1,17 +1,15 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module abstract_account::basic_keyed_account;
+module abstract_account::basic_keyed_aa;
 
+use abstract_account::abstract_account::{Self, AbstractAccount, ensure_tx_sender_is_account};
 use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
-use iota::dynamic_field;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
 use iota::hex::decode;
-
-// === Imports ===
 
 // === Errors ===
 
@@ -21,8 +19,6 @@ const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verificat
 const ESecp256k1VerificationFailed: vector<u8> = b"Secp256k1 authenticator verification failed.";
 #[error(code = 2)]
 const ESecp256r1VerificationFailed: vector<u8> = b"Secp256r1 authenticator verification failed.";
-#[error(code = 3)]
-const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be signed by the account.";
 
 // === Constants ===
 
@@ -49,13 +45,32 @@ public struct OwnerPublicKey has copy, drop, store {}
 /// - `authenticate_ed25519`
 /// - `authenticate_secp256k1`
 /// - `authenticate_secp256r1`
-public fun create(uid: &mut UID, public_key: vector<u8>) {
-    dynamic_field::add(uid, OwnerPublicKey {}, public_key);
+public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
+    let account = abstract_account::builder(authenticator, ctx)
+        .add_dynamic_field(OwnerPublicKey {}, public_key)
+        .finish();
+    account.share();
+}
+
+/// Rotates the account owner public key to a new one as well as the authenticator.
+/// Once this function is called, the previous public key and authenticator are no longer valid.
+/// Only the account itself can call this function.
+public fun rotate_public_key(
+    account: &mut AbstractAccount,
+    public_key: vector<u8>,
+    authenticator: AuthenticatorInfoV1,
+    ctx: &TxContext,
+) {
+    // Update the account owner public key dynamic field. It is expected that the field already exists.
+    account.rotate_field(OwnerPublicKey {}, public_key, ctx);
+
+    // Update the account owner public key dynamic field. It is expected that the field already exists.
+    account.rotate_auth_info_v1(authenticator, ctx);
 }
 
 /// Ed25519 signature authenticator.
 public fun authenticate_ed25519(
-    account: &UID,
+    account: &AbstractAccount,
     signature: vector<u8>,
     _: &AuthContext,
     ctx: &TxContext,
@@ -72,7 +87,7 @@ public fun authenticate_ed25519(
 
 /// Secp256k1 signature authenticator.
 public fun authenticate_secp256k1(
-    account: &UID,
+    account: &AbstractAccount,
     signature: vector<u8>,
     _: &AuthContext,
     ctx: &TxContext,
@@ -89,7 +104,7 @@ public fun authenticate_secp256k1(
 
 /// Secp256r1 signature authenticator.
 public fun authenticate_secp256r1(
-    account: &UID,
+    account: &AbstractAccount,
     signature: vector<u8>,
     _: &AuthContext,
     ctx: &TxContext,
@@ -104,36 +119,20 @@ public fun authenticate_secp256r1(
     );
 }
 
-/// Rotates the account owner public key to a new one as well as the authenticator.
-/// Once this function is called, the previous public key and authenticator are no longer valid.
-/// Only the account itself can call this function.
-public fun rotate_public_key(
-    uid: &mut UID,
-    public_key: vector<u8>,
-    _authenticator: AuthenticatorInfoV1,
-): vector<u8> {
-    // Update the account owner public key dynamic field. It is expected that the field already exists.
-    let previous_value = dynamic_field::remove<_, vector<u8>>(uid, OwnerPublicKey {});
-    dynamic_field::add(uid, OwnerPublicKey {}, public_key);
-
-    // Update the account owner public key dynamic field. It is expected that the field already exists.
-    //account::rotate_auth_info_v1(uid, authenticator);
-
-    previous_value
+/// Free access, do nothing.
+public fun authenticate_free_access(self: &AbstractAccount, _: &AuthContext, ctx: &TxContext) {
+    // Check that the sender of this transaction is the account.
+    ensure_tx_sender_is_account(self, ctx);
 }
 
 // === View Functions ===
 
 /// An utility function to borrow the account-related public key.
-public fun borrow_public_key(uid: &UID): &vector<u8> {
-    dynamic_field::borrow(uid, OwnerPublicKey {})
+public fun borrow_public_key(account: &AbstractAccount): &vector<u8> {
+    account.borrow_field(OwnerPublicKey {})
 }
 
 // === Admin Functions ===
-
-fun ensure_tx_sender_is_account(uid: &UID, ctx: &TxContext) {
-    assert!(uid.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
-}
 
 // === Package Functions ===
 
