@@ -13,6 +13,7 @@ use iota_indexer::{
     models::transactions::{OptimisticTransaction, StoredTransaction},
     schema::{transactions, tx_digests},
 };
+use iota_json_rpc_api::ReadApiClient;
 use iota_types::{
     base_types::IotaAddress as NativeIotaAddress,
     effects::TransactionEffects as NativeTransactionEffects,
@@ -30,7 +31,7 @@ use crate::{
     connection::ScanConnection,
     data::{self, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
-    server::watermark_task::Watermark,
+    server::{builder::get_fullnode_client, watermark_task::Watermark},
     types::{
         address::Address,
         base64::Base64,
@@ -86,6 +87,16 @@ pub(crate) enum TransactionBlockInner {
         effects: NativeTransactionEffects,
         events: Vec<NativeEvent>,
     },
+}
+
+impl TransactionBlockInner {
+    /// Returns if the transaction is included in a checkpoint.
+    fn is_checkpointed(&self) -> bool {
+        let TransactionBlockInner::Stored { stored_tx, .. } = &self else {
+            return false;
+        };
+        stored_tx.checkpoint_sequence_number >= 0
+    }
 }
 
 /// An input filter selecting for either system or programmable transactions.
@@ -233,6 +244,35 @@ impl TransactionBlock {
             // Dry run transaction does not have signatures so no sender signed data.
             TransactionBlockInner::DryRun { .. } => None,
         }
+    }
+
+    /// Returns whether the transaction has been indexed on the fullnode.
+    ///
+    /// This makes a request to the fullnode if the transaction is not part of
+    /// a checkpoint to resolve the index status on the node.
+    ///
+    /// However, as this relies on the transaction data being already
+    /// constructed or fetched from the backing database, it only makes
+    /// sense to be used with `Mutation.executeTransactionBlock` on the
+    /// resulting effects.
+    ///
+    /// Otherwise, it is recommended that you use
+    /// `Query.isTransactionIndexedOnNode` for optimal performance.
+    async fn indexed_on_node(&self, ctx: &Context<'_>) -> Result<Option<bool>> {
+        if self.inner.is_checkpointed() {
+            return Ok(Some(true));
+        }
+        let Some(digest) = self.native_signed_data().map(|d| d.digest()) else {
+            // dry-run transactions are never indexed
+            return Ok(Some(false));
+        };
+        let fullnode_client = get_fullnode_client(ctx)?;
+        Ok(Some(
+            fullnode_client
+                .http()
+                .is_transaction_indexed_on_node(digest)
+                .await?,
+        ))
     }
 }
 
