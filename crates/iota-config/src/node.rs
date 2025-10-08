@@ -258,6 +258,15 @@ pub struct NodeConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iota_names_config: Option<IotaNamesConfig>,
+
+    /// Flag to enable the gRPC API.
+    #[serde(default)]
+    pub enable_grpc_api: bool,
+    #[serde(
+        default = "default_grpc_api_config",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub grpc_api_config: Option<iota_grpc_api::Config>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
@@ -565,6 +574,10 @@ pub fn default_admin_interface_address() -> SocketAddr {
 pub fn default_json_rpc_address() -> SocketAddr {
     use std::net::{IpAddr, Ipv4Addr};
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9000)
+}
+
+pub fn default_grpc_api_config() -> Option<iota_grpc_api::Config> {
+    None
 }
 
 pub fn default_concurrency_limit() -> Option<usize> {

@@ -15,7 +15,6 @@ services:
       - "4317:4317" # otlp grpc
       - "4318:4318" # otlp http
       - "9411:9411" # zipkin
-
   prometheus:
     image: prom/prometheus:latest
     command:
@@ -42,7 +41,7 @@ services:
       - GF_AUTH_ANONYMOUS_ENABLED=true
       - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
       - GF_AUTH_DISABLE_LOGIN_FORM=true
-      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor,tempoServiceGraph
     ports:
       - "3000:3000"
 

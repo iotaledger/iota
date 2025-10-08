@@ -114,3 +114,21 @@ To bring up 19 validators and faucet:
 
 - postgres_replica:
   - PostgreSQL: http://127.0.0.1:5433
+
+## Span Tracing with Tempo
+
+To enable span tracing for the nodes, you need to modify the docker-compose.yaml file to include the necessary environment variables for each node.
+
+for example, for fullnode-1, you would add the following environment variables:
+
+```yaml
+- OTLP_ENDPOINT=http://tempo:4317 # The endpoint of the Tempo instance
+- OTEL_SERVICE_NAME=fullnode-1 # A unique name for the service, it could be later used to filter traces in Grafana
+- TRACE_FILTER=warn # The trace filter level, you can adjust it based on your needs
+```
+
+The `TRACE_FILTER` variable follows the rules defined in the [tracing documentation](https://crates.io/crates/tracing-filter).
+
+To trace the **checkpoint lifecycle** only, you can set the `TRACE_FILTER` to `TRACE_FILTER=[checkpoint_received_from_state_sync]=trace,[checkpoint_received_from_consensus]=trace`.
+
+To trace the **transaction lifecycle** only, you can set the `TRACE_FILTER` to `TRACE_FILTER=[handle_consensus_output]=trace,[tx_orchestrator_execute_transaction_block]=trace,[json_rpc_api_execute_transaction_block]=trace`.

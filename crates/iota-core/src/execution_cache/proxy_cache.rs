@@ -19,6 +19,7 @@ use iota_types::{
     storage::{MarkerValue, ObjectKey, ObjectOrTombstone, PackageObject},
     transaction::{VerifiedSignedTransaction, VerifiedTransaction},
 };
+use tracing::instrument;
 
 use super::{
     CheckpointCache, ExecutionCacheCommit, ExecutionCacheConfig, ExecutionCacheMetrics,
@@ -260,6 +261,7 @@ impl ExecutionCacheWrite for ProxyCache {
         delegate_method!(self.try_write_transaction_outputs(epoch_id, tx_outputs))
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,

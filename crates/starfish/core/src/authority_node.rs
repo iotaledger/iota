@@ -323,6 +323,7 @@ mod tests {
     #![allow(non_snake_case)]
 
     use std::{
+        cmp::max,
         collections::{BTreeMap, BTreeSet},
         sync::Arc,
         time::Duration,
@@ -423,7 +424,7 @@ mod tests {
             authorities.push(authority);
         }
 
-        const NUM_TRANSACTIONS: u8 = 15;
+        const NUM_TRANSACTIONS: u8 = 24;
         let mut submitted_transactions = BTreeSet::<Vec<u8>>::new();
         for i in 0..NUM_TRANSACTIONS {
             let txn = vec![i; 16];
@@ -475,7 +476,7 @@ mod tests {
             .await;
 
         // Add some new transactions while authority 0 is down.
-        const BIG_NUM_TRANSACTIONS: u8 = 100;
+        const BIG_NUM_TRANSACTIONS: u8 = 120;
         for i in NUM_TRANSACTIONS..BIG_NUM_TRANSACTIONS {
             let txn = vec![i; 16];
             submitted_transactions.insert(txn.clone());
@@ -522,7 +523,7 @@ mod tests {
         let mut last_committed_index = vec![0; num_of_authorities];
         let mut last_round_committed_blocks = vec![0; num_of_authorities];
         loop {
-            if start_time.elapsed() > Duration::from_secs(30) {
+            if start_time.elapsed() > Duration::from_secs(40) {
                 break;
             }
             for (index, receiver) in output_receivers.iter_mut().enumerate() {
@@ -536,7 +537,8 @@ mod tests {
                         for block in &committed_subdag.blocks {
                             if block.round() > GENESIS_ROUND {
                                 let author_index = block.author();
-                                last_round_committed_blocks[author_index] = block.round();
+                                last_round_committed_blocks[author_index] =
+                                    max(last_round_committed_blocks[author_index], block.round());
                             }
                         }
 
@@ -551,6 +553,7 @@ mod tests {
                             }
                         }
                         let commit_index = committed_subdag.commit_ref.index;
+                        assert!(last_committed_index[index] < commit_index);
                         last_committed_index[index] = commit_index;
                         consumer_monitors[index].set_highest_handled_commit(commit_index);
                     } else {
@@ -571,7 +574,7 @@ mod tests {
         let max_commit_index = last_committed_index.iter().max().unwrap();
         assert!(
             max_commit_index - min_commit_index < 5,
-            "Commit indices are not close enough: min = {min_commit_index}, max = {max_commit_index}",
+            "Commit indices are not close enough: min = {min_commit_index}, max = {max_commit_index}, all = {last_committed_index:?}"
         );
 
         // Expect that all transactions were submitted and processed.
@@ -586,7 +589,7 @@ mod tests {
         let max_round = last_round_committed_blocks.iter().max().unwrap();
         assert!(
             max_round - min_round < 5,
-            "Committed block rounds are not close enough: min = {min_round}, max = {max_round}",
+            "Committed block rounds are not close enough: min = {min_round}, max = {max_round}, all = {last_round_committed_blocks:?}"
         );
     }
 

@@ -707,13 +707,13 @@ impl IndexStore {
                     let iter = self
                         .tables
                         .transaction_order
-                        .iter_with_bounds(Some(cursor.unwrap_or(TxSequenceNumber::MIN)), None)
+                        .safe_iter_with_bounds(Some(cursor.unwrap_or(TxSequenceNumber::MIN)), None)
                         .skip(usize::from(cursor.is_some()))
-                        .map(|(_, digest)| digest);
+                        .map(|result| result.map(|(_, digest)| digest));
                     if let Some(limit) = limit {
-                        Ok(iter.take(limit).collect())
+                        Ok(iter.take(limit).collect::<Result<Vec<_>, _>>()?)
                     } else {
-                        Ok(iter.collect())
+                        Ok(iter.collect::<Result<Vec<_>, _>>()?)
                     }
                 }
             }
@@ -834,7 +834,7 @@ impl IndexStore {
             TxSequenceNumber::MIN
         });
 
-        let max_string = "Z".repeat(self.max_type_length.try_into().unwrap());
+        let max_string = "z".repeat(self.max_type_length.try_into().unwrap());
         let module_val = module.clone().unwrap_or(if reverse {
             max_string.clone()
         } else {
@@ -919,12 +919,14 @@ impl IndexStore {
         } else {
             self.tables
                 .event_order
-                .iter_with_bounds(Some((tx_seq, event_seq)), None)
+                .safe_iter_with_bounds(Some((tx_seq, event_seq)), None)
                 .take(limit)
-                .map(|((_, event_seq), (digest, tx_digest, time))| {
-                    (digest, tx_digest, event_seq, time)
+                .map(|result| {
+                    result.map(|((_, event_seq), (digest, tx_digest, time))| {
+                        (digest, tx_digest, event_seq, time)
+                    })
                 })
-                .collect()
+                .collect::<Result<Vec<_>, _>>()?
         })
     }
 
@@ -1657,5 +1659,77 @@ mod tests {
         assert_eq!(balance.num_coins, 7);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_transaction_by_move_function() {
+        use iota_types::base_types::ObjectID;
+        use typed_store::Map;
+
+        let index_store = IndexStore::new(temp_dir(), &Registry::default(), Some(128), false);
+        let db = &index_store.tables.transactions_by_move_function;
+        db.insert(
+            &(
+                ObjectID::new([1; 32]),
+                "mod".to_string(),
+                "f".to_string(),
+                0,
+            ),
+            &[0; 32].into(),
+        )
+        .unwrap();
+        db.insert(
+            &(
+                ObjectID::new([1; 32]),
+                "mod".to_string(),
+                "Z".repeat(128),
+                0,
+            ),
+            &[1; 32].into(),
+        )
+        .unwrap();
+        db.insert(
+            &(
+                ObjectID::new([1; 32]),
+                "mod".to_string(),
+                "f".repeat(128),
+                0,
+            ),
+            &[2; 32].into(),
+        )
+        .unwrap();
+        db.insert(
+            &(
+                ObjectID::new([1; 32]),
+                "mod".to_string(),
+                "z".repeat(128),
+                0,
+            ),
+            &[3; 32].into(),
+        )
+        .unwrap();
+
+        let mut v = index_store
+            .get_transactions_by_move_function(
+                ObjectID::new([1; 32]),
+                Some("mod".to_string()),
+                None,
+                None,
+                None,
+                false,
+            )
+            .unwrap();
+        let v_rev = index_store
+            .get_transactions_by_move_function(
+                ObjectID::new([1; 32]),
+                Some("mod".to_string()),
+                None,
+                None,
+                None,
+                true,
+            )
+            .unwrap();
+        v.reverse();
+        assert_eq!(v, v_rev);
     }
 }

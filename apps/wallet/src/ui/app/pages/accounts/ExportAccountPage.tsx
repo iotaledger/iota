@@ -16,6 +16,7 @@ export function ExportAccountPage() {
     const { data: allAccounts, isPending } = useAccounts();
     const account = allAccounts?.find(({ id }) => accountID === id) || null;
     const isLedgerAccount = account?.type === AccountType.LedgerDerived;
+    const isKeystoneAccount = account?.type === AccountType.KeystoneDerived;
     const backgroundClient = useBackgroundClient();
     const exportMutation = useMutation({
         mutationKey: ['export-account', accountID],
@@ -54,7 +55,7 @@ export function ExportAccountPage() {
                             />
                         </div>
 
-                        {!isLedgerAccount && (
+                        {!isLedgerAccount && !isKeystoneAccount && (
                             <>
                                 {exportMutation.data ? (
                                     <div className="flex flex-col gap-xs">
