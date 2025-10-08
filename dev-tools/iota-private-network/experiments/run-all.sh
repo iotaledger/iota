@@ -66,20 +66,24 @@ cleanup_and_kill() {
         echo "Stopping all background scripts and validators..."
         kill -- -$$ &> /dev/null   # silently kill all children
         log "Delegating Docker teardown to external script: $CLEANUP_SCRIPT"
-            if [ -f "$CLEANUP_SCRIPT" ]; then
-            # Execute the working external script using its correct execution context (sudo/root)
-            # The 'cd' ensures the external script runs in the correct directory for its 'docker compose down'
-              if [ -n "${SUDO_USER:-}" ]; then
-                 # Use sudo -u if the main script was run with sudo, preserving ownership logic
-                sudo -u "$SUDO_USER" -H bash -c "cd '$NETWORK_DIR' && '$CLEANUP_SCRIPT' || true"
-                else
-                  # Run directly if the main script was not run with sudo
-                  (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT") || true
-                fi
-                  log "External cleanup script finished."
-                else
-                  log "FATAL: External cleanup script not found at $CLEANUP_SCRIPT. Containers may persist."
-                fi
+
+        if [ -f "$CLEANUP_SCRIPT" ]; then
+          # Ensure we run cleanup with sufficient docker privileges
+          if [ "$(id -u)" -ne 0 ]; then
+            if command -v sudo >/dev/null 2>&1; then
+              # use sudo to ensure docker socket access
+              sudo bash -lc "cd '$NETWORK_DIR' && '$CLEANUP_SCRIPT'"
+            else
+              (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT")
+            fi
+          else
+            # already root
+            (cd "$NETWORK_DIR" && "$CLEANUP_SCRIPT")
+          fi
+          log "External cleanup script finished."
+        else
+          log "FATAL: External cleanup script not found at $CLEANUP_SCRIPT. Containers may persist."
+        fi
     fi
 }
 
