@@ -1381,7 +1381,7 @@ impl ProtocolConfig {
         assert!(
             !res || (self.track_non_committee_eligible_validators()
                 && self.select_committee_from_eligible_validators()),
-            "select_committee_from_eligible_validators_with_buffer requires track_non_committee_eligible_validators to be set"
+            "select_committee_supporting_next_epoch_version requires select_committee_from_eligible_validators to be set"
         );
         res
     }
