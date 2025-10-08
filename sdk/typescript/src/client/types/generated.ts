@@ -1081,7 +1081,7 @@ export interface MoveCallMetrics {
     rank7Days: [MoveFunctionName, string][];
 }
 export interface MoveCallParams {
-    arguments: unknown[];
+    arguments: PtbInput[];
     function: string;
     module: string;
     packageObjectId: string;
@@ -1497,6 +1497,7 @@ export type ProtocolConfigValue =
     | {
           bool: string;
       };
+export type PtbInput = IotaArgument | unknown;
 export type PublicKey =
     | {
           Ed25519: string;
