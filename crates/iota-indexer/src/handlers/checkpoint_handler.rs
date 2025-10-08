@@ -42,11 +42,9 @@ use crate::{
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
     },
-    rolling::{
-        persist::{CheckpointDataToCommit, start_tx_checkpoint_commit_task},
-        transform::CheckpointObjectChanges,
-    },
+    persist::{CheckpointDataToCommit, start_tx_checkpoint_commit_task},
     store::{IndexerStore, PgIndexerStore},
+    transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
         IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,

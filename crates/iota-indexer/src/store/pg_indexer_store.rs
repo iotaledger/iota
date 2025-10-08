@@ -25,7 +25,7 @@ use tracing::info;
 use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
 use crate::{
     db::ConnectionPool,
-    errors::{Context, IndexerError},
+    errors::{Context, IndexerError, IndexerResult},
     handlers::{EpochToCommit, TransactionObjectChangesToCommit},
     insert_or_ignore_into,
     metrics::IndexerMetrics,
@@ -47,13 +47,6 @@ use crate::{
     },
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
     persist_chunk_into_table_in_existing_connection, read_only_blocking,
-    rolling::{
-        error::IndexerResult,
-        transform::{
-            CheckpointObjectChanges, LiveObject, RemovedObject,
-            retain_latest_objects_from_checkpoint_batch,
-        },
-    },
     schema::{
         chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
         event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
@@ -65,6 +58,10 @@ use crate::{
     },
     store::IndexerStore,
     transactional_blocking_with_retry,
+    transform::{
+        CheckpointObjectChanges, LiveObject, RemovedObject,
+        retain_latest_objects_from_checkpoint_batch,
+    },
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
         IndexedPackage, IndexedTransaction, TxIndex,

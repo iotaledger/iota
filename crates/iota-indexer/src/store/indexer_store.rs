@@ -15,7 +15,7 @@ use crate::{
         obj_indices::StoredObjectVersion,
         transactions::{CheckpointTxGlobalOrder, OptimisticTransaction},
     },
-    rolling::transform::CheckpointObjectChanges,
+    transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
     },

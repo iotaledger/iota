@@ -15,8 +15,8 @@ use crate::{
     handlers::{EpochToCommit, TransactionObjectChangesToCommit},
     metrics::IndexerMetrics,
     models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
-    rolling::transform::CheckpointObjectChanges,
     store::{IndexerStore, PgIndexerStore},
+    transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction,
         IndexerResult, TxIndex,
