@@ -120,6 +120,8 @@ cleanup_and_kill() {
           log "FATAL: External cleanup script not found at $CLEANUP_SCRIPT. Containers may persist."
         fi
     fi
+    log "Cleanup complete. Exiting."
+    exit 0
 }
 
 # Kill any lingering spammer processes and remove locks
