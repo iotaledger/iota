@@ -40,7 +40,7 @@ Supports the following flags:
 - `-m`: optional flag to output network metric statistics (packets and bytes).
 - `-S <true|false>`: enable the transaction spammer (default: `false`)
 - `-T <TPS>`: transactions per second used by the spammer (default: `100`)
-- `-o <NUM_OBJECTS>`: number of shared objects per transaction for the spammer (default: `10`)
+- `-Z <TRX_SIZE>`: number of shared objects per transaction for the spammer (default: `10`)
 
 The script should be run from inside the `iota/dev-tools/iota-private-network/experiments/` directory.
 
