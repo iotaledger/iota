@@ -8,8 +8,12 @@ use std::{
     time::Duration,
 };
 
+use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
-use iota_core::consensus_adapter::position_submit_certificate;
+use iota_core::{
+    authority_aggregator::AggregatorSendCapabilityNotificationError,
+    consensus_adapter::position_submit_certificate,
+};
 use iota_json_rpc_types::IotaTransactionBlockEffectsAPI;
 use iota_macros::sim_test;
 use iota_node::IotaNodeHandle;
@@ -17,9 +21,11 @@ use iota_protocol_config::ProtocolConfig;
 use iota_swarm_config::genesis_config::{ValidatorGenesisConfig, ValidatorGenesisConfigBuilder};
 use iota_test_transaction_builder::{TestTransactionBuilder, make_transfer_iota_transaction};
 use iota_types::{
-    base_types::IotaAddress,
+    base_types::{AuthorityName, EpochId, IotaAddress},
+    crypto::{AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature},
     effects::TransactionEffectsAPI,
     error::IotaError,
+    execution_config_utils::to_binary_config,
     gas::GasCostSummary,
     governance::MIN_VALIDATOR_JOINING_STAKE_NANOS,
     iota_system_state::{
@@ -27,10 +33,16 @@ use iota_types::{
         iota_system_state_summary::{IotaSystemStateSummary, get_validator_by_pool_id},
     },
     message_envelope::Message,
-    messages_grpc::HandleCertificateRequestV1,
+    messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
+    messages_grpc::{HandleCapabilityNotificationRequestV1, HandleCertificateRequestV1},
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::{TransactionDataAPI, TransactionExpiration, VerifiedTransaction},
 };
-use rand::rngs::OsRng;
+use rand::{
+    SeedableRng,
+    rngs::{OsRng, StdRng},
+};
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::time::sleep;
 
@@ -625,6 +637,7 @@ async fn test_reconfig_with_committee_change_basic() {
     // and then leave.
 
     let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let new_authority_name = new_validator.authority_key_pair.public().into();
     let address = (&new_validator.account_key_pair.public()).into();
     let mut test_cluster = TestClusterBuilder::new()
         .with_validator_candidates([address])
@@ -633,10 +646,72 @@ async fn test_reconfig_with_committee_change_basic() {
 
     execute_add_validator_transactions(&test_cluster, &new_validator).await;
 
+    // Spawn a new validator immediately so that it can issue AuthorityCapabilities
+    // when a new epoch starts.
+    let new_validator_handle = test_cluster.spawn_new_validator(new_validator).await;
+    new_validator_handle.with(|node| {
+        assert!(
+            !node
+                .state()
+                .is_active_validator(&node.state().epoch_store_for_testing())
+        );
+    });
     test_cluster.force_new_epoch().await;
 
-    // Check that a new validator has joined the committee.
     test_cluster.fullnode_handle.iota_node.with(|node| {
+        assert_eq!(
+            node.state()
+                .epoch_store_for_testing()
+                .active_validators()
+                .len(),
+            5
+        );
+        assert!(
+            node.state()
+                .epoch_store_for_testing()
+                .active_validators()
+                .iter()
+                .any(|pubkey| AuthorityName::from(pubkey) == new_authority_name)
+        );
+        assert_eq!(
+            node.state()
+                .epoch_store_for_testing()
+                .committee()
+                .num_members(),
+            4
+        );
+        assert!(
+            !node
+                .state()
+                .epoch_store_for_testing()
+                .committee()
+                .authority_exists(&new_authority_name)
+        );
+    });
+    test_cluster.wait_for_epoch_all_nodes(1).await;
+
+    new_validator_handle.with(|node| {
+        assert!(
+            node.state()
+                .is_active_validator(&node.state().epoch_store_for_testing())
+        );
+        assert!(
+            !node
+                .state()
+                .is_committee_validator(&node.state().epoch_store_for_testing())
+        );
+    });
+    test_cluster.force_new_epoch().await;
+
+    // Check that a new validator has joined the committee after two epochs.
+    test_cluster.fullnode_handle.iota_node.with(|node| {
+        assert_eq!(
+            node.state()
+                .epoch_store_for_testing()
+                .active_validators()
+                .len(),
+            5
+        );
         assert_eq!(
             node.state()
                 .epoch_store_for_testing()
@@ -644,14 +719,21 @@ async fn test_reconfig_with_committee_change_basic() {
                 .num_members(),
             5
         );
+
+        assert!(
+            node.state()
+                .epoch_store_for_testing()
+                .committee()
+                .authority_exists(&new_authority_name)
+        );
     });
-    let new_validator_handle = test_cluster.spawn_new_validator(new_validator).await;
-    test_cluster.wait_for_epoch_all_nodes(1).await;
+
+    test_cluster.wait_for_epoch_all_nodes(2).await;
 
     new_validator_handle.with(|node| {
         assert!(
             node.state()
-                .is_validator(&node.state().epoch_store_for_testing())
+                .is_committee_validator(&node.state().epoch_store_for_testing())
         );
     });
 
@@ -661,9 +743,25 @@ async fn test_reconfig_with_committee_change_basic() {
         assert_eq!(
             node.state()
                 .epoch_store_for_testing()
+                .active_validators()
+                .len(),
+            4
+        );
+
+        assert_eq!(
+            node.state()
+                .epoch_store_for_testing()
                 .committee()
                 .num_members(),
             4
+        );
+
+        assert!(
+            !node
+                .state()
+                .epoch_store_for_testing()
+                .committee()
+                .authority_exists(&new_authority_name)
         );
     });
 }
@@ -714,20 +812,24 @@ async fn test_reconfig_with_same_validator() {
         .build()
         .await;
 
-    // whether node is in committee in a corresponding epoch
-    // test a few join/leave/join cases
+    // Whether a node is active in a corresponding epoch.
+    // Test a few join/leave/join cases.
+    // This translates to the following schedule of node being in the committee.
+    // due to the required 1 epoch delay is_committee = [false, true, true,
+    // false, false, true, false]
     let node_schedule = [true, true, false, false, true, false, true];
-    // the node initially is not in the committee
-    let mut was_in_committee = false;
+    // the node initially is not active
+    let mut was_active = false;
 
     let mut epoch = 0;
-    for is_in_committee in node_schedule {
-        if !was_in_committee && is_in_committee {
-            // add node to committee
+    for is_active in node_schedule {
+        let is_in_committee = is_active && was_active;
+        if !was_active && is_active {
+            // add node to active validators
             execute_add_validator_transactions(&test_cluster, &build_node_config()).await;
         }
-        if was_in_committee && !is_in_committee {
-            // remove node from committee
+        if was_active && !is_active {
+            // remove node from active validators
             execute_remove_validator_tx(&test_cluster, node_handle.as_ref().unwrap()).await;
         }
 
@@ -735,14 +837,15 @@ async fn test_reconfig_with_same_validator() {
         test_cluster.force_new_epoch().await;
         epoch += 1;
 
-        // check that node has joined or left the committee
+        // check that the node has joined or left the active validator set
         test_cluster.fullnode_handle.iota_node.with(|node| {
             assert_eq!(
-                is_in_committee,
+                is_active,
                 node.state()
                     .epoch_store_for_testing()
-                    .committee()
-                    .authority_exists(&node_name)
+                    .active_validators()
+                    .iter()
+                    .any(|pubkey| AuthorityName::from(pubkey) == node_name)
             );
         });
 
@@ -754,16 +857,22 @@ async fn test_reconfig_with_same_validator() {
         // sync nodes
         test_cluster.wait_for_epoch_all_nodes(epoch).await;
 
-        // the running node acknowledges being or not being a committee member
+        // the running node acknowledges being or not being an active validator and a
+        // committee member
         node_handle.as_ref().unwrap().with(|node| {
+            assert_eq!(
+                is_active,
+                node.state()
+                    .is_active_validator(&node.state().epoch_store_for_testing())
+            );
             assert_eq!(
                 is_in_committee,
                 node.state()
-                    .is_validator(&node.state().epoch_store_for_testing())
+                    .is_committee_validator(&node.state().epoch_store_for_testing())
             );
         });
 
-        was_in_committee = is_in_committee;
+        was_active = is_active;
     }
 }
 
@@ -840,12 +949,38 @@ async fn do_test_reconfig_with_committee_change_stress() {
             .iota_node
             .with(|node| node.state().epoch_store_for_testing().committee().clone());
         cur_epoch = committee.epoch();
-        assert_eq!(committee.num_members(), 7);
-        assert!(committee.authority_exists(&handle1.state().name));
-        assert!(committee.authority_exists(&handle2.state().name));
+        // check that the newly added active validators are not yet in the committee
+        // and the removed validators are no longer in the committee
+        assert_eq!(committee.num_members(), 5);
+        assert!(!committee.authority_exists(&handle1.state().name));
+        assert!(!committee.authority_exists(&handle2.state().name));
         removed_validators
             .iter()
             .all(|v| !committee.authority_exists(v));
+
+        tokio::join!(
+            test_cluster.wait_for_epoch_on_node(
+                &handle1,
+                Some(cur_epoch),
+                Duration::from_secs(300)
+            ),
+            test_cluster.wait_for_epoch_on_node(
+                &handle2,
+                Some(cur_epoch),
+                Duration::from_secs(300)
+            )
+        );
+        // wait for next epoch to ensure that new validators have joined the committee
+        test_cluster.force_new_epoch().await;
+        let committee = test_cluster
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.state().epoch_store_for_testing().committee().clone());
+        cur_epoch = committee.epoch();
+
+        assert_eq!(committee.num_members(), 7);
+        assert!(committee.authority_exists(&handle1.state().name));
+        assert!(committee.authority_exists(&handle2.state().name));
     }
 }
 
@@ -987,6 +1122,152 @@ async fn safe_mode_reconfig_test() {
     assert!(!system_state.safe_mode());
     assert_eq!(system_state.epoch(), 3);
     assert_eq!(system_state.system_state_version(), 2);
+}
+
+#[sim_test]
+async fn test_authority_capabilities_invalid_signature_rejection() {
+    // Test that AuthorityCapabilities signed by a random node (not a validator)
+    // is rejected with a non-retryable error
+    let test_cluster = TestClusterBuilder::new().build().await;
+
+    // Create a random authority key pair that's not a validator
+    let mut rng = StdRng::from_seed([0; 32]);
+
+    let random_authority_key_pair = AuthorityKeyPair::generate(&mut rng);
+    let random_authority_name: AuthorityName = random_authority_key_pair.public().into();
+
+    // Get the current epoch store
+    let epoch_store = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing());
+
+    let config = epoch_store.protocol_config();
+    let binary_config = to_binary_config(config);
+
+    // Create the capability notification
+    let available_system_packages = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| {
+            let state = node.state();
+            async move { state.get_available_system_packages(&binary_config).await }
+        })
+        .await;
+    let capabilities = AuthorityCapabilitiesV1::new(
+        random_authority_name,
+        epoch_store.get_chain_identifier().chain(),
+        SupportedProtocolVersions::SYSTEM_DEFAULT.truncate_below(config.version),
+        available_system_packages,
+    );
+
+    // Sign with the random key pair (not a validator)
+    let signature = AuthoritySignature::new_secure(
+        &IntentMessage::new(
+            Intent::iota_app(IntentScope::AuthorityCapabilities),
+            &capabilities,
+        ),
+        &epoch_store.epoch(),
+        &random_authority_key_pair,
+    );
+
+    let signed_capabilities =
+        SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature);
+
+    let request = HandleCapabilityNotificationRequestV1 {
+        message: signed_capabilities,
+    };
+
+    // Try to send the capability notification
+    let auth_agg = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.clone_authority_aggregator().unwrap());
+
+    let result = auth_agg
+        .send_capability_notification_to_quorum(request)
+        .await;
+
+    // Should fail with non-retryable error
+    assert!(matches!(
+        result,
+        Err(AggregatorSendCapabilityNotificationError::NonRetryableNotification { .. })
+    ));
+}
+
+#[sim_test]
+async fn test_authority_capabilities_incorrect_epoch_rejection() {
+    // Test that SignedAuthorityCapabilities signed with an incorrect epoch
+    // is rejected by the committee
+    let new_validator = ValidatorGenesisConfigBuilder::new().build(&mut OsRng);
+    let new_authority_name = new_validator.authority_key_pair.public().into();
+    let address = (&new_validator.account_key_pair.public()).into();
+    let test_cluster = TestClusterBuilder::new()
+        .with_validator_candidates([address])
+        .build()
+        .await;
+
+    execute_add_validator_transactions(&test_cluster, &new_validator).await;
+    test_cluster.force_new_epoch().await;
+
+    // Get the current epoch store
+    let epoch_store = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.state().epoch_store_for_testing());
+
+    let config = epoch_store.protocol_config();
+    let binary_config = to_binary_config(config);
+    let available_system_packages = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| {
+            let state = node.state();
+            async move { state.get_available_system_packages(&binary_config).await }
+        })
+        .await;
+    // Create the capability notification
+    let capabilities = AuthorityCapabilitiesV1::new(
+        new_authority_name,
+        epoch_store.get_chain_identifier().chain(),
+        SupportedProtocolVersions::SYSTEM_DEFAULT.truncate_below(config.version),
+        available_system_packages,
+    );
+
+    // Sign with INCORRECT epoch (use epoch 0 when we're in epoch 1)
+    let wrong_epoch: EpochId = 0;
+    let signature = AuthoritySignature::new_secure(
+        &IntentMessage::new(
+            Intent::iota_app(IntentScope::AuthorityCapabilities),
+            &capabilities,
+        ),
+        &wrong_epoch, // Wrong epoch!
+        &new_validator.authority_key_pair,
+    );
+
+    let signed_capabilities =
+        SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature);
+
+    let request = HandleCapabilityNotificationRequestV1 {
+        message: signed_capabilities,
+    };
+
+    // Try to send the capability notification
+    let auth_agg = test_cluster
+        .fullnode_handle
+        .iota_node
+        .with(|node| node.clone_authority_aggregator().unwrap());
+
+    let result = auth_agg
+        .send_capability_notification_to_quorum(request)
+        .await;
+
+    // Should fail with signature error due to an incorrect epoch
+    assert!(matches!(
+        result,
+        Err(err) if matches!(&err, AggregatorSendCapabilityNotificationError::NonRetryableNotification { errors }
+            if errors.iter().any(|(e, _, _)| matches!(e, IotaError::InvalidSignature { .. })))
+    ));
 }
 
 async fn add_validator_candidate(

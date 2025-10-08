@@ -440,6 +440,11 @@ type ChangeEpochTransactionV2 {
 	Validators write these packages out when running the transaction.
 	"""
 	systemPackages(first: Int, after: String, last: Int, before: String): MovePackageConnection!
+	"""
+	The list of active validators eligible for committee selection for the
+	next epoch.
+	"""
+	eligibleActiveValidators: [BigInt!]
 }
 
 """

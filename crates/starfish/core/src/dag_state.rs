@@ -16,7 +16,7 @@ use bytes::Bytes;
 use itertools::Itertools as _;
 use starfish_config::AuthorityIndex;
 use tokio::time::Instant;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     block_header::{
@@ -1246,16 +1246,24 @@ impl DagState {
         self.commit_info_to_write
             .push((last_commit.reference(), commit_info));
     }
-
-    /// Takes a batch of at most MAX_HEADERS_PER_BUNDLE unknown headers for the
-    /// given authority, but only from round smaller than
-    /// round_upper_bound_exclusive. Marks these headers as known to the
-    /// authority.
-    pub(crate) fn take_unknown_headers_for_authority(
+    /// Removes and returns up to `MAX_HEADERS_PER_BUNDLE` block references that
+    /// the given authority has not yet seen, limited to rounds strictly
+    /// below `round_upper_bound_exclusive`.
+    ///
+    /// Side effects:
+    /// - Updates `block_headers_not_known_by_authority` so these refs are no
+    ///   longer considered "unknown" for the authority.
+    /// - Marks the given authority as knowing these blocks inside
+    ///   `recent_dag_cordial_knowledge`.
+    ///
+    /// Returns:
+    /// - A vector of `BlockRef`s corresponding to the unknown blocks that were
+    ///   revealed to the authority.
+    fn take_unknown_block_refs_for_authority(
         &mut self,
         authority_index: AuthorityIndex,
         round_upper_bound_exclusive: Round,
-    ) -> Vec<VerifiedBlockHeader> {
+    ) -> Vec<BlockRef> {
         let mut set =
             mem::take(&mut self.block_headers_not_known_by_authority[authority_index.value()]);
 
@@ -1283,6 +1291,104 @@ impl DagState {
                 .expect("We expect block ref to be in recent dag cordial knowledge");
             who_knows_given_block.insert(authority_index);
         }
+        block_refs
+    }
+
+    /// Removes and returns up to `MAX_HEADERS_PER_BUNDLE` block references that
+    /// the given authority has not yet seen, limited to rounds strictly
+    /// below `round_upper_bound_exclusive` and filtered by the provided authors
+    /// `useful_authorities`.
+    ///
+    /// Side effects:
+    /// - Updates `block_headers_not_known_by_authority` so these refs are no
+    ///   longer considered "unknown" for the authority.
+    /// - Marks the given authority as knowing these blocks inside
+    ///   `recent_dag_cordial_knowledge`.
+    ///
+    /// Returns:
+    /// - A vector of `BlockRef`s corresponding to the unknown blocks that were
+    ///   revealed to the authority.
+    fn take_useful_block_refs_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        round_upper_bound_exclusive: Round,
+        useful_authorities: BTreeSet<AuthorityIndex>,
+    ) -> Vec<BlockRef> {
+        let set = &mut self.block_headers_not_known_by_authority[authority_index.value()];
+
+        // Collect candidate block_refs we want to take out
+        let mut to_take = Vec::new();
+
+        for block_ref in set.iter() {
+            if to_take.len() >= MAX_HEADERS_PER_BUNDLE
+                || block_ref.round >= round_upper_bound_exclusive
+            {
+                break;
+            }
+            if useful_authorities.contains(&block_ref.author) {
+                to_take.push(*block_ref);
+            }
+        }
+
+        // Remove the references from the set and update cordial knowledge
+        for block_ref in &to_take {
+            set.remove(block_ref);
+
+            if let Some((_, who_knows_given_block)) = self.recent_dag_cordial_knowledge
+                [block_ref.author.value()]
+            .get_mut(&(block_ref.round, block_ref.digest))
+            {
+                who_knows_given_block.insert(authority_index);
+            } else {
+                warn!("Block_ref {block_ref} missing in recent_dag_cordial_knowledge");
+            }
+        }
+
+        to_take
+    }
+
+    /// Retrieves up to `MAX_HEADERS_PER_BUNDLE` previously unknown block
+    /// headers for the given authority, restricted to rounds strictly below
+    /// `round_upper_bound_exclusive`.
+    ///
+    /// This builds on [`take_unknown_block_refs_for_authority`], resolving the
+    /// returned block references into full `VerifiedBlockHeader`s.
+    ///
+    /// Panics if any of the block headers are missing from `DagState` or disk.
+    pub(crate) fn take_unknown_headers_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        round_upper_bound_exclusive: Round,
+    ) -> Vec<VerifiedBlockHeader> {
+        let block_refs = self
+            .take_unknown_block_refs_for_authority(authority_index, round_upper_bound_exclusive);
+
+        self.get_block_headers(&block_refs)
+            .into_iter()
+            .map(|opt| opt.expect("All headers should be in DagState or on disk"))
+            .collect()
+    }
+    /// Retrieves up to `MAX_HEADERS_PER_BUNDLE` unknown block headers for the
+    /// given authority, but only those authored by peers listed in
+    /// `useful_authorities`. Excludes blocks from other authorities.
+    ///
+    /// This builds on [`take_unknown_block_refs_for_authority`], filtering the
+    /// result with `useful_authorities` and resolving the returned block
+    /// references into full `VerifiedBlockHeader`s.
+    ///
+    /// Panics if any of the block headers are missing from `DagState` or disk.
+    pub(crate) fn take_useful_headers_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        round_upper_bound_exclusive: Round,
+        useful_authorities: BTreeSet<AuthorityIndex>,
+    ) -> Vec<VerifiedBlockHeader> {
+        let block_refs = self.take_useful_block_refs_for_authority(
+            authority_index,
+            round_upper_bound_exclusive,
+            useful_authorities,
+        );
+
         self.get_block_headers(&block_refs)
             .into_iter()
             .map(|opt| opt.expect("All headers should be in DagState or on disk"))

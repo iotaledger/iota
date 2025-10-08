@@ -73,7 +73,10 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 // Version 11: Framework fix regarding candidate validator commission rate.
 // Version 12: Enable the gas price feedback mechanism in all networks.
 //             Enable the normalization of PTB arguments.
-// Version 13: 
+// Version 13: Introduce logic to allow the committee to be selected from a set
+//             of eligible active validators.
+//             Enable processing and tracking AuthorityCapabilitiesV1 from
+//             non-committee validators in the devnet.
 // Version 14: Max authentication gas budget property.
 //             Introduce gas cost for 'check_auth_info_v1_cost_base'.
 
@@ -326,6 +329,29 @@ struct FeatureFlags {
     // `Result`s of length not equal to 1
     #[serde(skip_serializing_if = "is_false")]
     normalize_ptb_arguments: bool,
+
+    // If true, use ChangeEpochV3 for epoch change to pass an additional eligible_active_validators
+    // parameter to IotaSystem's advance_epoch call. This should only be enabled when on-chain
+    // IotaSystem objects are updated as well.
+    #[serde(skip_serializing_if = "is_false")]
+    select_committee_from_eligible_validators: bool,
+
+    // If true, non-committee active validators will sign and send AuthorityCapabilitiesV1 to the
+    // committee. Once the committee reaches consensus over the AuthorityCapabilitiesV1, it is
+    // recorded and possible to use in the committee selection if
+    // select_validators_supporting_next_epoch_version is enabled. This flag does not change the
+    // way that eligible_validators vector is created - still all active validators are used for
+    // selecting the committee.
+    #[serde(skip_serializing_if = "is_false")]
+    track_non_committee_eligible_validators: bool,
+
+    // The committee be selected from active_validators who support the next protocol version AND
+    // have issued a correct AuthorityCapabilities notification. This flag should only be enabled
+    // if both select_committee_from_eligible_validators and
+    // track_non_committee_eligible_validators are enabled. If this is disabled, then all
+    // active validators are used for selecting the committee (default behavior).
+    #[serde(skip_serializing_if = "is_false")]
+    select_committee_supporting_next_epoch_version: bool,
 
     // If true, enables the authentication of account using Move code.
     #[serde(skip_serializing_if = "is_false")]
@@ -1351,6 +1377,32 @@ impl ProtocolConfig {
     pub fn normalize_ptb_arguments(&self) -> bool {
         self.feature_flags.normalize_ptb_arguments
     }
+
+    pub fn select_committee_from_eligible_validators(&self) -> bool {
+        let res = self.feature_flags.select_committee_from_eligible_validators;
+        assert!(
+            !res || (self.protocol_defined_base_fee()
+                && self.max_committee_members_count_as_option().is_some()),
+            "select_committee_from_eligible_validators requires protocol_defined_base_fee and max_committee_members_count to be set"
+        );
+        res
+    }
+
+    pub fn track_non_committee_eligible_validators(&self) -> bool {
+        self.feature_flags.track_non_committee_eligible_validators
+    }
+
+    pub fn select_committee_supporting_next_epoch_version(&self) -> bool {
+        let res = self
+            .feature_flags
+            .select_committee_supporting_next_epoch_version;
+        assert!(
+            !res || (self.track_non_committee_eligible_validators()
+                && self.select_committee_from_eligible_validators()),
+            "select_committee_supporting_next_epoch_version requires select_committee_from_eligible_validators to be set"
+        );
+        res
+    }
 }
 
 #[cfg(not(msim))]
@@ -2169,8 +2221,20 @@ impl ProtocolConfig {
                     // Enable normalization of PTB arguments in all networks.
                     cfg.feature_flags.normalize_ptb_arguments = true;
                 }
-                13 => { 
+                13 => {
+                    // Enable selecting committee based on eligible active validators on all
+                    // networks.
+                    cfg.feature_flags.select_committee_from_eligible_validators = true;
+                    // Enable tracking non-committee eligible active
+                    // validators on all networks.
+                    cfg.feature_flags.track_non_committee_eligible_validators = true;
 
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable selecting committee only from active validators that next epoch
+                        // version and issued valid AuthorityCapabilities notification in devnet.
+                        cfg.feature_flags
+                            .select_committee_supporting_next_epoch_version = true;
+                    }
                 }
                 14 => {
                     // Enable AA in all networks that are not mainnet or testnet.
@@ -2342,6 +2406,18 @@ impl ProtocolConfig {
     pub fn set_congestion_control_gas_price_feedback_mechanism_for_testing(&mut self, val: bool) {
         self.feature_flags
             .congestion_control_gas_price_feedback_mechanism = val;
+    }
+    pub fn set_select_committee_from_eligible_validators_for_testing(&mut self, val: bool) {
+        self.feature_flags.select_committee_from_eligible_validators = val;
+    }
+
+    pub fn set_track_non_committee_eligible_validators_for_testing(&mut self, val: bool) {
+        self.feature_flags.track_non_committee_eligible_validators = val;
+    }
+
+    pub fn set_select_committee_supporting_next_epoch_version(&mut self, val: bool) {
+        self.feature_flags
+            .select_committee_supporting_next_epoch_version = val;
     }
 }
 

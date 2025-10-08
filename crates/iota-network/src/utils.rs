@@ -4,14 +4,14 @@
 
 #[cfg(test)]
 pub fn build_network(f: impl FnOnce(anemo::Router) -> anemo::Router) -> anemo::Network {
-    build_network_impl(f, None).0
+    build_network_impl(f, "localhost:0".into(), None).0
 }
 
 #[cfg(test)]
 pub fn build_network_and_key(
     f: impl FnOnce(anemo::Router) -> anemo::Router,
 ) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
-    build_network_impl(f, None)
+    build_network_impl(f, "localhost:0".into(), None)
 }
 
 #[cfg(test)]
@@ -19,19 +19,37 @@ pub fn build_network_with_anemo_config(
     f: impl FnOnce(anemo::Router) -> anemo::Router,
     anemo_config: anemo::Config,
 ) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
-    build_network_impl(f, Some(anemo_config))
+    build_network_impl(f, "localhost:0".into(), Some(anemo_config))
+}
+
+#[cfg(test)]
+pub fn build_network_with_address(
+    f: impl FnOnce(anemo::Router) -> anemo::Router,
+    address: anemo::types::Address,
+) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
+    build_network_impl(f, address, None)
+}
+
+#[cfg(test)]
+pub fn build_network_with_address_and_anemo_config(
+    f: impl FnOnce(anemo::Router) -> anemo::Router,
+    address: anemo::types::Address,
+    anemo_config: anemo::Config,
+) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
+    build_network_impl(f, address, Some(anemo_config))
 }
 
 #[cfg(test)]
 fn build_network_impl(
     f: impl FnOnce(anemo::Router) -> anemo::Router,
+    address: anemo::types::Address,
     anemo_config: Option<anemo::Config>,
 ) -> (anemo::Network, iota_types::crypto::NetworkKeyPair) {
     use fastcrypto::traits::KeyPair;
 
     let keypair = iota_types::crypto::NetworkKeyPair::generate(&mut rand::thread_rng());
     let router = f(anemo::Router::new());
-    let network = anemo::Network::bind("localhost:0")
+    let network = anemo::Network::bind(address)
         .private_key(keypair.copy().private().0.to_bytes())
         .config(anemo_config.unwrap_or_default())
         .server_name("test")
