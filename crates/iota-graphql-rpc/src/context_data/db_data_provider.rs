@@ -4,9 +4,7 @@
 
 use std::time::Duration;
 
-use iota_indexer::{
-    apis::GovernanceReadApi, db::ConnectionPoolConfig, indexer_reader::IndexerReader,
-};
+use iota_indexer::{apis::GovernanceReadApi, db::ConnectionPoolConfig, read::IndexerReader};
 use iota_json_rpc_types::Stake as RpcStakedIota;
 use iota_types::{
     governance::StakedIota as NativeStakedIota,

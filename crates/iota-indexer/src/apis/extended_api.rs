@@ -14,7 +14,7 @@ use iota_open_rpc::Module;
 use iota_types::iota_serde::BigInt;
 use jsonrpsee::{RpcModule, core::RpcResult};
 
-use crate::indexer_reader::IndexerReader;
+use crate::read::IndexerReader;
 
 pub(crate) struct ExtendedApi {
     inner: IndexerReader,

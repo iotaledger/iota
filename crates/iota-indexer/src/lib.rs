@@ -24,8 +24,8 @@ use crate::{
         ReadApi, TransactionBuilderApi, WriteApi,
     },
     config::JsonRpcConfig,
-    indexer_reader::IndexerReader,
     optimistic_indexing::OptimisticTransactionExecutor,
+    read::IndexerReader,
     store::PgIndexerStore,
 };
 
