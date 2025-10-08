@@ -14,7 +14,6 @@ use anemo::{
 };
 use fastcrypto::ed25519::{Ed25519PublicKey, Ed25519Signature};
 use futures::StreamExt;
-use iota_common::debug_fatal;
 use iota_config::p2p::{AccessType, DiscoveryConfig, P2pConfig, SeedPeer};
 use iota_types::{
     crypto::{NetworkKeyPair, Signer, ToFromBytes, VerifyingKey},
@@ -65,8 +64,6 @@ struct State {
     /// Maps PeerId to the instant when the verification failed.
     /// Can't be spoofed because the peer_id is part of the signed info.
     address_verification_cooldown: HashMap<PeerId, Instant>,
-    /// Instant of the last cooldown cleanup
-    last_cooldown_cleanup: Instant,
 }
 
 /// The information necessary to dial another peer.
@@ -148,6 +145,8 @@ impl DiscoveryEventLoop {
         self.configure_preferred_peers();
 
         let mut interval = tokio::time::interval(self.discovery_config.interval_period());
+        let mut cleanup_interval =
+            tokio::time::interval(self.discovery_config.cooldown_cleanup_interval());
         let mut peer_events = {
             let (subscriber, _peers) = self.network.subscribe().unwrap();
             subscriber
@@ -158,6 +157,9 @@ impl DiscoveryEventLoop {
                 now = interval.tick() => {
                     let now_unix = now_unix();
                     self.handle_tick(now.into_std(), now_unix);
+                }
+                now = cleanup_interval.tick() => {
+                    cleanup_verification_failure_cooldown(&self.state, now.into_std(), &self.discovery_config);
                 }
                 peer_event = peer_events.recv() => {
                     self.handle_peer_event(peer_event);
@@ -476,6 +478,16 @@ async fn verify_address_ownership(
             let address = address.clone();
             Box::pin(async move {
                 if let Ok(anemo_address) = address.to_anemo_address() {
+                    // Check again if we're connected before attempting verification
+                    // to handle race conditions where connection happens during verification
+                    if network.peer(peer_id).is_some() {
+                        debug!(
+                            "Peer {} connected during verification, trusting address {}",
+                            peer_id, address
+                        );
+                        return Some(address);
+                    }
+
                     // Try to connect to the claimed address with the claimed peer_id
                     match tokio::time::timeout(
                         config.address_verification_timeout(),
@@ -568,45 +580,42 @@ async fn try_to_connect_to_seed_peers(
     .await;
 }
 
-/// Deduplicates peer infos based on their serialized representation (including
-/// signature). First groups by PeerId for efficiency, then uses BCS
-/// serialization only when there are multiple entries for the same peer.
-fn deduplicate_peers(peers: Vec<SignedNodeInfo>) -> Vec<SignedNodeInfo> {
-    let peers_count = peers.len();
+/// Wrapper for SignedNodeInfo that implements Hash based on all fields (data +
+/// signature)
+#[derive(Clone, Debug)]
+struct HashableSignedNodeInfo(SignedNodeInfo);
 
-    // First group by PeerId - much more efficient than always serializing
-    let peer_groups = peers.into_iter().fold(
-        HashMap::<PeerId, Vec<SignedNodeInfo>>::with_capacity(peers_count),
-        |mut acc, peer_info| {
-            acc.entry(peer_info.peer_id).or_default().push(peer_info);
-            acc
-        },
-    );
-
-    let mut peers_deduplicated = Vec::with_capacity(peer_groups.len());
-
-    for (_, peer_infos) in peer_groups {
-        match peer_infos.len() {
-            1 => {
-                // No duplicates for this peer - just take the single entry
-                peers_deduplicated.push(peer_infos.into_iter().next().unwrap());
-            }
-            _ => {
-                // Multiple entries for this peer - deduplicate using BCS serialization
-                let peer_deduplicated: HashMap<Vec<u8>, SignedNodeInfo> = peer_infos
-                    .into_iter()
-                    .map(|peer_info| {
-                        let key =
-                            bcs::to_bytes(&peer_info).expect("BCS serialization should not fail");
-                        (key, peer_info)
-                    })
-                    .collect();
-                peers_deduplicated.extend(peer_deduplicated.into_values());
-            }
-        }
+impl std::hash::Hash for HashableSignedNodeInfo {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.peer_id.hash(state);
+        self.0.addresses.hash(state);
+        self.0.timestamp_ms.hash(state);
+        state.write_isize(self.0.access_type as isize);
+        self.0.auth_sig().as_bytes().hash(state);
     }
+}
 
-    peers_deduplicated
+impl PartialEq for HashableSignedNodeInfo {
+    fn eq(&self, other: &Self) -> bool {
+        self.0.peer_id == other.0.peer_id
+            && self.0.addresses == other.0.addresses
+            && self.0.timestamp_ms == other.0.timestamp_ms
+            && self.0.access_type == other.0.access_type
+            && self.0.auth_sig() == other.0.auth_sig()
+    }
+}
+
+impl Eq for HashableSignedNodeInfo {}
+
+/// Deduplicates peer infos based on their complete content (data + signature)
+fn deduplicate_peers(peers: Vec<SignedNodeInfo>) -> Vec<SignedNodeInfo> {
+    peers
+        .into_iter()
+        .map(HashableSignedNodeInfo)
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .map(|wrapped| wrapped.0)
+        .collect()
 }
 
 async fn query_peer_for_their_known_peers(
@@ -630,6 +639,8 @@ async fn query_peer_for_their_known_peers(
                  own_info,
                  mut known_peers,
              }| {
+                // Limit each client to MAX_PEERS_TO_SEND
+                known_peers.truncate(MAX_PEERS_TO_SEND);
                 if !own_info.addresses.is_empty() {
                     known_peers.push(own_info)
                 }
@@ -638,18 +649,11 @@ async fn query_peer_for_their_known_peers(
         );
 
     if let Some(found_peers) = found_peers {
-        // Limit each client to MAX_PEERS_TO_SEND (+1 because of the own_info from the
-        // peer)
-        let limited_peers = found_peers
-            .into_iter()
-            .take(MAX_PEERS_TO_SEND + 1)
-            .collect::<Vec<_>>();
-
         update_known_peers(
             &network,
             state,
             metrics,
-            deduplicate_peers(limited_peers),
+            deduplicate_peers(found_peers),
             allowlisted_peers,
             &config,
         )
@@ -692,15 +696,12 @@ async fn query_connected_peers_for_their_known_peers(
                          own_info,
                          mut known_peers,
                      }| {
+                        // Limit each client to MAX_PEERS_TO_SEND
+                        known_peers.truncate(MAX_PEERS_TO_SEND);
                         if !own_info.addresses.is_empty() {
                             known_peers.push(own_info)
                         }
-                        // Limit each client to MAX_PEERS_TO_SEND (+1 because of the own_info from
-                        // the peer)
                         known_peers
-                            .into_iter()
-                            .take(MAX_PEERS_TO_SEND + 1)
-                            .collect::<Vec<_>>()
                     },
                 )
         })
@@ -733,37 +734,40 @@ fn cleanup_verification_failure_cooldown(
         return;
     }
 
-    // Only run cleanup if enough time has passed since the last cleanup
-    if now_instant.duration_since(state.read().unwrap().last_cooldown_cleanup)
-        < config.cooldown_cleanup_interval()
-    {
-        return;
-    }
+    // First, check with a read lock to see if there are any entries to remove
+    let peers_to_remove: Vec<PeerId> = {
+        let state_guard = state.read().unwrap();
+        let cooldown_duration = config.address_verification_failure_cooldown();
 
-    let mut state_guard = state.write().unwrap();
-    state_guard.last_cooldown_cleanup = now_instant;
+        state_guard
+            .address_verification_cooldown
+            .iter()
+            .filter_map(|(&peer_id, &failure_instant)| {
+                if now_instant.duration_since(failure_instant) >= cooldown_duration {
+                    Some(peer_id)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    };
 
-    // Remove entries that have exceeded the cooldown period
-    let initial_size = state_guard.address_verification_cooldown.len();
-    let cooldown_duration = config.address_verification_failure_cooldown();
-    state_guard
-        .address_verification_cooldown
-        .retain(|peer_id, &mut failure_instant| {
-            let should_retain = now_instant.duration_since(failure_instant) < cooldown_duration;
-            if !should_retain {
-                debug!(
-                    "Removing peer {} from verification failure cooldown",
-                    peer_id
-                );
-            }
-            should_retain
-        });
+    // Only acquire write lock if we actually have entries to remove
+    if !peers_to_remove.is_empty() {
+        let mut state_guard = state.write().unwrap();
 
-    let removed_count = initial_size - state_guard.address_verification_cooldown.len();
-    if removed_count > 0 {
+        // Remove the expired entries
+        for peer_id in &peers_to_remove {
+            state_guard.address_verification_cooldown.remove(peer_id);
+            debug!(
+                "Removing peer {} from verification failure cooldown",
+                peer_id
+            );
+        }
+
         debug!(
             "Cleaned up {} entries from verification failure cooldown",
-            removed_count
+            peers_to_remove.len()
         );
     }
 }
@@ -862,7 +866,7 @@ fn verify_peer_infos(
 
         // Verify the signature
         let Ok(public_key) = Ed25519PublicKey::from_bytes(&peer_info.peer_id.0) else {
-            debug_fatal!(
+            debug!(
                 // This should never happen.
                 "Failed to convert anemo PeerId {:?} to Ed25519PublicKey",
                 peer_info.peer_id
@@ -985,9 +989,6 @@ async fn update_known_peers(
     config: &DiscoveryConfig,
 ) {
     let now_instant = Instant::now();
-
-    // Clean up old entries from the verification failure cooldown
-    cleanup_verification_failure_cooldown(&state, now_instant, config);
 
     // Verify all peer infos and filter out invalid ones, filter by latest timestamp
     // per peer_id. This does not verify address ownership yet.

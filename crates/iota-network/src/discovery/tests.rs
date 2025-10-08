@@ -252,8 +252,6 @@ fn expire_peer_cooldown(state: &Arc<RwLock<State>>, peer_id: &PeerId) {
     if let Some(failure_time) = state_guard.address_verification_cooldown.get_mut(peer_id) {
         *failure_time = std::time::Instant::now() - Duration::from_secs(15 * 60); // 15 minutes ago
     }
-    // Also update last cleanup time to ensure cleanup runs
-    state_guard.last_cooldown_cleanup = std::time::Instant::now() - Duration::from_secs(10 * 60);
 }
 
 /// Helper to update known peers and return the result for testing
@@ -1460,7 +1458,7 @@ async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
     Ok(())
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn test_address_verification_cooldown_and_cleanup() -> Result<()> {
     // This test checks the address verification cooldown mechanism.
 
@@ -1476,8 +1474,11 @@ async fn test_address_verification_cooldown_and_cleanup() -> Result<()> {
     }
     .sign(&key);
 
-    let (_event_loop, _handle, state) = start_network(discovery, network.clone(), key);
+    let (event_loop, _handle, state) = start_network(discovery, network.clone(), key);
     state.write().unwrap().our_info = Some(signed_peer_info);
+
+    // Start the event loop to handle cleanup intervals
+    tokio::spawn(event_loop.start());
 
     // Create a peer with an unreachable address that will fail verification
     let (network_other, key_other) = build_network_and_key(|router| router);
@@ -1541,6 +1542,10 @@ async fn test_address_verification_cooldown_and_cleanup() -> Result<()> {
     // Step 3: Wait for cooldown to pass, re-add peer with valid address
     expire_peer_cooldown(&state, &peer_id_other);
 
+    // Advance time to trigger the cleanup interval (default is 5 minutes = 300
+    // seconds) Add a bit extra to ensure the cleanup runs
+    tokio::time::sleep(Duration::from_secs(500)).await;
+
     update_peers_for_test(&network, state.clone(), vec![signed_peer_info_valid_other]).await;
 
     // Verify peer is processed normally after cooldown expires
@@ -1555,6 +1560,240 @@ async fn test_address_verification_cooldown_and_cleanup() -> Result<()> {
         &peer_id_other,
         false,
         "Peer should not be in verification failure cooldown",
+    );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_peer_deduplication() -> Result<()> {
+    // This test verifies that the deduplicate_peers function correctly handles
+    // each field in NodeInfo individually
+
+    // Create test keypairs
+    let key1 = NetworkKeyPair::generate(&mut rand::thread_rng());
+    let key2 = NetworkKeyPair::generate(&mut rand::thread_rng());
+
+    let peer_id1 = anemo::PeerId(key1.public().as_bytes().try_into().unwrap());
+    let peer_id2 = anemo::PeerId(key2.public().as_bytes().try_into().unwrap());
+
+    let address1: Multiaddr = "/dns/localhost/udp/1111".parse()?;
+    let address2: Multiaddr = "/dns/localhost/udp/2222".parse()?;
+
+    let timestamp1 = now_unix();
+
+    // Base peer info for testing
+    let peer_info_base = NodeInfo {
+        peer_id: peer_id1,
+        addresses: vec![address1.clone()],
+        timestamp_ms: timestamp1,
+        access_type: AccessType::Public,
+    };
+    let signed_peer_base = peer_info_base.clone().sign(&key1);
+    let signed_peer_base_different_key = peer_info_base.sign(&key2); // Same data, different signature
+
+    let peer_info_other = NodeInfo {
+        peer_id: peer_id2,
+        addresses: vec![address2.clone()],
+        timestamp_ms: timestamp1 + 1000,
+        access_type: AccessType::Private,
+    };
+    let signed_peer_other = peer_info_other.sign(&key2);
+
+    let peer_info_different_id = NodeInfo {
+        peer_id: peer_id2, // Different peer ID
+        addresses: vec![address1.clone()],
+        timestamp_ms: timestamp1,
+        access_type: AccessType::Public,
+    };
+    let signed_peer_different_id = peer_info_different_id.sign(&key1);
+
+    let peer_info_different_address = NodeInfo {
+        peer_id: peer_id1,
+        addresses: vec![address2.clone()],
+        timestamp_ms: timestamp1,
+        access_type: AccessType::Public,
+    };
+    let signed_peer_different_address = peer_info_different_address.sign(&key1);
+
+    let peer_info_multiple_addresses = NodeInfo {
+        peer_id: peer_id1,
+        addresses: vec![address1.clone(), address2.clone()],
+        timestamp_ms: timestamp1,
+        access_type: AccessType::Public,
+    };
+    let signed_peer_multiple_addresses = peer_info_multiple_addresses.sign(&key1);
+
+    let peer_info_reordered_addresses = NodeInfo {
+        peer_id: peer_id1,
+        addresses: vec![address2.clone(), address1.clone()],
+        timestamp_ms: timestamp1,
+        access_type: AccessType::Public,
+    };
+    let signed_peer_reordered_addresses = peer_info_reordered_addresses.sign(&key1);
+
+    let peer_info_empty_addresses = NodeInfo {
+        peer_id: peer_id1,
+        addresses: vec![],
+        timestamp_ms: timestamp1,
+        access_type: AccessType::Public,
+    };
+    let signed_peer_empty_addresses = peer_info_empty_addresses.sign(&key1);
+
+    let peer_info_different_timestamp = NodeInfo {
+        peer_id: peer_id1,
+        addresses: vec![address1.clone()],
+        timestamp_ms: timestamp1 + 1000, // Different timestamp
+        access_type: AccessType::Public,
+    };
+    let signed_peer_different_timestamp = peer_info_different_timestamp.sign(&key1);
+
+    let peer_info_different_access_type = NodeInfo {
+        peer_id: peer_id1,
+        addresses: vec![address1.clone()],
+        timestamp_ms: timestamp1,
+        access_type: AccessType::Private, // Different access type
+    };
+    let signed_peer_different_access_type = peer_info_different_access_type.sign(&key1);
+
+    // Test Case 1: Identical peers (same data, same signature) SHOULD be
+    // deduplicated
+    let identical_peers = vec![signed_peer_base.clone(), signed_peer_base.clone()];
+    let result = deduplicate_peers(identical_peers);
+    assert_eq!(
+        result.len(),
+        1,
+        "Identical peers should be deduplicated to 1 peer"
+    );
+
+    // Test Case 2: Different peer_id field should NOT be deduplicated
+    let different_id_peers = vec![signed_peer_base.clone(), signed_peer_different_id];
+    let result = deduplicate_peers(different_id_peers);
+    assert_eq!(
+        result.len(),
+        2,
+        "Peers with different peer_id should NOT be deduplicated"
+    );
+
+    // Test Case 3: Different single address should NOT be deduplicated
+    let different_address_peers = vec![signed_peer_base.clone(), signed_peer_different_address];
+    let result = deduplicate_peers(different_address_peers);
+    assert_eq!(
+        result.len(),
+        2,
+        "Peers with different single address should NOT be deduplicated"
+    );
+
+    // Test Case 4: Different number of addresses should NOT be deduplicated
+    let multiple_addresses_peers = vec![
+        signed_peer_base.clone(),
+        signed_peer_multiple_addresses.clone(),
+    ];
+    let result = deduplicate_peers(multiple_addresses_peers);
+    assert_eq!(
+        result.len(),
+        2,
+        "Peers with different number of addresses should NOT be deduplicated"
+    );
+
+    // Test Case 5: Different address order should NOT be deduplicated
+    let reordered_addresses_peers = vec![
+        signed_peer_multiple_addresses,
+        signed_peer_reordered_addresses,
+    ];
+    let result = deduplicate_peers(reordered_addresses_peers);
+    assert_eq!(
+        result.len(),
+        2,
+        "Peers with different address order should NOT be deduplicated"
+    );
+
+    // Test Case 6: Empty addresses vs non-empty addresses should NOT be
+    // deduplicated
+    let empty_addresses_peers = vec![signed_peer_base.clone(), signed_peer_empty_addresses];
+    let result = deduplicate_peers(empty_addresses_peers);
+    assert_eq!(
+        result.len(),
+        2,
+        "Peers with empty vs non-empty addresses should NOT be deduplicated"
+    );
+
+    // Test Case 7: Different timestamp_ms field should NOT be deduplicated
+    let different_timestamp_peers = vec![
+        signed_peer_base.clone(),
+        signed_peer_different_timestamp.clone(),
+    ];
+    let result = deduplicate_peers(different_timestamp_peers);
+    assert_eq!(
+        result.len(),
+        2,
+        "Peers with different timestamp_ms should NOT be deduplicated"
+    );
+
+    // Test Case 8: Different access_type field should NOT be deduplicated
+    let different_access_type_peers =
+        vec![signed_peer_base.clone(), signed_peer_different_access_type];
+    let result = deduplicate_peers(different_access_type_peers);
+    assert_eq!(
+        result.len(),
+        2,
+        "Peers with different access_type should NOT be deduplicated"
+    );
+
+    // Test Case 9: Different signature (same data, different key) should NOT be
+    // deduplicated
+    let different_signature_peers = vec![signed_peer_base.clone(), signed_peer_base_different_key];
+    let result = deduplicate_peers(different_signature_peers);
+    assert_eq!(
+        result.len(),
+        2,
+        "Peers with same data but different signatures should NOT be deduplicated"
+    );
+
+    // Test Case 10: Edge cases
+    // Empty input should return empty output
+    let empty_result = deduplicate_peers(vec![]);
+    assert_eq!(
+        empty_result.len(),
+        0,
+        "Empty input should return empty output"
+    );
+
+    // Single peer should return single peer
+    let single_input = vec![signed_peer_base.clone()];
+    let single_result = deduplicate_peers(single_input);
+    assert_eq!(
+        single_result.len(),
+        1,
+        "Single input should return single output"
+    );
+
+    // Multiple identical peers should return single peer
+    let multiple_identical = vec![
+        signed_peer_base.clone(),
+        signed_peer_base.clone(),
+        signed_peer_base.clone(),
+    ];
+    let multiple_identical_result = deduplicate_peers(multiple_identical);
+    assert_eq!(
+        multiple_identical_result.len(),
+        1,
+        "Multiple identical peers should be deduplicated to 1 peer"
+    );
+
+    // Test Case 11: Mixed scenario with multiple duplicates and unique peers
+    let mixed_peers = vec![
+        signed_peer_base.clone(),                // Original
+        signed_peer_base.clone(),                // Duplicate of original
+        signed_peer_different_timestamp.clone(), // Different (timestamp)
+        signed_peer_different_timestamp,         // Duplicate of different
+        signed_peer_other,                       // Completely unique
+    ];
+    let mixed_result = deduplicate_peers(mixed_peers);
+    assert_eq!(
+        mixed_result.len(),
+        3,
+        "Mixed duplicates and unique peers should result in 3 unique entries"
     );
 
     Ok(())
