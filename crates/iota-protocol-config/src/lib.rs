@@ -335,11 +335,21 @@ struct FeatureFlags {
     select_committee_from_eligible_validators: bool,
 
     // If true, non-committee active validators will sign and send AuthorityCapabilitiesV1 to the
-    // committee. The committee will track them and include them in the epoch change. If this is
-    // disabled, then all active validators are used for selecting the committee (same as previous
-    // behavior).
+    // committee. Once the committee reaches consensus over the AuthorityCapabilitiesV1, it is
+    // recorded and possible to use in the committee selection if
+    // select_validators_supporting_next_epoch_version is enabled. This flag does not change the
+    // way that eligible_validators vector is created - still all active validators are used for
+    // selecting the committee.
     #[serde(skip_serializing_if = "is_false")]
     track_non_committee_eligible_validators: bool,
+
+    // The committee be selected from active_validators who support the next protocol version AND
+    // have issued a correct AuthorityCapabilities notification. This flag should only be enabled
+    // if both select_committee_from_eligible_validators and
+    // track_non_committee_eligible_validators are enabled. If this is disabled, then all
+    // active validators are used for selecting the committee (default behavior).
+    #[serde(skip_serializing_if = "is_false")]
+    select_committee_supporting_next_epoch_version: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1363,6 +1373,18 @@ impl ProtocolConfig {
     pub fn track_non_committee_eligible_validators(&self) -> bool {
         self.feature_flags.track_non_committee_eligible_validators
     }
+
+    pub fn select_committee_supporting_next_epoch_version(&self) -> bool {
+        let res = self
+            .feature_flags
+            .select_committee_supporting_next_epoch_version;
+        assert!(
+            !res || (self.track_non_committee_eligible_validators()
+                && self.select_committee_from_eligible_validators()),
+            "select_committee_supporting_next_epoch_version requires select_committee_from_eligible_validators to be set"
+        );
+        res
+    }
 }
 
 #[cfg(not(msim))]
@@ -2178,12 +2200,18 @@ impl ProtocolConfig {
                     cfg.feature_flags.normalize_ptb_arguments = true;
                 }
                 13 => {
-                    // Enable selecting committee based on eligible active validators in all
+                    // Enable selecting committee based on eligible active validators on all
                     // networks.
                     cfg.feature_flags.select_committee_from_eligible_validators = true;
+                    // Enable tracking non-committee eligible active
+                    // validators on all networks.
+                    cfg.feature_flags.track_non_committee_eligible_validators = true;
+
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
-                        // Enable tracking non-committee eligible active validators in devnet.
-                        cfg.feature_flags.track_non_committee_eligible_validators = true;
+                        // Enable selecting committee only from active validators that next epoch
+                        // version and issued valid AuthorityCapabilities notification in devnet.
+                        cfg.feature_flags
+                            .select_committee_supporting_next_epoch_version = true;
                     }
                 }
                 // Use this template when making changes:
@@ -2352,6 +2380,11 @@ impl ProtocolConfig {
 
     pub fn set_track_non_committee_eligible_validators_for_testing(&mut self, val: bool) {
         self.feature_flags.track_non_committee_eligible_validators = val;
+    }
+
+    pub fn set_select_committee_supporting_next_epoch_version(&mut self, val: bool) {
+        self.feature_flags
+            .select_committee_supporting_next_epoch_version = val;
     }
 }
 

@@ -4909,9 +4909,9 @@ impl AuthorityState {
             let mut eligible_active_validators = (0..active_validators.len() as u64).collect();
 
             // Use validators supporting the target protocol version as eligible validators
-            // in the next version if track_non_committee_eligible_validators feature flag
-            // is set to true.
-            if config.track_non_committee_eligible_validators() {
+            // in the next version if select_committee_supporting_next_epoch_version feature
+            // flag is set to true.
+            if config.select_committee_supporting_next_epoch_version() {
                 eligible_active_validators = Self::get_validators_supporting_protocol_version(
                     next_epoch_protocol_version,
                     next_epoch_protocol_digest,

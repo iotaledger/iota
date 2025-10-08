@@ -1334,6 +1334,7 @@
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
                 "select_committee_from_eligible_validators": false,
+                "select_committee_supporting_next_epoch_version": false,
                 "track_non_committee_eligible_validators": false,
                 "uncompressed_g1_group_elements": true,
                 "validate_identifier_inputs": false,

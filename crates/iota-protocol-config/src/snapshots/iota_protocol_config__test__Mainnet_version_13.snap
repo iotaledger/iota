@@ -26,6 +26,7 @@ feature_flags:
   additional_multisig_checks: true
   normalize_ptb_arguments: true
   select_committee_from_eligible_validators: true
+  track_non_committee_eligible_validators: true
 max_tx_size_bytes: 131072
 max_input_objects: 2048
 max_size_written_objects: 5000000
