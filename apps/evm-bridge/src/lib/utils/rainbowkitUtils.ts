@@ -35,8 +35,7 @@ interface EIP6963AnnounceProviderEvent extends CustomEvent {
 // Only allow these wallets to be discovered via EIP-6963
 const ALLOWED_WALLET_RDNS = ['io.metamask'];
 
-export function interceptEIP6963Announcements() {
-    // Block EIP-6963 wallet announcements that aren't in the allowed list
+export function interceptProviderAnnouncements() {
     if (typeof window !== 'undefined') {
         const originalAddEventListener = window.addEventListener.bind(window);
 
@@ -50,7 +49,6 @@ export function interceptEIP6963Announcements() {
                 const wrappedListener = function (event: EIP6963AnnounceProviderEvent): void {
                     const detail = event.detail;
                     if (detail?.info?.rdns && !ALLOWED_WALLET_RDNS.includes(detail.info.rdns)) {
-                        // Don't call the listener for non-allowed wallets
                         return;
                     }
 

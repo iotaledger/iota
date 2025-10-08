@@ -27,12 +27,13 @@ import {
 import { EvmRpcClientProvider } from './providers/EvmRpcClientProvider.tsx';
 import { Toaster } from './components/index.ts';
 import { IotaGraphQLClientProvider } from '@iota/core';
-import { growthbook, interceptEIP6963Announcements } from './lib/utils/index.ts';
+import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
 
-// Leave this here to block unwanted wallets from being discovered
-interceptEIP6963Announcements();
+// We intercept EIP-6963 announcements
+// to only allow certain wallets (metamask) to be discovered
+interceptProviderAnnouncements();
 
 growthbook.init();
 
