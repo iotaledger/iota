@@ -1006,6 +1006,7 @@ pub struct TestClusterBuilder {
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
+    disable_address_verification_cooldown: bool,
 }
 
 impl TestClusterBuilder {
@@ -1038,6 +1039,7 @@ impl TestClusterBuilder {
             max_submit_position: None,
             submit_delay_step_override_millis: None,
             validator_state_accumulator_config: StateAccumulatorV1EnabledConfig::Global(true),
+            disable_address_verification_cooldown: false,
         }
     }
 
@@ -1263,6 +1265,14 @@ impl TestClusterBuilder {
         self
     }
 
+    /// Disable address verification cooldown for test environments where nodes
+    /// frequently restart. This prevents nodes from being blocked from
+    /// reconnecting after crashes/restarts.
+    pub fn with_disabled_address_verification_cooldown(mut self) -> Self {
+        self.disable_address_verification_cooldown = true;
+        self
+    }
+
     pub async fn build(mut self) -> TestCluster {
         // We can add a faucet account to the `GenesisConfig` if there was no
         // `NetworkConfig` provided. Only either a `GenesisConfig` or a
@@ -1420,6 +1430,9 @@ impl TestClusterBuilder {
         }
         if let Some(config) = &self.fullnode_grpc_api_config {
             builder = builder.with_fullnode_grpc_api_config(config.clone());
+        }
+        if self.disable_address_verification_cooldown {
+            builder = builder.with_disabled_address_verification_cooldown();
         }
 
         let mut swarm = builder.build();

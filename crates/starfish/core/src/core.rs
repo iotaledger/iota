@@ -391,6 +391,7 @@ impl Core {
     pub(crate) fn add_transactions(
         &mut self,
         transactions: Vec<VerifiedTransactions>,
+        source: &str,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::add_transactions");
         let _s = self
@@ -404,7 +405,7 @@ impl Core {
         // Add transactions to the dag state.
         let mut dag_state_guard = self.dag_state.write();
         for transaction in transactions {
-            dag_state_guard.add_transactions(transaction);
+            dag_state_guard.add_transactions(transaction, source);
         }
         // Safe to drop the guard here as the write/read locks will be asquired in
         // commit_observer
@@ -681,6 +682,25 @@ impl Core {
             .write()
             .take_acknowledgments(MAX_ACKNOWLEDGMENTS_PER_BLOCK);
 
+        self.context
+            .metrics
+            .node_metrics
+            .proposed_block_acknowledgments
+            .observe(acknowledgments.len() as f64);
+        for acknowledgment in &acknowledgments {
+            let authority = &self
+                .context
+                .committee
+                .authority(acknowledgment.author)
+                .hostname;
+            self.context
+                .metrics
+                .node_metrics
+                .proposed_block_acknowledgments_depth
+                .with_label_values(&[authority])
+                .observe(clock_round.saturating_sub(acknowledgment.round).into());
+        }
+
         // Consume the commit votes to be included.
         let commit_votes = self
             .dag_state
@@ -698,6 +718,7 @@ impl Core {
             commit_votes,
             transactions_commitment,
         ));
+
         let signed_block_header = SignedBlockHeader::new(block_header, &self.block_signer)
             .expect("Block signing failed.");
 
@@ -897,7 +918,7 @@ impl Core {
 
         self.transaction_consumer.notify_own_transactions_status(
             committed_transaction_refs,
-            self.dag_state.read().gc_round(),
+            self.dag_state.read().gc_round_for_last_commit(),
         );
 
         Ok((committed_sub_dags, all_missing_committed_txns))

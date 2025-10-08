@@ -98,6 +98,7 @@ import type {
     IotaNameRecord,
     IotaNamesReverseLookupParams,
     IotaNamesFindAllRegistrationNFTsParams,
+    IsTransactionIndexedOnNodeParams,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -984,6 +985,16 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_iotaNamesFindAllRegistrationNFTs',
             params: [input.address, input.cursor, input.limit, input.options],
+        });
+    }
+
+    /**
+     * Check if a Transaction has been indexed on the Node.
+     */
+    async isTransactionIndexedOnNode(input: IsTransactionIndexedOnNodeParams): Promise<boolean> {
+        return await this.transport.request({
+            method: 'iota_isTransactionIndexedOnNode',
+            params: [input.digest],
         });
     }
 }

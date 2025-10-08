@@ -250,14 +250,40 @@ export function moveDataToRpcContent(data: MoveData, layout: MoveTypeLayout): Mo
 
     if ('Vector' in data) {
         if (typeof layout !== 'object' || !('vector' in layout)) {
-            throw new Error(`Invalid layout for data: ${JSON.stringify(data)}}`);
+            throw new Error(`Invalid layout for data: ${JSON.stringify(data)}`);
         }
         const itemLayout = layout.vector;
         return data.Vector.map((item) => moveDataToRpcContent(item, itemLayout));
     }
 
     if ('Option' in data) {
-        return data.Option && moveDataToRpcContent(data.Option, layout);
+        if (data.Option === null) {
+            return null;
+        }
+
+        if (typeof layout !== 'object' || !('struct' in layout)) {
+            throw new Error(`Invalid layout for Option data: ${JSON.stringify(layout)}`);
+        }
+
+        const vecField = layout.struct.fields.find((field) => field.name === 'vec');
+        if (!vecField) {
+            throw new Error(`Could not find the expected 'vec' field in the Option layout.`);
+        }
+
+        const innerLayout = vecField.layout;
+        const innerData = data.Option;
+
+        if (
+            typeof innerLayout === 'object' &&
+            'vector' in innerLayout &&
+            innerData &&
+            !('Vector' in innerData)
+        ) {
+            const itemLayout = innerLayout.vector;
+            return moveDataToRpcContent(innerData, itemLayout);
+        }
+
+        return moveDataToRpcContent(innerData, innerLayout);
     }
 
     if ('Struct' in data) {

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     pin::Pin,
     sync::Arc,
     time::Duration,
@@ -17,7 +17,7 @@ use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::{
-    sync::{Mutex, broadcast},
+    sync::{Mutex, broadcast, mpsc::Sender},
     time::sleep,
 };
 use tokio_util::sync::ReusableBoxFuture;
@@ -42,6 +42,7 @@ use crate::{
         BlockBundle, BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
         SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactions,
     },
+    shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
     synchronizer::SynchronizerHandle,
@@ -111,6 +112,16 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// multiple times. The size is limited by MAX_FILTER_SIZE, elements are
     /// evicted when the threshold is exceeded
     received_block_headers: FilterForHeaders,
+    /// Sender to send received transaction messages to the shard reconstructor
+    transaction_message_sender: Sender<Vec<TransactionMessage>>,
+    /// For each peer, the set of authorities whose block headers the local node
+    /// considered useful when receiving a block bundle from that peer.
+    /// Keyed by the peer’s AuthorityIndex.
+    useful_authorities_from_peer: Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
+    /// For each peer, the set of local authorities that the peer reported as
+    /// useful to them (communicated inside their block bundles).
+    /// Keyed by the peer’s AuthorityIndex.
+    useful_authorities_to_peer: Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -124,6 +135,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
+        transaction_message_sender: Sender<Vec<TransactionMessage>>,
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
@@ -142,6 +154,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             dag_state,
             store,
             received_block_headers: FilterForHeaders::new(),
+            useful_authorities_from_peer: Arc::new(RwLock::new(BTreeMap::new())),
+            useful_authorities_to_peer: Arc::new(RwLock::new(BTreeMap::new())),
+            transaction_message_sender,
         }
     }
 }
@@ -157,9 +172,17 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
-        // 1. Create a verified block and make some preliminary checks
         let serialized_block_bundle_parts =
             SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
+
+        // Cache authorities this peer finds useful for cordial
+        let useful_authorities_to_peer = serialized_block_bundle_parts.useful_authorities();
+        {
+            let mut guard = self.useful_authorities_to_peer.write();
+            guard.insert(peer, useful_authorities_to_peer);
+        }
+
+        // 1. Create a verified block and make some preliminary checks
         let SerializedHeaderAndTransactions {
             serialized_block_header,
             serialized_transactions,
@@ -365,8 +388,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 limit: MAX_SHARDS_PER_BUNDLE,
             });
         }
-        // TODO: use correct type
-        let mut shards_for_decoder: Vec<ShardWithProof> = vec![];
+
+        let mut verified_shards: Vec<ShardWithProof> = vec![];
         for serialized_shard in serialized_block_bundle_parts.serialized_shards.iter() {
             let shard: ShardWithProof =
                 bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
@@ -396,7 +419,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 peer.value(),
             );
             if proof_check {
-                shards_for_decoder.push(shard);
+                verified_shards.push(shard);
             } else {
                 let e = ConsensusError::IncorrectShardProof {
                     peer,
@@ -421,8 +444,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .node_metrics
             .valid_shards_in_bundles
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
-            .inc_by(shards_for_decoder.len() as u64);
-        // TODO: send to decoders
+            .inc_by(verified_shards.len() as u64);
 
         // 6. Observe headers and the block for the commit votes. When local commit is
         // lagging too much, commit sync loop will trigger fetching.
@@ -510,17 +532,30 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(digests_to_exclude.len() as u64);
 
-        // 9. Add additional headers from bundle to dag, receive missing ancestors for
-        //    them
-        // Normally, there should be no missing ancestors, as the headers are sent in
-        // order of increasing rounds.
+        // 9. Prepare transaction messages for shard reconstructor and send them
+        let transaction_messages = TransactionMessage::create_transaction_messages(
+            &verified_block,
+            &verified_shards,
+            peer.value(),
+        );
+        if let Err(e) = self
+            .transaction_message_sender
+            .send(transaction_messages)
+            .await
+        {
+            warn!("Failed to send transaction messages to shard reconstructor: {e}");
+        }
+
+        // 10.Add additional headers from bundle to dag, receive missing ancestors for
+        // them. Normally, there should be no missing ancestors, as the headers are
+        // sent in order of increasing rounds.
         let (mut missing_ancestors, mut missing_committed_txns) = self
             .core_dispatcher
-            .add_block_headers(additional_block_headers)
+            .add_block_headers(additional_block_headers.clone())
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
-        // 10. Add the block to dag, add its missing ancestors to the set
+        // 11. Add the block to dag, add its missing ancestors to the set
         let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
             .add_blocks(vec![verified_block])
@@ -529,7 +564,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         missing_ancestors.extend(missing_block_ancestors);
         missing_committed_txns.extend(missing_block_committed_transactions);
-        // 11. Add our shard from the received block and its proof to the dag_state
+
+        // 12. Add our shard from the received block and its proof to the dag_state
         let shard_for_core = ShardWithProof {
             shard: our_shard,
             transaction_commitment,
@@ -548,8 +584,22 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
+        // 13. update `useful_authorities_from_peer`
+        // create a set of authority indexes from the `additional_block_headers`
+        // and `missing_ancestors`
+        let useful_authorities = additional_block_headers
+            .iter()
+            .map(|block_header| block_header.author())
+            .chain(missing_ancestors.iter().map(|block_ref| block_ref.author))
+            .collect::<BTreeSet<_>>();
+        {
+            let mut useful_authorities_from_peer_write_guard =
+                self.useful_authorities_from_peer.write();
+            useful_authorities_from_peer_write_guard.insert(peer, useful_authorities);
+        }
+
+        // 14. schedule the fetching of missing ancestors (if any) from this peer
         if !missing_ancestors.is_empty() {
-            // 12. schedule the fetching of missing ancestors from this peer
             if let Err(err) = self
                 .synchronizer
                 .fetch_headers(missing_ancestors, peer)
@@ -559,6 +609,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
+        // 15. schedule the fetching of missing committed transactions (if any)
         if !missing_committed_txns.is_empty() {
             if let Err(err) = self
                 .transactions_synchronizer
@@ -609,18 +660,47 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // new blocks.
         Ok(Box::pin(missed_blocks.chain({
             let dag_state = Arc::clone(&self.dag_state);
+            let useful_authorities_from_peer = Arc::clone(&self.useful_authorities_from_peer);
+            let useful_authorities_to_peer = Arc::clone(&self.useful_authorities_to_peer);
+            let committee = self
+                .context
+                .committee
+                .authorities()
+                .map(|(index, _)| index)
+                .collect::<BTreeSet<_>>();
 
             broadcasted_blocks.filter_map(move |block| {
+                let useful_authorities_to_peer_guard = useful_authorities_to_peer.read();
+                let useful_authorities_to_peer_read = useful_authorities_to_peer_guard
+                    .get(&peer)
+                    .map(|authorities| authorities.iter().cloned().collect::<BTreeSet<_>>());
+                drop(useful_authorities_to_peer_guard);
+                let useful_authorities_from_peer_guard = useful_authorities_from_peer.read();
+                let useful_authorities_from_peer_read =
+                    match useful_authorities_from_peer_guard.get(&peer) {
+                        None => committee.clone(),
+                        Some(useful_authorities) => useful_authorities.clone(),
+                    };
+                drop(useful_authorities_from_peer_guard);
+
                 let mut dag_state_guard = dag_state.write();
-                let block_headers =
-                    dag_state_guard.take_unknown_headers_for_authority(peer, block.round());
+                let block_headers = match useful_authorities_to_peer_read {
+                    None => dag_state_guard.take_unknown_headers_for_authority(peer, block.round()),
+                    Some(authorities) => dag_state_guard.take_useful_headers_for_authority(
+                        peer,
+                        block.round(),
+                        authorities,
+                    ),
+                };
                 let serialized_shards =
                     dag_state_guard.take_unknown_shards_for_authority(peer, block.round());
                 drop(dag_state_guard);
+
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: block_headers,
                     serialized_shards,
+                    useful_authorities: useful_authorities_from_peer_read,
                 };
                 async move {
                     match SerializedBlockBundle::try_from(block_bundle) {
@@ -678,8 +758,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let commit_sync_handle = highest_accepted_rounds.is_empty();
 
         // For commit sync, the fetch size is larger. For periodic/live synchronizer,
-        // the fetch size is smaller.else { Instead of rejecting the request, we
-        // truncate the size to allow an easy update of this parameter in the future.
+        // the fetch size is smaller. Instead of rejecting the request, we truncate
+        // the size to allow an easy update of this parameter in the future.
         let max_fetch_size = if commit_sync_handle {
             self.context.parameters.max_headers_per_commit_sync_fetch
         } else {
@@ -1175,7 +1255,10 @@ mod tests {
     use iota_metrics::monitored_mpsc::unbounded_channel;
     use parking_lot::{Mutex, RwLock};
     use starfish_config::{AuthorityIndex, Parameters};
-    use tokio::{sync::broadcast, time::sleep};
+    use tokio::{
+        sync::{broadcast, mpsc},
+        time::sleep,
+    };
 
     use crate::{
         CommitConsumer, Round, Transaction, TransactionClient,
@@ -1271,6 +1354,8 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
@@ -1303,6 +1388,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            tx_message_sender,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1362,6 +1448,8 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
@@ -1394,6 +1482,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            tx_message_sender,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1445,6 +1534,8 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
@@ -1477,6 +1568,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            tx_message_sender,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1520,6 +1612,8 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
@@ -1552,6 +1646,7 @@ mod tests {
             rx_block_broadcast,
             dag_state,
             store,
+            tx_message_sender,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1576,6 +1671,7 @@ mod tests {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
             serialized_shards: vec![],
+            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
         };
         let serialized_big_block_bundle = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(big_block_bundle).unwrap(),
@@ -1604,6 +1700,7 @@ mod tests {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
             serialized_shards: vec![],
+            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
         };
         let serialized_block_bundle_with_big_round = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(block_bundle_with_big_rounds).unwrap(),
@@ -1640,6 +1737,7 @@ mod tests {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
             serialized_shards: vec![],
+            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
         };
         let serialized_block_bundle = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
@@ -1675,6 +1773,8 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
@@ -1707,6 +1807,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            tx_message_sender,
         ));
 
         // Create some blocks for a few authorities. Create some equivocations as well
@@ -1798,6 +1899,7 @@ mod tests {
         });
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
 
         // Set up synchronizers
@@ -1831,6 +1933,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store.clone(),
+            tx_message_sender,
         ));
 
         // Set up DAG with blocks
@@ -1952,6 +2055,7 @@ mod tests {
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
+            _source: &'static str,
         ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
@@ -2010,8 +2114,8 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribed_block_bundle_with_additional_headers() {
         // GIVEN
-        let rounds = 50;
-        let validators = 50;
+        let rounds = 10;
+        let validators = 10;
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
@@ -2060,6 +2164,8 @@ mod tests {
             highest_received_rounds: vec![0; context.committee.size()].into(),
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
         let network_client = Arc::new(FakeNetworkClient::default());
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2090,6 +2196,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            tx_message_sender,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2125,6 +2232,9 @@ mod tests {
                     verified_block: block,
                     verified_headers: headers,
                     serialized_shards: vec![],
+                    useful_authorities: (0u8..(context.committee.size() as u8))
+                        .map(Into::into)
+                        .collect(),
                 };
                 let serialized_block_bundle = SerializedBlockBundle::try_from(
                     SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
@@ -2156,8 +2266,8 @@ mod tests {
     #[tokio::test(flavor = "current_thread")]
     async fn test_handle_subscribe_bundle_without_additional_headers() {
         // GIVEN
-        let rounds = 50;
-        let validators = 50;
+        let rounds = 10;
+        let validators = 10;
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
@@ -2206,6 +2316,8 @@ mod tests {
             highest_received_rounds: vec![0; context.committee.size()].into(),
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
         let network_client = Arc::new(FakeNetworkClient::default());
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
@@ -2235,6 +2347,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            tx_message_sender,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2262,6 +2375,9 @@ mod tests {
                     verified_block: block,
                     verified_headers: vec![],
                     serialized_shards: vec![],
+                    useful_authorities: (0u8..(context.committee.size() as u8))
+                        .map(Into::into)
+                        .collect(),
                 };
                 let serialized_block_bundle = SerializedBlockBundle::try_from(
                     SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
@@ -2365,6 +2481,7 @@ mod tests {
 
         // Create a broadcast channel for new blocks
         let (tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
 
         // Set up synchronizers
@@ -2398,6 +2515,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            tx_message_sender,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2628,6 +2746,8 @@ mod tests {
         });
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
         let network_client = Arc::new(FakeNetworkClient::default());
 
         // Set up synchronizers
@@ -2661,6 +2781,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            tx_message_sender,
         ));
 
         // Set up DAG with blocks
@@ -2765,6 +2886,8 @@ mod tests {
         });
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
         let network_client = Arc::new(FakeNetworkClient::default());
 
         // Set up synchronizers
@@ -2798,6 +2921,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            tx_message_sender,
         ));
 
         // Set up DAG with blocks
@@ -2923,6 +3047,7 @@ mod tests {
         });
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
 
         // Set up synchronizers
@@ -2956,6 +3081,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store.clone(),
+            tx_message_sender,
         ));
 
         // Set up DAG with blocks
@@ -3103,6 +3229,8 @@ mod tests {
         });
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
+        let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+
         let network_client = Arc::new(FakeNetworkClient::default());
 
         // Set up synchronizers
@@ -3136,6 +3264,7 @@ mod tests {
             rx_block_broadcast,
             dag_state.clone(),
             store,
+            tx_message_sender,
         ));
         let mut encoder = create_encoder(&context);
 

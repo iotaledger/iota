@@ -88,7 +88,7 @@ impl BlockManager {
             if exists[i] {
                 self.dag_state
                     .write()
-                    .add_transactions(block.verified_transactions);
+                    .add_transactions(block.verified_transactions, "Block streaming");
             } else {
                 self.suspended_blocks.insert(block.reference(), block);
             }
@@ -149,7 +149,7 @@ impl BlockManager {
                 // for this accepted header we already have a block, so we add it to dag_state
                 self.dag_state
                     .write()
-                    .add_transactions(block.verified_transactions);
+                    .add_transactions(block.verified_transactions, "block streaming");
             }
         }
 

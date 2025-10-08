@@ -813,4 +813,58 @@ describe('GraphQL IotaClient compatibility', () => {
 
         expect(graphql).toEqual(rpc);
     });
+
+    test('isTransactionIndexedOnNode', async () => {
+        const tx = new Transaction();
+        tx.setSender(toolbox.address());
+        const [coin] = tx.splitCoins(tx.gas, [1]);
+        tx.transferObjects([coin], toolbox.address());
+
+        const transaction = await graphQLClient!.signAndExecuteTransaction({
+            transaction: tx as Transaction,
+            signer: toolbox.keypair,
+            options: {
+                showBalanceChanges: true,
+                showEffects: true,
+                showEvents: true,
+                // TODO inputs missing valueType
+                showInput: false,
+                showObjectChanges: true,
+                showRawInput: true,
+            },
+        });
+
+        expect(
+            await toolbox.client.isTransactionIndexedOnNode({ digest: transaction.digest }),
+        ).toEqual(false);
+        expect(
+            await graphQLClient.isTransactionIndexedOnNode({ digest: transaction.digest }),
+        ).toEqual(false);
+
+        await toolbox.client.waitForTransaction({ digest: transaction.digest });
+
+        let result = null;
+        for (const _ of Array.from({ length: 5 })) {
+            try {
+                result = await toolbox.client.isTransactionIndexedOnNode({
+                    digest: transaction.digest,
+                });
+                if (result) {
+                    break;
+                } else {
+                    await new Promise((r) => {
+                        setTimeout(r, 2000);
+                    });
+                }
+
+                // eslint-disable-next-line no-empty
+            } catch (e) {}
+        }
+        expect(result).toEqual(true);
+
+        await graphQLClient.waitForTransaction({ digest: transaction.digest });
+        expect(
+            await graphQLClient.isTransactionIndexedOnNode({ digest: transaction.digest }),
+        ).toEqual(true);
+    });
 });

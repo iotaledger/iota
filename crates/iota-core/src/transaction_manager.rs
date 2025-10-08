@@ -378,7 +378,7 @@ impl TransactionManager {
         self.enqueue(executable_txns, epoch_store)
     }
 
-    #[instrument(level = "trace", skip_all)]
+    #[instrument("transaction_manager_enqueue_transactions", level = "trace", skip_all)]
     pub(crate) fn enqueue(
         &self,
         certs: Vec<VerifiedExecutableTransaction>,
@@ -412,42 +412,52 @@ impl TransactionManager {
         let reconfig_lock = self.inner.read();
 
         // filter out already executed certs
-        let certs: Vec<_> = certs
-            .into_iter()
-            .filter(|(cert, _)| {
-                let digest = *cert.digest();
-                // skip already executed txes
-                if self
-                    .transaction_cache_read
-                    .try_is_tx_already_executed(&digest)
-                    .unwrap_or_else(|err| {
-                        fatal!("Failed to check if tx {digest:?} is already executed: {err:?}")
-                    })
-                {
-                    self.metrics
-                        .transaction_manager_num_enqueued_certificates
-                        .with_label_values(&["already_executed"])
-                        .inc();
-                    false
-                } else {
-                    true
-                }
-            })
-            .collect();
+        let certs: Vec<_> = {
+            let _span = tracing::trace_span!("filter_already_executed_txs").entered();
+
+            certs
+                .into_iter()
+                .filter(|(cert, _)| {
+                    tracing::trace!(tx_digest = ?cert.digest(), "checking if already executed");
+
+                    let digest = *cert.digest();
+                    // skip already executed txes
+                    if self
+                        .transaction_cache_read
+                        .try_is_tx_already_executed(&digest)
+                        .unwrap_or_else(|err| {
+                            fatal!("Failed to check if tx {digest:?} is already executed: {err:?}")
+                        })
+                    {
+                        self.metrics
+                            .transaction_manager_num_enqueued_certificates
+                            .with_label_values(&["already_executed"])
+                            .inc();
+                        false
+                    } else {
+                        true
+                    }
+                })
+                .collect()
+        };
 
         let mut object_availability: HashMap<InputKey, Option<bool>> = HashMap::new();
         let mut receiving_objects: HashSet<InputKey> = HashSet::new();
-        let certs: Vec<_> = certs
-            .into_iter()
-            .filter_map(|(cert, fx_digest)| {
-                let input_object_kinds = cert
-                    .data()
-                    .intent_message()
-                    .value
-                    .input_objects()
-                    .expect("input_objects() cannot fail");
-                let mut input_object_keys =
-                    match epoch_store.get_input_object_keys(&cert.key(), &input_object_kinds) {
+        let certs: Vec<_> = {
+            let _span = tracing::trace_span!("check_tx_input_objects").entered();
+
+            certs
+                .into_iter()
+                .filter_map(|(cert, fx_digest)| {
+                    let input_object_kinds = cert
+                        .data()
+                        .intent_message()
+                        .value
+                        .input_objects()
+                        .expect("input_objects() cannot fail");
+                    let mut input_object_keys = match epoch_store
+                        .get_input_object_keys(&cert.key(), &input_object_kinds)
+                    {
                         Ok(keys) => keys,
                         Err(e) => {
                             // Because we do not hold the transaction lock during enqueue, it is
@@ -466,34 +476,38 @@ impl TransactionManager {
                         }
                     };
 
-                if input_object_kinds.len() != input_object_keys.len() {
-                    error!("Duplicated input objects: {:?}", input_object_kinds);
-                }
-
-                let receiving_object_entries =
-                    cert.data().intent_message().value.receiving_objects();
-                for entry in receiving_object_entries {
-                    let key = InputKey::VersionedObject {
-                        id: entry.0,
-                        version: entry.1,
-                    };
-                    receiving_objects.insert(key);
-                    input_object_keys.insert(key);
-                }
-
-                for key in input_object_keys.iter() {
-                    if key.is_cancelled() {
-                        // Cancelled txn objects should always be available immediately.
-                        // Don't need to wait on these objects for execution.
-                        object_availability.insert(*key, Some(true));
-                    } else {
-                        object_availability.insert(*key, None);
+                    if input_object_kinds.len() != input_object_keys.len() {
+                        error!("Duplicated input objects: {:?}", input_object_kinds);
                     }
-                }
 
-                Some((cert, fx_digest, input_object_keys))
-            })
-            .collect();
+                    let receiving_object_entries =
+                        cert.data().intent_message().value.receiving_objects();
+                    for entry in receiving_object_entries {
+                        let key = InputKey::VersionedObject {
+                            id: entry.0,
+                            version: entry.1,
+                        };
+                        receiving_objects.insert(key);
+                        input_object_keys.insert(key);
+                    }
+
+                    for key in input_object_keys.iter() {
+                        if key.is_cancelled() {
+                            // Cancelled txn objects should always be available immediately.
+                            // Don't need to wait on these objects for execution.
+                            object_availability.insert(*key, Some(true));
+                        } else {
+                            object_availability.insert(*key, None);
+                        }
+                    }
+
+                    Some((cert, fx_digest, input_object_keys))
+                })
+                .collect()
+        };
+
+        let obj_availability_span =
+            tracing::trace_span!("check_availability_of_input_objects").entered();
 
         {
             let mut inner = reconfig_lock.write();
@@ -563,6 +577,8 @@ impl TransactionManager {
         }
 
         inner.available_objects_cache.disable_unbounded_cache();
+        // End of checking object availability.
+        obj_availability_span.exit();
 
         let mut pending = Vec::new();
         let pending_cert_enqueue_time = Instant::now();
@@ -581,6 +597,7 @@ impl TransactionManager {
         }
 
         for mut pending_cert in pending {
+            let _span = tracing::trace_span!("enqueueing_pending_certificate", cert_digest = %pending_cert.certificate.digest()).entered();
             // Tx lock is not held here, which makes it possible to send duplicated
             // transactions to the execution driver after crash-recovery, when
             // the same transaction is recovered from recovery log and pending
