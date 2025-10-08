@@ -13,8 +13,8 @@ const SPECULOS_BASE_URL: string = `http://127.0.0.1:${API_PORT}`;
 
 // Before running the tests you need to install speculos and start the iota app with it.
 // If the binary is not available, download it:
-// gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanos.tar.gz ledger-app-iota-v0.9.2
-// tar -xvf nanos.tar.gz
+// gh release download --repo https://github.com/iotaledger/ledger-app-iota -p nanox.tar.gz ledger-app-iota-v0.9.2
+// tar -xvf nanox.tar.gz
 // sudo apt-get install qemu-user-static libxcb-xinerama0 // might be needed for speculos to work
 // pip install speculos
 // Finally to start the emulator:
@@ -38,7 +38,7 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
         );
     });
 
-    it('Test address generation with display', async () => {
+    it('Test address generation with display', { timeout: 10000 }, async () => {
         const transport = await SpeculosHttpTransport.open({});
         const ledgerClient = new Iota(transport);
 
@@ -55,18 +55,18 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
             .catch((err) => {
                 throw new Error(err);
             });
-        await new Promise((resolve) => setTimeout(resolve, 1000));
         // Send requests to approve the shown address
-        for (let i = 0; i < 6; i++) {
+        for (let i = 0; i < 3; i++) {
             await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
         }
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
+        await new Promise((r) => setInterval(r, 4000));
         if (!addressReceived) {
             throw new Error(`Didn't receive address in time`);
         }
     });
 
-    it('Test signing', { timeout: 10000 }, async () => {
+    it('Test signing', { timeout: 20000 }, async () => {
         const transport = await SpeculosHttpTransport.open({});
         const ledgerClient = new Iota(transport);
         let signatureReceived = false;
@@ -91,19 +91,18 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
             });
         await new Promise((resolve) => setTimeout(resolve, 500));
         // Send requests to approve the tx
-        for (let i = 0; i < 14; i++) {
+        for (let i = 0; i < 7; i++) {
             await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
         }
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 6000));
         if (!signatureReceived) {
             throw new Error(`Didn't receive signature in time`);
         }
     });
 
-    it('Test blind signing', { timeout: 10000 }, async () => {
+    it('Test blind signing', { timeout: 20000 }, async () => {
         // Enable blind signing
-        await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
         await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
@@ -134,11 +133,12 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
             });
         await new Promise((resolve) => setTimeout(resolve, 500));
         // Send requests to approve the tx
-        for (let i = 0; i < 8; i++) {
+        await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
+        for (let i = 0; i < 3; i++) {
             await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
         }
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
-        await new Promise((resolve) => setTimeout(resolve, 2000));
+        await new Promise((resolve) => setTimeout(resolve, 6000));
         if (!signatureReceived) {
             throw new Error(`Didn't receive signature in time`);
         }
