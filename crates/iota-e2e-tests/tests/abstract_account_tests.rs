@@ -33,12 +33,12 @@ use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
-const ABSTRACTACCOUNT_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
-const ABSTRACTACCOUNT_MODULE_NAME: &str = "abstract_account";
-const ABSTRACTACCOUNT_CREATE_MODULE_NAME: &str = "basic_keyed_aa";
-const ABSTRACTACCOUNT_AUTHENTICATE_MODULE_NAME: &str = "basic_keyed_aa";
-const ABSTRACTACCOUNT_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
-const ABSTRACTACCOUNT_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
+const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
+const AA_MODULE_NAME: &str = "abstract_account";
+const AA_CREATE_MODULE_NAME: &str = "basic_keyed_aa";
+const AA_AUTHENTICATE_MODULE_NAME: &str = "basic_keyed_aa";
+const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
+const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
 
 #[sim_test]
 async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Error> {
@@ -47,29 +47,26 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
     // Build a test environment and create an abstract account
     let mut test_env = TestEnvironment::new().await;
     test_env
-        .setup_abstract_account(ABSTRACTACCOUNT_AUTHENTICATE_FN_NAME_ED25519)
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_ED25519)
         .await?;
-    let abstractaccount_ref = test_env.abstractaccount_ref.unwrap();
+    let aa_ref = test_env.aa_ref.unwrap();
 
     // Retrieve the keystore
     let keystore = test_env.test_cluster.wallet.config().keystore();
-    let abstractaccount_sender = abstractaccount_ref.0.into();
+    let aa_sender = aa_ref.0.into();
 
     // Request faucet coins for the AbstractAccount
     let rgp = test_env.test_cluster.get_reference_gas_price().await;
-    let abstractaccount_gas = test_env
+    let aa_gas = test_env
         .test_cluster
-        .fund_address_and_return_gas(rgp, Some(20000000000), abstractaccount_sender)
+        .fund_address_and_return_gas(rgp, Some(20000000000), aa_sender)
         .await;
 
     // Create a simple transaction from the IOTA account
     let pt = test_env.abstract_account_simple_tx()?;
     let tx_data = test_env
         .craft_tx_from_pt(
-            pt,
-            abstractaccount_gas,
-            abstractaccount_sender,
-            None, // No sponsor
+            pt, aa_gas, aa_sender, None, // No sponsor
         )
         .await?;
     let tx_digest = tx_data.digest().into_inner();
@@ -81,8 +78,8 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
     //    _: &AuthContext,
     //    ctx: &TxContext,
     let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-        id: abstractaccount_ref.0,
-        initial_shared_version: abstractaccount_ref.1,
+        id: aa_ref.0,
+        initial_shared_version: aa_ref.1,
         mutable: false,
     });
     // Sign the tx data with the owner key
@@ -102,9 +99,9 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
     )];
 
     // Create the TX envelope and execute it
-    let abstractaccount_simple_tx = Transaction::from_generic_sig_data(tx_data, signatures);
+    let aa_simple_tx = Transaction::from_generic_sig_data(tx_data, signatures);
     test_env
-        .execute_and_check_tx_correctness(abstractaccount_simple_tx)
+        .execute_and_check_tx_correctness(aa_simple_tx)
         .await
 }
 
@@ -115,9 +112,9 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
     // Build a test environment and create an abstract account
     let mut test_env = TestEnvironment::new().await;
     test_env
-        .setup_abstract_account(ABSTRACTACCOUNT_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
         .await?;
-    let abstractaccount_ref = test_env.abstractaccount_ref.unwrap();
+    let aa_ref = test_env.aa_ref.unwrap();
 
     // Retrieve the keystore and derive the address of the first account
     let keystore = test_env.test_cluster.wallet.config().keystore();
@@ -132,9 +129,9 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
 
     // Create a simple transaction from the IOTA account
     let pt = test_env.abstract_account_simple_tx()?;
-    let abstractaccount_sender = abstractaccount_ref.0.into();
+    let aa_sender = aa_ref.0.into();
     let tx_data = test_env
-        .craft_tx_from_pt(pt, sponsor_gas, abstractaccount_sender, Some(sponsor))
+        .craft_tx_from_pt(pt, sponsor_gas, aa_sender, Some(sponsor))
         .await?;
 
     // Sponsor signature
@@ -150,21 +147,21 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
     //    _: &AuthContext,
     //    ctx: &TxContext,
     let self_call_arg = CallArg::Object(ObjectArg::SharedObject {
-        id: abstractaccount_ref.0,
-        initial_shared_version: abstractaccount_ref.1,
+        id: aa_ref.0,
+        initial_shared_version: aa_ref.1,
         mutable: false,
     });
-    let abstractaccount_signature = GenericSignature::MoveAuthenticator(
-        MoveAuthenticator::new_for_testing(vec![self_call_arg.clone()], vec![], self_call_arg),
-    );
+    let aa_signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
+        vec![self_call_arg.clone()],
+        vec![],
+        self_call_arg,
+    ));
 
     // Create the TX envelope and execute it
-    let abstractaccount_sponsored_tx = Transaction::from_generic_sig_data(
-        tx_data,
-        vec![abstractaccount_signature, sponsor_signature],
-    );
+    let aa_sponsored_tx =
+        Transaction::from_generic_sig_data(tx_data, vec![aa_signature, sponsor_signature]);
     test_env
-        .execute_and_check_tx_correctness(abstractaccount_sponsored_tx)
+        .execute_and_check_tx_correctness(aa_sponsored_tx)
         .await
 }
 
@@ -172,8 +169,8 @@ struct TestEnvironment {
     test_cluster: TestCluster,
     owner: Option<IotaAddress>,
     authenticate_fn_name: Option<String>,
-    abstractaccount_package_id: Option<ObjectID>,
-    abstractaccount_ref: Option<ObjectRef>,
+    aa_package_id: Option<ObjectID>,
+    aa_ref: Option<ObjectRef>,
 }
 
 impl TestEnvironment {
@@ -184,8 +181,8 @@ impl TestEnvironment {
             test_cluster,
             owner: None,
             authenticate_fn_name: None,
-            abstractaccount_package_id: None,
-            abstractaccount_ref: None,
+            aa_package_id: None,
+            aa_ref: None,
         }
     }
 
@@ -209,27 +206,25 @@ impl TestEnvironment {
         );
 
         // Publish the Move Account Abstraction package
-        self.abstractaccount_package_id = Some(self.publish_account_abstraction_package().await);
+        self.aa_package_id = Some(self.publish_account_abstraction_package().await);
 
         // Create an AbstractAccount
-        self.abstractaccount_ref = Some(self.create_abstract_account().await?);
+        self.aa_ref = Some(self.create_abstract_account().await?);
 
         Ok(())
     }
 
     async fn publish_account_abstraction_package(&mut self) -> ObjectID {
-        let path = [env!("CARGO_MANIFEST_DIR"), ABSTRACTACCOUNT_PACKAGE_PATH]
+        let path = [env!("CARGO_MANIFEST_DIR"), AA_PACKAGE_PATH]
             .iter()
             .collect();
         publish_package(self.test_cluster.wallet(), path).await.0
     }
 
     async fn create_abstract_account(&self) -> anyhow::Result<ObjectRef> {
-        let (Some(owner), Some(authenticate_fn_name), Some(abstractaccount_package_id)) = (
-            self.owner,
-            &self.authenticate_fn_name,
-            self.abstractaccount_package_id,
-        ) else {
+        let (Some(owner), Some(authenticate_fn_name), Some(aa_package_id)) =
+            (self.owner, &self.authenticate_fn_name, self.aa_package_id)
+        else {
             anyhow::bail!("Owner or authenticate function name or package id not set");
         };
 
@@ -246,8 +241,8 @@ impl TestEnvironment {
 
             // create auth info
             let arguments = vec![
-                builder.pure(abstractaccount_package_id)?,
-                builder.pure(ABSTRACTACCOUNT_AUTHENTICATE_MODULE_NAME)?,
+                builder.pure(aa_package_id)?,
+                builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
                 builder.pure(authenticate_fn_name)?,
             ];
             if let Argument::Result(authenticator_info_v1) = builder.programmable_move_call(
@@ -263,8 +258,8 @@ impl TestEnvironment {
                     Argument::Result(authenticator_info_v1),
                 ];
                 builder.programmable_move_call(
-                    abstractaccount_package_id,
-                    ident_str!(ABSTRACTACCOUNT_CREATE_MODULE_NAME).to_owned(),
+                    aa_package_id,
+                    ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
                     ident_str!("create").to_owned(),
                     vec![],
                     arguments,
@@ -298,9 +293,7 @@ impl TestEnvironment {
     }
 
     fn abstract_account_simple_tx(&self) -> anyhow::Result<ProgrammableTransaction> {
-        let (Some(abstractaccount_ref), Some(abstractaccount_package_id)) =
-            (self.abstractaccount_ref, self.abstractaccount_package_id)
-        else {
+        let (Some(aa_ref), Some(aa_package_id)) = (self.aa_ref, self.aa_package_id) else {
             anyhow::bail!("Abstract account not created yet");
         };
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -308,16 +301,16 @@ impl TestEnvironment {
         // Random IOTA account command.
         let arguments = vec![
             builder.obj(ObjectArg::SharedObject {
-                id: abstractaccount_ref.0,
-                initial_shared_version: abstractaccount_ref.1,
+                id: aa_ref.0,
+                initial_shared_version: aa_ref.1,
                 mutable: true,
             })?,
             builder.pure(1_u8)?,
             builder.pure(2_u8)?,
         ];
         builder.programmable_move_call(
-            abstractaccount_package_id,
-            ident_str!(ABSTRACTACCOUNT_MODULE_NAME).to_owned(),
+            aa_package_id,
+            ident_str!(AA_MODULE_NAME).to_owned(),
             ident_str!("add_field").to_owned(),
             vec![TypeTag::U8, TypeTag::U8],
             arguments,
