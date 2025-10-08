@@ -79,7 +79,7 @@ mod checked {
         }
     }
 
-    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
+    #[instrument(level = "trace", skip_all)]
     pub fn check_transaction_input(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -255,7 +255,6 @@ mod checked {
     }
 
     // Common checks performed for transactions and certificates.
-    #[instrument(level = "trace", skip_all)]
     fn check_transaction_input_inner(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -285,7 +284,6 @@ mod checked {
         Ok(gas_status)
     }
 
-    #[instrument(level = "trace", skip_all)]
     fn check_receiving_objects(
         input_objects: &InputObjects,
         receiving_objects: &ReceivingObjects,
@@ -419,9 +417,7 @@ mod checked {
     ) -> IotaResult<IotaGasStatus> {
         debug_assert!(
             gas_budget_to_use <= gas_budget_to_check,
-            "It is expected that the gas budget {:?} is used for execution less or equal to the gas budget {:?} is used to check the gas coins balance",
-            gas_budget_to_use,
-            gas_budget_to_check
+            "It is expected that the gas budget {gas_budget_to_use:?} is used for execution less or equal to the gas budget {gas_budget_to_check:?} is used to check the gas coins balance"
         );
 
         let gas_status = IotaGasStatus::new_with_gas_spent_for_authentication(
