@@ -37,7 +37,7 @@ use iotaccount::iotaccount::IOTAccount;
 
 /// DF missing (forgot to `create`).
 #[error(code = 0)]
-const EFunctionKeysNotInitialized: vector<u8> = b"The function key has not been initializaed";
+const EFunctionKeysNotInitialized: vector<u8> = b"The function key has not been initialized";
 /// PTB does not contain **exactly one** command.
 #[error(code = 1)]
 const EInvalidAmountOfCommands: vector<u8> = b"Invalid number of commands";
