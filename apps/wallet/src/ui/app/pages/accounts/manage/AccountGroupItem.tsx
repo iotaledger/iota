@@ -168,9 +168,11 @@ export function AccountGroupItem({
                                 <ListItem hideBottomBorder onClick={handleRename}>
                                     Rename
                                 </ListItem>
-                                <ListItem hideBottomBorder onClick={handleExportKeys}>
-                                    Export Account Keys
-                                </ListItem>
+                                {account.type !== AccountType.PasskeyDerived && (
+                                    <ListItem hideBottomBorder onClick={handleExportKeys}>
+                                        Export Account Keys
+                                    </ListItem>
+                                )}
                                 {allAccounts.isPending ? null : (
                                     <ListItem hideBottomBorder onClick={handleRemove}>
                                         Delete
