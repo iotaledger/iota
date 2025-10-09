@@ -68,7 +68,7 @@ type MoveData =
   }"
 );
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) enum MoveData {
     Address(IotaAddress),
     #[serde(rename = "UID")]
@@ -84,13 +84,13 @@ pub(crate) enum MoveData {
     Variant(MoveVariant),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct MoveVariant {
     name: String,
     fields: Vec<MoveField>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct MoveField {
     name: String,
     value: MoveData,
