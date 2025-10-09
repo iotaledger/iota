@@ -15,7 +15,7 @@ export interface PasskeyAccountSerialized extends SerializedAccount {
     type: AccountType.PasskeyDerived;
     encrypted: string;
     publicKey: string;
-    credentialId: number[] | undefined;
+    credentialId: number[];
     providerOptions: BrowserPasswordProviderOptions;
 }
 
@@ -23,7 +23,7 @@ export interface PasskeyAccountSerializedUI extends SerializedUIAccount {
     type: AccountType.PasskeyDerived;
     publicKey: string;
     providerOptions: BrowserPasswordProviderOptions;
-    credentialId: number[] | undefined;
+    credentialId: number[];
 }
 
 export function isPasskeyAccountSerializedUI(
@@ -46,7 +46,7 @@ export class PasskeyAccount
         password: string;
         address: string;
         publicKey: string;
-        credentialId: number[] | undefined;
+        credentialId: number[];
         providerOptions: BrowserPasswordProviderOptions;
     }): Promise<Omit<PasskeyAccountSerialized, 'id'>> {
         return {

@@ -94,11 +94,11 @@ export class BrowserPasskeyProvider implements PasskeyProvider {
                 userVerification:
                     this.#options.authenticatorSelection?.userVerification || 'required',
                 timeout: this.#options.timeout ?? 60000,
-                ...(allowCredentialIds && allowCredentialIds.length
+                ...(allowCredentialIds
                     ? {
-                          allowCredentials: allowCredentialIds?.map((id) => ({
-                              type: 'public-key' as const,
-                              id: id,
+                          allowCredentials: allowCredentialIds.map((id) => ({
+                              type: 'public-key',
+                              id,
                           })),
                       }
                     : {}),
@@ -279,6 +279,7 @@ export class PasskeyKeypair extends Signer {
      *
      * @param provider - the passkey provider.
      * @param message - the message to sign.
+     * @param allowCredentialIds - optional list of allowed credential IDs to filter the passkey selection.
      * @returns all possible public keys.
      */
     static async signAndRecover(

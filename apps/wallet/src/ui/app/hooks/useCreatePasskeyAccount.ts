@@ -41,11 +41,16 @@ export function useCreatePasskeyAccount() {
             }
 
             const credentialId = passkeyKeypair.getCredentialId();
+
+            if (!credentialId) {
+                throw new Error('Failed to get credential ID');
+            }
+
             return {
                 address: passkeyKeypair.getPublicKey().toIotaAddress(),
                 publicKey: passkeyKeypair.getPublicKey().toBase64(),
                 providerOptions: options,
-                credentialId: credentialId ? Array.from(credentialId) : undefined,
+                credentialId: Array.from(credentialId),
             };
         } catch (error) {
             throw new Error(
