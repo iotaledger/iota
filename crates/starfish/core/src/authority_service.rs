@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     pin::Pin,
     sync::Arc,
     time::Duration,
@@ -114,6 +114,14 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     received_block_headers: FilterForHeaders,
     /// Sender to send received transaction messages to the shard reconstructor
     transaction_message_sender: Sender<Vec<TransactionMessage>>,
+    /// For each peer, the set of authorities whose block headers the local node
+    /// considered useful when receiving a block bundle from that peer.
+    /// Keyed by the peer’s AuthorityIndex.
+    useful_authorities_from_peer: Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
+    /// For each peer, the set of local authorities that the peer reported as
+    /// useful to them (communicated inside their block bundles).
+    /// Keyed by the peer’s AuthorityIndex.
+    useful_authorities_to_peer: Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -146,6 +154,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             dag_state,
             store,
             received_block_headers: FilterForHeaders::new(),
+            useful_authorities_from_peer: Arc::new(RwLock::new(BTreeMap::new())),
+            useful_authorities_to_peer: Arc::new(RwLock::new(BTreeMap::new())),
             transaction_message_sender,
         }
     }
@@ -162,9 +172,17 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
-        // 1. Create a verified block and make some preliminary checks
         let serialized_block_bundle_parts =
             SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
+
+        // Cache authorities this peer finds useful for cordial
+        let useful_authorities_to_peer = serialized_block_bundle_parts.useful_authorities();
+        {
+            let mut guard = self.useful_authorities_to_peer.write();
+            guard.insert(peer, useful_authorities_to_peer);
+        }
+
+        // 1. Create a verified block and make some preliminary checks
         let SerializedHeaderAndTransactions {
             serialized_block_header,
             serialized_transactions,
@@ -528,13 +546,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             warn!("Failed to send transaction messages to shard reconstructor: {e}");
         }
 
-        // 10. Add additional headers from bundle to dag, receive missing ancestors for
-        //     them
-        // Normally, there should be no missing ancestors, as the headers are sent in
-        // order of increasing rounds.
+        // 10.Add additional headers from bundle to dag, receive missing ancestors for
+        // them. Normally, there should be no missing ancestors, as the headers are
+        // sent in order of increasing rounds.
         let (mut missing_ancestors, mut missing_committed_txns) = self
             .core_dispatcher
-            .add_block_headers(additional_block_headers)
+            .add_block_headers(additional_block_headers.clone())
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
@@ -567,7 +584,21 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
-        // 13. schedule the fetching of missing ancestors (if any) from this peer
+        // 13. update `useful_authorities_from_peer`
+        // create a set of authority indexes from the `additional_block_headers`
+        // and `missing_ancestors`
+        let useful_authorities = additional_block_headers
+            .iter()
+            .map(|block_header| block_header.author())
+            .chain(missing_ancestors.iter().map(|block_ref| block_ref.author))
+            .collect::<BTreeSet<_>>();
+        {
+            let mut useful_authorities_from_peer_write_guard =
+                self.useful_authorities_from_peer.write();
+            useful_authorities_from_peer_write_guard.insert(peer, useful_authorities);
+        }
+
+        // 14. schedule the fetching of missing ancestors (if any) from this peer
         if !missing_ancestors.is_empty() {
             if let Err(err) = self
                 .synchronizer
@@ -578,7 +609,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // 14. schedule the fetching of missing committed transactions (if any)
+        // 15. schedule the fetching of missing committed transactions (if any)
         if !missing_committed_txns.is_empty() {
             if let Err(err) = self
                 .transactions_synchronizer
@@ -629,18 +660,47 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // new blocks.
         Ok(Box::pin(missed_blocks.chain({
             let dag_state = Arc::clone(&self.dag_state);
+            let useful_authorities_from_peer = Arc::clone(&self.useful_authorities_from_peer);
+            let useful_authorities_to_peer = Arc::clone(&self.useful_authorities_to_peer);
+            let committee = self
+                .context
+                .committee
+                .authorities()
+                .map(|(index, _)| index)
+                .collect::<BTreeSet<_>>();
 
             broadcasted_blocks.filter_map(move |block| {
+                let useful_authorities_to_peer_guard = useful_authorities_to_peer.read();
+                let useful_authorities_to_peer_read = useful_authorities_to_peer_guard
+                    .get(&peer)
+                    .map(|authorities| authorities.iter().cloned().collect::<BTreeSet<_>>());
+                drop(useful_authorities_to_peer_guard);
+                let useful_authorities_from_peer_guard = useful_authorities_from_peer.read();
+                let useful_authorities_from_peer_read =
+                    match useful_authorities_from_peer_guard.get(&peer) {
+                        None => committee.clone(),
+                        Some(useful_authorities) => useful_authorities.clone(),
+                    };
+                drop(useful_authorities_from_peer_guard);
+
                 let mut dag_state_guard = dag_state.write();
-                let block_headers =
-                    dag_state_guard.take_unknown_headers_for_authority(peer, block.round());
+                let block_headers = match useful_authorities_to_peer_read {
+                    None => dag_state_guard.take_unknown_headers_for_authority(peer, block.round()),
+                    Some(authorities) => dag_state_guard.take_useful_headers_for_authority(
+                        peer,
+                        block.round(),
+                        authorities,
+                    ),
+                };
                 let serialized_shards =
                     dag_state_guard.take_unknown_shards_for_authority(peer, block.round());
                 drop(dag_state_guard);
+
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: block_headers,
                     serialized_shards,
+                    useful_authorities: useful_authorities_from_peer_read,
                 };
                 async move {
                     match SerializedBlockBundle::try_from(block_bundle) {
@@ -698,8 +758,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let commit_sync_handle = highest_accepted_rounds.is_empty();
 
         // For commit sync, the fetch size is larger. For periodic/live synchronizer,
-        // the fetch size is smaller.else { Instead of rejecting the request, we
-        // truncate the size to allow an easy update of this parameter in the future.
+        // the fetch size is smaller. Instead of rejecting the request, we truncate
+        // the size to allow an easy update of this parameter in the future.
         let max_fetch_size = if commit_sync_handle {
             self.context.parameters.max_headers_per_commit_sync_fetch
         } else {
@@ -1611,6 +1671,7 @@ mod tests {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
             serialized_shards: vec![],
+            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
         };
         let serialized_big_block_bundle = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(big_block_bundle).unwrap(),
@@ -1639,6 +1700,7 @@ mod tests {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
             serialized_shards: vec![],
+            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
         };
         let serialized_block_bundle_with_big_round = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(block_bundle_with_big_rounds).unwrap(),
@@ -1675,6 +1737,7 @@ mod tests {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
             serialized_shards: vec![],
+            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
         };
         let serialized_block_bundle = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
@@ -2169,6 +2232,9 @@ mod tests {
                     verified_block: block,
                     verified_headers: headers,
                     serialized_shards: vec![],
+                    useful_authorities: (0u8..(context.committee.size() as u8))
+                        .map(Into::into)
+                        .collect(),
                 };
                 let serialized_block_bundle = SerializedBlockBundle::try_from(
                     SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
@@ -2309,6 +2375,9 @@ mod tests {
                     verified_block: block,
                     verified_headers: vec![],
                     serialized_shards: vec![],
+                    useful_authorities: (0u8..(context.committee.size() as u8))
+                        .map(Into::into)
+                        .collect(),
                 };
                 let serialized_block_bundle = SerializedBlockBundle::try_from(
                     SerializedBlockBundleParts::try_from(block_bundle).unwrap(),

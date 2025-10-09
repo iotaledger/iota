@@ -100,6 +100,7 @@ module iota_system::iota_system_state_inner {
         mut _non_refundable_storage_fee_amount: u64,
         _reward_slashing_rate: u64,
         _max_committee_members_count: u64,
+        _eligible_active_validators: vector<u64>,
         _ctx: &mut TxContext,
     ) : Balance<IOTA> {
         let storage_charge_value = storage_charge.value();

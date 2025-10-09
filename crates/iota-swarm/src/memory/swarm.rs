@@ -609,12 +609,22 @@ impl Swarm {
             .collect()
     }
 
-    /// Returns an iterator over all currently active validators.
+    /// Returns an iterator over all current active validators.
     pub fn active_validators(&self) -> impl Iterator<Item = &Node> {
         self.validator_nodes().filter(|node| {
             node.get_node_handle().is_some_and(|handle| {
                 let state = handle.state();
-                state.is_validator(&state.epoch_store_for_testing())
+                state.is_active_validator(&state.epoch_store_for_testing())
+            })
+        })
+    }
+
+    /// Returns an iterator over all current active validators.
+    pub fn committee_validators(&self) -> impl Iterator<Item = &Node> {
+        self.validator_nodes().filter(|node| {
+            node.get_node_handle().is_some_and(|handle| {
+                let state = handle.state();
+                state.is_committee_validator(&state.epoch_store_for_testing())
             })
         })
     }

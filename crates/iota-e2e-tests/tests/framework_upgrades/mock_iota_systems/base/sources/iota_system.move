@@ -61,6 +61,7 @@ module iota_system::iota_system {
         reward_slashing_rate: u64,
         epoch_start_timestamp_ms: u64,
         max_committee_members_count: u64,
+        eligible_active_validators: vector<u64>,
         ctx: &mut TxContext,
     ) : Balance<IOTA> {
         let self = load_system_state_mut(wrapper);
@@ -78,6 +79,7 @@ module iota_system::iota_system {
             reward_slashing_rate,
             epoch_start_timestamp_ms,
             max_committee_members_count,
+            eligible_active_validators,
             ctx
         );
 
