@@ -1,11 +1,22 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ALL_PERMISSION_TYPES, isValidPermissionTypes } from '_payloads/permissions';
 import type { Permission, PermissionResponse, PermissionType } from '_payloads/permissions';
 import mitt from 'mitt';
-import { catchError, concatMap, filter, from, mergeWith, share, Subject } from 'rxjs';
+import {
+    catchError,
+    concatMap,
+    defaultIfEmpty,
+    filter,
+    firstValueFrom,
+    from,
+    map,
+    mergeWith,
+    share,
+    Subject,
+} from 'rxjs';
 import type { Observable } from 'rxjs';
 import { v4 as uuidV4 } from 'uuid';
 import Browser from 'webextension-polyfill';
@@ -186,8 +197,14 @@ class Permissions {
         connection: ContentScriptConnection,
     ): Promise<void> {
         const permission = await this.getPermissionByID(permissionId);
-        if (!permission || !this.isPendingPermissionRequest(permission)) {
-            return; // Permission already handled or doesn't exist
+        const isHandling = await firstValueFrom(
+            this._permissionResponses.pipe(
+                map((response) => response.id === permissionId),
+                defaultIfEmpty(false),
+            ),
+        );
+        if (!permission || !this.isPendingPermissionRequest(permission) || isHandling) {
+            return; // Permission already handled, doesn't exist or is being handled
         }
 
         const updatedPermission: Permission = {

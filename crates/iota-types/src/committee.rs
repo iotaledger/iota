@@ -215,6 +215,24 @@ impl Committee {
         }
     }
 
+    /// Calculates the effective threshold for protocol version selection.
+    /// This is the quorum threshold plus a buffer stake based on the given
+    /// basis points.
+    ///
+    /// The buffer is calculated as: f * buffer_stake_bps / 10000, rounded up
+    /// where f = total_votes - quorum_threshold
+    ///
+    /// buffer_stake_bps is clamped to a maximum of 10000.
+    pub fn effective_threshold(&self, mut buffer_stake_bps: u64) -> StakeUnit {
+        if buffer_stake_bps > 10000 {
+            buffer_stake_bps = 10000;
+        }
+        let quorum_threshold = self.quorum_threshold();
+        let f = self.total_votes() - quorum_threshold;
+        let buffer_stake = (f * buffer_stake_bps).div_ceil(10000);
+        quorum_threshold + buffer_stake
+    }
+
     pub fn num_members(&self) -> usize {
         self.voting_rights.len()
     }
