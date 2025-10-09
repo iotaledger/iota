@@ -8,7 +8,13 @@ import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@io
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, TransactionLink } from '../../../components/ui';
-import { CoinFormat, formatBalance, formatDigest, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import {
+    CoinFormat,
+    formatBalance,
+    formatDigest,
+    IOTA_TYPE_ARG,
+    NANOS_PER_IOTA,
+} from '@iota/iota-sdk/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
 
 /**
@@ -88,7 +94,7 @@ export function generateTransactionsTableColumns(
                         typeof change.owner === 'object' &&
                         'AddressOwner' in change.owner &&
                         change.owner.AddressOwner === address &&
-                        change.coinType === '0x2::iota::IOTA',
+                        change.coinType === IOTA_TYPE_ARG,
                 );
                 if (!balanceChange) {
                     return (
