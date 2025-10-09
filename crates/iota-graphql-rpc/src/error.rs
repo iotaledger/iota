@@ -80,6 +80,8 @@ pub enum Error {
     Internal(String),
     #[error(transparent)]
     IotaNames(#[from] IotaNamesError),
+    #[error("{0}")]
+    ServerInit(String),
 }
 
 impl ErrorExtensions for Error {
@@ -96,6 +98,9 @@ impl ErrorExtensions for Error {
             }
             Error::IotaNames(_) => {
                 e.set("code", code::BAD_REQUEST);
+            }
+            Error::ServerInit(_) => {
+                e.set("code", code::UNKNOWN);
             }
         })
     }

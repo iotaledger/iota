@@ -35,6 +35,7 @@ pub(crate) mod move_package;
 pub(crate) mod move_struct;
 pub(crate) mod move_type;
 pub(crate) mod move_value;
+pub(crate) mod move_view_result;
 pub(crate) mod object;
 pub(crate) mod object_change;
 pub(crate) mod object_read;
