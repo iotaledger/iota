@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: Apache-2.0
 use async_graphql::*;
 use fastcrypto::encoding::Base64;
-use iota_indexer::apis::OptimisticWriteApi;
 use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 use iota_types::{
@@ -13,6 +12,7 @@ use iota_types::{
 
 use crate::{
     error::Error,
+    server::builder::get_write_api,
     types::{
         execution_result::ExecutionResult,
         transaction_block_effects::{TransactionBlockEffects, TransactionBlockEffectsKind},
@@ -48,14 +48,7 @@ impl Mutation {
         tx_bytes: String,
         signatures: Vec<String>,
     ) -> Result<ExecutionResult> {
-        let write_api: &Option<OptimisticWriteApi> = ctx
-            .data()
-            .map_err(|_| Error::Internal("Unable to fetch OptimisticWriteApi".to_string()))
-            .extend()?;
-        let optimistic_tx_executor = write_api
-            .as_ref()
-            .ok_or_else(|| Error::Internal("OptimisticWriteApi not initialized".to_string()))
-            .extend()?;
+        let write_api = get_write_api(ctx).extend()?;
         let tx_data = Base64::try_from(tx_bytes)
             .map_err(|e| {
                 Error::Client(format!(
@@ -81,7 +74,7 @@ impl Mutation {
             .with_raw_input()
             .with_raw_effects();
 
-        let result = optimistic_tx_executor
+        let result = write_api
             .execute_transaction_block(tx_data, sigs, Some(options), None)
             .await
             .map_err(|e| Error::Internal(format!("Unable to execute transaction: {e}")))

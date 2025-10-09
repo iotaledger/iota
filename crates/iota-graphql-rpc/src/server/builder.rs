@@ -837,14 +837,14 @@ pub mod tests {
             delay: Duration,
             timeout: Duration,
             query: &str,
-            write_api: &OptimisticWriteApi,
+            write_api: OptimisticWriteApi,
         ) -> Response {
             let mut cfg = ServiceConfig::default();
             cfg.limits.request_timeout_ms = timeout.as_millis() as u32;
             cfg.limits.mutation_timeout_ms = timeout.as_millis() as u32;
 
             let schema = prep_schema(None, Some(cfg))
-                .context_data(Some(write_api.clone()))
+                .context_data(write_api)
                 .extension(Timeout)
                 .extension(TimedExecuteExt {
                     min_req_delay: delay,
@@ -877,13 +877,13 @@ pub mod tests {
         let timeout = Duration::from_millis(1000);
         let delay = Duration::from_millis(100);
 
-        test_timeout(delay, timeout, query, &write_api)
+        test_timeout(delay, timeout, query, write_api.clone())
             .await
             .into_result()
             .expect("Should complete successfully");
 
         // Should timeout
-        let errs: Vec<_> = test_timeout(delay, delay, query, &write_api)
+        let errs: Vec<_> = test_timeout(delay, delay, query, write_api.clone())
             .await
             .into_result()
             .unwrap_err()
@@ -926,7 +926,7 @@ pub mod tests {
             tx_bytes.encoded(),
             signature_base64.encoded()
         );
-        let errs: Vec<_> = test_timeout(delay, delay, &query, &write_api)
+        let errs: Vec<_> = test_timeout(delay, delay, &query, write_api.clone())
             .await
             .into_result()
             .unwrap_err()
