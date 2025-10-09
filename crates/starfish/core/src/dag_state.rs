@@ -33,6 +33,9 @@ use crate::{
     threshold_clock::ThresholdClock,
 };
 
+/// If a shard from a block created by authority v1 is useful to authority v2 at
+/// round r, then shards from v1 will be sent to v2 up to round r +
+/// MAX_ROUND_GAP_FOR_USEFUL_SHARDS.
 const MAX_ROUND_GAP_FOR_USEFUL_SHARDS: usize = 5;
 
 /// DagState provides the API to write and read accepted blocks from the DAG.
@@ -1449,13 +1452,13 @@ impl DagState {
         last_useful_round: Vec<Round>,
         block_round: Round,
     ) -> BTreeSet<AuthorityIndex> {
-        let mut useful_authorities = BTreeSet::new();
+        let mut useful_shard_authors = BTreeSet::new();
         for (i, round) in last_useful_round.iter().enumerate() {
-            if block_round - round < MAX_ROUND_GAP_FOR_USEFUL_SHARDS as u32 {
-                useful_authorities.insert(AuthorityIndex::from(i as u8));
+            if block_round - round <= MAX_ROUND_GAP_FOR_USEFUL_SHARDS as u32 {
+                useful_shard_authors.insert(AuthorityIndex::from(i as u8));
             }
         }
-        useful_authorities
+        useful_shard_authors
     }
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
         let mut votes = Vec::new();

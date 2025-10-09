@@ -246,7 +246,7 @@ pub(crate) struct BlockBundle {
     pub(crate) verified_block: VerifiedBlock,
     pub(crate) verified_headers: Vec<VerifiedBlockHeader>,
     pub(crate) serialized_shards: Vec<Bytes>,
-    pub(crate) useful_authorities: BTreeSet<AuthorityIndex>,
+    pub(crate) useful_headers_authors: BTreeSet<AuthorityIndex>,
     pub(crate) useful_shards_authors: BTreeSet<AuthorityIndex>,
 }
 
@@ -255,7 +255,7 @@ pub(crate) struct SerializedBlockBundleParts {
     pub(crate) serialized_block: Bytes,
     pub(crate) serialized_headers: Vec<Bytes>,
     pub(crate) serialized_shards: Vec<Bytes>,
-    pub(crate) useful_authorities_bitmask: [u64; 4],
+    pub(crate) useful_headers_authors_bitmask: [u64; 4],
     pub(crate) useful_shards_authors_bitmask: [u64; 4],
 }
 
@@ -285,8 +285,8 @@ fn bitmask_to_authority_set(bitmask: [u64; 4]) -> BTreeSet<AuthorityIndex> {
 }
 
 impl SerializedBlockBundleParts {
-    pub(crate) fn useful_authorities(&self) -> BTreeSet<AuthorityIndex> {
-        bitmask_to_authority_set(self.useful_authorities_bitmask)
+    pub(crate) fn useful_headers_authors(&self) -> BTreeSet<AuthorityIndex> {
+        bitmask_to_authority_set(self.useful_headers_authors_bitmask)
     }
     pub(crate) fn useful_shards_authors(&self) -> BTreeSet<AuthorityIndex> {
         bitmask_to_authority_set(self.useful_shards_authors_bitmask)
@@ -312,7 +312,7 @@ impl TryFrom<VerifiedBlock> for SerializedBlockBundleParts {
             serialized_block: Bytes::from(bytes),
             serialized_headers: vec![],
             serialized_shards: vec![],
-            useful_authorities_bitmask: [0u64; 4],
+            useful_headers_authors_bitmask: [0u64; 4],
             useful_shards_authors_bitmask: [0u64; 4],
         })
     }
@@ -337,7 +337,9 @@ impl TryFrom<BlockBundle> for SerializedBlockBundleParts {
             serialized_block: Bytes::from(bytes),
             serialized_headers: serialized_block_headers,
             serialized_shards: block_bundle.serialized_shards,
-            useful_authorities_bitmask: authority_set_to_bitmask(&block_bundle.useful_authorities),
+            useful_headers_authors_bitmask: authority_set_to_bitmask(
+                &block_bundle.useful_headers_authors,
+            ),
             useful_shards_authors_bitmask: authority_set_to_bitmask(
                 &block_bundle.useful_shards_authors,
             ),
@@ -405,13 +407,13 @@ mod tests {
             verified_block: block,
             verified_headers: vec![],
             serialized_shards: vec![],
-            useful_authorities: useful_authorities.clone(),
+            useful_headers_authors: useful_authorities.clone(),
             useful_shards_authors: useful_authorities.clone(),
         };
         let serialized_bundle = SerializedBlockBundle::try_from(block_bundle).unwrap();
         let serialized_bundle_parts =
             SerializedBlockBundleParts::try_from(serialized_bundle).unwrap();
-        let converted_useful_authorities = serialized_bundle_parts.useful_authorities();
+        let converted_useful_authorities = serialized_bundle_parts.useful_headers_authors();
         assert_eq!(useful_authorities, converted_useful_authorities);
     }
 }
