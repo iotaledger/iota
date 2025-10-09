@@ -94,6 +94,17 @@ export function DetailsView({
     ) : (
         formatAddress(validatorAddress)
     );
+
+    const onUnstakeClick = () => {
+        if (handleUnstake) {
+            handleUnstake();
+            ampli.clickedUnstakeIota({
+                stakedAmount: Number(totalStakeFormatted),
+                validatorAddress: stakedDetails?.validatorAddress,
+            });
+        }
+    };
+
     if (isPendingValidators) {
         return (
             <div className="flex h-full w-full items-center justify-center p-2">
@@ -190,15 +201,7 @@ export function DetailsView({
                 <div className="flex w-full gap-sm">
                     <Button
                         type={ButtonType.Secondary}
-                        onClick={() => {
-                            if (handleUnstake) {
-                                handleUnstake();
-                                ampli.clickedUnstakeIota({
-                                    stakedAmount: Number(totalStakeFormatted),
-                                    validatorAddress: stakedDetails?.validatorAddress,
-                                });
-                            }
-                        }}
+                        onClick={onUnstakeClick}
                         text="Unstake"
                         fullWidth
                     />
