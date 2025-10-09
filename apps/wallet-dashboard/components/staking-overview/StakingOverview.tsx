@@ -21,6 +21,6 @@ export function StakingOverview() {
     return (delegatedStakeData?.length ?? 0) > 0 ? (
         <StakingData stakingData={delegatedStakeData} />
     ) : (
-        <StartStaking sourceFlow="Home Dashboard" />
+        <StartStaking />
     );
 }

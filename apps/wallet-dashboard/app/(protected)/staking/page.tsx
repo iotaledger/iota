@@ -42,6 +42,7 @@ import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { isSupplyIncreaseVestingObject } from '@/lib/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useRouter } from 'next/navigation';
+import { StakeSource } from '@/lib/utils/analytics';
 
 function StakingDashboardPage(): React.JSX.Element {
     const router = useRouter();
@@ -160,7 +161,7 @@ function StakingDashboardPage(): React.JSX.Element {
                             title="Staking"
                             trailingElement={
                                 <Button
-                                    onClick={() => handleNewStake('Staking Dashboard')}
+                                    onClick={() => handleNewStake()}
                                     size={ButtonSize.Small}
                                     type={ButtonType.Primary}
                                     text="Stake"
@@ -261,7 +262,7 @@ function StakingDashboardPage(): React.JSX.Element {
                     </Panel>
                 ) : (
                     <div className="flex h-[270px] py-lg">
-                        <StartStaking sourceFlow="Staking Dashboard" />
+                        <StartStaking />
                     </div>
                 )}
                 {hasAvailableVestedStaking && supplyIncreaseVestingEnabled && (

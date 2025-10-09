@@ -54,7 +54,6 @@ export function DetailsView({
     showActiveStatus,
 }: StakeDialogProps): JSX.Element {
     const totalStake = BigInt(stakedDetails?.principal || 0n);
-
     const validatorAddress = stakedDetails?.validatorAddress;
     const {
         isValidatorExpectedToBeInTheCommittee,

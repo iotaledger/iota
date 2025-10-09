@@ -122,7 +122,7 @@ export function SupplyIncreaseVestingOverview() {
                                 type={CardActionType.Button}
                                 buttonType={ButtonType.Primary}
                                 title={'Stake'}
-                                onClick={() => handleNewStake('Home Dashboard')}
+                                onClick={() => handleNewStake()}
                                 buttonDisabled={!supplyIncreaseVestingSchedule.availableStaking}
                             />
                         </Card>
