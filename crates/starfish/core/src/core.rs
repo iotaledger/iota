@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
@@ -266,7 +266,7 @@ impl Core {
     /// this call is known to be about not old blocks. The method returns:
     /// - The references of ancestors missing their block
     /// - The references of committed transactions that are missing
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument("consensus_add_blocks", skip_all)]
     pub(crate) fn add_blocks(
         &mut self,
         blocks: Vec<VerifiedBlock>,
@@ -480,6 +480,7 @@ impl Core {
             return;
         }
         // Then send a signal to set up leader timeout.
+        tracing::trace!(round = ?new_clock_round, "new_consensus_round_sent");
         self.signals.new_round(new_clock_round);
         self.last_signaled_round = new_clock_round;
 
@@ -547,6 +548,7 @@ impl Core {
     /// Attempts to propose a new block for the next round. If a block has
     /// already proposed for latest or earlier round, then no block is
     /// created and None is returned.
+    #[instrument(level = "trace", skip_all)]
     fn try_new_block(&mut self, force: bool) -> Option<VerifiedBlock> {
         let _s = self
             .context
@@ -792,6 +794,7 @@ impl Core {
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
     /// any `certified_commits` are provided, then it will attempt to commit
     /// those first before trying to commit any further leaders.
+    #[instrument(level = "trace", skip_all)]
     fn try_commit(
         &mut self,
     ) -> ConsensusResult<(
