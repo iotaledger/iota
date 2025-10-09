@@ -805,8 +805,8 @@ importers:
         specifier: ^6.12.4
         version: 6.19.1
       '@ledgerhq/hw-transport':
-        specifier: ^6.31.0
-        version: 6.31.4
+        specifier: ^6.31.12
+        version: 6.31.12
       '@ledgerhq/hw-transport-webhid':
         specifier: ^6.27.15
         version: 6.29.4
@@ -5853,9 +5853,6 @@ packages:
 
   '@ledgerhq/hw-transport@6.31.12':
     resolution: {integrity: sha512-FO5LRIXYC8ELtaohlO8qK0b3TfHUNBZ3+CXKPHiHj2jJwrxPf4s5kcgBYrmzuf1C/1vfrMOjzyty6OgrMIbU6Q==}
-
-  '@ledgerhq/hw-transport@6.31.4':
-    resolution: {integrity: sha512-6c1ir/cXWJm5dCWdq55NPgCJ3UuKuuxRvf//Xs36Bq9BwkV2YaRQhZITAkads83l07NAdR16hkTWqqpwFMaI6A==}
 
   '@ledgerhq/logs@6.12.0':
     resolution: {integrity: sha512-ExDoj1QV5eC6TEbMdLUMMk9cfvNKhhv5gXol4SmULRVCx/3iyCPhJ74nsb3S0Vb+/f+XujBEj3vQn5+cwS0fNA==}
@@ -25694,14 +25691,14 @@ snapshots:
     dependencies:
       '@ledgerhq/devices': 8.4.4
       '@ledgerhq/errors': 6.19.1
-      '@ledgerhq/hw-transport': 6.31.4
+      '@ledgerhq/hw-transport': 6.31.12
       '@ledgerhq/logs': 6.12.0
 
   '@ledgerhq/hw-transport-webusb@6.29.4':
     dependencies:
       '@ledgerhq/devices': 8.4.4
       '@ledgerhq/errors': 6.19.1
-      '@ledgerhq/hw-transport': 6.31.4
+      '@ledgerhq/hw-transport': 6.31.12
       '@ledgerhq/logs': 6.12.0
 
   '@ledgerhq/hw-transport@6.31.12':
@@ -25709,13 +25706,6 @@ snapshots:
       '@ledgerhq/devices': 8.6.1
       '@ledgerhq/errors': 6.26.0
       '@ledgerhq/logs': 6.13.0
-      events: 3.3.0
-
-  '@ledgerhq/hw-transport@6.31.4':
-    dependencies:
-      '@ledgerhq/devices': 8.4.4
-      '@ledgerhq/errors': 6.19.1
-      '@ledgerhq/logs': 6.12.0
       events: 3.3.0
 
   '@ledgerhq/logs@6.12.0': {}
