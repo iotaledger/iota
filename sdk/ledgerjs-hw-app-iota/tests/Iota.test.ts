@@ -13,8 +13,9 @@ const SPECULOS_BASE_URL: string = `http://127.0.0.1:${API_PORT}`;
 const SPECULOS_HTTP_TRANSPORT_OPTS = {
     apiPort: API_PORT.toString(),
 };
-const TEST_TIMEOUT_MS = 35000;
-const WAIT_TIME_MS = 10000;
+const TEST_TIMEOUT_MS = 40000;
+const WAIT_TIME_MS = 7000;
+const PRESS_TIME_MS = 500;
 // Before running the tests, pull the speculos Docker image and download the ledgernano binary.
 // Then start the speculos simulator and run the tests.
 //
@@ -48,6 +49,7 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
         expect(Buffer.from(publicKey).toString('hex')).toBe(
             'f0a9c612b7e69f1a114aa9189c1f32997d395d09d183368ddfd6d5dc49e34647',
         );
+        await Axios.delete(SPECULOS_BASE_URL + '/events');
     });
 
     it('Test address generation with display', { timeout: TEST_TIMEOUT_MS }, async () => {
@@ -70,12 +72,14 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
         // Send requests to approve the shown address
         for (let i = 0; i < 3; i++) {
             await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
+            await new Promise((r) => setInterval(r, PRESS_TIME_MS));
         }
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
         await new Promise((r) => setInterval(r, WAIT_TIME_MS));
         if (!addressReceived) {
             throw new Error(`Didn't receive address in time`);
         }
+        await Axios.delete(SPECULOS_BASE_URL + '/events');
     });
 
     it('Test signing', { timeout: TEST_TIMEOUT_MS }, async () => {
@@ -105,12 +109,14 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
         // Send requests to approve the tx
         for (let i = 0; i < 7; i++) {
             await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
+            await new Promise((r) => setInterval(r, PRESS_TIME_MS));
         }
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
         await new Promise((resolve) => setTimeout(resolve, WAIT_TIME_MS));
         if (!signatureReceived) {
             throw new Error(`Didn't receive signature in time`);
         }
+        await Axios.delete(SPECULOS_BASE_URL + '/events');
     });
 
     it('Test blind signing', { timeout: TEST_TIMEOUT_MS }, async () => {
@@ -148,11 +154,13 @@ describe.sequential('Test ledgerjs-hw-app-iota', () => {
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
         for (let i = 0; i < 3; i++) {
             await Axios.post(SPECULOS_BASE_URL + '/button/right', { action: 'press-and-release' });
+            await new Promise((r) => setInterval(r, PRESS_TIME_MS));
         }
         await Axios.post(SPECULOS_BASE_URL + '/button/both', { action: 'press-and-release' });
         await new Promise((resolve) => setTimeout(resolve, WAIT_TIME_MS));
         if (!signatureReceived) {
             throw new Error(`Didn't receive signature in time`);
         }
+        await Axios.delete(SPECULOS_BASE_URL + '/events');
     });
 });
