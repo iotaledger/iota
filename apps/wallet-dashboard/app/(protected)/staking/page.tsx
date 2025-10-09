@@ -42,7 +42,6 @@ import { IotaSignAndExecuteTransactionOutput } from '@iota/wallet-standard';
 import { isSupplyIncreaseVestingObject } from '@/lib/utils';
 import { useFeature } from '@growthbook/growthbook-react';
 import { useRouter } from 'next/navigation';
-import { StakeSource } from '@/lib/utils/analytics';
 
 function StakingDashboardPage(): React.JSX.Element {
     const router = useRouter();

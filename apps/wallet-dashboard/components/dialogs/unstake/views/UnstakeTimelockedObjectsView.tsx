@@ -104,9 +104,9 @@ export function UnstakeTimelockedObjectsView({
                 onSuccess: (tx) => {
                     toast.success('Unstake transaction has been sent');
                     onSuccess(tx);
-                    // TODO add number of unstaked objects
                     ampli.timelockUnstake({
                         validatorAddress: groupedTimelockedObjects.validatorAddress,
+                        stakedAmount: Number(totalStakedAmountFormatted),
                     });
                 },
             },

@@ -141,6 +141,12 @@ export interface TimelockStakeProperties {
 }
 
 export interface TimelockUnstakeProperties {
+  /**
+   * | Rule | Value |
+   * |---|---|
+   * | Type | number |
+   */
+  stakedAmount?: number;
   validatorAddress?: string;
 }
 
