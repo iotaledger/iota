@@ -244,7 +244,9 @@ where
     }
 }
 
-pub(crate) struct ConsistentPage {
+pub(crate) type ConsistentPageCursor = JsonCursor<ConsistentIndexCursor>;
+
+pub(crate) struct ConsistentPage<I: Iterator<Item = ConsistentPageCursor>> {
     /// Whether there is a previous page available
     pub has_previous_page: bool,
     /// Whether there is a next page available
@@ -252,7 +254,7 @@ pub(crate) struct ConsistentPage {
     /// The checkpoint viewed at for consistency
     pub checkpoint_viewed_at: u64,
     /// Iterator of cursors within the page
-    pub cursors: Box<dyn Iterator<Item = JsonCursor<ConsistentIndexCursor>> + Send>,
+    pub cursors: I,
 }
 
 impl Page<JsonCursor<ConsistentIndexCursor>> {
@@ -265,7 +267,7 @@ impl Page<JsonCursor<ConsistentIndexCursor>> {
         &self,
         total: usize,
         checkpoint_viewed_at: u64,
-    ) -> Result<Option<ConsistentPage>, Error> {
+    ) -> Result<Option<ConsistentPage<impl Iterator<Item = ConsistentPageCursor>>>, Error> {
         let cursor_viewed_at = self.validate_cursor_consistency()?;
         let checkpoint_viewed_at = cursor_viewed_at.unwrap_or(checkpoint_viewed_at);
 
@@ -286,12 +288,12 @@ impl Page<JsonCursor<ConsistentIndexCursor>> {
             has_previous_page: 0 < lo,
             has_next_page: hi < total,
             checkpoint_viewed_at,
-            cursors: Box::new((lo..hi).map(move |ix| {
+            cursors: (lo..hi).map(move |ix| {
                 JsonCursor::new(ConsistentIndexCursor {
                     ix,
                     c: checkpoint_viewed_at,
                 })
-            })),
+            }),
         }))
     }
 }
