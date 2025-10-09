@@ -22,7 +22,7 @@
 //! network outside of this module, so they can be reused easily across network
 //! implementations.
 
-use std::{pin::Pin, time::Duration};
+use std::{collections::BTreeSet, pin::Pin, time::Duration};
 
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -36,7 +36,6 @@ use crate::{
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
-
 // Tonic generated RPC stubs.
 mod tonic_gen {
     include!(concat!(env!("OUT_DIR"), "/consensus.ConsensusService.rs"));
@@ -247,6 +246,7 @@ pub(crate) struct BlockBundle {
     pub(crate) verified_block: VerifiedBlock,
     pub(crate) verified_headers: Vec<VerifiedBlockHeader>,
     pub(crate) serialized_shards: Vec<Bytes>,
+    pub(crate) useful_authorities: BTreeSet<AuthorityIndex>,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -254,6 +254,23 @@ pub(crate) struct SerializedBlockBundleParts {
     pub(crate) serialized_block: Bytes,
     pub(crate) serialized_headers: Vec<Bytes>,
     pub(crate) serialized_shards: Vec<Bytes>,
+    pub(crate) useful_authorities_bitmask: [u64; 4],
+}
+
+impl SerializedBlockBundleParts {
+    pub(crate) fn useful_authorities(&self) -> BTreeSet<AuthorityIndex> {
+        let mut useful_authorities = BTreeSet::new();
+        for array_index in 0..4 {
+            let mut bits = self.useful_authorities_bitmask[array_index];
+            let base = array_index * 64;
+            while bits != 0 {
+                let bit = bits.trailing_zeros() as usize;
+                useful_authorities.insert(AuthorityIndex::from((base + bit) as u8));
+                bits &= bits - 1;
+            }
+        }
+        useful_authorities
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -275,6 +292,7 @@ impl TryFrom<VerifiedBlock> for SerializedBlockBundleParts {
             serialized_block: Bytes::from(bytes),
             serialized_headers: vec![],
             serialized_shards: vec![],
+            useful_authorities_bitmask: [0u64; 4],
         })
     }
 }
@@ -294,11 +312,18 @@ impl TryFrom<BlockBundle> for SerializedBlockBundleParts {
         for block_header in block_bundle.verified_headers.iter() {
             serialized_block_headers.push(block_header.serialized().clone());
         }
-
+        let mut useful_authorities_bitmask = [0u64; 4];
+        for authority_index in block_bundle.useful_authorities {
+            let index = authority_index.value();
+            let array_index = index / 64;
+            let bit_pos = index % 64;
+            useful_authorities_bitmask[array_index] |= 1u64 << bit_pos;
+        }
         Ok(Self {
             serialized_block: Bytes::from(bytes),
             serialized_headers: serialized_block_headers,
             serialized_shards: block_bundle.serialized_shards,
+            useful_authorities_bitmask,
         })
     }
 }
@@ -340,4 +365,35 @@ impl TryFrom<BlockBundle> for SerializedBlockBundle {
 pub(crate) struct SerializedTransactions {
     pub(crate) block_ref: BlockRef,
     pub(crate) serialized_transactions: Bytes,
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::{seq::IteratorRandom, thread_rng};
+
+    use super::*;
+    use crate::TestBlockHeader;
+    #[test]
+    fn test_block_bundle_useful_authorities_set_bitmask_conversion() {
+        let block = VerifiedBlock::new_for_test(TestBlockHeader::new(0u32, 0u8).build());
+        // Generate a random sample of AuthorityIndex values (from 0..=255).
+        let mut rng = thread_rng();
+        let useful_authorities: BTreeSet<AuthorityIndex> = (0u8..=255)
+            .choose_multiple(&mut rng, 50) // pick 50 random distinct authorities
+            .into_iter()
+            .map(AuthorityIndex::from)
+            .collect();
+
+        let block_bundle = BlockBundle {
+            verified_block: block,
+            verified_headers: vec![],
+            serialized_shards: vec![],
+            useful_authorities: useful_authorities.clone(),
+        };
+        let serialized_bundle = SerializedBlockBundle::try_from(block_bundle).unwrap();
+        let serialized_bundle_parts =
+            SerializedBlockBundleParts::try_from(serialized_bundle).unwrap();
+        let converted_useful_authorities = serialized_bundle_parts.useful_authorities();
+        assert_eq!(useful_authorities, converted_useful_authorities);
+    }
 }

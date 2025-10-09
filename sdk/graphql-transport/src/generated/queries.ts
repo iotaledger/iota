@@ -551,6 +551,11 @@ export type ChangeEpochTransactionV2 = {
    * epoch (in NANOS).
    */
   computationChargeBurned: Scalars['BigInt']['output'];
+  /**
+   * The list of active validators eligible for committee selection for the
+   * next epoch.
+   */
+  eligibleActiveValidators?: Maybe<Array<Scalars['BigInt']['output']>>;
   /** The next (to become) epoch. */
   epoch?: Maybe<Epoch>;
   /**
