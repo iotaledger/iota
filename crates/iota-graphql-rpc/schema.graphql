@@ -2696,6 +2696,12 @@ type MoveValue {
 
 """
 The result of a move-view function call.
+
+Execution errors are captured in the `error` field, in which
+case the `results` field will be `None`.
+
+On success, the `results` field will contain the return values of the
+move view function, and the `error` field will be `None`.
 """
 type MoveViewResult {
 	"""
