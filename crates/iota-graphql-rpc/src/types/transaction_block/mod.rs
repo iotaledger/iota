@@ -560,7 +560,7 @@ impl Loader<DigestKey> for Db {
         for key in keys {
             let digest_bytes = key.digest.as_slice();
 
-            if let Some(stored) = transaction_digest_to_stored.get(digest_bytes) {
+            let tx_block = if let Some(stored) = transaction_digest_to_stored.get(digest_bytes) {
                 // Filter by key's checkpoint viewed at here. Doing this in memory because it
                 // should be quite rare that this query actually filters something,
                 // but encoding it in SQL is complicated.
@@ -568,24 +568,19 @@ impl Loader<DigestKey> for Db {
                     continue;
                 }
 
-                let inner = TransactionBlockInner::try_from(stored.clone())?;
-                results.insert(
-                    *key,
-                    TransactionBlock {
-                        inner,
-                        checkpoint_viewed_at: key.checkpoint_viewed_at,
-                    },
-                );
+                TransactionBlock {
+                    inner: TransactionBlockInner::try_from(stored.clone())?,
+                    checkpoint_viewed_at: key.checkpoint_viewed_at,
+                }
             } else if let Some(optimistic) = transaction_digest_to_optimistic.get(digest_bytes) {
-                let inner = TransactionBlockInner::try_from(optimistic.clone())?;
-                results.insert(
-                    *key,
-                    TransactionBlock {
-                        inner,
-                        checkpoint_viewed_at: u64::MAX,
-                    },
-                );
-            }
+                TransactionBlock {
+                    inner: TransactionBlockInner::try_from(optimistic.clone())?,
+                    checkpoint_viewed_at: u64::MAX,
+                }
+            } else {
+                continue;
+            };
+            results.insert(*key, tx_block);
         }
 
         Ok(results)
