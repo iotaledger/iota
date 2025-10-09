@@ -1360,7 +1360,7 @@ impl DagState {
         let mut to_take = Vec::new();
 
         for block_ref in set.iter() {
-            if to_take.len() >= MAX_SHARDS_PER_BUNDLE
+            if to_take.len() >= self.context.parameters.max_shards_per_bundle
                 || block_ref.round >= round_upper_bound_exclusive
             {
                 break;

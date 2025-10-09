@@ -1749,17 +1749,6 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>();
-        let big_block_bundle = BlockBundle {
-            verified_block: input_block.clone(),
-            verified_headers: headers.clone(),
-            serialized_shards: vec![],
-            useful_headers_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
-            useful_shards_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
-        };
-        let serialized_big_block_bundle = SerializedBlockBundle::try_from(
-            SerializedBlockBundleParts::try_from(big_block_bundle).unwrap(),
-        )
-        .unwrap();
 
         let service = authority_service.clone();
 
