@@ -33,9 +33,6 @@ use crate::{
     threshold_clock::ThresholdClock,
 };
 
-pub(crate) const MAX_HEADERS_PER_BUNDLE: usize = 150;
-pub(crate) const MAX_SHARDS_PER_BUNDLE: usize = 150;
-
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
 /// The rest of blocks are stored on disk.
@@ -56,9 +53,10 @@ pub(crate) struct DagState {
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
     /// Contains recent transactions. It contains
-    /// MAX_TRANSACTIONS_ACK_DEPTH+MAX_LINEARIZER_DEPTH from the round of
-    /// the last consumed commit. Note: all transactions in blocks below that
-    /// round are evicted from memory.
+    /// MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH =
+    /// (protocol_config.gc_depth * 2) from the round of the last consumed
+    /// commit. Note: all transactions in blocks below that round are
+    /// evicted from memory.
     recent_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
     /// Contains recent shards with their Merkle proofs.
     recent_shards: BTreeMap<BlockRef, Bytes>,
@@ -89,7 +87,8 @@ pub(crate) struct DagState {
     /// Round of the last committed leader which created a commit with available
     /// transactions. Does not persist across restarts and after recovery.
     /// All transactions below this round minus MAX_TRANSACTIONS_ACK_DEPTH
-    /// minus MAX_LINEARIZER_DEPTH are evicted from memory.
+    /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
+    /// (protocol_config.gc_depth) are evicted from memory.
     last_solid_commit_leader_round: Option<Round>,
 
     /// Rounds for latest blocks traversed by linearizer per authority.
@@ -1270,7 +1269,7 @@ impl DagState {
             );
             let nth_element = set
                 .iter()
-                .nth(MAX_HEADERS_PER_BUNDLE)
+                .nth(self.context.parameters.max_headers_per_bundle)
                 .map_or(round_bound, |x| *x);
             min(nth_element, round_bound)
         };
@@ -1289,10 +1288,10 @@ impl DagState {
         block_refs
     }
 
-    /// Removes and returns up to `MAX_HEADERS_PER_BUNDLE` block references that
-    /// the given authority has not yet seen, limited to rounds strictly
-    /// below `round_upper_bound_exclusive` and filtered by the provided authors
-    /// `useful_authorities`.
+    /// Removes and returns up to `context.parameters.max_headers_per_bundle`
+    /// block references that the given authority has not yet seen, limited
+    /// to rounds strictly below `round_upper_bound_exclusive` and filtered
+    /// by the provided authors `useful_authorities`.
     ///
     /// Side effects:
     /// - Updates `block_headers_not_known_by_authority` so these refs are no
@@ -1315,7 +1314,7 @@ impl DagState {
         let mut to_take = Vec::new();
 
         for block_ref in set.iter() {
-            if to_take.len() >= MAX_HEADERS_PER_BUNDLE
+            if to_take.len() >= self.context.parameters.max_headers_per_bundle
                 || block_ref.round >= round_upper_bound_exclusive
             {
                 break;
@@ -1405,7 +1404,7 @@ impl DagState {
             );
             let nth_element = set
                 .iter()
-                .nth(MAX_SHARDS_PER_BUNDLE)
+                .nth(self.context.parameters.max_shards_per_bundle)
                 .map_or(round_bound, |x| *x);
             min(nth_element, round_bound)
         };
@@ -1455,9 +1454,10 @@ impl DagState {
             .retain(|block_ref, _| block_ref.round > self.evicted_rounds[block_ref.author]);
     }
 
-    /// Function removes stalled transactions that are older than
-    /// "last consume leader round minus MAX_TRANSACTIONS_ACK_DEPTH minus
-    /// MAX_LINEARIZER_DEPTH"
+    /// Function removes stalled transactions that are older than  "last consume
+    /// leader round minus MAX_TRANSACTIONS_ACK_DEPTH
+    /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
+    /// (protocol_config.gc_depth)"
     pub(crate) fn evict_transactions(&mut self) {
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
         let header_eviction_round = self.calculate_authority_eviction_round(self.context.own_index);

@@ -53,15 +53,6 @@ use crate::{
 // TODO: Move to protocol config, and verify in BlockVerifier.
 const MAX_COMMIT_VOTES_PER_BLOCK: usize = 100;
 
-// Maximum number of acknowledgments to be included in a block. It must be
-// reasonably larger than the number of validators because not all validators
-// create their blocks at the same pace. For now we set it as a
-// constant to not make the block header size too large.
-// TODO: https://github.com/iotaledger/iota/issues/8378
-// After testing decide how to compress acknowledgments and move to a
-// protocol config
-const MAX_ACKNOWLEDGMENTS_PER_BLOCK: usize = 400;
-
 pub(crate) struct Core {
     context: Arc<Context>,
     /// The consumer to use in order to pull transactions to be included for the
@@ -677,10 +668,11 @@ impl Core {
 
         // Consume the acknowledgments about transaction data availability for past
         // blocks to be included.
-        let acknowledgments = self
-            .dag_state
-            .write()
-            .take_acknowledgments(MAX_ACKNOWLEDGMENTS_PER_BLOCK);
+        let acknowledgments = self.dag_state.write().take_acknowledgments(
+            self.context
+                .protocol_config
+                .consensus_max_acknowledgments_per_block_or_default() as usize,
+        );
 
         self.context
             .metrics
