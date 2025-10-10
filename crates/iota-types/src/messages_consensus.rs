@@ -11,17 +11,20 @@ use std::{
 };
 
 use byteorder::{BigEndian, ReadBytesExt};
-use fastcrypto::{error::FastCryptoResult, groups::bls12381};
+use fastcrypto::{error::FastCryptoResult, groups::bls12381, hash::HashFunction};
 use fastcrypto_tbls::dkg_v1;
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use shared_crypto::intent::IntentScope;
 
 use crate::{
     base_types::{
         AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
     },
-    digests::ConsensusCommitDigest,
+    crypto::{AuthoritySignature, DefaultHash},
+    digests::{ConsensusCommitDigest, Digest},
+    message_envelope::{Envelope, Message, VerifiedEnvelope},
     messages_checkpoint::{CheckpointSequenceNumber, CheckpointSignatureMessage},
     supported_protocol_versions::{
         Chain, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
@@ -123,12 +126,34 @@ impl Debug for ConsensusTransactionKey {
     }
 }
 
+pub type SignedAuthorityCapabilitiesV1 = Envelope<AuthorityCapabilitiesV1, AuthoritySignature>;
+
+pub type VerifiedAuthorityCapabilitiesV1 =
+    VerifiedEnvelope<AuthorityCapabilitiesV1, AuthoritySignature>;
+
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AuthorityCapabilitiesDigest(Digest);
+
+impl AuthorityCapabilitiesDigest {
+    pub const fn new(digest: [u8; 32]) -> Self {
+        Self(Digest::new(digest))
+    }
+}
+
+impl Debug for AuthorityCapabilitiesDigest {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("AuthorityCapabilitiesDigest")
+            .field(&self.0)
+            .finish()
+    }
+}
+
 /// Used to advertise capabilities of each authority via consensus. This allows
 /// validators to negotiate the creation of the ChangeEpoch transaction.
 #[derive(Serialize, Deserialize, Clone, Hash)]
 pub struct AuthorityCapabilitiesV1 {
     /// Originating authority - must match transaction source authority from
-    /// consensus.
+    /// consensus or the signature of a non-committee active validator.
     pub authority: AuthorityName,
     /// Generation number set by sending authority. Used to determine which of
     /// multiple AuthorityCapabilities messages from the same authority is
@@ -146,6 +171,19 @@ pub struct AuthorityCapabilitiesV1 {
     /// possesses. Used to determine whether to do a framework/movestdlib
     /// upgrade.
     pub available_system_packages: Vec<ObjectRef>,
+}
+
+impl Message for AuthorityCapabilitiesV1 {
+    type DigestType = AuthorityCapabilitiesDigest;
+    const SCOPE: IntentScope = IntentScope::AuthorityCapabilities;
+
+    fn digest(&self) -> Self::DigestType {
+        // Ensure deterministic serialization for digest
+        let mut hasher = DefaultHash::new();
+        let serialized = bcs::to_bytes(&self).expect("BCS should not fail");
+        hasher.update(&serialized);
+        AuthorityCapabilitiesDigest::new(<[u8; 32]>::from(hasher.finalize()))
+    }
 }
 
 impl Debug for AuthorityCapabilitiesV1 {
@@ -188,6 +226,19 @@ impl AuthorityCapabilitiesV1 {
     }
 }
 
+impl SignedAuthorityCapabilitiesV1 {
+    pub fn cache_digest(&self, epoch: u64) -> AuthorityCapabilitiesDigest {
+        // Create a tuple that includes both the capabilities data and the epoch
+        let data_with_epoch = (self.data(), epoch);
+
+        // Ensure deterministic serialization for digest
+        let mut hasher = DefaultHash::new();
+        let serialized = bcs::to_bytes(&data_with_epoch).expect("BCS should not fail");
+        hasher.update(&serialized);
+        AuthorityCapabilitiesDigest::new(<[u8; 32]>::from(hasher.finalize()))
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub enum ConsensusTransactionKind {
     CertifiedTransaction(Box<CertifiedTransaction>),
@@ -195,6 +246,7 @@ pub enum ConsensusTransactionKind {
     EndOfPublish(AuthorityName),
 
     CapabilityNotificationV1(AuthorityCapabilitiesV1),
+    SignedCapabilityNotificationV1(SignedAuthorityCapabilitiesV1),
 
     NewJWKFetched(AuthorityName, JwkId, JWK),
 
@@ -339,6 +391,19 @@ impl ConsensusTransaction {
         }
     }
 
+    pub fn new_signed_capability_notification_v1(
+        signed_capabilities: SignedAuthorityCapabilitiesV1,
+    ) -> Self {
+        let mut hasher = DefaultHasher::new();
+        signed_capabilities.data().hash(&mut hasher);
+        signed_capabilities.auth_sig().hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities),
+        }
+    }
+
     pub fn new_mysticeti_certificate(
         round: u64,
         offset: u64,
@@ -418,6 +483,13 @@ impl ConsensusTransaction {
             ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                 ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
             }
+            ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_cap) => {
+                ConsensusTransactionKey::CapabilityNotification(
+                    signed_cap.authority,
+                    signed_cap.generation,
+                )
+            }
+
             ConsensusTransactionKind::NewJWKFetched(authority, id, key) => {
                 ConsensusTransactionKey::NewJWKFetched(Box::new((
                     *authority,

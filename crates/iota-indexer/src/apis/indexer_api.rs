@@ -33,7 +33,7 @@ use jsonrpsee::{
 };
 use tap::TapFallible;
 
-use crate::{errors::IndexerError, indexer_reader::IndexerReader};
+use crate::{errors::IndexerError, read::IndexerReader};
 
 pub(crate) struct IndexerApi {
     inner: IndexerReader,

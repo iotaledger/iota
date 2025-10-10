@@ -2,6 +2,11 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Types and logic to setup and maintain the database.
+//!
+//! Creating connections, applying or validating migrations are examples of
+//! operations included in this scope.
+
 use std::{collections::HashSet, time::Duration};
 
 use anyhow::anyhow;

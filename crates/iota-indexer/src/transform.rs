@@ -13,11 +13,9 @@ use iota_types::{
 };
 
 use crate::{
+    errors::{IndexerError, IndexerResult},
+    extract,
     handlers::checkpoint_handler::try_extract_df_kind,
-    rolling::{
-        error::{IndexerError, IndexerResult},
-        extract,
-    },
     types::{IndexedDeletedObject, IndexedObject},
 };
 /// Represent an object that is live at a certain snapshot

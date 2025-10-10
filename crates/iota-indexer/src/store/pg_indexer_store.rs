@@ -25,7 +25,7 @@ use tracing::info;
 use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
 use crate::{
     db::ConnectionPool,
-    errors::{Context, IndexerError},
+    errors::{Context, IndexerError, IndexerResult},
     handlers::{EpochToCommit, TransactionObjectChangesToCommit},
     insert_or_ignore_into,
     metrics::IndexerMetrics,
@@ -43,17 +43,10 @@ use crate::{
         transactions::{
             CheckpointTxGlobalOrder, IndexStatus, OptimisticTransaction, StoredTransaction,
         },
-        tx_indices::TxIndexV2Split,
+        tx_indices::TxIndexSplit,
     },
     on_conflict_do_update, on_conflict_do_update_with_condition, persist_chunk_into_table,
     persist_chunk_into_table_in_existing_connection, read_only_blocking,
-    rolling::{
-        error::IndexerResult,
-        transform::{
-            CheckpointObjectChanges, LiveObject, RemovedObject,
-            retain_latest_objects_from_checkpoint_batch,
-        },
-    },
     schema::{
         chain_identifier, checkpoints, display, epochs, event_emit_module, event_emit_package,
         event_senders, event_struct_instantiation, event_struct_module, event_struct_name,
@@ -63,11 +56,15 @@ use crate::{
         tx_global_order, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
         tx_wrapped_or_deleted_objects,
     },
-    store::{IndexerStore, IndexerStoreExt},
+    store::IndexerStore,
     transactional_blocking_with_retry,
+    transform::{
+        CheckpointObjectChanges, LiveObject, RemovedObject,
+        retain_latest_objects_from_checkpoint_batch,
+    },
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
-        IndexedPackage, IndexedTransaction, TxIndex, TxIndexV2,
+        IndexedPackage, IndexedTransaction, TxIndex,
     },
 };
 
@@ -1229,123 +1226,14 @@ impl PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_tx_indices_chunk(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError> {
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_tx_indices_chunks
-            .start_timer();
-        let len = indices.len();
-        let (senders, recipients, input_objects, changed_objects, pkgs, mods, funs, digests, kinds) =
-            indices.into_iter().map(|i| i.split()).fold(
-                (
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                    Vec::new(),
-                ),
-                |(
-                    mut tx_senders,
-                    mut tx_recipients,
-                    mut tx_input_objects,
-                    mut tx_changed_objects,
-                    mut tx_pkgs,
-                    mut tx_mods,
-                    mut tx_funs,
-                    mut tx_digests,
-                    mut tx_kinds,
-                ),
-                 index| {
-                    tx_senders.extend(index.0);
-                    tx_recipients.extend(index.1);
-                    tx_input_objects.extend(index.2);
-                    tx_changed_objects.extend(index.3);
-                    tx_pkgs.extend(index.4);
-                    tx_mods.extend(index.5);
-                    tx_funs.extend(index.6);
-                    tx_digests.extend(index.7);
-                    tx_kinds.extend(index.8);
-                    (
-                        tx_senders,
-                        tx_recipients,
-                        tx_input_objects,
-                        tx_changed_objects,
-                        tx_pkgs,
-                        tx_mods,
-                        tx_funs,
-                        tx_digests,
-                        tx_kinds,
-                    )
-                },
-            );
-
-        let futures = [
-            self.spawn_blocking_task(move |this| {
-                persist_chunk_into_table!(tx_senders::table, senders, &this.blocking_cp)
-            }),
-            self.spawn_blocking_task(move |this| {
-                persist_chunk_into_table!(tx_recipients::table, recipients, &this.blocking_cp)
-            }),
-            self.spawn_blocking_task(move |this| {
-                persist_chunk_into_table!(tx_input_objects::table, input_objects, &this.blocking_cp)
-            }),
-            self.spawn_blocking_task(move |this| {
-                persist_chunk_into_table!(
-                    tx_changed_objects::table,
-                    changed_objects,
-                    &this.blocking_cp
-                )
-            }),
-            self.spawn_blocking_task(move |this| {
-                persist_chunk_into_table!(tx_calls_pkg::table, pkgs, &this.blocking_cp)
-            }),
-            self.spawn_blocking_task(move |this| {
-                persist_chunk_into_table!(tx_calls_mod::table, mods, &this.blocking_cp)
-            }),
-            self.spawn_blocking_task(move |this| {
-                persist_chunk_into_table!(tx_calls_fun::table, funs, &this.blocking_cp)
-            }),
-            self.spawn_blocking_task(move |this| {
-                persist_chunk_into_table!(tx_digests::table, digests, &this.blocking_cp)
-            }),
-            self.spawn_blocking_task(move |this| {
-                persist_chunk_into_table!(tx_kinds::table, kinds, &this.blocking_cp)
-            }),
-        ];
-
-        futures::future::try_join_all(futures)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to join tx indices futures in a chunk: {}", e);
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all tx indices in a chunk: {e:?}"
-                ))
-            })?;
-        let elapsed = guard.stop_and_record();
-        info!(elapsed, "Persisted {} chunked tx_indices", len);
-        Ok(())
-    }
-
-    async fn persist_tx_indices_chunk_v2(
-        &self,
-        indices: Vec<TxIndexV2>,
-    ) -> Result<(), IndexerError> {
+    async fn persist_tx_indices_chunk_v2(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError> {
         let guard = self
             .metrics
             .checkpoint_db_commit_latency_tx_indices_chunks
             .start_timer();
         let len = indices.len();
 
-        let splits: Vec<TxIndexV2Split> = indices.into_iter().map(|i| i.split()).collect();
+        let splits: Vec<TxIndexSplit> = indices.into_iter().map(Into::into).collect();
 
         let senders: Vec<_> = splits.iter().flat_map(|ix| ix.tx_senders.clone()).collect();
         let recipients: Vec<_> = splits
@@ -2159,40 +2047,6 @@ impl IndexerStore for PgIndexerStore {
         Ok(())
     }
 
-    async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError> {
-        if indices.is_empty() {
-            return Ok(());
-        }
-        let len = indices.len();
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_tx_indices
-            .start_timer();
-        let chunks = chunk!(indices, self.config.parallel_chunk_size);
-
-        let futures = chunks.into_iter().map(|chunk| {
-            self.spawn_task(
-                move |this: Self| async move { this.persist_tx_indices_chunk(chunk).await },
-            )
-        });
-        futures::future::try_join_all(futures)
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to join persist_tx_indices_chunk futures: {}", e);
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all tx_indices chunks: {e:?}"
-                ))
-            })?;
-        let elapsed = guard.stop_and_record();
-        info!(elapsed, "Persisted {} tx_indices chunks", len);
-        Ok(())
-    }
-
     async fn persist_epoch(&self, epoch: EpochToCommit) -> Result<(), IndexerError> {
         self.execute_in_blocking_worker(move |this| this.persist_epoch(epoch))
             .await
@@ -2370,10 +2224,8 @@ impl IndexerStore for PgIndexerStore {
         )?;
         Ok(())
     }
-}
-#[async_trait]
-impl IndexerStoreExt for PgIndexerStore {
-    async fn persist_tx_indices_v2(&self, indices: Vec<TxIndexV2>) -> Result<(), IndexerError> {
+
+    async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError> {
         if indices.is_empty() {
             return Ok(());
         }

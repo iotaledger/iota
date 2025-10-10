@@ -16,7 +16,7 @@ use iota_types::base_types::ObjectID;
 use jsonrpsee::{RpcModule, core::RpcResult};
 use move_binary_format::normalized::Module as NormalizedModule;
 
-use crate::indexer_reader::IndexerReader;
+use crate::read::IndexerReader;
 
 pub struct MoveUtilsApi {
     inner: IndexerReader,
