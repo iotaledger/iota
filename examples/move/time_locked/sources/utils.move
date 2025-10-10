@@ -3,6 +3,7 @@
 
 module time_locked::utils;
 
+use iota::clock::Clock;
 use iota::dynamic_field;
 
 // === Errors ===
@@ -43,6 +44,14 @@ public fun rotate_unlock_time(account_id: &mut UID, unlock_time: u64): u64 {
     let prev_unlock_time = dynamic_field::remove(account_id, UnlockTime {});
     dynamic_field::add(account_id, UnlockTime {}, unlock_time);
     prev_unlock_time
+}
+
+public fun authenticate_with_epoch_timestamp(account_id: &UID, ctx: &TxContext) {
+    authenticate_unlock_time(account_id, ctx.epoch_timestamp_ms())
+}
+
+public fun authenticate_with_clock(account_id: &UID, clock: &Clock) {
+    authenticate_unlock_time(account_id, clock.timestamp_ms())
 }
 
 public fun authenticate_unlock_time(account_id: &UID, current_time: u64) {
