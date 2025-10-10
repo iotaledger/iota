@@ -59,8 +59,7 @@ describe('GraphQL IotaClient compatibility', () => {
 
         await toolbox.client.waitForTransaction({
             digest: transactionBlockDigest,
-            waitForCheckpoint: true,
-            waitForIndex: true,
+            waitMode: 'checkpoint',
         });
     });
 
@@ -826,25 +825,23 @@ describe('GraphQL IotaClient compatibility', () => {
 
         transaction = await toolbox.client.waitForTransaction({
             digest: transaction.digest,
-            waitForIndex: true,
+            waitMode: 'indexed',
         });
         expect(transaction.checkpoint).toBeNull();
         transaction = await graphQLClient.waitForTransaction({
             digest: transaction.digest,
-            waitForIndex: true,
+            waitMode: 'indexed',
         });
         expect(transaction.checkpoint).toBeNull();
 
         transaction = await toolbox.client.waitForTransaction({
             digest: transaction.digest,
-            waitForIndex: true,
-            waitForCheckpoint: true,
+            waitMode: 'checkpoint',
         });
         expect(transaction.checkpoint).toBeDefined();
         transaction = await graphQLClient.waitForTransaction({
             digest: transaction.digest,
-            waitForIndex: true,
-            waitForCheckpoint: true,
+            waitMode: 'checkpoint',
         });
         expect(transaction.checkpoint).toBeDefined();
     });

@@ -919,8 +919,7 @@ export class IotaClient {
         signal,
         timeout = 60 * 1000,
         pollInterval = 2 * 1000,
-        waitForCheckpoint = false,
-        waitForIndex = false,
+        waitMode,
         ...input
     }: {
         /** An optional abort signal that can be used to cancel */
@@ -929,10 +928,10 @@ export class IotaClient {
         timeout?: number;
         /** The amount of time to wait between checks for the transaction block. Defaults to 2 seconds. */
         pollInterval?: number;
-        /** Whether to wait or not for the transaction to have been checkpointed. Defaults to false. */
-        waitForCheckpoint?: boolean;
-        /** Whether to wait or not for the transaction to have been indexed on the node. */
-        waitForIndex?: boolean;
+        /** Whether to wait the transaction to have been checkpointed or indexed on the node.
+         * A transaction might be indexed but not checkpointed yet, but a checkpointed transaction is guaranted to be indexed.
+         */
+        waitMode?: 'checkpoint' | 'indexed';
     } & Parameters<IotaClient['getTransactionBlock']>[0]): Promise<IotaTransactionBlockResponse> {
         const timeoutSignal = AbortSignal.timeout(timeout);
         const timeoutPromise = new Promise((_, reject) => {
@@ -946,20 +945,18 @@ export class IotaClient {
         while (!timeoutSignal.aborted) {
             signal?.throwIfAborted();
             try {
-                if(waitForIndex){
+                if (waitMode === 'indexed') {
                     const isIndexedOnNode = await this.isTransactionIndexedOnNode({
-                        digest: input.digest
+                        digest: input.digest,
                     });
-                    if(!isIndexedOnNode) {
-                        continue;
+                    if (isIndexedOnNode) {
+                        return await this.getTransactionBlock(input);
                     }
-                }
-                const transaction = await this.getTransactionBlock(input);
-
-                if (waitForCheckpoint && transaction.checkpoint) {
-                    return transaction;
-                } else if (!waitForCheckpoint) {
-                    return transaction;
+                } else if (waitMode === 'checkpoint') {
+                    const transaction = await this.getTransactionBlock(input);
+                    if (transaction.checkpoint) {
+                        return transaction;
+                    }
                 }
             } catch (e) {
                 // Wait for either the next poll interval, or the timeout.
