@@ -167,7 +167,7 @@ fun account_fails_verification() {
         let signature: vector<u8> = b"32";
         let auth_context = create_auth_context_for_testing();
         time_locked::authenticate(
-            account.borrow_uid(),
+            &account,
             &clock,
             hex::encode(signature),
             &auth_context,
@@ -198,7 +198,7 @@ fun only_account_can_authenticate() {
         let signature: vector<u8> = b"32";
         let auth_context = create_auth_context_for_testing();
         time_locked::authenticate(
-            account.borrow_uid(),
+            &account,
             &clock,
             hex::encode(signature),
             &auth_context,
@@ -234,7 +234,7 @@ fun account_time_locked() {
         let auth_context = create_auth_context_for_testing();
 
         time_locked::authenticate(
-            account.borrow_uid(),
+            &account,
             &clock,
             hex::encode(signature),
             &auth_context,
@@ -270,7 +270,7 @@ fun account_unlocked() {
         let auth_context = create_auth_context_for_testing();
 
         time_locked::authenticate(
-            account.borrow_uid(),
+            &account,
             &clock,
             hex::encode(signature),
             &auth_context,

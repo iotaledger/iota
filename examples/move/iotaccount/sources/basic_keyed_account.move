@@ -20,9 +20,9 @@ const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verificat
 const ESecp256k1VerificationFailed: vector<u8> = b"Secp256k1 authenticator verification failed.";
 #[error(code = 2)]
 const ESecp256r1VerificationFailed: vector<u8> = b"Secp256r1 authenticator verification failed.";
-#[error(code = 4)]
+#[error(code = 3)]
 const EPublicKeyAttached: vector<u8> = b"Public key already attached.";
-#[error(code = 5)]
+#[error(code = 4)]
 const EPublicKeyMissing: vector<u8> = b"Public key missing.";
 
 // === Constants ===
@@ -171,12 +171,12 @@ public fun borrow_public_key_id(account_id: &UID): &vector<u8> {
 public fun authenticate_ed25519_signature(
     account_id: &UID,
     signature: vector<u8>,
-    digest: &vector<u8>,
+    message: &vector<u8>,
 ) {
     assert!(has_public_key(account_id), EPublicKeyMissing);
 
     assert!(
-        ed25519::ed25519_verify(&decode(signature), borrow_public_key_id(account_id), digest),
+        ed25519::ed25519_verify(&decode(signature), borrow_public_key_id(account_id), message),
         EEd25519VerificationFailed,
     );
 }

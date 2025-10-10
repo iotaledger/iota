@@ -73,17 +73,17 @@ public fun create(
 
 /// Authenticate access for the `Time locked account`.
 public fun authenticate(
-    id: &UID,
+    account: &TimeLocked,
     clock: &Clock,
     signature: vector<u8>,
     _auth_ctx: &AuthContext,
     ctx: &TxContext,
 ) {
-    iotaccount::ensure_tx_sender_is_account_id(&id.to_address(), ctx);
+    iotaccount::ensure_tx_sender_is_account_id(&account.id, ctx);
 
-    basic_keyed_account::authenticate_ed25519_signature(id, signature, ctx.digest());
+    basic_keyed_account::authenticate_ed25519_signature(&account.id, signature, ctx.digest());
     let now = clock.timestamp_ms();
-    authenticate_unlock_time(id, now);
+    authenticate_unlock_time(&account.id, now);
 }
 
 public fun authenticate_unlock_time(account_id: &UID, current_time: u64) {
