@@ -13,6 +13,7 @@ import { DAppPermissionList } from './DAppPermissionList';
 import { SummaryCard } from './SummaryCard';
 import { Link } from 'react-router-dom';
 import { ImageIcon } from '@iota/core';
+import { ampli } from '_src/shared/analytics/ampli';
 
 export interface DAppInfoCardProps {
     name: string;
@@ -53,6 +54,9 @@ export function DAppInfoCard({
                             to={validDAppUrl?.toString() ?? url}
                             target="_blank"
                             rel="noopener noreferrer"
+                            onClick={() => {
+                                ampli.openedApplication({ applicationName: name });
+                            }}
                         >
                             {validDAppUrl?.toString() ?? url}
                         </Link>
