@@ -919,6 +919,8 @@ export class IotaClient {
         signal,
         timeout = 60 * 1000,
         pollInterval = 2 * 1000,
+        waitForCheckpoint = false,
+        waitForIndex = false,
         ...input
     }: {
         /** An optional abort signal that can be used to cancel */
@@ -927,6 +929,10 @@ export class IotaClient {
         timeout?: number;
         /** The amount of time to wait between checks for the transaction block. Defaults to 2 seconds. */
         pollInterval?: number;
+        /** Whether to wait or not for the transaction to have checkpointed. Defaults to false. */
+        waitForCheckpoint?: boolean;
+        /** Whether to wait or not for the transaction to have been indexed on the node or not. */
+        waitForIndex?: boolean;
     } & Parameters<IotaClient['getTransactionBlock']>[0]): Promise<IotaTransactionBlockResponse> {
         const timeoutSignal = AbortSignal.timeout(timeout);
         const timeoutPromise = new Promise((_, reject) => {
@@ -940,7 +946,21 @@ export class IotaClient {
         while (!timeoutSignal.aborted) {
             signal?.throwIfAborted();
             try {
-                return await this.getTransactionBlock(input);
+                if(waitForIndex){
+                    const isIndexedOnNode = await this.isTransactionIndexedOnNode({
+                        digest: input.digest
+                    });
+                    if(!isIndexedOnNode) {
+                        continue;
+                    }
+                }
+                const transaction = await this.getTransactionBlock(input);
+
+                if (waitForCheckpoint && transaction.checkpoint) {
+                    return transaction;
+                } else if (!waitForCheckpoint) {
+                    return transaction;
+                }
             } catch (e) {
                 // Wait for either the next poll interval, or the timeout.
                 await Promise.race([
