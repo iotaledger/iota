@@ -929,7 +929,7 @@ export class IotaClient {
         /** The amount of time to wait between checks for the transaction block. Defaults to 2 seconds. */
         pollInterval?: number;
         /** Whether to wait the transaction to have been checkpointed or indexed on the node.
-         * A transaction might be indexed but not checkpointed yet, but a checkpointed transaction is guaranted to be indexed.
+         * A transaction might be indexed but not checkpointed yet, but a checkpointed transaction is guaranteed to be indexed.
          */
         waitMode?: 'checkpoint' | 'indexed';
     } & Parameters<IotaClient['getTransactionBlock']>[0]): Promise<IotaTransactionBlockResponse> {
