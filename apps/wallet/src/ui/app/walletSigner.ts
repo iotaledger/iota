@@ -35,9 +35,9 @@ export abstract class WalletSigner {
     protected getClient(chain?: ChainType): IotaClient {
         const requestedNetwork = Object.values(getAllNetworks() ?? {}).find(
             (network) => network.chain === chain,
-        ) as NetworkId | undefined;
+        );
         const client = requestedNetwork
-            ? new IotaClient({ url: getFullnodeUrl(requestedNetwork) })
+            ? new IotaClient({ url: requestedNetwork.url })
             : this.client;
         return client;
     }
