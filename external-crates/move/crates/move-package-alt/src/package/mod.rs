@@ -7,6 +7,7 @@ pub mod lockfile;
 pub mod manifest;
 
 use std::{
+    fmt::Debug,
     marker::PhantomData,
     path::{Path, PathBuf},
 };
