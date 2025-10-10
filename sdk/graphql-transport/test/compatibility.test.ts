@@ -60,7 +60,7 @@ describe('GraphQL IotaClient compatibility', () => {
         await toolbox.client.waitForTransaction({
             digest: transactionBlockDigest,
             waitForCheckpoint: true,
-            waitForIndex: true
+            waitForIndex: true,
         });
     });
 
@@ -824,17 +824,28 @@ describe('GraphQL IotaClient compatibility', () => {
             },
         });
 
-        transaction = await toolbox.client.waitForTransaction({ digest: transaction.digest, waitForIndex: true });
+        transaction = await toolbox.client.waitForTransaction({
+            digest: transaction.digest,
+            waitForIndex: true,
+        });
         expect(transaction.checkpoint).toBeNull();
-        transaction = await graphQLClient.waitForTransaction({ digest: transaction.digest, waitForIndex: true });
+        transaction = await graphQLClient.waitForTransaction({
+            digest: transaction.digest,
+            waitForIndex: true,
+        });
         expect(transaction.checkpoint).toBeNull();
 
-         transaction = await toolbox.client.waitForTransaction({ digest: transaction.digest, waitForIndex: true, waitForCheckpoint: true });
-         transaction = await graphQLClient.waitForTransaction({ digest: transaction.digest, waitForIndex: true, waitForCheckpoint: true });
-         
+        transaction = await toolbox.client.waitForTransaction({
+            digest: transaction.digest,
+            waitForIndex: true,
+            waitForCheckpoint: true,
+        });
         expect(transaction.checkpoint).toBeDefined();
-
-        transaction = await toolbox.client.waitForTransaction({ digest: transaction.digest });
+        transaction = await graphQLClient.waitForTransaction({
+            digest: transaction.digest,
+            waitForIndex: true,
+            waitForCheckpoint: true,
+        });
         expect(transaction.checkpoint).toBeDefined();
     });
 });
