@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module time_locked::utils;
+module time_locked::unlock_time;
 
 use iota::clock::Clock;
 use iota::dynamic_field;
@@ -27,19 +27,19 @@ public struct UnlockTime has copy, drop, store {}
 
 // === Public Functions ===
 
-public fun attach_unlock_time(account_id: &mut UID, unlock_time: u64) {
-    assert!(!has_unlock_time(account_id), EUnlockTimeAttached);
+public fun attach(account_id: &mut UID, unlock_time: u64) {
+    assert!(!has(account_id), EUnlockTimeAttached);
     dynamic_field::add(account_id, UnlockTime {}, unlock_time)
 }
 
-public fun detach_unlock_time(account_id: &mut UID): u64 {
-    assert!(has_unlock_time(account_id), EUnlockTimeMissing);
+public fun detach(account_id: &mut UID): u64 {
+    assert!(has(account_id), EUnlockTimeMissing);
 
     dynamic_field::remove(account_id, UnlockTime {})
 }
 
-public fun rotate_unlock_time(account_id: &mut UID, unlock_time: u64): u64 {
-    assert!(has_unlock_time(account_id), EUnlockTimeMissing);
+public fun rotate(account_id: &mut UID, unlock_time: u64): u64 {
+    assert!(has(account_id), EUnlockTimeMissing);
 
     let prev_unlock_time = dynamic_field::remove(account_id, UnlockTime {});
     dynamic_field::add(account_id, UnlockTime {}, unlock_time);
@@ -55,9 +55,9 @@ public fun authenticate_with_clock(account_id: &UID, clock: &Clock) {
 }
 
 public fun authenticate_unlock_time(account_id: &UID, current_time: u64) {
-    assert!(has_unlock_time(account_id), EUnlockTimeMissing);
+    assert!(has(account_id), EUnlockTimeMissing);
 
-    let unlock_time: &u64 = borrow_unlock_time(account_id);
+    let unlock_time: &u64 = borrow(account_id);
 
     // Enforce the time lock
     assert!(current_time >= *unlock_time, EAccountStillLocked);
@@ -65,11 +65,11 @@ public fun authenticate_unlock_time(account_id: &UID, current_time: u64) {
 
 // === View Functions ===
 
-public fun has_unlock_time(account_id: &UID): bool {
+public fun has(account_id: &UID): bool {
     dynamic_field::exists_(account_id, UnlockTime {})
 }
 
-public fun borrow_unlock_time(account_id: &UID): &u64 {
+public fun borrow(account_id: &UID): &u64 {
     dynamic_field::borrow(account_id, UnlockTime {})
 }
 

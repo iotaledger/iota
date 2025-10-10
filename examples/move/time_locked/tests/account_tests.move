@@ -14,7 +14,7 @@ use iotaccount::iotaccount;
 use std::ascii;
 use std::unit_test::assert_eq;
 use time_locked::account as time_locked;
-use time_locked::utils;
+use time_locked::unlock_time;
 
 // --------------------------------------- Time locked account ---------------------------------------
 
@@ -103,7 +103,7 @@ fun only_account_can_authenticate() {
 }
 
 #[test]
-#[expected_failure(abort_code = utils::EAccountStillLocked)]
+#[expected_failure(abort_code = unlock_time::EAccountStillLocked)]
 fun account_time_locked() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;

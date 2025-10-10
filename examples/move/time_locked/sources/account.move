@@ -8,7 +8,7 @@ use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::clock::Clock;
 use iotaccount::iotaccount;
-use time_locked::utils;
+use time_locked::unlock_time;
 
 // === Errors ===
 
@@ -37,7 +37,7 @@ public fun create(
     account::attach_auth_info_v1(&mut id, authenticator);
 
     owner_public_key::attach(&mut id, public_key);
-    utils::attach_unlock_time(&mut id, unlock_time);
+    unlock_time::attach(&mut id, unlock_time);
 
     let account = TimeLocked { id };
     iota::transfer::share_object(account);
@@ -55,7 +55,7 @@ public fun authenticate(
 
     owner_public_key::authenticate_ed25519_signature(&account.id, signature, ctx.digest());
     let now = clock.timestamp_ms();
-    utils::authenticate_unlock_time(&account.id, now);
+    unlock_time::authenticate_unlock_time(&account.id, now);
 }
 
 // === View Functions ===
@@ -65,7 +65,7 @@ public fun account_address(self: &TimeLocked): address {
 }
 
 public fun borrow_unlock_time(self: &TimeLocked): &u64 {
-    time_locked::utils::borrow_unlock_time(&self.id)
+    unlock_time::borrow(&self.id)
 }
 
 public fun borrow_public_key(self: &TimeLocked): &vector<u8> {
