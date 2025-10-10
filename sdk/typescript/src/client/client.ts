@@ -929,9 +929,9 @@ export class IotaClient {
         timeout?: number;
         /** The amount of time to wait between checks for the transaction block. Defaults to 2 seconds. */
         pollInterval?: number;
-        /** Whether to wait or not for the transaction to have checkpointed. Defaults to false. */
+        /** Whether to wait or not for the transaction to have been checkpointed. Defaults to false. */
         waitForCheckpoint?: boolean;
-        /** Whether to wait or not for the transaction to have been indexed on the node or not. */
+        /** Whether to wait or not for the transaction to have been indexed on the node. */
         waitForIndex?: boolean;
     } & Parameters<IotaClient['getTransactionBlock']>[0]): Promise<IotaTransactionBlockResponse> {
         const timeoutSignal = AbortSignal.timeout(timeout);
