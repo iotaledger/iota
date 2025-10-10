@@ -29,18 +29,9 @@ use crate::{
     },
     context::Context,
     leader_scoring::{ReputationScores, ScoringSubdag},
-    linearizer::MAX_LINEARIZER_DEPTH,
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
 };
-
-/// Acknowledgment depth is the maximum number of rounds from current round
-/// for which acknowledgments are kept in memory and can be injected in a new
-/// block.
-// TODO: make it derivable from the protocol parameters
-pub(crate) const MAX_TRANSACTIONS_ACK_DEPTH: Round = 50;
-pub(crate) const MAX_HEADERS_PER_BUNDLE: usize = 150;
-pub(crate) const MAX_SHARDS_PER_BUNDLE: usize = 150;
 
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
@@ -62,9 +53,10 @@ pub(crate) struct DagState {
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
     /// Contains recent transactions. It contains
-    /// MAX_TRANSACTIONS_ACK_DEPTH+MAX_LINEARIZER_DEPTH from the round of
-    /// the last consumed commit. Note: all transactions in blocks below that
-    /// round are evicted from memory.
+    /// MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH =
+    /// (protocol_config.gc_depth * 2) from the round of the last consumed
+    /// commit. Note: all transactions in blocks below that round are
+    /// evicted from memory.
     recent_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
     /// Contains recent shards with their Merkle proofs.
     recent_shards: BTreeMap<BlockRef, Bytes>,
@@ -95,7 +87,8 @@ pub(crate) struct DagState {
     /// Round of the last committed leader which created a commit with available
     /// transactions. Does not persist across restarts and after recovery.
     /// All transactions below this round minus MAX_TRANSACTIONS_ACK_DEPTH
-    /// minus MAX_LINEARIZER_DEPTH are evicted from memory.
+    /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
+    /// (protocol_config.gc_depth) are evicted from memory.
     last_solid_commit_leader_round: Option<Round>,
 
     /// Rounds for latest blocks traversed by linearizer per authority.
@@ -346,7 +339,8 @@ impl DagState {
             self.transactions_to_write.push(transactions);
             // If a block is not very old, add it to pending acknowledgments
             let clock_round = self.threshold_clock_round();
-            let min_round: Round = clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH);
+            let min_round: Round =
+                clock_round.saturating_sub(self.context.protocol_config.gc_depth());
 
             if block_ref.round >= min_round {
                 self.add_pending_acknowledgment(block_ref);
@@ -1275,7 +1269,7 @@ impl DagState {
             );
             let nth_element = set
                 .iter()
-                .nth(MAX_HEADERS_PER_BUNDLE)
+                .nth(self.context.parameters.max_headers_per_bundle)
                 .map_or(round_bound, |x| *x);
             min(nth_element, round_bound)
         };
@@ -1294,10 +1288,10 @@ impl DagState {
         block_refs
     }
 
-    /// Removes and returns up to `MAX_HEADERS_PER_BUNDLE` block references that
-    /// the given authority has not yet seen, limited to rounds strictly
-    /// below `round_upper_bound_exclusive` and filtered by the provided authors
-    /// `useful_authorities`.
+    /// Removes and returns up to `context.parameters.max_headers_per_bundle`
+    /// block references that the given authority has not yet seen, limited
+    /// to rounds strictly below `round_upper_bound_exclusive` and filtered
+    /// by the provided authors `useful_authorities`.
     ///
     /// Side effects:
     /// - Updates `block_headers_not_known_by_authority` so these refs are no
@@ -1320,7 +1314,7 @@ impl DagState {
         let mut to_take = Vec::new();
 
         for block_ref in set.iter() {
-            if to_take.len() >= MAX_HEADERS_PER_BUNDLE
+            if to_take.len() >= self.context.parameters.max_headers_per_bundle
                 || block_ref.round >= round_upper_bound_exclusive
             {
                 break;
@@ -1410,7 +1404,7 @@ impl DagState {
             );
             let nth_element = set
                 .iter()
-                .nth(MAX_SHARDS_PER_BUNDLE)
+                .nth(self.context.parameters.max_shards_per_bundle)
                 .map_or(round_bound, |x| *x);
             min(nth_element, round_bound)
         };
@@ -1460,9 +1454,10 @@ impl DagState {
             .retain(|block_ref, _| block_ref.round > self.evicted_rounds[block_ref.author]);
     }
 
-    /// Function removes stalled transactions that are older than
-    /// "last consume leader round minus MAX_TRANSACTIONS_ACK_DEPTH minus
-    /// MAX_LINEARIZER_DEPTH"
+    /// Function removes stalled transactions that are older than  "last consume
+    /// leader round minus MAX_TRANSACTIONS_ACK_DEPTH
+    /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
+    /// (protocol_config.gc_depth)"
     pub(crate) fn evict_transactions(&mut self) {
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
         let header_eviction_round = self.calculate_authority_eviction_round(self.context.own_index);
@@ -1492,10 +1487,11 @@ impl DagState {
     }
 
     /// Function removes stalled pending acknowledgments that are older than
-    /// "current clock round minus MAX_TRANSACTIONS_ACK_DEPTH"
+    /// "current clock round minus protocol_config.gc_depth() aka
+    /// (MAX_TRANSACTIONS_ACK_DEPTH)"
     pub(crate) fn evict_pending_acknowledgments(&mut self) {
         let clock_round = self.threshold_clock_round();
-        let min_round: Round = clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH);
+        let min_round: Round = clock_round.saturating_sub(self.context.protocol_config.gc_depth());
 
         // Construct a dummy BlockRef with the minimum round to split on.
         // All entries < dummy will be removed.
@@ -1607,7 +1603,7 @@ impl DagState {
 
     /// Return the garbage collection round with respect a given round.
     pub(crate) fn gc_round(&self, round: Round) -> Round {
-        round.saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH)
+        round.saturating_sub(self.context.protocol_config.gc_depth() * 2)
     }
 
     /// Last committed round per authority.
@@ -3214,7 +3210,7 @@ mod test {
         // Calculate the eviction round for acknowledgments
         let clock_round = dag_state.threshold_clock_round();
         let acknowledgements_eviction_round =
-            clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + 1);
+            clock_round.saturating_sub(context.protocol_config.gc_depth() + 1);
 
         // Verify that for all blocks with round > eviction round, we have an
         // acknowledgement

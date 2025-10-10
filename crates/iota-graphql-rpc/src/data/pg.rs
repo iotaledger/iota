@@ -12,8 +12,7 @@ use diesel::{
     query_dsl::LoadQuery,
 };
 use iota_indexer::{
-    indexer_reader::IndexerReader, run_query_async, run_query_repeatable_async,
-    spawn_read_only_blocking,
+    read::IndexerReader, run_query_async, run_query_repeatable_async, spawn_read_only_blocking,
 };
 use tracing::error;
 
