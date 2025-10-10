@@ -957,6 +957,8 @@ export class IotaClient {
                     if (transaction.checkpoint) {
                         return transaction;
                     }
+                } else {
+                    return await this.getTransactionBlock(input);
                 }
             } catch (e) {
                 // Wait for either the next poll interval, or the timeout.
