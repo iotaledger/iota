@@ -13,7 +13,7 @@ use rand::{
     rngs::{OsRng, StdRng},
 };
 use tokio::sync::{Semaphore, mpsc::UnboundedReceiver, oneshot};
-use tracing::{Instrument, error_span, info, trace, warn};
+use tracing::{Instrument, error_span, info, instrument, warn};
 
 use crate::{authority::AuthorityState, transaction_manager::PendingCertificate};
 
@@ -25,6 +25,7 @@ const QUEUEING_DELAY_SAMPLING_RATIO: f64 = 0.05;
 
 /// When a notification that a new pending transaction is received we activate
 /// processing the transaction in a loop.
+#[instrument("start_execute_pending_certs", level = "trace", skip_all)]
 pub async fn execution_process(
     authority_state: Weak<AuthorityState>,
     mut rx_ready_certificates: UnboundedReceiver<PendingCertificate>,
@@ -77,7 +78,6 @@ pub async fn execution_process(
         let epoch_store = authority.load_epoch_store_one_call_per_task();
 
         let digest = *certificate.digest();
-        trace!(?digest, "Pending certificate execution activated.");
 
         if epoch_store.epoch() != certificate.epoch() {
             info!(
@@ -139,6 +139,6 @@ pub async fn execution_process(
                 .metrics
                 .execution_driver_executed_transactions
                 .inc();
-        }.instrument(error_span!("execution_driver", tx_digest = ?digest))));
+        }.instrument(error_span!("executing_pending_cert", tx_digest = ?digest))));
     }
 }

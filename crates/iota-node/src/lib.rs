@@ -43,7 +43,9 @@ use iota_core::{
         backpressure::BackpressureManager,
         epoch_start_configuration::{EpochFlag, EpochStartConfigTrait, EpochStartConfiguration},
     },
-    authority_aggregator::{AuthAggMetrics, AuthorityAggregator},
+    authority_aggregator::{
+        AggregatorSendCapabilityNotificationError, AuthAggMetrics, AuthorityAggregator,
+    },
     authority_client::NetworkAuthorityClient,
     authority_server::{ValidatorService, ValidatorServiceMetrics},
     checkpoints::{
@@ -109,7 +111,7 @@ use iota_storage::{
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
-    crypto::{KeypairTraits, RandomnessRound},
+    crypto::{AuthoritySignature, IotaAuthoritySignature, KeypairTraits, RandomnessRound},
     digests::ChainIdentifier,
     error::{IotaError, IotaResult},
     executable_transaction::VerifiedExecutableTransaction,
@@ -122,13 +124,15 @@ use iota_types::{
     messages_checkpoint::CertifiedCheckpointSummary,
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKind,
-        check_total_jwk_size,
+        SignedAuthorityCapabilitiesV1, check_total_jwk_size,
     },
+    messages_grpc::HandleCapabilityNotificationRequestV1,
     quorum_driver_types::QuorumDriverEffectsQueueResult,
     supported_protocol_versions::SupportedProtocolVersions,
     transaction::{Transaction, VerifiedCertificate},
 };
 use prometheus::Registry;
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 #[cfg(msim)]
 pub use simulator::set_jwk_injector;
 #[cfg(msim)]
@@ -869,7 +873,7 @@ impl IotaNode {
         let grpc_server_handle =
             build_grpc_server(&config, state.clone(), state_sync_store.clone()).await?;
 
-        let validator_components = if state.is_validator(&epoch_store) {
+        let validator_components = if state.is_committee_validator(&epoch_store) {
             let (components, _) = futures::join!(
                 Self::construct_validator_components(
                     config.clone(),
@@ -1827,6 +1831,21 @@ impl IotaNode {
                 components
                     .consensus_adapter
                     .submit(transaction, None, &cur_epoch_store)?;
+            } else if self.state.is_active_validator(&cur_epoch_store)
+                && cur_epoch_store
+                    .protocol_config()
+                    .track_non_committee_eligible_validators()
+            {
+                // Send signed capabilities to committee validators if we are a non-committee
+                // validator in a separate task to not block the caller. Sending is done only if
+                // the feature flag supporting it is enabled.
+                let epoch_store = cur_epoch_store.clone();
+                let node_clone = self.clone();
+                spawn_monitored_task!(epoch_store.clone().within_alive_epoch(async move {
+                    node_clone
+                        .send_signed_capability_notification_to_committee_with_retry(&epoch_store)
+                        .await;
+                }));
             }
 
             let stop_condition = checkpoint_executor.run_epoch(run_with_range).await;
@@ -1967,7 +1986,7 @@ impl IotaNode {
 
                 consensus_store_pruner.prune(next_epoch).await;
 
-                if self.state.is_validator(&new_epoch_store) {
+                if self.state.is_committee_validator(&new_epoch_store) {
                     // Only restart consensus if this node is still a validator in the new epoch.
                     Some(
                         Self::start_epoch_specific_validator_components(
@@ -2017,7 +2036,7 @@ impl IotaNode {
                 let weak_accumulator = Arc::downgrade(&new_accumulator);
                 *accumulator_guard = Some(new_accumulator);
 
-                if self.state.is_validator(&new_epoch_store) {
+                if self.state.is_committee_validator(&new_epoch_store) {
                     info!("Promoting the node from fullnode to validator, starting grpc server");
 
                     let mut components = Self::construct_validator_components(
@@ -2176,6 +2195,96 @@ impl IotaNode {
 
     pub fn randomness_handle(&self) -> randomness::Handle {
         self.randomness_handle.clone()
+    }
+
+    /// Sends signed capability notification to committee validators for
+    /// non-committee validators. This method implements retry logic to handle
+    /// failed attempts to send the notification. It will retry sending the
+    /// notification with an increasing interval until it receives a successful
+    /// response from a f+1 committee members or 2f+1 non-retryable errors.
+    async fn send_signed_capability_notification_to_committee_with_retry(
+        &self,
+        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) {
+        const INITIAL_RETRY_INTERVAL_SECS: u64 = 5;
+        const RETRY_INTERVAL_INCREMENT_SECS: u64 = 5;
+        const MAX_RETRY_INTERVAL_SECS: u64 = 300; // 5 minutes
+
+        // Create the capability notification once
+        let config = epoch_store.protocol_config();
+        let binary_config = to_binary_config(config);
+
+        // Create the capability notification
+        let capabilities = AuthorityCapabilitiesV1::new(
+            self.state.name,
+            epoch_store.get_chain_identifier().chain(),
+            self.config
+                .supported_protocol_versions
+                .expect("Supported versions should be populated")
+                .truncate_below(config.version),
+            self.state
+                .get_available_system_packages(&binary_config)
+                .await,
+        );
+
+        // Sign the capabilities using the authority key pair from config
+        let signature = AuthoritySignature::new_secure(
+            &IntentMessage::new(
+                Intent::iota_app(IntentScope::AuthorityCapabilities),
+                &capabilities,
+            ),
+            &epoch_store.epoch(),
+            self.config.authority_key_pair(),
+        );
+
+        let request = HandleCapabilityNotificationRequestV1 {
+            message: SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature),
+        };
+
+        let mut retry_interval = Duration::from_secs(INITIAL_RETRY_INTERVAL_SECS);
+
+        loop {
+            let auth_agg = self.auth_agg.load();
+            match auth_agg
+                .send_capability_notification_to_quorum(request.clone())
+                .await
+            {
+                Ok(_) => {
+                    info!("Successfully sent capability notification to committee");
+                    break;
+                }
+                Err(err) => {
+                    match &err {
+                        AggregatorSendCapabilityNotificationError::RetryableNotification {
+                            errors,
+                        } => {
+                            warn!(
+                                "Failed to send capability notification to committee (retryable error), will retry in {:?}: {:?}",
+                                retry_interval, errors
+                            );
+                        }
+                        AggregatorSendCapabilityNotificationError::NonRetryableNotification {
+                            errors,
+                        } => {
+                            error!(
+                                "Failed to send capability notification to committee (non-retryable error): {:?}",
+                                errors
+                            );
+                            break;
+                        }
+                    };
+
+                    // Wait before retrying
+                    tokio::time::sleep(retry_interval).await;
+
+                    // Increase retry interval for the next attempt, capped at max
+                    retry_interval = std::cmp::min(
+                        retry_interval + Duration::from_secs(RETRY_INTERVAL_INCREMENT_SECS),
+                        Duration::from_secs(MAX_RETRY_INTERVAL_SECS),
+                    );
+                }
+            }
+        }
     }
 }
 

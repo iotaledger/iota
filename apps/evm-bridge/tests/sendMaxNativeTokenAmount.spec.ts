@@ -4,7 +4,12 @@ import {
     checkL1CoinBalanceForAddressWithRetries,
 } from './helpers/balances';
 import { THREE_MINUTES, TOOL_COIN_TYPE } from './utils/constants';
-import { clickMaxAmount, executeBridgeTransaction, selectCoin } from './helpers/ui';
+import {
+    clickMaxAmount,
+    executeBridgeTransaction,
+    selectCoin,
+    waitForToastMessage,
+} from './helpers/ui';
 import { test } from './helpers/fixtures';
 
 test.describe('Send MAX native token amount from L1', () => {
@@ -79,6 +84,10 @@ test.describe('Send MAX native token amount from L2', () => {
         expect(Number(gasFeeValue).toFixed(6)).toMatch(/^0\.0003\d\d$/);
 
         await executeBridgeTransaction(page, browser, false);
+        await waitForToastMessage(
+            page,
+            'Withdraw transaction confirmed! Your funds have been transferred.',
+        );
 
         const l1Balance = await checkL1CoinBalanceForAddressWithRetries(addressL1, TOOL_COIN_TYPE);
         expect(l1Balance).toEqual(nativeTokenAmount);

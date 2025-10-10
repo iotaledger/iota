@@ -8,7 +8,7 @@ use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl};
 use iota_types::SYSTEM_PACKAGE_ADDRESSES;
 use tokio_util::sync::CancellationToken;
 
-use crate::{indexer_reader::IndexerReader, schema::epochs, store::diesel_macro::*};
+use crate::{read::IndexerReader, schema::epochs, store::diesel_macro::*};
 
 /// Background task responsible for evicting system packages from the package
 /// resolver's cache after detecting an epoch boundary.

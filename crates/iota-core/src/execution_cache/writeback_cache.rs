@@ -1308,6 +1308,7 @@ impl ExecutionCacheCommit for WritebackCache {
 }
 
 impl ObjectCacheRead for WritebackCache {
+    #[instrument(level="trace", skip_all, fields(package_id=?package_id))]
     fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.metrics
             .record_cache_request("package", "package_cache");
@@ -1369,10 +1370,12 @@ impl ObjectCacheRead for WritebackCache {
 
     // get_object and variants.
 
+    #[instrument(level = "trace", skip_all, fields(object_id=?id))]
     fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
         self.get_object_impl("object_latest", id)
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id, version))]
     fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
@@ -1387,6 +1390,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
@@ -1407,6 +1411,7 @@ impl ObjectCacheRead for WritebackCache {
         )
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id, version))]
     fn try_object_exists_by_key(
         &self,
         object_id: &ObjectID,
@@ -1421,6 +1426,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
         try_do_fallback_lookup(
             object_keys,
@@ -1438,6 +1444,7 @@ impl ObjectCacheRead for WritebackCache {
         )
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id))]
     fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectID,
@@ -1455,6 +1462,7 @@ impl ObjectCacheRead for WritebackCache {
         }
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id))]
     fn try_get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
@@ -1776,6 +1784,7 @@ impl ObjectCacheRead for WritebackCache {
 }
 
 impl TransactionCacheRead for WritebackCache {
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
@@ -1835,6 +1844,7 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
@@ -1900,6 +1910,7 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
@@ -1961,6 +1972,7 @@ impl TransactionCacheRead for WritebackCache {
         )
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
@@ -1972,6 +1984,7 @@ impl TransactionCacheRead for WritebackCache {
             .boxed()
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
@@ -2050,6 +2063,7 @@ impl TransactionCacheRead for WritebackCache {
 }
 
 impl ExecutionCacheWrite for WritebackCache {
+    #[instrument(level = "debug", skip_all)]
     fn try_acquire_transaction_locks(
         &self,
         epoch_store: &AuthorityPerEpochStore,
