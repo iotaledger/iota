@@ -3,10 +3,10 @@
 
 module time_locked::account;
 
+use generic_keyed_authentication::owner_public_key;
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::clock::Clock;
-use iotaccount::basic_keyed_account;
 use iotaccount::iotaccount;
 use time_locked::utils;
 
@@ -36,7 +36,7 @@ public fun create(
 
     account::attach_auth_info_v1(&mut id, authenticator);
 
-    basic_keyed_account::attach_public_key(&mut id, public_key);
+    owner_public_key::attach(&mut id, public_key);
     utils::attach_unlock_time(&mut id, unlock_time);
 
     let account = TimeLocked { id };
@@ -53,7 +53,7 @@ public fun authenticate(
 ) {
     iotaccount::ensure_tx_sender_is_account_id(&account.id, ctx);
 
-    basic_keyed_account::authenticate_ed25519_signature(&account.id, signature, ctx.digest());
+    owner_public_key::authenticate_ed25519_signature(&account.id, signature, ctx.digest());
     let now = clock.timestamp_ms();
     utils::authenticate_unlock_time(&account.id, now);
 }
@@ -65,11 +65,11 @@ public fun account_address(self: &TimeLocked): address {
 }
 
 public fun borrow_unlock_time(self: &TimeLocked): &u64 {
-    utils::borrow_unlock_time(&self.id)
+    time_locked::utils::borrow_unlock_time(&self.id)
 }
 
 public fun borrow_public_key(self: &TimeLocked): &vector<u8> {
-    basic_keyed_account::borrow_public_key_id(&self.id)
+    owner_public_key::borrow(&self.id)
 }
 
 // === Admin Functions ===

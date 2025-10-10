@@ -7,6 +7,7 @@ edition = "2024"
 [dependencies]
 Iota = { local = "../../../crates/iota-framework/packages/iota-framework" }
 iotaccount = { local = "../iotaccount" }
+generic_keyed_authentication = { local = "../generic_keyed_authentication" }
 
 [addresses]
 time_locked = "0x0"

@@ -4,12 +4,12 @@
 #[test_only]
 module time_locked::account_tests;
 
+use generic_keyed_authentication::owner_public_key;
 use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::{Self, AuthContext};
 use iota::clock;
 use iota::hex;
 use iota::test_scenario::{Self, Scenario};
-use iotaccount::basic_keyed_account;
 use iotaccount::iotaccount;
 use std::ascii;
 use std::unit_test::assert_eq;
@@ -41,7 +41,7 @@ fun account_creation() {
 }
 
 #[test]
-#[expected_failure(abort_code = basic_keyed_account::EEd25519VerificationFailed)]
+#[expected_failure(abort_code = owner_public_key::EEd25519VerificationFailed)]
 fun account_fails_verification() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
