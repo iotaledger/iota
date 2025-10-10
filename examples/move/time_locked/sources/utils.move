@@ -1,14 +1,9 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module time_locked::time_locked;
+module time_locked::utils;
 
-use iota::account::{Self, AuthenticatorInfoV1};
-use iota::auth_context::AuthContext;
-use iota::clock::Clock;
 use iota::dynamic_field;
-use iotaccount::basic_keyed_account;
-use iotaccount::iotaccount;
 
 // === Errors ===
 
@@ -24,10 +19,6 @@ const EUnlockTimeMissing: vector<u8> = b"Unlock time missing.";
 // === Structs ===
 
 public struct UnlockTime has copy, drop, store {}
-
-public struct TimeLocked has key {
-    id: UID,
-}
 
 // === Events ===
 
@@ -54,38 +45,6 @@ public fun rotate_unlock_time(account_id: &mut UID, unlock_time: u64): u64 {
     prev_unlock_time
 }
 
-public fun create(
-    public_key: vector<u8>,
-    unlock_time: u64,
-    authenticator: AuthenticatorInfoV1,
-    ctx: &mut TxContext,
-) {
-    let mut id = object::new(ctx);
-
-    account::attach_auth_info_v1(&mut id, authenticator);
-
-    basic_keyed_account::attach_public_key(&mut id, public_key);
-    attach_unlock_time(&mut id, unlock_time);
-
-    let account = TimeLocked { id };
-    iota::transfer::share_object(account);
-}
-
-/// Authenticate access for the `Time locked account`.
-public fun authenticate(
-    account: &TimeLocked,
-    clock: &Clock,
-    signature: vector<u8>,
-    _auth_ctx: &AuthContext,
-    ctx: &TxContext,
-) {
-    iotaccount::ensure_tx_sender_is_account_id(&account.id, ctx);
-
-    basic_keyed_account::authenticate_ed25519_signature(&account.id, signature, ctx.digest());
-    let now = clock.timestamp_ms();
-    authenticate_unlock_time(&account.id, now);
-}
-
 public fun authenticate_unlock_time(account_id: &UID, current_time: u64) {
     assert!(has_unlock_time(account_id), EUnlockTimeMissing);
 
@@ -96,14 +55,6 @@ public fun authenticate_unlock_time(account_id: &UID, current_time: u64) {
 }
 
 // === View Functions ===
-
-public fun account_address(self: &TimeLocked): address {
-    self.id.to_address()
-}
-
-public fun borrow_uid(self: &TimeLocked): &UID {
-    &self.id
-}
 
 public fun has_unlock_time(account_id: &UID): bool {
     dynamic_field::exists_(account_id, UnlockTime {})
