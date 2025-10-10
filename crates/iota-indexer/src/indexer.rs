@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, env};
+use std::{collections::HashMap, env, time::Duration};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -14,6 +14,9 @@ use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
+
+// Timeout for waiting for tasks to shutdown gracefully after cancellation
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 
 use crate::{
     build_optimistic_json_rpc_server,
@@ -148,16 +151,24 @@ impl Indexer {
             executor_result = &mut executor_handle => {
                 // Executor completed first - cancel snapshot task and check result
                 cancel.cancel();
-                let snapshot_result = object_snapshot_task_handle.await;
+                let snapshot_result = tokio::time::timeout(
+                    SHUTDOWN_TIMEOUT,
+                    object_snapshot_task_handle
+                ).await
+                .context("timeout waiting for snapshot task to shutdown");
                 executor_result.context("failed to join data ingestion executor")?.context("data ingestion executor failed")?;
-                snapshot_result.context("failed to join snapshot task during shutdown")?.context("snapshot task failed during shutdown")?;
+                snapshot_result?.context("failed to join snapshot task during shutdown")?.context("snapshot task failed during shutdown")?;
             },
             snapshot_result = &mut object_snapshot_task_handle => {
                 // Snapshot task completed first - cancel executor and check result
                 cancel.cancel();
-                let executor_result = executor_handle.await;
+                let executor_result = tokio::time::timeout(
+                    SHUTDOWN_TIMEOUT,
+                    executor_handle
+                ).await
+                .context("timeout waiting for executor to shutdown");
                 snapshot_result.context("failed to join snapshot task")?.context("snapshot task failed")?;
-                executor_result.context("failed to join data ingestion executor during shutdown")?.context("data ingestion executor failed during shutdown")?;
+                executor_result?.context("failed to join data ingestion executor during shutdown")?.context("data ingestion executor failed during shutdown")?;
             }
         };
 
