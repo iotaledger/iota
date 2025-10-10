@@ -931,7 +931,7 @@ export class IotaClient {
         /** Whether to wait the transaction to have been checkpointed or indexed on the node.
          * A transaction might be indexed but not checkpointed yet, but a checkpointed transaction is guaranteed to be indexed.
          */
-        waitMode?: 'checkpoint' | 'indexed';
+        waitMode?: 'checkpoint' | 'indexed-on-node';
     } & Parameters<IotaClient['getTransactionBlock']>[0]): Promise<IotaTransactionBlockResponse> {
         const timeoutSignal = AbortSignal.timeout(timeout);
         const timeoutPromise = new Promise((_, reject) => {
@@ -945,7 +945,7 @@ export class IotaClient {
         while (!timeoutSignal.aborted) {
             signal?.throwIfAborted();
             try {
-                if (waitMode === 'indexed') {
+                if (waitMode === 'indexed-on-node') {
                     const isIndexedOnNode = await this.isTransactionIndexedOnNode({
                         digest: input.digest,
                     });
