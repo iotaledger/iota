@@ -64,8 +64,12 @@ public fun account_address(self: &TimeLocked): address {
     self.id.to_address()
 }
 
-public fun borrow_uid(self: &TimeLocked): &UID {
-    &self.id
+public fun borrow_unlock_time(self: &TimeLocked): &u64 {
+    utils::borrow_unlock_time(&self.id)
+}
+
+public fun borrow_public_key(self: &TimeLocked): &vector<u8> {
+    basic_keyed_account::borrow_public_key_id(&self.id)
 }
 
 // === Admin Functions ===

@@ -27,12 +27,11 @@ fun account_creation() {
     scenario.next_tx(account_address);
     {
         let account = scenario.take_shared<time_locked::TimeLocked>();
-        let account_id = account.borrow_uid();
 
-        let public_key = basic_keyed_account::borrow_public_key_id(account_id);
+        let public_key = account.borrow_public_key();
         assert_eq!(*public_key, b"42");
 
-        let unlock_time = utils::borrow_unlock_time(account_id);
+        let unlock_time = account.borrow_unlock_time();
         assert_eq!(*unlock_time, 3);
 
         test_scenario::return_shared(account);
