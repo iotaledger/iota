@@ -15,7 +15,7 @@ use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-// Timeout for waiting for tasks to shutdown gracefully after cancellation
+/// Timeout for waiting for tasks to shutdown gracefully after cancellation
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
 
 use crate::{
