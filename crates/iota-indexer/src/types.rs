@@ -502,6 +502,7 @@ pub struct TxIndex {
     pub sender: IotaAddress,
     pub recipients: Vec<IotaAddress>,
     pub move_calls: Vec<(ObjectID, String, String)>,
+    pub wrapped_or_deleted_objects: Vec<ObjectID>,
 }
 
 #[cfg(any(test, feature = "pg_integration"))]
@@ -533,7 +534,7 @@ impl TxIndex {
         let recipients = repeat_with(IotaAddress::random_for_testing_only)
             .take(rng.gen_range(0..MAX_RECIPIENTS))
             .collect();
-        let move_calls = std::iter::repeat_with(|| {
+        let move_calls = repeat_with(|| {
             (
                 ObjectID::random(),
                 rand::random::<u64>().to_string(),
@@ -542,6 +543,7 @@ impl TxIndex {
         })
         .take(rng.gen_range(0..MAX_MOVE_CALLS))
         .collect();
+        let wrapped_or_deleted_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
 
         TxIndex {
             tx_sequence_number: rng.gen(),
@@ -554,22 +556,9 @@ impl TxIndex {
             sender: IotaAddress::random_for_testing_only(),
             recipients,
             move_calls,
+            wrapped_or_deleted_objects,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub(crate) struct TxIndexExt {
-    /// Objects that were either wrapped immediately after being created,
-    /// deleted, or deleted immediately after being unwrapped.
-    pub(crate) wrapped_or_deleted_objects: Vec<ObjectID>,
-}
-
-#[derive(Debug, Clone)]
-pub struct TxIndexV2 {
-    pub(crate) base: TxIndex,
-    pub(crate) ext: TxIndexExt,
 }
 
 // ObjectChange is not bcs deserializable, IndexedObjectChange is.

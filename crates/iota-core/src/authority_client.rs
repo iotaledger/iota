@@ -21,6 +21,7 @@ use iota_types::{
     iota_system_state::IotaSystemState,
     messages_checkpoint::{CheckpointRequest, CheckpointResponse},
     messages_grpc::{
+        HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
         HandleCertificateRequestV1, HandleCertificateResponseV1,
         HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
         HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
@@ -79,6 +80,12 @@ pub trait AuthorityAPI {
         &self,
         request: SystemStateRequest,
     ) -> Result<IotaSystemState, IotaError>;
+
+    /// Handle a capability notification from another authority
+    async fn handle_capability_notification_v1(
+        &self,
+        request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError>;
 }
 
 /// A client for the network authority.
@@ -233,6 +240,17 @@ impl AuthorityAPI for NetworkAuthorityClient {
     ) -> Result<IotaSystemState, IotaError> {
         self.client()?
             .get_system_state_object(request)
+            .await
+            .map(tonic::Response::into_inner)
+            .map_err(Into::into)
+    }
+
+    async fn handle_capability_notification_v1(
+        &self,
+        request: HandleCapabilityNotificationRequestV1,
+    ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
+        self.client()?
+            .handle_capability_notification_v1(request)
             .await
             .map(tonic::Response::into_inner)
             .map_err(Into::into)

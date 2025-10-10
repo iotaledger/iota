@@ -26,6 +26,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::CallArg,
 };
+use rand::{SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 trait MatchesResponseOptions {
@@ -548,6 +549,42 @@ async fn get_transaction_block_timestamp() {
 #[sim_test]
 async fn get_transaction_block() {
     get_transaction_block_with_options(IotaTransactionBlockResponseOptions::default()).await;
+}
+
+#[sim_test]
+async fn is_transaction_not_present() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let rng = StdRng::from_seed([1; 32]);
+    let digest = TransactionDigest::generate(rng);
+
+    assert!(
+        !cluster
+            .rpc_client()
+            .is_transaction_indexed_on_node(digest)
+            .await
+            .unwrap()
+    );
+}
+
+#[sim_test]
+async fn is_transaction_present() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let address = cluster.get_address_0();
+
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
+
+    let transaction = cluster
+        .transfer_object(address, address, object_ids[0], gas, None)
+        .await
+        .unwrap();
+
+    assert!(
+        cluster
+            .rpc_client()
+            .is_transaction_indexed_on_node(transaction.digest)
+            .await
+            .unwrap()
+    );
 }
 
 #[sim_test]

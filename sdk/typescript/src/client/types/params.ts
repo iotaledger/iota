@@ -139,6 +139,11 @@ export interface GetTransactionBlockParams {
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
 }
+/** Return if the transaction has been indexed on the fullnode. */
+export interface IsTransactionIndexedOnNodeParams {
+    /** the digest of the queried transaction */
+    digest: string;
+}
 /** Return the object data for a list of objects */
 export interface MultiGetObjectsParams {
     /** the IDs of the queried objects */
@@ -460,7 +465,7 @@ export interface UnsafeMoveCallParams {
     typeArguments: string[];
     /**
      * the arguments to be passed into the Move function, in
-     * [IotaJson](/developer/references/iota-api) format
+     * [IotaJson](https://docs.iota.org/developer/references/iota-api) format
      */
     arguments: unknown[];
     /**

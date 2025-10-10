@@ -16,7 +16,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
-    build_optimistic_json_rpc_server,
+    build_json_rpc_server,
     config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::ConnectionPool,
     errors::IndexerError,
@@ -24,9 +24,9 @@ use crate::{
         checkpoint_handler::new_handlers, objects_snapshot_handler::start_objects_snapshot_handler,
         optimistic_pruner::OptimisticPruner, pruner::Pruner,
     },
-    indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
+    read::IndexerReader,
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
 };
 
@@ -156,11 +156,10 @@ impl Indexer {
             "IOTA Indexer Reader (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
-        let indexer_reader = IndexerReader::new(connection_pool);
-        let handle =
-            build_optimistic_json_rpc_server(store, registry, indexer_reader, config, metrics)
-                .await
-                .expect("Json rpc server should not run into errors upon start.");
+        let read = IndexerReader::new(connection_pool);
+        let handle = build_json_rpc_server(store, registry, read, config, metrics)
+            .await
+            .expect("Json rpc server should not run into errors upon start.");
         tokio::spawn(async move { handle.stopped().await })
             .await
             .expect("Rpc server task failed");
