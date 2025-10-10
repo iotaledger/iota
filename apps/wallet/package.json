@@ -104,7 +104,7 @@
         "@keystonehq/animated-qr": "^0.10.0",
         "@keystonehq/keystone-sdk": "^0.11.4",
         "@ledgerhq/errors": "^6.12.4",
-        "@ledgerhq/hw-transport": "^6.31.0",
+        "@ledgerhq/hw-transport": "^6.31.12",
         "@ledgerhq/hw-transport-webhid": "^6.27.15",
         "@ledgerhq/hw-transport-webusb": "^6.27.13",
         "@ledgerhq/logs": "^6.12.0",

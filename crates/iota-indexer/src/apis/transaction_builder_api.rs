@@ -13,7 +13,7 @@ use iota_types::{
 use move_core_types::language_storage::StructTag;
 
 use super::governance_api::GovernanceReadApi;
-use crate::indexer_reader::IndexerReader;
+use crate::read::IndexerReader;
 
 pub(crate) struct TransactionBuilderApi {
     inner: IndexerReader,

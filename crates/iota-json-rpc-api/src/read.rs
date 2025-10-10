@@ -21,6 +21,15 @@ use jsonrpsee::{core::RpcResult, proc_macros::rpc};
 #[open_rpc(namespace = "iota", tag = "Read API")]
 #[rpc(server, client, namespace = "iota")]
 pub trait ReadApi {
+    /// Return if the transaction has been indexed on the fullnode.
+    #[rustfmt::skip]
+    #[method(name = "isTransactionIndexedOnNode")]
+    async fn is_transaction_indexed_on_node(
+        &self,
+        /// the digest of the queried transaction
+        digest: TransactionDigest,
+    ) -> RpcResult<bool>;
+
     /// Return the transaction response object.
     #[rustfmt::skip]
     #[method(name = "getTransactionBlock")]
