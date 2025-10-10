@@ -25,6 +25,9 @@ pub enum IngestionError {
     #[error(transparent)]
     RestApi(#[from] iota_rest_api::client::sdk::Error),
 
+    #[error("Grpc error: `{0}`")]
+    Grpc(String),
+
     #[error("Register at least one worker pool")]
     EmptyWorkerPool,
 

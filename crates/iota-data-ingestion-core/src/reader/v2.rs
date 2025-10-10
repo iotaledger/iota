@@ -14,6 +14,7 @@ use iota_config::{
     node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
+use iota_grpc_api::{CheckpointClient, CheckpointContent, NodeClient};
 use iota_metrics::spawn_monitored_task;
 use iota_rest_api::CheckpointData;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
@@ -36,7 +37,7 @@ use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     history::reader::HistoricalReader,
     reader::{
-        fetch::{LocalRead, ReadSource, fetch_from_full_node, fetch_from_object_store},
+        fetch::{LocalRead, ReadSource, fetch_from_object_store},
         v1::{DataLimiter, ReaderOptions},
     },
 };
@@ -50,11 +51,11 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum RemoteUrl {
     /// The URL to the Fullnode server that exposes
-    /// checkpoint data.
+    /// checkpoint data streaming through gRPC.
     ///
     /// # Example
     /// ```text
-    /// "http://127.0.0.1:9000/api/v1"
+    /// "http://127.0.0.1:50051"
     /// ```
     Fullnode(String),
     /// A hybrid source combining historical object store and optional live
@@ -85,7 +86,7 @@ pub enum RemoteUrl {
 /// used by the ingestion framework to fetch checkpoint data. Each variant
 /// corresponds to a different type of remote source.
 enum RemoteStore {
-    Fullnode(iota_rest_api::Client),
+    Fullnode(CheckpointClient),
     HybridHistoricalStore {
         historical: HistoricalReader,
         live: Option<Box<dyn ObjectStore>>,
@@ -99,7 +100,11 @@ impl RemoteStore {
         timeout_secs: u64,
     ) -> IngestionResult<Self> {
         let store = match remote_url {
-            RemoteUrl::Fullnode(url) => RemoteStore::Fullnode(iota_rest_api::Client::new(url)),
+            RemoteUrl::Fullnode(ref url) => NodeClient::connect(url)
+                .await
+                .map(|node_client| node_client.checkpoint_client())?
+                .ok_or_else(|| IngestionError::Grpc("failed to get the checkpoint client".into()))
+                .map(RemoteStore::Fullnode)?,
             RemoteUrl::HybridHistoricalStore {
                 historical_url,
                 live_url,
@@ -284,6 +289,98 @@ impl CheckpointReaderActor {
         Ok(())
     }
 
+    /// Fetches checkpoints form the fullnode trough a gRPC streaming connection
+    /// and stream them to a channel.
+    async fn fetch_from_fullnode(&mut self, client: &mut CheckpointClient) -> IngestionResult<()> {
+        // the genesis checkpoint needs to be handled differently since it may be
+        // processed in chunks due to its size.
+        if self.current_checkpoint_number == 0 {
+            self.fetch_genesis_checkpoint_from_fullnode(client).await?;
+        }
+        self.fetch_checkpoints_from_fullnode(client).await
+    }
+
+    /// Fetches the genesis checkpoint from the fullnode through a gRPC
+    /// streaming connection.
+    async fn fetch_genesis_checkpoint_from_fullnode(
+        &mut self,
+        client: &mut CheckpointClient,
+    ) -> IngestionResult<()> {
+        let show_full_checkpoint = true;
+        let mut genesis_checkpoint_stream = client
+            .stream_checkpoints(Some(0), Some(0), show_full_checkpoint)
+            .await
+            .map_err(|e| {
+                IngestionError::Grpc(format!("failed to initialize the checkpoint stream: {e}"))
+            })?;
+
+        // TODO: When genesis checkpoint chunked streaming will be implemented, collect
+        // all chunks, assemble them into a full CheckpointData, then send it
+        // downstream.
+        //
+        // Currently we receive the entire genesis checkpoint in a
+        // single message, which works for small checkpoints. Large genesis
+        // checkpoints (e.g. with migration data) may exceed gRPC's ~2GB message
+        // limit, and it will not work, so this logic must be revised to handle chunk
+        // assembly.
+        let Some(genesis_checkpoint) = genesis_checkpoint_stream.next().await else {
+            return Err(IngestionError::Grpc("checkpoint stream was closed".into()));
+        };
+
+        let checkpoint: CheckpointData = genesis_checkpoint
+            .map(GrpcCheckpoint)
+            .map_err(|e| IngestionError::Grpc(e.to_string()))?
+            .try_into()?;
+
+        let size = bcs::serialized_size(&checkpoint)?;
+        self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
+            .await
+    }
+
+    /// Fetches checkpoints from the fullnode through a gRPC streaming
+    /// connection.
+    ///
+    /// # Note
+    /// It should be used to download checkpoints except genesis one.
+    ///
+    /// For downloading the genesis checkpoint the
+    /// [`fetch_genesis_checkpoint_from_fullnode`](Self::fetch_genesis_checkpoint_from_fullnode)
+    /// method should be used.
+    async fn fetch_checkpoints_from_fullnode(
+        &mut self,
+        client: &mut CheckpointClient,
+    ) -> IngestionResult<()> {
+        if self.current_checkpoint_number == 0 {
+            return Err(IngestionError::Grpc(
+                "use a dedicated method to handle the download of the genesis checkpoint".into(),
+            ));
+        }
+        let show_full_checkpoint = true;
+        let mut checkpoints_stream = client
+            .stream_checkpoints(
+                Some(self.current_checkpoint_number),
+                None, // internally it resolves to u64::MAX
+                show_full_checkpoint,
+            )
+            .await
+            .map_err(|e| {
+                IngestionError::Grpc(format!("failed to initialize the checkpoint stream: {e}"))
+            })?;
+
+        while let Some(genesis_checkpoint) = checkpoints_stream.next().await {
+            let checkpoint: CheckpointData = genesis_checkpoint
+                .map(GrpcCheckpoint)
+                .map_err(|e| IngestionError::Grpc(e.to_string()))?
+                .try_into()?;
+
+            let size = bcs::serialized_size(&checkpoint)?;
+            self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
+                .await?;
+        }
+
+        Ok(())
+    }
+
     /// Fetches remote checkpoints from the remote store and streams them to the
     /// channel.
     ///
@@ -297,16 +394,7 @@ impl CheckpointReaderActor {
         let batch_size = self.reader_options.batch_size;
         match remote_store.as_ref() {
             RemoteStore::Fullnode(client) => {
-                let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
-                    .map(|checkpoint_number| fetch_from_full_node(client, checkpoint_number))
-                    .pipe(futures::stream::iter)
-                    .buffered(batch_size);
-
-                while let Some(checkpoint_result) = checkpoint_stream.next().await {
-                    let (checkpoint, size) = checkpoint_result?;
-                    self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
-                        .await?;
-                }
+                self.fetch_from_fullnode(&mut client.clone()).await?;
             }
             RemoteStore::HybridHistoricalStore { historical, live } => {
                 if let Err(err) = self.fetch_historical(historical).await {
@@ -573,5 +661,33 @@ impl CheckpointReader {
             component: "CheckpointReader".into(),
             msg: err.to_string(),
         })
+    }
+}
+
+/// Holds the checkpoint content received from a gRPC checkpoint stream.
+///
+/// Allows to easily convert the checkpoint content into a [`CheckpointData`]
+/// struct.
+struct GrpcCheckpoint(CheckpointContent);
+
+impl GrpcCheckpoint {
+    /// Unwraps the inner [`CheckpointContent`].
+    fn into_inner(self) -> CheckpointContent {
+        self.0
+    }
+}
+
+impl TryFrom<GrpcCheckpoint> for iota_types::full_checkpoint_content::CheckpointData {
+    type Error = IngestionError;
+
+    fn try_from(grpc_data: GrpcCheckpoint) -> Result<Self, Self::Error> {
+        match grpc_data.into_inner() {
+            CheckpointContent::Data(grpc_data) => grpc_data.into_v1().ok_or(IngestionError::Grpc(
+                "expected checkpoint data but received summary".into(),
+            )),
+            CheckpointContent::Summary(_) => Err(IngestionError::Grpc(
+                "expected checkpoint data but received summary".into(),
+            )),
+        }
     }
 }

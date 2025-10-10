@@ -5997,6 +5997,8 @@ dependencies = [
  "fastcrypto",
  "futures",
  "iota-config",
+ "iota-grpc-api",
+ "iota-grpc-types",
  "iota-metrics",
  "iota-protocol-config",
  "iota-rest-api",
