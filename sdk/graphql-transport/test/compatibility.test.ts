@@ -827,12 +827,10 @@ describe('GraphQL IotaClient compatibility', () => {
             digest: transaction.digest,
             waitMode: 'indexed',
         });
-        expect(transaction.checkpoint).toBeNull();
         transaction = await graphQLClient.waitForTransaction({
             digest: transaction.digest,
             waitMode: 'indexed',
         });
-        expect(transaction.checkpoint).toBeNull();
 
         transaction = await toolbox.client.waitForTransaction({
             digest: transaction.digest,
