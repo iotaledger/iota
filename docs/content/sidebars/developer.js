@@ -467,14 +467,36 @@ const developer = [
             },
         ],
     },
-   {
-    type: 'category',
-    label: 'Workshops',
-    link: {
-        type: 'doc',
-        id: 'developer/workshops/index',
-    },
-    items: [],
+    {
+        type: 'category',
+        label: 'Workshops',
+        link: {
+            type: 'doc',
+            id: 'developer/workshops/index',
+        },
+        items: [
+            {
+                type: 'category',
+                label: 'Core',
+                items: [
+                    {
+                        type: 'doc',
+                        id: 'developer/workshops/core/I-introduction-to-smart-contracts',
+                        label: 'Init and Deploy a Grants package',
+                    },
+                    {
+                        type: 'doc',
+                        id: 'developer/workshops/core/II-shared-objects-dynamic-fields-ptbs',
+                        label: 'Coordination with Shared Objects, Dynamic Fields, and PTBs',
+                    },
+                    {
+                        type: 'doc',
+                        id: 'developer/workshops/core/III-capabilities-state-tests',
+                        label: 'Capabilities, Type-State, Abilities & Tests',
+                    }
+                ],
+            },
+        ],
     },
     {
         type: 'category',
@@ -638,7 +660,7 @@ const developer = [
         ]
     },
     {
-        type:'category',
+        type: 'category',
         label: 'IOTA EVM',
         items: iotaEvm,
     },
