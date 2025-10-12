@@ -5,9 +5,46 @@ tags:
  - rust
 ---
 
-# Building a Full-Stack IOTA Identity University Degree Verification System Guided Code Workshop
+# IOTA Identity Workshop
 
 In this workshop, we will build a production-ready **University Degree Verification system** using **IOTA Identity**, **Rust**, and **React.** By the end of this workshop, you’ll have a complete, end-to-end flow demonstrating how **Issuers**, **Holders**, and **Verifiers** interact in a real-world university degree validation scenario — all powered by IOTA Identity. We will build the application piece-by-piece, focusing on the communication flow for each of the four core identity steps (DID creation, VC issuance, VP creation, and Verification).
+
+## The Problem
+
+Today, verifying university degrees is a slow, manual, and often costly hurdle. Employers must contact universities or rely on centralized third-party services, which is costly and prone to fraud. Fake certificates can easily circulate.
+
+## The Opportunity
+
+Universities can issue tamper-proof Verifiable Credentials (VCs) that students control using the IOTA Identity product. Students present these credentials to employers, who can instantly verify them on the IOTA network without intermediaries, cutting costs and eliminating fraud.
+
+### What You’ll Build in this Workshop
+
+We're building a complete, production-ready system that connects a modern React frontend to a high-performance Rust backend. You'll learn how the frontend triggers the entire IOTA Identity lifecycle:
+
+- **Holder (Student)**: Creates a DID and stores it securely.
+- **Issuer (University)**: Issues a **Verifiable Credential (VC)** representing the degree.
+- **Holder**: Packages the credential into a **Verifiable Presentation (VP)** and signs it.
+- **Verifier (Employer)**: Verifies the authenticity of the presentation and credentials against the IOTA network.
+
+## Alternative Use Cases for IOTA Identity
+
+### Use Case 2: Our Digital Lives are Fragmented and Vulnerable
+
+Your online identity is scattered across platforms, leaving it vulnerable to misuse and attack.
+
+We hold dozens of accounts (social media, banking, email), each requiring a separate login and sharing pieces of our personal data. This fragmentation makes managing security a nightmare, often leading to recycled passwords and creating massive centralized targets for breaches. When a company database is breached, your information is exposed, and you have zero control over it. IOTA Identity solves this by giving you a single, Decentralized Identifier (DID) that you control, allowing you to selectively prove facts about yourself without exposing the underlying data, putting you back in charge.
+
+### Use Case 3: Consumers Can’t Trust a Product’s History
+
+Is that product authentic? Where did it really come from? Should I believe its green claims?
+
+The market is flooded with counterfeit goods, causing financial loss and safety hazards (like fake medications). For legitimate products, the journey from raw materials to retail is often opaque. Consumers demand transparency regarding ethical sourcing, environmental impact, and authenticity. Without a reliable way to track a product's history and verify the identity of every supplier and auditor involved, trust is impossible. IOTA Identity enables the creation of verifiable, tamper-proof credentials at each point in the supply chain, establishing a trusted, auditable history for any product.
+
+### Use Case 4: Verifying Digital Asset Provenance
+
+Link digital assets and their owners with verifiable, tamper-proof identities.
+
+The digital asset space, from NFTs to tokenized real estate, faces a critical challenge: proving an asset's authenticity and origin. How can a buyer be sure a digital token was created by the legitimate originator, or that a tokenized asset is verifiably linked to its physical counterpart and owner? Without a robust, cryptographically secured link between the digital token and the real-world identity and provenance, the system is vulnerable to fraud and impersonation. IOTA Identity provides the essential cryptographic layer necessary to secure these digital-to-physical relationships and drive mainstream adoption.
 
 ## Prerequisites
 
@@ -99,23 +136,6 @@ Use this page to set up a [Local Network Setup](https://docs.iota.org/developer/
 
 Once those commands run successfully, you'll have everything you need to start the guided coding workshop!
 
-## The Problem
-
-Today, verifying university degrees is a slow, manual, and often costly hurdle. Employers must contact universities or rely on centralized third-party services, which is costly and prone to fraud. Fake certificates can easily circulate.
-
-## The Opportunity
-
-Universities can issue tamper-proof Verifiable Credentials (VCs) that students control using the IOTA Identity product. Students present these credentials to employers, who can instantly verify them on the IOTA network without intermediaries, cutting costs and eliminating fraud.
-
-### What You’ll Build in this Workshop
-
-We're building a complete, production-ready system that connects a modern React frontend to a high-performance Rust backend. You'll learn how the frontend triggers the entire IOTA Identity lifecycle:
-
-- **Holder (Student)**: Creates a DID and stores it securely.
-- **Issuer (University)**: Issues a **Verifiable Credential (VC)** representing the degree.
-- **Holder**: Packages the credential into a **Verifiable Presentation (VP)** and signs it.
-- **Verifier (Employer)**: Verifies the authenticity of the presentation and credentials against the IOTA network.
-
 ## Part 1: Project Setup and Architecture
 
 We will create two separate projects that communicate via HTTP: the React Frontend (the user interface) and the Rust Axum Backend (the identity logic engine).
@@ -145,12 +165,12 @@ npm install lucide-react # For icons
 ```
 ### Explanation:
 
-- What it does: Creates a project structure with a Rust backend (`iota-identity-backend`) and a React frontend (`iota-identity-frontend`). The `cargo init` command sets up a Rust project with a `Cargo.toml` file, while `npm create vite` initializes a React app using Vite for fast development. The `lucide-react` library adds icons for the UI.
-- Why it matters: This sets up a full-stack environment where the frontend handles user interaction and the backend processes IOTA Identity logic. The utility folder (`crates/identity_logic`) will hold shared Rust code.
-- Key concepts:
-    - Rust Backend: Uses Axum for HTTP APIs to handle IOTA Identity operations.
-    - React Frontend: Provides a user-friendly interface to trigger backend actions.
-    - Vite: A modern build tool for fast React development.
+- **What it does**: Creates a project structure with a Rust backend (`iota-identity-backend`) and a React frontend (`iota-identity-frontend`). The `cargo init` command sets up a Rust project with a `Cargo.toml` file, while `npm create vite` initializes a React app using Vite for fast development. The `lucide-react` library adds icons for the UI.
+- **Why it matters**: This sets up a full-stack environment where the frontend handles user interaction and the backend processes IOTA Identity logic. The utility folder (`crates/identity_logic`) will hold shared Rust code.
+- **Key concepts**:
+    - **Rust Backend**: Uses Axum for HTTP APIs to handle IOTA Identity operations.
+    - **React Frontend**: Provides a user-friendly interface to trigger backend actions.
+    - **Vite**: A modern build tool for fast React development.
 
 ## Part 2: Building the Front-to-Back Connection
 
@@ -164,26 +184,53 @@ In your **React Frontend** (`src/App.jsx`), this function is the central bridge.
 // src/App.jsx (Excerpt: handleApiCall)
 
 const handleApiCall = useCallback(async (step, endpoint, body) => {
-    // ... validation and state updates omitted for brevity ...
+        if (!packageId || packageId === 'your-iota-identity-pkg-id') {
+            setError('Please set a valid IOTA Identity Package ID in the settings.');
+            return null;
+        }
+        if (!apiUrl) {
+            setError('Please set the API Base URL in the settings.');
+            return null;
+        }
 
-    // Sends POST request to Rust API.
-    // NOTE: { packageId, ...body } sends the required packageId plus step-specific data.
-    const response = await fetch(`${apiUrl}${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packageId, ...body }), 
-    });
+        setLoadingStep(step);
+        setError('');
+        
+        // This is a minimal exponential backoff retry logic
+        const maxRetries = 3;
+        const initialDelay = 1000;
 
-    if (!response.ok) {
-        // Essential: Catches Rust's HTTP errors (like 404 or 500) and displays them.
-        const errorText = await response.text();
-        throw new Error(`API returned status ${response.status}: ${errorText}`);
-    }
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                // NOTE: The body keys (packageId, vcJwt, vpJwt) MUST be camelCase to match the #[serde(rename_all = "camelCase")] in Rust.
+                const response = await fetch(`${apiUrl}${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ packageId, ...body }),
+                });
 
-    const data = await response.json();
-    setLoadingStep(0);
-    return data; // Returns the result (DID, JWT, or Validation log)
-}, [packageId, apiUrl]);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(`API returned status ${response.status}: ${errorText}`);
+                }
+
+                const data = await response.json();
+                setLoadingStep(0);
+                return data;
+
+            } catch (err) {
+                if (attempt === maxRetries - 1) {
+                    setError(`Error in Step ${step}: ${err.message}`);
+                    setLoadingStep(0);
+                    return null;
+                }
+                // Exponential backoff
+                const delay = initialDelay * (2 ** attempt);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                console.warn(`Retrying Step ${step} (${attempt + 1}/${maxRetries})...`);
+            }
+        }
+    }, [packageId, apiUrl]);
 ```
 
 ## Explanation:
@@ -230,14 +277,22 @@ const handleCreateDid = async () => {
 
 ```Rust
 // iota-identity-backend/src/main.rs (holder_create_did)
-
 async fn holder_create_did(Json(_body): Json<PackageId>) -> Result<Json<DidResponse>, StatusCode> {
-    // Rust logic calls create_or_load_did, which handles funding and anchoring the DID
-    let (holder_doc, _) = create_or_load_did(
-        "./holder_doc.json", /* ... */
-    ).await.map_err(/* ... error handling ... */)?;
+    let holder_doc_file = "./holder_doc.json";
+    let holder_fragment_file = "./holder_fragment.txt";
+    let stronghold_path = "./holder.stronghold";
 
-    // Responds to the frontend with the DID string
+    // This calls create_or_load_did. If the file exists, it loads the existing DID.
+    // The DID is anchored and funded if newly created.
+    let (holder_doc, _) = create_or_load_did(
+        holder_doc_file,
+        holder_fragment_file,
+        stronghold_path
+    ).await.map_err(|e| {
+        eprintln!("Error creating holder DID: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
     Ok(Json(DidResponse {
         did: holder_doc.id().to_string(),
     }))
@@ -251,6 +306,213 @@ async fn holder_create_did(Json(_body): Json<PackageId>) -> Result<Json<DidRespo
     - DID Creation: Uses IOTA Identity to generate and publish a DID document.
     - Stronghold: Securely stores the DID’s private keys.
     - Axum Endpoint: Handles HTTP requests and returns JSON responses.
+
+=======================================================
+
+The `create_or_load_did` function is a critical helper function used by the `holder_create_did` endpoint to either create a new Decentralized Identifier (DID) for the Holder (student) or load an existing one from disk.
+
+```Rust
+// iota-identity-backend/src/main.rs (create_or_load_did)
+
+// Helper function to create or load a DID document and its signing fragment
+async fn create_or_load_did(
+    doc_file: &str,
+    fragment_file: &str,
+    stronghold_path: &str,
+) -> Result<(IotaDocument, String)> {
+    let storage = get_stronghold_storage(Some(PathBuf::from(stronghold_path)))?;
+
+    if !PathBuf::from(doc_file).exists() {
+        let client = get_funded_client(&storage).await?;
+        let (doc, frag) = create_did_document(&client, &storage).await?;
+        
+        // Save to disk for persistence between server restarts
+        fs::write(doc_file, doc.to_json()?)?;
+        fs::write(fragment_file, &frag)?;
+
+        println!(">> Created DID: {}", doc.id());
+        Ok((doc, frag))
+    } else {
+        let doc_json = fs::read_to_string(doc_file)?;
+        let doc = IotaDocument::from_json(&doc_json)?;
+        let frag = fs::read_to_string(fragment_file)?.trim().to_string();
+        
+        println!(">> Loaded DID: {}", doc.id());
+        Ok((doc, frag))
+    }
+}
+```
+## Explanation:
+
+- **What it does**: The `create_or_load_did` function checks if a DID document exists at the specified `doc_file` path. If it doesn’t exist, it creates a new DID using the IOTA Identity library, funds it via an IOTA client, and saves the DID document and its signing fragment to `doc_file` and `fragment_file` respectively. If the file exists, it loads the DID document and fragment from disk. The function returns a tuple containing the `IotaDocument` (the DID document) and a `String` (the signing fragment).
+- **Why it matters**: This function ensures the Holder’s DID is either created and anchored to the IOTA network or loaded for reuse, providing persistence across server restarts. It abstracts the complexity of DID creation and storage, making it reusable across different endpoints (e.g., `holder_create_did`).
+- **Key concepts**:
+    - **DID Document**: A JSON object containing the Holder’s decentralized identifier (e.g., `did:iota`:...) and associated data like public keys.
+    - **Stronghold Storage**: A secure storage system for private keys, accessed via `get_stronghold_storage`.
+    - **Signing Fragment**: A reference to the verification method (e.g., an Ed25519 key) used for signing credentials or presentations.
+    - **Persistence**: Saves the DID and fragment to disk to avoid recreating them, ensuring consistency in the identity flow.
+    - **IOTA Client**: The get_funded_client function provides a funded client to anchor the DID to the IOTA network.
+
+## Context
+
+The `create_or_load_did` function, used by the `holder_create_did` endpoint, relies on three helper functions to create or load a DID. These functions, defined in `crates/identity_logic/src/lib.rs`, handle interactions with the IOTA Identity framework and the IOTA network, enabling the creation and management of Decentralized Identifiers (DIDs) for the Holder (student).
+
+- `get_stronghold_storage`: Sets up secure storage for private keys.
+- `get_funded_client`: Creates an IOTA Identity client with sufficient funds for network operations.
+- `create_did_document`: Generates and publishes a DID document to the IOTA network.
+
+Below, we explain each function, including its purpose, functionality, and role in the workshop’s identity flow.
+
+## Helper Function: `get_stronghold_storage`
+
+This function initializes a Stronghold storage instance for securely managing cryptographic keys.
+
+```rust
+// iota-identity-backend/crates/identity_logic/src/lib.rs (get_stronghold_storage)
+
+/// Returns a StrongholdStorage instance for persistent key storage.
+pub fn get_stronghold_storage(
+    path: Option<PathBuf>,
+) -> Result<Storage<StrongholdStorage, StrongholdStorage>, anyhow::Error> {
+    let path = path.unwrap_or_else(random_stronghold_path);
+    let password = Password::from("secure_password".to_owned());
+    let stronghold = StrongholdSecretManager::builder()
+        .password(password.clone())
+        .build(path.clone())?;
+    let stronghold_storage = StrongholdStorage::new(stronghold);
+    Ok(Storage::new(
+        stronghold_storage.clone(),
+        stronghold_storage.clone(),
+    ))
+}
+```
+
+## Explanation:
+
+- **What it does**: The `get_stronghold_storage` function creates a `StrongholdStorage` instance, which is used to securely store cryptographic keys. It takes an optional file path (`path`) for the Stronghold file; if none is provided, it generates a random path using `random_stronghold_path`. The function sets a default password (`secure_password`), builds a `StrongholdSecretManager`, and wraps it in a `StrongholdStorage` instance, returning it as a `Storage` type compatible with IOTA Identity.
+- **Why it matters**: Secure key storage is essential for managing private keys used in DID creation, VC issuance, and VP signing. Stronghold ensures keys are encrypted and protected, preventing unauthorized access. This function provides a reusable storage setup for all identity operations in the workshop.
+- **Key concepts**:
+    - **Stronghold**: A secure storage system for cryptographic keys.
+    - *PathBuf*: A Rust type for handling file paths, used to specify where the Stronghold file is stored.
+    - **Password**: Secures the Stronghold file to prevent unauthorized access.
+    - **Storage Type**: Combines key storage (`JwkStorage`) and key ID storage (`KeyIdStorage`) for IOTA Identity compatibility.
+
+## Helper Function: `get_funded_client`
+
+This function creates an IOTA Identity client with sufficient funds for network operations.
+
+```rust
+// iota-identity-backend/crates/identity_logic/src/lib.rs (get_funded_client)
+
+/// Returns an IOTA Identity client funded for publishing operations.
+pub async fn get_funded_client<K, I>(
+    storage: &Storage<K, I>,
+) -> Result<IdentityClient<StorageSigner<K, I>>, anyhow::Error>
+where
+    K: JwkStorage,
+    I: KeyIdStorage,
+{
+    let generate = storage
+        .key_storage()
+        .generate(KeyType::new("Ed25519"), JwsAlgorithm::EdDSA)
+        .await?;
+
+    let public_key_jwk = generate
+        .jwk
+        .to_public()
+        .expect("public components should be derivable");
+
+    let signer = StorageSigner::new(storage, generate.key_id, public_key_jwk);
+    let sender_address = IotaAddress::from(&Signer::public_key(&signer).await?);
+
+    request_funds(&sender_address).await?;
+
+    let read_only_client = get_read_only_client().await?;
+    let identity_client = IdentityClient::new(read_only_client, signer).await?;
+
+    Ok(identity_client)
+}
+```
+
+## Explanation:
+
+- **What it does**: The `get_funded_client` function generates a new Ed25519 key pair in the provided `storage`, creates a `StorageSigner` for signing transactions, derives an IOTA address from the public key, and requests test funds for that address from the IOTA test network faucet. It then builds an `IdentityClient` by combining a read-only IOTA client (from `get_read_only_client`) with the signer, enabling the client to perform funded operations like publishing DIDs.
+- **Why it matters**: Publishing a DID to the IOTA network requires funds to cover transaction fees. This function automates key generation, funding, and client setup, ensuring the client is ready for identity operations. It’s a critical step for creating and anchoring DIDs in the workshop.
+- **Key concepts**:
+    - **Ed25519**: A secure cryptographic algorithm used for signing transactions and credentials.
+    - **StorageSigner**: Combines the storage and key pair to sign IOTA transactions.
+    - **IOTA Address**: Derived from the public key, used to request test funds from the faucet.
+    - **IdentityClient**: A client that interacts with the IOTA network for identity operations, requiring both a signer and network access.
+    - **Test Funds**: Necessary for covering transaction costs on the IOTA test network.
+
+## Helper Function: `create_did_document`
+
+This function creates and publishes a DID document to the IOTA network.
+
+```rust
+// iota-identity-backend/crates/identity_logic/src/lib.rs (create_did_document)
+
+/// Creates a new IotaDocument, generates a key, publishes the DID to the network, and returns the document and fragment.
+pub async fn create_did_document<K, I, S>(
+    identity_client: &IdentityClient<S>,
+    storage: &Storage<K, I>,
+) -> anyhow::Result<(IotaDocument, String)>
+where
+    K: identity_storage::JwkStorage,
+    I: identity_storage::KeyIdStorage,
+    S: Signer<IotaKeySignature> + OptionalSync,
+{
+    let mut unpublished: IotaDocument = IotaDocument::new(identity_client.network());
+
+    let verification_method_fragment = unpublished
+        .generate_method(
+            storage,
+            JwkMemStore::ED25519_KEY_TYPE,
+            JwsAlgorithm::EdDSA,
+            None,
+            MethodScope::VerificationMethod,
+        )
+        .await?;
+
+    let document = identity_client
+        .publish_did_document(unpublished)
+        .with_gas_budget(TEST_GAS_BUDGET)
+        .build_and_execute(identity_client)
+        .await?
+        .output;
+
+    Ok((document, verification_method_fragment))
+}
+```
+
+## Explanation:
+
+- **What it does**: The `create_did_document` function creates a new, unpublished `IotaDocument` for the specified IOTA network, generates an Ed25519 verification method (key pair) stored in `storage`, and adds it to the document. It then publishes the document to the IOTA network using the provided `identity_client`, allocating a gas budget (`TEST_GAS_BUDGET`) for the transaction. The function returns the published DID document and the fragment (identifier) of the verification method.
+- **Why it matters**: This function is the core of DID creation, anchoring the Holder’s identity to the IOTA network. The published DID document and its verification method enable secure signing of credentials and presentations, forming the foundation of the workshop’s identity flow.
+- **Key concepts**:
+    - **IotaDocument**: A JSON object representing a DID, including its identifier (e.g., `did:iota:...`) and verification methods.
+    - **Verification Method**: An Ed25519 key pair used for signing, identified by a fragment (e.g., #sign-0).
+    - **Publish DID**: Anchors the DID document to the IOTA network, making it publicly resolvable.
+    - **Gas Budget**: Allocates funds for the network transaction to publish the DID.
+
+## Integration with `create_or_load_did`
+
+These helper functions are called by `create_or_load_did` to create a new DID:
+
+- `get_stronghold_storage`: Provides secure storage for the DID’s private keys.
+- `get_funded_client`: Creates a funded IOTA Identity client to interact with the network.
+- `create_did_document`: Generates and publishes the DID document, returning it along with the signing fragment.
+
+Together, they ensure the Holder’s DID is created securely, funded, and anchored to the IOTA network, or loaded from disk if it already exists.
+
+## Checkpoint
+
+- Verify that `get_stronghold_storage` creates a Stronghold file (e.g., `holder.stronghold`).
+- Check that `get_funded_client` successfully requests test funds by monitoring the IOTA test network faucet.
+- Confirm that `create_did_document` produces a valid DID (e.g., `did:iota:...`) by printing the returned `IotaDocument`’s `id`.
+
+
+=======================================================
 
 ### Step 2.3: Step 2: Issuer Issues VC
 
