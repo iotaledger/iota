@@ -23,6 +23,3 @@ move-command-line-common.workspace = true
 [[test]]
 name = "manifest_parsing_tests"
 harness = false
-
-[package.metadata.cargo-udeps.ignore]
-normal = ["serde", "serde_spanned", "toml", "toml_edit"]
