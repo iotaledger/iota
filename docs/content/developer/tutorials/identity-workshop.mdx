@@ -158,7 +158,9 @@ cargo init
 mkdir -p crates/identity_logic/src
 
 # 3. Initialize the React Frontend
-cd ../iota-identity-frontend
+cd ..
+mkdir iota-identity-frontend
+cd iota-identity-frontend
 npm create vite@latest . -- --template react
 npm install
 npm install lucide-react # For icons
@@ -534,24 +536,70 @@ const handleIssueVc = async () => {
 ```
 ## Explanation
 
-- What it does: The `handleIssueVc` function sends a POST request to the `/issuer/issue-vc` endpoint with an empty body. The backend generates a VC and returns its JWT, which is stored in the React state (`setVcJwt`) for display and use in the next step.
-- Why it matters: This triggers the issuance of a degree credential, which the student can later present to employers. It connects the frontend UI to the backend’s VC logic.
-- Key concepts:
-    - VC: A signed document asserting the student’s degree (e.g., Bachelor of Science).
-    - JWT: The VC is encoded as a JSON Web Token for secure transmission.
-    - React State: Stores the VC JWT for use in VP creation.
+- **What it does**: The `handleIssueVc` function sends a POST request to the `/issuer/issue-vc` endpoint with an empty body. The backend generates a VC and returns its JWT, which is stored in the React state (`setVcJwt`) for display and use in the next step.
+- **Why it matters**: This triggers the issuance of a degree credential, which the student can later present to employers. It connects the frontend UI to the backend’s VC logic.
+- **Key concepts**:
+    - **VC**: A signed document asserting the student’s degree (e.g., Bachelor of Science).
+    - **JWT**: The VC is encoded as a `JSON Web Token` for secure transmission.
+    - **React State**: Stores the `VC JWT` for use in VP creation.
 
-**Backend** (`src/main.rs`): The server retrieves the Holder's DID locally (from the file system created in Step 1) and generates the signed VC.
+**Backend** (`src/main.rs`): In this step, the Issuer (university) creates or loads its Decentralized Identifier (DID) and issues a Verifiable Credential (VC) representing a university degree for the Holder (student, Alice). This VC is signed and returned as a JSON Web Token (JWT) to the React frontend for use in subsequent steps.
+
+The `issuer_issue_vc` function handles the `/issuer/issue-vc` endpoint in the Rust Axum backend, orchestrating the creation and signing of the VC.
 
 ```Rust
-// iota-identity-backend/src/main.rs (issuer_issue_vc)
-
+// Issuer creates DID (if needed) and issues a VC to the Holder
 async fn issuer_issue_vc(Json(_body): Json<PackageId>) -> Result<Json<JwtResponse>, StatusCode> {
-    // 1. Loads Issuer DID, loads Holder DID from local file.
-    // 2. Builds Credential (VC) with subject linked to Holder's DID.
-    // 3. Signs VC with Issuer's private key (from Stronghold).
+    let issuer_doc_file = "./issuer_doc.json";
+    let issuer_fragment_file = "./issuer_fragment.txt";
+    let issuer_stronghold_path = "./issuer.stronghold";
 
-    // Returns the signed VC JWT string
+    // 1. Create/Load Issuer DID
+    let (issuer_doc, issuer_fragment) = create_or_load_did(
+        issuer_doc_file,
+        issuer_fragment_file,
+        issuer_stronghold_path,
+    ).await.map_err(|e| {
+        eprintln!("Error creating issuer DID: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+
+    // 2. Load Holder DID (must exist from Step 1)
+    let holder_doc_json = fs::read_to_string("./holder_doc.json").map_err(|_| StatusCode::NOT_FOUND)?;
+    let holder_doc = IotaDocument::from_json(&holder_doc_json).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // 3. Build VC
+    let subject = Subject::from_json_value(serde_json::json!({
+        "id": holder_doc.id().as_str(),
+        "name": "Alice",
+        "degree": { "type": "BachelorDegree", "name": "Bachelor of Science and Arts" },
+        "GPA": "4.0"
+    })).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let credential: Credential<Object> = CredentialBuilder::default() // Type Annotation Fix
+        .id(Url::parse("https://example.edu/credentials/3732").map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .issuer(Url::parse(issuer_doc.id().as_str()).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?)
+        .type_("UniversityDegreeCredential")
+        .subject(subject)
+        .build().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    // 4. Sign VC
+    let issuer_storage = get_stronghold_storage(Some(PathBuf::from(issuer_stronghold_path))).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let credential_jwt = issuer_doc
+        .create_credential_jwt(
+            &credential,
+            &issuer_storage,
+            &issuer_fragment,
+            &JwsSignatureOptions::default(),
+            None,
+        )
+        .await
+        .map_err(|e| {
+            eprintln!("Error signing VC: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    
+    // Return VC JWT string
     Ok(Json(JwtResponse {
         jwt: credential_jwt.as_str().to_string(),
     }))
@@ -560,13 +608,138 @@ async fn issuer_issue_vc(Json(_body): Json<PackageId>) -> Result<Json<JwtRespons
 
 ## Explanation:
 
-- What it does: The `issuer_issue_vc` function handles the `/issuer/issue-vc` endpoint. It loads the Issuer’s DID and the Holder’s DID (from `holder_doc.json`), creates a VC with the student’s degree details (e.g., name, degree type), signs it with the Issuer’s private key (stored in Stronghold), and returns the VC as a JWT string.
-- Why it matters: This creates a tamper-proof degree credential linked to the student’s DID, which can be verified on the IOTA network.
-- Key concepts:
-    - VC Creation: Builds a credential with subject data (e.g., student’s name, degree).
-    - Digital Signature: Uses the Issuer’s private key to sign the VC, ensuring authenticity.
-    - JWT: Encodes the VC for secure sharing with the frontend.
+- **What it does**: The `issuer_issue_vc` function handles the `/issuer/issue-vc` HTTP endpoint, triggered by the React frontend. It performs four key steps:
+    1. **Create/Load Issuer DID**: Calls `create_or_load_did` to either create a new DID for the Issuer (university) or load an existing one from disk.
+    2. **Load Holder DID**: Reads the Holder’s DID document from `holder_doc.json` (created in Step 1).
+    3. **Build VC**: Constructs a Verifiable Credential with the Holder’s DID, student details (e.g., name, degree, GPA), and an issuer identifier.
+    4. **Sign VC**: Uses the Issuer’s private key (stored in Stronghold) to sign the VC as a JWT, which is returned to the frontend.
+- **Why it matters**: This function creates a tamper-proof degree credential linked to the Holder’s DID, enabling secure verification by employers in later steps. It connects the frontend’s “Issue VC” button to the IOTA Identity framework, ensuring the credential is cryptographically signed and verifiable on the IOTA network.
+- **Key concepts**:
+    - **Verifiable Credential (VC)**: A digitally signed document asserting claims (e.g., Alice’s degree) linked to the Holder’s DID.
+    - **DID**: The Issuer’s and Holder’s decentralized identifiers, used to establish trust and ownership.
+    - **JWT**: A JSON Web Token encoding the VC, signed with the Issuer’s private key for authenticity.
+    - **Stronghold**: Securely stores the Issuer’s private key, accessed via `get_stronghold_storage`.
+    - **CredentialBuilder**: An IOTA Identity utility for constructing VCs with standardized fields (e.g., `id`, `issuer`, `subject`).
 
+## Step-by-Step Breakdown
+
+1. ## Create/Load Issuer DID:
+
+- Code:
+
+```rust
+let (issuer_doc, issuer_fragment) = create_or_load_did(
+    issuer_doc_file,
+    issuer_fragment_file,
+    issuer_stronghold_path,
+).await.map_err(...)?;
+```
+
+- **What it does**: Calls the `create_or_load_did` helper function to either create a new DID for the Issuer (saved to `issuer_doc.json` and `issuer_fragment.txt`) or load an existing one. The DID is anchored to the IOTA network if newly created.
+- **Why it matters**: The Issuer’s DID establishes the university’s identity, used to sign the VC and prove its authenticity.
+- **Key concepts**:
+    - **DID Document**: Contains the Issuer’s identifier (e.g., `did:iota:...`) and verification methods.
+    - **Fragment**: Identifies the signing key (e.g., `#sign-0`) in the DID document.
+
+2. ## Load Holder DID:
+
+- **Code**:
+
+```rust
+let holder_doc_json = fs::read_to_string("./holder_doc.json").map_err(|_| StatusCode::NOT_FOUND)?;
+let holder_doc = IotaDocument::from_json(&holder_doc_json).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+```
+
+- **What it does**: Reads the Holder’s DID document from `holder_doc.json` (created in Step 1) and deserializes it into an `IotaDocument`.
+- **Why it matters**: The Holder’s DID is needed to link the VC to the student (Alice), ensuring the credential is tied to her identity.
+- **Key concepts**:
+    - File I/O: Uses Rust’s `fs` module to read the DID document from disk.
+    - JSON Deserialization: Converts the JSON string into an `IotaDocument` using `from_json`.
+
+3. ## Build VC:
+
+- Code:
+
+```rust
+let subject = Subject::from_json_value(serde_json::json!({
+    "id": holder_doc.id().as_str(),
+    "name": "Alice",
+    "degree": { "type": "BachelorDegree", "name": "Bachelor of Science and Arts" },
+    "GPA": "4.0"
+})).map_err(...)?;
+let credential: Credential<Object> = CredentialBuilder::default()
+    .id(Url::parse("https://example.edu/credentials/3732").map_err(...)?)
+    .issuer(Url::parse(issuer_doc.id().as_str()).map_err(...)?)
+    .type_("UniversityDegreeCredential")
+    .subject(subject)
+    .build().map_err(...)?;
+```
+
+- **What it does**: Creates a `Subject` object with the Holder’s DID, name, degree details, and GPA. Uses `CredentialBuilder` to construct a VC with a unique ID, the Issuer’s DID, a type (`UniversityDegreeCredential`), and the subject data.
+- **Why it matters**: The VC is the digital degree certificate, containing verifiable claims about Alice’s academic achievement. It follows the W3C Verifiable Credentials standard for interoperability.
+- **Key concepts**:
+    - **Subject**: The entity (Alice) the VC is about, linked to her DID.
+    - **CredentialBuilder**: Builds a structured VC with standardized fields.
+    - **JSON Macro**: The `serde_json::json!` macro creates a JSON object for the subject data.
+
+4. ## Sign VC:
+
+- Code:
+
+```rust
+let issuer_storage = get_stronghold_storage(Some(PathBuf::from(issuer_stronghold_path))).map_err(...)?;
+let credential_jwt = issuer_doc
+    .create_credential_jwt(
+        &credential,
+        &issuer_storage,
+        &issuer_fragment,
+        &JwsSignatureOptions::default(),
+        None,
+    )
+    .await
+    .map_err(...)?;
+```
+
+- **What it does**: Initializes Stronghold storage for the Issuer’s private keys, then uses the `issuer_doc` to sign the VC with the specified `issuer_fragment` (signing key). The signed VC is encoded as a JWT.
+- **Why it matters**: Signing the VC ensures its authenticity and integrity, allowing verifiers (e.g., employers) to trust that it was issued by the university.
+- **Key concepts**:
+    - **Digital Signature**: Uses the Issuer’s private key (via Stronghold) to sign the VC.
+    - **JWT**: Encodes the VC for secure transmission to the frontend.
+    - **JwsSignatureOptions**: Configures signing options (e.g., default algorithm is Ed25519).
+
+5. ## Return VC JWT:
+
+- Code:
+
+```Rust
+Ok(Json(JwtResponse {
+    jwt: credential_jwt.as_str().to_string(),
+}))
+```
+- **What it does**: Wraps the VC JWT in a `JwtResponse` struct and returns it as a JSON response to the frontend.
+- **Why it matters**: The JWT is sent to the React frontend, where it’s stored for use in the next step (VP creation).
+- **Key concepts**:
+    - **Axum Response**: Uses `Json` to serialize the response for HTTP communication.
+    - **JwtResponse**: A custom struct to structure the API response.
+
+## Integration with the Workshop
+
+The `issuer_issue_vc` function is triggered by the React frontend’s “Execute Step 2” button, which calls the `/issuer/issue-vc` endpoint. It relies on:
+
+- `create_or_load_did`: To obtain the Issuer’s DID and signing fragment.
+- `get_stronghold_storage`: To access the Issuer’s private keys for signing.
+- The Holder’s DID document (`holder_doc.json`) from Step 1.
+
+The returned VC JWT is stored in the frontend’s state and used in Step 3 to create a Verifiable Presentation (VP).
+
+## Checkpoint
+
+- Run the backend (`cargo run`) and use the frontend to trigger Step 2.
+- Verify that `issuer_doc.json`, `issuer_fragment.txt`, and `vc.jwt` are created.
+- Check the frontend UI to confirm the VC JWT is displayed (e.g., a long string starting with `eyJ...`).
+- Use an online JWT decoder to inspect the VC’s contents (e.g., Alice’s name, degree).
+
+=================================================
 ### Step 2.4: Step 3: Holder Creates VP
 
 | Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored |
@@ -589,24 +762,66 @@ const handleCreateVp = async () => {
 
 ## Explanation:
 
-- What it does: The `handleCreateVp` function sends a POST request to the `/holder/create-vp` endpoint, including the VC JWT (`vcJwt`) from the previous step. The backend returns a VP JWT, which is stored in the React state (`setVpJwt`) for display and verification.
-- Why it matters: This allows the student to create a signed VP, proving they own the VC when presenting it to an employer.
-- Key concepts:
-    - VP: A signed package containing the VC, proving the Holder’s ownership.
-    - Payload: Sends the VC JWT to the backend for inclusion in the VP.
-    - React State: Stores the VP JWT for the final verification step.
+- **What it does**: The `handleCreateVp` function sends a POST request to the `/holder/create-vp` endpoint, including the VC JWT (`vcJwt`) from the previous step. The backend returns a VP JWT, which is stored in the React state (`setVpJwt`) for display and verification.
+- **Why it matters**: This allows the student to create a signed VP, proving they own the VC when presenting it to an employer.
+- **Key concepts**:
+    - **VP**: A signed package containing the VC, proving the Holder’s ownership.
+    - **Payload**: Sends the VC JWT to the backend for inclusion in the VP.
+    - **React State**: Stores the VP JWT for the final verification step.
 
-**Backend** (`src/main.rs`): The Rust server uses the Holder's key (from Stronghold) to sign the presentation.
+**Backend** (`src/main.rs`): In this step, the Holder (student, Alice) packages the received Verifiable Credential (VC) into a Verifiable Presentation (VP) and signs it for presentation to a verifier (employer). The VP proves that Alice controls the VC and hasn't tampered with it.
+
+## Backend: `holder_create_vp` Function
+
+The `holder_create_vp` function handles the `/holder/create-vp` endpoint in the Rust Axum backend, receiving the VC JWT from the frontend and creating a signed VP.
 
 ```Rust
 // iota-identity-backend/src/main.rs (holder_create_vp)
 
+// Step 3: Holder creates a Verifiable Presentation (VP)
 async fn holder_create_vp(Json(body): Json<VcJwt>) -> Result<Json<JwtResponse>, StatusCode> {
-    // 1. Loads Holder DID and Storage (Stronghold).
-    // 2. Builds Presentation (VP), embedding body.vc_jwt (the VC from the frontend).
-    // 3. Signs VP with Holder's private key, adding nonce/challenge.
+    let stronghold_path = "./holder.stronghold";
+    let holder_doc_file = "./holder_doc.json";
+    let holder_fragment_file = "./holder_fragment.txt";
 
-    // Returns the signed VP JWT string
+    // 1. Load Holder DID
+    let (holder_doc, holder_fragment) = create_or_load_did(
+        holder_doc_file,
+        holder_fragment_file,
+        stronghold_path,
+    ).await.map_err(|_| StatusCode::NOT_FOUND)?; 
+
+    let holder_storage = get_stronghold_storage(Some(PathBuf::from(stronghold_path))).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    
+    let challenge = "challenge-123";
+    let expires = Timestamp::now_utc().checked_add(Duration::minutes(10)).unwrap();
+    
+    // 2. Build VP
+    let presentation: Presentation<Jwt> = PresentationBuilder::new( // Type Annotation Fix
+        holder_doc.id().to_url().into(), 
+        Default::default()) // Explicit default
+        .credential(Jwt::new(body.vc_jwt))
+        .build().map_err(|e| {
+            eprintln!("Error building presentation: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // 3. Sign VP
+    let vp_jwt: Jwt = holder_doc
+        .create_presentation_jwt(
+            &presentation,
+            &holder_storage,
+            &holder_fragment,
+            &JwsSignatureOptions::default().nonce(challenge.to_owned()),
+            &JwtPresentationOptions::default().expiration_date(exespires),
+        )
+        .await
+        .map_err(|e| {
+            eprintln!("Error signing VP: {:?}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+
+    // Return VP JWT string
     Ok(Json(JwtResponse {
         jwt: vp_jwt.as_str().to_string(),
     }))
@@ -615,12 +830,127 @@ async fn holder_create_vp(Json(body): Json<VcJwt>) -> Result<Json<JwtResponse>, 
 
 ## Explanation:
 
-- What it does: The `holder_create_vp` function handles the `/holder/create-vp` endpoint. It loads the Holder’s DID and Stronghold storage, creates a VP embedding the provided VC JWT (`body.vc_jwt`), signs it with the Holder’s private key, and adds a nonce (challenge) for security. The VP JWT is returned to the frontend.
-- Why it matters: The VP proves the student owns the VC and is ready for verification by an employer.
-- Key concepts:
-    - VP Creation: Embeds the VC in a presentation and signs it.
-    - Nonce: A unique challenge (e.g., `challenge-123`) ensures the VP is fresh.
-    - Stronghold: Securely accesses the Holder’s private key for signing.
+- What it does: The `holder_create_vp` function handles the `/holder/create-vp` HTTP endpoint, triggered by the React frontend. It performs three key steps:
+    1. **Load Holder DID**: Retrieves the Holder's DID document and signing fragment from disk (created in Step 1).
+    2. **Build VP**: Creates a Verifiable Presentation that embeds the received VC JWT (`body.vc_jwt`), sets the Holder's DID as the presenter, and configures expiration and challenge parameters.
+    3. **Sign VP**: Uses the Holder's private key (stored in Stronghold) to sign the VP, creating a JWT that proves Alice controls the VC.
+- **Why it matters**: This function enables the student to create a signed presentation of their degree credential, which they can securely share with employers. The VP proves both the authenticity of the VC (from Step 2) and Alice's ownership of it, completing the Holder's role in the identity flow.
+- **Key concepts**:
+    - **Verifiable Presentation (VP)**: A signed package containing one or more VCs, proving the presenter's control and ownership.
+    - **Challenge/Nonce**: A unique string (`challenge-123`) that prevents replay attacks and ensures the VP is fresh.
+    - **Expiration**: The VP expires after 10 minutes, adding security by limiting its validity period.
+    - **PresentationBuilder**: An IOTA Identity utility for constructing VPs with the presenter's DID and embedded credentials.
+
+## Step-by-Step Breakdown
+
+1. **Load Holder DID**:
+
+    - Code:
+
+```rust
+let (holder_doc, holder_fragment) = create_or_load_did(
+    holder_doc_file,
+    holder_fragment_file,
+    stronghold_path,
+).await.map_err(|_| StatusCode::NOT_FOUND)?; 
+```
+
+    - **What it does**: Calls the `create_or_load_did` helper function to load the Holder's DID document and signing fragment from `holder_doc.json` and `holder_fragment.txt` (created in Step 1). Since the DID already exists, it reads from disk rather than creating a new one.
+    - **Why it matters**: The Holder's DID is needed to identify Alice as the presenter of the VP and to access her private key for signing. This ensures the VP is linked to her identity.
+    - **Key concepts**:
+        - **DID Persistence**: The DID document and fragment are loaded from disk, ensuring consistency across API calls.
+        - **HTTP Error Handling**: Returns `StatusCode::NOT_FOUND` if the DID files don't exist, indicating Step 1 wasn't completed.
+
+2. Initialize Storage and Set Parameters:
+    - Code:
+
+```rust
+let holder_storage = get_stronghold_storage(Some(PathBuf::from(stronghold_path))).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+let challenge = "challenge-123";
+let expires = Timestamp::now_utc().checked_add(Duration::minutes(10)).unwrap();
+```
+
+    - **What it does**: Initializes Stronghold storage for accessing the Holder's private keys and sets security parameters: a fixed challenge (`challenge-123`) for nonce validation and an expiration time 10 minutes from now.
+    - **Why it matters**: Stronghold provides secure access to Alice's private key for signing the VP. The challenge prevents replay attacks (using the same VP multiple times), and the expiration ensures the VP has limited validity, enhancing security.
+    - **Key concepts**:
+        - **Stronghold Storage**: Securely stores and retrieves the Holder's private keys.
+        - **Challenge/Nonce**: A unique identifier included in the VP signature, verified by the recipient to ensure freshness.
+        - **Timestamp & Duration**: Sets the VP's expiration using UTC time, preventing indefinite use.
+
+3. Build Verifiable Presentation:
+
+    - Code:
+
+```rust
+let presentation: Presentation<Jwt> = PresentationBuilder::new(
+    holder_doc.id().to_url().into(), 
+    Default::default())
+    .credential(Jwt::new(body.vc_jwt))
+    .build().map_err(|e| {
+        eprintln!("Error building presentation: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+```
+
+    - **What it does**: Creates a `PresentationBuilder` with the Holder's DID as the presenter, embeds the received VC JWT (`body.vc_jwt`) from the frontend, and builds the presentation structure. The `Jwt::new(body.vc_jwt)` wraps the VC JWT as a credential within the presentation.
+    - **Why it matters**: This constructs the VP structure that contains Alice's degree credential, linking it to her identity. The presentation format allows verifiers to validate both the VC's authenticity and Alice's ownership.
+    - **Key concepts**:
+        - **PresentationBuilder**: Builds the VP structure with the presenter's DID and embedded credentials.
+        - **Credential Embedding**: The VC JWT (from Step 2) is included in the VP for presentation to verifiers.
+        - **URL Conversion**: The Holder's DID is converted to a URL format for use in the presentation.
+
+4. Sign Verifiable Presentation:
+
+    - Code:
+
+```rust
+let vp_jwt: Jwt = holder_doc
+    .create_presentation_jwt(
+        &presentation,
+        &holder_storage,
+        &holder_fragment,
+        &JwsSignatureOptions::default().nonce(challenge.to_owned()),
+        &JwtPresentationOptions::default().expiration_date(expires),
+    )
+    .await
+    .map_err(|e| {
+        eprintln!("Error signing VP: {:?}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+```
+
+- **What it does**: Uses the Holder's DID document to sign the presentation with her private key (accessed via `holder_storage` and identified by `holder_fragment`). The signature includes the challenge as a nonce and sets the expiration time. The signed presentation is encoded as a JWT.
+- **Why it matters**: Signing the VP with Alice's private key proves she controls the DID and the embedded VC, enabling verifiers to trust that she's the legitimate owner of the degree credential.
+- **Key concepts**:
+    - **Digital Signature**: Uses the Holder's private key to create a cryptographic proof of ownership.
+    - **create_presentation_jwt**: IOTA Identity function that signs the presentation and encodes it as a JWT.
+    - **JwsSignatureOptions**: Configures the signature with a nonce (challenge) for replay protection.
+    - **JwtPresentationOptions**: Sets presentation-specific options like expiration time.
+
+5. Return Verifiable Presentation JWT:
+
+    - Code:
+```rust
+Ok(Json(JwtResponse {
+    jwt: vp_jwt.as_str().to_string(),
+}))
+```
+    - **What it does**: Wraps the signed VP JWT in a `JwtResponse` struct and returns it as a JSON response to the React frontend.
+    - **Why it matters**: The VP JWT is sent to the frontend, where it's stored for use in Step 4 (verification). This completes the Holder's role in creating a presentable credential package.
+    - **Key concepts**:
+        - **Axum JSON Response**: Serializes the VP JWT for HTTP communication with the frontend.
+        - **JwtResponse**: Custom API response structure containing the signed VP.
+
+## Integration with the Workshop
+
+The `holder_create_vp` function is triggered by the React frontend's "Execute Step 3" button, which calls the `/holder/create-vp` endpoint with the VC JWT from Step 2. It relies on:
+
+- Input: The VC JWT (`body.vc_jwt`) received from the frontend (issued in Step 2).
+- **Dependencies**: `create_or_load_did` to load the Holder's DID and `get_stronghold_storage` to access private keys.
+- **Prerequisites**: The Holder's DID must exist from Step 1 (`holder_doc.json`).
+
+The returned VP JWT is stored in the frontend's state and used in Step 4 for verification by the employer.
 
 ### Step 2.5: Step 4: Verifier Validates VP (The Final Proof)
 
@@ -654,29 +984,253 @@ const handleValidateVp = async () => {
 
 **Backend** (`src/main.rs`): This is the final, network-intensive verification step.
 
-```Rust
-// iota-identity-backend/src/main.rs (verifier_validate)
+In this step, the Verifier (employer) validates the Verifiable Presentation (VP) and its embedded Verifiable Credential (VC) received from the Holder (student, Alice). This ensures the degree credential is authentic, untampered, and issued by a trusted university, completing the IOTA Identity flow.
 
+## Backend: `verifier_validate` Function
+
+The `verifier_validate` function handles the `/verifier/validate` endpoint in the Rust Axum backend, receiving the VP JWT from the frontend and performing a multi-step validation process.
+
+```Rust
+// Step 4: Verifier validates the VP and embedded VC
 async fn verifier_validate(Json(body): Json<VpJwt>) -> Result<Json<ValidationResponse>, StatusCode> {
-    // 1. Setup IOTA Resolver client.
-    // 2. Resolve Holder's DID (gets public key from network).
-    // 3. Validate VP signature and challenge.
-    // 4. Resolve Issuer's DID (gets public key from network).
-    // 5. Validate VC signature against Issuer's public key.
+    let vp_jwt = Jwt::new(body.vp_jwt);
+    let challenge = "challenge-123";
+    let mut output = String::new();
+
+    // 1. Setup Resolver and Read-Only Client
+    let verifier_client = get_read_only_client().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+    let mut resolver: Resolver<IotaDocument> = Resolver::new();
+    resolver.attach_iota_handler(verifier_client);
+
+    let presentation_verifier_options = JwsVerificationOptions::default().nonce(challenge.to_owned());
+    output.push_str(&format!("🔍 Using challenge: {}\n", challenge));
+
+    // 2. Resolve Holder DID
+    let holder_did: CoreDID = JwtPresentationValidatorUtils::extract_holder(&vp_jwt)
+        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    output.push_str(&format!("🔑 Extracted holder DID from VP: {}\n", holder_did));
     
-    // Returns the full verification log and success boolean to the frontend.
+    let holder_doc: IotaDocument = resolver.resolve(&holder_did).await.map_err(|e| {
+        output.push_str(&format!(" Failed to resolve holder DID: {:?}\n", e));
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
+    output.push_str(&format!("✅ Resolved holder DID from network: {}\n", holder_doc.id()));
+
+    // 3. Validate VP Signature and Challenge
+    let vp_validation_options = JwtPresentationValidationOptions::default()
+        .presentation_verifier_options(presentation_verifier_options);
+    
+    let decoded_vp: DecodedJwtPresentation<Jwt> = JwtPresentationValidator::with_signature_verifier(EdDSAJwsVerifier::default())
+        .validate(&vp_jwt, &holder_doc, &vp_validation_options)
+        .map_err(|e| {
+            output.push_str(&format!(" VP Validation Failed: {:?}\n", e));
+            StatusCode::BAD_REQUEST
+        })?;
+    
+    output.push_str("✅ VP JWT verified successfully\n");
+    output.push_str(&format!("✅ VP Holder matches Subject: {}\n", decoded_vp.presentation.holder));
+    
+    // 4. Extract and Validate Embedded Credentials
+    let jwt_credentials: &Vec<Jwt> = &decoded_vp.presentation.verifiable_credential;
+    output.push_str(&format!("📦 VP contains {} credential(s)\n", jwt_credentials.len()));
+
+    let issuers: Vec<CoreDID> = jwt_credentials
+        .iter()
+        .map(|jwt| identity_iota::credential::JwtCredentialValidatorUtils::extract_issuer_from_jwt(jwt))
+        .collect::<Result<Vec<CoreDID>, _>>()
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let issuers_documents: HashMap<CoreDID, IotaDocument> = resolver.resolve_multiple(&issuers).await
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+
+    let credential_validator = JwtCredentialValidator::with_signature_verifier(EdDSAJwsVerifier::default());
+    let credential_validation_options = JwtCredentialValidationOptions::default()
+        .subject_holder_relationship(holder_did.to_url().into(), SubjectHolderRelationship::AlwaysSubject);
+
+    for (index, jwt_vc) in jwt_credentials.iter().enumerate() {
+        let issuer_doc = &issuers_documents[&issuers[index]];
+        let result: Result<DecodedJwtCredential<Object>, _> = credential_validator
+            .validate(jwt_vc, issuer_doc, &credential_validation_options, FailFast::FirstError);
+        
+        match result {
+            Ok(decoded_credential) => {
+                 let subject_id = decoded_credential
+                    .credential
+                    .credential_subject
+                    .first()
+                    .and_then(|subj| subj.id.as_ref())
+                    .map(|id| id.as_str())
+                    .unwrap_or("unknown");
+
+                output.push_str(&format!(
+                    "✅ Credential [{}]: verified successfully, subject: {}\n",
+                    index + 1,
+                    subject_id
+                ));
+            },
+            Err(e) => {
+                output.push_str(&format!("Credential [{}] Validation Failed: {:?}\n", index + 1, e));
+                return Ok(Json(ValidationResponse { success: false, output }));
+            }
+        }
+    }
+
+    output.push_str("\n All credentials in the VP are valid!");
     Ok(Json(ValidationResponse { success: true, output }))
 }
 ```
 
 ## Explanation:
 
-- What it does: The `verifier_validate` function handles the `/verifier/validate` endpoint. It sets up an IOTA resolver to fetch the Holder’s and Issuer’s DID documents from the IOTA network, validates the VP’s signature and nonce, and checks the VC’s signature against the Issuer’s public key. It returns a JSON response with a success boolean and a detailed log.
-- Why it matters: This ensures the VP and VC are authentic, untampered, and issued by a trusted university, completing the degree verification process.
+- What it does: The verifier_validate function handles the /verifier/validate HTTP endpoint, triggered by the React frontend. It validates the VP JWT received from the frontend (body.vp_jwt) by performing four key steps:
+    1. Setup Resolver and Client: Initializes an IOTA resolver and read-only client to fetch DID documents from the IOTA network.
+    2. Resolve Holder DID: Extracts and resolves the Holder’s DID from the VP to retrieve their public key.
+    3. Validate VP Signature and Challenge: Verifies the VP’s signature and nonce (challenge) to ensure its authenticity and freshness.
+    4. Validate Embedded Credentials: Extracts and verifies the signatures of all embedded VCs, ensuring they were issued by trusted issuers.
+- Why it matters: This function completes the IOTA Identity flow by enabling the employer (Verifier) to confirm the authenticity of Alice’s degree credential (VC) and her ownership of it (via the VP). It ensures trust without intermediaries, fulfilling the workshop’s goal of a secure, decentralized degree verification system.
 - Key concepts:
-    - Resolver: Fetches DID documents from the IOTA network to access public keys.
-    - Signature Validation: Verifies the VP and VC signatures to ensure authenticity.
-    - Nonce Check: Confirms the VP’s freshness using the challenge.
+    - Resolver: A tool to fetch DID documents from the IOTA network, providing public keys for signature verification.
+    - VP Validation: Verifies the VP’s signature, nonce, and Holder’s identity.
+    - VC Validation: Confirms the embedded VC’s signature and issuer, ensuring it’s untampered and trustworthy.
+    - Nonce/Challenge: Ensures the VP is fresh and not reused (challenge-123).
+    - Validation Log: A detailed string (output) tracking each step’s success or failure, returned to the frontend.
+
+## Step-by-Step Breakdown
+
+1. Setup Resolver and Read-Only Client:
+    - Code:
+```rust
+let verifier_client = get_read_only_client().await.map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+let mut resolver: Resolver<IotaDocument> = Resolver::new();
+resolver.attach_iota_handler(verifier_client);
+let presentation_verifier_options = JwsVerificationOptions::default().nonce(challenge.to_owned());
+output.push_str(&format!(" Using challenge: {}\n", challenge));
+```
+    - What it does: Initializes a read-only IOTA client (via get_read_only_client) and sets up a Resolver to fetch DID documents from the IOTA network. Configures verification options with the expected challenge (challenge-123) and logs it to the output string.
+    - Why it matters: The resolver is essential for retrieving public keys from the IOTA network to verify signatures. The read-only client ensures network access without requiring funds.
+    - Key concepts:
+        - Resolver: Fetches DID documents using the IOTA network.
+        - Read-Only Client: Provides network access for resolving DIDs without transaction capabilities.
+        - Challenge: Ensures the VP’s nonce matches the expected value (challenge-123).
+2. Resolve Holder DID:
+    - Code:
+```rust
+let holder_did: CoreDID = JwtPresentationValidatorUtils::extract_holder(&vp_jwt)
+    .map_err(|_| StatusCode::BAD_REQUEST)?;
+output.push_str(&format!("🔑 Extracted holder DID from VP: {}\n", holder_did));
+let holder_doc: IotaDocument = resolver.resolve(&holder_did).await.map_err(|e| {
+    output.push_str(&format!("❌ Failed to resolve holder DID: {:?}\n", e));
+    StatusCode::INTERNAL_SERVER_ERROR
+})?;
+output.push_str(&format!("✅ Resolved holder DID from network: {}\n", holder_doc.id()));
+```
+
+    - What it does: Extracts the Holder’s DID from the VP JWT and uses the resolver to fetch the corresponding DID document from the IOTA network. Logs the extracted and resolved DID to the output string.
+    - Why it matters: The Holder’s DID document contains Alice’s public key, needed to verify the VP’s signature. Resolving it from the network ensures the DID is valid and untampered.
+    - Key concepts:
+        - CoreDID: A standardized DID representation (e.g., did:iota:...).
+        - Resolver: Retrieves the DID document, including public keys, from the IOTA network.
+        - Logging: Tracks the DID resolution process for debugging and user feedback.
+
+3. ## Validate VP Signature and Challenge:
+
+    - Code:
+
+```rust
+let vp_validation_options = JwtPresentationValidationOptions::default()
+    .presentation_verifier_options(presentation_verifier_options);
+let decoded_vp: DecodedJwtPresentation<Jwt> = JwtPresentationValidator::with_signature_verifier(EdDSAJwsVerifier::default())
+    .validate(&vp_jwt, &holder_doc, &vp_validation_options)
+    .map_err(|e| {
+        output.push_str(&format!("❌ VP Validation Failed: {:?}\n", e));
+        StatusCode::BAD_REQUEST
+    })?;
+output.push_str("✅ VP JWT verified successfully\n");
+output.push_str(&format!("✅ VP Holder matches Subject: {}\n", decoded_vp.presentation.holder));
+```
+
+- What it does: Configures VP validation options with the expected nonce, then uses JwtPresentationValidator with an Ed25519 verifier to check the VP’s signature and nonce against the Holder’s public key (from holder_doc). Logs the successful validation and confirms the Holder’s DID matches the VP’s presenter.
+- Why it matters: This verifies that Alice signed the VP and that it hasn’t been tampered with, ensuring she controls the presented credentials. The nonce check prevents replay attacks.
+- Key concepts:
+    - Signature Verification: Uses the Holder’s public key to verify the VP’s Ed25519 signature.
+    - Nonce Validation: Ensures the VP’s nonce matches challenge-123.
+    - DecodedJwtPresentation: The validated VP structure, containing the embedded VCs and Holder’s DID.
+
+4. ## Extract and Validate Embedded Credentials:
+    - Code:
+```rust
+let jwt_credentials: &Vec<Jwt> = &decoded_vp.presentation.verifiable_credential;
+output.push_str(&format!("📦 VP contains {} credential(s)\n", jwt_credentials.len()));
+let issuers: Vec<CoreDID> = jwt_credentials
+    .iter()
+    .map(|jwt| identity_iota::credential::JwtCredentialValidatorUtils::extract_issuer_from_jwt(jwt))
+    .collect::<Result<Vec<CoreDID>, _>>()
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+let issuers_documents: HashMap<CoreDID, IotaDocument> = resolver.resolve_multiple(&issuers).await
+    .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+let credential_validator = JwtCredentialValidator::with_signature_verifier(EdDSAJwsVerifier::default());
+let credential_validation_options = JwtCredentialValidationOptions::default()
+    .subject_holder_relationship(holder_did.to_url().into(), SubjectHolderRelationship::AlwaysSubject);
+for (index, jwt_vc) in jwt_credentials.iter().enumerate() {
+    let issuer_doc = &issuers_documents[&issuers[index]];
+    let result: Result<DecodedJwtCredential<Object>, _> = credential_validator
+        .validate(jwt_vc, issuer_doc, &credential_validation_options, FailFast::FirstError);
+    match result {
+        Ok(decoded_credential) => {
+            let subject_id = decoded_credential
+                .credential
+                .credential_subject
+                .first()
+                .and_then(|subj| subj.id.as_ref())
+                .map(|id| id.as_str())
+                .unwrap_or("unknown");
+            output.push_str(&format!(
+                "✅ Credential [{}]: verified successfully, subject: {}\n",
+                index + 1,
+                subject_id
+            ));
+        },
+        Err(e) => {
+            output.push_str(&format!("❌ Credential [{}] Validation Failed: {:?}\n", index + 1, e));
+            return Ok(Json(ValidationResponse { success: false, output }));
+        }
+    }
+}
+```
+
+- What it does: Extracts the VCs from the VP, retrieves the Issuer’s DID for each VC, and resolves their DID documents. Validates each VC’s signature against the Issuer’s public key, ensuring the VC was issued by the university and the subject matches the Holder’s DID. Logs each credential’s validation result.
+- Why it matters: This confirms the degree credential’s authenticity, ensuring it was issued by a trusted university and hasn’t been altered. The subject-holder relationship check verifies that Alice is the legitimate subject of the VC.
+- Key concepts:
+    - Credential Validation: Verifies the VC’s signature using the Issuer’s public key.
+    - Issuer Resolution: Fetches the Issuer’s DID document to access their public key.
+    - Subject-Holder Relationship: Ensures the VC’s subject (Alice) matches the Holder’s DID.
+    - FailFast: Stops validation on the first error to avoid unnecessary processing.
+
+5. ## Return Validation Result:
+    - Code:
+
+```rust
+output.push_str("\n🎉 All credentials in the VP are valid!");
+Ok(Json(ValidationResponse { success: true, output }))
+```
+- What it does: If all validations pass, logs a success message and returns a ValidationResponse with success: true and the detailed validation log (output) to the frontend.
+- Why it matters: The response informs the frontend whether the VP and its VCs are valid, updating the UI to show “SUCCESS” or “FAIL” and displaying the validation log.
+- Key concepts:
+    - ValidationResponse: A custom struct containing a boolean (success) and log (output).
+    - JSON Response: Serializes the result for HTTP communication with the React frontend.
+
+## Integration with the Workshop
+
+The verifier_validate function is triggered by the React frontend’s “Execute Step 4” button, which sends the VP JWT (from Step 3) to the /verifier/validate endpoint. It relies on:
+    - Input: The VP JWT (body.vp_jwt) from the frontend.
+    - Dependencies: get_read_only_client for network access and the Resolver for fetching DID documents.
+    - Prerequisites: The Holder’s DID (Step 1) and VC (Step 2) must exist, and the VP (Step 3) must be valid.
+
+The returned ValidationResponse updates the frontend UI, displaying the validation outcome and log.
+
+    
+-==
+## Explanation:
 
 This completes the guided workshop, demonstrating the seamless and robust interaction between the React frontend and the Rust Axum backend across all four phases of the IOTA Identity flow.
 
