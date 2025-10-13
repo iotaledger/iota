@@ -12,12 +12,13 @@ use move_package_alt::{
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename = "kebab-case")]
 pub struct OnChainDependency {
     on_chain: bool,
 }
 
+#[derive(Debug)]
 pub struct IotaFlavor;
 
 impl MoveFlavor for IotaFlavor {
