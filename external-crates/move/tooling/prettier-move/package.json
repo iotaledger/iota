@@ -26,7 +26,7 @@
 	},
 	"devDependencies": {
 		"@types/diff": "^5.2.1",
-		"@types/node": "^20.14.10",
+		"@types/node": "^20.17.6",
 		"diff": "^5.2.0",
 		"typescript": "^5.5.3",
 		"vitest": "^2.0.1"
