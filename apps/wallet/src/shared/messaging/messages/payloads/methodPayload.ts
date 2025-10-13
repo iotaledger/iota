@@ -59,6 +59,7 @@ type MethodPayloads = {
               address: string;
               publicKey: string;
               providerOptions: BrowserPasswordProviderOptions;
+              credentialId: number[];
               password: string;
           }
         | {
