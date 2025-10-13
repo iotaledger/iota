@@ -104,6 +104,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) proposed_block_transactions: Histogram,
     pub(crate) proposed_block_ancestors: Histogram,
     pub(crate) proposed_block_ancestors_depth: HistogramVec,
+    pub(crate) proposed_block_acknowledgments: Histogram,
+    pub(crate) proposed_block_acknowledgments_depth: HistogramVec,
     pub(crate) gap_to_available_commit: IntGauge,
     pub(crate) gap_to_unavailable_transactions: IntGauge,
     pub(crate) highest_verified_authority_round: IntGaugeVec,
@@ -257,6 +259,19 @@ impl NodeMetrics {
             proposed_block_ancestors_depth: register_histogram_vec_with_registry!(
                 "proposed_block_ancestors_depth",
                 "The depth in rounds of ancestors included in newly proposed blocks",
+                &["authority"],
+                exponential_buckets(1.0, 2.0, 14).unwrap(),
+                registry,
+            ).unwrap(),
+            proposed_block_acknowledgments: register_histogram_with_registry!(
+                "proposed_block_acknowledgments",
+                "Number of acknowledgments in proposed blocks",
+                exponential_buckets(1.0, 1.4, 20).unwrap(),
+                registry,
+            ).unwrap(),
+            proposed_block_acknowledgments_depth: register_histogram_vec_with_registry!(
+                "proposed_block_acknowledgments_depth",
+                "The depth in rounds of acknowledgments included in newly proposed blocks",
                 &["authority"],
                 exponential_buckets(1.0, 2.0, 14).unwrap(),
                 registry,

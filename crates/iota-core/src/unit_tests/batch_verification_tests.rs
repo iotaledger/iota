@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use fastcrypto::traits::KeyPair;
 use futures::future::join_all;
@@ -145,6 +145,7 @@ async fn test_async_verifier() {
     let metrics = SignatureVerifierMetrics::new(&registry);
     let verifier = Arc::new(SignatureVerifier::new(
         committee.clone(),
+        BTreeSet::new(),
         metrics,
         ZkLoginEnv::Test,
         true, // accept_zklogin_in_multisig

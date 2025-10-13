@@ -9,6 +9,7 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
+import { ampli } from '_src/shared/analytics/ampli';
 import { NEW_TAB_ACCOUNT_TYPES } from '_src/shared/accountTypes';
 import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { openInNewTab } from '_src/shared/utils';
@@ -39,20 +40,16 @@ export function NFTDetailsPage() {
     const isPending = isLoading || isGuardLoading;
 
     function handleMoreAboutKiosk() {
-        window.open(
-            'https://docs.iota.org/developer/ts-sdk/kiosk/',
-            '_blank',
-            'noopener noreferrer',
-        );
+        const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
+        ampli.openedLink({ url });
+        window.open(url, '_blank', 'noopener noreferrer');
     }
 
     function handleMarketplace() {
         // TODO: https://github.com/iotaledger/iota/issues/4024
-        window.open(
-            'https://docs.iota.org/developer/ts-sdk/kiosk/',
-            '_blank',
-            'noopener noreferrer',
-        );
+        const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
+        ampli.openedLink({ url });
+        window.open(url, '_blank', 'noopener noreferrer');
     }
 
     async function handleSend() {
@@ -102,7 +99,7 @@ export function NFTDetailsPage() {
                                     </div>
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col gap-xxxs">
-                                            <span className="break-words text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
+                                            <span className="dark:text-iota-neutral-92 break-words text-title-lg text-iota-neutral-10">
                                                 {nftDisplayData?.name}
                                             </span>
                                             {nftDisplayData?.description ? (

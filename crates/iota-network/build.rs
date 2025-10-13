@@ -99,6 +99,15 @@ fn main() -> Result<()> {
                 .codec_path(codec_path)
                 .build(),
         )
+        .method(
+            Method::builder()
+                .name("handle_capability_notification_v1")
+                .route_name("CapabilityNotificationV1")
+                .input_type("iota_types::messages_grpc::HandleCapabilityNotificationRequestV1")
+                .output_type("iota_types::messages_grpc::HandleCapabilityNotificationResponseV1")
+                .codec_path(codec_path)
+                .build(),
+        )
         .build();
 
     Builder::new()

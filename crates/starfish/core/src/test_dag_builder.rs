@@ -284,6 +284,7 @@ impl DagBuilder {
                 leader_block,
                 self.last_committed_rounds.clone(),
                 &storage,
+                self.context.protocol_config.gc_depth(),
             );
 
             // Update the last committed rounds
