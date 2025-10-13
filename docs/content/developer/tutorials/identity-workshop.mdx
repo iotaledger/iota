@@ -178,21 +178,81 @@ Rust and Cargo are required for the Rust backend of the IOTA Identity workshop. 
 Use this page to set up a [Local Network Setup](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup)
 :::
 
-### Step 6: Install VS Code on macOS
+## Step 6: Install Visual Studio Code
 
-1. [Download Visual Studio Code for macOS](https://code.visualstudio.com/docs?dv=osx).
+Visual Studio Code (VS Code) is a lightweight code editor that you'll use to edit and run the Rust and React code for this IOTA Identity workshop. Follow the instructions below to install VS Code on your operating system.
 
-2. Open the browser's download list and locate the downloaded app or archive.
+<Tabs groupId="os-install" defaultValue="macos">
+  <TabItem value="macos" label="macOS">
+    ### Install VS Code on macOS
 
-3. If archive, extract the archive contents. Use double-click for some browsers or select the 'magnifying glass' icon with Safari.
+    1. **Download VS Code**:
+       - Visit the [Visual Studio Code download page](https://code.visualstudio.com/download).
+       - Click the "macOS" button to download the installer (usually a `.zip` file).
 
-4. Drag `Visual Studio Code.app` to the Applications folder, making it available in the macOS Launchpad.
+    2. **Locate the Downloaded File**:
+       - Open your browser’s download list (e.g., in Safari, click the downloads icon in the toolbar).
+       - Find the downloaded file, typically named `VSCode-darwin-universal.zip`.
 
-5. Open VS Code from the Applications folder, by double clicking the icon.
+    3. **Extract the Archive**:
+       - Double-click the `.zip` file to extract it, which creates `Visual Studio Code.app`.
+       - If the file doesn’t extract automatically, check your Downloads folder and unzip it manually.
 
-6. Add VS Code to your Dock by right-clicking on the icon, located in the Dock, to bring up the context menu and choosing Options, Keep in Dock.
+    4. **Move to Applications**:
+       - Drag `Visual Studio Code.app` to the `Applications` folder in Finder to make it available in Launchpad.
 
-Once those commands run successfully, you'll have everything you need to start the guided coding workshop!
+    5. **Open VS Code**:
+       - Navigate to the `Applications` folder and double-click `Visual Studio Code.app` to launch it.
+       - If prompted with a security warning ("App is from an unidentified developer"), right-click the app, select "Open," and confirm.
+
+    6. **Add to Dock (Optional)**:
+       - While VS Code is running, right-click its icon in the Dock.
+       - Choose **Options > Keep in Dock** to add it for easy access.
+
+    7. **Verify Installation**:
+       - Open VS Code and ensure the welcome screen appears.
+       - Open a terminal in VS Code (click **Terminal > New Terminal**) and type `code --version` to confirm the installation.
+
+    Once these steps are complete, VS Code is ready for the workshop!
+  </TabItem>
+
+  <TabItem value="windows" label="Windows">
+    ### Install VS Code on Windows
+
+    1. **Download VS Code**:
+       - Visit the [Visual Studio Code download page](https://code.visualstudio.com/download).
+       - Click the "Windows" button to download the installer (typically `VSCodeUserSetup-x64.exe`).
+
+    2. **Locate the Downloaded File**:
+       - Open your browser’s download list (e.g., in Edge, click the downloads icon in the toolbar).
+       - Find the downloaded file in your `Downloads` folder, named something like `VSCodeUserSetup-x64.exe`.
+
+    3. **Run the Installer**:
+       - Double-click the `.exe` file to start the installation.
+       - If prompted by User Account Control (UAC), click **Yes** to allow the installer to run.
+       - Follow the setup wizard:
+         - Accept the license agreement.
+         - Choose the default installation location (e.g., `C:\Users\<YourUsername>\AppData\Local\Programs\Microsoft VS Code`).
+         - Select **Add to PATH** (recommended for running `code` from the command line).
+         - Optionally, check **Create a desktop icon** for quick access.
+         - Click **Install** and then **Finish** when complete.
+
+    4. **Open VS Code**:
+       - Double-click the VS Code desktop icon, or search for "Visual Studio Code" in the Start menu and launch it.
+
+    5. **Add to Taskbar (Optional)**:
+       - While VS Code is running, right-click its icon in the taskbar.
+       - Select **Pin to taskbar** for easy access.
+
+    6. **Verify Installation**:
+       - Open VS Code and ensure the welcome screen appears.
+       - Open a terminal in VS Code (click **Terminal > New Terminal**) and type `code --version` to confirm the installation.
+
+    Once these steps are complete, VS Code is ready for the workshop!
+  </TabItem>
+</Tabs>
+
+**Next Steps**: With VS Code installed, proceed to the next section to set up the project and Architecture for the Rust backend and React frontend.
 
 ## Part 1: Project Setup and Architecture
 
