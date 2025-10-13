@@ -141,7 +141,7 @@ export function AddAccountPage() {
                 navigate('/accounts/import-private-key');
                 break;
             case AccountsFormType.Passkey:
-                ampli.clickedImportPrivateKey({ sourceFlow });
+                ampli.clickedCreatePasskey({ sourceFlow });
                 if (isPopup) {
                     openInNewTab('/accounts/import-passkey');
                     break;
