@@ -51,7 +51,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
     /// Processes the received data and persists it into a storage.
     ///
     /// - The data are received form the ingestion worker in which stage is
-    ///   transformed into something which can be directly commited into the
+    ///   transformed into something which can be directly committed into the
     ///   database.
     /// - The data received by this function are not guaranteed to be in order.
     ///   The purpose of this function is to order the data by checkpoint
