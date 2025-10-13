@@ -805,8 +805,8 @@ importers:
         specifier: ^6.12.4
         version: 6.19.1
       '@ledgerhq/hw-transport':
-        specifier: ^6.31.0
-        version: 6.31.4
+        specifier: ^6.31.12
+        version: 6.31.12
       '@ledgerhq/hw-transport-webhid':
         specifier: ^6.27.15
         version: 6.29.4
@@ -1856,8 +1856,8 @@ importers:
   sdk/ledgerjs-hw-app-iota:
     dependencies:
       '@ledgerhq/hw-transport':
-        specifier: ^6.31.0
-        version: 6.31.4
+        specifier: ^6.31.12
+        version: 6.31.12
       fast-sha256:
         specifier: ^1.3.0
         version: 1.3.0
@@ -1866,11 +1866,11 @@ importers:
         specifier: workspace:*
         version: link:../build-scripts
       '@ledgerhq/hw-transport-mocker':
-        specifier: ^6.29.0
-        version: 6.29.4
+        specifier: ^6.29.12
+        version: 6.29.12
       '@ledgerhq/hw-transport-node-speculos-http':
-        specifier: ^6.29.2
-        version: 6.29.4
+        specifier: ^6.30.2
+        version: 6.30.2
       '@size-limit/preset-small-lib':
         specifier: ^11.1.4
         version: 11.1.5(size-limit@11.1.5)
@@ -5830,14 +5830,20 @@ packages:
   '@ledgerhq/devices@8.4.4':
     resolution: {integrity: sha512-sz/ryhe/R687RHtevIE9RlKaV8kkKykUV4k29e7GAVwzHX1gqG+O75cu1NCJUHLbp3eABV5FdvZejqRUlLis9A==}
 
+  '@ledgerhq/devices@8.6.1':
+    resolution: {integrity: sha512-PQR2fyWz7P/wMFHY9ZLz17WgFdxC/Im0RVDcWXpp24+iRQRyxhQeX2iG4mBKUzfaAW6pOIEiWt+vmJh88QP9rQ==}
+
   '@ledgerhq/errors@6.19.1':
     resolution: {integrity: sha512-75yK7Nnit/Gp7gdrJAz0ipp31CCgncRp+evWt6QawQEtQKYEDfGo10QywgrrBBixeRxwnMy1DP6g2oCWRf1bjw==}
 
-  '@ledgerhq/hw-transport-mocker@6.29.4':
-    resolution: {integrity: sha512-CLDIpQ/eqU8qrCYGY9MyHa+oMgqs6PuNkWtqbcaS4AzNx8L/9bv7y8CZwCjxX6oB/2ZEq42RlL6oZ6Ou3oHnoQ==}
+  '@ledgerhq/errors@6.26.0':
+    resolution: {integrity: sha512-4OlisaDBafkn7KN5emue08lCGMVREX6T+nxj47C7W30EBA/leLAEDaVvUw5/gFOWrv8Q2A9Scb8aMM3uokyt0w==}
 
-  '@ledgerhq/hw-transport-node-speculos-http@6.29.4':
-    resolution: {integrity: sha512-UTIqSxf1jH2aVGsg6VnQXDj9fpzn/q/cf9eNwg87QSTNvJ8wbomNBy+x+fgjXt4pZpv9lbFzIyGhE6qsh9QvMQ==}
+  '@ledgerhq/hw-transport-mocker@6.29.12':
+    resolution: {integrity: sha512-ICFkWdVpL7FVK7qo+9CC9HU0JZamx0++AnM1Q8wMzYPRaELt7PL8Lfrs3OopKqvEIu/9AtyuQmdArhFuQ6omZg==}
+
+  '@ledgerhq/hw-transport-node-speculos-http@6.30.2':
+    resolution: {integrity: sha512-WLzXmXQvGz3KmjwiRJMmPaypK6xriM7NxEppyhGxz/WMLFasVs/GDBjh7d32XK4kOSt8Hk6/Vu84VLZKarKLhw==}
 
   '@ledgerhq/hw-transport-webhid@6.29.4':
     resolution: {integrity: sha512-XkF37lcuyg9zVExMyfDQathWly8rRcGac13wgZATBa3nZ+hUzzWr5QVKg1pKCw10izVHGErW/9a4tbb72rUEmQ==}
@@ -5845,11 +5851,14 @@ packages:
   '@ledgerhq/hw-transport-webusb@6.29.4':
     resolution: {integrity: sha512-HoGF1LlBT9HEGBQy2XeCHrFdv/FEOZU0+J+yfKcgAQIAiASr2MLvdzwoJbUS8h6Gn+vc+/BjzBSO3JNn7Loqbg==}
 
-  '@ledgerhq/hw-transport@6.31.4':
-    resolution: {integrity: sha512-6c1ir/cXWJm5dCWdq55NPgCJ3UuKuuxRvf//Xs36Bq9BwkV2YaRQhZITAkads83l07NAdR16hkTWqqpwFMaI6A==}
+  '@ledgerhq/hw-transport@6.31.12':
+    resolution: {integrity: sha512-FO5LRIXYC8ELtaohlO8qK0b3TfHUNBZ3+CXKPHiHj2jJwrxPf4s5kcgBYrmzuf1C/1vfrMOjzyty6OgrMIbU6Q==}
 
   '@ledgerhq/logs@6.12.0':
     resolution: {integrity: sha512-ExDoj1QV5eC6TEbMdLUMMk9cfvNKhhv5gXol4SmULRVCx/3iyCPhJ74nsb3S0Vb+/f+XujBEj3vQn5+cwS0fNA==}
+
+  '@ledgerhq/logs@6.13.0':
+    resolution: {integrity: sha512-4+qRW2Pc8V+btL0QEmdB2X+uyx0kOWMWE1/LWsq5sZy3Q5tpi4eItJS6mB0XL3wGW59RQ+8bchNQQ1OW/va8Og==}
 
   '@leichtgewicht/ip-codec@2.0.5':
     resolution: {integrity: sha512-Vo+PSpZG2/fmgmiNzYK9qWRh8h/CHrwD0mo1h1DzL4yzHNSfWYujGTYsWGreD000gcgmZ7K4Ys6Tx9TxtsKdDw==}
@@ -9721,11 +9730,11 @@ packages:
   axios@0.26.1:
     resolution: {integrity: sha512-fPwcX4EvnSHuInCMItEhAGnaSEXRBjtzh9fOtsE6E1G6p7vl7edEeZe11QHf18+6+9gR5PbKV/sGKNaD8YaMeA==}
 
+  axios@1.11.0:
+    resolution: {integrity: sha512-1Lx3WLFQWm3ooKDYZD1eXmoGO9fxYQjrycfHFC8P0sCfQVXyROp0p9PFWBehewBOdCwHc+f/b8I0fMto5eSfwA==}
+
   axios@1.12.0:
     resolution: {integrity: sha512-oXTDccv8PcfjZmPGlWsPSwtOJCZ/b6W5jAMCNcfwJbCzDckwG0jrYJFaWH1yvivfCXjVzV/SPDEhMB3Q+DSurg==}
-
-  axios@1.7.7:
-    resolution: {integrity: sha512-S4kL7XrjgBmvdGut0sN3yJxqYzrDOnivkBiN0OFs6hLiUam3UPvswUo0kqGyhqUZGEOytHyumEdXsAkgCOUf3Q==}
 
   axobject-query@4.1.0:
     resolution: {integrity: sha512-qIj0G9wZbMGNLjLmg1PT6v2mE9AH2zlnADJD/2tC6E00hgmhUOfEB6greHPAfLRSufHqROIUTkw6E+M3lH0PTQ==}
@@ -25651,20 +25660,29 @@ snapshots:
       rxjs: 7.8.1
       semver: 7.6.3
 
+  '@ledgerhq/devices@8.6.1':
+    dependencies:
+      '@ledgerhq/errors': 6.26.0
+      '@ledgerhq/logs': 6.13.0
+      rxjs: 7.8.1
+      semver: 7.6.3
+
   '@ledgerhq/errors@6.19.1': {}
 
-  '@ledgerhq/hw-transport-mocker@6.29.4':
+  '@ledgerhq/errors@6.26.0': {}
+
+  '@ledgerhq/hw-transport-mocker@6.29.12':
     dependencies:
-      '@ledgerhq/hw-transport': 6.31.4
-      '@ledgerhq/logs': 6.12.0
+      '@ledgerhq/hw-transport': 6.31.12
+      '@ledgerhq/logs': 6.13.0
       rxjs: 7.8.1
 
-  '@ledgerhq/hw-transport-node-speculos-http@6.29.4':
+  '@ledgerhq/hw-transport-node-speculos-http@6.30.2':
     dependencies:
-      '@ledgerhq/errors': 6.19.1
-      '@ledgerhq/hw-transport': 6.31.4
-      '@ledgerhq/logs': 6.12.0
-      axios: 1.7.7
+      '@ledgerhq/errors': 6.26.0
+      '@ledgerhq/hw-transport': 6.31.12
+      '@ledgerhq/logs': 6.13.0
+      axios: 1.11.0
       rxjs: 7.8.1
     transitivePeerDependencies:
       - debug
@@ -25673,24 +25691,26 @@ snapshots:
     dependencies:
       '@ledgerhq/devices': 8.4.4
       '@ledgerhq/errors': 6.19.1
-      '@ledgerhq/hw-transport': 6.31.4
+      '@ledgerhq/hw-transport': 6.31.12
       '@ledgerhq/logs': 6.12.0
 
   '@ledgerhq/hw-transport-webusb@6.29.4':
     dependencies:
       '@ledgerhq/devices': 8.4.4
       '@ledgerhq/errors': 6.19.1
-      '@ledgerhq/hw-transport': 6.31.4
+      '@ledgerhq/hw-transport': 6.31.12
       '@ledgerhq/logs': 6.12.0
 
-  '@ledgerhq/hw-transport@6.31.4':
+  '@ledgerhq/hw-transport@6.31.12':
     dependencies:
-      '@ledgerhq/devices': 8.4.4
-      '@ledgerhq/errors': 6.19.1
-      '@ledgerhq/logs': 6.12.0
+      '@ledgerhq/devices': 8.6.1
+      '@ledgerhq/errors': 6.26.0
+      '@ledgerhq/logs': 6.13.0
       events: 3.3.0
 
   '@ledgerhq/logs@6.12.0': {}
+
+  '@ledgerhq/logs@6.13.0': {}
 
   '@leichtgewicht/ip-codec@2.0.5': {}
 
@@ -31651,7 +31671,7 @@ snapshots:
     transitivePeerDependencies:
       - debug
 
-  axios@1.12.0(debug@4.3.7):
+  axios@1.11.0:
     dependencies:
       follow-redirects: 1.15.9(debug@4.3.7)
       form-data: 4.0.4
@@ -31659,7 +31679,7 @@ snapshots:
     transitivePeerDependencies:
       - debug
 
-  axios@1.7.7:
+  axios@1.12.0(debug@4.3.7):
     dependencies:
       follow-redirects: 1.15.9(debug@4.3.7)
       form-data: 4.0.4

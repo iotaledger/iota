@@ -227,6 +227,10 @@ export interface OpenedConnectLedgerFlowProperties {
     sourceFlow?: string;
 }
 
+export interface OpenedLinkProperties {
+    url: string;
+}
+
 export interface OpenedWalletExtensionProperties {
     activeAccountType?: string;
     activeNetwork?: string;
@@ -480,6 +484,14 @@ export class OpenedConnectLedgerFlow implements BaseEvent {
     event_type = 'opened connect ledger flow';
 
     constructor(public event_properties?: OpenedConnectLedgerFlowProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class OpenedLink implements BaseEvent {
+    event_type = 'opened link';
+
+    constructor(public event_properties: OpenedLinkProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -946,6 +958,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new OpenedConnectLedgerFlow(properties), options);
+  }
+
+  /**
+   * opened link
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/opened%20link)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. url)
+   * @param options Amplitude event options.
+   */
+  openedLink(
+    properties: OpenedLinkProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new OpenedLink(properties), options);
   }
 
   /**
