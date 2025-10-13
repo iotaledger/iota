@@ -52,7 +52,7 @@ public fun create(
 }
 
 /// Authenticate access for the `Time locked account`.
-/// 
+///
 /// Specific authenticate function for the `TimeLocked` account, not
 /// callable by general move code.
 public fun authenticate(
@@ -65,8 +65,7 @@ public fun authenticate(
     iotaccount::ensure_tx_sender_is_account_id(&account.id, ctx);
 
     owner_public_key::authenticate_ed25519(&account.id, signature, ctx.digest());
-    let now = clock.timestamp_ms();
-    unlock_time::authenticate_unlock_time(&account.id, now);
+    unlock_time::authenticate_with_clock(&account.id, clock);
 }
 
 // === View Functions ===
