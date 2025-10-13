@@ -106,6 +106,7 @@ pub struct Clock {
     initial_instant: Instant,
     initial_system_time: SystemTime,
     // `clock_drift` should be used only for testing
+    #[cfg(any(test, msim))]
     clock_drift: BlockTimestampMs,
 }
 
@@ -114,12 +115,14 @@ impl Default for Clock {
         Self {
             initial_instant: Instant::now(),
             initial_system_time: SystemTime::now(),
+            #[cfg(any(test, msim))]
             clock_drift: 0,
         }
     }
 }
 
 impl Clock {
+    #[cfg(any(test, msim))]
     pub fn new_for_test(clock_drift: BlockTimestampMs) -> Self {
         Self {
             initial_instant: Instant::now(),
@@ -132,13 +135,6 @@ impl Clock {
     // Calculated with Tokio Instant to ensure monotonicity,
     // and to allow testing with tokio clock.
     pub(crate) fn timestamp_utc_ms(&self) -> BlockTimestampMs {
-        if cfg!(not(any(msim, test))) {
-            assert_eq!(
-                self.clock_drift, 0,
-                "Clock drift should not be set in non testing environments."
-            );
-        }
-
         let now: Instant = Instant::now();
         let monotonic_system_time = self
             .initial_system_time
@@ -152,7 +148,7 @@ impl Clock {
                     }),
             )
             .expect("Computing system time should not overflow");
-        monotonic_system_time
+        let timestamp = monotonic_system_time
             .duration_since(SystemTime::UNIX_EPOCH)
             .unwrap_or_else(|_| {
                 panic!(
@@ -161,7 +157,18 @@ impl Clock {
                     SystemTime::UNIX_EPOCH,
                 )
             })
-            .as_millis() as BlockTimestampMs
-            + self.clock_drift
+            .as_millis() as BlockTimestampMs;
+
+        // Apply clock drift only in test/msim environments to simulate clock skew
+        // between nodes. In production builds, clock_drift field doesn't exist
+        // and this returns timestamp directly.
+        #[cfg(any(test, msim))]
+        {
+            timestamp + self.clock_drift
+        }
+        #[cfg(not(any(test, msim)))]
+        {
+            timestamp
+        }
     }
 }
