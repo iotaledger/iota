@@ -17,11 +17,12 @@ export function ExportAccountPage() {
     const account = allAccounts?.find(({ id }) => accountID === id) || null;
     const isLedgerAccount = account?.type === AccountType.LedgerDerived;
     const isKeystoneAccount = account?.type === AccountType.KeystoneDerived;
+    const isPasskeysAccount = account?.type === AccountType.PasskeyDerived;
     const backgroundClient = useBackgroundClient();
     const exportMutation = useMutation({
         mutationKey: ['export-account', accountID],
         mutationFn: async (password: string) => {
-            if (!account || isLedgerAccount) {
+            if (!account || isLedgerAccount || isPasskeysAccount) {
                 return null;
             }
             return (
@@ -38,7 +39,12 @@ export function ExportAccountPage() {
         return <Navigate to="/accounts/manage" replace />;
     }
 
-    const publicKey = account?.publicKey ? new Ed25519PublicKey(account.publicKey) : null;
+    const publicKey =
+        account?.publicKey && !isPasskeysAccount
+            ? new Ed25519PublicKey(account.publicKey).toIotaPublicKey()
+            : isPasskeysAccount
+              ? account?.publicKey
+              : undefined;
     return (
         <Overlay title="Export Account Keys" closeOverlay={() => navigate(-1)} showModal>
             <Loading loading={isPending}>
@@ -49,13 +55,13 @@ export function ExportAccountPage() {
                                 Public Key With Flag
                             </div>
                             <HideShowDisplayBox
-                                value={publicKey ? publicKey?.toIotaPublicKey() : ''}
+                                value={publicKey ? publicKey : ''}
                                 copiedMessage="Public Key copied"
                                 isContentVisible={true}
                             />
                         </div>
 
-                        {!isLedgerAccount && !isKeystoneAccount && (
+                        {!isLedgerAccount && !isKeystoneAccount && !isPasskeysAccount && (
                             <>
                                 {exportMutation.data ? (
                                     <div className="flex flex-col gap-xs">
