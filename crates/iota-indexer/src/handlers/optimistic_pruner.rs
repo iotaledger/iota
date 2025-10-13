@@ -6,9 +6,9 @@ use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use super::checkpoint_handler::CheckpointHandler;
 use crate::{
     errors::IndexerError,
+    ingestion::primary::extract_transform::CheckpointHandler,
     metrics::IndexerMetrics,
     store::{
         IndexerStore, PgIndexerStore, TxGlobalOrderCursor, pg_partition_manager::PgPartitionManager,

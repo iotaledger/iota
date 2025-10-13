@@ -14,8 +14,7 @@ use iota_types::{
 
 use crate::{
     errors::{IndexerError, IndexerResult},
-    extract,
-    handlers::checkpoint_handler::try_extract_df_kind,
+    ingestion::extract,
     types::{IndexedDeletedObject, IndexedObject},
 };
 /// Represent an object that is live at a certain snapshot
@@ -33,7 +32,7 @@ impl LiveObject {
         transaction_digest: TransactionDigest,
         object: Object,
     ) -> IndexerResult<Self> {
-        let df_kind = try_extract_df_kind(&object)?;
+        let df_kind = extract::try_extract_df_kind(&object)?;
         let indexed_object =
             IndexedObject::from_object(checkpoint_sequence_number, object, df_kind);
         Ok(Self {

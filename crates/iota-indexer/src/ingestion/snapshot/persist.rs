@@ -2,63 +2,22 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
 use async_trait::async_trait;
-use iota_data_ingestion_core::Worker;
-use iota_metrics::{get_metrics, metered_channel::Sender, spawn_monitored_task};
-use iota_types::full_checkpoint_content::CheckpointData;
+use iota_metrics::{get_metrics, spawn_monitored_task};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
     config::SnapshotLagConfig,
-    errors::IndexerError,
-    handlers::checkpoint_handler::CheckpointHandler,
+    ingestion::{
+        persist::Writer, primary::persist::TransactionObjectChangesToCommit,
+        snapshot::extract_transform::ObjectsSnapshotHandler,
+    },
     metrics::IndexerMetrics,
-    persist::{TransactionObjectChangesToCommit, Writer},
     store::{IndexerStore, PgIndexerStore},
     types::IndexerResult,
 };
-
-#[derive(Clone)]
-pub struct ObjectsSnapshotHandler {
-    pub store: PgIndexerStore,
-    pub sender: Sender<(u64, TransactionObjectChangesToCommit)>,
-    snapshot_config: SnapshotLagConfig,
-    metrics: IndexerMetrics,
-}
-
-pub struct CheckpointObjectChanges {
-    pub checkpoint_sequence_number: u64,
-    pub object_changes: TransactionObjectChangesToCommit,
-}
-
-#[async_trait]
-impl Worker for ObjectsSnapshotHandler {
-    type Message = ();
-    type Error = IndexerError;
-
-    async fn process_checkpoint(
-        &self,
-        checkpoint: Arc<CheckpointData>,
-    ) -> Result<Self::Message, Self::Error> {
-        let transformed_data = CheckpointHandler::index_objects(&checkpoint, &self.metrics).await?;
-        self.sender
-            .send((
-                checkpoint.checkpoint_summary.sequence_number,
-                transformed_data,
-            ))
-            .await
-            .map_err(|_| {
-                IndexerError::MpscChannel(
-                    "Failed to send checkpoint object changes, receiver half closed".into(),
-                )
-            })?;
-        Ok(())
-    }
-}
 
 #[async_trait]
 impl Writer<TransactionObjectChangesToCommit> for ObjectsSnapshotHandler {
@@ -126,20 +85,4 @@ pub async fn start_objects_snapshot_handler(
         watermark_hi.unwrap_or_default(),
         task_handle,
     ))
-}
-
-impl ObjectsSnapshotHandler {
-    pub fn new(
-        store: PgIndexerStore,
-        sender: Sender<(u64, TransactionObjectChangesToCommit)>,
-        metrics: IndexerMetrics,
-        snapshot_config: SnapshotLagConfig,
-    ) -> ObjectsSnapshotHandler {
-        Self {
-            store,
-            sender,
-            metrics,
-            snapshot_config,
-        }
-    }
 }

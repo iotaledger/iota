@@ -10,7 +10,6 @@ use iota_json_rpc_types::IotaTransactionKind;
 use iota_metrics::{get_metrics, spawn_monitored_task};
 use iota_types::{
     base_types::ObjectID,
-    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     effects::TransactionEffectsAPI,
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
@@ -18,14 +17,10 @@ use iota_types::{
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
-    object::{Object, Owner},
+    object::Owner,
     transaction::TransactionDataAPI,
 };
 use itertools::Itertools;
-use move_core_types::{
-    self,
-    language_storage::{StructTag, TypeTag},
-};
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
@@ -33,18 +28,21 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     handlers::tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
+    ingestion::{
+        extract::try_extract_df_kind,
+        primary::persist::{
+            CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
+            start_tx_checkpoint_commit_task,
+        },
+        transform::CheckpointObjectChanges,
+    },
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
     },
-    persist::{
-        CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
-        start_tx_checkpoint_commit_task,
-    },
     store::{IndexerStore, PgIndexerStore},
-    transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
         IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
@@ -659,31 +657,4 @@ impl CheckpointHandler {
             "Failed to downcast state to PgIndexerStore"
         )))
     }
-}
-
-/// If `o` is a dynamic `Field<K, V>`, determine whether it represents a Dynamic
-/// Field or a Dynamic Object Field based on its type.
-pub(crate) fn try_extract_df_kind(o: &Object) -> IndexerResult<Option<DynamicFieldType>> {
-    // Skip if not a move object
-    let Some(move_object) = o.data.try_as_move() else {
-        return Ok(None);
-    };
-
-    if !move_object.type_().is_dynamic_field() {
-        return Ok(None);
-    }
-
-    let type_: StructTag = move_object.type_().clone().into();
-    let [name, _] = type_.type_params.as_slice() else {
-        return Ok(None);
-    };
-
-    Ok(Some(
-        if matches!(name, TypeTag::Struct(s) if DynamicFieldInfo::is_dynamic_object_field_wrapper(s))
-        {
-            DynamicFieldType::DynamicObject
-        } else {
-            DynamicFieldType::DynamicField
-        },
-    ))
 }

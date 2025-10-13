@@ -9,13 +9,15 @@ use diesel::PgConnection;
 
 use crate::{
     errors::IndexerError,
+    ingestion::{
+        primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
+        transform::CheckpointObjectChanges,
+    },
     models::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
         transactions::{CheckpointTxGlobalOrder, OptimisticTransaction},
     },
-    persist::{EpochToCommit, TransactionObjectChangesToCommit},
-    transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
     },

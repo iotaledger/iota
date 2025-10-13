@@ -8,10 +8,10 @@ use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
-use super::checkpoint_handler::CheckpointHandler;
 use crate::{
     config::RetentionConfig,
     errors::IndexerError,
+    ingestion::primary::extract_transform::CheckpointHandler,
     metrics::IndexerMetrics,
     store::{IndexerStore, PgIndexerStore, pg_partition_manager::PgPartitionManager},
     types::IndexerResult,

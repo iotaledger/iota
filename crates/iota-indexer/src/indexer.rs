@@ -23,9 +23,9 @@ use crate::{
     config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::ConnectionPool,
     errors::IndexerError,
-    handlers::{
-        checkpoint_handler::new_handlers, objects_snapshot_handler::start_objects_snapshot_handler,
-        optimistic_pruner::OptimisticPruner, pruner::Pruner,
+    handlers::{optimistic_pruner::OptimisticPruner, pruner::Pruner},
+    ingestion::{
+        primary::extract_transform::new_handlers, snapshot::persist::start_objects_snapshot_handler,
     },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,

@@ -15,6 +15,7 @@ mod ingestion_tests {
     use iota_indexer::{
         db::get_pool_connection,
         errors::{Context, IndexerError},
+        ingestion::transform::CheckpointObjectChanges,
         insert_or_ignore_into,
         models::{
             checkpoints::StoredCheckpoint,
@@ -27,7 +28,6 @@ mod ingestion_tests {
         },
         store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
-        transform::CheckpointObjectChanges,
         types::{EventIndex, TxIndex},
     };
     use iota_types::{
