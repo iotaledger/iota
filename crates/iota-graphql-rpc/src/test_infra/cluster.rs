@@ -13,7 +13,10 @@ use iota_indexer::{
     test_utils::{IndexerTypeConfig, force_delete_database, start_test_indexer_impl},
 };
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use iota_types::storage::RestStateReader;
+use iota_types::{
+    storage::RestStateReader,
+    transaction::{Transaction, TransactionData},
+};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{join, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -359,6 +362,25 @@ impl Cluster {
     pub async fn cleanup_resources(self) {
         self.cancellation_token.cancel();
         let _ = join!(self.graphql_server_join_handle, self.indexer_join_handle);
+    }
+
+    /// Builds a transaction that transfers IOTA for testing.
+    pub async fn build_transfer_iota_for_test(&self) -> TransactionData {
+        let addresses = self.validator_fullnode_handle.wallet.get_addresses();
+
+        let recipient = addresses[1];
+        self.validator_fullnode_handle
+            .test_transaction_builder()
+            .await
+            .transfer_iota(Some(1_000), recipient)
+            .build()
+    }
+
+    /// Signs a transaction.
+    pub fn sign_transaction(&self, transaction: &TransactionData) -> Transaction {
+        self.validator_fullnode_handle
+            .wallet
+            .sign_transaction(transaction)
     }
 }
 

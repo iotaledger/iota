@@ -311,6 +311,12 @@ pub struct DiscoveryConfig {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub peers_to_query: Option<usize>,
 
+    /// Timeout for individual peer query requests in discovery protocol.
+    ///
+    /// If unspecified, this will default to `1` second.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub peer_query_timeout_sec: Option<u64>,
+
     /// Per-peer rate-limit (in requests/sec) for the GetKnownPeers RPC.
     ///
     /// If unspecified, this will default to no limit.
@@ -332,11 +338,47 @@ pub struct DiscoveryConfig {
     /// peers in the network.
     #[serde(skip_serializing_if = "Vec::is_empty", default)]
     pub allowlisted_peers: Vec<AllowlistedPeer>,
+
+    /// Maximum number of concurrent address verification attempts.
+    /// This prevents overwhelming the network when verifying many peers at
+    /// once.
+    ///
+    /// If unspecified, this will default to `10`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_concurrent_address_verifications: Option<usize>,
+
+    /// Timeout for individual address verification attempts.
+    ///
+    /// If unspecified, this will default to `3` seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address_verification_timeout_sec: Option<u64>,
+
+    /// Total timeout for all address verification attempts to prevent DoS
+    /// attacks.
+    ///
+    /// If unspecified, this will default to `8` seconds.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address_verification_total_timeout_sec: Option<u64>,
+
+    /// Cooldown period in seconds for peers whose address verification failed.
+    /// During this period, new peer info from the same peer will be ignored.
+    /// Set to 0 to disable the cooldown feature entirely.
+    ///
+    /// If unspecified, this will default to `600` seconds (10 minutes).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub address_verification_failure_cooldown_sec: Option<u64>,
+
+    /// Interval for cleaning up old entries from the verification failure
+    /// cooldown list.
+    ///
+    /// If unspecified, this will default to `300` seconds (5 minutes).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cooldown_cleanup_interval_sec: Option<u64>,
 }
 
 impl DiscoveryConfig {
     pub fn interval_period(&self) -> Duration {
-        const INTERVAL_PERIOD_MS: u64 = 5_000; // 5 seconds
+        const INTERVAL_PERIOD_MS: u64 = 10_000; // 10 seconds
 
         Duration::from_millis(self.interval_period_ms.unwrap_or(INTERVAL_PERIOD_MS))
     }
@@ -354,9 +396,68 @@ impl DiscoveryConfig {
         self.peers_to_query.unwrap_or(PEERS_TO_QUERY)
     }
 
+    pub fn peer_query_timeout(&self) -> Duration {
+        const PEER_QUERY_TIMEOUT_SEC: u64 = 1;
+
+        Duration::from_secs(
+            self.peer_query_timeout_sec
+                .unwrap_or(PEER_QUERY_TIMEOUT_SEC),
+        )
+    }
+
     pub fn access_type(&self) -> AccessType {
         // defaults None to Public
         self.access_type.unwrap_or(AccessType::Public)
+    }
+
+    pub fn max_concurrent_address_verifications(&self) -> usize {
+        const MAX_CONCURRENT_ADDRESS_VERIFICATIONS: usize = 10;
+
+        self.max_concurrent_address_verifications
+            .unwrap_or(MAX_CONCURRENT_ADDRESS_VERIFICATIONS)
+    }
+
+    pub fn address_verification_timeout(&self) -> Duration {
+        const ADDRESS_VERIFICATION_TIMEOUT_SEC: u64 = 3;
+
+        Duration::from_secs(
+            self.address_verification_timeout_sec
+                .unwrap_or(ADDRESS_VERIFICATION_TIMEOUT_SEC),
+        )
+    }
+
+    pub fn address_verification_total_timeout(&self) -> Duration {
+        const ADDRESS_VERIFICATION_TOTAL_TIMEOUT_SEC: u64 = 8;
+
+        Duration::from_secs(
+            self.address_verification_total_timeout_sec
+                .unwrap_or(ADDRESS_VERIFICATION_TOTAL_TIMEOUT_SEC),
+        )
+    }
+
+    pub fn address_verification_failure_cooldown(&self) -> Duration {
+        const ADDRESS_VERIFICATION_FAILURE_COOLDOWN_SEC: u64 = 600; // 10 minutes
+
+        Duration::from_secs(
+            self.address_verification_failure_cooldown_sec
+                .unwrap_or(ADDRESS_VERIFICATION_FAILURE_COOLDOWN_SEC),
+        )
+    }
+
+    pub fn cooldown_cleanup_interval(&self) -> Duration {
+        const COOLDOWN_CLEANUP_INTERVAL_SEC: u64 = 300; // 5 minutes
+
+        Duration::from_secs(
+            self.cooldown_cleanup_interval_sec
+                .unwrap_or(COOLDOWN_CLEANUP_INTERVAL_SEC),
+        )
+    }
+
+    /// Returns true if address verification cooldown is enabled (cooldown > 0)
+    pub fn is_address_verification_cooldown_enabled(&self) -> bool {
+        self.address_verification_failure_cooldown_sec
+            .unwrap_or(600)
+            > 0
     }
 }
 

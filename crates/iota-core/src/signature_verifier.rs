@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use either::Either;
+use fastcrypto::traits::{AggregateAuthenticator, ToFromBytes};
 use fastcrypto_zkp::bn254::{
     zk_login::{JWK, JwkId},
     zk_login_api::ZkLoginEnv,
@@ -13,12 +14,14 @@ use futures::pin_mut;
 use im::hashmap::HashMap as ImHashMap;
 use iota_metrics::monitored_scope;
 use iota_types::{
+    base_types::AuthorityName,
     committee::Committee,
-    crypto::{AuthoritySignInfoTrait, VerificationObligation},
+    crypto::{AuthorityPublicKey, AuthoritySignInfoTrait, VerificationObligation},
     digests::{CertificateDigest, SenderSignedDataDigest, ZKLoginInputsDigest},
     error::{IotaError, IotaResult},
     message_envelope::Message,
     messages_checkpoint::SignedCheckpointSummary,
+    messages_consensus::{AuthorityCapabilitiesDigest, SignedAuthorityCapabilitiesV1},
     signature::VerifyParams,
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
     transaction::{CertifiedTransaction, SenderSignedData, VerifiedCertificate},
@@ -94,8 +97,11 @@ impl CertBuffer {
 /// - User signed data - caching.
 pub struct SignatureVerifier {
     committee: Arc<Committee>,
+    non_committee_validators: BTreeSet<AuthorityName>,
+
     certificate_cache: VerifiedDigestCache<CertificateDigest>,
     signed_data_cache: VerifiedDigestCache<SenderSignedDataDigest>,
+    authority_capability_cache: VerifiedDigestCache<AuthorityCapabilitiesDigest>,
     zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
 
     /// Map from JwkId (iss, kid) to the fetched JWK for that key.
@@ -133,6 +139,7 @@ struct ZkLoginParams {
 impl SignatureVerifier {
     pub fn new_with_batch_size(
         committee: Arc<Committee>,
+        non_committee_validators: BTreeSet<AuthorityName>,
         batch_size: usize,
         metrics: Arc<SignatureVerifierMetrics>,
         env: ZkLoginEnv,
@@ -143,6 +150,7 @@ impl SignatureVerifier {
     ) -> Self {
         Self {
             committee,
+            non_committee_validators,
             certificate_cache: VerifiedDigestCache::new(
                 metrics.certificate_signatures_cache_hits.clone(),
                 metrics.certificate_signatures_cache_misses.clone(),
@@ -152,6 +160,11 @@ impl SignatureVerifier {
                 metrics.signed_data_cache_hits.clone(),
                 metrics.signed_data_cache_misses.clone(),
                 metrics.signed_data_cache_evictions.clone(),
+            ),
+            authority_capability_cache: VerifiedDigestCache::new(
+                metrics.authority_capabilities_cache_hits.clone(),
+                metrics.authority_capabilities_cache_misses.clone(),
+                metrics.authority_capabilities_cache_evictions.clone(),
             ),
             zklogin_inputs_cache: Arc::new(VerifiedDigestCache::new(
                 metrics.zklogin_inputs_cache_hits.clone(),
@@ -173,6 +186,7 @@ impl SignatureVerifier {
 
     pub fn new(
         committee: Arc<Committee>,
+        non_committee_validators: BTreeSet<AuthorityName>,
         metrics: Arc<SignatureVerifierMetrics>,
         zklogin_env: ZkLoginEnv,
         accept_zklogin_in_multisig: bool,
@@ -182,6 +196,7 @@ impl SignatureVerifier {
     ) -> Self {
         Self::new_with_batch_size(
             committee,
+            non_committee_validators,
             MAX_BATCH_SIZE,
             metrics,
             zklogin_env,
@@ -197,21 +212,21 @@ impl SignatureVerifier {
         &self,
         certs: Vec<&CertifiedTransaction>,
         checkpoints: Vec<&SignedCheckpointSummary>,
+        authority_capabilities: Vec<&SignedAuthorityCapabilitiesV1>,
     ) -> IotaResult {
-        let certs: Vec<_> = certs
-            .into_iter()
-            .filter(|cert| !self.certificate_cache.is_cached(&cert.certificate_digest()))
-            .collect();
-
-        // Verify only the user sigs of certificates that were not cached already, since
-        // whenever we insert a certificate into the cache, it is already
-        // verified.
+        // Verify all user sigs, since caching is handled by the underlying
+        // implementation.
         for cert in &certs {
             self.verify_tx(cert.data())?;
         }
+
+        // Verify authority capabilities signatures. Caching is handled inside to avoid
+        // checking the same message multiple times.
+        for cap in &authority_capabilities {
+            self.verify_authority_capabilities(cap)?;
+        }
+
         batch_verify_all_certificates_and_checkpoints(&self.committee, &certs, &checkpoints)?;
-        self.certificate_cache
-            .cache_digests(certs.into_iter().map(|c| c.certificate_digest()).collect());
         Ok(())
     }
 
@@ -410,8 +425,60 @@ impl SignatureVerifier {
         )
     }
 
+    pub fn verify_authority_capabilities(
+        &self,
+        signed_authority_capabilities: &SignedAuthorityCapabilitiesV1,
+    ) -> IotaResult {
+        let epoch = self.committee.epoch();
+        self.authority_capability_cache.is_verified(
+            signed_authority_capabilities.cache_digest(epoch),
+            || {
+                // Check if authority exists in non-committee validators
+                let authority_name = signed_authority_capabilities.data().authority;
+                if !self.non_committee_validators.contains(&authority_name) {
+                    return Err(IotaError::IncorrectSigner {
+                        error: "Signer must be part of non-committee active validators".to_string(),
+                    });
+                }
+
+                // Create a verification obligation
+                let mut obligation = VerificationObligation::default();
+                let idx = obligation.add_message(
+                    signed_authority_capabilities.data(),
+                    epoch, /* epoch is shared between the committee and
+                            * non-committee validators */
+                    Intent::iota_app(signed_authority_capabilities.scope()),
+                );
+
+                // Add the signature and public key to the obligation
+                let authority_key = AuthorityPublicKey::from_bytes(authority_name.as_bytes())
+                    .map_err(|_| IotaError::IncorrectSigner {
+                        error: "Invalid authority public key bytes".to_string(),
+                    })?;
+                obligation
+                    .public_keys
+                    .get_mut(idx)
+                    .ok_or(IotaError::InvalidAuthenticator)?
+                    .push(&authority_key);
+
+                obligation
+                    .signatures
+                    .get_mut(idx)
+                    .ok_or(IotaError::InvalidAuthenticator)?
+                    .add_signature(signed_authority_capabilities.auth_sig().clone())
+                    .map_err(|_| IotaError::InvalidSignature {
+                        error: "Failed to add authority signature to obligation".to_string(),
+                    })?;
+
+                obligation.verify_all()
+            },
+            || Ok(()),
+        )
+    }
+
     pub fn clear_signature_cache(&self) {
         self.certificate_cache.clear();
+        self.authority_capability_cache.clear();
         self.signed_data_cache.clear();
         self.zklogin_inputs_cache.clear();
     }
@@ -427,6 +494,9 @@ pub struct SignatureVerifierMetrics {
     pub zklogin_inputs_cache_hits: IntCounter,
     pub zklogin_inputs_cache_misses: IntCounter,
     pub zklogin_inputs_cache_evictions: IntCounter,
+    pub authority_capabilities_cache_hits: IntCounter,
+    pub authority_capabilities_cache_misses: IntCounter,
+    pub authority_capabilities_cache_evictions: IntCounter,
     timeouts: IntCounter,
     full_batches: IntCounter,
     partial_batches: IntCounter,
@@ -472,25 +542,43 @@ impl SignatureVerifierMetrics {
                 "Number of times we evict a pre-existing signed data were known to be verified because of signature cache.",
                 registry
             )
-                .unwrap(),
-                zklogin_inputs_cache_hits: register_int_counter_with_registry!(
-                    "zklogin_inputs_cache_hits",
-                    "Number of zklogin signature which were known to be partially verified because of zklogin inputs cache.",
-                    registry
-                )
-                .unwrap(),
-                zklogin_inputs_cache_misses: register_int_counter_with_registry!(
-                    "zklogin_inputs_cache_misses",
-                    "Number of zklogin signatures which missed the zklogin inputs cache.",
-                    registry
-                )
-                .unwrap(),
-                zklogin_inputs_cache_evictions: register_int_counter_with_registry!(
-                    "zklogin_inputs_cache_evictions",
-                    "Number of times we evict a pre-existing zklogin inputs digest that was known to be verified because of zklogin inputs cache.",
-                    registry
-                )
-                .unwrap(),
+            .unwrap(),
+            zklogin_inputs_cache_hits: register_int_counter_with_registry!(
+                "zklogin_inputs_cache_hits",
+                "Number of zklogin signature which were known to be partially verified because of zklogin inputs cache.",
+                registry
+            )
+            .unwrap(),
+            zklogin_inputs_cache_misses: register_int_counter_with_registry!(
+                "zklogin_inputs_cache_misses",
+                "Number of zklogin signatures which missed the zklogin inputs cache.",
+                registry
+            )
+            .unwrap(),
+            zklogin_inputs_cache_evictions: register_int_counter_with_registry!(
+                "zklogin_inputs_cache_evictions",
+                "Number of times we evict a pre-existing zklogin inputs digest that was known to be verified because of zklogin inputs cache.",
+                registry
+            )
+            .unwrap(),
+            authority_capabilities_cache_hits: register_int_counter_with_registry!(
+                "authority_capabilities_cache_hits",
+                "Number of authority capabilities which were known to be verified because of capabilities cache.",
+                registry
+            )
+            .unwrap(),
+            authority_capabilities_cache_misses: register_int_counter_with_registry!(
+                "authority_capabilities_cache_misses",
+                "Number of authority capabilities which missed the capabilities cache.",
+                registry
+            )
+            .unwrap(),
+            authority_capabilities_cache_evictions: register_int_counter_with_registry!(
+                "authority_capabilities_cache_evictions",
+                "Number of times we evict a pre-existing authority capabilities that were known to be verified.",
+                registry
+            )
+            .unwrap(),
             timeouts: register_int_counter_with_registry!(
                 "async_batch_verifier_timeouts",
                 "Number of times batch verifier times out and verifies a partial batch",

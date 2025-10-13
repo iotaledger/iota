@@ -1252,6 +1252,11 @@ fun test_add_preactive_remove_active() {
 
     // Now the preactive becomes active
     add_validator(NEW_VALIDATOR_ADDR, scenario);
+    // Advance one more epoch because a validator can't immediately become a committee member,
+    // but first needs to announce its AuthorityCapabilities to other validators,
+    // showing that it supports the correct ProtocolVersion.
+    advance_epoch(scenario);
+    // Now it becomes eligible to be selected to the committee.
     advance_epoch(scenario);
     // At this point we got the following distribution of stake:
     // V1: 250, V2: 250, V3: 250, storage fund: 100
@@ -1304,6 +1309,11 @@ fun test_add_preactive_remove_post_active() {
 
     // Now the preactive becomes active
     add_validator(NEW_VALIDATOR_ADDR, scenario);
+    // Advance one more epoch because a validator can't immediately become a committee member,
+    // but first needs to announce its AuthorityCapabilities to other validators,
+    // showing that it supports the correct ProtocolVersion.
+    advance_epoch(scenario);
+    // Now it becomes eligible to be selected to the committee.
     advance_epoch(scenario);
 
     // staker 1 earns a bit greater than 30 IOTA here. A bit greater because the new validator's voting power

@@ -10,6 +10,7 @@ use iota_types::{
     executable_transaction::VerifiedExecutableTransaction,
     transaction::{SharedInputObject, TransactionDataAPI},
 };
+use tracing::instrument;
 
 use super::{
     authority_per_epoch_store::PreviouslyDeferredTransactions, transaction_deferral::DeferralKey,
@@ -249,6 +250,7 @@ impl SharedObjectCongestionTracker {
     /// Before calling this function, the caller should ensure that the tracker
     /// is initialized for all objects in the transaction by first calling
     /// `initialize_object_execution_slots`.
+    #[instrument(level = "trace", skip_all)]
     pub fn compute_tx_start_time(
         &self,
         shared_input_objects: &[SharedInputObject],
@@ -259,6 +261,7 @@ impl SharedObjectCongestionTracker {
             // time based on the lowest free execution slot that can accommodate the
             // transaction. We start the search from the full range of the slots
             // available with no constraints from previous objects.
+            let _span = tracing::trace_span!("compute_min_free_execution_slot").entered();
             let initial_free_slot = ExecutionSlot::max_duration_slot();
             self.compute_min_free_execution_slot(
                 shared_input_objects,
@@ -269,6 +272,8 @@ impl SharedObjectCongestionTracker {
             // If `assign_min_free_execution_slot` is false, we assign the transaction start
             // time based on the maximum start time of free execution slots for the
             // transaction over all its shared objects.
+            let _span =
+                tracing::trace_span!("get_max_start_time_of_free_execution_slots").entered();
             let object_start_times: Vec<_> = shared_input_objects
                 .iter()
                 .map(|obj| {
@@ -372,6 +377,7 @@ impl SharedObjectCongestionTracker {
     /// be scheduled, this returns a `start_time`, and if it should be deferred,
     /// this returns the deferral key and the congested objects responsible for
     /// the deferral.
+    #[instrument(level = "trace", skip_all, fields(cert_digest = ?cert.digest()))]
     pub fn try_schedule(
         &self,
         cert: &VerifiedExecutableTransaction,

@@ -84,11 +84,13 @@ const getResultsForAddress = async (
 
         if (!nameRecord || !nameRecord.targetAddress) return null;
 
+        const addrHasActivity = await addressHasActivity(client, nameRecord.targetAddress);
+
         return [
             {
                 id: nameRecord.targetAddress,
                 label: nameRecord.targetAddress,
-                type: 'address',
+                type: addrHasActivity ? 'address' : 'object',
             },
         ];
     }
@@ -119,6 +121,28 @@ const getResultsForAddress = async (
         },
     ];
 };
+
+async function addressHasActivity(client: IotaClient, address: string): Promise<boolean> {
+    const normalized = normalizeIotaObjectId(address);
+    if (!isValidIotaAddress(normalized)) return false;
+    try {
+        const fromOrTo = await client.queryTransactionBlocks({
+            filter: { FromOrToAddress: { addr: normalized } },
+            limit: 1,
+        });
+        if (fromOrTo?.data?.length > 0) return true;
+
+        const ownedObjects = await client.getOwnedObjects({
+            owner: normalized,
+            limit: 1,
+        });
+        if (ownedObjects.data.length > 0) return true;
+
+        return false;
+    } catch (e) {
+        return false;
+    }
+}
 
 // Query for validator by pool id or iota address.
 const getResultsForValidatorByPoolIdOrIotaAddress = async (
