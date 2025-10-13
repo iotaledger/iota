@@ -5,6 +5,7 @@
 import { useAppDispatch, useAppSelector } from '_hooks';
 import { changeActiveNetwork } from '_redux/slices/app';
 import { ampli } from '_src/shared/analytics/ampli';
+import { setNetworkGroup } from '_src/shared/analytics/amplitude';
 import { isValidUrl } from '_src/shared/utils';
 import { Network } from '@iota/iota-sdk/client';
 import { Form, Formik } from 'formik';
@@ -42,6 +43,7 @@ export function CustomRPCInput() {
                         store: true,
                     }),
                 ).unwrap();
+                setNetworkGroup(Network.Custom, rpcInput);
                 ampli.switchedNetwork({
                     toNetwork: rpcInput,
                 });

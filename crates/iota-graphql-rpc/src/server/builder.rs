@@ -10,7 +10,7 @@ use std::{
 };
 
 use async_graphql::{
-    EmptySubscription, Schema, SchemaBuilder,
+    Context, EmptySubscription, ResultExt, Schema, SchemaBuilder,
     extensions::{ApolloTracing, ExtensionFactory, Tracing},
 };
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
@@ -34,7 +34,7 @@ use iota_indexer::{
 use iota_metrics::spawn_monitored_task;
 use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
-use iota_sdk::IotaClientBuilder;
+use iota_sdk::{IotaClient, IotaClientBuilder};
 use tokio::{join, net::TcpListener, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
 use tower::{Layer, Service};
@@ -69,6 +69,7 @@ use crate::{
         watermark_task::{Watermark, WatermarkLock, WatermarkTask},
     },
     types::{
+        chain_identifier::ChainIdentifierCache,
         datatype::IMoveDatatype,
         move_object::IMoveObject,
         object::IObject,
@@ -503,7 +504,8 @@ impl ServerBuilder {
             .context_data(iota_names_config)
             .context_data(zklogin_config)
             .context_data(metrics.clone())
-            .context_data(config.clone());
+            .context_data(config.clone())
+            .context_data(ChainIdentifierCache::default());
 
         if config.internal_features.feature_gate {
             builder = builder.extension(FeatureGate);
@@ -546,6 +548,19 @@ fn schema_builder() -> SchemaBuilder<Query, Mutation, EmptySubscription> {
         .register_output_type::<IObject>()
         .register_output_type::<IOwner>()
         .register_output_type::<IMoveDatatype>()
+}
+
+pub(crate) fn get_fullnode_client<'ctx>(
+    ctx: &'ctx Context<'_>,
+) -> async_graphql::Result<&'ctx IotaClient> {
+    let iota_sdk_client: &Option<IotaClient> = ctx
+        .data()
+        .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
+        .extend()?;
+    iota_sdk_client
+        .as_ref()
+        .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
+        .extend()
 }
 
 /// Return the string representation of the schema used by this server.
@@ -750,6 +765,7 @@ pub mod tests {
             service_config.limits.clone(),
             metrics.clone(),
         );
+        let loader = DataLoader::new(db.clone());
         let pg_conn_pool = PgManager::new(reader);
         let cancellation_token = CancellationToken::new();
         let watermark = Watermark {
@@ -766,11 +782,13 @@ pub mod tests {
         );
         ServerBuilder::new(state)
             .context_data(db)
+            .context_data(loader)
             .context_data(pg_conn_pool)
             .context_data(service_config)
             .context_data(query_id())
             .context_data(ip_address())
             .context_data(watermark)
+            .context_data(ChainIdentifierCache::default())
             .context_data(metrics)
     }
 
@@ -839,7 +857,7 @@ pub mod tests {
             schema.execute(query).await
         }
 
-        let query = "{ chainIdentifier }";
+        let query = r#"{ checkpoint(id: {sequenceNumber: 0 }) { digest }}"#;
         let timeout = Duration::from_millis(1000);
         let delay = Duration::from_millis(100);
 

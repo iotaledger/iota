@@ -23,15 +23,15 @@ use crate::{
     handlers::{
         TransactionObjectChangesToCommit,
         checkpoint_handler::{
-            CheckpointHandler, IndexedTransactionComponentsV2, try_extract_df_kind,
+            CheckpointHandler, IndexedTransactionComponents, try_extract_df_kind,
         },
     },
-    indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
         transactions::{OptimisticTransaction, TxGlobalOrder},
     },
+    read::IndexerReader,
     store::{IndexerStore, PgIndexerStore},
     transactional_blocking_with_retry_with_conditional_abort,
     types::{
@@ -50,7 +50,7 @@ type TransactionDataToCommit = (
 #[derive(Clone)]
 pub struct OptimisticTransactionExecutor {
     rpc_client: iota_rest_api::Client,
-    indexer_reader: IndexerReader,
+    read: IndexerReader,
     store: PgIndexerStore,
     metrics: IndexerMetrics,
 }
@@ -58,14 +58,14 @@ pub struct OptimisticTransactionExecutor {
 impl OptimisticTransactionExecutor {
     pub fn new(
         rpc_client_url: &str,
-        indexer_reader: IndexerReader,
+        read: IndexerReader,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
     ) -> Self {
         let rpc_client = iota_rest_api::Client::new(rpc_client_url);
         Self {
             rpc_client,
-            indexer_reader,
+            read,
             store,
             metrics,
         }
@@ -94,7 +94,7 @@ impl OptimisticTransactionExecutor {
 
         backoff::future::retry(backoff, async || {
             let count = self
-                .indexer_reader
+                .read
                 .count_indexed_tx_global_orders_in_blocking_task(expected_dependencies.clone())
                 .await?;
             if count as usize != expected_dependencies.len() {
@@ -170,7 +170,7 @@ impl OptimisticTransactionExecutor {
         &self,
         effects: &TransactionEffects,
     ) -> Result<bool, IndexerError> {
-        self.indexer_reader
+        self.read
             .deep_check_all_transactions_are_indexed_in_blocking_task(
                 effects.dependencies().to_vec(),
             )
@@ -230,7 +230,7 @@ impl OptimisticTransactionExecutor {
 
         backoff::future::retry(backoff, async || {
             let tx_block_response = self
-                .indexer_reader
+                .read
                 .multi_get_transaction_block_response_in_blocking_task(
                     vec![tx_digest],
                     options.clone().unwrap_or_default(),
@@ -407,10 +407,10 @@ impl<'a> TransactionExtractor<'a> {
 
     fn get_indexed_transactions_events_and_displays(
         &self,
-    ) -> IndexerResult<IndexedTransactionComponentsV2> {
+    ) -> IndexerResult<IndexedTransactionComponents> {
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
-            CheckpointHandler::index_transaction_v2(
+            CheckpointHandler::index_transaction(
                 self.full_tx_data,
                 self.optimistic_sequence_number,
                 0, // checkpoint sequence number - unknown

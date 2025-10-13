@@ -14,8 +14,8 @@ use async_graphql::{
 };
 use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
 use iota_indexer::{
-    models::objects::StoredHistoryObject,
-    schema::{objects_history, objects_version},
+    models::objects::{StoredHistoryObject, StoredObject},
+    schema::{objects, objects_history, objects_version},
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
 use iota_types::{
@@ -226,6 +226,14 @@ pub(crate) enum ObjectLookup {
         /// The checkpoint sequence number at which this was viewed at.
         checkpoint_viewed_at: u64,
     },
+
+    /// Variant analogous to [`VersionAt`](Self::VersionAt) but for optimistic
+    /// transactions, using the most recent not checkpointed data,
+    /// not bound by any checkpoint sequence number.
+    OptimisticVersion {
+        /// The exact version of the object to be fetched.
+        version: u64,
+    },
 }
 
 pub(crate) type Cursor = cursor::BcsCursor<HistoricalObjectCursor>;
@@ -313,6 +321,15 @@ struct HistoricalKey {
     id: IotaAddress,
     version: u64,
     checkpoint_viewed_at: u64,
+}
+
+/// `DataLoader` key for fetching objects that haven't been checkpointed yet.
+/// This is used specifically for loading objects
+/// that are part of optimistic transaction effects.
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+struct OptimisticKey {
+    id: IotaAddress,
+    version: u64,
 }
 
 /// `DataLoader` key for fetching the latest version of an object whose parent
@@ -908,6 +925,11 @@ impl Object {
         }
     }
 
+    /// Look-up a specific version of the object from optimistic transactions.
+    pub(crate) fn at_optimistic_version(version: u64) -> ObjectLookup {
+        ObjectLookup::OptimisticVersion { version }
+    }
+
     pub(crate) async fn query(
         ctx: &Context<'_>,
         id: IotaAddress,
@@ -927,6 +949,10 @@ impl Object {
                         checkpoint_viewed_at,
                     })
                     .await
+            }
+
+            ObjectLookup::OptimisticVersion { version } => {
+                loader.load_one(OptimisticKey { id, version }).await
             }
 
             ObjectLookup::UnderParent {
@@ -1331,6 +1357,85 @@ impl Loader<HistoricalKey> for Db {
                 None,
             )?;
             result.insert(*key, object);
+        }
+
+        Ok(result)
+    }
+}
+
+impl Loader<OptimisticKey> for Db {
+    type Value = Object;
+    type Error = Error;
+
+    async fn load(&self, keys: &[OptimisticKey]) -> Result<HashMap<OptimisticKey, Object>, Error> {
+        use objects::dsl as o;
+
+        let id_versions: BTreeSet<_> = keys
+            .iter()
+            .map(|key| (key.id.into_vec(), key.version as i64))
+            .collect();
+
+        let objects: Vec<StoredObject> = self
+            .execute(move |conn| {
+                conn.results(move || {
+                    let mut query = o::objects.select(StoredObject::as_select()).into_boxed();
+                    for (id, version) in id_versions.iter().cloned() {
+                        query =
+                            query.or_filter(o::object_id.eq(id).and(o::object_version.eq(version)));
+                    }
+                    query
+                })
+            })
+            .await
+            .map_err(|e| Error::Internal(format!("Failed to fetch optimistic objects: {e}")))?;
+
+        let mut result = HashMap::new();
+        let id_version_to_stored = objects
+            .into_iter()
+            .map(|stored| {
+                addr(&stored.object_id).map(|id| ((id, stored.object_version as u64), stored))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+
+        // Collect keys that were not found in objects table
+        let mut missing_keys = Vec::new();
+        for key in keys {
+            if let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) {
+                let object = Object::from_native(
+                    key.id,
+                    bcs::from_bytes(&stored.serialized_object).map_err(|_| {
+                        Error::Internal(format!("Failed to deserialize object {}", key.id))
+                    })?,
+                    u64::MAX,
+                    None,
+                );
+                result.insert(*key, object);
+            } else {
+                missing_keys.push(*key);
+            }
+        }
+
+        // For missing keys, fallback to using the objects_history table
+        if !missing_keys.is_empty() {
+            let historical_keys: Vec<HistoricalKey> = missing_keys
+                .iter()
+                .map(|key| HistoricalKey {
+                    id: key.id,
+                    version: key.version,
+                    checkpoint_viewed_at: u64::MAX,
+                })
+                .collect();
+
+            let historical_result: HashMap<HistoricalKey, Object> =
+                self.load(&historical_keys).await?;
+
+            for (historical_key, object) in historical_result {
+                let optimistic_key = OptimisticKey {
+                    id: historical_key.id,
+                    version: historical_key.version,
+                };
+                result.insert(optimistic_key, object);
+            }
         }
 
         Ok(result)

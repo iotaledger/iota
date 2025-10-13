@@ -32,7 +32,7 @@ use crate::{
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
         Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions,
+        VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
@@ -52,15 +52,6 @@ use crate::{
 // Maximum number of commit votes to include in a block.
 // TODO: Move to protocol config, and verify in BlockVerifier.
 const MAX_COMMIT_VOTES_PER_BLOCK: usize = 100;
-
-// Maximum number of acknowledgments to be included in a block. It must be
-// reasonably larger than the number of validators because not all validators
-// create their blocks at the same pace. For now we set it as a
-// constant to not make the block header size too large.
-// TODO: https://github.com/iotaledger/iota/issues/8378
-// After testing decide how to compress acknowledgments and move to a
-// protocol config
-const MAX_ACKNOWLEDGMENTS_PER_BLOCK: usize = 400;
 
 pub(crate) struct Core {
     context: Arc<Context>,
@@ -122,7 +113,7 @@ pub(crate) struct Core {
     /// hasn't been initialised yet.
     last_known_proposed_round: Option<Round>,
     /// Encoder is used to encode transactions into a longer vector of shards
-    encoder: Box<dyn ShardEncoder + Send>,
+    encoder: Box<dyn ShardEncoder + Send + Sync>,
 }
 
 impl Core {
@@ -391,6 +382,7 @@ impl Core {
     pub(crate) fn add_transactions(
         &mut self,
         transactions: Vec<VerifiedTransactions>,
+        source: &str,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::add_transactions");
         let _s = self
@@ -404,7 +396,7 @@ impl Core {
         // Add transactions to the dag state.
         let mut dag_state_guard = self.dag_state.write();
         for transaction in transactions {
-            dag_state_guard.add_transactions(transaction);
+            dag_state_guard.add_transactions(transaction, source);
         }
         // Safe to drop the guard here as the write/read locks will be asquired in
         // commit_observer
@@ -416,6 +408,31 @@ impl Core {
         // creating any new commits.
         self.commit_observer.handle_commit(Vec::new())?;
 
+        Ok(())
+    }
+
+    /// Adds shards to the DAG state. The proof is assumed to be already checked
+    pub(crate) fn add_shards(
+        &mut self,
+        serialized_shards: Vec<VerifiedOwnShard>,
+    ) -> ConsensusResult<()> {
+        let _scope = monitored_scope("Core::add_transactions");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::add_shards"])
+            .start_timer();
+
+        // Add shards to the dag state.
+        let mut dag_state_guard = self.dag_state.write();
+        for serialized_shard in serialized_shards {
+            dag_state_guard.add_shard(serialized_shard);
+        }
+        // Safe to drop the guard here as the write/read locks will be asquired in
+        // commit_observer
+        drop(dag_state_guard);
         Ok(())
     }
 
@@ -633,21 +650,15 @@ impl Core {
         // be done in the end of the method.
         let (transactions, ack_transactions, _limit_reached) = self.transaction_consumer.next();
         // Serialize the transaction
-        let info_length = self.context.committee.info_length();
-        let parity_length = self.context.committee.size() - info_length;
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("We should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
-
-        let encoded_shards = self
-            .encoder
-            .encode_serialized_data(&serialized_transactions, info_length, parity_length)
-            .expect("We should expect correct encoding of the shards");
-
-        let transactions_commitment = TransactionsCommitment::compute_merkle_root(&encoded_shards)
-            .expect(
-                "We should expect correct computation of the Merkle root for encoded transactions",
-            );
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized_transactions,
+            &self.context,
+            &mut self.encoder,
+        )
+        .expect("We should expect correct computation of the Merkle root for encoded transactions");
 
         self.context
             .metrics
@@ -657,10 +668,30 @@ impl Core {
 
         // Consume the acknowledgments about transaction data availability for past
         // blocks to be included.
-        let acknowledgments = self
-            .dag_state
-            .write()
-            .take_acknowledgments(MAX_ACKNOWLEDGMENTS_PER_BLOCK);
+        let acknowledgments = self.dag_state.write().take_acknowledgments(
+            self.context
+                .protocol_config
+                .consensus_max_acknowledgments_per_block_or_default() as usize,
+        );
+
+        self.context
+            .metrics
+            .node_metrics
+            .proposed_block_acknowledgments
+            .observe(acknowledgments.len() as f64);
+        for acknowledgment in &acknowledgments {
+            let authority = &self
+                .context
+                .committee
+                .authority(acknowledgment.author)
+                .hostname;
+            self.context
+                .metrics
+                .node_metrics
+                .proposed_block_acknowledgments_depth
+                .with_label_values(&[authority])
+                .observe(clock_round.saturating_sub(acknowledgment.round).into());
+        }
 
         // Consume the commit votes to be included.
         let commit_votes = self
@@ -679,6 +710,7 @@ impl Core {
             commit_votes,
             transactions_commitment,
         ));
+
         let signed_block_header = SignedBlockHeader::new(block_header, &self.block_signer)
             .expect("Block signing failed.");
 
@@ -878,7 +910,7 @@ impl Core {
 
         self.transaction_consumer.notify_own_transactions_status(
             committed_transaction_refs,
-            self.dag_state.read().gc_round(),
+            self.dag_state.read().gc_round_for_last_commit(),
         );
 
         Ok((committed_sub_dags, all_missing_committed_txns))

@@ -67,18 +67,19 @@ impl WatermarkTask {
     }
 
     pub(crate) async fn run(&self) {
+        let mut interval = tokio::time::interval(self.sleep);
         loop {
             tokio::select! {
                 _ = self.cancel.cancelled() => {
-                    info!("Shutdown signal received, terminating watermark update task");
+                    info!("shutdown signal received, terminating watermark update task");
                     return;
                 },
-                _ = tokio::time::sleep(self.sleep) => {
+                _ = interval.tick() => {
                     let Watermark {checkpoint, epoch, checkpoint_timestamp_ms } = match Watermark::query(&self.db).await {
                         Ok(Some(watermark)) => watermark,
                         Ok(None) => continue,
                         Err(e) => {
-                            error!("{}", e);
+                            error!("error fetching the watermark: {e}");
                             self.metrics.inc_errors(&[ServerError::new(e.to_string(), None)]);
                             continue;
                         }
@@ -100,6 +101,11 @@ impl WatermarkTask {
         }
     }
 
+    /// Returns a clone of the watermark lock.
+    ///
+    /// It clones the underlying `Arc<RwLock<Watermark>>` wrapper, which means
+    /// the returned `WatermarkLock` shares the same inner data with the
+    /// original.
     pub(crate) fn lock(&self) -> WatermarkLock {
         self.watermark.clone()
     }
