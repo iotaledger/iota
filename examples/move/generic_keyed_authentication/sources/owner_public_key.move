@@ -40,16 +40,6 @@ public struct OwnerPublicKey has copy, drop, store {}
 
 // === Public Functions ===
 
-// === Public-View Functions ===
-
-// === Admin Functions ===
-
-// === Public-Package Functions ===
-
-// === Private Functions ===
-
-// === Test Functions ===
-
 // Attach a public key data to the account.
 public fun attach(account_id: &mut UID, public_key: vector<u8>) {
     assert!(!has(account_id), EPublicKeyAttached);
@@ -74,18 +64,8 @@ public fun rotate(account_id: &mut UID, public_key: vector<u8>): vector<u8> {
     prev_public_key
 }
 
-// Check if the account contains the required public key.
-public fun has(account_id: &UID): bool {
-    dynamic_field::exists_(account_id, OwnerPublicKey {})
-}
-
-// Borrow the stored public key from the account.
-public fun borrow(account_id: &UID): &vector<u8> {
-    dynamic_field::borrow(account_id, OwnerPublicKey {})
-}
-
 // Run the Ed25519 authenticator for the given account, signature and message.
-// 
+//
 // The account must have a stored public key, against which the message will be checked using
 // the given signature.
 // The signature is expected to be hex::encode-ed and it will be decoded internally.
@@ -99,7 +79,7 @@ public fun authenticate_ed25519(account_id: &UID, signature: vector<u8>, message
 }
 
 // Run the Secp256k1 authenticator for the given account, signature and message.
-// 
+//
 // The account must have a stored public key, against which the message will be checked using
 // the given signature.
 // The signature is expected to be hex::encode-ed and it will be decoded internally.
@@ -119,7 +99,7 @@ public fun authenticate_secp256k1(account_id: &UID, signature: vector<u8>, messa
 }
 
 // Run the Secp256r1 authenticator for the given account, signature and message.
-// 
+//
 // The account must have a stored public key, against which the message will be checked using
 // the given signature.
 // The signature is expected to be hex::encode-ed and it will be decoded internally.
@@ -137,3 +117,23 @@ public fun authenticate_secp256r1(account_id: &UID, signature: vector<u8>, messa
         ESecp256r1VerificationFailed,
     );
 }
+
+// === Public-View Functions ===
+
+// Check if the account contains the required public key.
+public fun has(account_id: &UID): bool {
+    dynamic_field::exists_(account_id, OwnerPublicKey {})
+}
+
+// Borrow the stored public key from the account.
+public fun borrow(account_id: &UID): &vector<u8> {
+    dynamic_field::borrow(account_id, OwnerPublicKey {})
+}
+
+// === Admin Functions ===
+
+// === Public-Package Functions ===
+
+// === Private Functions ===
+
+// === Test Functions ===
