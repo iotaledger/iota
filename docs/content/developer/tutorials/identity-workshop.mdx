@@ -5,9 +5,12 @@ tags:
  - rust
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
 # IOTA Identity Workshop
 
-In this workshop, we will build a production-ready **University Degree Verification system** using **IOTA Identity**, **Rust**, and **React.** By the end of this workshop, you’ll have a complete, end-to-end flow demonstrating how **Issuers**, **Holders**, and **Verifiers** interact in a real-world university degree validation scenario — all powered by IOTA Identity. We will build the application piece-by-piece, focusing on the communication flow for each of the four core identity steps (DID creation, VC issuance, VP creation, and Verification).
+In this workshop, we will build a production-ready **University Degree Verification system** using **IOTA Identity**, **Rust**, and **React.** By the end of this workshop, you’ll have a complete, end-to-end flow demonstrating how **Issuers**, **Holders**, and **Verifiers** interact in a real-world university degree validation scenario — all powered by IOTA Identity. We will build the application piece-by-piece, focusing on the communication flow for each of the four core identity steps (Decentralized Identifier creation, Verifiable Credential issuance, Verifiable Presentation creation, and Verification).
 
 ## The Problem
 
@@ -21,7 +24,7 @@ Universities can issue tamper-proof Verifiable Credentials (VCs) that students c
 
 We're building a complete, production-ready system that connects a modern React frontend to a high-performance Rust backend. You'll learn how the frontend triggers the entire IOTA Identity lifecycle:
 
-- **Holder (Student)**: Creates a DID and stores it securely.
+- **Holder (Student)**: Creates a Decentralized Identifier (DID) and stores it securely.
 - **Issuer (University)**: Issues a **Verifiable Credential (VC)** representing the degree.
 - **Holder**: Packages the credential into a **Verifiable Presentation (VP)** and signs it.
 - **Verifier (Employer)**: Verifies the authenticity of the presentation and credentials against the IOTA network.
@@ -59,61 +62,116 @@ Before starting this workshop, make sure you have:
 - (Optional but recommended) Basic familiarity with:
     - **IOTA Decentralized Identifiers (DIDs)**
     - **IOTA Verifiable Credentials (VCs)** and **IOTA Verifiable Presentations (VPs)**
+## Installing Rust and Cargo
 
-## Installing Rust and Cargo on macOS
+Rust and Cargo are required for the Rust backend of the IOTA Identity workshop. Select your operating system below to view the installation instructions:
 
-### Step 1: Install `rustup` (The Rust Installer)
+<Tabs groupId="os-install" defaultValue="macos">
+  <TabItem value="macos" label="macOS">
+    ### Step 1: Install `rustup` (The Rust Installer)
 
-Open your Terminal application and run the following command. This downloads the `rustup-init` script and starts the installation process.
+    Open your Terminal application and run the following command to download and start the `rustup` installer:
 
-```Bash
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
+    ```bash
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+    ```
 
-You will see a prompt asking you to proceed with installation options:
+    You will see a prompt with installation options:
+    1. Type `1` (for "Proceed with installation (default)").
+    2. Press Enter.
 
-1. Type `1` (for "Proceed with installation (default)").
+    ### Step 2: Configure Your Shell Environment
 
-2. Press Enter.
+    After installation, update your shell's profile to make the `cargo` command available. For Zsh (the default shell on modern macOS), run:
 
-### Step 2: Configure Your Shell Environment
-After the installation is complete, the terminal will usually display instructions to update your shell's profile (like `.bash_profile` or `.zshrc`) to ensure the `cargo` command is available everywhere.
+    ```bash
+    source $HOME/.cargo/env
+    ```
 
-To load the environment variables without restarting your terminal, run the command shown in the installation success message. If you are using Zsh (the default shell on modern macOS), run this:
+    > **Note**: If using Bash, the command might be `source $HOME/.bashrc`. The `rustup` installer will display the correct command upon completion. Restart your terminal if needed.
 
-```Bash
-source $HOME/.cargo/env
-```
+    ### Step 3: Verify the Installation
 
-(If you are using Bash, the command might be `source $HOME/.bashrc` or similar, but the `source $HOME/.cargo/env` command works universally.)
+    Confirm that Rust and Cargo are installed correctly:
 
-### Step 3: Verify the Installation
+    1. **Check Rust Version**:
 
-You can confirm that both Rust and Cargo are installed correctly and are using the latest stable version.
+       ```bash
+       rustc --version
+       ```
 
-1. **Check Rust Version:**
+       Expected Output: `rustc 1.XX.0 (long_hash_string)`
 
-```Bash
-rustc --version
-```
+    2. **Check Cargo Version** (Cargo is the build system and package manager):
 
-Expected Output: `rustc 1.XX.0 (long_hash_string)`
+       ```bash
+       cargo --version
+       ```
 
-2. **Check Cargo Version:** (Cargo is the build system and package manager that comes with Rust.)
+       Expected Output: `cargo 1.XX.0 (long_hash_string)`
 
-```bash
-cargo --version
-```
+    ### Step 4: Update (Maintenance)
 
-Expected `Output: cargo 1.XX.0 (long_hash_string)`
+    To ensure the latest stable libraries for IOTA Identity, update your Rust toolchain:
 
-### Step 4: Update (Maintenance)
+    ```bash
+    rustup update stable
+    ```
+  </TabItem>
 
-Since this project requires the latest stable libraries for IOTA Identity, it's a good practice to ensure your toolchain is up-to-date:
+  <TabItem value="windows" label="Windows">
+    ### Step 1: Install `rustup` (The Rust Installer)
 
-```Bash
-rustup update stable
-```
+    1. Open a web browser and navigate to [https://www.rust-lang.org/tools/install](https://www.rust-lang.org/tools/install).
+    2. Download the `rustup-init.exe` installer for Windows by clicking the "Download" button.
+    3. Run the downloaded `rustup-init.exe` file (click "Run" or confirm any security prompt).
+    4. In the command-line window that opens:
+       - Type `1` (for "Proceed with installation (default)") and press Enter.
+       - Follow any additional prompts to complete the installation.
+
+    > **Note**: If you encounter permission issues, right-click `rustup-init.exe` and select "Run as administrator".
+
+    ### Step 2: Configure Your Environment
+
+    The Rust installer automatically adds Rust and Cargo to your system PATH. To apply these changes:
+    1. Close your current Command Prompt (if open).
+    2. Open a new Command Prompt by searching for "cmd" in the Start menu.
+    3. Alternatively, restart your computer to ensure PATH updates take effect.
+
+    > **Tip**: If `cargo` isn’t recognized in Step 3, ensure `C:\Users\<YourUsername>\.cargo\bin` is in your PATH (check with `echo %PATH%` in Command Prompt).
+
+    ### Step 3: Verify the Installation
+
+    Confirm that Rust and Cargo are installed correctly:
+
+    1. **Check Rust Version**:
+
+       ```cmd
+       rustc --version
+       ```
+
+       Expected Output: `rustc 1.XX.0 (long_hash_string)`
+
+    2. **Check Cargo Version** (Cargo is the build system and package manager):
+
+       ```cmd
+       cargo --version
+       ```
+
+       Expected Output: `cargo 1.XX.0 (long_hash_string)`
+
+    > **Troubleshooting**: If either command returns "not recognized," ensure Rust was installed correctly and the PATH is updated. Try running Command Prompt as administrator or restarting your system.
+
+    ### Step 4: Update (Maintenance)
+
+    To ensure the latest stable libraries for IOTA Identity, update your Rust toolchain:
+
+    ```cmd
+    rustup update stable
+    ```
+  </TabItem>
+</Tabs>
+
 ### Step 5: Local Network Setup
 
 :::info
