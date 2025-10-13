@@ -944,6 +944,13 @@ export class IotaClient {
 
         while (!timeoutSignal.aborted) {
             signal?.throwIfAborted();
+            const wait = async () => {
+                // Wait for either the next poll interval, or the timeout.
+                await Promise.race([
+                    new Promise((resolve) => setTimeout(resolve, pollInterval)),
+                    timeoutPromise,
+                ]);
+            };
             try {
                 if (waitMode === 'indexed-on-node') {
                     const isIndexedOnNode = await this.isTransactionIndexedOnNode({
@@ -960,12 +967,9 @@ export class IotaClient {
                 } else {
                     return await this.getTransactionBlock(input);
                 }
+                await wait();
             } catch (e) {
-                // Wait for either the next poll interval, or the timeout.
-                await Promise.race([
-                    new Promise((resolve) => setTimeout(resolve, pollInterval)),
-                    timeoutPromise,
-                ]);
+                await wait();
             }
         }
 
