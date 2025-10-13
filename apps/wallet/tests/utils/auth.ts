@@ -76,12 +76,11 @@ export async function addVirtualAuthenticator(
 
 interface PasskeyOptions extends VirtualAuthenticatorOptions {
     username: string;
-    displayName: string;
 }
 export async function createPasskeyWallet(
     page: Page,
     extensionUrl: string,
-    { username, displayName, automaticPresenceSimulation, isCrossPlatform }: PasskeyOptions,
+    { username, automaticPresenceSimulation, isCrossPlatform }: PasskeyOptions,
 ) {
     const client = await page.context().newCDPSession(page);
     await client.send('WebAuthn.enable');
@@ -92,10 +91,9 @@ export async function createPasskeyWallet(
 
     await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: SHORT_TIMEOUT });
-    await page.getByText('Passkey', { exact: true }).click();
+    await page.getByText('New Passkey Profile', { exact: true }).click();
 
     await page.getByTestId('username-input').fill(username);
-    await page.getByTestId('display-name-input').fill(displayName);
 
     if (isCrossPlatform) {
         await page.getByText('Platform').click();

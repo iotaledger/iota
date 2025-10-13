@@ -19,6 +19,7 @@ export enum AccountsFormType {
     ImportPrivateKey = 'import-private-key',
     ImportLedger = 'import-ledger',
     Passkey = 'passkey',
+    ImportPasskey = 'import-passkey',
     MnemonicSource = 'mnemonic-source',
     SeedSource = 'seed-source',
     ImportKeystone = 'import-keystone',
@@ -33,9 +34,8 @@ export type AccountsFormValues =
     | { type: AccountsFormType.ImportPrivateKey; keyPair: string }
     | {
           type: AccountsFormType.Passkey;
-          authenticatorAttachment: AuthenticatorAttachment;
+          authenticatorAttachment?: AuthenticatorAttachment;
           username: string;
-          displayName: string;
           isRestoreAccount: boolean;
       }
     | {

@@ -56,6 +56,7 @@ export function useCreateAccountsMutation() {
         [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
         [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
         [AccountsFormType.Passkey]: AmpliAccountType.Passkey,
+        [AccountsFormType.ImportPasskey]: AmpliAccountType.Passkey,
         [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
         [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
     };
@@ -143,7 +144,6 @@ export function useCreateAccountsMutation() {
             ) {
                 const { address, publicKey, providerOptions } = await createPasskeyAccount({
                     username: accountsFormValues.username,
-                    displayName: accountsFormValues.displayName,
                     authenticatorAttachment: accountsFormValues.authenticatorAttachment,
                     isRestore: accountsFormValues.isRestoreAccount,
                 });

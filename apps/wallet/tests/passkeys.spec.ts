@@ -9,7 +9,6 @@ import { generateKeypairFromMnemonic } from './utils/localnet';
 import { setPresence, setVerified } from './utils/passkeySigner';
 
 const username = 'IOTA Passkey e2e Test';
-const displayName = 'IOTAPasskey';
 
 test('Should register a passkey account type with platform authenticator', async ({
     page,
@@ -17,10 +16,9 @@ test('Should register a passkey account type with platform authenticator', async
 }) => {
     const { client, authenticatorId } = await createPasskeyWallet(page, extensionUrl, {
         username,
-        displayName,
     });
 
-    await expect(page.getByText(displayName)).toBeVisible();
+    await expect(page.getByText(username)).toBeVisible();
 
     await client.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
     await page.close();
@@ -32,11 +30,10 @@ test('Should register a passkey account type with cross-platform authenticator',
 }) => {
     const { client, authenticatorId } = await createPasskeyWallet(page, extensionUrl, {
         username,
-        displayName,
         isCrossPlatform: true,
     });
 
-    await expect(page.getByText(displayName)).toBeVisible();
+    await expect(page.getByText(username)).toBeVisible();
 
     await client.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
     await page.close();
@@ -45,10 +42,9 @@ test('Should register a passkey account type with cross-platform authenticator',
 test('Sends funds to another account', async ({ page, extensionUrl }) => {
     const { client, authenticatorId } = await createPasskeyWallet(page, extensionUrl, {
         username,
-        displayName,
     });
 
-    await expect(page.getByText(displayName)).toBeVisible();
+    await expect(page.getByText(username)).toBeVisible();
     const receivingKeypair = await generateKeypairFromMnemonic(receiverAddressMnemonic.join(' '));
     const receivingAddress = receivingKeypair.getPublicKey().toIotaAddress();
 
@@ -79,10 +75,9 @@ test('Creates a passkey account, resets the wallet and logs back in', async ({
 }) => {
     const { client, authenticatorId } = await createPasskeyWallet(page, extensionUrl, {
         username,
-        displayName,
     });
 
-    await expect(page.getByText(displayName)).toBeVisible();
+    await expect(page.getByText(username)).toBeVisible();
 
     await page.getByTestId('receive-coin-button').click();
 
@@ -105,7 +100,6 @@ test('Creates a passkey account, resets the wallet and logs back in', async ({
     await expect(page.getByText('Restore Existing Account')).toBeVisible();
 
     await page.getByTestId('username-input').fill(username);
-    await page.getByTestId('display-name-input').fill(displayName);
 
     await page.getByRole('button', { name: /Restore/ }).click();
 
@@ -115,7 +109,7 @@ test('Creates a passkey account, resets the wallet and logs back in', async ({
     await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 
-    await expect(page.getByText(displayName)).toBeVisible();
+    await expect(page.getByText(username)).toBeVisible();
     await page.getByTestId('receive-coin-button').click();
 
     const newAddressLocator = page.locator("div[data-testid='receive-address']");
@@ -131,10 +125,9 @@ test('Creates a passkey account, resets the wallet and logs back in', async ({
 test('Fails when a different authenticator tries to log in', async ({ page, extensionUrl }) => {
     const { client, authenticatorId } = await createPasskeyWallet(page, extensionUrl, {
         username,
-        displayName,
     });
 
-    await expect(page.getByText(displayName)).toBeVisible();
+    await expect(page.getByText(username)).toBeVisible();
 
     await page.getByTestId('receive-coin-button').click();
 
@@ -165,7 +158,6 @@ test('Fails when a different authenticator tries to log in', async ({ page, exte
     await expect(page.getByText('Restore Existing Account')).toBeVisible();
 
     await page.getByTestId('username-input').fill(username);
-    await page.getByTestId('display-name-input').fill(displayName);
 
     await page.getByRole('button', { name: /Restore/ }).click();
 
