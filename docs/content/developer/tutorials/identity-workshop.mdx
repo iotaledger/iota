@@ -232,6 +232,14 @@ npm install lucide-react # For icons
     - **React Frontend**: Provides a user-friendly interface to trigger backend actions.
     - **Vite**: A modern build tool for fast React development.
 
+## Code Scaffold
+
+Before starting the IOTA Identity workflow, set up the foundational code for the Rust backend (`main.rs`) and React frontend (`App.jsx`). This scaffold includes imports, data structures, and server/client setup needed to run the project.
+
+Visit the [Scaffold Code](/developer/tutorials/identity-workshop-scaffold) page to copy the code for `main.rs` and `App.jsx`. The page provides instructions for macOS and Windows to set up the files correctly.
+
+**Next Steps**: After setting up the scaffold, return to this workshop to implement the IOTA Identity functionality in Steps 1–4, where you'll add code to create, issue, present, and verify a university degree credential.
+
 ## Part 2: Building the Front-to-Back Connection
 
 This section demonstrates how every button on the frontend connects to a specific function on the Rust backend, completing the identity flow.
@@ -326,12 +334,12 @@ const handleCreateDid = async () => {
 
 ## Explanation:
 
-- What it does: The handleCreateDid function triggers a POST request to the backend’s /holder/create-did endpoint. It sends an empty body since the backend handles all DID creation logic. The returned DID string is stored in the React state (setDid) for display in the UI.
-- Why it matters: This initiates the IOTA Identity flow by creating a unique identifier for the student (Holder), which is used in later steps (e.g., VC issuance). It connects the frontend button to the backend logic.
-- Key concepts:
- - DID: A decentralized identifier (e.g., did:iota:...) that uniquely identifies the student.
- - React State: Stores the DID for display and use in subsequent steps.
- - API Call: Uses handleApiCall to communicate with the backend.
+- **What it does**: The `handleCreateDid` function triggers a POST request to the backend’s `/holder/create-did endpoint`. It sends an empty body since the backend handles all DID creation logic. The returned DID string is stored in the React state (`setDid`) for display in the UI.
+- **Why it matters**: This initiates the IOTA Identity flow by creating a unique identifier for the student (`Holder`), which is used in later steps (e.g., VC issuance). It connects the frontend button to the backend logic.
+- **Key concepts**:
+    - **DID**: A decentralized identifier (e.g., `did:iota:...`) that uniquely identifies the student.
+    - **React State**: Stores the DID for display and use in subsequent steps.
+    - **API Call**: Uses `handleApiCall` to communicate with the backend.
 
 **Backend** (`src/main.rs`): The Rust function uses the received `package_id` to initialize the client and runs the core creation logic.
 
@@ -360,14 +368,12 @@ async fn holder_create_did(Json(_body): Json<PackageId>) -> Result<Json<DidRespo
 ```
 ## Explanation:
 
-- What it does: The holder_create_did function handles the /holder/create-did endpoint. It calls create_or_load_did (a utility function) to either create a new DID or load an existing one from holder_doc.json. The DID is anchored to the IOTA network, and the function returns a JSON response containing the DID string.
-- Why it matters: This creates the student’s identity on the IOTA network, stored securely using Stronghold. The DID is the foundation for issuing and verifying credentials.
-- Key concepts:
-    - DID Creation: Uses IOTA Identity to generate and publish a DID document.
-    - Stronghold: Securely stores the DID’s private keys.
-    - Axum Endpoint: Handles HTTP requests and returns JSON responses.
-
-=======================================================
+- **What it does**: The `holder_create_did` function handles the `/holder/create-did` endpoint. It calls `create_or_load_did` (a utility function) to either create a new DID or load an existing one from `holder_doc.json`. The DID is anchored to the IOTA network, and the function returns a JSON response containing the DID string.
+- **Why it matters**: This creates the student’s identity on the IOTA network, stored securely using Stronghold. The DID is the foundation for issuing and verifying credentials.
+- **Key concepts**:
+    - **DID** Creation: Uses IOTA Identity to generate and publish a DID document.
+    - **Stronghold**: Securely stores the DID’s private keys.
+    - **Axum Endpoint**: Handles HTTP requests and returns JSON responses.
 
 The `create_or_load_did` function is a critical helper function used by the `holder_create_did` endpoint to either create a new Decentralized Identifier (DID) for the Holder (student) or load an existing one from disk.
 
@@ -402,16 +408,16 @@ async fn create_or_load_did(
     }
 }
 ```
-## Explanation:
+### Explanation:
 
 - **What it does**: The `create_or_load_did` function checks if a DID document exists at the specified `doc_file` path. If it doesn’t exist, it creates a new DID using the IOTA Identity library, funds it via an IOTA client, and saves the DID document and its signing fragment to `doc_file` and `fragment_file` respectively. If the file exists, it loads the DID document and fragment from disk. The function returns a tuple containing the `IotaDocument` (the DID document) and a `String` (the signing fragment).
 - **Why it matters**: This function ensures the Holder’s DID is either created and anchored to the IOTA network or loaded for reuse, providing persistence across server restarts. It abstracts the complexity of DID creation and storage, making it reusable across different endpoints (e.g., `holder_create_did`).
 - **Key concepts**:
     - **DID Document**: A JSON object containing the Holder’s decentralized identifier (e.g., `did:iota`:...) and associated data like public keys.
     - **Stronghold Storage**: A secure storage system for private keys, accessed via `get_stronghold_storage`.
-    - **Signing Fragment**: A reference to the verification method (e.g., an Ed25519 key) used for signing credentials or presentations.
+    - **Signing Fragment**: A reference to the verification method (e.g., an `Ed25519 key`) used for signing credentials or presentations.
     - **Persistence**: Saves the DID and fragment to disk to avoid recreating them, ensuring consistency in the identity flow.
-    - **IOTA Client**: The get_funded_client function provides a funded client to anchor the DID to the IOTA network.
+    - **IOTA Client**: The `get_funded_client` function provides a funded client to anchor the DID to the IOTA network.
 
 ## Context
 
@@ -447,7 +453,7 @@ pub fn get_stronghold_storage(
 }
 ```
 
-## Explanation:
+### Explanation:
 
 - **What it does**: The `get_stronghold_storage` function creates a `StrongholdStorage` instance, which is used to securely store cryptographic keys. It takes an optional file path (`path`) for the Stronghold file; if none is provided, it generates a random path using `random_stronghold_path`. The function sets a default password (`secure_password`), builds a `StrongholdSecretManager`, and wraps it in a `StrongholdStorage` instance, returning it as a `Storage` type compatible with IOTA Identity.
 - **Why it matters**: Secure key storage is essential for managing private keys used in DID creation, VC issuance, and VP signing. Stronghold ensures keys are encrypted and protected, preventing unauthorized access. This function provides a reusable storage setup for all identity operations in the workshop.
@@ -457,7 +463,7 @@ pub fn get_stronghold_storage(
     - **Password**: Secures the Stronghold file to prevent unauthorized access.
     - **Storage Type**: Combines key storage (`JwkStorage`) and key ID storage (`KeyIdStorage`) for IOTA Identity compatibility.
 
-## Helper Function: `get_funded_client`
+### Helper Function: `get_funded_client`
 
 This function creates an IOTA Identity client with sufficient funds for network operations.
 
@@ -494,7 +500,7 @@ where
 }
 ```
 
-## Explanation:
+### Explanation:
 
 - **What it does**: The `get_funded_client` function generates a new Ed25519 key pair in the provided `storage`, creates a `StorageSigner` for signing transactions, derives an IOTA address from the public key, and requests test funds for that address from the IOTA test network faucet. It then builds an `IdentityClient` by combining a read-only IOTA client (from `get_read_only_client`) with the signer, enabling the client to perform funded operations like publishing DIDs.
 - **Why it matters**: Publishing a DID to the IOTA network requires funds to cover transaction fees. This function automates key generation, funding, and client setup, ensuring the client is ready for identity operations. It’s a critical step for creating and anchoring DIDs in the workshop.
@@ -505,7 +511,7 @@ where
     - **IdentityClient**: A client that interacts with the IOTA network for identity operations, requiring both a signer and network access.
     - **Test Funds**: Necessary for covering transaction costs on the IOTA test network.
 
-## Helper Function: `create_did_document`
+### Helper Function: `create_did_document`
 
 This function creates and publishes a DID document to the IOTA network.
 
@@ -545,7 +551,7 @@ where
 }
 ```
 
-## Explanation:
+### Explanation:
 
 - **What it does**: The `create_did_document` function creates a new, unpublished `IotaDocument` for the specified IOTA network, generates an Ed25519 verification method (key pair) stored in `storage`, and adds it to the document. It then publishes the document to the IOTA network using the provided `identity_client`, allocating a gas budget (`TEST_GAS_BUDGET`) for the transaction. The function returns the published DID document and the fragment (identifier) of the verification method.
 - **Why it matters**: This function is the core of DID creation, anchoring the Holder’s identity to the IOTA network. The published DID document and its verification method enable secure signing of credentials and presentations, forming the foundation of the workshop’s identity flow.
@@ -555,7 +561,7 @@ where
     - **Publish DID**: Anchors the DID document to the IOTA network, making it publicly resolvable.
     - **Gas Budget**: Allocates funds for the network transaction to publish the DID.
 
-## Integration with `create_or_load_did`
+### Integration with `create_or_load_did`
 
 These helper functions are called by `create_or_load_did` to create a new DID:
 
@@ -565,16 +571,13 @@ These helper functions are called by `create_or_load_did` to create a new DID:
 
 Together, they ensure the Holder’s DID is created securely, funded, and anchored to the IOTA network, or loaded from disk if it already exists.
 
-## Checkpoint
+### Checkpoint
 
 - Verify that `get_stronghold_storage` creates a Stronghold file (e.g., `holder.stronghold`).
 - Check that `get_funded_client` successfully requests test funds by monitoring the IOTA test network faucet.
 - Confirm that `create_did_document` produces a valid DID (e.g., `did:iota:...`) by printing the returned `IotaDocument`’s `id`.
 
-
-=======================================================
-
-### Step 2.3: Step 2: Issuer Issues VC
+### Step 2.3: Step 2: Issuer Issues Verifiable Credential
 
 | Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored |
 | :--- | :--- | :--- | :--- |
@@ -592,7 +595,7 @@ const handleIssueVc = async () => {
     }
 };
 ```
-## Explanation
+### Explanation
 
 - **What it does**: The `handleIssueVc` function sends a POST request to the `/issuer/issue-vc` endpoint with an empty body. The backend generates a VC and returns its JWT, which is stored in the React state (`setVcJwt`) for display and use in the next step.
 - **Why it matters**: This triggers the issuance of a degree credential, which the student can later present to employers. It connects the frontend UI to the backend’s VC logic.
@@ -699,7 +702,7 @@ let (issuer_doc, issuer_fragment) = create_or_load_did(
     - **DID Document**: Contains the Issuer’s identifier (e.g., `did:iota:...`) and verification methods.
     - **Fragment**: Identifies the signing key (e.g., `#sign-0`) in the DID document.
 
-2. ## Load Holder DID:
+2. ## Load Holder Decentralized Identifier:
 
 - **Code**:
 
@@ -714,7 +717,7 @@ let holder_doc = IotaDocument::from_json(&holder_doc_json).map_err(|_| StatusCod
     - File I/O: Uses Rust’s `fs` module to read the DID document from disk.
     - JSON Deserialization: Converts the JSON string into an `IotaDocument` using `from_json`.
 
-3. ## Build VC:
+3. ## Build Verifiable Credential:
 
 - Code:
 
@@ -740,7 +743,7 @@ let credential: Credential<Object> = CredentialBuilder::default()
     - **CredentialBuilder**: Builds a structured VC with standardized fields.
     - **JSON Macro**: The `serde_json::json!` macro creates a JSON object for the subject data.
 
-4. ## Sign VC:
+4. ## Sign Verifiable Credential:
 
 - Code:
 
@@ -765,7 +768,7 @@ let credential_jwt = issuer_doc
     - **JWT**: Encodes the VC for secure transmission to the frontend.
     - **JwsSignatureOptions**: Configures signing options (e.g., default algorithm is Ed25519).
 
-5. ## Return VC JWT:
+5. ## Return Verifiable Credential JWT:
 
 - Code:
 
@@ -788,7 +791,7 @@ The `issuer_issue_vc` function is triggered by the React frontend’s “Execute
 - `get_stronghold_storage`: To access the Issuer’s private keys for signing.
 - The Holder’s DID document (`holder_doc.json`) from Step 1.
 
-The returned VC JWT is stored in the frontend’s state and used in Step 3 to create a Verifiable Presentation (VP).
+The returned Verifiable Credential JWT is stored in the frontend’s state and used in Step 3 to create a Verifiable Presentation (VP).
 
 ## Checkpoint
 
@@ -797,8 +800,7 @@ The returned VC JWT is stored in the frontend’s state and used in Step 3 to cr
 - Check the frontend UI to confirm the VC JWT is displayed (e.g., a long string starting with `eyJ...`).
 - Use an online JWT decoder to inspect the VC’s contents (e.g., Alice’s name, degree).
 
-=================================================
-### Step 2.4: Step 3: Holder Creates VP
+### Step 2.4: Step 3: Holder Creates Verifiable Presentation
 
 | Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored |
 | :--- | :--- | :--- | :--- |
@@ -899,9 +901,9 @@ async fn holder_create_vp(Json(body): Json<VcJwt>) -> Result<Json<JwtResponse>, 
     - **Expiration**: The VP expires after 10 minutes, adding security by limiting its validity period.
     - **PresentationBuilder**: An IOTA Identity utility for constructing VPs with the presenter's DID and embedded credentials.
 
-## Step-by-Step Breakdown
+### Step-by-Step Breakdown
 
-1. **Load Holder DID**:
+1. Load Holder DID:
 
     - Code:
 
@@ -1044,7 +1046,7 @@ const handleValidateVp = async () => {
 
 In this step, the Verifier (employer) validates the Verifiable Presentation (VP) and its embedded Verifiable Credential (VC) received from the Holder (student, Alice). This ensures the degree credential is authentic, untampered, and issued by a trusted university, completing the IOTA Identity flow.
 
-## Backend: `verifier_validate` Function
+### Backend: `verifier_validate` Function
 
 The `verifier_validate` function handles the `/verifier/validate` endpoint in the Rust Axum backend, receiving the VP JWT from the frontend and performing a multi-step validation process.
 

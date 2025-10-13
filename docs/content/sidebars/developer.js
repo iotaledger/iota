@@ -304,6 +304,7 @@ const developer = [
             'developer/tutorials/retail-store',
             'developer/tutorials/validate-university-degree',
             'developer/tutorials/identity-workshop',
+            'developer/tutorials/identity-workshop-scaffold',
         ],
     },
     {
