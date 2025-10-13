@@ -31,9 +31,7 @@ use jsonrpsee::{RpcModule, core::RpcResult};
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::sync::Mutex;
 
-use crate::{
-    errors::IndexerError, indexer_reader::IndexerReader, types::IotaSystemStateSummaryView,
-};
+use crate::{errors::IndexerError, read::IndexerReader, types::IotaSystemStateSummaryView};
 
 /// Maximum amount of staked objects for querying.
 const MAX_QUERY_STAKED_OBJECTS: usize = 1000;

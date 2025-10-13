@@ -25,7 +25,7 @@ use iota_types::{
 };
 use jsonrpsee::{RpcModule, core::RpcResult, http_client::HttpClient};
 
-use crate::{errors::IndexerError, indexer_reader::IndexerReader, models::objects::StoredObject};
+use crate::{errors::IndexerError, models::objects::StoredObject, read::IndexerReader};
 
 #[derive(Clone)]
 pub(crate) struct ReadApi {

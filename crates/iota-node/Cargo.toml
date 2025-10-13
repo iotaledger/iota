@@ -56,6 +56,7 @@ iota-storage.workspace = true
 iota-tls.workspace = true
 iota-types.workspace = true
 move-vm-profiler.workspace = true
+shared-crypto.workspace = true
 telemetry-subscribers.workspace = true
 typed-store.workspace = true
 
