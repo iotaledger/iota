@@ -92,10 +92,12 @@ export function MenuList() {
     }
 
     function onSupportClick() {
+        ampli.openedLink({ url: DISCORD_SUPPORT_LINK });
         window.open(DISCORD_SUPPORT_LINK, '_blank', 'noopener noreferrer');
     }
 
     function onFAQClick() {
+        ampli.openedLink({ url: FAQ_LINK });
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
 

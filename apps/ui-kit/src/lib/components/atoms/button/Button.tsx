@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ButtonHtmlType, ButtonSize, ButtonType } from './button.enums';
+import { forwardRef } from 'react';
 import {
     PADDINGS,
     PADDINGS_ONLY_ICON,
@@ -60,41 +61,50 @@ export interface ButtonProps {
     testId?: string;
 }
 
-export function Button({
-    icon,
-    text,
-    disabled,
-    onClick,
-    fullWidth,
-    htmlType = ButtonHtmlType.Button,
-    size = ButtonSize.Medium,
-    type = ButtonType.Primary,
-    iconAfterText = false,
-    tabIndex = 0,
-    testId,
-}: ButtonProps): React.JSX.Element {
-    const paddingClasses = icon && !text ? PADDINGS_ONLY_ICON[size] : PADDINGS[size];
-    const textSizes = TEXT_CLASSES[size];
-    const backgroundColors = disabled ? DISABLED_BACKGROUND_COLORS[type] : BACKGROUND_COLORS[type];
-    const textColors = disabled ? TEXT_COLOR_DISABLED[type] : TEXT_COLORS[type];
-    return (
-        <button
-            onClick={onClick}
-            type={htmlType}
-            className={cx(
-                'state-layer relative flex items-center justify-center gap-2 rounded-full transition-all duration-150 ease-in disabled:cursor-not-allowed disabled:opacity-40',
-                paddingClasses,
-                backgroundColors,
-                fullWidth && 'w-full',
-                !iconAfterText ? 'flex-row' : 'flex-row-reverse',
-                `btn btn-${type}`,
-            )}
-            disabled={disabled}
-            tabIndex={tabIndex}
-            data-testid={testId}
-        >
-            {icon && <span className={cx(textColors)}>{icon}</span>}
-            {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}
-        </button>
-    );
-}
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+    (
+        {
+            icon,
+            text,
+            disabled,
+            onClick,
+            fullWidth,
+            htmlType = ButtonHtmlType.Button,
+            size = ButtonSize.Medium,
+            type = ButtonType.Primary,
+            iconAfterText = false,
+            tabIndex = 0,
+            testId,
+        },
+        ref,
+    ): React.JSX.Element => {
+        const paddingClasses = icon && !text ? PADDINGS_ONLY_ICON[size] : PADDINGS[size];
+        const textSizes = TEXT_CLASSES[size];
+        const backgroundColors = disabled
+            ? DISABLED_BACKGROUND_COLORS[type]
+            : BACKGROUND_COLORS[type];
+        const textColors = disabled ? TEXT_COLOR_DISABLED[type] : TEXT_COLORS[type];
+
+        return (
+            <button
+                ref={ref}
+                onClick={onClick}
+                type={htmlType}
+                className={cx(
+                    'state-layer relative flex items-center justify-center gap-2 rounded-full transition-all duration-150 ease-in disabled:cursor-not-allowed disabled:opacity-40',
+                    paddingClasses,
+                    backgroundColors,
+                    fullWidth && 'w-full',
+                    !iconAfterText ? 'flex-row' : 'flex-row-reverse',
+                    `btn btn-${type}`,
+                )}
+                disabled={disabled}
+                tabIndex={tabIndex}
+                data-testid={testId}
+            >
+                {icon && <span className={cx(textColors)}>{icon}</span>}
+                {text && <span className={cx('font-inter', textColors, textSizes)}>{text}</span>}
+            </button>
+        );
+    },
+);

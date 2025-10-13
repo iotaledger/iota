@@ -128,8 +128,6 @@ export const test = baseTest.extend<{
             });
 
             const { l1ExtensionUrl, l2ExtensionUrl } = await waitForExtensions(context);
-            console.log('Setting up browser l1ExtensionUrl:', l1ExtensionUrl);
-            console.log('Setting up browser l2ExtensionUrl:', l2ExtensionUrl);
 
             const testData: TestWalletData = getTestData(testId);
             if (!testData) throw new Error(`No test data found for ID: ${testId}`);
@@ -141,18 +139,14 @@ export const test = baseTest.extend<{
                 l2ExtensionUrl,
                 mnemonicL1,
                 mnemonicL2,
+                testId,
             );
 
             const page = await createPage(context);
             await page.bringToFront();
 
             await connectL1Wallet(page, context);
-            await page.waitForTimeout(500);
-            // Wait for L1 wallet to be connected before proceeding
-            const l1Connected = await waitForL1WalletConnected(page, { timeout: 30000 });
-            if (!l1Connected) {
-                throw new Error('L1 wallet failed to connect within timeout');
-            }
+            await waitForL1WalletConnected(page, { timeout: 30000 }, testId);
 
             await connectL2Wallet(page, context);
 
@@ -182,21 +176,13 @@ export const test = baseTest.extend<{
             if (!testData) throw new Error(`No test data found for ID: ${testId}`);
             const { addressL1, mnemonicL1, addressL2 } = testData;
 
-            console.log('Setting up L1 browser with extension URL:', extensionUrl);
-
-            await setupL1Wallet(context, extensionUrl, mnemonicL1);
+            await setupL1Wallet(context, extensionUrl, mnemonicL1, testId);
 
             const page = await createPage(context);
             await page.bringToFront();
 
             await connectL1Wallet(page, context);
-            await page.waitForTimeout(500);
-            // Wait for L1 wallet to be connected before proceeding
-            const l1Connected = await waitForL1WalletConnected(page, { timeout: 30000 });
-            if (!l1Connected) {
-                throw new Error('L1 wallet failed to connect within timeout');
-            }
-
+            await waitForL1WalletConnected(page, { timeout: 30000 }, testId);
             await setReceiverAddress(page, addressL2);
 
             return {
@@ -225,17 +211,14 @@ export const test = baseTest.extend<{
             if (!testData) throw new Error(`No test data found for ID: ${testId}`);
             const { addressL2, mnemonicL2, addressL1 } = testData;
 
-            console.log('Setting up L2 browser with extension URL:', extensionUrl);
-
-            await setupL2Wallet(context, extensionUrl, mnemonicL2);
+            await setupL2Wallet(context, extensionUrl, mnemonicL2, testId);
 
             const page = await createPage(context);
             await page.bringToFront();
+            await page.waitForLoadState('networkidle');
 
             await connectL2Wallet(page, context);
-            await page.waitForTimeout(500);
             await toggleBridgeDirection(page);
-            await page.waitForTimeout(500);
             await setReceiverAddress(page, addressL1);
 
             return {

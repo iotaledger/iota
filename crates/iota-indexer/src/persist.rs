@@ -15,11 +15,11 @@ use crate::{
     handlers::{EpochToCommit, TransactionObjectChangesToCommit},
     metrics::IndexerMetrics,
     models::{display::StoredDisplay, obj_indices::StoredObjectVersion},
-    rolling::transform::CheckpointObjectChanges,
-    store::{IndexerStore, IndexerStoreExt, PgIndexerStore},
+    store::{IndexerStore, PgIndexerStore},
+    transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction,
-        IndexerResult, TxIndexV2,
+        IndexerResult, TxIndex,
     },
 };
 
@@ -29,7 +29,7 @@ pub(crate) struct CheckpointDataToCommit {
     pub(crate) transactions: Vec<IndexedTransaction>,
     pub(crate) events: Vec<IndexedEvent>,
     pub(crate) event_indices: Vec<EventIndex>,
-    pub(crate) tx_indices: Vec<TxIndexV2>,
+    pub(crate) tx_indices: Vec<TxIndex>,
     pub(crate) display_updates: BTreeMap<String, StoredDisplay>,
     pub(crate) object_changes: CheckpointObjectChanges,
     pub(crate) object_history_changes: TransactionObjectChangesToCommit,
@@ -162,7 +162,7 @@ async fn commit_checkpoints(
         let _step_1_guard = metrics.checkpoint_db_commit_latency_step_1.start_timer();
         let mut persist_tasks = vec![
             state.persist_transactions(tx_batch),
-            state.persist_tx_indices_v2(tx_indices_batch),
+            state.persist_tx_indices(tx_indices_batch),
             state.persist_tx_global_order(tx_global_order_batch.clone()),
             state.persist_events(events_batch),
             state.persist_event_indices(event_indices_batch),

@@ -734,6 +734,7 @@ public(package) fun advance_epoch(
     reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
     epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
     max_committee_members_count: u64,
+    eligible_active_validators: vector<u64>,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
     self.epoch_start_timestamp_ms = epoch_start_timestamp_ms;
@@ -790,6 +791,7 @@ public(package) fun advance_epoch(
             self.parameters.validator_very_low_stake_threshold,
             self.parameters.validator_low_stake_grace_period,
             max_committee_members_count,
+            eligible_active_validators,
             ctx,
         );
 

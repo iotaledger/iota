@@ -531,6 +531,7 @@ fun advance_epoch(
     reward_slashing_rate: u64, // how much rewards are slashed to punish a validator, in bps.
     epoch_start_timestamp_ms: u64, // Timestamp of the epoch start
     max_committee_members_count: u64,
+    eligible_active_validators: vector<u64>,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
     let self = load_system_state_mut(wrapper);
@@ -548,6 +549,7 @@ fun advance_epoch(
         reward_slashing_rate,
         epoch_start_timestamp_ms,
         max_committee_members_count,
+        eligible_active_validators,
         ctx,
     );
 
@@ -762,6 +764,7 @@ public(package) fun advance_epoch_for_testing(
     reward_slashing_rate: u64,
     epoch_start_timestamp_ms: u64,
     max_committee_members_count: u64,
+    eligible_active_validators: vector<u64>,
     ctx: &mut TxContext,
 ): Balance<IOTA> {
     let storage_charge = balance::create_for_testing(storage_charge);
@@ -779,6 +782,7 @@ public(package) fun advance_epoch_for_testing(
         reward_slashing_rate,
         epoch_start_timestamp_ms,
         max_committee_members_count,
+        eligible_active_validators,
         ctx,
     );
     storage_rebate

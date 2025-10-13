@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 use crate::{
     errors::IndexerError,
@@ -17,13 +18,13 @@ use crate::{
     },
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
-        IndexedPackage, IndexedTransaction, IndexerResult, TxIndex, TxIndexV2,
+        IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
     },
 };
 
 pub mod checkpoint_handler;
-pub mod committer;
 pub mod objects_snapshot_handler;
+pub mod optimistic_pruner;
 pub mod pruner;
 pub mod tx_processor;
 
@@ -43,21 +44,6 @@ pub struct CheckpointDataToCommit {
     pub object_versions: Vec<StoredObjectVersion>,
     pub packages: Vec<IndexedPackage>,
     pub epoch: Option<EpochToCommit>,
-}
-
-#[derive(Debug)]
-pub(crate) struct CheckpointDataToCommitV2 {
-    pub(crate) checkpoint: IndexedCheckpoint,
-    pub(crate) transactions: Vec<IndexedTransaction>,
-    pub(crate) events: Vec<IndexedEvent>,
-    pub(crate) event_indices: Vec<EventIndex>,
-    pub(crate) tx_indices: Vec<TxIndexV2>,
-    pub(crate) display_updates: BTreeMap<String, StoredDisplay>,
-    pub(crate) object_changes: TransactionObjectChangesToCommit,
-    pub(crate) object_history_changes: TransactionObjectChangesToCommit,
-    pub(crate) object_versions: Vec<StoredObjectVersion>,
-    pub(crate) packages: Vec<IndexedPackage>,
-    pub(crate) epoch: Option<EpochToCommit>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -104,6 +90,7 @@ impl<T> CommonHandler<T> {
 
         loop {
             if cancel.is_cancelled() {
+                info!("transform and load task terminating gracefully");
                 return Ok(());
             }
 
@@ -117,6 +104,7 @@ impl<T> CommonHandler<T> {
                 match stream.next().now_or_never() {
                     Some(Some(tuple_chunk)) => {
                         if cancel.is_cancelled() {
+                            info!("transform and load task terminating gracefully");
                             return Ok(());
                         }
                         for (cp_seq, data) in tuple_chunk {
