@@ -15,6 +15,7 @@ export interface PasskeyAccountSerialized extends SerializedAccount {
     type: AccountType.PasskeyDerived;
     encrypted: string;
     publicKey: string;
+    credentialId: number[];
     providerOptions: BrowserPasswordProviderOptions;
 }
 
@@ -22,6 +23,7 @@ export interface PasskeyAccountSerializedUI extends SerializedUIAccount {
     type: AccountType.PasskeyDerived;
     publicKey: string;
     providerOptions: BrowserPasswordProviderOptions;
+    credentialId: number[];
 }
 
 export function isPasskeyAccountSerializedUI(
@@ -44,6 +46,7 @@ export class PasskeyAccount
         password: string;
         address: string;
         publicKey: string;
+        credentialId: number[];
         providerOptions: BrowserPasswordProviderOptions;
     }): Promise<Omit<PasskeyAccountSerialized, 'id'>> {
         return {
@@ -54,6 +57,7 @@ export class PasskeyAccount
             encrypted: await encrypt(inputs.password, {}),
             lastUnlockedOn: null,
             selected: false,
+            credentialId: inputs.credentialId,
             nickname:
                 inputs.providerOptions.user?.displayName ||
                 inputs.providerOptions.user?.name ||
@@ -95,8 +99,9 @@ export class PasskeyAccount
     }
 
     async toUISerialized(): Promise<PasskeyAccountSerializedUI> {
-        const { address, publicKey, type, selected, nickname, providerOptions } =
+        const { address, publicKey, type, selected, nickname, providerOptions, credentialId } =
             await this.getStoredData();
+
         return {
             id: this.id,
             type,
@@ -109,6 +114,7 @@ export class PasskeyAccount
             isPasswordUnlockable: true,
             isKeyPairExportable: false,
             providerOptions,
+            credentialId,
         };
     }
 }

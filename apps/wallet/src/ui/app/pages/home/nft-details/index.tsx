@@ -99,7 +99,7 @@ export function NFTDetailsPage() {
                                     </div>
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col gap-xxxs">
-                                            <span className="dark:text-iota-neutral-92 break-words text-title-lg text-iota-neutral-10">
+                                            <span className="break-words text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                                                 {nftDisplayData?.name}
                                             </span>
                                             {nftDisplayData?.description ? (
