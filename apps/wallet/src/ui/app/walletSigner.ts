@@ -5,9 +5,7 @@
 import {
     type ChainType,
     getAllNetworks,
-    getFullnodeUrl,
     IotaClient,
-    type NetworkId,
     type DryRunTransactionBlockResponse,
     type IotaTransactionBlockResponse,
     type IotaTransactionBlockResponseOptions,
