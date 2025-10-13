@@ -449,6 +449,7 @@ pub struct AdvanceEpochParams {
     pub reward_slashing_rate: u64,
     pub epoch_start_timestamp_ms: u64,
     pub max_committee_members_count: u64,
+    pub eligible_active_validators: Vec<u64>,
 }
 
 #[cfg(msim)]

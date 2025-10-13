@@ -23,15 +23,12 @@ mod ingestion_tests {
             transactions::{StoredTransaction, TxGlobalOrder},
             tx_indices::StoredTxDigest,
         },
-        rolling::CheckpointObjectChanges,
         schema::{
             checkpoints, objects, objects_snapshot, transactions, tx_digests, tx_global_order,
         },
-        store::{
-            PgIndexerStore,
-            indexer_store::{IndexerStore, IndexerStoreExt},
-        },
+        store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
+        transform::CheckpointObjectChanges,
         types::{EventIndex, IndexedDeletedObject, IndexedObject, TxIndex},
     };
     use iota_types::{

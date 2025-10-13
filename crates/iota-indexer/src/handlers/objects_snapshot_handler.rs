@@ -8,6 +8,7 @@ use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_metrics::{get_metrics, metered_channel::Sender, spawn_monitored_task};
 use iota_types::full_checkpoint_content::CheckpointData;
+use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
@@ -104,7 +105,7 @@ pub async fn start_objects_snapshot_handler(
     metrics: IndexerMetrics,
     snapshot_config: SnapshotLagConfig,
     cancel: CancellationToken,
-) -> IndexerResult<(ObjectsSnapshotHandler, u64)> {
+) -> IndexerResult<(ObjectsSnapshotHandler, u64, JoinHandle<IndexerResult<()>>)> {
     info!("Starting object snapshot handler...");
 
     let global_metrics = get_metrics().unwrap();
@@ -120,8 +121,13 @@ pub async fn start_objects_snapshot_handler(
 
     let watermark_hi = objects_snapshot_handler.get_watermark_hi().await?;
     let common_handler = CommonHandler::new(Box::new(objects_snapshot_handler.clone()));
-    spawn_monitored_task!(common_handler.start_transform_and_load(receiver, cancel));
-    Ok((objects_snapshot_handler, watermark_hi.unwrap_or_default()))
+    let task_handle =
+        spawn_monitored_task!(common_handler.start_transform_and_load(receiver, cancel));
+    Ok((
+        objects_snapshot_handler,
+        watermark_hi.unwrap_or_default(),
+        task_handle,
+    ))
 }
 
 impl ObjectsSnapshotHandler {

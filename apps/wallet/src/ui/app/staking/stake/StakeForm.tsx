@@ -102,7 +102,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
         useMutation({
-            mutationFn: async (formikHelpers: FormikHelpers<FormValues>) => {
+            mutationFn: async () => {
                 if (!transaction || !signer) {
                     throw new Error('Failed, missing required field');
                 }
@@ -121,11 +121,10 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                     showEvents: true,
                                 },
                             });
-                            formikHelpers.resetForm();
                             await signer.client.waitForTransaction({
                                 digest: tx.digest,
                             });
-                            return tx;
+                            return { tx };
                         } finally {
                             span?.end();
                         }
@@ -145,8 +144,16 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     async function handleSubmit(_: FormValues, formikHelpers: FormikHelpers<FormValues>) {
         try {
-            const response = await stakeTokenMutateAsync(formikHelpers);
-            onSuccess(response);
+            await stakeTokenMutateAsync(undefined, {
+                onSuccess(data) {
+                    ampli.stakedIota({
+                        stakedAmount: Number(amount),
+                        validatorAddress: validatorAddress || '',
+                    });
+                    formikHelpers.resetForm();
+                    onSuccess(data.tx);
+                },
+            });
         } catch (error) {
             toast.error(
                 <div className="flex max-w-xs flex-col overflow-hidden">

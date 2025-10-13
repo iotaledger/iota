@@ -921,7 +921,7 @@ mod tests {
         let store = &cluster.indexer_store;
         let fn_rpc_url = &cluster.validator_fullnode_handle.fullnode_handle.rpc_url;
         let indexer_metrics = store.get_metrics();
-        let indexer_reader = iota_indexer::indexer_reader::IndexerReader::new(store.blocking_cp());
+        let indexer_reader = iota_indexer::read::IndexerReader::new(store.blocking_cp());
 
         let optimistic_tx_executor =
             iota_indexer::optimistic_indexing::OptimisticTransactionExecutor::new(

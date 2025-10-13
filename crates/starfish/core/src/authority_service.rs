@@ -35,7 +35,7 @@ use crate::{
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::{DagState, MAX_HEADERS_PER_BUNDLE, MAX_SHARDS_PER_BUNDLE},
+    dag_state::DagState,
     encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
     network::{
@@ -303,16 +303,22 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // 4. Create block headers from bytes from a bundle
-
-        if serialized_block_bundle_parts.serialized_headers.len() > MAX_HEADERS_PER_BUNDLE {
-            return Err(ConsensusError::TooManyHeadersInABundle {
-                count: serialized_block_bundle_parts.serialized_headers.len(),
-                limit: MAX_HEADERS_PER_BUNDLE,
-            });
-        }
+        // 4.a. Truncate headers in bundle to max_headers_per_bundle
+        let serialized_headers = if serialized_block_bundle_parts.serialized_headers.len()
+            > self.context.parameters.max_headers_per_bundle
+        {
+            warn!("BlockBundle: {block_ref} exceeds max_headers_per_bundle.");
+            serialized_block_bundle_parts
+                .serialized_headers
+                .into_iter()
+                .take(self.context.parameters.max_headers_per_bundle)
+                .collect::<Vec<_>>()
+        } else {
+            serialized_block_bundle_parts.serialized_headers
+        };
 
         let mut additional_block_headers = vec![];
-        for serialized_header in serialized_block_bundle_parts.serialized_headers {
+        for serialized_header in serialized_headers {
             let digest = VerifiedBlockHeader::compute_digest(&serialized_header);
             if self.received_block_headers.contains(&digest) {
                 self.context
@@ -382,15 +388,22 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .inc_by(additional_block_headers.len() as u64);
 
         // 5. Collect shards from a bundle and check their proofs.
-        if serialized_block_bundle_parts.serialized_shards.len() > MAX_SHARDS_PER_BUNDLE {
-            return Err(ConsensusError::TooManyShardsInABundle {
-                count: serialized_block_bundle_parts.serialized_shards.len(),
-                limit: MAX_SHARDS_PER_BUNDLE,
-            });
-        }
+        // 5.a. Truncate shards in bundle to max_shards_per_bundle.
+        let serialized_shards = if serialized_block_bundle_parts.serialized_shards.len()
+            > self.context.parameters.max_shards_per_bundle
+        {
+            warn!("BlockBundle: {block_ref} exceeds max_shards_per_bundle.");
+            serialized_block_bundle_parts
+                .serialized_shards
+                .into_iter()
+                .take(self.context.parameters.max_shards_per_bundle)
+                .collect::<Vec<_>>()
+        } else {
+            serialized_block_bundle_parts.serialized_shards
+        };
 
         let mut verified_shards: Vec<ShardWithProof> = vec![];
-        for serialized_shard in serialized_block_bundle_parts.serialized_shards.iter() {
+        for serialized_shard in &serialized_shards {
             let shard: ShardWithProof =
                 bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
 
@@ -1277,7 +1290,7 @@ mod tests {
         context::Context,
         core::{Core, CoreSignals},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
-        dag_state::{DagState, MAX_HEADERS_PER_BUNDLE},
+        dag_state::DagState,
         encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
         leader_schedule::LeaderSchedule,
@@ -1653,8 +1666,7 @@ mod tests {
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new_with_commitment(1, 0, &context, &mut encoder).build(),
         );
-        let num_of_block_headers = MAX_HEADERS_PER_BUNDLE + 1;
-        let mut headers = (0..num_of_block_headers)
+        let headers = (0..context.parameters.max_headers_per_bundle)
             .map(|i| {
                 VerifiedBlockHeader::new_for_test(
                     TestBlockHeader::new_with_commitment(
@@ -1667,35 +1679,9 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>();
-        let big_block_bundle = BlockBundle {
-            verified_block: input_block.clone(),
-            verified_headers: headers.clone(),
-            serialized_shards: vec![],
-            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
-        };
-        let serialized_big_block_bundle = SerializedBlockBundle::try_from(
-            SerializedBlockBundleParts::try_from(big_block_bundle).unwrap(),
-        )
-        .unwrap();
 
         let service = authority_service.clone();
 
-        // Send a bundle with too many headers
-        let result = authority_service
-            .handle_subscribed_block_bundle(
-                context.committee.to_authority_index(0).unwrap(),
-                serialized_big_block_bundle,
-                &mut encoder,
-            )
-            .await;
-
-        if let Err(ConsensusError::TooManyHeadersInABundle { .. }) = result {
-            // everything is fine
-        } else {
-            panic!("Expected TooManyHeadersInABundle error, got {result:?}");
-        }
-
-        headers.pop();
         let block_bundle_with_big_rounds = BlockBundle {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
@@ -1725,7 +1711,7 @@ mod tests {
         // Create a block with a big round
         let input_block = VerifiedBlock::new_for_test(
             TestBlockHeader::new_with_commitment(
-                MAX_HEADERS_PER_BUNDLE as u32 + 1,
+                context.parameters.max_headers_per_bundle as u32 + 1,
                 0,
                 &context,
                 &mut encoder,

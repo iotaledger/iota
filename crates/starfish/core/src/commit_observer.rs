@@ -19,11 +19,11 @@ use crate::{
     block_header::{BlockHeaderAPI, VerifiedBlockHeader},
     commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
     context::Context,
-    dag_state::{DagState, MAX_TRANSACTIONS_ACK_DEPTH},
+    dag_state::DagState,
     data_manager::DataManager,
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
-    linearizer::{Linearizer, MAX_LINEARIZER_DEPTH},
+    linearizer::Linearizer,
     storage::Store,
 };
 
@@ -174,11 +174,11 @@ impl CommitObserver {
 
             // The earliest commit that still might acknowledge not-yet-committed
             // transactions that still have a chance of being committed is no higher than
-            // `last_pending_commit_index - MAX_TRANSACTIONS_ACK_CHECK -
-            // MAX_LINEARIZER_DEPTH`.
+            // `last_pending_commit_index - protocol_config.gc_depth() * 2, once for
+            // max linearizer depth and once for max transaction ack depth.
 
             let commit_index_to_recover_acks =
-                last_commit_index.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH);
+                last_commit_index.saturating_sub(self.context.protocol_config.gc_depth() * 2);
 
             recovery_lower_bound = recovery_lower_bound
                 .min(commit_index_to_recover_acks)
