@@ -12,13 +12,20 @@ export function useRestorePasskeyAccount() {
     return useMutation({
         mutationFn: async (provider: BrowserPasskeyProvider) => {
             const randomMessage1 = crypto.getRandomValues(new Uint8Array(32));
-            const possiblePks = await PasskeyKeypair.signAndRecover(provider, randomMessage1);
+            const { credentialId, pubKeys: possiblePks } = await PasskeyKeypair.signAndRecover(
+                provider,
+                randomMessage1,
+            );
 
             const randomMessage2 = crypto.getRandomValues(new Uint8Array(32));
-            const possiblePks2 = await PasskeyKeypair.signAndRecover(provider, randomMessage2);
+            const { pubKeys: possiblePks2 } = await PasskeyKeypair.signAndRecover(
+                provider,
+                randomMessage2,
+                [credentialId],
+            );
 
             const commonPk = findCommonPublicKey(possiblePks, possiblePks2);
-            const keypair = new PasskeyKeypair(commonPk.toRawBytes(), provider);
+            const keypair = new PasskeyKeypair(commonPk.toRawBytes(), provider, credentialId);
 
             return keypair;
         },

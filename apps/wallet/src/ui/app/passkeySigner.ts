@@ -12,9 +12,10 @@ export class PasskeySigner extends WalletSigner {
     readonly #address: string;
     readonly #publicKey: string;
     readonly #provider: BrowserPasskeyProvider;
+    readonly #credentialId: Uint8Array;
 
     constructor(
-        { address, providerOptions, publicKey }: PasskeyAccountSerializedUI,
+        { address, providerOptions, publicKey, credentialId }: PasskeyAccountSerializedUI,
         client: IotaClient,
     ) {
         super(client);
@@ -22,6 +23,7 @@ export class PasskeySigner extends WalletSigner {
         const { provider } = createBrowserPasskeyProvider({ providerOptions });
         this.#provider = provider;
         this.#publicKey = publicKey;
+        this.#credentialId = new Uint8Array(credentialId);
     }
 
     async getAddress(): Promise<string> {
@@ -47,7 +49,7 @@ export class PasskeySigner extends WalletSigner {
     async #requestSignature(data: Uint8Array): Promise<string> {
         try {
             const publicKeyBytes = fromBase64(this.#publicKey);
-            const keypair = new PasskeyKeypair(publicKeyBytes, this.#provider);
+            const keypair = new PasskeyKeypair(publicKeyBytes, this.#provider, this.#credentialId);
 
             const { signature } = await keypair.signTransaction(data);
             return signature;
