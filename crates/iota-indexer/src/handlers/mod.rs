@@ -7,6 +7,7 @@ use std::collections::BTreeMap;
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 use crate::{
     errors::IndexerError,
@@ -89,6 +90,7 @@ impl<T> CommonHandler<T> {
 
         loop {
             if cancel.is_cancelled() {
+                info!("transform and load task terminating gracefully");
                 return Ok(());
             }
 
@@ -102,6 +104,7 @@ impl<T> CommonHandler<T> {
                 match stream.next().now_or_never() {
                     Some(Some(tuple_chunk)) => {
                         if cancel.is_cancelled() {
+                            info!("transform and load task terminating gracefully");
                             return Ok(());
                         }
                         for (cp_seq, data) in tuple_chunk {
