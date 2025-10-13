@@ -53,7 +53,7 @@ public fun authenticate(
 ) {
     iotaccount::ensure_tx_sender_is_account_id(&account.id, ctx);
 
-    owner_public_key::authenticate_ed25519_signature(&account.id, signature, ctx.digest());
+    owner_public_key::authenticate_ed25519(&account.id, signature, ctx.digest());
     let now = clock.timestamp_ms();
     unlock_time::authenticate_unlock_time(&account.id, now);
 }

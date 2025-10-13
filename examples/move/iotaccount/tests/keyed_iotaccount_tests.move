@@ -297,7 +297,7 @@ fun test_authenticate_secp256r1_wrong_sender() {
         let signature =
             x"310d0ab3a8870f6ab3d775f3cdf0a60059293e431f3ded9d1f6efe2c70f12da5628c7853ae18464b4d426d8ff6d31ae50fe31e47886b13733ba2aae508541bcd";
 
-        keyed_iotaccount::authenticate_secp256k1(
+        keyed_iotaccount::authenticate_secp256r1(
             &account,
             hex::encode(signature),
             &auth_ctx,

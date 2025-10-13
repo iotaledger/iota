@@ -9,8 +9,6 @@ use iota::test_utils;
 use std::unit_test::assert_eq;
 use time_locked::unlock_time;
 
-// --------------------------------------- Time locked tools -----------------------------------------
-
 #[test]
 fun unlock_time_handling() {
     let mut scenario_val = test_scenario::begin(@0x0);

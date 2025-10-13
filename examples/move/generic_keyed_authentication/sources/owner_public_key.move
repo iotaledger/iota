@@ -73,7 +73,7 @@ public fun borrow(account_id: &UID): &vector<u8> {
     dynamic_field::borrow(account_id, OwnerPublicKey {})
 }
 
-public fun authenticate_ed25519_signature(
+public fun authenticate_ed25519(
     account_id: &UID,
     signature: vector<u8>,
     message: &vector<u8>,
