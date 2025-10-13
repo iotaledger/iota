@@ -9,12 +9,12 @@ use diesel::PgConnection;
 
 use crate::{
     errors::IndexerError,
-    handlers::{EpochToCommit, TransactionObjectChangesToCommit},
     models::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
         transactions::{CheckpointTxGlobalOrder, OptimisticTransaction},
     },
+    persist::{EpochToCommit, TransactionObjectChangesToCommit},
     transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
@@ -38,11 +38,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     fn persist_protocol_configs_and_feature_flags(
         &self,
         chain_id: Vec<u8>,
-    ) -> Result<(), IndexerError>;
-
-    async fn persist_objects(
-        &self,
-        object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_object_history(

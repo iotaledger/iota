@@ -15,8 +15,8 @@ use downcast::Any;
 use tracing::{error, info};
 
 use crate::{
-    db::ConnectionPool, errors::IndexerError, handlers::EpochToCommit,
-    models::epoch::StoredEpochInfo, store::diesel_macro::*,
+    db::ConnectionPool, errors::IndexerError, models::epoch::StoredEpochInfo,
+    persist::EpochToCommit, store::diesel_macro::*,
 };
 
 const GET_PARTITION_SQL: &str = {

@@ -39,6 +39,7 @@ pub mod handlers;
 pub mod indexer;
 pub mod metrics;
 pub mod models;
+pub mod objects_snaphsot;
 pub mod optimistic_indexing;
 pub mod persist;
 pub mod processors;

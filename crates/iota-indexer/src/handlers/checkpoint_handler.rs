@@ -32,17 +32,17 @@ use tracing::{info, warn};
 use crate::{
     db::ConnectionPool,
     errors::IndexerError,
-    handlers::{
-        EpochToCommit, TransactionObjectChangesToCommit,
-        tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
-    },
+    handlers::tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
     },
-    persist::{CheckpointDataToCommit, start_tx_checkpoint_commit_task},
+    persist::{
+        CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
+        start_tx_checkpoint_commit_task,
+    },
     store::{IndexerStore, PgIndexerStore},
     transform::CheckpointObjectChanges,
     types::{

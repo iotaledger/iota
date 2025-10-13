@@ -12,13 +12,12 @@ use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use super::{
-    CommonHandler, Handler, TransactionObjectChangesToCommit, checkpoint_handler::CheckpointHandler,
-};
 use crate::{
     config::SnapshotLagConfig,
     errors::IndexerError,
+    handlers::checkpoint_handler::CheckpointHandler,
     metrics::IndexerMetrics,
+    persist::{TransactionObjectChangesToCommit, Writer},
     store::{IndexerStore, PgIndexerStore},
     types::IndexerResult,
 };
@@ -62,12 +61,12 @@ impl Worker for ObjectsSnapshotHandler {
 }
 
 #[async_trait]
-impl Handler<TransactionObjectChangesToCommit> for ObjectsSnapshotHandler {
+impl Writer<TransactionObjectChangesToCommit> for ObjectsSnapshotHandler {
     fn name(&self) -> String {
         "objects_snapshot_handler".to_string()
     }
 
-    async fn load(
+    async fn persist(
         &self,
         transformed_data: Vec<TransactionObjectChangesToCommit>,
     ) -> IndexerResult<()> {
@@ -120,9 +119,8 @@ pub async fn start_objects_snapshot_handler(
         ObjectsSnapshotHandler::new(store.clone(), sender, metrics.clone(), snapshot_config);
 
     let watermark_hi = objects_snapshot_handler.get_watermark_hi().await?;
-    let common_handler = CommonHandler::new(Box::new(objects_snapshot_handler.clone()));
-    let task_handle =
-        spawn_monitored_task!(common_handler.start_transform_and_load(receiver, cancel));
+    let writer = objects_snapshot_handler.clone();
+    let task_handle = spawn_monitored_task!(writer.persist_sequentially(receiver, cancel));
     Ok((
         objects_snapshot_handler,
         watermark_hi.unwrap_or_default(),

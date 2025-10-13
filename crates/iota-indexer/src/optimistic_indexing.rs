@@ -20,17 +20,15 @@ use iota_types::{
 
 use crate::{
     errors::IndexerError,
-    handlers::{
-        TransactionObjectChangesToCommit,
-        checkpoint_handler::{
-            CheckpointHandler, IndexedTransactionComponents, try_extract_df_kind,
-        },
+    handlers::checkpoint_handler::{
+        CheckpointHandler, IndexedTransactionComponents, try_extract_df_kind,
     },
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
         transactions::{OptimisticTransaction, TxGlobalOrder},
     },
+    persist::TransactionObjectChangesToCommit,
     read::IndexerReader,
     store::{IndexerStore, PgIndexerStore},
     transactional_blocking_with_retry_with_conditional_abort,
