@@ -7,9 +7,9 @@ use std::{
     time::Duration,
 };
 
-use iota_config::local_ip_utils;
+use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_api::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, Config, EventSubscriber, GrpcReader,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, EventSubscriber, GrpcReader,
     GrpcServerHandle,
     client::{CheckpointClient, CheckpointContent, NodeClient},
     start_grpc_server,
@@ -366,7 +366,7 @@ impl RestStateReader for MockRestStateReader {
 
 async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     checkpoint_range: I,
-    config_customizer: impl FnOnce(&mut Config),
+    config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (
     GrpcServerHandle,
     CheckpointClient,
@@ -380,9 +380,9 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     let localhost = local_ip_utils::localhost_for_testing();
     let grpc_port = local_ip_utils::get_available_port(&localhost);
 
-    let mut config = Config {
+    let mut config = GrpcApiConfig {
         address: format!("{localhost}:{grpc_port}").parse().unwrap(),
-        ..Config::default()
+        ..GrpcApiConfig::default()
     };
     config_customizer(&mut config);
 

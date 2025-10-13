@@ -17,7 +17,7 @@ use iota_config::{
     Config, ExecutionCacheConfig, ExecutionCacheType, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
     IOTA_NETWORK_CONFIG, NodeConfig, PersistedConfig,
     genesis::Genesis,
-    node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
 };
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
@@ -1002,7 +1002,7 @@ pub struct TestClusterBuilder {
     fullnode_run_with_range: Option<RunWithRange>,
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_fw_config: Option<RemoteFirewallConfig>,
-    fullnode_grpc_api_config: Option<iota_grpc_api::Config>,
+    fullnode_grpc_api_config: Option<GrpcApiConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,
