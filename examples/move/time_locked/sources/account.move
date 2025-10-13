@@ -16,6 +16,7 @@ use time_locked::unlock_time;
 
 // === Structs ===
 
+// A "time locked" abstract account.
 public struct TimeLocked has key {
     id: UID,
 }
@@ -26,6 +27,13 @@ public struct TimeLocked has key {
 
 // === Public Functions ===
 
+// Create a `TimeLocked` account.
+//
+// The generated `TimeLocked` account is first protected by an
+// Ed25519 authentication and then by an unlock time point.
+// The provided `public_key` will be used for Ed25519 authentication,
+// while the `unlock_time` is the point in time after which (including) the account
+// can be accessed. This time is expected to be a unix timestamp in milliseconds.
 public fun create(
     public_key: vector<u8>,
     unlock_time: u64,
@@ -44,6 +52,9 @@ public fun create(
 }
 
 /// Authenticate access for the `Time locked account`.
+/// 
+/// Specific authenticate function for the `TimeLocked` account, not
+/// callable by general move code.
 public fun authenticate(
     account: &TimeLocked,
     clock: &Clock,
@@ -60,14 +71,18 @@ public fun authenticate(
 
 // === View Functions ===
 
+// Query the address of the `TimeLocked` account.
 public fun account_address(self: &TimeLocked): address {
     self.id.to_address()
 }
 
+// Borrow the unix timestamp in milliseconds after which (including) the account
+// will be accessible.
 public fun borrow_unlock_time(self: &TimeLocked): &u64 {
     unlock_time::borrow(&self.id)
 }
 
+// Borrow the public key used for Ed25519 authentication.
 public fun borrow_public_key(self: &TimeLocked): &vector<u8> {
     owner_public_key::borrow(&self.id)
 }
