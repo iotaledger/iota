@@ -60,14 +60,6 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_sync_last_known_own_block_timeout")]
     pub sync_last_known_own_block_timeout: Duration,
 
-    /// Interval in milliseconds to probe highest received rounds of peers.
-    #[serde(default = "Parameters::default_round_prober_interval_ms")]
-    pub round_prober_interval_ms: u64,
-
-    /// Timeout in milliseconds for a round prober request.
-    #[serde(default = "Parameters::default_round_prober_request_timeout_ms")]
-    pub round_prober_request_timeout_ms: u64,
-
     /// Proposing new block is stopped when the propagation delay is greater
     /// than this threshold. Propagation delay is the difference between the
     /// round of the last proposed block and the highest round from this
@@ -98,6 +90,16 @@ pub struct Parameters {
     // processed as consensus output, before throttling of outgoing commit fetches starts.
     #[serde(default = "Parameters::default_commit_sync_batches_ahead")]
     pub commit_sync_batches_ahead: usize,
+
+    /// Maximum number of headers to be included in a bundle. Headers exceeding
+    /// the max allowed limit will be truncated.
+    #[serde(default = "Parameters::default_max_headers_per_bundle")]
+    pub max_headers_per_bundle: usize,
+
+    /// Maximum number of transaction shards to be included in a bundle. Shards
+    /// exceeding the max allowed limit will be truncated.
+    #[serde(default = "Parameters::default_max_shards_per_bundle")]
+    pub max_shards_per_bundle: usize,
 
     /// Tonic network settings.
     #[serde(default = "TonicParameters::default")]
@@ -164,15 +166,6 @@ impl Parameters {
             Duration::from_secs(5)
         }
     }
-
-    pub(crate) fn default_round_prober_interval_ms() -> u64 {
-        if cfg!(msim) { 1000 } else { 5000 }
-    }
-
-    pub(crate) fn default_round_prober_request_timeout_ms() -> u64 {
-        if cfg!(msim) { 800 } else { 4000 }
-    }
-
     pub(crate) fn default_propagation_delay_stop_proposal_threshold() -> u32 {
         // Propagation delay is usually 0 round in production.
         if cfg!(msim) { 2 } else { 5 }
@@ -206,6 +199,14 @@ impl Parameters {
         // and unprocessed fetched commits limited.
         32
     }
+
+    pub(crate) fn default_max_headers_per_bundle() -> usize {
+        150
+    }
+
+    pub(crate) fn default_max_shards_per_bundle() -> usize {
+        150
+    }
 }
 
 impl Default for Parameters {
@@ -222,14 +223,14 @@ impl Default for Parameters {
             max_transactions_per_fetch: Parameters::default_max_transactions_per_fetch(),
             sync_last_known_own_block_timeout:
                 Parameters::default_sync_last_known_own_block_timeout(),
-            round_prober_interval_ms: Parameters::default_round_prober_interval_ms(),
-            round_prober_request_timeout_ms: Parameters::default_round_prober_request_timeout_ms(),
             propagation_delay_stop_proposal_threshold:
                 Parameters::default_propagation_delay_stop_proposal_threshold(),
             dag_state_cached_rounds: Parameters::default_dag_state_cached_rounds(),
             commit_sync_parallel_fetches: Parameters::default_commit_sync_parallel_fetches(),
             commit_sync_batch_size: Parameters::default_commit_sync_batch_size(),
             commit_sync_batches_ahead: Parameters::default_commit_sync_batches_ahead(),
+            max_headers_per_bundle: Parameters::default_max_headers_per_bundle(),
+            max_shards_per_bundle: Parameters::default_max_shards_per_bundle(),
             tonic: TonicParameters::default(),
         }
     }

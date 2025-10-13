@@ -1,5 +1,11 @@
 # @iota/ledgerjs-hw-app-iota
 
+## 0.4.0
+
+### Minor Changes
+
+-   d0aa220: Updates Axios to 1.12.0
+
 ## 0.3.0
 
 ### Minor Changes

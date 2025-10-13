@@ -23,7 +23,7 @@ use jsonrpsee::{RpcModule, core::RpcResult};
 
 use crate::{
     errors::IndexerError::{DateTimeParsing, InvalidArgument},
-    indexer_reader::IndexerReader,
+    read::IndexerReader,
     types::IotaSystemStateSummaryView,
 };
 

@@ -157,7 +157,7 @@ mod sim_only_tests {
 
                 let epoch_store = node.state().epoch_store_for_testing();
                 assert_eq!(epoch_store.epoch(), 2);
-                assert!(node.state().is_validator(&epoch_store));
+                assert!(node.state().is_committee_validator(&epoch_store));
             })
             .await;
     }

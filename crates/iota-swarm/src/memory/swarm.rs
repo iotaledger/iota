@@ -15,9 +15,9 @@ use anyhow::Result;
 use futures::future::try_join_all;
 use iota_config::{
     ExecutionCacheConfig, ExecutionCacheType, IOTA_GENESIS_FILENAME, NodeConfig,
-    node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
+    p2p::DiscoveryConfig,
 };
-use iota_grpc_api;
 use iota_macros::nondeterministic;
 use iota_names::config::IotaNamesConfig;
 use iota_node::IotaNodeHandle;
@@ -72,7 +72,8 @@ pub struct SwarmBuilder<R = OsRng> {
     state_accumulator_config: StateAccumulatorV1EnabledConfig,
     disable_fullnode_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
-    fullnode_grpc_api_config: Option<iota_grpc_api::Config>,
+    fullnode_grpc_api_config: Option<GrpcApiConfig>,
+    disable_address_verification_cooldown: bool,
 }
 
 impl SwarmBuilder {
@@ -106,6 +107,7 @@ impl SwarmBuilder {
             disable_fullnode_pruning: false,
             iota_names_config: None,
             fullnode_grpc_api_config: None,
+            disable_address_verification_cooldown: false,
         }
     }
 }
@@ -141,6 +143,7 @@ impl<R> SwarmBuilder<R> {
             disable_fullnode_pruning: self.disable_fullnode_pruning,
             iota_names_config: self.iota_names_config,
             fullnode_grpc_api_config: self.fullnode_grpc_api_config,
+            disable_address_verification_cooldown: self.disable_address_verification_cooldown,
         }
     }
 
@@ -314,7 +317,7 @@ impl<R> SwarmBuilder<R> {
         self
     }
 
-    pub fn with_fullnode_grpc_api_config(mut self, config: iota_grpc_api::Config) -> Self {
+    pub fn with_fullnode_grpc_api_config(mut self, config: GrpcApiConfig) -> Self {
         self.fullnode_grpc_api_config = Some(config);
         self
     }
@@ -349,6 +352,14 @@ impl<R> SwarmBuilder<R> {
         self.iota_names_config = Some(iota_names_config);
         self
     }
+
+    /// Disable address verification cooldown for test environments where nodes
+    /// frequently restart. This prevents nodes from being blocked from
+    /// reconnecting after crashes/restarts.
+    pub fn with_disabled_address_verification_cooldown(mut self) -> Self {
+        self.disable_address_verification_cooldown = true;
+        self
+    }
 }
 
 impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
@@ -362,7 +373,7 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
 
         let ingest_data = self.data_ingestion_dir.clone();
 
-        let network_config = self.network_config.unwrap_or_else(|| {
+        let mut network_config = self.network_config.unwrap_or_else(|| {
             let mut config_builder = ConfigBuilder::new(dir.as_ref());
 
             if let Some(genesis_config) = self.genesis_config {
@@ -427,6 +438,19 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             network_config
         });
 
+        if self.disable_address_verification_cooldown {
+            for validator in &mut network_config.validator_configs {
+                if let Some(ref mut discovery_config) = validator.p2p_config.discovery {
+                    discovery_config.address_verification_failure_cooldown_sec = Some(0);
+                } else {
+                    validator.p2p_config.discovery = Some(DiscoveryConfig {
+                        address_verification_failure_cooldown_sec: Some(0),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+
         let mut nodes: HashMap<_, _> = network_config
             .validator_configs()
             .iter()
@@ -448,6 +472,16 @@ impl<R: rand::RngCore + rand::CryptoRng> SwarmBuilder<R> {
             .with_fw_config(self.fullnode_fw_config)
             .with_disable_pruning(self.disable_fullnode_pruning)
             .with_iota_names_config(self.iota_names_config);
+
+        if self.disable_address_verification_cooldown {
+            let discovery_config = DiscoveryConfig {
+                address_verification_failure_cooldown_sec: Some(0),
+                ..Default::default()
+            };
+
+            fullnode_config_builder =
+                fullnode_config_builder.with_discovery_config(discovery_config);
+        }
 
         if let Some(spvc) = &self.fullnode_supported_protocol_versions_config {
             let supported_versions = match spvc {
@@ -574,12 +608,22 @@ impl Swarm {
             .collect()
     }
 
-    /// Returns an iterator over all currently active validators.
+    /// Returns an iterator over all current active validators.
     pub fn active_validators(&self) -> impl Iterator<Item = &Node> {
         self.validator_nodes().filter(|node| {
             node.get_node_handle().is_some_and(|handle| {
                 let state = handle.state();
-                state.is_validator(&state.epoch_store_for_testing())
+                state.is_active_validator(&state.epoch_store_for_testing())
+            })
+        })
+    }
+
+    /// Returns an iterator over all current active validators.
+    pub fn committee_validators(&self) -> impl Iterator<Item = &Node> {
+        self.validator_nodes().filter(|node| {
+            node.get_node_handle().is_some_and(|handle| {
+                let state = handle.state();
+                state.is_committee_validator(&state.epoch_store_for_testing())
             })
         })
     }
