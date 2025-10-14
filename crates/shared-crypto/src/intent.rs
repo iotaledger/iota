@@ -70,6 +70,7 @@ pub enum IntentScope {
                                 * purposes but was never included in messages. */
     ConsensusBlock = 7, // Used for consensus authority signature on block's digest.
     DiscoveryPeers = 8, // Used for reporting peer addresses in discovery
+    AuthorityCapabilities = 9, // Used for authority capabilities from non-committee authorities.
 }
 
 impl TryFrom<u8> for IntentScope {

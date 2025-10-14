@@ -1726,6 +1726,7 @@ impl<'a> DBTransaction<'a> {
         }
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn get<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned>(
         &self,
         db: &DBMap<K, V>,
@@ -1786,6 +1787,7 @@ impl<'a> DBTransaction<'a> {
         )
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn commit(self) -> Result<(), TypedStoreError> {
         fail_point!("transaction-commit");
         self.transaction.commit().map_err(|e| match e.kind() {

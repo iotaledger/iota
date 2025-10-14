@@ -93,6 +93,7 @@ async fn main() -> Result<(), IndexerError> {
                 indexer_metrics,
                 snapshot_config,
                 retention_config,
+                pruning_options.optimistic_pruner_batch_size,
                 CancellationToken::new(),
             )
             .await?;

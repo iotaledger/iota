@@ -190,7 +190,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         info!("Ignoring prior consensus commit for round {:?}", round);
     }
 
-    #[instrument(level = "debug", skip_all)]
+    #[instrument("handle_consensus_output", level = "trace", skip_all)]
     async fn handle_consensus_output(&mut self, consensus_output: impl ConsensusOutputAPI) {
         // This may block until one of two conditions happens:
         // - Number of uncommitted transactions in the writeback cache goes below the
@@ -433,6 +433,7 @@ impl AsyncTransactionScheduler {
     }
 
     pub async fn schedule(&self, transactions: Vec<VerifiedExecutableTransaction>) {
+        tracing::trace_span!("transaction_scheduler_enqueue");
         self.sender.send(transactions).await.ok();
     }
 
@@ -583,6 +584,9 @@ pub(crate) fn classify(transaction: &ConsensusTransaction) -> &'static str {
         ConsensusTransactionKind::CheckpointSignature(_) => "checkpoint_signature",
         ConsensusTransactionKind::EndOfPublish(_) => "end_of_publish",
         ConsensusTransactionKind::CapabilityNotificationV1(_) => "capability_notification_v1",
+        ConsensusTransactionKind::SignedCapabilityNotificationV1(_) => {
+            "signed_capability_notification_v1"
+        }
         ConsensusTransactionKind::NewJWKFetched(_, _, _) => "new_jwk_fetched",
         ConsensusTransactionKind::RandomnessDkgMessage(_, _) => "randomness_dkg_message",
         ConsensusTransactionKind::RandomnessDkgConfirmation(_, _) => "randomness_dkg_confirmation",
@@ -598,7 +602,6 @@ pub struct SequencedConsensusTransaction {
 }
 
 #[derive(Debug, Clone)]
-#[expect(clippy::large_enum_variant)]
 pub enum SequencedConsensusTransactionKind {
     External(ConsensusTransaction),
     System(VerifiedExecutableTransaction),

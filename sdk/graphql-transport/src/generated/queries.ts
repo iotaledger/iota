@@ -551,6 +551,11 @@ export type ChangeEpochTransactionV2 = {
    * epoch (in NANOS).
    */
   computationChargeBurned: Scalars['BigInt']['output'];
+  /**
+   * The list of active validators eligible for committee selection for the
+   * next epoch.
+   */
+  eligibleActiveValidators?: Maybe<Array<Scalars['BigInt']['output']>>;
   /** The next (to become) epoch. */
   epoch?: Maybe<Epoch>;
   /**
@@ -1498,7 +1503,12 @@ export type Epoch = {
    * epoch.
    */
   transactionBlocks: TransactionBlockConnection;
-  /** Validator related properties, including the active validators. */
+  /**
+   * Validator related properties, including the active validators.
+   *
+   * For epochs other than the current the data provided refer to the start
+   * of the epoch.
+   */
   validatorSet?: Maybe<ValidatorSet>;
 };
 
@@ -4339,6 +4349,8 @@ export type Query = {
    * error.
    */
   events: EventConnection;
+  /** Check if a transaction is indexed on the fullnode. */
+  isTransactionIndexedOnNode: Scalars['Boolean']['output'];
   /**
    * The latest version of the package at `address`.
    *
@@ -4525,6 +4537,11 @@ export type QueryEventsArgs = {
   filter?: InputMaybe<EventFilter>;
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryIsTransactionIndexedOnNodeArgs = {
+  digest: Scalars['String']['input'];
 };
 
 
@@ -5219,6 +5236,21 @@ export type TransactionBlock = {
    */
   gasInput?: Maybe<GasInput>;
   /**
+   * Returns whether the transaction has been indexed on the fullnode.
+   *
+   * This makes a request to the fullnode if the transaction is not part of
+   * a checkpoint to resolve the index status on the node.
+   *
+   * However, as this relies on the transaction data being already
+   * constructed or fetched from the backing database, it only makes
+   * sense to be used with `Mutation.executeTransactionBlock` on the
+   * resulting effects.
+   *
+   * Otherwise, it is recommended that you use
+   * `Query.isTransactionIndexedOnNode` for optimal performance.
+   */
+  indexedOnNode?: Maybe<Scalars['Boolean']['output']>;
+  /**
    * The type of this transaction as well as the commands and/or parameters
    * comprising the transaction of this kind.
    */
@@ -5562,14 +5594,17 @@ export type Validator = {
   operationCap?: Maybe<MoveObject>;
   /**
    * Pending pool token withdrawn during the current epoch, emptied at epoch
-   * boundaries.
+   * boundaries. Zero for past epochs.
    */
   pendingPoolTokenWithdraw?: Maybe<Scalars['BigInt']['output']>;
-  /** Pending stake amount for this epoch. */
+  /**
+   * Pending stake amount for the current epoch, emptied at epoch boundaries.
+   * Zero for past epochs.
+   */
   pendingStake?: Maybe<Scalars['BigInt']['output']>;
   /**
    * Pending stake withdrawn during the current epoch, emptied at epoch
-   * boundaries.
+   * boundaries. Zero for past epochs.
    */
   pendingTotalIotaWithdraw?: Maybe<Scalars['BigInt']['output']>;
   /** Total number of pool tokens issued by the pool. */
@@ -5864,10 +5899,17 @@ export type GetTypeLayoutQuery = { __typename?: 'Query', type: { __typename?: 'M
 export type GetDynamicFieldObjectQueryVariables = Exact<{
   parentId: Scalars['IotaAddress']['input'];
   name: DynamicFieldName;
+  showBcs?: InputMaybe<Scalars['Boolean']['input']>;
+  showContent?: InputMaybe<Scalars['Boolean']['input']>;
+  showDisplay?: InputMaybe<Scalars['Boolean']['input']>;
+  showType?: InputMaybe<Scalars['Boolean']['input']>;
+  showOwner?: InputMaybe<Scalars['Boolean']['input']>;
+  showPreviousTransaction?: InputMaybe<Scalars['Boolean']['input']>;
+  showStorageRebate?: InputMaybe<Scalars['Boolean']['input']>;
 }>;
 
 
-export type GetDynamicFieldObjectQuery = { __typename?: 'Query', owner?: { __typename?: 'Owner', dynamicObjectField?: { __typename?: 'DynamicField', value?: { __typename: 'MoveObject', owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any, digest?: string | null, version: any, storageRebate?: any | null, owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any } | null } | { __typename: 'Shared' } | null, previousTransactionBlock?: { __typename?: 'TransactionBlock', digest?: string | null } | null, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', data: any, type: { __typename?: 'MoveType', repr: string, layout: any } } | null } | null } | null } | { __typename: 'Shared' } | null } | { __typename: 'MoveValue' } | null } | null } | null };
+export type GetDynamicFieldObjectQuery = { __typename?: 'Query', owner?: { __typename?: 'Owner', dynamicObjectField?: { __typename?: 'DynamicField', value?: { __typename: 'MoveObject', owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any, digest?: string | null, version: any, storageRebate?: any | null, display?: Array<{ __typename?: 'DisplayEntry', key: string, value?: string | null, error?: string | null }> | null, owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any } | null } | { __typename: 'Shared' } | null, previousTransactionBlock?: { __typename?: 'TransactionBlock', digest?: string | null } | null, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', data: any, type: { __typename?: 'MoveType', repr: string, layout: any, signature: any } } | null } | null } | null } | { __typename: 'Shared' } | null } | { __typename: 'MoveValue' } | null } | null } | null };
 
 export type GetDynamicFieldsQueryVariables = Exact<{
   parentId: Scalars['IotaAddress']['input'];
@@ -5995,6 +6037,13 @@ export type ResolveNameServiceNamesQueryVariables = Exact<{
 
 
 export type ResolveNameServiceNamesQuery = { __typename?: 'Query', address?: { __typename?: 'Address', iotaNamesRegistrations: { __typename?: 'NameRegistrationConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'NameRegistration', name: string }> } } | null };
+
+export type IsTransactionIndexedOnNodeQueryVariables = Exact<{
+  digest: Scalars['String']['input'];
+}>;
+
+
+export type IsTransactionIndexedOnNodeQuery = { __typename?: 'Query', isTransactionIndexedOnNode: boolean };
 
 export type GetOwnedObjectsQueryVariables = Exact<{
   owner: Scalars['IotaAddress']['input'];
@@ -7599,7 +7648,7 @@ export const GetTypeLayoutDocument = new TypedDocumentString(`
 }
     `) as unknown as TypedDocumentString<GetTypeLayoutQuery, GetTypeLayoutQueryVariables>;
 export const GetDynamicFieldObjectDocument = new TypedDocumentString(`
-    query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!) {
+    query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!, $showBcs: Boolean = false, $showContent: Boolean = false, $showDisplay: Boolean = false, $showType: Boolean = false, $showOwner: Boolean = false, $showPreviousTransaction: Boolean = false, $showStorageRebate: Boolean = false) {
   owner(address: $parentId) {
     dynamicObjectField(name: $name) {
       value {
@@ -7612,8 +7661,13 @@ export const GetDynamicFieldObjectDocument = new TypedDocumentString(`
                 address
                 digest
                 version
-                storageRebate
-                owner {
+                display @include(if: $showDisplay) {
+                  key
+                  value
+                  error
+                }
+                storageRebate @include(if: $showStorageRebate)
+                owner @include(if: $showOwner) {
                   __typename
                   ... on Parent {
                     parent {
@@ -7621,10 +7675,27 @@ export const GetDynamicFieldObjectDocument = new TypedDocumentString(`
                     }
                   }
                 }
-                previousTransactionBlock {
+                previousTransactionBlock @include(if: $showPreviousTransaction) {
                   digest
                 }
-                asMoveObject {
+                asMoveObject @include(if: $showType) {
+                  contents {
+                    type {
+                      repr
+                    }
+                  }
+                }
+                asMoveObject @include(if: $showContent) {
+                  contents {
+                    data
+                    type {
+                      repr
+                      layout
+                      signature
+                    }
+                  }
+                }
+                asMoveObject @include(if: $showBcs) {
                   contents {
                     data
                     type {
@@ -8185,6 +8256,11 @@ export const ResolveNameServiceNamesDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<ResolveNameServiceNamesQuery, ResolveNameServiceNamesQueryVariables>;
+export const IsTransactionIndexedOnNodeDocument = new TypedDocumentString(`
+    query IsTransactionIndexedOnNode($digest: String!) {
+  isTransactionIndexedOnNode(digest: $digest)
+}
+    `) as unknown as TypedDocumentString<IsTransactionIndexedOnNodeQuery, IsTransactionIndexedOnNodeQueryVariables>;
 export const GetOwnedObjectsDocument = new TypedDocumentString(`
     query getOwnedObjects($owner: IotaAddress!, $limit: Int, $cursor: String, $showBcs: Boolean = false, $showContent: Boolean = false, $showDisplay: Boolean = false, $showType: Boolean = false, $showOwner: Boolean = false, $showPreviousTransaction: Boolean = false, $showStorageRebate: Boolean = false, $filter: ObjectFilter) {
   address(address: $owner) {

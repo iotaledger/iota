@@ -128,7 +128,9 @@ export function DepositForm({
     } = register(BridgeFormInputName.DepositAmount);
     return (
         <form className="flex flex-col gap-y-md--rs" onSubmit={handleSubmit(onSubmit)}>
-            <CoinSelector />
+            <div data-testid="coin-selector">
+                <CoinSelector />
+            </div>
             <Input
                 label="Amount"
                 type={InputType.NumericFormat}

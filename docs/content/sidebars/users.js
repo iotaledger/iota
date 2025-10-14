@@ -27,6 +27,7 @@ const users = [
                 label: 'Import Method',
                 items: [
                   'users/iota-wallet/how-to/import/ledger',
+                  'users/iota-wallet/how-to/import/keystone',
                   'users/iota-wallet/how-to/import/mnemonic',
                   'users/iota-wallet/how-to/import/seed',
                   'users/iota-wallet/how-to/import/balance-finder',

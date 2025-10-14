@@ -5,7 +5,7 @@
 pub(crate) use indexer_analytics_store::IndexerAnalyticalStore;
 pub(crate) use indexer_store::*;
 pub use pg_indexer_analytical_store::PgIndexerAnalyticalStore;
-pub use pg_indexer_store::PgIndexerStore;
+pub use pg_indexer_store::{PgIndexerStore, TxGlobalOrderCursor};
 
 mod indexer_analytics_store;
 pub mod indexer_store;

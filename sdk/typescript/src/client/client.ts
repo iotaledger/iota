@@ -98,6 +98,7 @@ import type {
     IotaNameRecord,
     IotaNamesReverseLookupParams,
     IotaNamesFindAllRegistrationNFTsParams,
+    IsTransactionIndexedOnNodeParams,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -733,8 +734,20 @@ export class IotaClient {
 
     /**
      * Return the dynamic field object information for a specified object
+     * Uses the V2.
      */
-    async getDynamicFieldObject(input: GetDynamicFieldObjectParams): Promise<IotaObjectResponse> {
+    async getDynamicFieldObject(input: GetDynamicFieldObjectV2Params): Promise<IotaObjectResponse> {
+        return await this.transport.request({
+            method: 'iotax_getDynamicFieldObjectV2',
+            params: [input.parentObjectId, input.name, input.options],
+        });
+    }
+
+    /**
+     * Return the dynamic field object information for a specified object
+     * @deprecated `getDynamicFieldObjectV1` is deprecated, prefer to use `getDynamicFieldObject` which uses V2.
+     */
+    async getDynamicFieldObjectV1(input: GetDynamicFieldObjectParams): Promise<IotaObjectResponse> {
         return await this.transport.request({
             method: 'iotax_getDynamicFieldObject',
             params: [input.parentId, input.name],
@@ -749,7 +762,7 @@ export class IotaClient {
     ): Promise<IotaObjectResponse> {
         return await this.transport.request({
             method: 'iotax_getDynamicFieldObjectV2',
-            params: [input.parentObjectId, input.name],
+            params: [input.parentObjectId, input.name, input.options],
         });
     }
 
@@ -972,6 +985,16 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iotax_iotaNamesFindAllRegistrationNFTs',
             params: [input.address, input.cursor, input.limit, input.options],
+        });
+    }
+
+    /**
+     * Check if a Transaction has been indexed on the Node.
+     */
+    async isTransactionIndexedOnNode(input: IsTransactionIndexedOnNodeParams): Promise<boolean> {
+        return await this.transport.request({
+            method: 'iota_isTransactionIndexedOnNode',
+            params: [input.digest],
         });
     }
 }

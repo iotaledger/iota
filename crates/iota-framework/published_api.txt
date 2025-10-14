@@ -610,6 +610,9 @@ calculate_total_active_stakes
 calculate_total_committee_stakes
 	fun
 	0x3::validator_set
+validate_eligible_validators_voting_power
+	fun
+	0x3::validator_set
 adjust_next_epoch_commission_rate
 	fun
 	0x3::validator_set
@@ -658,7 +661,7 @@ active_validator_addresses
 committee_validator_addresses
 	public(package) fun
 	0x3::validator_set
-select_committee_members_top_n_stakers
+select_committee_members_from_eligible
 	public(package) fun
 	0x3::validator_set
 process_new_committee
