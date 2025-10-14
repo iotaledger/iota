@@ -817,7 +817,6 @@ impl DagState {
             let transactions_opt = self.recent_transactions.get(block_ref);
             if let (Some(header), Some(transactions)) = (header_opt, transactions_opt) {
                 blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
-                continue;
             } else {
                 warn!("Block header or transactions missing for block ref: {block_ref}");
             }
