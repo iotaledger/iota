@@ -8,7 +8,7 @@ import { addVirtualAuthenticator, createPasskeyWallet } from './utils/auth';
 import { generateKeypairFromMnemonic } from './utils/localnet';
 import { setPresence, setVerified } from './utils/passkeySigner';
 
-const username = 'IOTA Passkey e2e Test';
+const username = 'IOTAPasskey';
 
 test('Should register a passkey account type with platform authenticator', async ({
     page,
