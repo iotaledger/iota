@@ -221,7 +221,7 @@ impl Core {
         let last_proposed_block = match self.try_propose(true).unwrap() {
             (Some(block), _) => Some(block),
             (None, _) => {
-                let last_proposed_block = self.dag_state.read().get_last_proposed_block();
+                let last_proposed_block = self.dag_state.read().recover_own_block();
                 if self.should_propose() {
                     assert!(
                         last_proposed_block.round() != GENESIS_ROUND,
@@ -1132,10 +1132,6 @@ impl Core {
         self.last_proposed_block_header().round()
     }
 
-    #[expect(dead_code)]
-    fn last_proposed_block(&self) -> VerifiedBlock {
-        self.dag_state.read().get_last_proposed_block()
-    }
 
     fn last_proposed_block_header(&self) -> VerifiedBlockHeader {
         self.dag_state.read().get_last_proposed_block_header()

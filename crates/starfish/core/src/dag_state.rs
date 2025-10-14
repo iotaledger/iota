@@ -747,7 +747,9 @@ impl DagState {
 
     /// Gets the last proposed block from this authority.
     /// If no block is proposed yet, returns Genesis block.
-    pub(crate) fn get_last_proposed_block(&self) -> VerifiedBlock {
+    /// NOTE: the method panics if transactions or headers are not found in DAG State for the
+    /// most recent header, as that should not happen for correct initialization
+    pub(crate) fn recover_last_own_block(&self) -> VerifiedBlock {
         if let Some(last) = self.recent_headers_refs_by_authority[self.context.own_index].last() {
             let header = self
                 .recent_block_headers
@@ -800,7 +802,8 @@ impl DagState {
 
     /// Returns own cached recent blocks.
     /// Blocks returned are limited to round >= `start`, and cached.
-    /// NOTE: caller should not assume returned blocks are always chained.
+    /// NOTE: the method is soft in the sense that the if transactions are not
+    /// found for a block header, that block is not included in the return result
     pub(crate) fn get_own_cached_blocks(&self, start: Round) -> Vec<VerifiedBlock> {
         let authority = self.context.own_index;
         let mut blocks = vec![];
@@ -808,16 +811,18 @@ impl DagState {
             Included(BlockRef::new(start, authority, BlockHeaderDigest::MIN)),
             Unbounded,
         )) {
-            // Panic if header or transactions are missing for the block_ref.
-            let header = self
+            let header_opt = self
                 .recent_block_headers
-                .get(block_ref)
-                .unwrap_or_else(|| panic!("Missing block header for {block_ref:?}"));
-            let transactions = self
+                .get(block_ref);
+            let transactions_opt = self
                 .recent_transactions
-                .get(block_ref)
-                .unwrap_or_else(|| panic!("Missing transactions for {block_ref:?}"));
-            blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
+                .get(block_ref);
+            if let (Some(header), Some(transactions)) = (header_opt, transactions_opt) {
+                blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
+                continue;
+            } else {
+                warn!("Block header or transactions missing for block ref: {block_ref}");
+            }
         }
         blocks
     }
@@ -2472,7 +2477,7 @@ mod test {
 
         // Check the last proposed block
         assert_eq!(
-            dag_state.get_last_proposed_block(),
+            dag_state.recover_own_block(),
             dag_builder.blocks(num_rounds..=num_rounds)[0].clone()
         );
 
@@ -2505,7 +2510,7 @@ mod test {
 
         // The last proposed block should be from the round 5
         assert_eq!(
-            dag_state.get_last_proposed_block(),
+            dag_state.recover_own_block(),
             dag_builder.blocks(5..=5)[0].clone()
         );
 
@@ -2953,7 +2958,7 @@ mod test {
                 .into_iter()
                 .find(|block| block.author() == context.own_index)
                 .unwrap();
-            assert_eq!(dag_state.read().get_last_proposed_block(), my_genesis_block);
+            assert_eq!(dag_state.read().recover_own_block(), my_genesis_block);
         }
 
         // WHEN adding some block headers for authorities, only the last ones should be
