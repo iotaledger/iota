@@ -475,18 +475,12 @@ const developer = [
         id: 'developer/workshops/index',
     },
     items: [
-        {
-            type: 'category',
-            label: 'Minting and Managing Tokens',
-            items: [
-                {
-                    type: 'doc',
-                    id: 'developer/workshops/minting-managing-tokens/workshop-token-dapp',
-                    label: 'Workshop Token dApp',
-                },
-            ],
-        },
-    ],
+    {
+      type: 'doc',
+      id: 'developer/workshops/minting-managing-tokens',
+      label: 'Minting and Managing Tokens',
+    },
+  ],
     },
     {
         type: 'category',
