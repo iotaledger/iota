@@ -10,6 +10,7 @@ use std::{
 };
 
 use arc_swap::ArcSwapOption;
+use consensus_core::Round;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
@@ -92,6 +93,7 @@ use crate::{
     authority::{
         AuthorityMetrics, ResolverWrapper,
         epoch_start_configuration::EpochStartConfiguration,
+        shared_object_congestion_tracker::CongestionPerObjectDebt,
         shared_object_version_manager::{
             AssignedTxAndVersions, ConsensusSharedObjVerAssignment, SharedObjVerManager,
         },
@@ -675,6 +677,10 @@ pub struct AuthorityEpochTables {
 
     /// Holds the timestamp of the most recently generated round of randomness.
     pub(crate) randomness_last_round_timestamp: DBMap<u64, CommitTimestampMs>,
+
+    /// Accumulated per-object debts for congestion control.
+    pub(crate) congestion_control_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+    pub(crate) congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -2786,7 +2792,7 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        let mut output = ConsensusCommitOutput::new();
+        let mut output = ConsensusCommitOutput::new(consensus_commit_info.round as Round);
 
         // Load transactions deferred from previous commits.
         let deferred_txs: Vec<(DeferralKey, Vec<DeferredTransaction>)> = self
@@ -2921,6 +2927,33 @@ impl AuthorityPerEpochStore {
             &mut sequenced_randomness_transactions,
             self.protocol_config.consensus_transaction_ordering(),
         );
+
+        // We track transaction execution duration separately for regular transactions
+        // and transactions using randomness, since they will be in different
+        // checkpoints.
+        let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
+            self.protocol_config().per_object_congestion_control_mode(),
+            self.protocol_config()
+                .congestion_control_min_free_execution_slot(),
+            self.consensus_quarantine.read().load_initial_object_debts(
+                self,
+                consensus_commit_info.round as Round,
+                false,
+                &sequenced_transactions,
+            )?,
+        );
+        let shared_object_using_randomness_congestion_tracker = SharedObjectCongestionTracker::new(
+            self.protocol_config().per_object_congestion_control_mode(),
+            self.protocol_config()
+                .congestion_control_min_free_execution_slot(),
+            self.consensus_quarantine.read().load_initial_object_debts(
+                self,
+                consensus_commit_info.round as Round,
+                true,
+                &sequenced_randomness_transactions,
+            )?,
+        );
+
         let consensus_transactions: Vec<_> = system_transactions
             .into_iter()
             .chain(sequenced_transactions)
@@ -2948,6 +2981,8 @@ impl AuthorityPerEpochStore {
                 dkg_failed,
                 randomness_round,
                 authority_metrics,
+                shared_object_congestion_tracker,
+                shared_object_using_randomness_congestion_tracker,
             )
             .await?;
         self.finish_consensus_certificate_process(&verified_transactions);
@@ -3214,7 +3249,7 @@ impl AuthorityPerEpochStore {
         cache_reader: &dyn ObjectCacheRead,
         transactions: &[VerifiedExecutableTransaction],
     ) -> IotaResult {
-        let mut output = ConsensusCommitOutput::new();
+        let mut output = ConsensusCommitOutput::new(0);
         self.process_consensus_transaction_shared_object_versions(
             cache_reader,
             transactions,
@@ -3265,6 +3300,8 @@ impl AuthorityPerEpochStore {
         dkg_failed: bool,
         randomness_round: Option<RandomnessRound>,
         authority_metrics: &Arc<AuthorityMetrics>,
+        mut shared_object_congestion_tracker: SharedObjectCongestionTracker,
+        mut shared_object_using_randomness_congestion_tracker: SharedObjectCongestionTracker,
     ) -> IotaResult<(
         Vec<VerifiedExecutableTransaction>,    // transactions to schedule
         Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
@@ -3283,21 +3320,6 @@ impl AuthorityPerEpochStore {
         let mut deferred_txns: BTreeMap<DeferralKey, Vec<DeferredTransaction>> = BTreeMap::new();
         let mut cancelled_txns: BTreeMap<TransactionDigest, CancelConsensusCertificateReason> =
             BTreeMap::new();
-
-        // We track transaction execution duration separately for regular transactions
-        // and transactions using randomness, since they will be in different
-        // checkpoints.
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
-            self.protocol_config().per_object_congestion_control_mode(),
-            self.protocol_config()
-                .congestion_control_min_free_execution_slot(),
-        );
-        let mut shared_object_using_randomness_congestion_tracker =
-            SharedObjectCongestionTracker::new(
-                self.protocol_config().per_object_congestion_control_mode(),
-                self.protocol_config()
-                    .congestion_control_min_free_execution_slot(),
-            );
 
         fail_point_arg!(
             "initial_congestion_tracker",
@@ -3469,6 +3491,19 @@ impl AuthorityPerEpochStore {
                 shared_object_using_randomness_congestion_tracker.max_occupied_slot_end_time()
                     as i64,
             );
+
+        if let Some(max_execution_duration_per_commit) =
+            self.get_max_execution_duration_per_commit()
+        {
+            output.set_congestion_control_object_debts(
+                shared_object_congestion_tracker
+                    .accumulated_debts(max_execution_duration_per_commit),
+            );
+            output.set_congestion_control_randomness_object_debts(
+                shared_object_using_randomness_congestion_tracker
+                    .accumulated_debts(max_execution_duration_per_commit),
+            );
+        }
 
         if randomness_state_updated {
             if let Some(randomness_manager) = randomness_manager.as_mut() {

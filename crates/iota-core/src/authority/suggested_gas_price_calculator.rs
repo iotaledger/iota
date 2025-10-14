@@ -265,6 +265,7 @@ pub mod suggested_gas_price_calculator_test_utils {
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             per_object_congestion_control_mode,
             min_free_execution_slot_assigned,
+            vec![],
         );
 
         for (object_id, duration, gas_price) in init_values {
@@ -594,7 +595,7 @@ mod tests {
         let max_gas_price = ProtocolConfig::get_for_max_version_UNSAFE().max_gas_price();
 
         let mut shared_object_congestion_tracker =
-            SharedObjectCongestionTracker::new(mode, min_free_execution_slot_assigned);
+            SharedObjectCongestionTracker::new(mode, min_free_execution_slot_assigned, vec![]);
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
             Some(max_execution_duration_per_commit),

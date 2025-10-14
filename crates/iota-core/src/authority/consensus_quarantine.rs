@@ -4,6 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 
+use consensus_core::Round;
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
@@ -23,7 +24,10 @@ use typed_store::{Map, rocks::DBBatch};
 
 use super::*;
 use crate::{
-    authority::shared_object_version_manager::AssignedTxAndVersions,
+    authority::{
+        shared_object_congestion_tracker::CongestionPerObjectDebt,
+        shared_object_version_manager::AssignedTxAndVersions,
+    },
     checkpoints::PendingCheckpoint,
     consensus_handler::SequencedConsensusTransactionKey,
     epoch::{
@@ -38,6 +42,7 @@ use crate::{
 #[derive(Default)]
 pub(crate) struct ConsensusCommitOutput {
     // Consensus and reconfig state
+    consensus_round: Round,
     consensus_messages_processed: BTreeSet<SequencedConsensusTransactionKey>,
     end_of_publish: BTreeSet<AuthorityName>,
     reconfig_state: Option<ReconfigState>,
@@ -66,11 +71,18 @@ pub(crate) struct ConsensusCommitOutput {
     // jwk state
     pending_jwks: BTreeSet<(AuthorityName, JwkId, JWK)>,
     active_jwks: BTreeSet<(u64, (JwkId, JWK))>,
+
+    // congestion control state
+    congestion_control_object_debts: Vec<(ObjectID, u64)>,
+    congestion_control_randomness_object_debts: Vec<(ObjectID, u64)>,
 }
 
 impl ConsensusCommitOutput {
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(consensus_round: Round) -> Self {
+        Self {
+            consensus_round,
+            ..Default::default()
+        }
     }
 
     fn get_randomness_last_round_timestamp(&self) -> Option<TimestampMs> {
@@ -183,6 +195,17 @@ impl ConsensusCommitOutput {
         self.active_jwks.insert((round, key));
     }
 
+    pub fn set_congestion_control_object_debts(&mut self, object_debts: Vec<(ObjectID, u64)>) {
+        self.congestion_control_object_debts = object_debts;
+    }
+
+    pub fn set_congestion_control_randomness_object_debts(
+        &mut self,
+        object_debts: Vec<(ObjectID, u64)>,
+    ) {
+        self.congestion_control_randomness_object_debts = object_debts;
+    }
+
     pub fn write_to_batch(
         self,
         epoch_store: &AuthorityPerEpochStore,
@@ -283,6 +306,28 @@ impl ConsensusCommitOutput {
                 assert_eq!(j.0, round);
                 (j, ())
             }),
+        )?;
+        batch.insert_batch(
+            &tables.congestion_control_object_debts,
+            self.congestion_control_object_debts
+                .into_iter()
+                .map(|(object_id, debt)| {
+                    (
+                        object_id,
+                        CongestionPerObjectDebt::new(self.consensus_round, debt),
+                    )
+                }),
+        )?;
+        batch.insert_batch(
+            &tables.congestion_control_randomness_object_debts,
+            self.congestion_control_randomness_object_debts
+                .into_iter()
+                .map(|(object_id, debt)| {
+                    (
+                        object_id,
+                        CongestionPerObjectDebt::new(self.consensus_round, debt),
+                    )
+                }),
         )?;
 
         Ok(())
@@ -446,6 +491,12 @@ pub(crate) struct ConsensusOutputQuarantine {
     // Any un-committed next versions are stored here.
     shared_object_next_versions: RefCountedHashMap<ObjectID, SequenceNumber>,
 
+    // The most recent congestion control debts for objects. Uses a ref-count to track
+    // which objects still exist in some element of output_queue.
+    congestion_control_object_debts: RefCountedHashMap<ObjectID, CongestionPerObjectDebt>,
+    congestion_control_randomness_object_debts:
+        RefCountedHashMap<ObjectID, CongestionPerObjectDebt>,
+
     processed_consensus_messages: RefCountedHashMap<SequencedConsensusTransactionKey, ()>,
 
     metrics: Arc<EpochMetrics>,
@@ -463,6 +514,8 @@ impl ConsensusOutputQuarantine {
             builder_checkpoint_summary: BTreeMap::new(),
             builder_digest_to_checkpoint: HashMap::new(),
             shared_object_next_versions: RefCountedHashMap::new(),
+            congestion_control_randomness_object_debts: RefCountedHashMap::new(),
+            congestion_control_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
             metrics: authority_metrics,
         }
@@ -479,6 +532,7 @@ impl ConsensusOutputQuarantine {
         epoch_store: &AuthorityPerEpochStore,
     ) -> IotaResult {
         self.insert_shared_object_next_versions(&output);
+        self.insert_congestion_control_debts(&output);
         self.insert_processed_consensus_messages(&output);
         self.output_queue.push_back(output);
 
@@ -616,6 +670,7 @@ impl ConsensusOutputQuarantine {
                 let output = self.output_queue.pop_front().unwrap();
                 self.remove_shared_object_next_versions(&output);
                 self.remove_processed_consensus_messages(&output);
+                self.remove_congestion_control_debts(&output);
                 epoch_store.remove_shared_version_assignments(
                     output
                         .pending_checkpoints
@@ -641,6 +696,34 @@ impl ConsensusOutputQuarantine {
                 self.shared_object_next_versions
                     .insert(*object_id, *next_version);
             }
+        }
+    }
+
+    fn insert_congestion_control_debts(&mut self, output: &ConsensusCommitOutput) {
+        let current_round = output.consensus_round;
+
+        for (object_id, debt) in output.congestion_control_object_debts.iter() {
+            self.congestion_control_object_debts.insert(
+                *object_id,
+                CongestionPerObjectDebt::new(current_round, *debt),
+            );
+        }
+
+        for (object_id, debt) in output.congestion_control_randomness_object_debts.iter() {
+            self.congestion_control_randomness_object_debts.insert(
+                *object_id,
+                CongestionPerObjectDebt::new(current_round, *debt),
+            );
+        }
+    }
+
+    fn remove_congestion_control_debts(&mut self, output: &ConsensusCommitOutput) {
+        for (object_id, _) in output.congestion_control_object_debts.iter() {
+            self.congestion_control_object_debts.remove(object_id);
+        }
+        for (object_id, _) in output.congestion_control_randomness_object_debts.iter() {
+            self.congestion_control_randomness_object_debts
+                .remove(object_id);
         }
     }
 
@@ -816,6 +899,85 @@ impl ConsensusOutputQuarantine {
             .rev()
             .filter_map(|output| output.get_randomness_last_round_timestamp())
             .next()
+    }
+
+    pub(crate) fn load_initial_object_debts(
+        &self,
+        epoch_store: &AuthorityPerEpochStore,
+        current_round: Round,
+        for_randomness: bool,
+        transactions: &[VerifiedSequencedConsensusTransaction],
+    ) -> IotaResult<impl IntoIterator<Item = (ObjectID, u64)>> {
+        let protocol_config = epoch_store.protocol_config();
+        let tables = epoch_store.tables()?;
+        let default_per_commit_budget = protocol_config
+            .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
+            .unwrap_or(0);
+        let (hash_table, db_table, per_commit_budget) = if for_randomness {
+            (
+                &self.congestion_control_randomness_object_debts,
+                &tables.congestion_control_randomness_object_debts,
+                protocol_config
+                    .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
+                    .unwrap_or(default_per_commit_budget),
+            )
+        } else {
+            (
+                &self.congestion_control_object_debts,
+                &tables.congestion_control_object_debts,
+                default_per_commit_budget,
+            )
+        };
+        let mut shared_input_object_ids: Vec<_> = transactions
+            .iter()
+            .filter_map(|tx| {
+                if let SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                    kind: ConsensusTransactionKind::CertifiedTransaction(tx),
+                    ..
+                }) = &tx.0.transaction
+                {
+                    Some(tx.shared_input_objects().map(|obj| obj.id))
+                } else {
+                    None
+                }
+            })
+            .flatten()
+            .collect();
+        shared_input_object_ids.sort();
+        shared_input_object_ids.dedup();
+
+        let results = do_fallback_lookup(
+            &shared_input_object_ids,
+            |object_id| {
+                if let Some(debt) = hash_table.get(object_id) {
+                    CacheResult::Hit(Some(debt.into_v1()))
+                } else {
+                    CacheResult::Miss
+                }
+            },
+            |object_ids| {
+                db_table
+                    .multi_get(object_ids)
+                    .expect("db error")
+                    .into_iter()
+                    .map(|debt| debt.map(|debt| debt.into_v1()))
+                    .collect()
+            },
+        );
+
+        Ok(results
+            .into_iter()
+            .zip(shared_input_object_ids)
+            .filter_map(|(debt, object_id)| debt.map(|debt| (debt, object_id)))
+            .map(move |((round, debt), object_id)| {
+                // Stored debts already account for the budget of the round in which
+                // they were accumulated. Application of budget from future rounds to
+                // the debt is handled here.
+                assert!(current_round > round);
+                let num_rounds = (current_round - round - 1) as u64;
+                let debt = debt.saturating_sub(per_commit_budget * num_rounds);
+                (object_id, debt)
+            }))
     }
 }
 
