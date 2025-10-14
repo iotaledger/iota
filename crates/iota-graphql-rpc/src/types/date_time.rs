@@ -68,14 +68,14 @@ mod tests {
         let dt: &str = "2023-08-19T15:37:24.761850Z";
         let date_time = DateTime::from_str(dt).unwrap();
         let Value::String(s) = async_graphql::ScalarType::to_value(&date_time) else {
-            panic!("Invalid date time scalar");
+            panic!("invalid date time scalar");
         };
         assert_eq!(dt, s);
 
         let dt: &str = "2023-08-19T15:37:24.700Z";
         let date_time = DateTime::from_str(dt).unwrap();
         let Value::String(s) = async_graphql::ScalarType::to_value(&date_time) else {
-            panic!("Invalid date time scalar");
+            panic!("invalid date time scalar");
         };
         assert_eq!(dt, s);
 
