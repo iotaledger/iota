@@ -15,6 +15,7 @@ use iota_config::{
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
 };
 use iota_grpc_api::{CheckpointClient, CheckpointContent, NodeClient};
+use iota_grpc_types::CheckpointData as GrpcCheckpointData;
 use iota_metrics::spawn_monitored_task;
 use iota_rest_api::CheckpointData;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
@@ -289,7 +290,7 @@ impl CheckpointReaderActor {
         Ok(())
     }
 
-    /// Fetches checkpoints form the fullnode trough a gRPC streaming connection
+    /// Fetches checkpoints from the fullnode trough a gRPC streaming connection
     /// and stream them to a channel.
     async fn fetch_from_fullnode(&mut self, client: &mut CheckpointClient) -> IngestionResult<()> {
         // the genesis checkpoint needs to be handled differently since it may be
@@ -297,7 +298,8 @@ impl CheckpointReaderActor {
         if self.current_checkpoint_number == 0 {
             self.fetch_genesis_checkpoint_from_fullnode(client).await?;
         }
-        self.fetch_checkpoints_from_fullnode(client).await
+        self.fetch_post_genesis_checkpoints_from_fullnode(client)
+            .await
     }
 
     /// Fetches the genesis checkpoint from the fullnode through a gRPC
@@ -346,7 +348,7 @@ impl CheckpointReaderActor {
     /// For downloading the genesis checkpoint the
     /// [`fetch_genesis_checkpoint_from_fullnode`](Self::fetch_genesis_checkpoint_from_fullnode)
     /// method should be used.
-    async fn fetch_checkpoints_from_fullnode(
+    async fn fetch_post_genesis_checkpoints_from_fullnode(
         &mut self,
         client: &mut CheckpointClient,
     ) -> IngestionResult<()> {
@@ -367,8 +369,8 @@ impl CheckpointReaderActor {
                 IngestionError::Grpc(format!("failed to initialize the checkpoint stream: {e}"))
             })?;
 
-        while let Some(genesis_checkpoint) = checkpoints_stream.next().await {
-            let checkpoint: CheckpointData = genesis_checkpoint
+        while let Some(checkpoint) = checkpoints_stream.next().await {
+            let checkpoint: CheckpointData = checkpoint
                 .map(GrpcCheckpoint)
                 .map_err(|e| IngestionError::Grpc(e.to_string()))?
                 .try_into()?;
@@ -682,9 +684,9 @@ impl TryFrom<GrpcCheckpoint> for iota_types::full_checkpoint_content::Checkpoint
 
     fn try_from(grpc_data: GrpcCheckpoint) -> Result<Self, Self::Error> {
         match grpc_data.into_inner() {
-            CheckpointContent::Data(grpc_data) => grpc_data.into_v1().ok_or(IngestionError::Grpc(
-                "expected checkpoint data but received summary".into(),
-            )),
+            CheckpointContent::Data(grpc_checkpoint_data) => match grpc_checkpoint_data {
+                GrpcCheckpointData::V1(checkpoint_data) => Ok(checkpoint_data),
+            },
             CheckpointContent::Summary(_) => Err(IngestionError::Grpc(
                 "expected checkpoint data but received summary".into(),
             )),

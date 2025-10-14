@@ -271,7 +271,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
             self.task_name, self.concurrency
         );
         // This channel will be used to send progress data from Workers to WorkerPool
-        // mian loop.
+        // main loop.
         let (progress_sender, mut progress_receiver) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
         // This channel will be used to send Workers progress data from WorkerPool to
         // watermark tracking task.
