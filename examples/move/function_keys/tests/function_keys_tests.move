@@ -430,7 +430,7 @@ fun test_fk_authenticate_without_init_delegated() {
     let scenario = &mut scenario_val;
 
     let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    let owner_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let owner_pk = x"1ea6f0f467574295a2cd5d21a3fd3a712ade354d520d3bd0fe6088d7b7c2e00e";
     let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
     let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
 

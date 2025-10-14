@@ -133,31 +133,25 @@ public fun authenticate(
 ) {
     // Decode signature once for both attempts.
     let sig_bytes = decode(signature);
-
-    if (account.account_address() != ctx.sender()) {
+    // Verify against the stored owner public key.
+    let owner_pk = borrow_public_key(account);
+    let is_owner = pub_key == owner_pk;
+    let is_ed25519_verified = ed25519::ed25519_verify(&sig_bytes, &pub_key, ctx.digest());
+    if (is_owner) {
+        // OWNER FLOW
+        assert!(is_ed25519_verified, EEd25519VerificationFailed);
+    } else {
         // FUNCTION KEY FLOW
         assert!(fk_store_exists(account), EFunctionKeysNotInitialized);
-
         // Verify delegated signature against provided pub_key.
-        assert!(
-            ed25519::ed25519_verify(&sig_bytes, &pub_key, ctx.digest()),
-            EEd25519VerificationFailed,
-        );
+        assert!(is_ed25519_verified, EEd25519VerificationFailed);
+
         // Require exactly one command.
         assert!(auth_ctx.tx_commands().length() == 1, EInvalidAmountOfCommands);
         // Extract and check allow-set membership.
         let func_key = extract_func_key(&auth_ctx.tx_commands()[0]);
         let fk_store = borrow_fk_store(account);
         assert!(fk_store.is_allowed(pub_key, &func_key), EUnauthorized);
-    } else {
-        // OWNER FLOW: verify against the stored owner public key (bypass restrictions).
-        // If succeeds, we short-circuit.
-        let owner_pk = borrow_public_key(account);
-        assert!(pub_key == owner_pk);
-        assert!(
-            ed25519::ed25519_verify(&sig_bytes, owner_pk, ctx.digest()),
-            EEd25519VerificationFailed,
-        );
     }
 }
 

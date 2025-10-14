@@ -94,7 +94,7 @@ public fun make_func_key(
 
 /// Ensure a VecSet exists for `pub_key`; if absent, create an empty set.
 /// Returns a &mut to the set.
-public fun ensure_key_entry(
+fun ensure_key_entry(
     store: &mut FunctionKeysStore,
     pub_key: vector<u8>,
 ): &mut VecSet<FunctionKey> {
@@ -105,14 +105,14 @@ public fun ensure_key_entry(
 }
 
 /// **Allow** a function key for a specific public key.
-public fun allow(store: &mut FunctionKeysStore, pub_key: vector<u8>, fk: FunctionKey) {
+public(package) fun allow(store: &mut FunctionKeysStore, pub_key: vector<u8>, fk: FunctionKey) {
     let entry = ensure_key_entry(store, pub_key);
     assert!(!entry.contains(&fk), EFunctionKeyAlreadyAdded);
     entry.insert(fk);
 }
 
 /// **Disallow** a function key for a specific public key.
-public fun disallow(store: &mut FunctionKeysStore, pub_key: vector<u8>, fk: &FunctionKey) {
+public(package) fun disallow(store: &mut FunctionKeysStore, pub_key: vector<u8>, fk: &FunctionKey) {
     assert!(tbl::contains(&store.function_keys, pub_key), EPublicKeyNotFound);
     let entry = tbl::borrow_mut(&mut store.function_keys, pub_key);
     assert!(entry.contains(fk), EFunctionKeyDoesNotExist);
