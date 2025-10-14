@@ -245,7 +245,6 @@ impl SharedObjectCongestionTracker {
         }
     }
 
-    /// A constuctor for test purposes only.
     #[cfg(test)]
     pub(crate) fn new_for_test(
         initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
