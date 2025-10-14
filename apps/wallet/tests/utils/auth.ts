@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { CDPSession, Page } from '@playwright/test';
-import { SHORT_TIMEOUT } from '../constants/timeout.constants';
+import { LONG_TIMEOUT, SHORT_TIMEOUT } from '../constants/timeout.constants';
 import { expect } from '../fixtures';
 
 export const PASSWORD = 'iota';
@@ -95,9 +95,8 @@ export async function createPasskeyWallet(
 
     await page.getByTestId('username-input').fill(username);
 
-    if (isCrossPlatform) {
-        await page.getByText('Platform').click();
-        await expect(page.getByText('Cross-Platform')).toBeVisible();
+    if (!isCrossPlatform) {
+        await page.getByTestId('passkey-radio-platform').click();
     }
 
     await page.getByRole('button', { name: /Create/ }).click();
@@ -109,8 +108,25 @@ export async function createPasskeyWallet(
 
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 
+    await expect(page.getByText(username)).toBeVisible({ timeout: LONG_TIMEOUT });
+
     return {
         client,
         authenticatorId,
     };
+}
+
+export async function restorePasskeyAccount(page: Page, username: string) {
+    await page.getByText('Add Profile').click();
+    await page.getByText('Passkey', { exact: true }).click();
+
+    await page.getByTestId('username-input').fill(username);
+
+    await page.getByRole('button', { name: /Restore/ }).click();
+
+    await page.getByTestId('password.input').fill('iotae2etests');
+    await page.getByTestId('password.confirmation').fill('iotae2etests');
+
+    await page.getByText('I read and agree').click();
+    await page.getByRole('button', { name: /Create Wallet/ }).click();
 }
