@@ -1132,7 +1132,6 @@ impl Core {
         self.last_proposed_block_header().round()
     }
 
-
     fn last_proposed_block_header(&self) -> VerifiedBlockHeader {
         self.dag_state.read().get_last_proposed_block_header()
     }

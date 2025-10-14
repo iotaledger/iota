@@ -375,7 +375,7 @@ impl DagState {
             .iter()
             .max()
             .expect("There should be at least one last committed round");
-        info!(
+        debug!(
             "Last solid commit has leader at round {}; last pending commit has leader at round {}",
             last_solid_commit_leader_round, max_commit_round
         );
@@ -747,8 +747,9 @@ impl DagState {
 
     /// Gets the last proposed block from this authority.
     /// If no block is proposed yet, returns Genesis block.
-    /// NOTE: the method panics if transactions or headers are not found in DAG State for the
-    /// most recent header, as that should not happen for correct initialization
+    /// NOTE: the method panics if transactions or headers are not found in DAG
+    /// State for the most recent header, as that should not happen for
+    /// correct initialization
     pub(crate) fn recover_last_own_block(&self) -> VerifiedBlock {
         if let Some(last) = self.recent_headers_refs_by_authority[self.context.own_index].last() {
             let header = self
@@ -803,7 +804,8 @@ impl DagState {
     /// Returns own cached recent blocks.
     /// Blocks returned are limited to round >= `start`, and cached.
     /// NOTE: the method is soft in the sense that the if transactions are not
-    /// found for a block header, that block is not included in the return result
+    /// found for a given block header, that block is not included in the return
+    /// result
     pub(crate) fn get_own_cached_blocks(&self, start: Round) -> Vec<VerifiedBlock> {
         let authority = self.context.own_index;
         let mut blocks = vec![];
@@ -811,12 +813,8 @@ impl DagState {
             Included(BlockRef::new(start, authority, BlockHeaderDigest::MIN)),
             Unbounded,
         )) {
-            let header_opt = self
-                .recent_block_headers
-                .get(block_ref);
-            let transactions_opt = self
-                .recent_transactions
-                .get(block_ref);
+            let header_opt = self.recent_block_headers.get(block_ref);
+            let transactions_opt = self.recent_transactions.get(block_ref);
             if let (Some(header), Some(transactions)) = (header_opt, transactions_opt) {
                 blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
                 continue;
