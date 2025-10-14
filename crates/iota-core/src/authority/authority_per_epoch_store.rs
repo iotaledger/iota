@@ -1920,12 +1920,18 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    fn get_max_execution_duration_per_commit(&self) -> Option<ExecutionTime> {
+    fn get_max_execution_duration_per_commit_as_option(&self) -> Option<ExecutionTime> {
         // The old name for this config parameter referred to "cost", but the current
         // implementation of the shared object congestion tracker uses the term
         // "execution duration" to describe the same concept.
         self.protocol_config()
             .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
+    }
+
+    fn get_max_congestion_limit_overshoot_per_commit(&self) -> u64 {
+        self.protocol_config()
+            .max_congestion_limit_overshoot_per_commit_as_option()
+            .unwrap_or(0)
     }
 
     #[instrument("transactions_sequencing", level = "trace", skip_all, fields(cert_digest = ?cert.digest(), scheduling_result = tracing::field::Empty))]
@@ -1961,7 +1967,7 @@ impl AuthorityPerEpochStore {
         }
 
         let result = if let Some(max_execution_duration_per_commit) =
-            self.get_max_execution_duration_per_commit()
+            self.get_max_execution_duration_per_commit_as_option()
         {
             // Initialise the free execution slots for the objects that are not in the
             // tracker.
@@ -1972,6 +1978,7 @@ impl AuthorityPerEpochStore {
             match shared_object_congestion_tracker.try_schedule(
                 cert,
                 max_execution_duration_per_commit,
+                self.get_max_congestion_limit_overshoot_per_commit(),
                 previously_deferred_tx_digests,
                 commit_round,
             ) {
@@ -2932,26 +2939,22 @@ impl AuthorityPerEpochStore {
         // and transactions using randomness, since they will be in different
         // checkpoints.
         let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
-            self.protocol_config().per_object_congestion_control_mode(),
-            self.protocol_config()
-                .congestion_control_min_free_execution_slot(),
             self.consensus_quarantine.read().load_initial_object_debts(
                 self,
                 consensus_commit_info.round as Round,
                 false,
                 &sequenced_transactions,
             )?,
+            self.protocol_config(),
         );
         let shared_object_using_randomness_congestion_tracker = SharedObjectCongestionTracker::new(
-            self.protocol_config().per_object_congestion_control_mode(),
-            self.protocol_config()
-                .congestion_control_min_free_execution_slot(),
             self.consensus_quarantine.read().load_initial_object_debts(
                 self,
                 consensus_commit_info.round as Round,
                 true,
                 &sequenced_randomness_transactions,
             )?,
+            self.protocol_config(),
         );
 
         let consensus_transactions: Vec<_> = system_transactions
@@ -3333,7 +3336,7 @@ impl AuthorityPerEpochStore {
         );
 
         let mut suggested_gas_price_calculator = SuggestedGasPriceCalculator::new(
-            self.get_max_execution_duration_per_commit(),
+            self.get_max_execution_duration_per_commit_as_option(),
             self.reference_gas_price(),
             self.protocol_config().max_gas_price(),
         );
@@ -3493,7 +3496,7 @@ impl AuthorityPerEpochStore {
             );
 
         if let Some(max_execution_duration_per_commit) =
-            self.get_max_execution_duration_per_commit()
+            self.get_max_execution_duration_per_commit_as_option()
         {
             output.set_congestion_control_object_debts(
                 shared_object_congestion_tracker
@@ -3855,7 +3858,10 @@ impl AuthorityPerEpochStore {
                         // - shared object execution slots (for congestion tracker);
                         // - shared object congestion info (for suggested gas price calculator).
                         if certificate.contains_shared_object() {
-                            if self.get_max_execution_duration_per_commit().is_some() {
+                            if self
+                                .get_max_execution_duration_per_commit_as_option()
+                                .is_some()
+                            {
                                 // We only need to do this if `max_execution_duration_per_commit`
                                 // is `Some`, since otherwise this bumping will panic as object
                                 // execution slots are only initialized if

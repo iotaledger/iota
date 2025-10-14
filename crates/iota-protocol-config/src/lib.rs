@@ -1124,7 +1124,9 @@ pub struct ProtocolConfig {
 
     /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
-    /// objects hit this limit.
+    /// objects hit this limit. Note that if
+    /// `max_congestion_limit_overshoot_per_commit` is set, this may be overshot
+    /// within a single commit, but the limit will be enforced in the long run.
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
 
     /// Maximum number of committee (validators taking part in consensus)
@@ -1142,6 +1144,12 @@ pub struct ProtocolConfig {
     /// Default value set to 400. (5 x expected committee size (80)).
     /// Applicable only to `starfish` consensus.
     consensus_max_acknowledgments_per_block: Option<u32>,
+
+    /// The maximum amount that is allowed to overshoot the congestion limit
+    /// specified by 'max_accumulated_txn_cost_per_object_in_mysticeti_commit'
+    /// for any single commit. Any overshoot is tracked as a debt that must
+    /// be accounted for in subsequent commits.
+    max_congestion_limit_overshoot_per_commit: Option<u64>,
 }
 
 // feature flags
@@ -1954,6 +1962,8 @@ impl ProtocolConfig {
             consensus_gc_depth: None,
 
             consensus_max_acknowledgments_per_block: None,
+
+            max_congestion_limit_overshoot_per_commit: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
