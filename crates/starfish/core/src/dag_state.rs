@@ -336,6 +336,7 @@ impl DagState {
                 .with_label_values(&[source])
                 .inc();
             tracing::debug!("Adding transactions for block ref: {block_ref}");
+            let has_transactions = transactions.has_transactions();
             self.transactions_to_write.push(transactions);
             // If a block is not very old, add it to pending acknowledgments
             let clock_round = self.threshold_clock_round();
@@ -343,7 +344,23 @@ impl DagState {
                 clock_round.saturating_sub(self.context.protocol_config.gc_depth());
 
             if block_ref.round >= min_round {
-                self.add_pending_acknowledgment(block_ref);
+                if has_transactions {
+                    self.add_pending_acknowledgment(block_ref);
+                } else {
+                    // report skipped acknowledgment
+                    let hostname = self
+                        .context
+                        .committee
+                        .authority(block_ref.author)
+                        .hostname
+                        .as_str();
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .skipped_empty_transaction_acknowledgments
+                        .with_label_values(&[hostname])
+                        .inc()
+                }
             }
         }
     }
@@ -1819,10 +1836,12 @@ mod test {
 
     use super::*;
     use crate::{
+        Transaction,
         block_header::{
-            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, VerifiedBlockHeader,
-            genesis_block_headers,
+            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, TransactionsCommitment,
+            VerifiedBlockHeader, genesis_block_headers,
         },
+        encoder::create_encoder,
         storage::{WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
@@ -3240,6 +3259,82 @@ mod test {
                 block_ref,
                 block_ref.round
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_skip_acknowledgments_all_empty_transactions() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create test blocks for round 1 ~ 10
+        let num_rounds: u32 = 10;
+        let num_authorities: u8 = 4;
+        let mut blocks = Vec::new();
+        // create blocks
+        for round in 1..=num_rounds {
+            for author in 0..num_authorities {
+                let block =
+                    VerifiedBlock::new_for_test(TestBlockHeader::new(round, author).build());
+                blocks.push(block);
+            }
+        }
+
+        // add transactions for all blocks
+        blocks.into_iter().for_each(|block| {
+            dag_state.add_transactions(block.verified_transactions, "test");
+        });
+
+        assert!(dag_state.pending_acknowledgments.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_skip_acknowledgments_some_contain_transactions() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut encoder = create_encoder(&context);
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create test blocks for round 1 ~ 10
+        let num_rounds: u32 = 10;
+        let num_authorities: u8 = 4;
+        // create blocks
+        let mut block_refs_with_transactions = Vec::new();
+        for round in 1..=num_rounds {
+            for author in 0..num_authorities {
+                let block_ref = BlockRef::new(round, author.into(), BlockHeaderDigest::default());
+                let transactions = if round > 5 {
+                    block_refs_with_transactions.push(block_ref);
+                    vec![Transaction::random_transaction(64)]
+                } else {
+                    vec![]
+                };
+                let serialized = Transaction::serialize(&transactions).unwrap();
+                let transaction_commitment =
+                    TransactionsCommitment::compute_transactions_commitment(
+                        &serialized,
+                        &context,
+                        &mut encoder,
+                    )
+                    .unwrap();
+                let verified_transaction = VerifiedTransactions::new(
+                    transactions,
+                    block_ref,
+                    transaction_commitment,
+                    serialized,
+                );
+                dag_state.add_transactions(verified_transaction, "test");
+            }
+        }
+        assert_eq!(
+            dag_state.pending_acknowledgments.len(),
+            block_refs_with_transactions.len()
+        );
+        for block_ref in block_refs_with_transactions.iter() {
+            assert!(dag_state.pending_acknowledgments.contains(block_ref));
         }
     }
 }

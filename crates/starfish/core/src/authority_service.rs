@@ -252,6 +252,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             verified_block_header.transactions_commitment(),
             serialized_transactions,
         );
+        let has_transactions = verified_transactions.has_transactions();
         let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
 
         let block_ref = verified_block.reference();
@@ -579,23 +580,26 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         missing_committed_txns.extend(missing_block_committed_transactions);
 
         // 12. Add our shard from the received block and its proof to the dag_state
-        let shard_for_core = ShardWithProof {
-            shard: our_shard,
-            transaction_commitment,
-            proof: proof_for_shard,
-            block_ref,
-        };
-        let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
-            .map_err(ConsensusError::SerializationFailure)?
-            .into();
-        let shard_for_core = VerifiedOwnShard {
-            serialized_shard: serialized_shard_for_core,
-            block_ref,
-        };
-        self.core_dispatcher
-            .add_shards(vec![shard_for_core])
-            .await
-            .map_err(|_| ConsensusError::Shutdown)?;
+        // only if it contains transactions
+        if has_transactions {
+            let shard_for_core = ShardWithProof {
+                shard: our_shard,
+                transaction_commitment,
+                proof: proof_for_shard,
+                block_ref,
+            };
+            let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
+                .map_err(ConsensusError::SerializationFailure)?
+                .into();
+            let shard_for_core = VerifiedOwnShard {
+                serialized_shard: serialized_shard_for_core,
+                block_ref,
+            };
+            self.core_dispatcher
+                .add_shards(vec![shard_for_core])
+                .await
+                .map_err(|_| ConsensusError::Shutdown)?;
+        }
 
         // 13. update `useful_authorities_from_peer`
         // create a set of authority indexes from the `additional_block_headers`
