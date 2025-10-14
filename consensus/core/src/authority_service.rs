@@ -134,7 +134,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         if !self
             .context
             .protocol_config
-            .consensus_median_based_commit_timestamp()
+            .consensus_median_timestamp_with_checkpoint_enforcement()
         {
             // Reject block with timestamp too far in the future.
             if forward_time_drift > self.context.parameters.max_forward_time_drift {
@@ -1027,7 +1027,9 @@ pub(crate) mod tests {
         let (mut context, _keys) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_median_based_commit_timestamp_for_testing(median_based_timestamp);
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+                median_based_timestamp,
+            );
         let context = Arc::new(context);
         let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));

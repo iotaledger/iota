@@ -733,7 +733,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
                 if context
                     .protocol_config
-                    .consensus_median_based_commit_timestamp()
+                    .consensus_median_timestamp_with_checkpoint_enforcement()
                 {
                     trace!(
                         "Synced block {} timestamp {} is in the future (now={}). Will not ignore as median based timestamp is enabled.",

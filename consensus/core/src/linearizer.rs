@@ -160,7 +160,7 @@ impl Linearizer {
     ) -> BlockTimestampMs {
         let timestamp_ms = if context
             .protocol_config
-            .consensus_median_based_commit_timestamp()
+            .consensus_median_timestamp_with_checkpoint_enforcement()
         {
             // Select leaders' parent blocks.
             let block_refs = leader_block
@@ -481,7 +481,9 @@ mod tests {
         let (mut context, _keys) = Context::new_for_test(num_authorities);
         context
             .protocol_config
-            .set_consensus_median_based_commit_timestamp_for_testing(consensus_median_timestamp);
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+                consensus_median_timestamp,
+            );
 
         let context = Arc::new(context);
 
@@ -696,7 +698,9 @@ mod tests {
         let (mut context, _) = Context::new_for_test(num_authorities);
         context
             .protocol_config
-            .set_consensus_median_based_commit_timestamp_for_testing(consensus_median_timestamp);
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+                consensus_median_timestamp,
+            );
 
         let context = Arc::new(context);
 
@@ -842,7 +846,9 @@ mod tests {
         context.protocol_config.set_gc_depth_for_testing(gc_depth);
         context
             .protocol_config
-            .set_consensus_median_based_commit_timestamp_for_testing(consensus_median_timestamp);
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+                consensus_median_timestamp,
+            );
         if gc_depth == 0 {
             context
                 .protocol_config
@@ -992,7 +998,9 @@ mod tests {
             .set_consensus_gc_depth_for_testing(gc_depth);
         context
             .protocol_config
-            .set_consensus_median_based_commit_timestamp_for_testing(consensus_median_timestamp);
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+                consensus_median_timestamp,
+            );
         context
             .protocol_config
             .set_consensus_linearize_subdag_v2_for_testing(true);
@@ -1125,7 +1133,9 @@ mod tests {
 
         context
             .protocol_config
-            .set_consensus_median_based_commit_timestamp_for_testing(consensus_median_timestamp);
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+                consensus_median_timestamp,
+            );
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
@@ -1202,7 +1212,9 @@ mod tests {
         let (mut context, _) = Context::new_for_test(1);
         context
             .protocol_config
-            .set_consensus_median_based_commit_timestamp_for_testing(consensus_median_timestamp);
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+                consensus_median_timestamp,
+            );
         let leader_block = VerifiedBlock::new_for_test(
             TestBlock::new(5, 0)
                 .set_timestamp_ms(5_000)
@@ -1273,7 +1285,7 @@ mod tests {
         let (mut context, _keys) = Context::new_for_test(num_authorities);
         context
             .protocol_config
-            .set_consensus_median_based_commit_timestamp_for_testing(true);
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(true);
 
         let context = Arc::new(context);
 

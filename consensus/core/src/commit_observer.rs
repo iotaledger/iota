@@ -240,7 +240,9 @@ mod tests {
         let (mut context, _keys) = Context::new_for_test(num_authorities);
         context
             .protocol_config
-            .set_consensus_median_based_commit_timestamp_for_testing(consensus_median_timestamp);
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+                consensus_median_timestamp,
+            );
 
         let context = Arc::new(context);
 

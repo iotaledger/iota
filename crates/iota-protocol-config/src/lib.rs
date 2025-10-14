@@ -354,15 +354,11 @@ struct FeatureFlags {
     #[serde(skip_serializing_if = "is_false")]
     select_committee_supporting_next_epoch_version: bool,
 
-    // If true, then it (1) will not enforce monotonicity checks for a block's ancestors and (2)
+    // If true, then it (1) will not enforce monotonicity checks for a block's ancestors, (2)
     // calculates the commit's timestamp based on the weighted by stake median timestamp of the
-    // leader's ancestors.
+    // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
     #[serde(skip_serializing_if = "is_false")]
-    consensus_median_based_commit_timestamp: bool,
-
-    // If true, enforces checkpoint timestamps are non-decreasing.
-    #[serde(skip_serializing_if = "is_false")]
-    enforce_checkpoint_timestamp_monotonicity: bool,
+    consensus_median_timestamp_with_checkpoint_enforcement: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1414,8 +1410,15 @@ impl ProtocolConfig {
         res
     }
 
-    pub fn enforce_checkpoint_timestamp_monotonicity(&self) -> bool {
-        self.feature_flags.enforce_checkpoint_timestamp_monotonicity
+    pub fn consensus_median_timestamp_with_checkpoint_enforcement(&self) -> bool {
+        let res = self
+            .feature_flags
+            .consensus_median_timestamp_with_checkpoint_enforcement;
+        assert!(
+            !res || self.gc_depth() > 0,
+            "The consensus median timestamp with checkpoint enforcement requires GC to be enabled"
+        );
+        res
     }
 }
 
@@ -1504,15 +1507,6 @@ impl ProtocolConfig {
     #[cfg(msim)]
     fn load_poison_get_for_min_version() -> bool {
         POISON_VERSION_METHODS.with(|p| p.load(Ordering::Relaxed))
-    }
-
-    pub fn consensus_median_based_commit_timestamp(&self) -> bool {
-        let res = self.feature_flags.consensus_median_based_commit_timestamp;
-        assert!(
-            !res || self.gc_depth() > 0,
-            "The consensus median based commit timestamp requires GC to be enabled"
-        );
-        res
     }
 
     pub fn convert_type_argument_error(&self) -> bool {
@@ -2261,10 +2255,10 @@ impl ProtocolConfig {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Switch consensus protocol to Starfish in devnet
                         cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
-                        // Enable median-based commit timestamp calculation in consensus in devnet.
-                        cfg.feature_flags.consensus_median_based_commit_timestamp = true;
-                        // Enforce checkpoint timestamps are non-decreasing for devnet.
-                        cfg.feature_flags.enforce_checkpoint_timestamp_monotonicity = true;
+                        // Enable median-based commit timestamp calculation in consensus and
+                        // enforce checkpoint timestamp monotonicity for devnet.
+                        cfg.feature_flags
+                            .consensus_median_timestamp_with_checkpoint_enforcement = true;
                     }
                 }
                 // Use this template when making changes:
@@ -2440,8 +2434,12 @@ impl ProtocolConfig {
             .select_committee_supporting_next_epoch_version = val;
     }
 
-    pub fn set_consensus_median_based_commit_timestamp_for_testing(&mut self, val: bool) {
-        self.feature_flags.consensus_median_based_commit_timestamp = val;
+    pub fn set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .consensus_median_timestamp_with_checkpoint_enforcement = val;
     }
 }
 

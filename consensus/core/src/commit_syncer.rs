@@ -699,7 +699,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             if !inner
                 .context
                 .protocol_config
-                .consensus_median_based_commit_timestamp()
+                .consensus_median_timestamp_with_checkpoint_enforcement()
             {
                 let forward_drift = Duration::from_millis(forward_drift);
                 if forward_drift >= inner.context.parameters.max_forward_time_drift {

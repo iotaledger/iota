@@ -327,7 +327,7 @@ impl DagState {
             if self
                 .context
                 .protocol_config
-                .consensus_median_based_commit_timestamp()
+                .consensus_median_timestamp_with_checkpoint_enforcement()
             {
                 trace!(
                     "Block {:?} with timestamp {} is greater than local timestamp {}.",
@@ -2770,7 +2770,7 @@ mod test {
         let (mut context, _) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_median_based_commit_timestamp_for_testing(false);
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(false);
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
         let mut dag_state = DagState::new(context.clone(), store.clone());
@@ -2795,7 +2795,7 @@ mod test {
         let (mut context, _) = Context::new_for_test(4);
         context
             .protocol_config
-            .set_consensus_median_based_commit_timestamp_for_testing(true);
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(true);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());

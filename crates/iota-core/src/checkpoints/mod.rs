@@ -1608,7 +1608,7 @@ impl CheckpointBuilder {
                     if self
                         .epoch_store
                         .protocol_config()
-                        .enforce_checkpoint_timestamp_monotonicity()
+                        .consensus_median_timestamp_with_checkpoint_enforcement()
                     {
                         timestamp_ms = last_checkpoint.timestamp_ms;
                     }
