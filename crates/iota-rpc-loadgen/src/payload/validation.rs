@@ -27,7 +27,7 @@ where
     let length = entities[0].len();
     if let Some((vec_index, v)) = entities.iter().enumerate().find(|(_, v)| v.len() != length) {
         error!(
-            "Entity: {} lengths do not match at index {}: first vec has length {} vs vec {} has length {}",
+            "entity: {} lengths do not match at index {}: first vec has length {} vs vec {} has length {}",
             entity_name,
             vec_index,
             length,
@@ -50,7 +50,7 @@ where
                     // Example error: Entity: ExampleEntity mismatch at index 2: expected: 3,
                     // received ExampleEntity[1]: 4
                     error!(
-                        "Entity: {} mismatch at index {}: expected: {:?}, received {}: {:?}",
+                        "entity: {} mismatch at index {}: expected: {:?}, received {}: {:?}",
                         entity_name,
                         i,
                         first,
@@ -87,7 +87,7 @@ pub(crate) async fn check_transactions(
             Ok(transactions) => Some(transactions),
             Err(err) => {
                 warn!(
-                    "Failed to fetch transactions for vec {i}: {:?}. Logging digests, {:?}",
+                    "failed to fetch transactions for vec {i}: {:?}. Logging digests, {:?}",
                     err, digests
                 );
                 None
@@ -119,7 +119,7 @@ pub(crate) fn get_all_object_ids(response: &IotaTransactionBlockResponse) -> Vec
         Some(effects) => effects.all_changed_objects(),
         None => {
             error!(
-                "Effects for transaction digest {} should not be empty",
+                "effects for transaction digest {} should not be empty",
                 response.digest
             );
             vec![]
@@ -167,7 +167,7 @@ pub(crate) async fn multi_get_object(
     let objects: Vec<Vec<IotaObjectResponse>> = join_all(clients.iter().map(|client| async move {
         let object_ids = if object_ids.len() > LOADGEN_QUERY_MAX_RESULT_LIMIT {
             warn!(
-                "The input size for multi_get_object_with_options has exceed the query limit\
+                "the input size for multi_get_object_with_options has exceed the query limit\
          {LOADGEN_QUERY_MAX_RESULT_LIMIT}: {}, time to implement chunking",
                 object_ids.len()
             );
@@ -191,7 +191,7 @@ pub(crate) async fn multi_get_object(
         Ok(obj_vec) => Some(obj_vec),
         Err(err) => {
             error!(
-                "Failed to fetch objects for vec {i}: {:?}. Logging objectIDs, {:?}",
+                "failed to fetch objects for vec {i}: {:?}. Logging objectIDs, {:?}",
                 err, object_ids
             );
             None
