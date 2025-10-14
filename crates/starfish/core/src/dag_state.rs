@@ -14,6 +14,7 @@ use std::{
 
 use bytes::Bytes;
 use itertools::Itertools as _;
+use tokio::sync::mpsc::UnboundedSender;
 use starfish_config::AuthorityIndex;
 use tokio::time::Instant;
 use tracing::{debug, error, info, trace, warn};
@@ -32,6 +33,7 @@ use crate::{
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
 };
+use crate::cordial_knowledge::{CordialKnowledge, CordialKnowledgeMessage};
 
 /// Represents the source from which transactions were received and added to the
 /// DAG state. This is used for metrics tracking and debugging.
@@ -194,6 +196,9 @@ pub(crate) struct DagState {
 
     /// The number of cached rounds
     cached_rounds: Round,
+
+    /// Cordial Knowledge sender
+    cordial_knowledge_sender: Option<UnboundedSender<CordialKnowledgeMessage>>,
 }
 
 impl DagState {
@@ -280,6 +285,7 @@ impl DagState {
             store: store.clone(),
             cached_rounds,
             evicted_rounds: vec![0; num_authorities],
+            cordial_knowledge_sender: None,
         };
 
         for (i, round) in last_committed_rounds.into_iter().enumerate() {
@@ -317,6 +323,14 @@ impl DagState {
             );
         }
         state
+    }
+
+    pub(crate) fn with_cordial_knowledge_sender(
+        mut self,
+        sender: UnboundedSender<CordialKnowledgeMessage>,
+    ) -> Self {
+        self.cordial_knowledge_sender = Some(sender);
+        self
     }
 
     /// Accepts a block header into DagState and keeps it in memory.
@@ -444,6 +458,12 @@ impl DagState {
                 }
                 self.shards_not_known_by_authority[authority_index].insert(block_ref);
             }
+            if let Some(sender) = &self.cordial_knowledge_sender {
+                let cordial_message = CordialKnowledgeMessage::NewShard(block_ref);
+                if let Err(e) = sender.send(cordial_message) {
+                    warn!("Failed to send cordial knowledge update: {e}");
+                }
+            }
         }
     }
 
@@ -491,91 +511,17 @@ impl DagState {
             .highest_accepted_authority_round
             .with_label_values(&[hostname])
             .set(highest_accepted_round_for_author as i64);
-        self.update_cordial_knowledge(block_header);
+        if let Some(sender) = &self.cordial_knowledge_sender {
+            let cordial_message = CordialKnowledgeMessage::NewHeader(block_header.clone());
+            if let Err(e) = sender.send(cordial_message) {
+                warn!("Failed to send cordial knowledge update: {e}");
+            }
+        }
     }
 
     fn update_transaction_metadata(&mut self, transaction: &VerifiedTransactions) {
         self.recent_transactions
             .insert(transaction.block_ref(), transaction.clone());
-    }
-
-    /// Updates the cordial knowledge about which authorities know which block
-    /// headers after accepting a new block header. In particular, it
-    /// traverses the DAG from the given block header and updates the
-    /// knowledge for the corresponding authority.
-    fn update_cordial_knowledge(&mut self, block_header: &VerifiedBlockHeader) {
-        let block_reference = block_header.reference();
-        let block_author = block_reference.author;
-        let round_digest = (block_reference.round, block_reference.digest);
-
-        // Collect parents of the block header, which are not genesis
-        let parents = block_header
-            .ancestors()
-            .iter()
-            .filter(|parent| parent.round > GENESIS_ROUND)
-            .cloned()
-            .collect::<Vec<_>>();
-
-        // If the block header is in the recent_dag_cordial_knowledge, then
-        // don't update it
-        if self.recent_dag_cordial_knowledge[block_author.value()].contains_key(&round_digest) {
-            return;
-        }
-
-        // update information about block_reference
-        self.recent_dag_cordial_knowledge[block_author.value()].insert(
-            round_digest,
-            (
-                parents,
-                vec![block_reference.author, self.context.own_index]
-                    .into_iter()
-                    .collect::<HashSet<_>>(),
-            ),
-        );
-
-        // Assume that only this authority and the author know the block header
-        for authority_index in 0..self.block_headers_not_known_by_authority.len() {
-            if authority_index == self.context.own_index.value()
-                || authority_index == block_reference.author.value()
-            {
-                continue;
-            }
-            self.block_headers_not_known_by_authority[authority_index].insert(block_reference);
-        }
-
-        // traverse the DAG from block_reference and update the blocks known by the
-        // author of this block
-        let mut buffer = vec![block_reference];
-
-        while let Some(traversed_block_reference) = buffer.pop() {
-            let traversed_block_author = traversed_block_reference.author;
-            let traversed_block_round_digest = (
-                traversed_block_reference.round,
-                traversed_block_reference.digest,
-            );
-            let (parents, _) = self.recent_dag_cordial_knowledge[traversed_block_author.value()]
-                .get(&traversed_block_round_digest)
-                .expect("We should expect having an element with given BlockRef")
-                .clone();
-            for parent in parents {
-                let traversed_parent_author = parent.author;
-                let traversed_parent_round_digest = (parent.round, parent.digest);
-
-                if self.recent_dag_cordial_knowledge[traversed_parent_author.value()]
-                    .contains_key(&traversed_parent_round_digest)
-                {
-                    let (_, who_knows_given_parent) = self.recent_dag_cordial_knowledge
-                        [traversed_parent_author.value()]
-                    .get_mut(&traversed_parent_round_digest)
-                    .expect("We should have this value as it is checked");
-                    if who_knows_given_parent.insert(block_author) {
-                        self.block_headers_not_known_by_authority[block_author.value()]
-                            .remove(&parent);
-                        buffer.push(parent);
-                    }
-                }
-            }
-        }
     }
 
     /// Accepts block headers into DagState and keeps it in memory.
@@ -1547,6 +1493,8 @@ impl DagState {
         }
         useful_shard_authors
     }
+
+
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
         let mut votes = Vec::new();
         while !self.pending_commit_votes.is_empty() && votes.len() < limit {
@@ -1630,27 +1578,22 @@ impl DagState {
         self.pending_acknowledgments = self.pending_acknowledgments.split_off(&lower_bound);
     }
 
-    /// Evicts old cordial knowledge and pending acknowledgments. It is aligned
+    /// Evicts old cordial knowledge from CordialKnowledge. It is aligned
     /// with the eviction method, thereby should be called every time the
     /// eviction happens.
     pub(crate) fn evict_cordial_knowledge(&mut self) {
-        // === 1. Evict from recent_dag_cordial_knowledge ===
-        for (authority_index, map) in self.recent_dag_cordial_knowledge.iter_mut().enumerate() {
-            let evict_round = self.evicted_rounds[authority_index];
-
-            // Only keep entries with round > evict_round
-            let keep_from = (evict_round + 1, BlockHeaderDigest::MIN);
-            *map = map.split_off(&keep_from);
-        }
-        // === 2. Evict from block_headers_not_known_by_authority ===
-        for authority_index in 0..self.context.committee.size() {
-            let old_set = &mut self.block_headers_not_known_by_authority[authority_index];
-            old_set.retain(|block_ref| block_ref.round > self.evicted_rounds[block_ref.author]);
-        }
-        // === 3. Evict from shards_not_known_by_authority ===
-        for authority_index in 0..self.context.committee.size() {
-            let old_set = &mut self.shards_not_known_by_authority[authority_index];
-            old_set.retain(|block_ref| block_ref.round > self.evicted_rounds[block_ref.author]);
+        if let Some(cordial_knowledge_sender) = &self.cordial_knowledge_sender {
+            let mut eviction_rounds = vec![];
+            for (authority_index,_) in self.context.committee.authorities() {
+                let eviction_round = self.calculate_authority_eviction_round(authority_index);
+                eviction_rounds.push(eviction_round);
+            }
+            let cordial_message = CordialKnowledgeMessage::EvictBelow(
+                eviction_rounds,
+            );
+            if let Err(e) = cordial_knowledge_sender.send(cordial_message) {
+                warn!("Failed to send cordial knowledge eviction message: {e}");
+            }
         }
     }
 

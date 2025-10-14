@@ -221,7 +221,7 @@ impl Codec {
 /// One field, transaction_message_sender, can be cloned to send transaction
 /// messages to the internal ShardReconstructor
 pub struct ShardReconstructorHandle {
-    pub transaction_message_sender: Sender<Vec<TransactionMessage>>,
+    transaction_message_sender: Sender<Vec<TransactionMessage>>,
     join_handle: Mutex<Option<JoinHandle<()>>>,
 }
 

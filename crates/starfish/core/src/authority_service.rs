@@ -46,6 +46,7 @@ use crate::{
     synchronizer::SynchronizerHandle,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
+use crate::cordial_knowledge::ConnectionKnowledgeMessage;
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
@@ -128,6 +129,10 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// For each peer `i`, stores a set of authority indices representing the
     /// authors of blocks whose shards were reported as useful by peer `i`.
     useful_shards_authors_to_peer: Arc<RwLock<Vec<BTreeSet<AuthorityIndex>>>>,
+    /// Senders to send connection knowledge messages to the respected Connection Knowledge
+    /// It is used to retrieve block refs for headers and shards potentially unknown to the peer
+    connection_knowledge_senders: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
+
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -142,6 +147,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
         transaction_message_sender: Sender<Vec<TransactionMessage>>,
+        connection_knowledge_senders: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
@@ -172,6 +178,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                 BTreeSet::new();
                 committee_size
             ])),
+            connection_knowledge_senders,
         }
     }
 }
@@ -1405,6 +1412,10 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
+
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
@@ -1439,6 +1450,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
+            connection_knowledge_senders
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1481,6 +1493,9 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
@@ -1515,6 +1530,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
+            connection_knowledge_senders
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1567,6 +1583,9 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
@@ -1601,6 +1620,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
+            connection_knowledge_senders
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1645,6 +1665,9 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
@@ -1679,6 +1702,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
+            connection_knowledge_senders
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1781,6 +1805,9 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
@@ -1907,6 +1934,8 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
         let network_client = Arc::new(FakeNetworkClient::default());
 
         // Set up synchronizers
@@ -1941,6 +1970,7 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             tx_message_sender,
+            connection_knowledge_senders,
         ));
 
         // Set up DAG with blocks
@@ -2172,6 +2202,9 @@ mod tests {
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -2204,6 +2237,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
+            connection_knowledge_senders,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2327,6 +2361,9 @@ mod tests {
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2358,6 +2395,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
+            connection_knowledge_senders,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2497,6 +2535,10 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
 
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
+
         // Set up synchronizers
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
@@ -2529,6 +2571,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
+            connection_knowledge_senders,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2760,6 +2803,9 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -2795,6 +2841,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
+            connection_knowledge_senders,
         ));
 
         // Set up DAG with blocks
@@ -2900,6 +2947,9 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -2935,6 +2985,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
+            connection_knowledge_senders,
         ));
 
         // Set up DAG with blocks
@@ -3061,6 +3112,10 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
+
         let network_client = Arc::new(FakeNetworkClient::default());
 
         // Set up synchronizers
@@ -3095,6 +3150,7 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             tx_message_sender,
+            connection_knowledge_senders,
         ));
 
         // Set up DAG with blocks
@@ -3243,6 +3299,9 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
+        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -3278,6 +3337,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
+            connection_knowledge_senders
         ));
         let mut encoder = create_encoder(&context);
 

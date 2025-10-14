@@ -13609,6 +13609,7 @@ dependencies = [
 name = "starfish-core"
 version = "0.1.0"
 dependencies = [
+ "ahash",
  "anyhow",
  "arc-swap",
  "async-trait",

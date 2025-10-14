@@ -55,6 +55,7 @@ mod test_dag;
 mod test_dag_builder;
 #[cfg(test)]
 mod test_dag_parser;
+mod cordial_knowledge;
 
 /// Exported consensus API.
 pub use authority_node::ConsensusAuthority;

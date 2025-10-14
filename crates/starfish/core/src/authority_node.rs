@@ -34,6 +34,7 @@ use crate::{
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
     transactions_synchronizer::{TransactionsSynchronizer, TransactionsSynchronizerHandle},
 };
+use crate::cordial_knowledge::{CordialKnowledge, CordialKnowledgeHandle};
 
 pub struct ConsensusAuthority {
     context: Arc<Context>,
@@ -43,6 +44,7 @@ pub struct ConsensusAuthority {
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
     shard_reconstructor: Arc<ShardReconstructorHandle>,
+    cordial_knowledge: Arc<CordialKnowledgeHandle>,
     commit_syncer_handle: CommitSyncerHandle,
     leader_timeout_handle: LeaderTimeoutTaskHandle,
     core_thread_handle: CoreThreadHandle,
@@ -115,7 +117,13 @@ impl ConsensusAuthority {
 
         let store_path = context.parameters.db_path.as_path().to_str().unwrap();
         let store = Arc::new(RocksDBStore::new(store_path));
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let cordial_knowledge = CordialKnowledge::start(context.clone());
+
+        let dag_state = DagState::new(context.clone(), store.clone())
+            .with_cordial_knowledge_sender(cordial_knowledge.cordial_knowledge_sender());
+        let dag_state = Arc::new(RwLock::new(dag_state));
+
 
         let highest_known_commit_at_startup = dag_state.read().last_commit_index();
 
@@ -227,6 +235,7 @@ impl ConsensusAuthority {
             dag_state.clone(),
             store,
             shard_reconstructor.transaction_message_sender(),
+            cordial_knowledge.connection_knowledge_senders(),
         ));
 
         let subscriber = Subscriber::new(
@@ -254,6 +263,7 @@ impl ConsensusAuthority {
             transaction_client: Arc::new(tx_client),
             synchronizer,
             shard_reconstructor,
+            cordial_knowledge,
             transactions_synchronizer,
             commit_consumer_monitor,
             commit_syncer_handle,
@@ -302,6 +312,16 @@ impl ConsensusAuthority {
                 e
             );
         };
+        
+        if let Err(e) = self.cordial_knowledge.stop().await {
+            if e.is_panic() {
+                std::panic::resume_unwind(e.into_panic());
+            }
+            warn!(
+                "Failed to stop cordial knowledge manager when shutting down consensus: {:?}",
+                e
+            );
+        }
 
         self.commit_syncer_handle.stop().await;
         self.leader_timeout_handle.stop().await;
