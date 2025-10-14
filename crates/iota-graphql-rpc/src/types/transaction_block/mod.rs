@@ -501,7 +501,6 @@ impl Loader<DigestKey> for Db {
         use tx_global_order::dsl as tx_global;
 
         let digests: Vec<_> = keys.iter().map(|k| k.digest.to_vec()).collect();
-        let digests_clone = digests.clone();
 
         // First, fetch from the main transactions table
         let transactions: Vec<StoredTransaction> = self
@@ -517,70 +516,78 @@ impl Loader<DigestKey> for Db {
             })
             .await
             .map_err(|e| Error::Internal(format!("Failed to fetch transactions: {e}")))?;
+
         let transaction_digest_to_stored: BTreeMap<Vec<u8>, StoredTransaction> = transactions
             .into_iter()
             .map(|tx| (tx.transaction_digest.clone(), tx))
             .collect();
 
-        // Fetch from optimistic_transactions table for any missing digests
-        let missing_digests: Vec<Vec<u8>> = digests_clone
-            .into_iter()
-            .filter(|digest| !transaction_digest_to_stored.contains_key(digest))
-            .collect();
-        let optimistic_transactions: Vec<OptimisticTransaction> = if missing_digests.is_empty() {
-            Vec::new()
-        } else {
-            self.execute(move |conn| {
-                conn.results(move || {
-                    opt_tx::optimistic_transactions
-                        .inner_join(
-                            tx_global::tx_global_order.on(opt_tx::global_sequence_number
-                                .eq(tx_global::global_sequence_number)
-                                .and(
-                                    opt_tx::optimistic_sequence_number
-                                        .eq(tx_global::optimistic_sequence_number),
-                                )),
-                        )
-                        // Filter by digest on tx_global_order table because it is indexed by
-                        // digest, optimistic_transactions table is not
-                        .filter(tx_global::tx_digest.eq_any(missing_digests.clone()))
-                        .select(OptimisticTransaction::as_select())
-                })
-            })
-            .await
-            .map_err(|e| Error::Internal(format!("Failed to fetch optimistic transactions: {e}")))?
-        };
-        let transaction_digest_to_optimistic: BTreeMap<Vec<u8>, OptimisticTransaction> =
-            optimistic_transactions
-                .into_iter()
-                .map(|opt_tx| (opt_tx.transaction_digest.clone(), opt_tx))
-                .collect();
-
+        // Process stored transactions and collect missing digests
         let mut results = HashMap::new();
+        let mut missing_digests = Vec::new();
+
         for key in keys {
             let digest_bytes = key.digest.as_slice();
 
-            let tx_block = if let Some(stored) = transaction_digest_to_stored.get(digest_bytes) {
-                // Filter by key's checkpoint viewed at here. Doing this in memory because it
-                // should be quite rare that this query actually filters something,
-                // but encoding it in SQL is complicated.
-                if (key.checkpoint_viewed_at as i64) < stored.checkpoint_sequence_number {
-                    continue;
+            match transaction_digest_to_stored.get(digest_bytes) {
+                Some(stored)
+                    if (key.checkpoint_viewed_at as i64) >= stored.checkpoint_sequence_number =>
+                {
+                    // Filter by key's checkpoint viewed at here. Doing this in memory because it
+                    // should be quite rare that this query actually filters something,
+                    // but encoding it in SQL is complicated.
+                    let tx_block = TransactionBlock {
+                        inner: TransactionBlockInner::try_from(stored.clone())?,
+                        checkpoint_viewed_at: key.checkpoint_viewed_at,
+                    };
+                    results.insert(*key, tx_block);
                 }
+                _ => {
+                    missing_digests.push(key.digest.to_vec());
+                }
+            }
+        }
 
-                TransactionBlock {
-                    inner: TransactionBlockInner::try_from(stored.clone())?,
-                    checkpoint_viewed_at: key.checkpoint_viewed_at,
+        if !missing_digests.is_empty() {
+            let optimistic_transactions: Vec<OptimisticTransaction> = self
+                .execute(move |conn| {
+                    conn.results(move || {
+                        opt_tx::optimistic_transactions
+                            .inner_join(
+                                tx_global::tx_global_order.on(opt_tx::global_sequence_number
+                                    .eq(tx_global::global_sequence_number)
+                                    .and(
+                                        opt_tx::optimistic_sequence_number
+                                            .eq(tx_global::optimistic_sequence_number),
+                                    )),
+                            )
+                            // Filter by digest on tx_global_order table because it is indexed by
+                            // digest, optimistic_transactions table is not
+                            .filter(tx_global::tx_digest.eq_any(missing_digests.clone()))
+                            .select(OptimisticTransaction::as_select())
+                    })
+                })
+                .await
+                .map_err(|e| {
+                    Error::Internal(format!("Failed to fetch optimistic transactions: {e}"))
+                })?;
+
+            let transaction_digest_to_optimistic: BTreeMap<Vec<u8>, OptimisticTransaction> =
+                optimistic_transactions
+                    .into_iter()
+                    .map(|opt_tx| (opt_tx.transaction_digest.clone(), opt_tx))
+                    .collect();
+
+            for key in keys {
+                let digest_bytes = key.digest.as_slice();
+                if let Some(optimistic) = transaction_digest_to_optimistic.get(digest_bytes) {
+                    let tx_block = TransactionBlock {
+                        inner: TransactionBlockInner::try_from(optimistic.clone())?,
+                        checkpoint_viewed_at: u64::MAX,
+                    };
+                    results.insert(*key, tx_block);
                 }
-            } else if let Some(optimistic) = transaction_digest_to_optimistic.get(digest_bytes) {
-                TransactionBlock {
-                    inner: TransactionBlockInner::try_from(optimistic.clone())?,
-                    checkpoint_viewed_at: u64::MAX,
-                }
-            } else {
-                continue;
-            };
-            results.insert(*key, tx_block);
+            }
         }
 
         Ok(results)
