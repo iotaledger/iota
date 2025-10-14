@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-module iotaccount::basic_keyed_account;
+module iotaccount::keyed_iotaccount;
 
 use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
