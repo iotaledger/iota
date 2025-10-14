@@ -2475,7 +2475,7 @@ mod test {
 
         // Check the last proposed block
         assert_eq!(
-            dag_state.recover_own_block(),
+            dag_state.recover_last_own_block(),
             dag_builder.blocks(num_rounds..=num_rounds)[0].clone()
         );
 
@@ -2508,7 +2508,7 @@ mod test {
 
         // The last proposed block should be from the round 5
         assert_eq!(
-            dag_state.recover_own_block(),
+            dag_state.recover_last_own_block(),
             dag_builder.blocks(5..=5)[0].clone()
         );
 
@@ -2956,7 +2956,7 @@ mod test {
                 .into_iter()
                 .find(|block| block.author() == context.own_index)
                 .unwrap();
-            assert_eq!(dag_state.read().recover_own_block(), my_genesis_block);
+            assert_eq!(dag_state.read().recover_last_own_block(), my_genesis_block);
         }
 
         // WHEN adding some block headers for authorities, only the last ones should be
