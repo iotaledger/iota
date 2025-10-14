@@ -52,7 +52,8 @@ export function ExportAccountPage() {
                 <div className="max-h-[70vh] overflow-y-auto">
                     <div className="flex flex-col gap-md">
                         <div className="flex flex-col gap-xs">
-                            <div className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">                                Public Key With Flag
+                            <div className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
+                                Public Key With Flag
                             </div>
                             <HideShowDisplayBox
                                 value={publicKey ? publicKey.toIotaPublicKey() : ''}
