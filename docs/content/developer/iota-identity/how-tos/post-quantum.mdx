@@ -93,6 +93,7 @@ issuer_document.generate_method_pqc(
 </Tabs>
 
 Inspecting the resulting DID Document, should yield a JSON object similar to this:
+{ /* spellchecker:off */ }
 ```json
 {
   "doc": {
@@ -116,8 +117,8 @@ Inspecting the resulting DID Document, should yield a JSON object similar to thi
     "updated": "2025-09-13T12:49:03Z"
   }
 }
-
 ```
+{ /* spellchecker:on */ }
 
 As expected we see a DID verification method of type `JsonWebKey2020` encapsulating an ML-DSA-87
 public key with all its outstanding 2592 bytes!
@@ -252,6 +253,7 @@ Users may notice the above snippet uses the `generate_method_hybrid` which doesn
 `KeyType` parameter, and the use of `CompositeAlgId` instead of `JwsAlgorithm`.
 Inspecting the resulting JSON DID Document, yield something similar to this:
 
+{ /* spellchecker:off */ }
 ```json
 {
   "doc": {
@@ -286,6 +288,7 @@ Inspecting the resulting JSON DID Document, yield something similar to this:
   }
 }
 ```
+{ /* spellchecker:on */ }
 
 As expected we can see a verification method of type `CompositeJsonWebKey`, containing a composite
 JWK that uses the algorithm `id-MLDSA44-Ed25519`.
