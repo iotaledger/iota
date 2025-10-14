@@ -4,14 +4,15 @@
 /// Scenario-style tests that mirror the structure and tone of `iotaccount` tests.
 ///
 /// Coverage:
-/// - Happy path (init → grant → authenticate OK)
-/// - Unauthorized function
-/// - Invalid amount of commands
-/// - Revoke then fail
+/// - Happy path (attach → grant → delegated authenticate OK)
+/// - Happy path (attach → grant → owner authenticate OK)
+/// - Unauthorized function (delegated)
+/// - Invalid amount of commands (delegated)
+/// - Revoke then fail (delegated)
 /// - Double add (store error)
 /// - Remove missing (store error)
-/// - Authenticate without init
-///
+/// - Authenticate without init (delegated)
+/// - Attempt of granting a permission by non-owner
 #[test_only]
 module function_keys::function_keys_scenario_tests;
 
@@ -23,45 +24,46 @@ use iota::hex;
 use iota::programmable_transaction::{Self as ptb, Command};
 use iota::test_scenario::{Self as scen, Scenario};
 use iota::tx_context as txc;
-use iotaccount::basic_keyed_account as iacc;
-use iotaccount::iotaccount::{account_address, IOTAccount};
+use iotaccount::iotaccount::{Self, IOTAccount};
 use std::ascii;
 
 // ----------------------------------------------------------------------------
-// Happy path: create → grant → authenticate OK
+// Happy path (delegated): attach → grant(pubkey, function) → authenticate OK
 // ----------------------------------------------------------------------------
 #[test]
-fun test_fk_authenticate_happy_path() {
+fun test_fk_authenticate_happy_path_delegated() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
-    // Use the same fixed public key / digest / signature pattern as iotaccount tests
-    let ed25519_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    let account_address = create_iotaccount_with_pk_for_testing(scenario, ed25519_pk);
+    let owner_pk = x"1ea6f0f467574295a2cd5d21a3fd3a712ade354d520d3bd0fe6088d7b7c2e00e";
+
+    let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
     let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
 
-    // TX 1: init store + grant permission for this pub_key
+    // TX 1: attach FK store + grant permission for this pub_key
     scenario.next_tx(account_address);
     {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
 
-        // initialize FK store
-        function_keys::create(&mut account, ctx);
+        function_keys::attach(&mut account, ctx);
 
-        // allow @0x123::wallet::withdraw for ed25519_pk
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
-        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
+
+        function_keys::grant_permission(&mut account, user_public_key, fk, ctx);
 
         scen::return_shared(account);
     };
-
-    // TX 2: authenticate a PTB with exactly one matching MoveCall
-    scenario.next_tx(account_address);
+    let delegated_sender = @0xA;
+    // TX 2: delegated authenticate (sender != account), exactly one matching MoveCall
+    scenario.next_tx(delegated_sender);
     {
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
         let account = scenario.take_shared<IOTAccount>();
-        let ctx = create_tx_context_for_testing(account_address, digest);
+        let ctx = create_tx_context_for_testing(delegated_sender, digest);
+
         let mut cmds = vector::empty<Command>();
         vector::push_back(
             &mut cmds,
@@ -78,8 +80,8 @@ fun test_fk_authenticate_happy_path() {
 
         function_keys::authenticate(
             &account,
-            ed25519_pk,
-            hex::encode(signature),
+            user_public_key, // delegated pubkey
+            hex::encode(signature), // hex-encoded sig (like iotaccount tests)
             &auth_ctx,
             &ctx,
         );
@@ -91,39 +93,101 @@ fun test_fk_authenticate_happy_path() {
 }
 
 // ----------------------------------------------------------------------------
-// Unauthorized function
+// Happy path (owner): attach → grant(pubkey, function) → authenticate OK
 // ----------------------------------------------------------------------------
 #[test]
-#[expected_failure(abort_code = function_keys::EUnauthorized)]
-fun test_fk_authenticate_unauthorized() {
+fun test_fk_authenticate_happy_path_owner() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
-    let ed25519_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    let account_address = create_iotaccount_with_pk_for_testing(scenario, ed25519_pk);
+    let owner_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
     let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
 
-    // setup
+    // TX 1: attach FK store + grant permission for this pub_key
     scenario.next_tx(account_address);
     {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
-        function_keys::create(&mut account, ctx);
 
-        // allow withdraw only for this pub_key
+        function_keys::attach(&mut account, ctx);
+
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
-        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
+
+        function_keys::grant_permission(&mut account, owner_pk, fk, ctx);
+
+        scen::return_shared(account);
+    };
+    // TX 2: delegated authenticate (sender != account), exactly one matching MoveCall
+    scenario.next_tx(account_address);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(account_address, digest);
+
+        let mut cmds = vector::empty<Command>();
+        vector::push_back(
+            &mut cmds,
+            make_move_call_for_testing(
+                package_id,
+                b"wallet".to_ascii_string(),
+                b"withdraw".to_ascii_string(),
+            ),
+        );
+        let auth_ctx = create_auth_context_with_commands_for_testing(cmds);
+
+        let signature =
+            x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
+
+        function_keys::authenticate(
+            &account,
+            owner_pk, // owner pubkey
+            hex::encode(signature), // hex-encoded sig (like iotaccount tests)
+            &auth_ctx,
+            &ctx,
+        );
 
         scen::return_shared(account);
     };
 
-    // authenticate calling DEPOSIT instead
+    scen::end(scenario_val);
+}
+
+// ----------------------------------------------------------------------------
+#[test]
+#[expected_failure(abort_code = function_keys::EUnauthorized)]
+fun test_fk_authenticate_unauthorized_delegated() {
+    let mut scenario_val = scen::begin(@0x0);
+    let scenario = &mut scenario_val;
+
+    let owner_pk = x"1ea6f0f467574295a2cd5d21a3fd3a712ade354d520d3bd0fe6088d7b7c2e00e";
+    let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
+    let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
+
+    // attach + allow withdraw only for this pub_key
     scenario.next_tx(account_address);
     {
-        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-        let account = scenario.take_shared<IOTAccount>();
+        let mut account = scenario.take_shared<IOTAccount>();
+        let ctx = scen::ctx(scenario);
 
-        let ctx = create_tx_context_for_testing(account_address, digest);
+        function_keys::attach(&mut account, ctx);
+
+        let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
+        function_keys::grant_permission(&mut account, owner_pk, fk, ctx);
+
+        scen::return_shared(account);
+    };
+    let delegated_sender = @0xA;
+    // delegated authenticate calling "deposit" instead → EUnauthorized
+    scenario.next_tx(delegated_sender);
+    {
+        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
+
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(delegated_sender, digest);
+
         let mut cmds = vector::empty<Command>();
         vector::push_back(
             &mut cmds,
@@ -140,7 +204,7 @@ fun test_fk_authenticate_unauthorized() {
 
         function_keys::authenticate(
             &account,
-            ed25519_pk,
+            user_public_key,
             hex::encode(signature),
             &auth_ctx,
             &ctx,
@@ -152,39 +216,41 @@ fun test_fk_authenticate_unauthorized() {
     scen::end(scenario_val);
 }
 
-// ----------------------------------------------------------------------------
-// Too many commands
 // ----------------------------------------------------------------------------
 #[test]
 #[expected_failure(abort_code = function_keys::EInvalidAmountOfCommands)]
-fun test_fk_authenticate_too_many_commands() {
+fun test_fk_authenticate_too_many_commands_delegated() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
-    let ed25519_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    let account_address = create_iotaccount_with_pk_for_testing(scenario, ed25519_pk);
+    let owner_pk = x"1ea6f0f467574295a2cd5d21a3fd3a712ade354d520d3bd0fe6088d7b7c2e00e";
+    let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
     let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
 
-    // setup
+    // attach + allow withdraw
     scenario.next_tx(account_address);
     {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
-        function_keys::create(&mut account, ctx);
+
+        function_keys::attach(&mut account, ctx);
 
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
-        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
+        function_keys::grant_permission(&mut account, owner_pk, fk, ctx);
 
         scen::return_shared(account);
     };
 
-    // authenticate with 2 commands
+    // delegated authenticate with 2 commands → EInvalidAmountOfCommands
     scenario.next_tx(account_address);
     {
+        let delegated_sender = @0xA;
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-        let account = scenario.take_shared<IOTAccount>();
 
-        let ctx = create_tx_context_for_testing(account_address, digest);
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(delegated_sender, digest);
+
         let mut cmds = vector::empty<Command>();
         vector::push_back(
             &mut cmds,
@@ -209,7 +275,7 @@ fun test_fk_authenticate_too_many_commands() {
 
         function_keys::authenticate(
             &account,
-            ed25519_pk,
+            user_public_key,
             hex::encode(signature),
             &auth_ctx,
             &ctx,
@@ -222,39 +288,40 @@ fun test_fk_authenticate_too_many_commands() {
 }
 
 // ----------------------------------------------------------------------------
-// Revoke → authenticate fails
-// ----------------------------------------------------------------------------
 #[test]
 #[expected_failure(abort_code = function_keys::EUnauthorized)]
-fun test_fk_revoke_then_fails() {
+fun test_fk_revoke_then_fails_delegated() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
-    let ed25519_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    let account_address = create_iotaccount_with_pk_for_testing(scenario, ed25519_pk);
+    let owner_pk = x"1ea6f0f467574295a2cd5d21a3fd3a712ade354d520d3bd0fe6088d7b7c2e00e";
+    let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
     let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
 
-    // setup & revoke
+    // attach, grant, revoke
     scenario.next_tx(account_address);
     {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
 
-        function_keys::create(&mut account, ctx);
+        function_keys::attach(&mut account, ctx);
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
-        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
-        function_keys::revoke_permission(&mut account, ed25519_pk, &fk, ctx);
+        function_keys::grant_permission(&mut account, user_public_key, fk, ctx);
+        function_keys::revoke_permission(&mut account, user_public_key, &fk, ctx);
 
         scen::return_shared(account);
     };
 
-    // authenticate now should fail
+    // delegated authenticate should now fail with EUnauthorized
     scenario.next_tx(account_address);
     {
+        let delegated_sender = @0xA;
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-        let account = scenario.take_shared<IOTAccount>();
 
-        let ctx = create_tx_context_for_testing(account_address, digest);
+        let account = scenario.take_shared<IOTAccount>();
+        let ctx = create_tx_context_for_testing(delegated_sender, digest);
+
         let mut cmds = vector::empty<Command>();
         vector::push_back(
             &mut cmds,
@@ -271,7 +338,7 @@ fun test_fk_revoke_then_fails() {
 
         function_keys::authenticate(
             &account,
-            ed25519_pk,
+            user_public_key,
             hex::encode(signature),
             &auth_ctx,
             &ctx,
@@ -284,7 +351,7 @@ fun test_fk_revoke_then_fails() {
 }
 
 // ----------------------------------------------------------------------------
-// Double add attempt
+// Double add attempt → store::EFunctionKeyAlreadyAdded
 // ----------------------------------------------------------------------------
 #[test]
 #[expected_failure(abort_code = store::EFunctionKeyAlreadyAdded)]
@@ -292,8 +359,9 @@ fun test_fk_double_add_should_fail() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
-    let ed25519_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    let account_address = create_iotaccount_with_pk_for_testing(scenario, ed25519_pk);
+    let owner_pk = x"1ea6f0f467574295a2cd5d21a3fd3a712ade354d520d3bd0fe6088d7b7c2e00e";
+    let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
     let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
 
     scenario.next_tx(account_address);
@@ -301,15 +369,15 @@ fun test_fk_double_add_should_fail() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
 
-        function_keys::create(&mut account, ctx);
+        function_keys::attach(&mut account, ctx);
 
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
 
         // First add OK
-        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
+        function_keys::grant_permission(&mut account, user_public_key, fk, ctx);
 
-        // Second add must fail with EFunctionKeyAlreadyAdded for the same pub_key
-        function_keys::grant_permission(&mut account, ed25519_pk, fk, ctx);
+        // Second add (same pubkey, same function) must fail
+        function_keys::grant_permission(&mut account, user_public_key, fk, ctx);
 
         scen::return_shared(account);
     };
@@ -318,7 +386,7 @@ fun test_fk_double_add_should_fail() {
 }
 
 // ----------------------------------------------------------------------------
-// Try to remove function key that hasn't been added → EFunctionKeyDoesNotExist
+// Remove missing → store::EFunctionKeyDoesNotExist
 // ----------------------------------------------------------------------------
 #[test]
 #[expected_failure(abort_code = store::EFunctionKeyDoesNotExist)]
@@ -326,8 +394,9 @@ fun test_fk_remove_missing_should_fail() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
-    let ed25519_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    let account_address = create_iotaccount_with_pk_for_testing(scenario, ed25519_pk);
+    let owner_pk = x"1ea6f0f467574295a2cd5d21a3fd3a712ade354d520d3bd0fe6088d7b7c2e00e";
+    let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
     let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
 
     scenario.next_tx(account_address);
@@ -335,15 +404,15 @@ fun test_fk_remove_missing_should_fail() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
 
-        function_keys::create(&mut account, ctx);
+        function_keys::attach(&mut account, ctx);
 
-        // Ensure the pub_key bucket exists by granting a different function first
+        // Prime the pubkey bucket with a different function
         let fk_granted = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
-        function_keys::grant_permission(&mut account, ed25519_pk, fk_granted, ctx);
+        function_keys::grant_permission(&mut account, user_public_key, fk_granted, ctx);
 
-        // Now try to remove a function key that was never added (same pub_key)
+        // Attempt to revoke a function that was never granted
         let fk_other = make_func_key(package_id.to_address(), b"wallet", b"deposit");
-        function_keys::revoke_permission(&mut account, ed25519_pk, &fk_other, ctx);
+        function_keys::revoke_permission(&mut account, user_public_key, &fk_other, ctx);
 
         scen::return_shared(account);
     };
@@ -352,24 +421,26 @@ fun test_fk_remove_missing_should_fail() {
 }
 
 // ----------------------------------------------------------------------------
-// Authenticate before init → EFunctionKeysNotInitialized
+// Authenticate without init → function_keys::EFunctionKeysNotInitialized (delegated)
 // ----------------------------------------------------------------------------
 #[test]
 #[expected_failure(abort_code = function_keys::EFunctionKeysNotInitialized)]
-fun test_fk_authenticate_without_init() {
+fun test_fk_authenticate_without_init_delegated() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
-    let ed25519_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    let account_address = create_iotaccount_with_pk_for_testing(scenario, ed25519_pk);
+    let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let owner_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
     let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
 
     scenario.next_tx(account_address);
     {
+        let delegated_sender = @0xA;
         let account = scenario.take_shared<IOTAccount>();
 
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-        let ctx = create_tx_context_for_testing(account_address, digest);
+        let ctx = create_tx_context_for_testing(delegated_sender, digest);
 
         let mut cmds = vector::empty<Command>();
         vector::push_back(
@@ -385,9 +456,10 @@ fun test_fk_authenticate_without_init() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
+        // No attach() performed → must fail in delegated flow
         function_keys::authenticate(
             &account,
-            ed25519_pk,
+            user_public_key,
             hex::encode(signature),
             &auth_ctx,
             &ctx,
@@ -397,6 +469,35 @@ fun test_fk_authenticate_without_init() {
     };
 
     scen::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = iotaccount::ETransactionSenderIsNotTheAccount)]
+fun test_fk_authenticate_unauthorized_granted_permission() {
+    let mut sc = scen::begin(@0x0);
+    let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let owner_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
+    let account_addr = create_iotaccount_with_pk_for_testing(&mut sc, owner_pk);
+
+    scen::next_tx(&mut sc, account_addr);
+    {
+        let mut acc = scen::take_shared<IOTAccount>(&sc);
+        let ctx = scen::ctx(&mut sc);
+        function_keys::attach(&mut acc, ctx);
+        scen::return_shared(acc);
+    };
+
+    // Try to grant from a different sender → must fail
+    scen::next_tx(&mut sc, @0xA);
+    {
+        let mut acc = scen::take_shared<IOTAccount>(&sc);
+        let ctx = scen::ctx(&mut sc);
+        let pkg = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
+        let fk = make_func_key(pkg.to_address(), b"wallet", b"withdraw");
+        function_keys::grant_permission(&mut acc, user_public_key, fk, ctx);
+        scen::return_shared(acc);
+    };
+    scen::end(sc);
 }
 
 // ============================================================================
@@ -427,7 +528,7 @@ fun create_iotaccount_for_testing_impl(
     let public_key = public_key.destroy_or!(public_key_for_testing());
     let authenticator = create_authenticator_info_v1_for_testing();
 
-    iacc::create(public_key, authenticator, ctx);
+    function_keys::create(public_key, authenticator, ctx);
 
     scen::next_tx(scenario, @0x0);
 

@@ -4,15 +4,21 @@
 /// Public API & authenticator for per-account Function Keys (allow-set).
 ///
 /// This module provides:
-/// - `create` to initialize the per-account allow-set (a dynamic field).
-/// - `grant_permission` / `revoke_permission` admin operations.
+/// - `attach` to initialize the per-account allow-set (a dynamic field).
+/// - `create` to create a new `IOTAccount` with a public key and an authenticator.
+/// - `grant_permission` / `revoke_permission` admin operations over a per-pubkey allow-set.
 /// - `has_permission` read-only query.
-/// - `authenticate` implementation that:
-///     1. delegates signature verification to `iotaccount::authenticate_ed25519`
-///        (so it uses the **account’s** single stored public key),
-///     2. requires **exactly one** PTB command,
-///     3. extracts the called `FunctionKey` and checks membership in the allow-set.
+/// - `authenticate` dual-flow implementation:
+///     1. OWNER FLOW (bypass): if the provided signature verifies against the account owner
+///        Ed25519 public key (stored by the underlying account), authentication succeeds **without**
+///        enforcing any function key restrictions or command count checks.
+///     2. FUNCTION KEY FLOW (delegated): otherwise, we treat `pub_key` as a delegated key:
+///        - verify signature against `pub_key`
+///        - enforce exactly one PTB command
+///        - extract a `FunctionKey` from that sole command and ensure it is allowed for `pub_key`.
 ///
+/// This allows the true account owner to perform arbitrary programmable transactions while
+/// enabling granular function-level delegation to other keys.
 module function_keys::function_keys;
 
 use function_keys::fk_store::{
@@ -26,10 +32,11 @@ use function_keys::fk_store::{
     disallow,
     is_allowed
 };
+use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
 use iota::ed25519;
 use iota::hex::decode;
-use iotaccount::iotaccount::IOTAccount;
+use iotaccount::iotaccount::{builder, IOTAccount};
 
 // --------------------
 // Errors
@@ -44,14 +51,21 @@ const EInvalidAmountOfCommands: vector<u8> = b"Invalid number of commands";
 /// Called function not in the allow-set.
 #[error(code = 2)]
 const EUnauthorized: vector<u8> = b"Function key is not the allowed set";
-/// Ed225519 verification has failed.
+/// Ed225519 verification has failed (delegated flow).
 #[error(code = 3)]
 const EEd25519VerificationFailed: vector<u8> = b"Ed25519 verification has failed";
 
+public struct OwnerPublicKey has copy, drop, store {}
 
 /// Initializes the Function Keys store under the given `account`.
-public fun create(account: &mut IOTAccount, ctx: &mut TxContext) {
-    attach_fk_store(account, ctx);
+public fun attach(account: &mut IOTAccount, ctx: &mut TxContext) { attach_fk_store(account, ctx); }
+
+/// Creates a new `IOTAccount` as a shared object with the given authenticator.
+public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
+    let account = builder(authenticator, ctx)
+        .add_dynamic_field(OwnerPublicKey {}, public_key)
+        .finish();
+    account.share();
 }
 
 /// Grants (allows) a `FunctionKey` under a specific `pub_key`.
@@ -62,7 +76,6 @@ public fun grant_permission(
     func_key: FunctionKey,
     ctx: &mut TxContext,
 ) {
-    account.ensure_tx_sender_is_account(ctx);
     assert!(fk_store_exists(account), EFunctionKeysNotInitialized);
 
     let fk_store = borrow_fk_store_mut(account, ctx);
@@ -76,7 +89,6 @@ public fun revoke_permission(
     func_key: &FunctionKey,
     ctx: &TxContext,
 ) {
-    account.ensure_tx_sender_is_account(ctx);
     assert!(fk_store_exists(account), EFunctionKeysNotInitialized);
 
     let fk_store = borrow_fk_store_mut(account, ctx);
@@ -93,20 +105,25 @@ public fun has_permission(account: &IOTAccount, pub_key: vector<u8>, func_key: &
 // Authenticator
 // --------------------
 
-/// Authenticates a transaction using the **account’s** ed25519 public key
-/// and the per-account **allow-set** of function keys.
+/// Dual-flow authenticator
 ///
-/// Steps:
-/// 1. `iotaccount::authenticate_ed25519(account, signature, auth_ctx, ctx)` verifies the signature
-///    against the account’s stored public key and the canonical `ctx.digest()`.
-/// 2. Check `auth_ctx.tx_commands().length() == 1` to enforce a single operation PTB.
-/// 3. Convert the sole `Command` into a `FunctionKey` via `extract_func_key(...)`.
-/// 4. Assert the key exists in the account’s allow-set.
+/// **Owner flow (bypass):**
+/// If `ctx.sender()` equals the account address, we verify the signature against the stored
+/// owner public key. If verification succeeds, authentication passes immediately (no Function Keys
+/// checks and no command count enforcement).
 ///
-/// Errors:
-/// - `EFunctionKeysNotInitialized` if `create` has not been called.
-/// - `EInvalidAmountOfCommands` if PTB has 0 or > 1 commands.
-/// - `EUnauthorized` if the call target isn’t allowed.
+/// **Delegated flow (function-key):**
+/// If `ctx.sender()` is not the account address, we treat the provided `pub_key` as a delegated key:
+///   1) Verify signature against `pub_key`.
+///   2) Require exactly one PTB command.
+///   3) Extract `FunctionKey` from that sole command.
+///   4) Assert that `func_key` is allowed for `pub_key` in this account’s store.
+///
+/// Fails with:
+/// - `EFunctionKeysNotInitialized` if the store is missing (delegated flow).
+/// - `EEd25519VerificationFailed` if signature verification fails (owner or delegated flow).
+/// - `EInvalidAmountOfCommands` if the PTB has ≠ 1 command (delegated flow).
+/// - `EUnauthorized` if the function is not authorized for the delegated key (delegated flow).
 public fun authenticate(
     account: &IOTAccount,
     pub_key: vector<u8>,
@@ -114,18 +131,36 @@ public fun authenticate(
     auth_ctx: &AuthContext,
     ctx: &TxContext,
 ) {
-    assert!(fk_store_exists(account), EFunctionKeysNotInitialized);
+    // Decode signature once for both attempts.
+    let sig_bytes = decode(signature);
 
-    // Check the signature.
-    assert!(
-        ed25519::ed25519_verify(&decode(signature), &pub_key, ctx.digest()),
-        EEd25519VerificationFailed,
-    );
+    if (account.account_address() != ctx.sender()) {
+        // FUNCTION KEY FLOW
+        assert!(fk_store_exists(account), EFunctionKeysNotInitialized);
 
-    // PTB MUST contain exactly one command.
-    assert!(auth_ctx.tx_commands().length() == 1, EInvalidAmountOfCommands);
+        // Verify delegated signature against provided pub_key.
+        assert!(
+            ed25519::ed25519_verify(&sig_bytes, &pub_key, ctx.digest()),
+            EEd25519VerificationFailed,
+        );
+        // Require exactly one command.
+        assert!(auth_ctx.tx_commands().length() == 1, EInvalidAmountOfCommands);
+        // Extract and check allow-set membership.
+        let func_key = extract_func_key(&auth_ctx.tx_commands()[0]);
+        let fk_store = borrow_fk_store(account);
+        assert!(fk_store.is_allowed(pub_key, &func_key), EUnauthorized);
+    } else {
+        // OWNER FLOW: verify against the stored owner public key (bypass restrictions).
+        // If succeeds, we short-circuit.
+        let owner_pk = borrow_public_key(account);
+        assert!(pub_key == owner_pk);
+        assert!(
+            ed25519::ed25519_verify(&sig_bytes, owner_pk, ctx.digest()),
+            EEd25519VerificationFailed,
+        );
+    }
+}
 
-    let func_key = extract_func_key(&auth_ctx.tx_commands()[0]);
-    let fk_store = borrow_fk_store(account);
-    assert!(fk_store.is_allowed(pub_key, &func_key), EUnauthorized);
+public fun borrow_public_key(account: &IOTAccount): &vector<u8> {
+    account.borrow_field(OwnerPublicKey {})
 }

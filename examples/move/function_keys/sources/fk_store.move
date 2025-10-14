@@ -17,7 +17,8 @@ use iota::vec_set::{Self, VecSet};
 use iotaccount::iotaccount::IOTAccount;
 
 #[error(code = 0)]
-const EFunctionKeysStoreAlreadyAttached: vector<u8> = b"The function keys store has been attached already";
+const EFunctionKeysStoreAlreadyAttached: vector<u8> =
+    b"The function keys store has been attached already";
 
 #[error(code = 1)]
 const EFunctionKeyAlreadyAdded: vector<u8> = b"The function key has been added already";
@@ -60,7 +61,11 @@ fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
 
 public fun attach_fk_store(account: &mut IOTAccount, ctx: &mut TxContext) {
     assert!(!account.has_field(fk_store_key()), EFunctionKeysStoreAlreadyAttached);
-    account.add_field(fk_store_key(), FunctionKeysStore { function_keys: tbl::new<vector<u8>, VecSet<FunctionKey>>(ctx) }, ctx);
+    account.add_field(
+        fk_store_key(),
+        FunctionKeysStore { function_keys: tbl::new<vector<u8>, VecSet<FunctionKey>>(ctx) },
+        ctx,
+    );
 }
 
 public fun fk_store_exists(account: &IOTAccount): bool {
