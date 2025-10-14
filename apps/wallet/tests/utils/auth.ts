@@ -11,7 +11,7 @@ export const PASSWORD = 'iota';
 export async function createWallet(page: Page, extensionUrl: string) {
     await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: SHORT_TIMEOUT });
-    await page.getByText('Create New').click();
+    await page.getByText('New Mnemonic Profile').click();
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
     await page.getByText('I read and agree').click();
