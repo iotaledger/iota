@@ -36,6 +36,7 @@ import {
 import { formatAddress } from '@iota/iota-sdk/utils';
 import { DialogLayout, DialogLayoutFooter, DialogLayoutBody } from '../../layout';
 import { Warning } from '@iota/apps-ui-icons';
+import { ampli } from '@/lib/utils/analytics';
 
 interface StakeDialogProps {
     handleClose: () => void;
@@ -93,6 +94,17 @@ export function DetailsView({
     ) : (
         formatAddress(validatorAddress)
     );
+
+    const onUnstakeClick = () => {
+        if (handleUnstake) {
+            handleUnstake();
+            ampli.clickedUnstakeIota({
+                stakedAmount: Number(totalStakeFormatted),
+                validatorAddress: stakedDetails?.validatorAddress,
+            });
+        }
+    };
+
     if (isPendingValidators) {
         return (
             <div className="flex h-full w-full items-center justify-center p-2">
@@ -189,7 +201,7 @@ export function DetailsView({
                 <div className="flex w-full gap-sm">
                     <Button
                         type={ButtonType.Secondary}
-                        onClick={handleUnstake}
+                        onClick={onUnstakeClick}
                         text="Unstake"
                         fullWidth
                     />

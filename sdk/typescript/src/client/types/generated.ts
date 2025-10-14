@@ -524,6 +524,7 @@ export interface IotaChangeEpoch {
 export interface IotaChangeEpochV2 {
     computation_charge: string;
     computation_charge_burned: string;
+    eligible_active_validators?: string[] | null;
     epoch: string;
     epoch_start_timestamp_ms: string;
     storage_charge: string;

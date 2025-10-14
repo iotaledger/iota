@@ -84,7 +84,7 @@ impl From<&IndexedTransaction> for CheckpointTxGlobalOrder {
 /// that represent the index status.
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = tx_global_order)]
-pub(crate) struct CheckpointTxGlobalOrder {
+pub struct CheckpointTxGlobalOrder {
     pub(crate) chk_tx_sequence_number: Option<i64>,
     pub(crate) global_sequence_number: i64,
     pub(crate) tx_digest: Vec<u8>,
@@ -101,7 +101,7 @@ pub(crate) struct CheckpointTxGlobalOrder {
 /// Index status.
 #[derive(Clone, Debug, Copy, AsExpression, PartialEq, Eq)]
 #[diesel(sql_type = BigInt)]
-pub(crate) enum IndexStatus {
+pub enum IndexStatus {
     Started,
     Completed,
 }
@@ -199,6 +199,30 @@ impl OptimisticTransaction {
             transaction_kind: stored.transaction_kind,
             success_command_count: stored.success_command_count,
         }
+    }
+
+    pub fn get_balance_len(&self) -> usize {
+        self.balance_changes.len()
+    }
+
+    pub fn get_balance_at_idx(&self, idx: usize) -> Option<Vec<u8>> {
+        self.balance_changes.get(idx).cloned().flatten()
+    }
+
+    pub fn get_object_len(&self) -> usize {
+        self.object_changes.len()
+    }
+
+    pub fn get_object_at_idx(&self, idx: usize) -> Option<Vec<u8>> {
+        self.object_changes.get(idx).cloned().flatten()
+    }
+
+    pub fn get_event_len(&self) -> usize {
+        self.events.len()
+    }
+
+    pub fn get_event_at_idx(&self, idx: usize) -> Option<Vec<u8>> {
+        self.events.get(idx).cloned().flatten()
     }
 }
 

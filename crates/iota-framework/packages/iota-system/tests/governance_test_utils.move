@@ -185,6 +185,11 @@ public fun advance_epoch_with_reward_amounts_return_rebate_and_max_committee_mem
 
     let ctx = scenario.ctx();
 
+    let eligible_active_validators = vector::tabulate!(
+        system_state.validators().active_validators_inner().length(),
+        |i| i,
+    );
+
     let storage_rebate = system_state.advance_epoch_for_testing(
         new_epoch,
         1,
@@ -197,6 +202,7 @@ public fun advance_epoch_with_reward_amounts_return_rebate_and_max_committee_mem
         0,
         0,
         max_committee_members_count,
+        eligible_active_validators,
         ctx,
     );
     test_scenario::return_shared(system_state);
@@ -274,6 +280,11 @@ public fun advance_epoch_with_reward_amounts_and_slashing_rates(
 
     let validator_subsidy = computation_charge;
 
+    let eligible_active_validators = vector::tabulate!(
+        system_state.validators().active_validators_inner().length(),
+        |i| i,
+    );
+
     // Use the same value as the default value of max_active_validators.
     let max_committee_members_count = 150;
 
@@ -289,6 +300,7 @@ public fun advance_epoch_with_reward_amounts_and_slashing_rates(
         reward_slashing_rate,
         0,
         max_committee_members_count,
+        eligible_active_validators,
         ctx,
     );
     test_utils::destroy(storage_rebate);

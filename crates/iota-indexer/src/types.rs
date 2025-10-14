@@ -23,6 +23,8 @@ use iota_types::{
     transaction::SenderSignedData,
 };
 use move_core_types::language_storage::StructTag;
+#[cfg(any(test, feature = "shared_test_runtime", feature = "pg_integration"))]
+use rand::Rng;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
@@ -427,11 +429,43 @@ impl IndexedObject {
     }
 }
 
+#[cfg(any(feature = "pg_integration", feature = "shared_test_runtime", test))]
+impl IndexedObject {
+    pub fn random() -> Self {
+        let mut rng = rand::thread_rng();
+        let random_address = IotaAddress::random_for_testing_only();
+        IndexedObject {
+            checkpoint_sequence_number: rng.gen(),
+            object: Object::with_owner_for_testing(random_address),
+            df_kind: {
+                let random_value = rng.gen_range(0..3);
+                match random_value {
+                    0 => Some(DynamicFieldType::DynamicField),
+                    1 => Some(DynamicFieldType::DynamicObject),
+                    _ => None,
+                }
+            },
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct IndexedDeletedObject {
     pub object_id: ObjectID,
     pub object_version: u64,
     pub checkpoint_sequence_number: u64,
+}
+
+#[cfg(any(feature = "pg_integration", feature = "shared_test_runtime", test))]
+impl IndexedDeletedObject {
+    pub fn random() -> Self {
+        let mut rng = rand::thread_rng();
+        IndexedDeletedObject {
+            object_id: ObjectID::random(),
+            object_version: rng.gen(),
+            checkpoint_sequence_number: rng.gen(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -468,6 +502,7 @@ pub struct TxIndex {
     pub sender: IotaAddress,
     pub recipients: Vec<IotaAddress>,
     pub move_calls: Vec<(ObjectID, String, String)>,
+    pub wrapped_or_deleted_objects: Vec<ObjectID>,
 }
 
 #[cfg(any(test, feature = "pg_integration"))]
@@ -499,7 +534,7 @@ impl TxIndex {
         let recipients = repeat_with(IotaAddress::random_for_testing_only)
             .take(rng.gen_range(0..MAX_RECIPIENTS))
             .collect();
-        let move_calls = std::iter::repeat_with(|| {
+        let move_calls = repeat_with(|| {
             (
                 ObjectID::random(),
                 rand::random::<u64>().to_string(),
@@ -508,6 +543,7 @@ impl TxIndex {
         })
         .take(rng.gen_range(0..MAX_MOVE_CALLS))
         .collect();
+        let wrapped_or_deleted_objects = repeat_with(ObjectID::random).take(MAX_OBJECTS).collect();
 
         TxIndex {
             tx_sequence_number: rng.gen(),
@@ -520,22 +556,9 @@ impl TxIndex {
             sender: IotaAddress::random_for_testing_only(),
             recipients,
             move_calls,
+            wrapped_or_deleted_objects,
         }
     }
-}
-
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub(crate) struct TxIndexExt {
-    /// Objects that were either wrapped immediately after being created,
-    /// deleted, or deleted immediately after being unwrapped.
-    pub(crate) wrapped_or_deleted_objects: Vec<ObjectID>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct TxIndexV2 {
-    pub(crate) base: TxIndex,
-    pub(crate) ext: TxIndexExt,
 }
 
 // ObjectChange is not bcs deserializable, IndexedObjectChange is.

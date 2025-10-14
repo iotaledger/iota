@@ -129,6 +129,7 @@ export function AddAccountPage() {
                 navigate('/accounts/import-private-key');
                 break;
             case AccountsFormType.ImportSeed:
+                ampli.clickedImportSeed({ sourceFlow });
                 navigate('/accounts/import-seed');
                 break;
             case AccountsFormType.ImportLedger:
@@ -141,7 +142,7 @@ export function AddAccountPage() {
                 }
                 break;
             case AccountsFormType.ImportKeystone:
-                // TODO Add amplitude here - https://github.com/iotaledger/iota/issues/8599
+                ampli.clickedImportKeystone({ sourceFlow });
                 if (isPopup && cameraPermissionStatus === 'prompt') {
                     await openTabOnImportKeystone();
                     window.close();
