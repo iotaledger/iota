@@ -18,13 +18,13 @@ Today, verifying university degrees is a slow, manual, and often costly hurdle. 
 
 ## The Opportunity
 
-Universities can issue tamper-proof Verifiable Credentials (VCs) that students control using the IOTA Identity product. Students present these credentials to employers, who can instantly verify them on the IOTA network without intermediaries, cutting costs and eliminating fraud.
+Universities can issue tamper-proof Verifiable Credentials (VCs) that students control using the IOTA Identity. Students present these credentials to employers, who can instantly verify them on the IOTA network without intermediaries, cutting costs and eliminating fraud.
 
 ### What You’ll Build in this Workshop
 
-We're building a complete, production-ready system that connects a modern React frontend to a high-performance Rust backend. You'll learn how the frontend triggers the entire IOTA Identity lifecycle:
+We're building a complete, system that connects a modern React frontend to a high-performance Rust backend. You'll learn how the frontend triggers the entire IOTA Identity lifecycle:
 
-- **Holder (Student)**: Creates a Decentralized Identifier (DID) and stores it securely.
+- **Holder (Student)**: Creates a **Decentralized Identifier (DID)** and stores it securely.
 - **Issuer (University)**: Issues a **Verifiable Credential (VC)** representing the degree.
 - **Holder**: Packages the credential into a **Verifiable Presentation (VP)** and signs it.
 - **Verifier (Employer)**: Verifies the authenticity of the presentation and credentials against the IOTA network.
@@ -175,10 +175,10 @@ Rust and Cargo are required for the Rust backend of the IOTA Identity workshop. 
 ### Step 5: Local Network Setup
 
 :::info
-Use this page to set up a [Local Network Setup](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup)
+Use this page to set up a [Local IOTA Network](https://docs.iota.org/developer/iota-identity/getting-started/local-network-setup)
 :::
 
-## Step 6: Install Visual Studio Code
+### Step 6: Install Visual Studio Code
 
 Visual Studio Code (VS Code) is a lightweight code editor that you'll use to edit and run the Rust and React code for this IOTA Identity workshop. Follow the instructions below to install VS Code on your operating system.
 
@@ -374,7 +374,7 @@ const handleApiCall = useCallback(async (step, endpoint, body) => {
 
 | Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored (State) |
 | :--- | :--- | :--- | :--- |
-| **Button Click** (`handleCreateVp`) | `/holder/create-vp` | `{ "vcJwt": "..." }` | `vpJwt` (string) |
+| **Button Click** (`handleCreateDid`) | `/holder/create-did` | `{ "": "..." }` | `did` (string) |
 
 **Frontend** (`src/App.jsx`): We define the handler to call the API endpoint and update the state.
 
