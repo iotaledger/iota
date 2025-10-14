@@ -1,0 +1,58 @@
+---
+title: Trust Framework - How To
+description: Explains cross component technics and general concepts of the IOTA Trust Framework.
+sidebar_label: Trust Framework - How To
+tags:
+  - trust-framework
+---
+# Trust Framework - How To
+
+![Trust Framework - How To](/img/banner/banner_trust_framework.png)
+
+Despite offering a variety of components and tools for creating verifiable, on-chain records of any digital data
+the Trust Framework (TF) uses several cross component technics and general concepts that are not specific to a single component.
+This section and its sub-pages explain these technics and concepts in more detail:
+
+## Using the Trust Framework Component Clients
+
+In most cases TF components provide a Move SC implementing the core business logic and client libraries for Rust and JS/TS
+facilitating SC interaction for easier integration into your applications. For this purpose TF components provide so called
+Component Clients that wrap the low-level Move SC calls into high-level functions.
+
+Go to [Component Clients](/developer/trust-framework-howto/component-clients).
+
+## Build Custom Transactions
+
+TF components provide a transaction builder allowing to create, manipulate or delete objects on the IOTA network in an as easy
+as possible way. These transaction builders can also be used to create custom transactions that allow users to integrate
+the component specific transaction with transactions of other components or even custom Move SC.
+
+Go to [Custom Transactions](/developer/trust-framework-howto/custom-transactions).
+
+## Gas Station Integration
+
+The IOTA Gas Station simplifies user onboarding and enhances SC engagement by enabling businesses and developers to sponsor
+transaction fees on the IOTA network. As a part of the IOTA Trust Framework, several components support the integration of the IOTA Gas Station.
+
+Go to [Gas Station Integration](/developer/trust-framework-howto/gas-station-integration).
+
+## Use Trust Framework Components in the Browser
+
+Most TF components provide a JS/TS client library that can be used in browser-based applications.
+
+Go to [In Browser Usage](/developer/trust-framework-howto/in-browser-usage).
+
+## Setup Environments for included Tests
+TF components include integration and end-to-end tests that can be used to verify the correct setup of the component
+and to understand its usage. These tests can be run against different environments like a local
+network, the testnet or the mainnet.
+
+Go to [Test Environment Setup](/developer/trust-framework-howto/test-environment-setup).
+
+## Use IOTA Resource Locators (IRLs) with Trust Framework Components
+
+IOTA Resource Locators (IRLs) are a simple and flexible way to reference digital resources on the IOTA network.
+TF components support IRLs to allows users to access and retrieve component specific on-chain data
+in a chain-agnostic manner.
+
+Go to [Resource Locators](/developer/trust-framework-howto/resource-locators).

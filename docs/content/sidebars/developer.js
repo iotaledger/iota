@@ -4,6 +4,7 @@
 
 const tsSDK = require('./ts-sdk');
 const iotaEvm = require('./iota-evm');
+const trust_framework_howto = require("./trust_framework_howto");
 const notarization = require("./notarization");
 const hierarchies = require('./hierarchies');
 const identity = require('./identity');
@@ -616,6 +617,12 @@ const developer = [
             id: 'developer/iota-trust-framework',
         },
         items: [
+            {
+                type: 'category',
+                label: 'Trust Framework - How To',
+                collapsed: true,
+                items: trust_framework_howto,
+            },
             {
                 type: 'category',
                 label: 'Identity',
