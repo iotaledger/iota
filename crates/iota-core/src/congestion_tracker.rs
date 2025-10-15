@@ -428,7 +428,8 @@ impl CongestionTracker {
             }
         }
 
-        // Decay hotness for objects that were not updated in this checkpoint
+        // Objects that were not updated in this checkpoint will decay as much as
+        // possible, bounded by `MAX_DECAY_FACTOR` (see `update_hotness` function).
         for (object_id, info) in congestion_info_map.iter_mut() {
             if !objects_with_mutated_hotness.contains(object_id) {
                 info.hotness = f64::MAX;
