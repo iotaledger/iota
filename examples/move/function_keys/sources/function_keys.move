@@ -26,8 +26,10 @@ use function_keys::fk_store::{
     FunctionKey,
     attach_fk_store,
     borrow_fk_store,
+    build_fn_keys_store,
     borrow_fk_store_mut,
     fk_store_exists,
+    fk_store_key,
     allow,
     disallow,
     is_allowed
@@ -64,6 +66,7 @@ public fun attach(account: &mut IOTAccount, ctx: &mut TxContext) { attach_fk_sto
 public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
     let account = builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
+        .add_dynamic_field(fk_store_key(), build_fn_keys_store(ctx))
         .finish();
     account.share();
 }
@@ -157,4 +160,14 @@ public fun authenticate(
 
 public fun borrow_public_key(account: &IOTAccount): &vector<u8> {
     account.borrow_field(OwnerPublicKey {})
+}
+
+/// Creates a new `IOTAccount` as a shared object with the given authenticator, but without
+/// attaching the Function Keys store. This is useful for testing purposes.
+#[test_only]
+public fun create_without_fk_store(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
+    let account = builder(authenticator, ctx)
+        .add_dynamic_field(OwnerPublicKey {}, public_key)
+        .finish();
+    account.share();
 }

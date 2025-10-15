@@ -57,7 +57,7 @@ public struct FunctionKeysStore has store {
 // =========================
 // Accessors / helpers
 // =========================
-fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
+public fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
 
 public fun attach_fk_store(account: &mut IOTAccount, ctx: &mut TxContext) {
     assert!(!account.has_field(fk_store_key()), EFunctionKeysStoreAlreadyAttached);
@@ -66,6 +66,10 @@ public fun attach_fk_store(account: &mut IOTAccount, ctx: &mut TxContext) {
         FunctionKeysStore { function_keys: tbl::new<vector<u8>, VecSet<FunctionKey>>(ctx) },
         ctx,
     );
+}
+
+public fun build_fn_keys_store(ctx: &mut TxContext): FunctionKeysStore {
+    FunctionKeysStore { function_keys: tbl::new<vector<u8>, VecSet<FunctionKey>>(ctx) }
 }
 
 public fun fk_store_exists(account: &IOTAccount): bool {
@@ -94,10 +98,7 @@ public fun make_func_key(
 
 /// Ensure a VecSet exists for `pub_key`; if absent, create an empty set.
 /// Returns a &mut to the set.
-fun ensure_key_entry(
-    store: &mut FunctionKeysStore,
-    pub_key: vector<u8>,
-): &mut VecSet<FunctionKey> {
+fun ensure_key_entry(store: &mut FunctionKeysStore, pub_key: vector<u8>): &mut VecSet<FunctionKey> {
     if (!tbl::contains(&store.function_keys, pub_key)) {
         tbl::add(&mut store.function_keys, pub_key, vec_set::empty());
     };

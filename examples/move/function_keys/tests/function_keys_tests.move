@@ -47,8 +47,6 @@ fun test_fk_authenticate_happy_path_delegated() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
 
-        function_keys::attach(&mut account, ctx);
-
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
 
         function_keys::grant_permission(&mut account, user_public_key, fk, ctx);
@@ -110,8 +108,6 @@ fun test_fk_authenticate_happy_path_owner() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
 
-        function_keys::attach(&mut account, ctx);
-
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
 
         function_keys::grant_permission(&mut account, owner_pk, fk, ctx);
@@ -172,8 +168,6 @@ fun test_fk_authenticate_unauthorized_delegated() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
 
-        function_keys::attach(&mut account, ctx);
-
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
         function_keys::grant_permission(&mut account, owner_pk, fk, ctx);
 
@@ -233,8 +227,6 @@ fun test_fk_authenticate_too_many_commands_delegated() {
     {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
-
-        function_keys::attach(&mut account, ctx);
 
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
         function_keys::grant_permission(&mut account, owner_pk, fk, ctx);
@@ -305,7 +297,6 @@ fun test_fk_revoke_then_fails_delegated() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
 
-        function_keys::attach(&mut account, ctx);
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
         function_keys::grant_permission(&mut account, user_public_key, fk, ctx);
         function_keys::revoke_permission(&mut account, user_public_key, &fk, ctx);
@@ -369,8 +360,6 @@ fun test_fk_double_add_should_fail() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
 
-        function_keys::attach(&mut account, ctx);
-
         let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
 
         // First add OK
@@ -404,8 +393,6 @@ fun test_fk_remove_missing_should_fail() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = scen::ctx(scenario);
 
-        function_keys::attach(&mut account, ctx);
-
         // Prime the pubkey bucket with a different function
         let fk_granted = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
         function_keys::grant_permission(&mut account, user_public_key, fk_granted, ctx);
@@ -431,16 +418,18 @@ fun test_fk_authenticate_without_init_delegated() {
 
     let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
     let owner_pk = x"1ea6f0f467574295a2cd5d21a3fd3a712ade354d520d3bd0fe6088d7b7c2e00e";
-    let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
+    let account_address = create_iotaccount_for_testing_without_fk_store(
+        scenario,
+        option::some(owner_pk),
+    );
     let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
 
     scenario.next_tx(account_address);
     {
-        let delegated_sender = @0xA;
-        let account = scenario.take_shared<IOTAccount>();
+        let mut account = scenario.take_shared<IOTAccount>();
 
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-        let ctx = create_tx_context_for_testing(delegated_sender, digest);
+        let mut ctx = create_tx_context_for_testing(account_address, digest);
 
         let mut cmds = vector::empty<Command>();
         vector::push_back(
@@ -456,7 +445,6 @@ fun test_fk_authenticate_without_init_delegated() {
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        // No attach() performed → must fail in delegated flow
         function_keys::authenticate(
             &account,
             user_public_key,
@@ -477,15 +465,15 @@ fun test_fk_authenticate_unauthorized_granted_permission() {
     let mut sc = scen::begin(@0x0);
     let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
     let owner_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    let account_addr = create_iotaccount_with_pk_for_testing(&mut sc, owner_pk);
+    create_iotaccount_with_pk_for_testing(&mut sc, owner_pk);
 
-    scen::next_tx(&mut sc, account_addr);
-    {
-        let mut acc = scen::take_shared<IOTAccount>(&sc);
-        let ctx = scen::ctx(&mut sc);
-        function_keys::attach(&mut acc, ctx);
-        scen::return_shared(acc);
-    };
+    // scen::next_tx(&mut sc, account_addr);
+    // {
+    //     let mut acc = scen::take_shared<IOTAccount>(&sc);
+    //     let ctx = scen::ctx(&mut sc);
+    //     function_keys::attach(&mut acc, ctx);
+    //     scen::return_shared(acc);
+    // };
 
     // Try to grant from a different sender → must fail
     scen::next_tx(&mut sc, @0xA);
@@ -529,6 +517,26 @@ fun create_iotaccount_for_testing_impl(
     let authenticator = create_authenticator_info_v1_for_testing();
 
     function_keys::create(public_key, authenticator, ctx);
+
+    scen::next_tx(scenario, @0x0);
+
+    let account = scen::take_shared<IOTAccount>(scenario);
+    let account_address = account.account_address();
+    scen::return_shared(account);
+
+    account_address
+}
+
+fun create_iotaccount_for_testing_without_fk_store(
+    scenario: &mut Scenario,
+    public_key: option::Option<vector<u8>>,
+): address {
+    let ctx = scen::ctx(scenario);
+
+    let public_key = public_key.destroy_or!(public_key_for_testing());
+    let authenticator = create_authenticator_info_v1_for_testing();
+
+    function_keys::create_without_fk_store(public_key, authenticator, ctx);
 
     scen::next_tx(scenario, @0x0);
 
