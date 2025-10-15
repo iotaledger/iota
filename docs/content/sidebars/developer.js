@@ -474,7 +474,13 @@ const developer = [
         type: 'doc',
         id: 'developer/workshops/index',
     },
-    items: [],
+    items: [
+    {
+      type: 'doc',
+      id: 'developer/workshops/minting-managing-tokens',
+      label: 'Minting and Managing Tokens',
+    },
+  ],
     },
     {
         type: 'category',
