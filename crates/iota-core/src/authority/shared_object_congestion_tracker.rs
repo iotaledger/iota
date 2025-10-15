@@ -1808,11 +1808,11 @@ mod object_cost_tests {
                     mode,
                     assign_min_free_execution_slot,
                 );
-       
-        // Verify that accumulated_debts is empty initially.
-        let accumulated_debts =
-            shared_object_congestion_tracker.clone().accumulated_debts(max_execution_duration_per_commit);
 
+        // Verify that accumulated_debts is empty initially.
+        let accumulated_debts = shared_object_congestion_tracker
+            .clone()
+            .accumulated_debts(max_execution_duration_per_commit);
         assert!(accumulated_debts.is_empty());
 
         // Simulate a tx on object 0 that exceeds the budget.
@@ -1822,7 +1822,8 @@ mod object_cost_tests {
                 tx_gas_budget,
                 TEST_ONLY_GAS_PRICE,
             );
-            shared_object_congestion_tracker.bump_object_execution_slots(&tx, current_max_duration_per_object);
+            shared_object_congestion_tracker
+                .bump_object_execution_slots(&tx, current_max_duration_per_object);
         }
 
         // Verify that accumulated_debts reports the debt for object 0.
