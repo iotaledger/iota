@@ -57,7 +57,7 @@ public struct FunctionKeysStore has store {
 // =========================
 // Accessors / helpers
 // =========================
-public fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
+public(package) fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
 
 public fun attach_fk_store(account: &mut IOTAccount, ctx: &mut TxContext) {
     assert!(!account.has_field(fk_store_key()), EFunctionKeysStoreAlreadyAttached);
