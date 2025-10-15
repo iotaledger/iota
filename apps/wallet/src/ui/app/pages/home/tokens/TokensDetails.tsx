@@ -3,7 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
-import { useActiveAccount, useActiveAddress, useAppSelector, useExplorerLink } from '_hooks';
+import {
+    useActiveAccount,
+    useActiveAddress,
+    useAppSelector,
+    useExplorerLink,
+    useShouldOpenInNewTab,
+} from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
@@ -46,8 +52,6 @@ import { ReceiveTokensDialog } from './ReceiveTokensDialog';
 import { OverviewHint } from './OverviewHint';
 import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
 import { MigrationDialog } from './MigrationDialog';
-import { NEW_TAB_ACCOUNT_TYPES } from '_src/shared/accountTypes';
-import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { openInNewTab } from '_src/shared/utils';
 
 export function TokenDetails() {
@@ -60,9 +64,7 @@ export function TokenDetails() {
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
     const network = useAppSelector((state) => state.app.network);
-    const isTabView = useAppSelector(
-        (state) => state.app.extensionViewType === ExtensionViewType.Tab,
-    );
+    const shouldOpenNewTab = useShouldOpenInNewTab();
     const isMainnet = network === Network.Mainnet;
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
     const migrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
@@ -165,9 +167,6 @@ export function TokenDetails() {
 
     const onSendClick = () => {
         if (activeAccount && !activeAccount?.isLocked) {
-            const shouldOpenNewTab =
-                NEW_TAB_ACCOUNT_TYPES.includes(activeAccount?.type) && !isTabView;
-
             const destination = coinBalance?.coinType
                 ? `/send?${new URLSearchParams({ type: coinBalance?.coinType }).toString()}`
                 : '/send';

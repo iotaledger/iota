@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAccount, useActiveAddress, useAppSelector, useUnlockedGuard } from '_hooks';
+import { useActiveAddress, useUnlockedGuard, useShouldOpenInNewTab } from '_hooks';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useNftDetails, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -10,8 +10,6 @@ import cl from 'clsx';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
-import { NEW_TAB_ACCOUNT_TYPES } from '_src/shared/accountTypes';
-import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
 import { openInNewTab } from '_src/shared/utils';
 
 export function NFTDetailsPage() {
@@ -19,10 +17,7 @@ export function NFTDetailsPage() {
     const [searchParams] = useSearchParams();
     const nftId = searchParams.get('objectId');
     const accountAddress = useActiveAddress();
-    const activeAccount = useActiveAccount();
-    const isTabView = useAppSelector(
-        (state) => state.app.extensionViewType === ExtensionViewType.Tab,
-    );
+    const shouldOpenNewTab = useShouldOpenInNewTab();
     const {
         nftDisplayData,
         isLoading,
@@ -54,16 +49,11 @@ export function NFTDetailsPage() {
 
     async function handleSend() {
         const destination = `/nft-transfer/${nftId}`;
-        if (activeAccount) {
-            const needNewTab = NEW_TAB_ACCOUNT_TYPES.includes(activeAccount?.type) && !isTabView;
-
-            if (needNewTab) {
-                openInNewTab(destination);
-                return;
-            }
+        if (shouldOpenNewTab) {
+            openInNewTab(destination);
+        } else {
+            navigate(destination);
         }
-
-        navigate(destination);
     }
 
     return (
