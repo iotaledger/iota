@@ -50,7 +50,7 @@
         "zustand": "^4.4.1"
     },
     "devDependencies": {
-        "@amplitude/ampli": "^1.35.0",
+        "@amplitude/ampli": "^1.31.5",
         "@amplitude/analytics-types": "^0.20.0",
         "@playwright/test": "^1.46.1",
         "@types/node": "^20.14.10",
