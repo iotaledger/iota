@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, env};
+use std::{collections::HashMap, env, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use iota_data_ingestion_core::{
     DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
@@ -15,8 +15,11 @@ use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
+/// Timeout for waiting for tasks to shutdown gracefully after cancellation
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+
 use crate::{
-    build_optimistic_json_rpc_server,
+    build_json_rpc_server,
     config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::ConnectionPool,
     errors::IndexerError,
@@ -24,9 +27,9 @@ use crate::{
         checkpoint_handler::new_handlers, objects_snapshot_handler::start_objects_snapshot_handler,
         optimistic_pruner::OptimisticPruner, pruner::Pruner,
     },
-    indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
+    read::IndexerReader,
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
 };
 
@@ -64,13 +67,14 @@ impl Indexer {
 
         // Start objects snapshot processor, which is a separate pipeline with its
         // ingestion pipeline.
-        let (object_snapshot_worker, object_snapshot_watermark) = start_objects_snapshot_handler(
-            store.clone(),
-            metrics.clone(),
-            snapshot_config,
-            cancel.clone(),
-        )
-        .await?;
+        let (object_snapshot_worker, object_snapshot_watermark, mut object_snapshot_task_handle) =
+            start_objects_snapshot_handler(
+                store.clone(),
+                metrics.clone(),
+                snapshot_config,
+                cancel.clone(),
+            )
+            .await?;
 
         if let Some(retention_config) = retention_config {
             let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
@@ -126,8 +130,8 @@ impl Indexer {
         );
         executor.register(worker_pool).await?;
         info!("Starting data ingestion executor...");
-        executor
-            .run(
+        let mut executor_handle = tokio::spawn(
+            executor.run(
                 config
                     .sources
                     .data_ingestion_path
@@ -140,8 +144,34 @@ impl Indexer {
                     .map(|url| url.as_str().to_owned()),
                 vec![],
                 extra_reader_options,
-            )
-            .await?;
+            ),
+        );
+
+        tokio::select! {
+            executor_result = &mut executor_handle => {
+                // Executor completed first - cancel snapshot task and check result
+                cancel.cancel();
+                let snapshot_result = tokio::time::timeout(
+                    SHUTDOWN_TIMEOUT,
+                    object_snapshot_task_handle
+                ).await
+                .context("timeout waiting for snapshot task to shutdown");
+                executor_result.context("failed to join data ingestion executor")?.context("data ingestion executor failed")?;
+                snapshot_result?.context("failed to join snapshot task during shutdown")?.context("snapshot task failed during shutdown")?;
+            },
+            snapshot_result = &mut object_snapshot_task_handle => {
+                // Snapshot task completed first - cancel executor and check result
+                cancel.cancel();
+                let executor_result = tokio::time::timeout(
+                    SHUTDOWN_TIMEOUT,
+                    executor_handle
+                ).await
+                .context("timeout waiting for executor to shutdown");
+                snapshot_result.context("failed to join snapshot task")?.context("snapshot task failed")?;
+                executor_result?.context("failed to join data ingestion executor during shutdown")?.context("data ingestion executor failed during shutdown")?;
+            }
+        };
+
         Ok(())
     }
 
@@ -156,11 +186,10 @@ impl Indexer {
             "IOTA Indexer Reader (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
-        let indexer_reader = IndexerReader::new(connection_pool);
-        let handle =
-            build_optimistic_json_rpc_server(store, registry, indexer_reader, config, metrics)
-                .await
-                .expect("Json rpc server should not run into errors upon start.");
+        let read = IndexerReader::new(connection_pool);
+        let handle = build_json_rpc_server(store, registry, read, config, metrics)
+            .await
+            .expect("Json rpc server should not run into errors upon start.");
         tokio::spawn(async move { handle.stopped().await })
             .await
             .expect("Rpc server task failed");

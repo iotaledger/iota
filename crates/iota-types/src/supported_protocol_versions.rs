@@ -63,7 +63,7 @@ impl SupportedProtocolVersionsWithHashes {
 
     // Ideally this would be in iota-protocol-config, but iota-types depends on
     // iota-protocol-config, so it would introduce a circular dependency.
-    fn protocol_config_digest(config: &ProtocolConfig) -> Digest {
+    pub fn protocol_config_digest(config: &ProtocolConfig) -> Digest {
         let mut digest = DefaultHash::default();
         bcs::serialize_into(&mut digest, &config).expect("serialization cannot fail");
         Digest::new(digest.finalize().into())

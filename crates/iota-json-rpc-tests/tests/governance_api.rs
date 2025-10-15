@@ -179,6 +179,44 @@ async fn get_stakes_with_new_validator() {
 
     assert_eq!(test_cluster.committee().epoch, 1);
 
+    // Starts the validator node process
+    let new_validator_handle = test_cluster.spawn_new_validator(new_validator).await;
+    test_cluster.wait_for_epoch_all_nodes(1).await;
+
+    // Check that a new validator has not yet joined the committee (needs to spend 1
+    // epoch as active validator before joining committee).
+    test_cluster.fullnode_handle.iota_node.with(|node| {
+        assert_eq!(
+            node.state()
+                .epoch_store_for_testing()
+                .committee()
+                .num_members(),
+            4
+        );
+    });
+    new_validator_handle.with(|node| {
+        assert!(
+            !node
+                .state()
+                .is_committee_validator(&node.state().epoch_store_for_testing())
+        );
+    });
+
+    // after epoch change the new validator is active but not part of the committee
+    // however, stake is marked as active
+    let stakes = client.get_stakes(address).await.unwrap();
+    assert!(matches!(
+        stakes[0].stakes[0].status,
+        StakeStatus::Active {
+            estimated_reward: 0
+        }
+    ));
+
+    test_cluster.force_new_epoch().await;
+
+    assert_eq!(test_cluster.committee().epoch, 2);
+    test_cluster.wait_for_epoch_all_nodes(2).await;
+
     // Check that a new validator has joined the committee.
     test_cluster.fullnode_handle.iota_node.with(|node| {
         assert_eq!(
@@ -189,8 +227,14 @@ async fn get_stakes_with_new_validator() {
             5
         );
     });
-
+    new_validator_handle.with(|node| {
+        assert!(
+            node.state()
+                .is_committee_validator(&node.state().epoch_store_for_testing())
+        );
+    });
     // after epoch change the new validator is active and part of the committee
+    // estimated reward is zero, as the validator just entered committee
     let stakes = client.get_stakes(address).await.unwrap();
     assert!(matches!(
         stakes[0].stakes[0].status,
@@ -198,17 +242,6 @@ async fn get_stakes_with_new_validator() {
             estimated_reward: 0
         }
     ));
-
-    // Starts the validator node process
-    let new_validator_handle = test_cluster.spawn_new_validator(new_validator).await;
-    test_cluster.wait_for_epoch_all_nodes(1).await;
-
-    new_validator_handle.with(|node| {
-        assert!(
-            node.state()
-                .is_validator(&node.state().epoch_store_for_testing())
-        );
-    });
 
     test_cluster.force_new_epoch().await;
 

@@ -64,6 +64,28 @@ impl Transaction {
         let bytes = bcs::to_bytes(transactions).map_err(ConsensusError::SerializationFailure)?;
         Ok(bytes.into())
     }
+
+    /// Create a vector of random transactions for testing.
+    #[cfg(test)]
+    pub fn random_transactions(count: usize, max_len: usize) -> Vec<Self> {
+        (0..count)
+            .map(|_| Self::random_transaction(max_len))
+            .collect()
+    }
+
+    // Create one random transaction for testing
+    #[cfg(test)]
+    pub fn random_transaction(max_len: usize) -> Self {
+        use rand::{Rng, RngCore};
+
+        let mut rng = rand::thread_rng();
+        let len = rng.gen_range(0..=max_len);
+        let mut buf = vec![0u8; len];
+        rng.fill_bytes(&mut buf);
+        Transaction {
+            data: Bytes::from(buf),
+        }
+    }
 }
 
 /// A block header includes references to previous round blocks and a commitment
@@ -914,6 +936,10 @@ impl VerifiedTransactions {
 
     pub fn serialized(&self) -> &Bytes {
         &self.serialized
+    }
+
+    pub fn has_transactions(&self) -> bool {
+        !self.transactions.is_empty()
     }
 }
 

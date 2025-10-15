@@ -16,7 +16,7 @@ use bytes::Bytes;
 use itertools::Itertools as _;
 use starfish_config::AuthorityIndex;
 use tokio::time::Instant;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     block_header::{
@@ -29,18 +29,14 @@ use crate::{
     },
     context::Context,
     leader_scoring::{ReputationScores, ScoringSubdag},
-    linearizer::MAX_LINEARIZER_DEPTH,
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
 };
 
-/// Acknowledgment depth is the maximum number of rounds from current round
-/// for which acknowledgments are kept in memory and can be injected in a new
-/// block.
-// TODO: make it derivable from the protocol parameters
-pub(crate) const MAX_TRANSACTIONS_ACK_DEPTH: Round = 50;
-pub(crate) const MAX_HEADERS_PER_BUNDLE: usize = 150;
-pub(crate) const MAX_SHARDS_PER_BUNDLE: usize = 150;
+/// If a shard from a block created by authority v1 is useful to authority v2 at
+/// round r, then shards from v1 will be sent to v2 up to round r +
+/// MAX_ROUND_GAP_FOR_USEFUL_SHARDS.
+const MAX_ROUND_GAP_FOR_USEFUL_SHARDS: usize = 5;
 
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
@@ -62,9 +58,10 @@ pub(crate) struct DagState {
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
     /// Contains recent transactions. It contains
-    /// MAX_TRANSACTIONS_ACK_DEPTH+MAX_LINEARIZER_DEPTH from the round of
-    /// the last consumed commit. Note: all transactions in blocks below that
-    /// round are evicted from memory.
+    /// MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH =
+    /// (protocol_config.gc_depth * 2) from the round of the last consumed
+    /// commit. Note: all transactions in blocks below that round are
+    /// evicted from memory.
     recent_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
     /// Contains recent shards with their Merkle proofs.
     recent_shards: BTreeMap<BlockRef, Bytes>,
@@ -95,7 +92,8 @@ pub(crate) struct DagState {
     /// Round of the last committed leader which created a commit with available
     /// transactions. Does not persist across restarts and after recovery.
     /// All transactions below this round minus MAX_TRANSACTIONS_ACK_DEPTH
-    /// minus MAX_LINEARIZER_DEPTH are evicted from memory.
+    /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
+    /// (protocol_config.gc_depth) are evicted from memory.
     last_solid_commit_leader_round: Option<Round>,
 
     /// Rounds for latest blocks traversed by linearizer per authority.
@@ -329,21 +327,45 @@ impl DagState {
             .inc();
     }
 
-    pub(crate) fn add_transactions(&mut self, transactions: VerifiedTransactions) {
+    pub(crate) fn add_transactions(&mut self, transactions: VerifiedTransactions, source: &str) {
         let block_ref = transactions.block_ref();
         if self
             .recent_transactions
             .insert(block_ref, transactions.clone())
             .is_none()
         {
+            self.context
+                .metrics
+                .node_metrics
+                .accepted_transactions
+                .with_label_values(&[source])
+                .inc();
             tracing::debug!("Adding transactions for block ref: {block_ref}");
+            let has_transactions = transactions.has_transactions();
             self.transactions_to_write.push(transactions);
             // If a block is not very old, add it to pending acknowledgments
             let clock_round = self.threshold_clock_round();
-            let min_round: Round = clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH);
+            let min_round: Round =
+                clock_round.saturating_sub(self.context.protocol_config.gc_depth());
 
             if block_ref.round >= min_round {
-                self.add_pending_acknowledgment(block_ref);
+                if has_transactions {
+                    self.add_pending_acknowledgment(block_ref);
+                } else {
+                    // report skipped acknowledgment
+                    let hostname = self
+                        .context
+                        .committee
+                        .authority(block_ref.author)
+                        .hostname
+                        .as_str();
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .skipped_empty_transaction_acknowledgments
+                        .with_label_values(&[hostname])
+                        .inc()
+                }
             }
         }
     }
@@ -375,7 +397,7 @@ impl DagState {
             .iter()
             .max()
             .expect("There should be at least one last committed round");
-        info!(
+        debug!(
             "Last solid commit has leader at round {}; last pending commit has leader at round {}",
             last_solid_commit_leader_round, max_commit_round
         );
@@ -747,7 +769,10 @@ impl DagState {
 
     /// Gets the last proposed block from this authority.
     /// If no block is proposed yet, returns Genesis block.
-    pub(crate) fn get_last_proposed_block(&self) -> VerifiedBlock {
+    /// NOTE: the method panics if transactions or headers are not found in DAG
+    /// State for the most recent header, as that should not happen for
+    /// correct initialization
+    pub(crate) fn recover_last_own_block(&self) -> VerifiedBlock {
         if let Some(last) = self.recent_headers_refs_by_authority[self.context.own_index].last() {
             let header = self
                 .recent_block_headers
@@ -800,7 +825,9 @@ impl DagState {
 
     /// Returns own cached recent blocks.
     /// Blocks returned are limited to round >= `start`, and cached.
-    /// NOTE: caller should not assume returned blocks are always chained.
+    /// NOTE: the method is soft in the sense that the if transactions are not
+    /// found for a given block header, that block is not included in the return
+    /// result
     pub(crate) fn get_own_cached_blocks(&self, start: Round) -> Vec<VerifiedBlock> {
         let authority = self.context.own_index;
         let mut blocks = vec![];
@@ -808,16 +835,13 @@ impl DagState {
             Included(BlockRef::new(start, authority, BlockHeaderDigest::MIN)),
             Unbounded,
         )) {
-            // Panic if header or transactions are missing for the block_ref.
-            let header = self
-                .recent_block_headers
-                .get(block_ref)
-                .unwrap_or_else(|| panic!("Missing block header for {block_ref:?}"));
-            let transactions = self
-                .recent_transactions
-                .get(block_ref)
-                .unwrap_or_else(|| panic!("Missing transactions for {block_ref:?}"));
-            blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
+            let header_opt = self.recent_block_headers.get(block_ref);
+            let transactions_opt = self.recent_transactions.get(block_ref);
+            if let (Some(header), Some(transactions)) = (header_opt, transactions_opt) {
+                blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
+            } else {
+                warn!("Block header or transactions missing for block ref: {block_ref}");
+            }
         }
         blocks
     }
@@ -1240,16 +1264,24 @@ impl DagState {
         self.commit_info_to_write
             .push((last_commit.reference(), commit_info));
     }
-
-    /// Takes a batch of at most MAX_HEADERS_PER_BUNDLE unknown headers for the
-    /// given authority, but only from round smaller than
-    /// round_upper_bound_exclusive. Marks these headers as known to the
-    /// authority.
-    pub(crate) fn take_unknown_headers_for_authority(
+    /// Removes and returns up to `MAX_HEADERS_PER_BUNDLE` block references that
+    /// the given authority has not yet seen, limited to rounds strictly
+    /// below `round_upper_bound_exclusive`.
+    ///
+    /// Side effects:
+    /// - Updates `block_headers_not_known_by_authority` so these refs are no
+    ///   longer considered "unknown" for the authority.
+    /// - Marks the given authority as knowing these blocks inside
+    ///   `recent_dag_cordial_knowledge`.
+    ///
+    /// Returns:
+    /// - A vector of `BlockRef`s corresponding to the unknown blocks that were
+    ///   revealed to the authority.
+    fn take_unknown_block_refs_for_authority(
         &mut self,
         authority_index: AuthorityIndex,
         round_upper_bound_exclusive: Round,
-    ) -> Vec<VerifiedBlockHeader> {
+    ) -> Vec<BlockRef> {
         let mut set =
             mem::take(&mut self.block_headers_not_known_by_authority[authority_index.value()]);
 
@@ -1261,7 +1293,7 @@ impl DagState {
             );
             let nth_element = set
                 .iter()
-                .nth(MAX_HEADERS_PER_BUNDLE)
+                .nth(self.context.parameters.max_headers_per_bundle)
                 .map_or(round_bound, |x| *x);
             min(nth_element, round_bound)
         };
@@ -1277,40 +1309,173 @@ impl DagState {
                 .expect("We expect block ref to be in recent dag cordial knowledge");
             who_knows_given_block.insert(authority_index);
         }
+        block_refs
+    }
+
+    /// Removes and returns up to `context.parameters.max_headers_per_bundle`
+    /// block references that the given authority has not yet seen, limited
+    /// to rounds strictly below `round_upper_bound_exclusive` and filtered
+    /// by the provided authors `useful_authorities`.
+    ///
+    /// Side effects:
+    /// - Updates `block_headers_not_known_by_authority` so these refs are no
+    ///   longer considered "unknown" for the authority.
+    /// - Marks the given authority as knowing these blocks inside
+    ///   `recent_dag_cordial_knowledge`.
+    ///
+    /// Returns:
+    /// - A vector of `BlockRef`s corresponding to the unknown blocks that were
+    ///   revealed to the authority.
+    fn take_useful_block_refs_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        round_upper_bound_exclusive: Round,
+        useful_authorities: BTreeSet<AuthorityIndex>,
+    ) -> Vec<BlockRef> {
+        let set = &mut self.block_headers_not_known_by_authority[authority_index.value()];
+
+        // Collect candidate block_refs we want to take out
+        let mut to_take = Vec::new();
+
+        for block_ref in set.iter() {
+            if to_take.len() >= self.context.parameters.max_headers_per_bundle
+                || block_ref.round >= round_upper_bound_exclusive
+            {
+                break;
+            }
+            if useful_authorities.contains(&block_ref.author) {
+                to_take.push(*block_ref);
+            }
+        }
+
+        // Remove the references from the set and update cordial knowledge
+        for block_ref in &to_take {
+            set.remove(block_ref);
+
+            if let Some((_, who_knows_given_block)) = self.recent_dag_cordial_knowledge
+                [block_ref.author.value()]
+            .get_mut(&(block_ref.round, block_ref.digest))
+            {
+                who_knows_given_block.insert(authority_index);
+            } else {
+                warn!("Block_ref {block_ref} missing in recent_dag_cordial_knowledge");
+            }
+        }
+
+        to_take
+    }
+
+    fn take_block_refs_of_useful_shards_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        round_upper_bound_exclusive: Round,
+        useful_authorities: BTreeSet<AuthorityIndex>,
+    ) -> Vec<BlockRef> {
+        let set = &mut self.shards_not_known_by_authority[authority_index.value()];
+
+        // Collect candidate block_refs we want to take out
+        let mut to_take = Vec::new();
+
+        for block_ref in set.iter() {
+            if to_take.len() >= self.context.parameters.max_shards_per_bundle
+                || block_ref.round >= round_upper_bound_exclusive
+            {
+                break;
+            }
+            if useful_authorities.contains(&block_ref.author) {
+                to_take.push(*block_ref);
+            }
+        }
+
+        // Remove the references from the set and update cordial knowledge
+        for block_ref in &to_take {
+            set.remove(block_ref);
+        }
+
+        to_take
+    }
+
+    /// Retrieves up to `MAX_HEADERS_PER_BUNDLE` previously unknown block
+    /// headers for the given authority, restricted to rounds strictly below
+    /// `round_upper_bound_exclusive`.
+    ///
+    /// This builds on [`take_unknown_block_refs_for_authority`], resolving the
+    /// returned block references into full `VerifiedBlockHeader`s.
+    ///
+    /// Panics if any of the block headers are missing from `DagState` or disk.
+    pub(crate) fn take_unknown_headers_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        round_upper_bound_exclusive: Round,
+    ) -> Vec<VerifiedBlockHeader> {
+        let block_refs = self
+            .take_unknown_block_refs_for_authority(authority_index, round_upper_bound_exclusive);
+
+        self.get_block_headers(&block_refs)
+            .into_iter()
+            .map(|opt| opt.expect("All headers should be in DagState or on disk"))
+            .collect()
+    }
+    /// Retrieves up to `MAX_HEADERS_PER_BUNDLE` unknown block headers for the
+    /// given authority, but only those authored by peers listed in
+    /// `useful_authorities`. Excludes blocks from other authorities.
+    ///
+    /// This builds on [`take_unknown_block_refs_for_authority`], filtering the
+    /// result with `useful_authorities` and resolving the returned block
+    /// references into full `VerifiedBlockHeader`s.
+    ///
+    /// Panics if any of the block headers are missing from `DagState` or disk.
+    pub(crate) fn take_useful_headers_for_authority(
+        &mut self,
+        authority_index: AuthorityIndex,
+        round_upper_bound_exclusive: Round,
+        useful_authorities: BTreeSet<AuthorityIndex>,
+    ) -> Vec<VerifiedBlockHeader> {
+        let block_refs = self.take_useful_block_refs_for_authority(
+            authority_index,
+            round_upper_bound_exclusive,
+            useful_authorities,
+        );
+
         self.get_block_headers(&block_refs)
             .into_iter()
             .map(|opt| opt.expect("All headers should be in DagState or on disk"))
             .collect()
     }
 
-    pub(crate) fn take_unknown_shards_for_authority(
+    pub(crate) fn take_useful_shards_for_authority(
         &mut self,
         authority_index: AuthorityIndex,
         round_upper_bound_exclusive: Round,
+        useful_authorities: BTreeSet<AuthorityIndex>,
     ) -> Vec<Bytes> {
-        let mut set = mem::take(&mut self.shards_not_known_by_authority[authority_index.value()]);
+        let block_refs = self.take_block_refs_of_useful_shards_for_authority(
+            authority_index,
+            round_upper_bound_exclusive,
+            useful_authorities,
+        );
+        block_refs
+            .iter()
+            .map(|block_ref| {
+                self.recent_shards
+                    .get(block_ref)
+                    .expect("Shard should be in DagState")
+                    .clone()
+            })
+            .collect::<Vec<_>>()
+    }
 
-        let split_point = {
-            let round_bound = BlockRef::new(
-                round_upper_bound_exclusive,
-                AuthorityIndex::MIN,
-                BlockHeaderDigest::MIN,
-            );
-            let nth_element = set
-                .iter()
-                .nth(MAX_SHARDS_PER_BUNDLE)
-                .map_or(round_bound, |x| *x);
-            min(nth_element, round_bound)
-        };
-
-        self.shards_not_known_by_authority[authority_index.value()] = set.split_off(&split_point);
-        let mut shards: Vec<Bytes> = vec![];
-        for block_ref in set.into_iter() {
-            if let Some(shard) = self.recent_shards.get(&block_ref) {
-                shards.push(shard.clone());
+    pub(crate) fn get_useful_shards_authors(
+        last_useful_round: Vec<Round>,
+        block_round: Round,
+    ) -> BTreeSet<AuthorityIndex> {
+        let mut useful_shard_authors = BTreeSet::new();
+        for (i, round) in last_useful_round.iter().enumerate() {
+            if block_round - round <= MAX_ROUND_GAP_FOR_USEFUL_SHARDS as u32 {
+                useful_shard_authors.insert(AuthorityIndex::from(i as u8));
             }
         }
-        shards
+        useful_shard_authors
     }
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
         let mut votes = Vec::new();
@@ -1320,31 +1485,72 @@ impl DagState {
         votes
     }
 
-    /// Function removes stalled transactions that are older than
-    /// "last consume leader round minus MAX_TRANSACTIONS_ACK_DEPTH minus
-    /// MAX_LINEARIZER_DEPTH"
+    /// Clean up old cached data for each authority, all cached blocks
+    /// are guaranteed to be persisted. Used after flushing.
+    pub(crate) fn evict_headers(&mut self) {
+        for (authority_index, _) in self.context.committee.authorities() {
+            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            let recent_refs = &mut self.recent_headers_refs_by_authority[authority_index];
+
+            // Evict everything below split_key
+            let split_key =
+                BlockRef::new(eviction_round + 1, authority_index, BlockHeaderDigest::MIN);
+
+            let to_keep = recent_refs.split_off(&split_key);
+            let evicted = std::mem::replace(recent_refs, to_keep);
+
+            // Remove evicted headers from recent_block_headers
+            for block_ref in &evicted {
+                self.recent_block_headers.remove(block_ref);
+            }
+            self.evicted_rounds[authority_index] = eviction_round;
+        }
+    }
+
+    /// Clean up old shards. Used after flushing.
+    pub(crate) fn evict_shards(&mut self) {
+        self.recent_shards
+            .retain(|block_ref, _| block_ref.round > self.evicted_rounds[block_ref.author]);
+    }
+
+    /// Function removes stalled transactions that are older than  "last consume
+    /// leader round minus MAX_TRANSACTIONS_ACK_DEPTH
+    /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
+    /// (protocol_config.gc_depth)"
     pub(crate) fn evict_transactions(&mut self) {
+        let transaction_gc_round = self.gc_round_for_last_solid_commit();
+        let header_eviction_round = self.calculate_authority_eviction_round(self.context.own_index);
+        let transaction_eviction_round = min(transaction_gc_round, header_eviction_round + 1);
+        // Construct a dummy BlockRef with the minimum round to split on.
+        // All entries < dummy will be removed.
+        let lower_bound = BlockRef::new(
+            transaction_eviction_round,
+            AuthorityIndex::ZERO,
+            BlockHeaderDigest::MIN,
+        );
+
+        // Remove entries with round < min_round
+        self.recent_transactions = self.recent_transactions.split_off(&lower_bound);
+    }
+
+    /// Return the garbage collection round with respect to the last solid
+    /// commit's leader round. Transactions of blocks at or below this round
+    /// can be evicted from memory
+    pub(crate) fn gc_round_for_last_solid_commit(&self) -> Round {
         let last_solid_leader_round = self.last_solid_commit_leader_round;
         if let Some(round) = last_solid_leader_round {
-            let tr_eviction_round: Round =
-                round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH);
-            let eviction_round = self.calculate_authority_eviction_round(self.context.own_index);
-            let min_round = min(tr_eviction_round, eviction_round + 1);
-            // Construct a dummy BlockRef with the minimum round to split on.
-            // All entries < dummy will be removed.
-            let lower_bound =
-                BlockRef::new(min_round, AuthorityIndex::ZERO, BlockHeaderDigest::MIN);
-
-            // Remove entries with round < min_round
-            self.recent_transactions = self.recent_transactions.split_off(&lower_bound);
+            self.gc_round(round)
+        } else {
+            GENESIS_ROUND
         }
     }
 
     /// Function removes stalled pending acknowledgments that are older than
-    /// "current clock round minus MAX_TRANSACTIONS_ACK_DEPTH"
+    /// "current clock round minus protocol_config.gc_depth() aka
+    /// (MAX_TRANSACTIONS_ACK_DEPTH)"
     pub(crate) fn evict_pending_acknowledgments(&mut self) {
         let clock_round = self.threshold_clock_round();
-        let min_round: Round = clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH);
+        let min_round: Round = clock_round.saturating_sub(self.context.protocol_config.gc_depth());
 
         // Construct a dummy BlockRef with the minimum round to split on.
         // All entries < dummy will be removed.
@@ -1393,10 +1599,13 @@ impl DagState {
 
         for ack in self.pending_acknowledgments.iter() {
             if taken.len() >= limit || ack.round >= clock_round {
-                last_ack = Some(*ack);
                 break;
             }
             taken.push(*ack);
+        }
+
+        if let Some(last) = taken.last() {
+            last_ack = Some(*last);
         }
 
         if let Some(last_ack) = last_ack {
@@ -1446,9 +1655,14 @@ impl DagState {
 
     /// Return the garbage collection round. Transactions of blocks at or below
     /// this round which are not yet sequenced will never be sequenced.
-    pub(crate) fn gc_round(&self) -> Round {
+    pub(crate) fn gc_round_for_last_commit(&self) -> Round {
         let last_commit_round = self.last_commit_round();
-        last_commit_round.saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH)
+        self.gc_round(last_commit_round)
+    }
+
+    /// Return the garbage collection round with respect a given round.
+    pub(crate) fn gc_round(&self, round: Round) -> Round {
+        round.saturating_sub(self.context.protocol_config.gc_depth() * 2)
     }
 
     /// Last committed round per authority.
@@ -1519,26 +1733,11 @@ impl DagState {
             .dag_state_store_write_count
             .inc();
 
-        // Clean up old cached data for each authority after flushing, all cached blocks
-        // are guaranteed to be persisted.
-        for (authority_index, _) in self.context.committee.authorities() {
-            let eviction_round = self.calculate_authority_eviction_round(authority_index);
-            let recent_refs = &mut self.recent_headers_refs_by_authority[authority_index];
+        // Clean up old headers
+        self.evict_headers();
 
-            // Evict everything below split_key
-            let split_key =
-                BlockRef::new(eviction_round + 1, authority_index, BlockHeaderDigest::MIN);
-
-            let to_keep = recent_refs.split_off(&split_key);
-            let evicted = std::mem::replace(recent_refs, to_keep);
-
-            // Remove evicted headers from recent_block_headers
-            for block_ref in &evicted {
-                self.recent_block_headers.remove(block_ref);
-            }
-
-            self.evicted_rounds[authority_index] = eviction_round;
-        }
+        // Evict old shards
+        self.evict_shards();
 
         // Clean up old transactions depending on the last solid leader round.
         self.evict_transactions();
@@ -1677,10 +1876,12 @@ mod test {
 
     use super::*;
     use crate::{
+        Transaction,
         block_header::{
-            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, VerifiedBlockHeader,
-            genesis_block_headers,
+            BlockHeaderDigest, BlockRef, BlockTimestampMs, TestBlockHeader, TransactionsCommitment,
+            VerifiedBlockHeader, genesis_block_headers,
         },
+        encoder::create_encoder,
         storage::{WriteBatch, mem_store::MemStore},
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
@@ -2261,7 +2462,7 @@ mod test {
         let later_commits = commits.split_off(5);
         dag_state.accept_block_headers(dag_builder.block_headers(1..=5));
         for verified_transactions in dag_builder.transactions(1..=5).into_iter() {
-            dag_state.add_transactions(verified_transactions);
+            dag_state.add_transactions(verified_transactions, "test");
         }
 
         for commit in commits.clone() {
@@ -2282,7 +2483,7 @@ mod test {
         // Add the rest of the block headers, transaction, and commits to the dag state
         dag_state.accept_block_headers(dag_builder.block_headers(6..=num_rounds));
         for verified_transactions in dag_builder.transactions(6..=num_rounds).into_iter() {
-            dag_state.add_transactions(verified_transactions);
+            dag_state.add_transactions(verified_transactions, "test");
         }
         for commit in later_commits.clone() {
             dag_state.add_commit(commit);
@@ -2332,7 +2533,7 @@ mod test {
 
         // Check the last proposed block
         assert_eq!(
-            dag_state.get_last_proposed_block(),
+            dag_state.recover_last_own_block(),
             dag_builder.blocks(num_rounds..=num_rounds)[0].clone()
         );
 
@@ -2365,7 +2566,7 @@ mod test {
 
         // The last proposed block should be from the round 5
         assert_eq!(
-            dag_state.get_last_proposed_block(),
+            dag_state.recover_last_own_block(),
             dag_builder.blocks(5..=5)[0].clone()
         );
 
@@ -2813,7 +3014,7 @@ mod test {
                 .into_iter()
                 .find(|block| block.author() == context.own_index)
                 .unwrap();
-            assert_eq!(dag_state.read().get_last_proposed_block(), my_genesis_block);
+            assert_eq!(dag_state.read().recover_last_own_block(), my_genesis_block);
         }
 
         // WHEN adding some block headers for authorities, only the last ones should be
@@ -2876,7 +3077,7 @@ mod test {
                     )
                     .unwrap();
             } else {
-                dag_state.add_transactions(block.verified_transactions.clone());
+                dag_state.add_transactions(block.verified_transactions.clone(), "test");
             }
         });
 
@@ -2968,7 +3169,7 @@ mod test {
 
         dag_state.accept_block_headers(dag_builder.block_headers(1..=num_rounds));
         for verified_transactions in dag_builder.transactions(1..=num_rounds).into_iter() {
-            dag_state.add_transactions(verified_transactions);
+            dag_state.add_transactions(verified_transactions, "test");
         }
 
         for commit in commits.clone() {
@@ -3019,7 +3220,7 @@ mod test {
 
         // Extend with the rest of the transactions
         all_transactions.extend(dag_builder.transactions(1..=num_rounds));
-        let gc_round = dag_state.gc_round();
+        let gc_round = dag_state.gc_round_for_last_commit();
 
         let block_refs_with_transactions_in_dag: Vec<BlockRef> = block_refs
             .iter()
@@ -3070,7 +3271,7 @@ mod test {
         // Calculate the eviction round for acknowledgments
         let clock_round = dag_state.threshold_clock_round();
         let acknowledgements_eviction_round =
-            clock_round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH + 1);
+            clock_round.saturating_sub(context.protocol_config.gc_depth() + 1);
 
         // Verify that for all blocks with round > eviction round, we have an
         // acknowledgement
@@ -3098,6 +3299,82 @@ mod test {
                 block_ref,
                 block_ref.round
             );
+        }
+    }
+
+    #[tokio::test]
+    async fn test_skip_acknowledgments_all_empty_transactions() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create test blocks for round 1 ~ 10
+        let num_rounds: u32 = 10;
+        let num_authorities: u8 = 4;
+        let mut blocks = Vec::new();
+        // create blocks
+        for round in 1..=num_rounds {
+            for author in 0..num_authorities {
+                let block =
+                    VerifiedBlock::new_for_test(TestBlockHeader::new(round, author).build());
+                blocks.push(block);
+            }
+        }
+
+        // add transactions for all blocks
+        blocks.into_iter().for_each(|block| {
+            dag_state.add_transactions(block.verified_transactions, "test");
+        });
+
+        assert!(dag_state.pending_acknowledgments.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_skip_acknowledgments_some_contain_transactions() {
+        let (context, _) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut encoder = create_encoder(&context);
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Create test blocks for round 1 ~ 10
+        let num_rounds: u32 = 10;
+        let num_authorities: u8 = 4;
+        // create blocks
+        let mut block_refs_with_transactions = Vec::new();
+        for round in 1..=num_rounds {
+            for author in 0..num_authorities {
+                let block_ref = BlockRef::new(round, author.into(), BlockHeaderDigest::default());
+                let transactions = if round > 5 {
+                    block_refs_with_transactions.push(block_ref);
+                    vec![Transaction::random_transaction(64)]
+                } else {
+                    vec![]
+                };
+                let serialized = Transaction::serialize(&transactions).unwrap();
+                let transaction_commitment =
+                    TransactionsCommitment::compute_transactions_commitment(
+                        &serialized,
+                        &context,
+                        &mut encoder,
+                    )
+                    .unwrap();
+                let verified_transaction = VerifiedTransactions::new(
+                    transactions,
+                    block_ref,
+                    transaction_commitment,
+                    serialized,
+                );
+                dag_state.add_transactions(verified_transaction, "test");
+            }
+        }
+        assert_eq!(
+            dag_state.pending_acknowledgments.len(),
+            block_refs_with_transactions.len()
+        );
+        for block_ref in block_refs_with_transactions.iter() {
+            assert!(dag_state.pending_acknowledgments.contains(block_ref));
         }
     }
 }

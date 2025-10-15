@@ -104,6 +104,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) proposed_block_transactions: Histogram,
     pub(crate) proposed_block_ancestors: Histogram,
     pub(crate) proposed_block_ancestors_depth: HistogramVec,
+    pub(crate) proposed_block_acknowledgments: Histogram,
+    pub(crate) proposed_block_acknowledgments_depth: HistogramVec,
     pub(crate) gap_to_available_commit: IntGauge,
     pub(crate) gap_to_unavailable_transactions: IntGauge,
     pub(crate) highest_verified_authority_round: IntGaugeVec,
@@ -115,6 +117,13 @@ pub(crate) struct NodeMetrics {
     pub(crate) blocks_per_commit_count: Histogram,
     pub(crate) core_add_blocks_batch_size: Histogram,
     pub(crate) core_lock_dequeued: IntCounter,
+    pub(crate) reconstruction_jobs_started: IntCounter,
+    pub(crate) reconstruction_jobs_finished: IntCounter,
+    pub(crate) accepted_transactions: IntCounterVec,
+    pub(crate) shard_accumulators: IntGauge,
+    pub(crate) reconstruction_lag: Histogram,
+    pub(crate) reconstructed_transactions_unknown: IntGauge,
+    pub(crate) reconstruction_queue: IntGauge,
     pub(crate) core_lock_enqueued: IntCounter,
     pub(crate) core_skipped_proposals: IntCounterVec,
     pub(crate) highest_accepted_authority_round: IntGaugeVec,
@@ -147,6 +156,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) valid_shards_in_bundles: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
+    pub(crate) skipped_empty_transaction_acknowledgments: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
     pub(crate) verified_blocks: IntCounterVec,
     pub(crate) committed_leaders_total: IntCounterVec,
@@ -254,6 +264,19 @@ impl NodeMetrics {
                 exponential_buckets(1.0, 2.0, 14).unwrap(),
                 registry,
             ).unwrap(),
+            proposed_block_acknowledgments: register_histogram_with_registry!(
+                "proposed_block_acknowledgments",
+                "Number of acknowledgments in proposed blocks",
+                exponential_buckets(1.0, 1.4, 20).unwrap(),
+                registry,
+            ).unwrap(),
+            proposed_block_acknowledgments_depth: register_histogram_vec_with_registry!(
+                "proposed_block_acknowledgments_depth",
+                "The depth in rounds of acknowledgments included in newly proposed blocks",
+                &["authority"],
+                exponential_buckets(1.0, 2.0, 14).unwrap(),
+                registry,
+            ).unwrap(),
             highest_verified_authority_round: register_int_gauge_vec_with_registry!(
                 "highest_verified_authority_round",
                 "The highest round of verified block for the corresponding authority",
@@ -296,6 +319,12 @@ impl NodeMetrics {
                 NUM_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
+            reconstruction_lag: register_histogram_with_registry!(
+                "reconstruction_lag",
+                "The number of rounds between current round and reconstructed transactions.",
+                NUM_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
             core_add_blocks_batch_size: register_histogram_with_registry!(
                 "core_add_blocks_batch_size",
                 "The number of blocks received from Core for processing on a single batch",
@@ -310,6 +339,22 @@ impl NodeMetrics {
             gap_to_unavailable_transactions: register_int_gauge_with_registry!(
                 "gap_to_unavailable_transactions",
                 "Gap in rounds between current round and the oldest unavailable transaction",
+                registry,
+            ).unwrap(),
+            reconstruction_jobs_started: register_int_counter_with_registry!(
+                "reconstruction_jobs_started",
+                "Number of reconstruction jobs spawned",
+                registry,
+            ).unwrap(),
+            reconstruction_jobs_finished: register_int_counter_with_registry!(
+                "reconstruction_jobs_finished",
+                "Number of reconstruction jobs finished",
+                registry,
+            ).unwrap(),
+            accepted_transactions: register_int_counter_vec_with_registry!(
+                "accepted_transactions",
+                "Number of accepted transactions by source (own, others)",
+                &["source"],
                 registry,
             ).unwrap(),
             core_lock_dequeued: register_int_counter_with_registry!(
@@ -344,6 +389,21 @@ impl NodeMetrics {
                 "Number of accepted block headers by source (own, others)",
                 &["source"],
                 registry,
+            ).unwrap(),
+            shard_accumulators: register_int_gauge_with_registry!(
+                "shard_accumulators",
+                "The number of shard accumulators currently in memory",
+                registry,
+            ).unwrap(),
+            reconstruction_queue: register_int_gauge_with_registry!(
+                "reconstruction_queue",
+                "The current number of pending reconstruction jobs in the queue",
+                registry,
+            ).unwrap(),
+            reconstructed_transactions_unknown: register_int_gauge_with_registry!(
+            "reconstructed_transactions_unknown",
+            "The current number of reconstructed transactions which are unknown to dag state",
+            registry,
             ).unwrap(),
             dag_state_recent_transactions: register_int_gauge_with_registry!(
                 "dag_state_recent_transactions",
@@ -509,6 +569,12 @@ impl NodeMetrics {
             rejected_future_blocks: register_int_counter_vec_with_registry!(
                 "rejected_future_blocks",
                 "Number of blocks rejected because their timestamp is too far in the future",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            skipped_empty_transaction_acknowledgments: register_int_counter_vec_with_registry!(
+                "skipped_empty_transaction_acknowledgments",
+                "Number of transaction acknowledgments skipped due to empty transaction vector in VerifiedTransaction",
                 &["authority"],
                 registry,
             ).unwrap(),

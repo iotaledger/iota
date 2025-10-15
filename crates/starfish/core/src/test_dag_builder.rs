@@ -284,6 +284,7 @@ impl DagBuilder {
                 leader_block,
                 self.last_committed_rounds.clone(),
                 &storage,
+                self.context.protocol_config.gc_depth(),
             );
 
             // Update the last committed rounds
@@ -406,7 +407,7 @@ impl DagBuilder {
         for block_transactions in self.transactions.values() {
             dag_state
                 .write()
-                .add_transactions(block_transactions.clone());
+                .add_transactions(block_transactions.clone(), "test");
         }
     }
 
@@ -864,7 +865,7 @@ impl<'a> LayerBuilder<'a> {
         let mut dag_state = dag_state.write();
         dag_state.accept_block_headers(self.block_headers.clone());
         for transactions in self.transactions.clone() {
-            dag_state.add_transactions(transactions);
+            dag_state.add_transactions(transactions, "test");
         }
     }
 

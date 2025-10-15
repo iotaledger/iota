@@ -14,8 +14,8 @@ use async_graphql::{
 };
 use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
 use iota_indexer::{
-    models::objects::StoredHistoryObject,
-    schema::{objects_history, objects_version},
+    models::objects::{StoredHistoryObject, StoredObject},
+    schema::{objects, objects_history, objects_version},
     types::{ObjectStatus as NativeObjectStatus, OwnerType},
 };
 use iota_types::{
@@ -226,6 +226,14 @@ pub(crate) enum ObjectLookup {
         /// The checkpoint sequence number at which this was viewed at.
         checkpoint_viewed_at: u64,
     },
+
+    /// Variant analogous to [`VersionAt`](Self::VersionAt) but for optimistic
+    /// transactions, using the most recent not checkpointed data,
+    /// not bound by any checkpoint sequence number.
+    OptimisticVersion {
+        /// The exact version of the object to be fetched.
+        version: u64,
+    },
 }
 
 pub(crate) type Cursor = cursor::BcsCursor<HistoricalObjectCursor>;
@@ -252,14 +260,16 @@ pub(crate) struct HistoricalObjectCursor {
     field(
         name = "status",
         ty = "ObjectStatus",
-        desc = "The current status of the object as read from the off-chain store. The possible \
-                states are: NOT_INDEXED, the object is loaded from serialized data, such as the \
-                contents of a genesis or system package upgrade transaction. LIVE, the version \
-                returned is the most recent for the object, and it is not deleted or wrapped at \
-                that version. HISTORICAL, the object was referenced at a specific version or \
-                checkpoint, so is fetched from historical tables and may not be the latest version \
-                of the object. WRAPPED_OR_DELETED, the object is deleted or wrapped and only \
-                partial information can be loaded."
+        desc = r#"
+            The current status of the object as read from the off-chain store. The
+            possible states are:
+            - NOT_INDEXED: The object is loaded from serialized data, such as the
+            contents of a genesis or system package upgrade transaction.
+            - INDEXED: The object is retrieved from the off-chain index and
+            represents the most recent or historical state of the object.
+            - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+            information can be loaded.
+        "#
     ),
     field(
         name = "digest",
@@ -313,6 +323,15 @@ struct HistoricalKey {
     id: IotaAddress,
     version: u64,
     checkpoint_viewed_at: u64,
+}
+
+/// `DataLoader` key for fetching objects that haven't been checkpointed yet.
+/// This is used specifically for loading objects
+/// that are part of optimistic transaction effects.
+#[derive(Copy, Clone, Hash, Eq, PartialEq, Debug)]
+struct OptimisticKey {
+    id: IotaAddress,
+    version: u64,
 }
 
 /// `DataLoader` key for fetching the latest version of an object whose parent
@@ -448,14 +467,13 @@ impl Object {
     }
 
     /// The current status of the object as read from the off-chain store. The
-    /// possible states are: NOT_INDEXED, the object is loaded from
-    /// serialized data, such as the contents of a genesis or system package
-    /// upgrade transaction. LIVE, the version returned is the most recent for
-    /// the object, and it is not deleted or wrapped at that version.
-    /// HISTORICAL, the object was referenced at a specific version or
-    /// checkpoint, so is fetched from historical tables and may not be the
-    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-    /// or wrapped and only partial information can be loaded."
+    /// possible states are:
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
+    ///   contents of a genesis or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and
+    ///   represents the most recent or historical state of the object.
+    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(self).status().await
     }
@@ -908,6 +926,11 @@ impl Object {
         }
     }
 
+    /// Look-up a specific version of the object from optimistic transactions.
+    pub(crate) fn at_optimistic_version(version: u64) -> ObjectLookup {
+        ObjectLookup::OptimisticVersion { version }
+    }
+
     pub(crate) async fn query(
         ctx: &Context<'_>,
         id: IotaAddress,
@@ -927,6 +950,10 @@ impl Object {
                         checkpoint_viewed_at,
                     })
                     .await
+            }
+
+            ObjectLookup::OptimisticVersion { version } => {
+                loader.load_one(OptimisticKey { id, version }).await
             }
 
             ObjectLookup::UnderParent {
@@ -1028,6 +1055,43 @@ impl Object {
                 root_version: history_object.object_version as u64,
             }),
         }
+    }
+
+    pub(crate) fn try_from_stored_object(
+        stored_object: StoredObject,
+        checkpoint_viewed_at: u64,
+    ) -> Result<Self, Error> {
+        let address = addr(&stored_object.object_id)?;
+
+        let native_object = bcs::from_bytes(&stored_object.serialized_object)
+            .map_err(|_| Error::Internal(format!("Failed to deserialize object {address}")))?;
+
+        let root_version = version_for_dynamic_fields(&native_object);
+
+        let stored_history_like = StoredHistoryObject {
+            object_id: stored_object.object_id,
+            object_version: stored_object.object_version,
+            object_digest: Some(stored_object.object_digest),
+            object_status: NativeObjectStatus::Active as i16,
+            checkpoint_sequence_number: checkpoint_viewed_at as i64,
+            serialized_object: Some(stored_object.serialized_object),
+            object_type: stored_object.object_type,
+            object_type_package: stored_object.object_type_package,
+            object_type_module: stored_object.object_type_module,
+            object_type_name: stored_object.object_type_name,
+            owner_type: Some(stored_object.owner_type),
+            owner_id: stored_object.owner_id,
+            coin_type: stored_object.coin_type,
+            coin_balance: stored_object.coin_balance,
+            df_kind: stored_object.df_kind,
+        };
+
+        Ok(Self {
+            address,
+            kind: ObjectKind::Indexed(native_object, stored_history_like),
+            checkpoint_viewed_at,
+            root_version,
+        })
     }
 }
 
@@ -1331,6 +1395,78 @@ impl Loader<HistoricalKey> for Db {
                 None,
             )?;
             result.insert(*key, object);
+        }
+
+        Ok(result)
+    }
+}
+
+impl Loader<OptimisticKey> for Db {
+    type Value = Object;
+    type Error = Error;
+
+    async fn load(&self, keys: &[OptimisticKey]) -> Result<HashMap<OptimisticKey, Object>, Error> {
+        use objects::dsl as o;
+
+        let id_versions: BTreeSet<_> = keys
+            .iter()
+            .map(|key| (key.id.into_vec(), key.version as i64))
+            .collect();
+
+        let objects: Vec<StoredObject> = self
+            .execute(move |conn| {
+                conn.results(move || {
+                    let mut query = o::objects.select(StoredObject::as_select()).into_boxed();
+                    for (id, version) in id_versions.iter().cloned() {
+                        query =
+                            query.or_filter(o::object_id.eq(id).and(o::object_version.eq(version)));
+                    }
+                    query
+                })
+            })
+            .await
+            .map_err(|e| Error::Internal(format!("Failed to fetch optimistic objects: {e}")))?;
+
+        let mut result = HashMap::new();
+        let id_version_to_stored = objects
+            .into_iter()
+            .map(|stored| {
+                addr(&stored.object_id).map(|id| ((id, stored.object_version as u64), stored))
+            })
+            .collect::<Result<BTreeMap<_, _>, _>>()?;
+
+        // Collect keys that were not found in objects table
+        let mut missing_keys = Vec::new();
+        for key in keys {
+            if let Some(stored) = id_version_to_stored.get(&(key.id, key.version)) {
+                let object = Object::try_from_stored_object(stored.clone(), u64::MAX)?;
+                result.insert(*key, object);
+            } else {
+                missing_keys.push(*key);
+            }
+        }
+
+        // For missing keys, fallback to using the objects_history table
+        if !missing_keys.is_empty() {
+            let historical_keys: Vec<HistoricalKey> = missing_keys
+                .iter()
+                .map(|key| HistoricalKey {
+                    id: key.id,
+                    version: key.version,
+                    checkpoint_viewed_at: u64::MAX,
+                })
+                .collect();
+
+            let historical_result: HashMap<HistoricalKey, Object> =
+                self.load(&historical_keys).await?;
+
+            for (historical_key, object) in historical_result {
+                let optimistic_key = OptimisticKey {
+                    id: historical_key.id,
+                    version: historical_key.version,
+                };
+                result.insert(optimistic_key, object);
+            }
         }
 
         Ok(result)

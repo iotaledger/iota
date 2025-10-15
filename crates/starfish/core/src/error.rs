@@ -110,6 +110,11 @@ pub(crate) enum ConsensusError {
         author: AuthorityIndex,
         peer: AuthorityIndex,
     },
+    #[error(
+        "After reconstruction, the transaction commitment does not match the commitment in the block {}",
+        block_ref
+    )]
+    TransactionCommitmentMismatch { block_ref: BlockRef },
 
     #[error("Synchronizer for fetching blocks directly from {0} is saturated")]
     SynchronizerSaturated(AuthorityIndex),
@@ -203,6 +208,9 @@ pub(crate) enum ConsensusError {
     #[error("Request timeout: {0:?}")]
     NetworkRequestTimeout(String),
 
+    #[error("Accumulator sender has shut down!")]
+    AccumulatorSenderClosed,
+
     #[error("Consensus has shut down!")]
     Shutdown,
 
@@ -226,9 +234,6 @@ pub(crate) enum ConsensusError {
     #[error("Vector of shards is too small: {0} bytes found, at least {1} bytes needed")]
     ShardsVecIsTooSmall(usize, usize),
 
-    #[error("Block bundle contains too many additional headers: {count} > {limit}")]
-    TooManyHeadersInABundle { count: usize, limit: usize },
-
     #[error(
         "Round of the header in a bundle is greater or equal to the block round: {header_round} >= {block_round}"
     )]
@@ -236,9 +241,6 @@ pub(crate) enum ConsensusError {
         header_round: Round,
         block_round: Round,
     },
-
-    #[error("Block bundle contains too many shards: {count} > {limit}")]
-    TooManyShardsInABundle { count: usize, limit: usize },
 
     #[error("Block bundle from {peer} contains shard from round {round} with incorrect proof")]
     IncorrectShardProof { peer: AuthorityIndex, round: Round },

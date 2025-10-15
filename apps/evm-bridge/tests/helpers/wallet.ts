@@ -1,4 +1,4 @@
-import { BrowserContext, Page } from '@playwright/test';
+import { BrowserContext, expect, Page } from '@playwright/test';
 import { CONFIG } from '../config/config';
 import { WALLET_CUSTOMRPC_PLACEHOLDER, WALLET_PASSWORD } from '../utils/constants';
 import { createPage } from './browser';
@@ -82,6 +82,7 @@ export async function connectL1Wallet(page: Page, browserContext: BrowserContext
     await page.getByText('IOTA Wallet').click();
 
     const walletPage = await approveWalletConnectPage;
+    await walletPage.waitForLoadState();
     await walletPage.getByRole('button', { name: 'Continue' }).click();
     await walletPage.getByRole('button', { name: 'Connect' }).click();
 }
@@ -96,12 +97,41 @@ export async function connectL2Wallet(page: Page, browserContext: BrowserContext
     });
 
     await connectButton.click();
-    const approveDialog = browserContext.waitForEvent('page', { timeout: 20_000 });
-    await page.getByTestId(/metamask/).click();
 
-    const walletModal = await approveDialog;
+    const metamaskButton = page.getByTestId(/metamask/);
+    await metamaskButton.waitFor({ state: 'visible', timeout: 10000 });
+
+    const approveDialogPromise = waitForMetaMaskDialog(browserContext, page, 30000);
+    await metamaskButton.click();
+
+    const walletModal = await approveDialogPromise;
     await walletModal.waitForLoadState();
+
     await walletModal.getByRole('button', { name: 'Connect' }).click();
+}
+
+async function waitForMetaMaskDialog(
+    browserContext: BrowserContext,
+    mainPage: Page,
+    timeout = 20000,
+): Promise<Page> {
+    try {
+        return await browserContext.waitForEvent('page', { timeout });
+    } catch (error) {
+        const allPages = browserContext.pages();
+        const potentialDialogs = allPages.filter(
+            (p) =>
+                p !== mainPage &&
+                p.url().includes('notification') &&
+                p.url().includes('chrome-extension'),
+        );
+
+        if (potentialDialogs.length > 0) {
+            return potentialDialogs[0];
+        }
+
+        throw error;
+    }
 }
 
 export async function addNetworkToMetaMask(l2WalletPage: Page) {
@@ -141,8 +171,8 @@ export async function setupL1Wallet(
     context: BrowserContext,
     l1ExtensionUrl: string,
     mnemonic: string,
+    testId?: string,
 ): Promise<void> {
-    console.log('Setting up L1 wallet with mnemonic');
     const walletPageL1 = await createPage(context, l1ExtensionUrl);
     try {
         await importL1WalletFromMnemonic(walletPageL1, l1ExtensionUrl, mnemonic);
@@ -152,7 +182,7 @@ export async function setupL1Wallet(
     } finally {
         await walletPageL1.close().catch((e) => console.error('Error closing L1 wallet page:', e));
     }
-    console.log('✅ L1 wallet setup complete');
+    console.log('✅ L1 wallet setup complete', testId);
 }
 
 /**
@@ -162,8 +192,8 @@ export async function setupL2Wallet(
     context: BrowserContext,
     l2ExtensionUrl: string,
     mnemonic: string,
+    testId?: string,
 ): Promise<void> {
-    console.log('Setting up L2 wallet with mnemonic');
     const walletPageL2 = await createPage(context, l2ExtensionUrl);
     try {
         await createL2Wallet(walletPageL2, l2ExtensionUrl, mnemonic);
@@ -174,7 +204,7 @@ export async function setupL2Wallet(
     } finally {
         await walletPageL2.close().catch((e) => console.error('Error closing L2 wallet page:', e));
     }
-    console.log('✅ L2 wallet setup complete');
+    console.log('✅ L2 wallet setup complete', testId);
 }
 
 /**
@@ -186,43 +216,29 @@ export async function setupBridgeWallets(
     l2ExtensionUrl: string,
     mnemonicL1: string,
     mnemonicL2: string,
+    testId?: string,
 ): Promise<void> {
-    await setupL1Wallet(context, l1ExtensionUrl, mnemonicL1);
-    await setupL2Wallet(context, l2ExtensionUrl, mnemonicL2);
+    await setupL1Wallet(context, l1ExtensionUrl, mnemonicL1, testId);
+    await setupL2Wallet(context, l2ExtensionUrl, mnemonicL2, testId);
 }
 
-export async function isL1WalletConnected(page: Page): Promise<boolean> {
-    try {
-        const connectButton = page.getByTestId('connect-l1-wallet');
-        const count = await connectButton.count();
-        console.log(`Found ${count} elements with test ID 'connect-l1-wallet'`);
-        return count === 0;
-    } catch (error) {
-        console.log('Error checking L1 wallet connection:', error);
-        return false; // Assume not connected on error
-    }
-}
-
-/**
- * Wait for L1 wallet to connect with timeout and polling
- */
 export async function waitForL1WalletConnected(
     page: Page,
-    { timeout = 20000, pollInterval = 500 } = {},
-): Promise<boolean> {
-    console.log('Waiting for L1 wallet to connect...');
-    const startTime = Date.now();
+    { timeout = 30000 } = {},
+    testId?: string,
+): Promise<void> {
+    try {
+        const senderAddressInput = page.locator('input[name="senderAddress"]');
+        await senderAddressInput.waitFor({
+            state: 'visible',
+            timeout,
+        });
 
-    while (Date.now() - startTime < timeout) {
-        if (await isL1WalletConnected(page)) {
-            console.log('✅ L1 wallet finished connecting successfully');
-            return true;
-        }
+        await expect(senderAddressInput).toBeEnabled();
 
-        console.log(`L1 wallet not connected yet, waiting ${pollInterval}ms...`);
-        await page.waitForTimeout(pollInterval);
+        console.log(`✅ L1 wallet connected (senderAddress input is visible): ${testId}`);
+    } catch (error) {
+        console.error('❌ L1 wallet connection failed:', error, testId);
+        throw new Error(`L1 wallet connection check failed: ${error.message}, testId: ${testId}`);
     }
-
-    console.log(`❌ L1 wallet connection timed out after ${timeout}ms`);
-    return false;
 }

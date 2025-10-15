@@ -1,6 +1,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+//! Types and logic to interact with the db.
 use std::{
     collections::{HashMap, HashSet},
     sync::{Arc, Mutex},
@@ -83,20 +85,15 @@ pub const OPTIMISTIC_SEQUENCE_NUMBER_STR: &str = "optimistic_sequence_number";
 pub const TX_DIGEST_STR: &str = "tx_digest";
 pub const EVENT_SEQUENCE_NUMBER_STR: &str = "event_sequence_number";
 
+/// Encapsulate the logic for reading from the database.
+///
+/// Provides a set of methods to perform read operations,
+/// including resolution of packages.
+#[derive(Clone)]
 pub struct IndexerReader {
     pool: ConnectionPool,
     package_resolver: PackageResolver,
     obj_type_cache: Arc<Mutex<SizedCache<String, Option<ObjectID>>>>,
-}
-
-impl Clone for IndexerReader {
-    fn clone(&self) -> IndexerReader {
-        IndexerReader {
-            pool: self.pool.clone(),
-            package_resolver: self.package_resolver.clone(),
-            obj_type_cache: self.obj_type_cache.clone(),
-        }
-    }
 }
 
 pub type PackageResolver = Arc<Resolver<PackageStoreWithLruCache<IndexerStorePackageResolver>>>;
@@ -1756,11 +1753,11 @@ impl IndexerReader {
             .await?;
 
         let mut df_futures = vec![];
-        let indexer_reader_arc = Arc::new(self.clone());
+        let read_arc = Arc::new(self.clone());
         for stored_object in stored_objects {
-            let indexer_reader_arc_clone = Arc::clone(&indexer_reader_arc);
+            let read_arc_clone = Arc::clone(&read_arc);
             df_futures.push(tokio::task::spawn(async move {
-                indexer_reader_arc_clone
+                read_arc_clone
                     .try_create_dynamic_field_info(stored_object)
                     .await
             }));
