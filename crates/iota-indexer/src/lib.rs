@@ -34,37 +34,19 @@ pub mod backfill;
 pub mod config;
 pub mod db;
 pub mod errors;
-pub mod handlers;
 pub mod indexer;
 pub mod ingestion;
 pub mod metrics;
 pub mod models;
 pub mod optimistic_indexing;
 pub mod processors;
+pub mod pruning;
 pub mod read;
 pub mod schema;
 pub mod store;
 pub mod system_package_task;
 pub mod test_utils;
 pub mod types;
-
-// we made the distinction between primary & snapshot pipelines, in the future
-// we can have multiple ones. Each pipeline must implement a Worker trait, it
-// can contain the extract & transform processes which will be forwarded to
-// the Writer to commit the data to the database.
-//
-// ingestion/
-// ├── extract
-// ├── persist
-// ├── primary
-// │   ├── extract
-// │   ├── persist
-// │   └── transform
-// ├── snapshot
-// │   ├── extract
-// │   ├── persist
-// │   └── transform
-// └── transform
 
 pub async fn build_json_rpc_server(
     store: PgIndexerStore,

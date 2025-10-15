@@ -24,13 +24,13 @@ use crate::{
     config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::ConnectionPool,
     errors::IndexerError,
-    handlers::{optimistic_pruner::OptimisticPruner, pruner::Pruner},
     ingestion::{
         primary::orchestration::{setup_primary, start_primary_writer_task},
         snapshot::orchestration::setup_snapshot,
     },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
+    pruning::{optimistic_pruner::OptimisticPruner, pruner::Pruner},
     read::IndexerReader,
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
 };
