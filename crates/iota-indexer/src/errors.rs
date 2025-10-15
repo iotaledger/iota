@@ -155,6 +155,8 @@ pub enum IndexerError {
     TransactionDependenciesNotIndexed,
 }
 
+pub type IndexerResult<T> = Result<T, IndexerError>;
+
 pub trait Context<T> {
     fn context(self, context: &str) -> Result<T, IndexerError>;
 }

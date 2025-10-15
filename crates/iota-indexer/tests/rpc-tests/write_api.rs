@@ -10,8 +10,8 @@ use diesel::{ExpressionMethods, QueryDsl, RunQueryDsl, expression::SelectableHel
 use fastcrypto::encoding::Base64;
 use futures::{StreamExt, TryStreamExt, stream::FuturesUnordered};
 use iota_indexer::{
-    errors::IndexerError, models::transactions::TxGlobalOrder, read_only_blocking,
-    schema::tx_global_order,
+    config::PruningOptions, errors::IndexerError, models::transactions::TxGlobalOrder,
+    read_only_blocking, schema::tx_global_order, types::IndexerResult,
 };
 use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{
@@ -42,8 +42,12 @@ use move_core_types::{identifier::IdentStr, language_storage::StructTag};
 
 use crate::{
     coin_api::execute_move_call,
-    common::{ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object},
+    common::{
+        ApiTestSetup, indexer_wait_for_checkpoint, indexer_wait_for_object,
+        indexer_wait_for_optimistic_transactions_count, start_test_cluster_with_read_write_indexer,
+    },
 };
+
 type TxBytes = Base64;
 type Signatures = Vec<Base64>;
 
@@ -873,6 +877,79 @@ fn test_repeatedly_update_display() {
             assert_eq!(actual_description, new_bear_description);
         }
     });
+}
+
+#[tokio::test]
+async fn test_optimistic_tables_pruning() -> IndexerResult<()> {
+    let optimistic_pruner_batch_size = 5;
+    let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+        Some("test_optimistic_tables_pruning"),
+        None,
+        Some(PruningOptions {
+            epochs_to_keep: Some(2),
+            pruning_config_path: None,
+            optimistic_pruner_batch_size: Some(optimistic_pruner_batch_size),
+        }),
+    )
+    .await;
+    indexer_wait_for_checkpoint(store, 1).await;
+
+    // arbitrary numbers, just need to be > optimistic_pruner_batch_size
+    let txs_epoch_1 = 16;
+    let txs_epoch_2 = 22;
+    let txs_epoch_3 = 18;
+
+    let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+    let gas = cluster
+        .fund_address_and_return_gas(
+            cluster.get_reference_gas_price().await,
+            Some(10_000_000_000),
+            sender,
+        )
+        .await;
+    indexer_wait_for_object(client, gas.0, gas.1).await;
+
+    let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+    let (_, counter_obj) = create_counter_object(sender, &sender_kp, client, &package_id)
+        .await
+        .unwrap();
+    cluster.force_new_epoch().await;
+
+    // deploy pkg tx and create counter obj tx
+    indexer_wait_for_optimistic_transactions_count(store, 2).await;
+
+    for _ in 0..txs_epoch_1 {
+        let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
+            .await
+            .unwrap();
+        assert_eq!(res.status_ok(), Some(true));
+    }
+    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_1 + 2).await;
+    cluster.force_new_epoch().await;
+    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_1).await;
+
+    for _ in 0..txs_epoch_2 {
+        let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
+            .await
+            .unwrap();
+        assert_eq!(res.status_ok(), Some(true));
+    }
+    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_1 + txs_epoch_2).await;
+    cluster.force_new_epoch().await;
+    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_2).await;
+
+    for _ in 0..txs_epoch_3 {
+        let res = increment_counter(sender, &sender_kp, client, &package_id, &counter_obj, None)
+            .await
+            .unwrap();
+        assert_eq!(res.status_ok(), Some(true));
+    }
+    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_2 + txs_epoch_3).await;
+    cluster.force_new_epoch().await;
+    indexer_wait_for_optimistic_transactions_count(store, txs_epoch_3).await;
+
+    Ok(())
 }
 
 pub(crate) async fn create_basic_object(

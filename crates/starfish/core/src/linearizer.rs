@@ -15,16 +15,10 @@ use crate::{
     block_header::{BlockHeaderAPI, BlockHeaderDigest, BlockRef, VerifiedBlockHeader},
     commit::{Commit, CommitAPI, PendingSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
-    dag_state::{DagState, MAX_TRANSACTIONS_ACK_DEPTH},
+    dag_state::DagState,
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
-
-/// The maximum depth of the linearizer, i.e. how many rounds back it will
-/// traverse the DAG from a committed leader block
-// TODO: https://github.com/iotaledger/iota/issues/8379
-// make it derivable from the protocol parameters
-pub(crate) const MAX_LINEARIZER_DEPTH: Round = 60;
 
 /// The `StorageAPI` trait provides an interface for the block store and has
 /// been mostly introduced for allowing to inject the test store in
@@ -92,6 +86,7 @@ impl Linearizer {
             leader_block.clone(),
             last_committed_rounds,
             &dag_state_guard,
+            self.context.protocol_config.gc_depth(),
         );
 
         drop(dag_state_guard);
@@ -152,6 +147,7 @@ impl Linearizer {
         leader_block: VerifiedBlockHeader,
         last_committed_rounds: Vec<u32>,
         dag_state: &impl BlockStoreAPI,
+        max_linearizer_depth: u32,
     ) -> Vec<VerifiedBlockHeader> {
         let leader_block_ref = leader_block.reference();
         let leader_round = leader_block.round();
@@ -177,7 +173,7 @@ impl Linearizer {
                             !committed.contains(ancestor)
                                 && last_committed_rounds[ancestor.author] < ancestor.round
                                 && ancestor.round
-                                    >= leader_round.saturating_sub(MAX_LINEARIZER_DEPTH)
+                                    >= leader_round.saturating_sub(max_linearizer_depth)
                         })
                         .collect::<Vec<_>>(),
                 )
@@ -260,8 +256,8 @@ impl Linearizer {
     /// called for solid committed leader round since we rely on the ack
     /// tracker in transaction synchronizer.
     pub(crate) fn evict_old_acknowledgments(&mut self, solid_commit_leader_round: Round) {
-        let lower_bound_round = solid_commit_leader_round
-            .saturating_sub(MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH);
+        let lower_bound_round =
+            solid_commit_leader_round.saturating_sub(self.context.protocol_config.gc_depth() * 2);
         let lower_bound = BlockRef::new(
             lower_bound_round + 1,
             AuthorityIndex::ZERO,
@@ -281,7 +277,7 @@ impl Linearizer {
     ) -> Vec<BlockRef> {
         let mut acknowledged_data = Vec::new();
         for block_ref in acknowledgments {
-            if block_ref.round < round.saturating_sub(MAX_TRANSACTIONS_ACK_DEPTH) {
+            if block_ref.round < round.saturating_sub(self.context.protocol_config.gc_depth()) {
                 continue; // Ignore acknowledgments for blocks that are too old
             }
             let votes_collector = self
@@ -735,10 +731,11 @@ mod tests {
         ));
         let mut linearizer = Linearizer::new(context.clone(), dag_state.clone(), leader_schedule);
         let num_rounds_to_evict = 20;
-        // Populate fully connected test blocks for round 0 ~ MAX_LINEARIZER_DEPTH +
-        // MAX_TRANSACTIONS_ACK_DEPTH + num_rounds_to_evict, authorities 0 ~ 3.
-        let num_rounds: u32 =
-            MAX_LINEARIZER_DEPTH + MAX_TRANSACTIONS_ACK_DEPTH + num_rounds_to_evict;
+        // Populate fully connected test blocks for round 0 ~ protocol_config.gc_depth()
+        // * 2
+        // + num_rounds_to_evict, authorities 0 ~
+        // 3.
+        let num_rounds: u32 = context.protocol_config.gc_depth() * 2 + num_rounds_to_evict;
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder
             .layers(1..=num_rounds)

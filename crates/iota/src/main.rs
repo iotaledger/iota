@@ -34,19 +34,21 @@ async fn main() {
 
     let args = Args::parse();
     let _guard = match args.command {
-        IotaCommand::KeyTool { .. } | IotaCommand::Move { .. } => {
+        IotaCommand::KeyTool { .. } | IotaCommand::Move { .. } => Some(
             telemetry_subscribers::TelemetryConfig::new()
                 .with_log_level("error")
                 .with_env()
-                .init()
-        }
+                .init(),
+        ),
         IotaCommand::Client {
             cmd: Some(ReplayBatch { .. }),
             ..
-        } => telemetry_subscribers::TelemetryConfig::new()
-            .with_log_level("info")
-            .with_env()
-            .init(),
+        } => Some(
+            telemetry_subscribers::TelemetryConfig::new()
+                .with_log_level("info")
+                .with_env()
+                .init(),
+        ),
 
         IotaCommand::Client {
             cmd: Some(ReplayTransaction {
@@ -63,25 +65,32 @@ async fn main() {
             if ptb_info {
                 config = config.with_trace_target("replay_ptb_info");
             }
-            config.init()
+            Some(config.init())
         }
         IotaCommand::Client {
             cmd: Some(ProfileTransaction { .. }),
             ..
         } => {
             // enable full logging for ProfileTransaction and ReplayTransaction
-            telemetry_subscribers::TelemetryConfig::new()
-                .with_env()
-                .init()
+            Some(
+                telemetry_subscribers::TelemetryConfig::new()
+                    .with_env()
+                    .init(),
+            )
         }
-        IotaCommand::Start { .. } => telemetry_subscribers::TelemetryConfig::new()
-            .with_log_level("info")
-            .with_env()
-            .init(),
-        _ => telemetry_subscribers::TelemetryConfig::new()
-            .with_log_level("error")
-            .with_env()
-            .init(),
+        IotaCommand::Start { .. } => Some(
+            telemetry_subscribers::TelemetryConfig::new()
+                .with_log_level("info")
+                .with_env()
+                .init(),
+        ),
+        IotaCommand::Analyzer => None,
+        _ => Some(
+            telemetry_subscribers::TelemetryConfig::new()
+                .with_log_level("error")
+                .with_env()
+                .init(),
+        ),
     };
     debug!("IOTA CLI version: {VERSION}");
     exit_main!(args.command.execute().await);

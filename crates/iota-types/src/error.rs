@@ -600,6 +600,8 @@ pub enum IotaError {
     // Unsupported Operations on Fullnode
     #[error("Fullnode does not support handle_certificate")]
     FullNodeCantHandleCertificate,
+    #[error("Fullnode does not support handle_authority_capabilities")]
+    FullNodeCantHandleAuthorityCapabilities,
 
     // Epoch related errors.
     #[error("Validator temporarily stopped processing transactions due to epoch change")]

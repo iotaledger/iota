@@ -55,8 +55,9 @@ export async function executeBridgeTransaction(
     isL1: boolean,
 ): Promise<void> {
     await expect(page.getByText('Bridge Assets')).toBeEnabled();
+    await page.waitForLoadState('networkidle');
 
-    const approvePagePromise = browserContext.waitForEvent('page');
+    const approvePagePromise = waitForTransactionApprovalPage(browserContext, page, 30000);
     await page.getByText('Bridge Assets').click();
 
     const approvePage = await approvePagePromise;
@@ -64,4 +65,43 @@ export async function executeBridgeTransaction(
 
     const buttonName = isL1 ? 'Approve' : 'Confirm';
     await approvePage.getByRole('button', { name: buttonName }).click();
+}
+
+export async function waitForToastMessage(
+    page: Page,
+    text: string,
+    options = { timeout: 30000 },
+): Promise<void> {
+    try {
+        await page.waitForSelector(`.bg-success-surface:has(.text-on-success:text-is("${text}"))`, {
+            state: 'visible',
+            timeout: options.timeout,
+        });
+    } catch (error) {
+        throw new Error(`Timeout waiting for toast message: "${text}"`);
+    }
+}
+async function waitForTransactionApprovalPage(
+    browserContext: BrowserContext,
+    mainPage: Page,
+    timeout = 20000,
+): Promise<Page> {
+    try {
+        return await browserContext.waitForEvent('page', { timeout });
+    } catch (error) {
+        const allPages = browserContext.pages();
+        const potentialDialogs = allPages.filter(
+            (p) =>
+                (p !== mainPage &&
+                    p.url().includes('notification') &&
+                    p.url().includes('chrome-extension')) ||
+                p.url().includes('approve'),
+        );
+
+        if (potentialDialogs.length > 0) {
+            return potentialDialogs[0];
+        }
+
+        throw new Error('Transaction approval page not detected');
+    }
 }
