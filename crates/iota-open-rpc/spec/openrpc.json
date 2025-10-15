@@ -1840,6 +1840,7 @@
                 "max_committee_members_count": {
                   "u64": "50"
                 },
+                "max_congestion_limit_overshoot_per_commit": null,
                 "max_deferral_rounds_for_congestion_control": {
                   "u64": "10"
                 },
