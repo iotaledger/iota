@@ -22,10 +22,22 @@ use iota_types::{
 use itertools::Itertools;
 use tracing::{info, warn};
 
+use std::collections::HashMap;
+
+use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
+use iota_types::{
+    base_types::SequenceNumber, digests::TransactionDigest, effects::TransactionEffects,
+    object::Object, transaction::TransactionData,
+};
+
+use crate::{
+    errors::IndexerError,
+    metrics::IndexerMetrics,
+    types::{IndexedObjectChange, IndexerResult},
+};
+
 use crate::{
     db::ConnectionPool,
-    errors::IndexerError,
-    handlers::tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
     ingestion::{
         common::prepare::CheckpointObjectChanges,
         common::prepare::try_extract_df_kind,
@@ -33,7 +45,6 @@ use crate::{
             CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
         },
     },
-    metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
@@ -42,7 +53,7 @@ use crate::{
     store::{IndexerStore, PgIndexerStore},
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
+        IndexedObject, IndexedPackage, IndexedTransaction, TxIndex,
     },
 };
 
@@ -413,7 +424,7 @@ impl PrimaryWorker {
             .chain(output_objects.iter())
             .collect::<Vec<_>>();
 
-        let (balance_change, object_changes) = TxChangesProcessor::new(&objects, metrics.clone())
+        let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics.clone())
             .get_changes(tx, fx, tx_digest)
             .await?;
 
@@ -621,5 +632,207 @@ impl PrimaryWorker {
         Err(IndexerError::Uncategorized(anyhow::anyhow!(
             "Failed to downcast state to PgIndexerStore"
         )))
+    }
+}
+
+pub struct InMemObjectCache {
+    id_map: HashMap<ObjectID, Object>,
+    seq_map: HashMap<(ObjectID, SequenceNumber), Object>,
+}
+
+impl InMemObjectCache {
+    pub fn new() -> Self {
+        Self {
+            id_map: HashMap::new(),
+            seq_map: HashMap::new(),
+        }
+    }
+
+    pub fn insert_object(&mut self, obj: Object) {
+        self.id_map.insert(obj.id(), obj.clone());
+        self.seq_map.insert((obj.id(), obj.version()), obj);
+    }
+
+    pub fn get(&self, id: &ObjectID, version: Option<&SequenceNumber>) -> Option<&Object> {
+        if let Some(version) = version {
+            self.seq_map.get(&(*id, *version))
+        } else {
+            self.id_map.get(id)
+        }
+    }
+}
+
+impl Default for InMemObjectCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Along with InMemObjectCache, TxChangesProcessor implements ObjectProvider
+/// so it can be used in indexing write path to get object/balance changes.
+/// Its lifetime is per checkpoint.
+pub struct InMemTxChanges {
+    object_cache: InMemObjectCache,
+    metrics: IndexerMetrics,
+}
+
+impl InMemTxChanges {
+    pub fn new(objects: &[&Object], metrics: IndexerMetrics) -> Self {
+        let mut object_cache = InMemObjectCache::new();
+        for obj in objects {
+            object_cache.insert_object(<&Object>::clone(obj).clone());
+        }
+        Self {
+            object_cache,
+            metrics,
+        }
+    }
+
+    pub(crate) async fn get_changes(
+        &self,
+        tx: &TransactionData,
+        effects: &TransactionEffects,
+        tx_digest: &TransactionDigest,
+    ) -> IndexerResult<(
+        Vec<iota_json_rpc_types::BalanceChange>,
+        Vec<IndexedObjectChange>,
+    )> {
+        let _timer = self
+            .metrics
+            .indexing_tx_object_changes_latency
+            .start_timer();
+        let object_change: Vec<_> = get_object_changes(
+            self,
+            tx.sender(),
+            effects.modified_at_versions(),
+            effects.all_changed_objects(),
+            effects.all_removed_objects(),
+        )
+        .await?
+        .into_iter()
+        .map(IndexedObjectChange::from)
+        .collect();
+        let balance_change = get_balance_changes_from_effect(
+            self,
+            effects,
+            tx.input_objects().unwrap_or_else(|e| {
+                panic!("Checkpointed tx {tx_digest:?} has invalid input objects: {e}",)
+            }),
+            None,
+        )
+        .await?;
+        Ok((balance_change, object_change))
+    }
+}
+
+#[async_trait]
+impl ObjectProvider for InMemTxChanges {
+    type Error = IndexerError;
+
+    async fn get_object(
+        &self,
+        id: &ObjectID,
+        version: &SequenceNumber,
+    ) -> Result<Object, Self::Error> {
+        let object = self
+            .object_cache
+            .get(id, Some(version))
+            .as_ref()
+            .map(|o| <&Object>::clone(o).clone());
+        if let Some(o) = object {
+            self.metrics.indexing_get_object_in_mem_hit.inc();
+            return Ok(o);
+        }
+
+        panic!(
+            "Object {} is not found in TxChangesProcessor as an ObjectProvider (fn get_object)",
+            id
+        );
+    }
+
+    async fn find_object_lt_or_eq_version(
+        &self,
+        id: &ObjectID,
+        version: &SequenceNumber,
+    ) -> Result<Option<Object>, Self::Error> {
+        // First look up the exact version in object_cache.
+        let object = self
+            .object_cache
+            .get(id, Some(version))
+            .as_ref()
+            .map(|o| <&Object>::clone(o).clone());
+        if let Some(o) = object {
+            self.metrics.indexing_get_object_in_mem_hit.inc();
+            return Ok(Some(o));
+        }
+
+        // Second look up the latest version in object_cache. This may be
+        // called when the object is deleted hence the version at deletion
+        // is given.
+        let object = self
+            .object_cache
+            .get(id, None)
+            .as_ref()
+            .map(|o| <&Object>::clone(o).clone());
+        if let Some(o) = object {
+            if o.version() > *version {
+                panic!(
+                    "Found a higher version {} for object {}, expected lt_or_eq {}",
+                    o.version(),
+                    id,
+                    *version
+                );
+            }
+            if o.version() <= *version {
+                self.metrics.indexing_get_object_in_mem_hit.inc();
+                return Ok(Some(o));
+            }
+        }
+
+        panic!(
+            "Object {} is not found in TxChangesProcessor as an ObjectProvider (fn find_object_lt_or_eq_version)",
+            id
+        );
+    }
+}
+
+/// Represents objects for end-of-epoch indexing.
+/// Used to extract IotaSystemState and its dynamic children for end-of-epoch indexing.
+pub(crate) struct EpochEndIndexingObjectStore<'a> {
+    objects: Vec<&'a Object>,
+}
+
+impl<'a> EpochEndIndexingObjectStore<'a> {
+    pub fn new(data: &'a CheckpointData) -> Self {
+        Self {
+            objects: data.latest_live_output_objects(),
+        }
+    }
+}
+
+impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectID,
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
+        Ok(self
+            .objects
+            .iter()
+            .find(|o| o.id() == *object_id)
+            .cloned()
+            .cloned())
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectID,
+        version: iota_types::base_types::VersionNumber,
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
+        Ok(self
+            .objects
+            .iter()
+            .find(|o| o.id() == *object_id && o.version() == version)
+            .cloned()
+            .cloned())
     }
 }
