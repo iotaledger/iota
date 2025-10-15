@@ -1070,6 +1070,8 @@ impl AuthorityState {
     /// object locks because we already know the shared object versions
     /// based on the effects. This function can be called by a fullnode
     /// only.
+    // TODO: This function is no longer needed. Remove it and cleanup all the
+    // related functions.
     #[instrument(level = "trace", skip_all)]
     pub async fn fullnode_execute_certificate_with_effects(
         &self,
