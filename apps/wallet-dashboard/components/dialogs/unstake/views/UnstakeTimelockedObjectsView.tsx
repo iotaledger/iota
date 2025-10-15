@@ -106,6 +106,7 @@ export function UnstakeTimelockedObjectsView({
                     onSuccess(tx);
                     ampli.timelockUnstake({
                         validatorAddress: groupedTimelockedObjects.validatorAddress,
+                        stakedAmount: Number(totalStakedAmountFormatted),
                     });
                 },
             },
