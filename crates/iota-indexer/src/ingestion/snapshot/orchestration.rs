@@ -1,17 +1,20 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::PgIndexerStore;
-use crate::config::SnapshotLagConfig;
-use crate::ingestion::snapshot::persist::ObjectSnapshotWriter;
-use crate::ingestion::snapshot::prepare::ObjectsSnapshotWorker;
-use crate::types::IndexerResult;
-use crate::{
-    ingestion::primary::persist::TransactionObjectChangesToCommit, metrics::IndexerMetrics,
-};
 use iota_data_ingestion_core::WorkerPool;
 use iota_metrics::get_metrics;
 use tracing::info;
+
+use crate::{
+    PgIndexerStore,
+    config::SnapshotLagConfig,
+    ingestion::{
+        primary::persist::TransactionObjectChangesToCommit,
+        snapshot::{persist::ObjectSnapshotWriter, prepare::ObjectsSnapshotWorker},
+    },
+    metrics::IndexerMetrics,
+    types::IndexerResult,
+};
 
 const OBJECT_SNAPSHOT_CHANNEL_CAPACITY: usize = 600;
 

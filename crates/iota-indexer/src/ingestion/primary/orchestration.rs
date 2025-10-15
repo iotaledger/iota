@@ -2,19 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ingestion::primary::persist::PrimaryWriter;
-use crate::ingestion::primary::prepare::PrimaryWorker;
-use crate::{
-    errors::IndexerError, metrics::IndexerMetrics, store::PgIndexerStore, types::IndexerResult,
-};
-use iota_data_ingestion_core::WorkerPool;
+use std::collections::HashMap;
 
+use iota_data_ingestion_core::WorkerPool;
 use iota_metrics::get_metrics;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-
-use std::collections::HashMap;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
+
+use crate::{
+    errors::IndexerError,
+    ingestion::primary::{persist::PrimaryWriter, prepare::PrimaryWorker},
+    metrics::IndexerMetrics,
+    store::PgIndexerStore,
+    types::IndexerResult,
+};
 const CHECKPOINT_QUEUE_SIZE: usize = 100;
 
 pub async fn setup_primary(

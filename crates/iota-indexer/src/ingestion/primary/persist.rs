@@ -1,8 +1,14 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-use crate::ingestion::common::persist::CHECKPOINT_COMMIT_BATCH_SIZE;
+use std::collections::BTreeMap;
+
+use futures::{StreamExt, stream::ReadyChunks};
+use iota_metrics::metered_channel::ReceiverStream;
+use tap::tap::TapFallible;
+use tracing::{error, info, instrument};
+
 use crate::{
-    ingestion::common::prepare::CheckpointObjectChanges,
+    ingestion::common::{persist::CHECKPOINT_COMMIT_BATCH_SIZE, prepare::CheckpointObjectChanges},
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
@@ -15,13 +21,6 @@ use crate::{
         IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
     },
 };
-use futures::StreamExt;
-use futures::stream::ReadyChunks;
-use iota_metrics::metered_channel::ReceiverStream;
-use std::collections::BTreeMap;
-use tap::tap::TapFallible;
-
-use tracing::{error, info, instrument};
 #[derive(Debug)]
 pub(crate) struct CheckpointDataToCommit {
     pub(crate) checkpoint: IndexedCheckpoint,

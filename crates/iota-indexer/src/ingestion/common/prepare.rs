@@ -4,23 +4,22 @@
 //! Types and associated logic to use while
 //! extracting and transforming data from network checkpoints.
 
+use std::collections::BTreeMap;
+
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
+    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
 };
+use move_core_types::language_storage::{StructTag, TypeTag};
 
 use crate::{
     errors::{IndexerError, IndexerResult},
     types::{IndexedDeletedObject, IndexedObject},
 };
-
-use std::collections::BTreeMap;
-
-use iota_types::dynamic_field::{DynamicFieldInfo, DynamicFieldType};
-use move_core_types::language_storage::{StructTag, TypeTag};
 
 #[derive(Clone, Debug)]
 pub(crate) struct Extractor<'chk> {

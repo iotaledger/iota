@@ -2,7 +2,6 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::ingestion::common::persist::Writer;
 use std::{collections::HashMap, env, time::Duration};
 
 use anyhow::{Context, Result};
@@ -15,6 +14,8 @@ use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
+
+use crate::ingestion::common::persist::Writer;
 
 /// Timeout for waiting for tasks to shutdown gracefully after cancellation
 const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);

@@ -2,49 +2,42 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, slice, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    slice,
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
+use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
 use iota_types::{
-    base_types::ObjectID,
-    effects::TransactionEffectsAPI,
+    base_types::{ObjectID, SequenceNumber},
+    digests::TransactionDigest,
+    effects::{TransactionEffects, TransactionEffectsAPI},
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
     messages_checkpoint::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
-    object::Owner,
-    transaction::TransactionDataAPI,
+    object::{Object, Owner},
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use itertools::Itertools;
 use tracing::{info, warn};
 
-use std::collections::HashMap;
-
-use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
-use iota_types::{
-    base_types::SequenceNumber, digests::TransactionDigest, effects::TransactionEffects,
-    object::Object, transaction::TransactionData,
-};
-
-use crate::{
-    errors::IndexerError,
-    metrics::IndexerMetrics,
-    types::{IndexedObjectChange, IndexerResult},
-};
-
 use crate::{
     db::ConnectionPool,
+    errors::IndexerError,
     ingestion::{
-        common::prepare::CheckpointObjectChanges,
-        common::prepare::try_extract_df_kind,
+        common::prepare::{CheckpointObjectChanges, try_extract_df_kind},
         primary::persist::{
             CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
         },
     },
+    metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
@@ -53,7 +46,8 @@ use crate::{
     store::{IndexerStore, PgIndexerStore},
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, TxIndex,
+        IndexedObject, IndexedObjectChange, IndexedPackage, IndexedTransaction, IndexerResult,
+        TxIndex,
     },
 };
 
@@ -797,7 +791,8 @@ impl ObjectProvider for InMemTxChanges {
 }
 
 /// Represents objects for end-of-epoch indexing.
-/// Used to extract IotaSystemState and its dynamic children for end-of-epoch indexing.
+/// Used to extract IotaSystemState and its dynamic children for end-of-epoch
+/// indexing.
 pub(crate) struct EpochEndIndexingObjectStore<'a> {
     objects: Vec<&'a Object>,
 }
