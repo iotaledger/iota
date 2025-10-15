@@ -10,8 +10,8 @@ use diesel::PgConnection;
 use crate::{
     errors::IndexerError,
     ingestion::{
+        common::prepare::CheckpointObjectChanges,
         primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
-        transform::CheckpointObjectChanges,
     },
     models::{
         display::StoredDisplay,

@@ -29,12 +29,12 @@ use crate::{
     errors::IndexerError,
     handlers::tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
     ingestion::{
-        extract::try_extract_df_kind,
+        common::prepare::CheckpointObjectChanges,
+        common::prepare::try_extract_df_kind,
         primary::persist::{
             CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
             start_tx_checkpoint_commit_task,
         },
-        transform::CheckpointObjectChanges,
     },
     metrics::IndexerMetrics,
     models::{

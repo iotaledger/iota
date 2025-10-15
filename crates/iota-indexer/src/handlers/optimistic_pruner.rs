@@ -8,7 +8,7 @@ use tracing::{info, warn};
 
 use crate::{
     errors::IndexerError,
-    ingestion::primary::extract_transform::CheckpointHandler,
+    ingestion::primary::prepare::CheckpointHandler,
     metrics::IndexerMetrics,
     store::{
         IndexerStore, PgIndexerStore, TxGlobalOrderCursor, pg_partition_manager::PgPartitionManager,

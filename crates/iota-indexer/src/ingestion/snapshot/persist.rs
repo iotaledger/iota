@@ -11,8 +11,8 @@ use tracing::info;
 use crate::{
     config::SnapshotLagConfig,
     ingestion::{
-        persist::Writer, primary::persist::TransactionObjectChangesToCommit,
-        snapshot::extract_transform::ObjectsSnapshotHandler,
+        common::persist::Writer, primary::persist::TransactionObjectChangesToCommit,
+        snapshot::prepare::ObjectsSnapshotHandler,
     },
     metrics::IndexerMetrics,
     store::{IndexerStore, PgIndexerStore},

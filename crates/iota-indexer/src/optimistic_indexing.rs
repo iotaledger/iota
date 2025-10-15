@@ -21,10 +21,10 @@ use iota_types::{
 use crate::{
     errors::IndexerError,
     ingestion::{
-        extract::try_extract_df_kind,
+        common::prepare::try_extract_df_kind,
         primary::{
-            extract_transform::{CheckpointHandler, IndexedTransactionComponents},
             persist::TransactionObjectChangesToCommit,
+            prepare::{CheckpointHandler, IndexedTransactionComponents},
         },
     },
     metrics::IndexerMetrics,

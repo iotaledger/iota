@@ -12,9 +12,7 @@ use iota_types::full_checkpoint_content::CheckpointData;
 use crate::{
     config::SnapshotLagConfig,
     errors::IndexerError,
-    ingestion::primary::{
-        extract_transform::CheckpointHandler, persist::TransactionObjectChangesToCommit,
-    },
+    ingestion::primary::{persist::TransactionObjectChangesToCommit, prepare::CheckpointHandler},
     metrics::IndexerMetrics,
     store::PgIndexerStore,
 };

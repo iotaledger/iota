@@ -11,7 +11,7 @@ use tracing::{error, info};
 use crate::{
     config::RetentionConfig,
     errors::IndexerError,
-    ingestion::primary::extract_transform::CheckpointHandler,
+    ingestion::primary::prepare::CheckpointHandler,
     metrics::IndexerMetrics,
     store::{IndexerStore, PgIndexerStore, pg_partition_manager::PgPartitionManager},
     types::IndexerResult,

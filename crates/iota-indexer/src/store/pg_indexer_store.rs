@@ -27,11 +27,11 @@ use crate::{
     db::ConnectionPool,
     errors::{Context, IndexerError, IndexerResult},
     ingestion::{
-        primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
-        transform::{
+        common::prepare::{
             CheckpointObjectChanges, LiveObject, RemovedObject,
             retain_latest_objects_from_checkpoint_batch,
         },
+        primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
     },
     insert_or_ignore_into,
     metrics::IndexerMetrics,

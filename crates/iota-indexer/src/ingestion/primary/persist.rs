@@ -9,7 +9,9 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 
 use crate::{
-    ingestion::{persist::CHECKPOINT_COMMIT_BATCH_SIZE, transform::CheckpointObjectChanges},
+    ingestion::{
+        common::persist::CHECKPOINT_COMMIT_BATCH_SIZE, common::prepare::CheckpointObjectChanges,
+    },
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,

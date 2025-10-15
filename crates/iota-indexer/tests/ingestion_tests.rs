@@ -15,7 +15,7 @@ mod ingestion_tests {
     use iota_indexer::{
         db::get_pool_connection,
         errors::{Context, IndexerError},
-        ingestion::transform::CheckpointObjectChanges,
+        ingestion::common::prepare::CheckpointObjectChanges,
         insert_or_ignore_into,
         models::{
             checkpoints::StoredCheckpoint,
