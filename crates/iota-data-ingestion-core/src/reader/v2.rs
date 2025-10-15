@@ -290,6 +290,25 @@ impl CheckpointReaderActor {
         Ok(())
     }
 
+    /// Fetch checkpoints from the live object store and stream them to a
+    /// channel.
+    async fn fetch_live(
+        &mut self,
+        batch_size: usize,
+        live: &dyn ObjectStore,
+    ) -> IngestionResult<()> {
+        let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
+            .map(|checkpoint_number| fetch_from_object_store(live, checkpoint_number))
+            .pipe(futures::stream::iter)
+            .buffered(batch_size);
+        while let Some(checkpoint_result) = checkpoint_stream.next().await {
+            let (checkpoint, size) = checkpoint_result?;
+            self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
+                .await?;
+        }
+        Ok(())
+    }
+
     /// Fetches checkpoints from the fullnode trough a gRPC streaming connection
     /// and stream them to a channel.
     async fn fetch_from_fullnode(&mut self, client: &mut CheckpointClient) -> IngestionResult<()> {
@@ -329,10 +348,7 @@ impl CheckpointReaderActor {
             return Err(IngestionError::Grpc("checkpoint stream was closed".into()));
         };
 
-        let checkpoint: CheckpointData = genesis_checkpoint
-            .map(GrpcCheckpoint)
-            .map_err(|e| IngestionError::Grpc(e.to_string()))?
-            .try_into()?;
+        let checkpoint: CheckpointData = genesis_checkpoint.map(GrpcCheckpoint)?.try_into()?;
 
         let size = bcs::serialized_size(&checkpoint)?;
         self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
@@ -370,10 +386,7 @@ impl CheckpointReaderActor {
             })?;
 
         while let Some(checkpoint) = checkpoints_stream.next().await {
-            let checkpoint: CheckpointData = checkpoint
-                .map(GrpcCheckpoint)
-                .map_err(|e| IngestionError::Grpc(e.to_string()))?
-                .try_into()?;
+            let checkpoint: CheckpointData = checkpoint.map(GrpcCheckpoint)?.try_into()?;
 
             let size = bcs::serialized_size(&checkpoint)?;
             self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
@@ -400,21 +413,11 @@ impl CheckpointReaderActor {
             }
             RemoteStore::HybridHistoricalStore { historical, live } => {
                 if let Err(err) = self.fetch_historical(historical).await {
+                    // attempt to fetch from live object store if historical store does not contain
+                    // the requested checkpoint.
                     if matches!(err, IngestionError::CheckpointNotAvailableYet) {
                         let live = live.as_ref().ok_or(err)?;
-                        let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
-                            .map(|checkpoint_number| {
-                                fetch_from_object_store(live, checkpoint_number)
-                            })
-                            .pipe(futures::stream::iter)
-                            .buffered(batch_size);
-
-                        while let Some(checkpoint_result) = checkpoint_stream.next().await {
-                            let (checkpoint, size) = checkpoint_result?;
-                            self.send_remote_checkpoint_with_capacity_check(checkpoint, size)
-                                .await?;
-                        }
-                        return Ok(());
+                        return self.fetch_live(batch_size, live).await;
                     }
                     return Err(err);
                 }
