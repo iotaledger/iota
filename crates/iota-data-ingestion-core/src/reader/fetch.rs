@@ -13,9 +13,9 @@ use std::{
 use iota_rest_api::{CheckpointData, Client};
 use iota_storage::blob::Blob;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use notify::{RecursiveMode, Watcher};
+#[cfg(not(target_os = "macos"))]
+use notify::{RecommendedWatcher, RecursiveMode};
 use object_store::{ObjectStore, path::Path as ObjectStorePath};
-use tokio::sync::mpsc;
 use tracing::{debug, info};
 
 use crate::{
@@ -142,32 +142,31 @@ pub(crate) trait LocalRead {
         }
         Ok(())
     }
+}
 
-    /// Sets up an inotify watcher on the given path and returns the watcher and
-    /// a receiver for notifications.
-    ///
-    /// This function creates the directory if it does not exist, sets up a
-    /// notify watcher, and returns both the watcher and a receiver that
-    /// yields a unit value `()` whenever a filesystem event occurs.
-    fn setup_directory_watcher(&self) -> (notify::RecommendedWatcher, mpsc::Receiver<()>) {
-        let (inotify_sender, inotify_recv) = mpsc::channel(1);
-        std::fs::create_dir_all(self.path()).expect("failed to create a directory");
-        let mut watcher = notify::recommended_watcher(move |res| {
-            if let Err(err) = res {
-                eprintln!("watch error: {err:?}");
-            }
-            inotify_sender
-                .blocking_send(())
-                .expect("Failed to send inotify update");
-        })
-        .expect("Failed to init inotify");
+/// Sets up an inotify watcher on the given path and returns the watcher. The
+/// Receiver yields a unit value `()` whenever a filesystem event occurs
+/// in the watched directory
+#[cfg(not(target_os = "macos"))]
+pub(crate) fn init_watcher(
+    inotify_sender: tokio::sync::mpsc::Sender<()>,
+    path: &Path,
+) -> RecommendedWatcher {
+    use notify::Watcher;
 
-        watcher
-            .watch(self.path(), RecursiveMode::NonRecursive)
-            .expect("Inotify watcher failed");
-
-        (watcher, inotify_recv)
-    }
+    let mut watcher = notify::recommended_watcher(move |res| {
+        if let Err(err) = res {
+            eprintln!("watch error: {err:?}");
+        }
+        inotify_sender
+            .blocking_send(())
+            .expect("Failed to send inotify update");
+    })
+    .expect("Failed to init inotify");
+    watcher
+        .watch(path, RecursiveMode::NonRecursive)
+        .expect("Inotify watcher failed");
+    watcher
 }
 
 #[derive(Debug, Clone, Copy)]

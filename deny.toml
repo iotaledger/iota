@@ -57,6 +57,8 @@ ignore = [
   "RUSTSEC-2025-0012",
   # Logging user input may result in poisoning logs with ANSI escape sequences
   "RUSTSEC-2025-0055",
+  # adler is unmaintained
+  "RUSTSEC-2025-0056",
 ]
 # Threshold for security vulnerabilities, any vulnerability with a CVSS score
 # lower than the range specified will be ignored. Note that ignored advisories
@@ -129,9 +131,7 @@ exceptions = [
 [[licenses.clarify]]
 name = "ring"
 expression = "LicenseRef-ring"
-license-files = [
-  { path = "LICENSE", hash = 0xbd0eed23 },
-]
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 [[licenses.clarify]]
 name = "target-lexicon"
 version = "*"

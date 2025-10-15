@@ -84,7 +84,7 @@ impl From<&IndexedTransaction> for CheckpointTxGlobalOrder {
 /// that represent the index status.
 #[derive(Clone, Debug, Queryable, Insertable, QueryableByName, Selectable)]
 #[diesel(table_name = tx_global_order)]
-pub(crate) struct CheckpointTxGlobalOrder {
+pub struct CheckpointTxGlobalOrder {
     pub(crate) chk_tx_sequence_number: Option<i64>,
     pub(crate) global_sequence_number: i64,
     pub(crate) tx_digest: Vec<u8>,
@@ -101,7 +101,7 @@ pub(crate) struct CheckpointTxGlobalOrder {
 /// Index status.
 #[derive(Clone, Debug, Copy, AsExpression, PartialEq, Eq)]
 #[diesel(sql_type = BigInt)]
-pub(crate) enum IndexStatus {
+pub enum IndexStatus {
     Started,
     Completed,
 }

@@ -225,7 +225,14 @@ impl SynchronizerHandle {
         let mut tasks = self.tasks.lock().await;
         tasks.abort_all();
         while let Some(result) = tasks.join_next().await {
-            result?
+            match result {
+                // task finished successfully
+                Ok(_) => (),
+                // task was cancelled, which is expected on shutdown
+                Err(e) if e.is_cancelled() => (),
+                // propagate other errors (e.g. panics)
+                Err(e) => return Err(e),
+            }
         }
         Ok(())
     }
@@ -1405,7 +1412,7 @@ mod tests {
         authority_service::COMMIT_LAG_MULTIPLIER,
         block_header::{
             BlockHeaderDigest, BlockRef, Round, TestBlockHeader, VerifiedBlock,
-            VerifiedBlockHeader, VerifiedTransactions,
+            VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
@@ -2148,7 +2155,11 @@ mod tests {
                     index,
                     CommitDigest::MIN,
                     0,
-                    BlockRef::MIN,
+                    BlockRef::new(
+                        index,
+                        AuthorityIndex::new_for_test(0),
+                        BlockHeaderDigest::MIN,
+                    ),
                     vec![],
                     vec![],
                 );
@@ -2368,6 +2379,10 @@ mod tests {
             &self,
             _transactions: Vec<VerifiedTransactions>,
         ) -> Result<(), CoreError> {
+            unimplemented!("Unimplemented")
+        }
+
+        async fn add_shards(&self, _shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }
 
