@@ -52,6 +52,129 @@ export type LoadOptionsWithClientInstance = LoadOptionsBase & { client: { instan
 
 export type LoadOptions = LoadOptionsWithEnvironment | LoadOptionsWithApiKey | LoadOptionsWithClientInstance;
 
+export interface ClickedMaxAmountProperties {
+  bridgeDirection: string;
+  coinType: string;
+}
+
+export interface ConnectedL1WalletProperties {
+  walletType: string;
+}
+
+export interface ConnectedL2WalletProperties {
+  chainId: string;
+  walletType: string;
+}
+
+export interface SelectedCoinProperties {
+  bridgeDirection: string;
+  coinSymbol: string;
+  coinType: string;
+}
+
+export interface SentFromL1ToL2Properties {
+  amount: string;
+  coinType: string;
+}
+
+export interface SentFromL2ToL1Properties {
+  amount: string;
+  coinType: string;
+}
+
+export interface ToggledAddressInputProperties {
+  bridgeDirection: string;
+  inputMode: string;
+}
+
+export interface ToggledBridgeDirectionProperties {
+  bridgeDirection: string;
+}
+
+export class ClickedMaxAmount implements BaseEvent {
+  event_type = 'clicked max amount';
+
+  constructor(
+    public event_properties: ClickedMaxAmountProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
+}
+
+export class ConnectedL1Wallet implements BaseEvent {
+  event_type = 'connected l1 wallet';
+
+  constructor(
+    public event_properties: ConnectedL1WalletProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
+}
+
+export class ConnectedL2Wallet implements BaseEvent {
+  event_type = 'connected l2 wallet';
+
+  constructor(
+    public event_properties: ConnectedL2WalletProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
+}
+
+export class RequestedFaucetFunds implements BaseEvent {
+  event_type = 'requested faucet funds';
+}
+
+export class SelectedCoin implements BaseEvent {
+  event_type = 'selected coin';
+
+  constructor(
+    public event_properties: SelectedCoinProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
+}
+
+export class SentFromL1ToL2 implements BaseEvent {
+  event_type = 'sent from l1 to l2';
+
+  constructor(
+    public event_properties: SentFromL1ToL2Properties,
+  ) {
+    this.event_properties = event_properties;
+  }
+}
+
+export class SentFromL2ToL1 implements BaseEvent {
+  event_type = 'sent from l2 to l1';
+
+  constructor(
+    public event_properties: SentFromL2ToL1Properties,
+  ) {
+    this.event_properties = event_properties;
+  }
+}
+
+export class ToggledAddressInput implements BaseEvent {
+  event_type = 'toggled address input';
+
+  constructor(
+    public event_properties: ToggledAddressInputProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
+}
+
+export class ToggledBridgeDirection implements BaseEvent {
+  event_type = 'toggled bridge direction';
+
+  constructor(
+    public event_properties: ToggledBridgeDirectionProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
+}
+
 export type PromiseResult<T> = { promise: Promise<T | void> };
 
 const getVoidPromiseResult = () => ({ promise: Promise.resolve() });
@@ -161,6 +284,156 @@ export class Ampli {
     return this.amplitude!.track(event, undefined, options);
   }
 
+  /**
+   * clicked max amount
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20EVM%20Bridge/events/main/latest/clicked%20max%20amount)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. bridgeDirection)
+   * @param options Amplitude event options.
+   */
+  clickedMaxAmount(
+    properties: ClickedMaxAmountProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ClickedMaxAmount(properties), options);
+  }
+
+  /**
+   * connected l1 wallet
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20EVM%20Bridge/events/main/latest/connected%20l1%20wallet)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. walletType)
+   * @param options Amplitude event options.
+   */
+  connectedL1Wallet(
+    properties: ConnectedL1WalletProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ConnectedL1Wallet(properties), options);
+  }
+
+  /**
+   * connected l2 wallet
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20EVM%20Bridge/events/main/latest/connected%20l2%20wallet)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. chainId)
+   * @param options Amplitude event options.
+   */
+  connectedL2Wallet(
+    properties: ConnectedL2WalletProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ConnectedL2Wallet(properties), options);
+  }
+
+  /**
+   * requested faucet funds
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20EVM%20Bridge/events/main/latest/requested%20faucet%20funds)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param options Amplitude event options.
+   */
+  requestedFaucetFunds(
+    options?: EventOptions,
+  ) {
+    return this.track(new RequestedFaucetFunds(), options);
+  }
+
+  /**
+   * selected coin
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20EVM%20Bridge/events/main/latest/selected%20coin)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. bridgeDirection)
+   * @param options Amplitude event options.
+   */
+  selectedCoin(
+    properties: SelectedCoinProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new SelectedCoin(properties), options);
+  }
+
+  /**
+   * sent from l1 to l2
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20EVM%20Bridge/events/main/latest/sent%20from%20l1%20to%20l2)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. amount)
+   * @param options Amplitude event options.
+   */
+  sentFromL1ToL2(
+    properties: SentFromL1ToL2Properties,
+    options?: EventOptions,
+  ) {
+    return this.track(new SentFromL1ToL2(properties), options);
+  }
+
+  /**
+   * sent from l2 to l1
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20EVM%20Bridge/events/main/latest/sent%20from%20l2%20to%20l1)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. amount)
+   * @param options Amplitude event options.
+   */
+  sentFromL2ToL1(
+    properties: SentFromL2ToL1Properties,
+    options?: EventOptions,
+  ) {
+    return this.track(new SentFromL2ToL1(properties), options);
+  }
+
+  /**
+   * toggled address input
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20EVM%20Bridge/events/main/latest/toggled%20address%20input)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. bridgeDirection)
+   * @param options Amplitude event options.
+   */
+  toggledAddressInput(
+    properties: ToggledAddressInputProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ToggledAddressInput(properties), options);
+  }
+
+  /**
+   * toggled bridge direction
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20EVM%20Bridge/events/main/latest/toggled%20bridge%20direction)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. bridgeDirection)
+   * @param options Amplitude event options.
+   */
+  toggledBridgeDirection(
+    properties: ToggledBridgeDirectionProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ToggledBridgeDirection(properties), options);
+  }
 }
 
 export const ampli = new Ampli();

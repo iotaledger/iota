@@ -11,17 +11,25 @@ const IS_PROD_ENV = import.meta.env.VITE_BUILD_ENV === 'production';
 
 export const persistableStorage = new PersistableStorage<UserSession>();
 
+export enum BridgeDirection {
+    L1ToL2 = 'l1_to_l2',
+    L2ToL1 = 'l2_to_l1',
+}
+
+export enum Layer {
+    L1 = 'l1',
+    L2 = 'l2',
+}
+
 const ApiKey = {
-    production: 'placeholder-production-api-key',
-    development: 'placeholder-development-api-key',
+    production: 'bc860617cd112db8797d4b8809b15142',
 };
 
 export async function initAmplitude() {
     await ampli.load({
-        environment: 'iotaevmbridge',
-        // Flip this if you'd like to test Amplitude locally
         disabled: !IS_PROD_ENV,
         client: {
+            apiKey: ApiKey.production,
             configuration: {
                 cookieStorage: persistableStorage,
                 logLevel: IS_PROD_ENV ? LogLevel.Warn : amplitude.Types.LogLevel.Debug,
