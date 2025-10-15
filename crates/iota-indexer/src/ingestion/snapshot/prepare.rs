@@ -12,7 +12,7 @@ use iota_types::full_checkpoint_content::CheckpointData;
 use crate::{
     config::SnapshotLagConfig,
     errors::IndexerError,
-    ingestion::primary::{persist::TransactionObjectChangesToCommit, prepare::CheckpointHandler},
+    ingestion::primary::{persist::TransactionObjectChangesToCommit, prepare::PrimaryWorker},
     metrics::IndexerMetrics,
     store::PgIndexerStore,
 };
@@ -50,7 +50,7 @@ impl Worker for ObjectsSnapshotHandler {
         &self,
         checkpoint: Arc<CheckpointData>,
     ) -> Result<Self::Message, Self::Error> {
-        let transformed_data = CheckpointHandler::index_objects(&checkpoint, &self.metrics).await?;
+        let transformed_data = PrimaryWorker::index_objects(&checkpoint, &self.metrics).await?;
         self.sender
             .send((
                 checkpoint.checkpoint_summary.sequence_number,

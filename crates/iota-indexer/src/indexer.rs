@@ -25,7 +25,8 @@ use crate::{
     errors::IndexerError,
     handlers::{optimistic_pruner::OptimisticPruner, pruner::Pruner},
     ingestion::{
-        primary::orchestration::new_handlers, snapshot::persist::start_objects_snapshot_handler,
+        primary::orchestration::{setup_primary, start_primary_writer_task},
+        snapshot::persist::start_objects_snapshot_handler,
     },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
@@ -112,15 +113,19 @@ impl Indexer {
             DataIngestionMetrics::new(&Registry::new()),
             cancel.child_token(),
         );
-        let worker = new_handlers(store, metrics, primary_watermark, cancel.clone()).await?;
-        let worker_pool = WorkerPool::new(
-            worker,
-            "primary".to_string(),
+        let (worker_pool, writer) = setup_primary(
+            store.clone(),
+            metrics.clone(),
             config.checkpoint_download_queue_size,
-            Default::default(),
-        );
-
+        )
+        .await?;
         executor.register(worker_pool).await?;
+        let cancel_clone = cancel.clone();
+        spawn_monitored_task!(start_primary_writer_task(
+            writer,
+            primary_watermark,
+            cancel_clone
+        ));
 
         let worker_pool = WorkerPool::new(
             object_snapshot_worker,

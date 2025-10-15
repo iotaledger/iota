@@ -11,7 +11,7 @@ use tracing::{error, info};
 use crate::{
     config::RetentionConfig,
     errors::IndexerError,
-    ingestion::primary::prepare::CheckpointHandler,
+    ingestion::primary::prepare::PrimaryWorker,
     metrics::IndexerMetrics,
     store::{IndexerStore, PgIndexerStore, pg_partition_manager::PgPartitionManager},
     types::IndexerResult,
@@ -82,7 +82,7 @@ impl Pruner {
         retention_config: RetentionConfig,
         metrics: IndexerMetrics,
     ) -> Result<Self, IndexerError> {
-        let blocking_cp = CheckpointHandler::pg_blocking_cp(store.clone()).unwrap();
+        let blocking_cp = PrimaryWorker::pg_blocking_cp(store.clone()).unwrap();
         let partition_manager = PgPartitionManager::new(blocking_cp.clone())?;
         let epochs_to_keep = retention_config.epochs_to_keep;
         let retention_policies = retention_config.retention_policies();

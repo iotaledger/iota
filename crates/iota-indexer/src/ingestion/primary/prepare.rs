@@ -46,7 +46,7 @@ use crate::{
     },
 };
 
-pub struct CheckpointHandler {
+pub struct PrimaryWorker {
     metrics: IndexerMetrics,
     indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
 }
@@ -60,7 +60,7 @@ pub type IndexedTransactionComponents = (
 );
 
 #[async_trait]
-impl Worker for CheckpointHandler {
+impl Worker for PrimaryWorker {
     type Message = ();
     type Error = IndexerError;
 
@@ -109,7 +109,7 @@ impl Worker for CheckpointHandler {
     }
 }
 
-impl CheckpointHandler {
+impl PrimaryWorker {
     pub(crate) fn new(
         metrics: IndexerMetrics,
         indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
