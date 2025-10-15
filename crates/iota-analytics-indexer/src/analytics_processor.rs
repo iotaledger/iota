@@ -271,7 +271,7 @@ impl<S: Serialize + ParquetSchema + 'static> AnalyticsProcessor<S> {
                  _ = interval.tick() => {
                     let max_checkpoint = max_checkpoint_reader.max_checkpoint().await;
                     if let Ok(max_checkpoint) = max_checkpoint.inspect_err(|e| {
-                        error!("Failed to read max checkpoint for {handler_name} with err: {e}")
+                        error!("failed to read max checkpoint for {handler_name} with err: {e}")
                     }) {
                         analytics_metrics
                             .max_checkpoint_on_store
