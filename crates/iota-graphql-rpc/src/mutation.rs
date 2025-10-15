@@ -60,13 +60,13 @@ impl Mutation {
     /// that was not possible. A transaction is final when its effects are
     /// guaranteed on chain (it cannot be revoked).
     ///
-    /// There may be a delay between transaction finality and when GraphQL
-    /// requests (including the request that issued the transaction) reflect
-    /// its effects. As a result, queries that depend on indexing the state
-    /// of the chain (e.g. contents of output objects, address-level balance
-    /// information at the time of the transaction), must wait for indexing to
-    /// catch up by polling for the transaction digest using
-    /// `Query.transactionBlock`.
+    /// Transaction effects are now available immediately after execution
+    /// through `Query.transactionBlock`. However, other queries that depend
+    /// on the chain’s indexed state (e.g., address-level balance updates)
+    /// may still lag until the transaction has been checkpointed.
+    /// To confirm that a transaction has been included in a checkpoint, query
+    /// `Query.transactionBlock` and check whether the `effects.checkpoint`
+    /// field is set (or `null` if not yet checkpointed).
     async fn execute_transaction_block(
         &self,
         ctx: &Context<'_>,

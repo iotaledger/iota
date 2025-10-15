@@ -9,6 +9,10 @@ env:
   IOTA_NETWORKS: ${{ secrets.CHANGESETS_IOTA_NETWORKS }}
   DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   publish:
     runs-on: self-hosted-x64
@@ -23,10 +27,10 @@ jobs:
         with:
           node-version: "20"
           cache: "pnpm"
+      - name: Update npm
+        run: npm install -g npm@latest
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: NPM login
-        run: npm set "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}"
       - name: Build packages
         run: pnpm turbo run build --filter=./sdk/*
       - name: Publish packages

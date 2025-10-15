@@ -48,16 +48,16 @@ impl GenesisTransaction {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cursors)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(self.native.objects.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for cursor in cursors {
+        for cursor in consistent_page.cursors {
             let GenesisObject::RawObject { data, owner } = self.native.objects[cursor.ix].clone();
             let native =
                 NativeObject::new_from_genesis(data, owner, TransactionDigest::genesis_marker());
@@ -84,16 +84,16 @@ impl GenesisTransaction {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cursors)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(self.native.events.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for cursor in cursors {
+        for cursor in consistent_page.cursors {
             let native_event = self.native.events[cursor.ix].clone();
 
             let event = Event {

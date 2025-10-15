@@ -67,7 +67,7 @@ impl GrpcServerHandle {
 pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
     event_subscriber: Arc<dyn crate::EventSubscriber>,
-    config: crate::Config,
+    config: iota_config::node::GrpcApiConfig,
     shutdown_token: CancellationToken,
 ) -> Result<GrpcServerHandle> {
     // Create broadcast channels
