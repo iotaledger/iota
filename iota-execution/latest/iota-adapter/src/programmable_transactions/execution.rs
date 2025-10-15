@@ -1333,14 +1333,20 @@ mod checked {
             Some(t) => is_auth_context(context, t)?,
             None => false,
         };
-        assert_invariant!(
-            !has_auth_context || context.protocol_config.move_auth(),
-            "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_auth` feature is disabled"
-        );
-        assert_invariant!(
-            !has_auth_context || Mode::allow_auth_context(),
-            "`iota::auth_context::AuthContext` can't be used as a parameter in this execution mode"
-        );
+        if has_auth_context {
+            if !context.protocol_config.move_auth() {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_auth` feature is disabled",
+                ));
+            }
+            if !Mode::allow_auth_context() {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    "`iota::auth_context::AuthContext` can't be used as a parameter in this execution mode",
+                ));
+            }
+        }
         // an init function can have one or two arguments, with the last one always
         // being of type &mut TxContext and the additional (first) one
         // representing a one time witness type (see one_time_witness verifier

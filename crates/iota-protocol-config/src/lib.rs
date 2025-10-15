@@ -2419,6 +2419,10 @@ impl ProtocolConfig {
         self.feature_flags
             .select_committee_supporting_next_epoch_version = val;
     }
+
+    pub fn set_move_auth_for_testing(&mut self, val: bool) {
+        self.feature_flags.move_auth = val;
+    }
 }
 
 type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync;
