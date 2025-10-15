@@ -165,8 +165,9 @@ pub(crate) fn explain_publish_error(
             );
 
             let old_module = state.get_module_by_id(&module_id)?.unwrap();
-            let old_api = normalized::Module::new(&old_module);
-            let new_api = normalized::Module::new(module);
+            let pool = &mut normalized::RcPool::new();
+            let old_api = normalized::Module::new(pool, &old_module, /* include code */ true);
+            let new_api = normalized::Module::new(pool, module, /* include code */ true);
 
             if (Compatibility {
                 check_datatype_layout: true,

@@ -20,6 +20,7 @@ use move_core_types::{
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::{Bytes, serde_as};
+use std::hash::Hash;
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
@@ -511,12 +512,15 @@ impl MovePackage {
             }
         })
     }
-
-    pub fn normalize(
+    /// If `include_code` is set to `false`, the normalized module will skip
+    /// function bodies but still include the signatures.
+    pub fn normalize<S: Hash + Eq + Clone + ToString, Pool: normalized::StringPool<String = S>>(
         &self,
+        pool: &mut Pool,
         binary_config: &BinaryConfig,
-    ) -> IotaResult<BTreeMap<String, normalized::Module>> {
-        normalize_modules(self.module_map.values(), binary_config)
+        include_code: bool,
+    ) -> IotaResult<BTreeMap<String, normalized::Module<S>>> {
+        normalize_modules(pool, self.module_map.values(), binary_config, include_code)
     }
 }
 
@@ -585,10 +589,19 @@ pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInf
     }
 }
 
-pub fn normalize_modules<'a, I>(
+/// If `include_code` is set to `false`, the normalized module will skip
+/// function bodies but still include the signatures.
+pub fn normalize_modules<
+    'a,
+    S: Hash + Eq + Clone + ToString,
+    Pool: normalized::StringPool<String = S>,
+    I,
+>(
+    pool: &mut Pool,
     modules: I,
     binary_config: &BinaryConfig,
-) -> IotaResult<BTreeMap<String, normalized::Module>>
+    include_code: bool,
+) -> IotaResult<BTreeMap<String, normalized::Module<S>>>
 where
     I: Iterator<Item = &'a Vec<u8>>,
 {
@@ -600,20 +613,31 @@ where
                     error: error.to_string(),
                 }
             })?;
-        let normalized_module = normalized::Module::new(&module);
-        normalized_modules.insert(normalized_module.name.to_string(), normalized_module);
+        let normalized_module = normalized::Module::new(pool, &module, include_code);
+        normalized_modules.insert(normalized_module.name().to_string(), normalized_module);
     }
     Ok(normalized_modules)
 }
 
-pub fn normalize_deserialized_modules<'a, I>(modules: I) -> BTreeMap<String, normalized::Module>
+/// If `include_code` is set to `false`, the normalized module will skip
+/// function bodies but still include the signatures.
+pub fn normalize_deserialized_modules<
+    'a,
+    S: Hash + Eq + Clone + ToString,
+    Pool: normalized::StringPool<String = S>,
+    I,
+>(
+    pool: &mut Pool,
+    modules: I,
+    include_code: bool,
+) -> BTreeMap<String, normalized::Module<S>>
 where
     I: Iterator<Item = &'a CompiledModule>,
 {
     let mut normalized_modules = BTreeMap::new();
     for module in modules {
-        let normalized_module = normalized::Module::new(module);
-        normalized_modules.insert(normalized_module.name.to_string(), normalized_module);
+        let normalized_module = normalized::Module::new(pool, module, include_code);
+        normalized_modules.insert(normalized_module.name().to_string(), normalized_module);
     }
     normalized_modules
 }
