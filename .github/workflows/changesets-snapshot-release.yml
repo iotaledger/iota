@@ -35,6 +35,9 @@ jobs:
           node-version: "20"
           cache: "pnpm"
 
+      - name: Update npm
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
