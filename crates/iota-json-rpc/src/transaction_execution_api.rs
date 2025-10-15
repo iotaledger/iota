@@ -20,6 +20,7 @@ use iota_json_rpc_types::{
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
 use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
+use iota_protocol_config::Chain;
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
@@ -369,6 +370,18 @@ impl WriteApiServer for TransactionExecutionApi {
         type_args: Option<Vec<IotaTypeTag>>,
         call_args: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
+        let chain = self
+            .state
+            .get_chain_identifier()
+            .map_err(Error::from)?
+            .chain();
+        if !matches!(chain, Chain::Unknown) {
+            return Err(Error::UnsupportedFeature(format!(
+                "View function calls not supported yet on {}",
+                chain.as_str()
+            ))
+            .into());
+        }
         let MoveFunctionName {
             package,
             module,
