@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { toast } from '@iota/core';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -14,6 +14,8 @@ import {
     CardAction,
     ImageType,
     CardActionType,
+    Button,
+    ButtonType,
 } from '@iota/apps-ui-kit';
 import {
     AccountsFormType,
@@ -27,6 +29,7 @@ import { AppType } from '../../redux/slices/app/appType';
 import { Create, ImportPass, Key, Seed, Ledger, Keystone } from '@iota/apps-ui-icons';
 import Browser from 'webextension-polyfill';
 import { openInNewTab } from '_src/shared/utils';
+import clsx from 'clsx';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
     const currentURL = new URL(window.location.href);
@@ -58,14 +61,29 @@ export function AddAccountPage() {
     const createAccountsMutation = useCreateAccountsMutation();
     const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
 
-    const cardGroups = [
+    type CardGroup = {
+        title?: string;
+        type?: 'buttons' | 'cards';
+        cards: {
+            title: string;
+            icon: React.ComponentType<{ className: string }>;
+            actionType: AccountsFormType;
+            isDisabled: boolean;
+        }[];
+    };
+    const cardGroups: CardGroup[] = [
         {
-            title: 'Create a new mnemonic profile',
             cards: [
                 {
-                    title: 'Create New',
+                    title: 'New Mnemonic Profile',
                     icon: Create,
                     actionType: AccountsFormType.NewMnemonic,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+                {
+                    title: 'New Passkey Profile',
+                    icon: Key,
+                    actionType: AccountsFormType.Passkey,
                     isDisabled: createAccountsMutation.isPending,
                 },
             ],
@@ -86,6 +104,12 @@ export function AddAccountPage() {
                     isDisabled: createAccountsMutation.isPending,
                 },
                 {
+                    title: 'Passkey',
+                    icon: Key,
+                    actionType: AccountsFormType.ImportPasskey,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+                {
                     title: 'Seed',
                     icon: Seed,
                     actionType: AccountsFormType.ImportSeed,
@@ -94,18 +118,8 @@ export function AddAccountPage() {
             ],
         },
         {
-            title: 'Create a new passkey profile',
-            cards: [
-                {
-                    title: 'Passkey',
-                    icon: Key,
-                    actionType: AccountsFormType.Passkey,
-                    isDisabled: createAccountsMutation.isPending,
-                },
-            ],
-        },
-        {
             title: 'Hardware Wallets',
+            type: 'buttons',
             cards: [
                 {
                     title: 'Ledger',
@@ -141,12 +155,15 @@ export function AddAccountPage() {
                 navigate('/accounts/import-private-key');
                 break;
             case AccountsFormType.Passkey:
+            case AccountsFormType.ImportPasskey:
                 ampli.clickedCreatePasskey({ sourceFlow });
+                const flowType = actionType === AccountsFormType.Passkey ? 'create' : 'import';
+                const url = `/accounts/passkey-account?flowType=${flowType}`;
                 if (isPopup) {
-                    openInNewTab('/accounts/import-passkey');
-                    break;
+                    openInNewTab(url);
+                } else {
+                    navigate(url);
                 }
-                navigate('/accounts/import-passkey');
                 break;
             case AccountsFormType.ImportSeed:
                 ampli.clickedImportSeed({ sourceFlow });
@@ -188,18 +205,37 @@ export function AddAccountPage() {
                         <span className="text-label-lg text-iota-neutral-60 dark:text-iota-neutral-40">
                             {group.title}
                         </span>
-                        {group.cards.map((card, cardIndex) => (
-                            <Card
-                                key={cardIndex}
-                                type={CardType.Filled}
-                                onClick={() => handleCardAction(card.actionType)}
-                                isDisabled={card.isDisabled}
-                            >
-                                <CardIcon Icon={card.icon} />
-                                <CardBody title={card.title} />
-                                <CardAction type={CardActionType.Link} />
-                            </Card>
-                        ))}
+                        <div
+                            className={clsx(
+                                group.type === 'buttons'
+                                    ? 'grid grid-cols-2 gap-2'
+                                    : 'flex flex-col gap-2',
+                            )}
+                        >
+                            {group.cards.map((card, cardIndex) => (
+                                <Fragment key={cardIndex}>
+                                    {!group.type || group.type === 'cards' ? (
+                                        <Card
+                                            type={CardType.Filled}
+                                            onClick={() => handleCardAction(card.actionType)}
+                                            isDisabled={card.isDisabled}
+                                        >
+                                            <CardIcon Icon={card.icon} />
+                                            <CardBody title={card.title} />
+                                            <CardAction type={CardActionType.Link} />
+                                        </Card>
+                                    ) : (
+                                        <Button
+                                            type={ButtonType.Secondary}
+                                            onClick={() => handleCardAction(card.actionType)}
+                                            icon={<card.icon className="h-5 w-5" />}
+                                            text={card.title}
+                                            disabled={card.isDisabled}
+                                        />
+                                    )}
+                                </Fragment>
+                            ))}
+                        </div>
                     </div>
                 ))}
             </div>

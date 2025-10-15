@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { CDPSession, Page } from '@playwright/test';
-import { SHORT_TIMEOUT } from '../constants/timeout.constants';
+import { LONG_TIMEOUT, SHORT_TIMEOUT } from '../constants/timeout.constants';
 import { expect } from '../fixtures';
 
 export const PASSWORD = 'iota';
@@ -11,7 +11,7 @@ export const PASSWORD = 'iota';
 export async function createWallet(page: Page, extensionUrl: string) {
     await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: SHORT_TIMEOUT });
-    await page.getByText('Create New').click();
+    await page.getByText('New Mnemonic Profile').click();
     await page.getByTestId('password.input').fill('iotae2etests');
     await page.getByTestId('password.confirmation').fill('iotae2etests');
     await page.getByText('I read and agree').click();
@@ -76,12 +76,11 @@ export async function addVirtualAuthenticator(
 
 interface PasskeyOptions extends VirtualAuthenticatorOptions {
     username: string;
-    displayName: string;
 }
 export async function createPasskeyWallet(
     page: Page,
     extensionUrl: string,
-    { username, displayName, automaticPresenceSimulation, isCrossPlatform }: PasskeyOptions,
+    { username, automaticPresenceSimulation, isCrossPlatform }: PasskeyOptions,
 ) {
     const client = await page.context().newCDPSession(page);
     await client.send('WebAuthn.enable');
@@ -92,14 +91,12 @@ export async function createPasskeyWallet(
 
     await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: SHORT_TIMEOUT });
-    await page.getByText('Passkey', { exact: true }).click();
+    await page.getByText('New Passkey Profile', { exact: true }).click();
 
     await page.getByTestId('username-input').fill(username);
-    await page.getByTestId('display-name-input').fill(displayName);
 
-    if (isCrossPlatform) {
-        await page.getByText('Platform').click();
-        await expect(page.getByText('Cross-Platform')).toBeVisible();
+    if (!isCrossPlatform) {
+        await page.getByTestId('passkey-radio-platform').click();
     }
 
     await page.getByRole('button', { name: /Create/ }).click();
@@ -111,8 +108,25 @@ export async function createPasskeyWallet(
 
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 
+    await expect(page.getByText(username)).toBeVisible({ timeout: LONG_TIMEOUT });
+
     return {
         client,
         authenticatorId,
     };
+}
+
+export async function restorePasskeyAccount(page: Page, username: string) {
+    await page.getByText('Add Profile').click();
+    await page.getByText('Passkey', { exact: true }).click();
+
+    await page.getByTestId('username-input').fill(username);
+
+    await page.getByRole('button', { name: /Restore/ }).click();
+
+    await page.getByTestId('password.input').fill('iotae2etests');
+    await page.getByTestId('password.confirmation').fill('iotae2etests');
+
+    await page.getByText('I read and agree').click();
+    await page.getByRole('button', { name: /Create Wallet/ }).click();
 }

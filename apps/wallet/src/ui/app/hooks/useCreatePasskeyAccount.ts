@@ -10,13 +10,11 @@ export function useCreatePasskeyAccount() {
 
     const createPasskeyAccount = async ({
         username,
-        displayName,
         authenticatorAttachment,
         isRestore = false,
     }: {
         username: string;
-        displayName?: string;
-        authenticatorAttachment: AuthenticatorAttachment;
+        authenticatorAttachment?: AuthenticatorAttachment;
         isRestore?: boolean;
     }) => {
         const { provider, options } = createBrowserPasskeyProvider({
@@ -26,7 +24,7 @@ export function useCreatePasskeyAccount() {
                 },
                 user: {
                     name: username,
-                    displayName: displayName || username,
+                    displayName: username,
                 },
             },
         });
