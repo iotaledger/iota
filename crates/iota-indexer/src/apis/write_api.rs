@@ -15,6 +15,7 @@ use iota_json_rpc_types::{
     MoveFunctionName,
 };
 use iota_open_rpc::Module;
+use iota_protocol_config::Chain;
 use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::IotaAddress, iota_serde::BigInt, quorum_driver_types::ExecuteTransactionRequestType,
@@ -22,7 +23,8 @@ use iota_types::{
 use jsonrpsee::{RpcModule, core::RpcResult, http_client::HttpClient};
 
 use crate::{
-    errors::IndexerError, optimistic_indexing::OptimisticTransactionExecutor, read::IndexerReader,
+    apis::error::Error as ApiError, errors::IndexerError,
+    optimistic_indexing::OptimisticTransactionExecutor, read::IndexerReader,
     store::package_resolver::IndexerStorePackageResolver,
     types::IotaTransactionBlockResponseWithOptions,
 };
@@ -204,6 +206,20 @@ impl WriteApiServer for OptimisticWriteApi {
         type_args: Option<Vec<IotaTypeTag>>,
         call_args: Vec<IotaJsonValue>,
     ) -> RpcResult<IotaMoveViewCallResults> {
+        let chain = self
+            .optimistic_tx_executor
+            .read
+            .get_chain_identifier_in_blocking_task()
+            .await?
+            .chain();
+        if !matches!(chain, Chain::Unknown) {
+            return Err(ApiError::UnsupportedFeature(format!(
+                "View calls are not yet supported on {}",
+                chain.as_str()
+            ))
+            .into());
+        }
+
         self.write_api
             .view_function_call(function_name, type_args, call_args)
             .await
