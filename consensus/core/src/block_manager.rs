@@ -12,7 +12,7 @@ use consensus_config::AuthorityIndex;
 use iota_metrics::monitored_scope;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
-use tracing::{debug, trace, warn};
+use tracing::{debug, instrument, trace, warn};
 
 use crate::{
     Round,
@@ -614,6 +614,7 @@ impl BlockManager {
     /// Tries to unsuspend any blocks for the latest gc round. If gc round
     /// hasn't changed then no blocks will be unsuspended due to
     /// this action.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn try_unsuspend_blocks_for_latest_gc_round(&mut self) {
         let _s = monitored_scope("BlockManager::try_unsuspend_blocks_for_latest_gc_round");
         let (gc_enabled, gc_round) = {

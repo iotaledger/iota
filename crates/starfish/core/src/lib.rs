@@ -48,6 +48,7 @@ mod randomized_tests;
 mod data_manager;
 mod decoder;
 mod encoder;
+mod shard_reconstructor;
 #[cfg(test)]
 mod test_dag;
 #[cfg(test)]

@@ -64,7 +64,7 @@ impl AuthenticatorStateUpdateTransaction {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) = page.paginate_consistent_indices(
+        let Some(consistent_page) = page.paginate_consistent_indices(
             self.native.new_active_jwks.len(),
             self.checkpoint_viewed_at,
         )?
@@ -72,10 +72,10 @@ impl AuthenticatorStateUpdateTransaction {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let active_jwk = ActiveJwk {
                 native: self.native.new_active_jwks[c.ix].clone(),
                 checkpoint_viewed_at: c.c,

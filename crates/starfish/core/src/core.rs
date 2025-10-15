@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
@@ -52,15 +52,6 @@ use crate::{
 // Maximum number of commit votes to include in a block.
 // TODO: Move to protocol config, and verify in BlockVerifier.
 const MAX_COMMIT_VOTES_PER_BLOCK: usize = 100;
-
-// Maximum number of acknowledgments to be included in a block. It must be
-// reasonably larger than the number of validators because not all validators
-// create their blocks at the same pace. For now we set it as a
-// constant to not make the block header size too large.
-// TODO: https://github.com/iotaledger/iota/issues/8378
-// After testing decide how to compress acknowledgments and move to a
-// protocol config
-const MAX_ACKNOWLEDGMENTS_PER_BLOCK: usize = 400;
 
 pub(crate) struct Core {
     context: Arc<Context>,
@@ -266,7 +257,7 @@ impl Core {
     /// this call is known to be about not old blocks. The method returns:
     /// - The references of ancestors missing their block
     /// - The references of committed transactions that are missing
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument("consensus_add_blocks", skip_all)]
     pub(crate) fn add_blocks(
         &mut self,
         blocks: Vec<VerifiedBlock>,
@@ -391,6 +382,7 @@ impl Core {
     pub(crate) fn add_transactions(
         &mut self,
         transactions: Vec<VerifiedTransactions>,
+        source: &str,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::add_transactions");
         let _s = self
@@ -404,7 +396,7 @@ impl Core {
         // Add transactions to the dag state.
         let mut dag_state_guard = self.dag_state.write();
         for transaction in transactions {
-            dag_state_guard.add_transactions(transaction);
+            dag_state_guard.add_transactions(transaction, source);
         }
         // Safe to drop the guard here as the write/read locks will be asquired in
         // commit_observer
@@ -479,6 +471,7 @@ impl Core {
             return;
         }
         // Then send a signal to set up leader timeout.
+        tracing::trace!(round = ?new_clock_round, "new_consensus_round_sent");
         self.signals.new_round(new_clock_round);
         self.last_signaled_round = new_clock_round;
 
@@ -546,6 +539,7 @@ impl Core {
     /// Attempts to propose a new block for the next round. If a block has
     /// already proposed for latest or earlier round, then no block is
     /// created and None is returned.
+    #[instrument(level = "trace", skip_all)]
     fn try_new_block(&mut self, force: bool) -> Option<VerifiedBlock> {
         let _s = self
             .context
@@ -676,10 +670,30 @@ impl Core {
 
         // Consume the acknowledgments about transaction data availability for past
         // blocks to be included.
-        let acknowledgments = self
-            .dag_state
-            .write()
-            .take_acknowledgments(MAX_ACKNOWLEDGMENTS_PER_BLOCK);
+        let acknowledgments = self.dag_state.write().take_acknowledgments(
+            self.context
+                .protocol_config
+                .consensus_max_acknowledgments_per_block_or_default() as usize,
+        );
+
+        self.context
+            .metrics
+            .node_metrics
+            .proposed_block_acknowledgments
+            .observe(acknowledgments.len() as f64);
+        for acknowledgment in &acknowledgments {
+            let authority = &self
+                .context
+                .committee
+                .authority(acknowledgment.author)
+                .hostname;
+            self.context
+                .metrics
+                .node_metrics
+                .proposed_block_acknowledgments_depth
+                .with_label_values(&[authority])
+                .observe(clock_round.saturating_sub(acknowledgment.round).into());
+        }
 
         // Consume the commit votes to be included.
         let commit_votes = self
@@ -698,6 +712,7 @@ impl Core {
             commit_votes,
             transactions_commitment,
         ));
+
         let signed_block_header = SignedBlockHeader::new(block_header, &self.block_signer)
             .expect("Block signing failed.");
 
@@ -771,6 +786,7 @@ impl Core {
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
     /// any `certified_commits` are provided, then it will attempt to commit
     /// those first before trying to commit any further leaders.
+    #[instrument(level = "trace", skip_all)]
     fn try_commit(
         &mut self,
     ) -> ConsensusResult<(
@@ -897,7 +913,7 @@ impl Core {
 
         self.transaction_consumer.notify_own_transactions_status(
             committed_transaction_refs,
-            self.dag_state.read().gc_round(),
+            self.dag_state.read().gc_round_for_last_commit(),
         );
 
         Ok((committed_sub_dags, all_missing_committed_txns))
