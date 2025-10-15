@@ -1801,13 +1801,14 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
-        let mut shared_object_congestion_tracker = 
-                // Starting with two objects with accumulated cost 80.
-                SharedObjectCongestionTracker::new_for_test(
-                    [(shared_obj_0, current_max_duration_per_object), (shared_obj_1, current_max_duration_per_object)],
-                    mode,
-                    assign_min_free_execution_slot,
-                );
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+            [
+                (shared_obj_0, current_max_duration_per_object),
+                (shared_obj_1, current_max_duration_per_object),
+            ],
+            mode,
+            assign_min_free_execution_slot,
+        );
 
         // Verify that accumulated_debts is empty initially.
         let accumulated_debts = shared_object_congestion_tracker
