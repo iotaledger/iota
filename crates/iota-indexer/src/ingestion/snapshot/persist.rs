@@ -3,24 +3,38 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
-use iota_metrics::{get_metrics, spawn_monitored_task};
-use tokio::task::JoinHandle;
-use tokio_util::sync::CancellationToken;
-use tracing::info;
 
 use crate::{
     config::SnapshotLagConfig,
-    ingestion::{
-        common::persist::Writer, primary::persist::TransactionObjectChangesToCommit,
-        snapshot::prepare::ObjectsSnapshotHandler,
-    },
+    ingestion::{common::persist::Writer, primary::persist::TransactionObjectChangesToCommit},
     metrics::IndexerMetrics,
     store::{IndexerStore, PgIndexerStore},
     types::IndexerResult,
 };
 
+#[derive(Clone)]
+pub(crate) struct ObjectSnapshotWriter {
+    pub store: PgIndexerStore,
+    pub(crate) snapshot_config: SnapshotLagConfig,
+    pub(crate) metrics: IndexerMetrics,
+}
+
+impl ObjectSnapshotWriter {
+    pub fn new(
+        store: PgIndexerStore,
+        metrics: IndexerMetrics,
+        snapshot_config: SnapshotLagConfig,
+    ) -> ObjectSnapshotWriter {
+        Self {
+            store,
+            metrics,
+            snapshot_config,
+        }
+    }
+}
+
 #[async_trait]
-impl Writer<TransactionObjectChangesToCommit> for ObjectsSnapshotHandler {
+impl Writer<TransactionObjectChangesToCommit> for ObjectSnapshotWriter {
     fn name(&self) -> String {
         "objects_snapshot_handler".to_string()
     }
@@ -56,33 +70,4 @@ impl Writer<TransactionObjectChangesToCommit> for ObjectsSnapshotHandler {
             .map(|seq| seq.saturating_sub(self.snapshot_config.snapshot_min_lag as u64))
             .unwrap_or_default()) // hold snapshot handler until at least one checkpoint is in DB
     }
-}
-
-pub async fn start_objects_snapshot_handler(
-    store: PgIndexerStore,
-    metrics: IndexerMetrics,
-    snapshot_config: SnapshotLagConfig,
-    cancel: CancellationToken,
-) -> IndexerResult<(ObjectsSnapshotHandler, u64, JoinHandle<IndexerResult<()>>)> {
-    info!("Starting object snapshot handler...");
-
-    let global_metrics = get_metrics().unwrap();
-    let (sender, receiver) = iota_metrics::metered_channel::channel(
-        600,
-        &global_metrics
-            .channel_inflight
-            .with_label_values(&["objects_snapshot_handler_checkpoint_data"]),
-    );
-
-    let objects_snapshot_handler =
-        ObjectsSnapshotHandler::new(store.clone(), sender, metrics.clone(), snapshot_config);
-
-    let watermark_hi = objects_snapshot_handler.get_watermark_hi().await?;
-    let writer = objects_snapshot_handler.clone();
-    let task_handle = spawn_monitored_task!(writer.persist_sequentially(receiver, cancel));
-    Ok((
-        objects_snapshot_handler,
-        watermark_hi.unwrap_or_default(),
-        task_handle,
-    ))
 }

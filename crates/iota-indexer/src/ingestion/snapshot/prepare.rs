@@ -10,39 +10,28 @@ use iota_metrics::metered_channel::Sender;
 use iota_types::full_checkpoint_content::CheckpointData;
 
 use crate::{
-    config::SnapshotLagConfig,
     errors::IndexerError,
     ingestion::primary::{persist::TransactionObjectChangesToCommit, prepare::PrimaryWorker},
     metrics::IndexerMetrics,
-    store::PgIndexerStore,
 };
 
 #[derive(Clone)]
-pub struct ObjectsSnapshotHandler {
-    pub store: PgIndexerStore,
+pub struct ObjectsSnapshotWorker {
     pub sender: Sender<(u64, TransactionObjectChangesToCommit)>,
-    pub(crate) snapshot_config: SnapshotLagConfig,
     pub(crate) metrics: IndexerMetrics,
 }
 
-impl ObjectsSnapshotHandler {
+impl ObjectsSnapshotWorker {
     pub fn new(
-        store: PgIndexerStore,
         sender: Sender<(u64, TransactionObjectChangesToCommit)>,
         metrics: IndexerMetrics,
-        snapshot_config: SnapshotLagConfig,
-    ) -> ObjectsSnapshotHandler {
-        Self {
-            store,
-            sender,
-            metrics,
-            snapshot_config,
-        }
+    ) -> ObjectsSnapshotWorker {
+        Self { sender, metrics }
     }
 }
 
 #[async_trait]
-impl Worker for ObjectsSnapshotHandler {
+impl Worker for ObjectsSnapshotWorker {
     type Message = ();
     type Error = IndexerError;
 
