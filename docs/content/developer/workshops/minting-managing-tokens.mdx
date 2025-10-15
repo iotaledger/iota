@@ -79,6 +79,19 @@ First, create an initial react app using the following command:
 pnpm create @iota/create-dapp
 ```
 
+:::note
+
+[IOTA dApp kit](../../developer/ts-sdk/dapp-kit/)
+
+Select the following options when prompted:
+
+Which starter template would you like to use? …
+▸ `react-client-dapp` React Client dApp that reads data from wallet and the blockchain
+▸ `react-e2e-counter` React dApp with a move smart contract that implements a distributed counter
+
+you have to select `react-client-dapp`
+:::
+
 ### Install required dependencies:
 
 ```bash
@@ -228,6 +241,7 @@ For each feature:
 
 **Dashboard Interface of the dApp**
 
+*This is the main dashboard view of the Workshop Token dApp after wallet connection. It displays the user’s connected address, token balances, badges, and quick access to claim, payment, and redemption actions and on each and every step tooltips are showcased for better user experience.*
 ![Dashboard Interface](/img/developer/workshops/minting-managing-tokens/Dashboard-user-connected.png)
 
 The `init` function is called once at the contract deployment to set up the initial state of the WKT token ecosystem.
@@ -268,6 +282,7 @@ Allows the admin to add a coupon code to the contract for token claims.
 
 **Admin Panel Coupon Management Interface**
 
+*Admin dashboard section for managing coupon codes — showing options to add, remove, and view available coupon codes for token rewards.*
 ![Coupon Management](/img/developer/workshops/minting-managing-tokens/admin-panel-coupon.png)
 
 **Move Package Code**:
@@ -306,6 +321,7 @@ Configures the Workshop ID and URL for automatic badge minting on first payment.
 
 **Admin Panel Auto Badge Configuration Interface**
 
+*Admin view to configure automatic badge minting settings, including Workshop ID and badge metadata URL used when a user performs their first payment.*
 ![Auto Badge Configuration](/img/developer/workshops/minting-managing-tokens/admin-panel-badge.png)
 
 **Move Package Code**:
@@ -321,6 +337,7 @@ Manually mints a WorkshopBadge NFT to a recipient.
 
 **Admin Panel Manual Badge Minting Interface**
 
+*Admin interface to manually mint Workshop Badge NFTs for specific recipients. It shows inputs for recipient address, workshop ID, and badge metadata link.*
 ![Manual Badge Minting](/img/developer/workshops/minting-managing-tokens/admin-panel-mint.png)
 
 **Move Package Code**:
@@ -388,14 +405,17 @@ So now we will be adding to our dapp the claim daily tokens and claim coupon fun
 
 **Faucet Daily Token Claim Interface**
 
+*User interface to claim 10 WKT tokens once per day. The button is active when the user hasn’t claimed tokens yet for the current UTC day.*
 ![Faucet Daily Token Claim](/img/developer/workshops/minting-managing-tokens/faucet-claim-daily.png)
 
 **Faucet Daily Claim Disabled Interface**
 
+*Interface showing the daily claim button disabled after a successful token claim, indicating the cooldown until the next day.*
 ![Faucet Daily Claim Disabled](/img/developer/workshops/minting-managing-tokens/faucet-claim-disable.png)
 
 **Coupon Token Claim Interface**
 
+*UI where users can enter a valid coupon code distributed by the admin to claim bonus WKT tokens.*
 ![Coupon Token Claim](/img/developer/workshops/minting-managing-tokens/coupon-claim-code.png)
 
 ### `Claim Daily Tokens`
@@ -489,14 +509,17 @@ So now we will be adding to our dapp the redeem badge and badge gallery function
 
 **Redeem Badge Interface**
 
+*Interface where users can select a badge ID they own and redeem it for WKT tokens.*
 ![Redeem Badge Interface](/img/developer/workshops/minting-managing-tokens/redeem-badge-id.png)
 
 **Already Redeemed Badge Interface**
 
+*Confirmation screen indicating that a badge has already been redeemed and cannot be used again.*
 ![Already Redeemed Badge Interface](/img/developer/workshops/minting-managing-tokens/redeem-badge-success.png)
 
 **Badge Gallery Interface**
 
+*Gallery displaying all Workshop Badges owned by the user, with options to view details or redeem eligible badges.*
 ![Badge Gallery Interface](/img/developer/workshops/minting-managing-tokens/badge-gallery.png)
 
 **Move Package Code**:
@@ -555,10 +578,12 @@ So now we will be adding to our dapp the make payment function in the frontend a
 
 **Make Payment Interface**
 
+*Payment screen that allows users to transfer WKT tokens to another wallet address, with balance checks and confirmation feedback.*
 ![Make Payment Interface](/img/developer/workshops/minting-managing-tokens/make-payment.png)
 
 **Confetti Celebration on New Badge Mint**
 
+*Celebration modal with confetti animation that appears when a user earns their first Workshop Badge automatically after making a payment.*
 ![Confetti Celebration on New Badge Mint](/img/developer/workshops/minting-managing-tokens/first-payment-badge-mint.png)
 
 ### `Make Payment`
