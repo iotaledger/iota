@@ -7,7 +7,6 @@ use std::{collections::BTreeMap, slice, sync::Arc};
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::IotaTransactionKind;
-use iota_metrics::{get_metrics, spawn_monitored_task};
 use iota_types::{
     base_types::ObjectID,
     effects::TransactionEffectsAPI,
@@ -21,7 +20,6 @@ use iota_types::{
     transaction::TransactionDataAPI,
 };
 use itertools::Itertools;
-use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use crate::{
@@ -33,7 +31,6 @@ use crate::{
         common::prepare::try_extract_df_kind,
         primary::persist::{
             CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
-            start_tx_checkpoint_commit_task,
         },
     },
     metrics::IndexerMetrics,
@@ -48,38 +45,6 @@ use crate::{
         IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
     },
 };
-
-const CHECKPOINT_QUEUE_SIZE: usize = 100;
-
-pub async fn new_handlers(
-    state: PgIndexerStore,
-    metrics: IndexerMetrics,
-    next_checkpoint_sequence_number: CheckpointSequenceNumber,
-    cancel: CancellationToken,
-) -> Result<CheckpointHandler, IndexerError> {
-    let checkpoint_queue_size = std::env::var("CHECKPOINT_QUEUE_SIZE")
-        .unwrap_or(CHECKPOINT_QUEUE_SIZE.to_string())
-        .parse::<usize>()
-        .unwrap();
-    let global_metrics = get_metrics().unwrap();
-    let (indexed_checkpoint_sender, indexed_checkpoint_receiver) =
-        iota_metrics::metered_channel::channel(
-            checkpoint_queue_size,
-            &global_metrics
-                .channel_inflight
-                .with_label_values(&["checkpoint_indexing"]),
-        );
-
-    let metrics_clone = metrics.clone();
-    spawn_monitored_task!(start_tx_checkpoint_commit_task(
-        state,
-        metrics_clone,
-        indexed_checkpoint_receiver,
-        next_checkpoint_sequence_number,
-        cancel.clone()
-    ));
-    Ok(CheckpointHandler::new(metrics, indexed_checkpoint_sender))
-}
 
 pub struct CheckpointHandler {
     metrics: IndexerMetrics,
@@ -145,7 +110,7 @@ impl Worker for CheckpointHandler {
 }
 
 impl CheckpointHandler {
-    fn new(
+    pub(crate) fn new(
         metrics: IndexerMetrics,
         indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
     ) -> Self {

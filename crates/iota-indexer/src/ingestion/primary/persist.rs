@@ -1,17 +1,13 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use tap::tap::TapFallible;
-use tokio_util::sync::CancellationToken;
 use tracing::{error, info, instrument};
 
 use crate::{
-    ingestion::{
-        common::persist::CHECKPOINT_COMMIT_BATCH_SIZE, common::prepare::CheckpointObjectChanges,
-    },
+    ingestion::common::prepare::CheckpointObjectChanges,
     metrics::IndexerMetrics,
     models::{
         display::StoredDisplay,
@@ -52,60 +48,12 @@ pub struct EpochToCommit {
     pub(crate) new_epoch: StartOfEpochUpdate,
 }
 
-pub(crate) async fn start_tx_checkpoint_commit_task(
-    state: PgIndexerStore,
-    metrics: IndexerMetrics,
-    tx_indexing_receiver: iota_metrics::metered_channel::Receiver<CheckpointDataToCommit>,
-    mut next_checkpoint_sequence_number: CheckpointSequenceNumber,
-    cancel: CancellationToken,
-) -> IndexerResult<()> {
-    use futures::StreamExt;
-
-    info!("Indexer checkpoint commit task started...");
-    let checkpoint_commit_batch_size = std::env::var("CHECKPOINT_COMMIT_BATCH_SIZE")
-        .unwrap_or(CHECKPOINT_COMMIT_BATCH_SIZE.to_string())
-        .parse::<usize>()
-        .unwrap();
-    info!("Using checkpoint commit batch size {checkpoint_commit_batch_size}");
-
-    let mut stream = iota_metrics::metered_channel::ReceiverStream::new(tx_indexing_receiver)
-        .ready_chunks(checkpoint_commit_batch_size);
-
-    let mut unprocessed = HashMap::new();
-    let mut batch = vec![];
-
-    while let Some(indexed_checkpoint_batch) = stream.next().await {
-        if cancel.is_cancelled() {
-            break;
-        }
-
-        // split the batch into smaller batches per epoch to handle partitioning
-        for checkpoint in indexed_checkpoint_batch {
-            unprocessed.insert(checkpoint.checkpoint.sequence_number, checkpoint);
-        }
-        while let Some(checkpoint) = unprocessed.remove(&next_checkpoint_sequence_number) {
-            let epoch = checkpoint.epoch.clone();
-            batch.push(checkpoint);
-            next_checkpoint_sequence_number += 1;
-            if batch.len() == checkpoint_commit_batch_size || epoch.is_some() {
-                commit_checkpoints(&state, batch, epoch, &metrics).await;
-                batch = vec![];
-            }
-        }
-        if !batch.is_empty() {
-            commit_checkpoints(&state, batch, None, &metrics).await;
-            batch = vec![];
-        }
-    }
-    Ok(())
-}
-
 // Unwrap: Caller needs to make sure indexed_checkpoint_batch is not empty
 #[instrument(skip_all, fields(
     first = indexed_checkpoint_batch.first().as_ref().unwrap().checkpoint.sequence_number,
     last = indexed_checkpoint_batch.last().as_ref().unwrap().checkpoint.sequence_number
 ))]
-async fn commit_checkpoints(
+pub(crate) async fn commit_checkpoints(
     state: &PgIndexerStore,
     indexed_checkpoint_batch: Vec<CheckpointDataToCommit>,
     epoch: Option<EpochToCommit>,

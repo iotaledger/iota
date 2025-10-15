@@ -25,7 +25,7 @@ use crate::{
     errors::IndexerError,
     handlers::{optimistic_pruner::OptimisticPruner, pruner::Pruner},
     ingestion::{
-        primary::prepare::new_handlers, snapshot::persist::start_objects_snapshot_handler,
+        primary::orchestration::new_handlers, snapshot::persist::start_objects_snapshot_handler,
     },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
