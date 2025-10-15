@@ -318,3 +318,9 @@ dynamic-notarization:
 locked-notarization:
   label: Locked Notarization
   description: Create a permanent, immutable record.
+
+# Trust Framework
+trust-framework:
+  label: Trust Framework
+  description: IOTA Trust Framework offers ready-to-use building blocks easy to implement and scale.
+
