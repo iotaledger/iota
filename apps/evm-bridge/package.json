@@ -21,7 +21,7 @@
         "playwright": "playwright",
         "test:e2e": "playwright test",
         "ampli": "ampli",
-        "pull-amplitude": "ampli pull web"
+        "pull-amplitude": "ampli pull web && node prependLicense.mjs && prettier -w ampli.json src/shared/analytics/ampli/index.ts"
     },
     "dependencies": {
         "@amplitude/analytics-browser": "^1.10.3",

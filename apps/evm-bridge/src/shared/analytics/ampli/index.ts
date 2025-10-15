@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 /* tslint:disable */
 /* eslint-disable */
 // @ts-nocheck
@@ -22,157 +25,153 @@ import * as amplitude from '@amplitude/analytics-browser';
 export type Environment = 'iotaevmbridge';
 
 export const ApiKey: Record<Environment, string> = {
-  iotaevmbridge: 'bc860617cd112db8797d4b8809b15142'
+    iotaevmbridge: 'bc860617cd112db8797d4b8809b15142',
 };
 
 /**
  * Default Amplitude configuration options. Contains tracking plan information.
  */
 export const DefaultConfiguration: BrowserOptions = {
-  plan: {
-    version: '1',
-    branch: 'main',
-    source: 'web',
-    versionId: '57f759dd-f594-4c8d-8f19-d4a3e07129e8'
-  },
-  ...{
-    ingestionMetadata: {
-      sourceName: 'browser-typescript-ampli',
-      sourceVersion: '2.0.0'
-    }
-  },
-  serverZone: amplitude.Types.ServerZone.EU
+    plan: {
+        version: '1',
+        branch: 'main',
+        source: 'web',
+        versionId: '57f759dd-f594-4c8d-8f19-d4a3e07129e8',
+    },
+    ...{
+        ingestionMetadata: {
+            sourceName: 'browser-typescript-ampli',
+            sourceVersion: '2.0.0',
+        },
+    },
+    serverZone: amplitude.Types.ServerZone.EU,
 };
 
-export interface LoadOptionsBase { disabled?: boolean }
+export interface LoadOptionsBase {
+    disabled?: boolean;
+}
 
-export type LoadOptionsWithEnvironment = LoadOptionsBase & { environment: Environment; client?: { configuration?: BrowserOptions; }; };
-export type LoadOptionsWithApiKey = LoadOptionsBase & { client: { apiKey: string; configuration?: BrowserOptions; } };
-export type LoadOptionsWithClientInstance = LoadOptionsBase & { client: { instance: BrowserClient; } };
+export type LoadOptionsWithEnvironment = LoadOptionsBase & {
+    environment: Environment;
+    client?: { configuration?: BrowserOptions };
+};
+export type LoadOptionsWithApiKey = LoadOptionsBase & {
+    client: { apiKey: string; configuration?: BrowserOptions };
+};
+export type LoadOptionsWithClientInstance = LoadOptionsBase & {
+    client: { instance: BrowserClient };
+};
 
-export type LoadOptions = LoadOptionsWithEnvironment | LoadOptionsWithApiKey | LoadOptionsWithClientInstance;
+export type LoadOptions =
+    | LoadOptionsWithEnvironment
+    | LoadOptionsWithApiKey
+    | LoadOptionsWithClientInstance;
 
 export interface ClickedMaxAmountProperties {
-  bridgeDirection: string;
-  coinType: string;
+    bridgeDirection: string;
+    coinType: string;
 }
 
 export interface ConnectedL1WalletProperties {
-  walletType: string;
+    walletType: string;
 }
 
 export interface ConnectedL2WalletProperties {
-  chainId: string;
-  walletType: string;
+    chainId: string;
+    walletType: string;
 }
 
 export interface SelectedCoinProperties {
-  bridgeDirection: string;
-  coinSymbol: string;
-  coinType: string;
+    bridgeDirection: string;
+    coinSymbol: string;
+    coinType: string;
 }
 
 export interface SentFromL1ToL2Properties {
-  amount: string;
-  coinType: string;
+    amount: string;
+    coinType: string;
 }
 
 export interface SentFromL2ToL1Properties {
-  amount: string;
-  coinType: string;
+    amount: string;
+    coinType: string;
 }
 
 export interface ToggledAddressInputProperties {
-  bridgeDirection: string;
-  inputMode: string;
+    bridgeDirection: string;
+    inputMode: string;
 }
 
 export interface ToggledBridgeDirectionProperties {
-  bridgeDirection: string;
+    bridgeDirection: string;
 }
 
 export class ClickedMaxAmount implements BaseEvent {
-  event_type = 'clicked max amount';
+    event_type = 'clicked max amount';
 
-  constructor(
-    public event_properties: ClickedMaxAmountProperties,
-  ) {
-    this.event_properties = event_properties;
-  }
+    constructor(public event_properties: ClickedMaxAmountProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ConnectedL1Wallet implements BaseEvent {
-  event_type = 'connected l1 wallet';
+    event_type = 'connected l1 wallet';
 
-  constructor(
-    public event_properties: ConnectedL1WalletProperties,
-  ) {
-    this.event_properties = event_properties;
-  }
+    constructor(public event_properties: ConnectedL1WalletProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ConnectedL2Wallet implements BaseEvent {
-  event_type = 'connected l2 wallet';
+    event_type = 'connected l2 wallet';
 
-  constructor(
-    public event_properties: ConnectedL2WalletProperties,
-  ) {
-    this.event_properties = event_properties;
-  }
+    constructor(public event_properties: ConnectedL2WalletProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class RequestedFaucetFunds implements BaseEvent {
-  event_type = 'requested faucet funds';
+    event_type = 'requested faucet funds';
 }
 
 export class SelectedCoin implements BaseEvent {
-  event_type = 'selected coin';
+    event_type = 'selected coin';
 
-  constructor(
-    public event_properties: SelectedCoinProperties,
-  ) {
-    this.event_properties = event_properties;
-  }
+    constructor(public event_properties: SelectedCoinProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SentFromL1ToL2 implements BaseEvent {
-  event_type = 'sent from l1 to l2';
+    event_type = 'sent from l1 to l2';
 
-  constructor(
-    public event_properties: SentFromL1ToL2Properties,
-  ) {
-    this.event_properties = event_properties;
-  }
+    constructor(public event_properties: SentFromL1ToL2Properties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class SentFromL2ToL1 implements BaseEvent {
-  event_type = 'sent from l2 to l1';
+    event_type = 'sent from l2 to l1';
 
-  constructor(
-    public event_properties: SentFromL2ToL1Properties,
-  ) {
-    this.event_properties = event_properties;
-  }
+    constructor(public event_properties: SentFromL2ToL1Properties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ToggledAddressInput implements BaseEvent {
-  event_type = 'toggled address input';
+    event_type = 'toggled address input';
 
-  constructor(
-    public event_properties: ToggledAddressInputProperties,
-  ) {
-    this.event_properties = event_properties;
-  }
+    constructor(public event_properties: ToggledAddressInputProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export class ToggledBridgeDirection implements BaseEvent {
-  event_type = 'toggled bridge direction';
+    event_type = 'toggled bridge direction';
 
-  constructor(
-    public event_properties: ToggledBridgeDirectionProperties,
-  ) {
-    this.event_properties = event_properties;
-  }
+    constructor(public event_properties: ToggledBridgeDirectionProperties) {
+        this.event_properties = event_properties;
+    }
 }
 
 export type PromiseResult<T> = { promise: Promise<T | void> };
