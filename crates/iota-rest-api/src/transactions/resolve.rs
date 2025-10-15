@@ -250,7 +250,7 @@ fn called_packages(
         // Despite the above this is safe given we are only using the signature
         // information (and in particular the reference kind) from the
         // normalized package.
-       let normalized_modules = package
+        let normalized_modules = package
             .normalize(&mut pool, &binary_config, /* include code */ true)
             .map_err(|e| {
                 RestError::new(
@@ -453,7 +453,8 @@ fn resolve_arg(
 
                         if matches!(
                             &**arg_type,
-                            normalized::Type::Reference(/* mut */ true, _) | normalized::Type::Datatype(_)
+                            normalized::Type::Reference(/* mut */ true, _)
+                                | normalized::Type::Datatype(_)
                         ) {
                             mutable = true;
                         }
