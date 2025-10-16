@@ -638,8 +638,8 @@ impl ConnectionKnowledge {
         receiver: Receiver<Vec<ConnectionKnowledgeMessage>>,
     ) -> Self {
         let num_authorities = context.committee.size();
-        let headers_not_known = Vec::with_capacity(num_authorities);
-        let shards_not_known = Vec::with_capacity(num_authorities);
+        let headers_not_known = vec![VecDeque::new(); num_authorities];
+        let shards_not_known = vec![VecDeque::new(); num_authorities];
         Self {
             dag_state,
             last_useful_headers_to_peer_round: vec![GENESIS_ROUND; num_authorities],
@@ -845,7 +845,7 @@ impl ConnectionKnowledge {
     /// Async task loop — just receives messages and dispatches to processing
     /// logic.
     pub async fn run(mut self) {
-        tracing::debug!("Connection Knowledge started for peer {}", self.peer_index);
+        debug!("Connection Knowledge started for peer {}", self.peer_index);
 
         while let Some(knowledge_msgs) = self.receiver.recv().await {
             for knowledge_msg in knowledge_msgs {
@@ -854,7 +854,7 @@ impl ConnectionKnowledge {
             tokio::task::yield_now().await;
         }
 
-        tracing::debug!(
+        debug!(
             "Connection Knowledge loop ended for peer {}",
             self.peer_index
         );
