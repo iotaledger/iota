@@ -299,9 +299,10 @@ impl<W: Worker + 'static> WorkerPool<W> {
                     match worker_progress_msg {
                         WorkerStatus::Running((worker_id, checkpoint_number, message)) => {
                             idle.insert(worker_id);
-                            if watermark_sender.send((checkpoint_number, message)).await.is_err() {
-                                break;
-                            }
+                            // Try to send progress to reducer. If it fails (reducer has exited),
+                            // we just continue - we still need to wait for all workers to shutdown.
+                            let _ = watermark_sender.send((checkpoint_number, message)).await;
+
                             // By checking if token was not cancelled we ensure that no
                             // further checkpoints will be sent to the workers.
                             while !token.is_cancelled() && !checkpoints.is_empty() && !idle.is_empty() {
