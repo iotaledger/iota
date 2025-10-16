@@ -309,7 +309,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
                                 let checkpoint = checkpoints.pop_front().unwrap();
                                 let worker_id = idle.pop_first().unwrap();
                                 if workers[worker_id].send(checkpoint).await.is_err() {
-                                    // The worker channel closing is a sign we need to exit this loop.
+                                    // The worker channel closing is a sign we need to exit this inner loop.
                                     break;
                                 }
                             }
@@ -335,9 +335,10 @@ impl<W: Worker + 'static> WorkerPool<W> {
                         checkpoints.push_back(checkpoint);
                     } else {
                         let worker_id = idle.pop_first().unwrap();
-                        if workers[worker_id].send(checkpoint).await.is_err() {
-                            // The worker channel closing is a sign we need to exit this loop.
-                            break;
+                        // If worker channel is closed, put the checkpoint back in queue
+                        // and continue - we still need to wait for all worker shutdown signals.
+                        if let Err(send_error) = workers[worker_id].send(checkpoint).await {
+                            checkpoints.push_front(send_error.0);
                         };
                     }
                 }
