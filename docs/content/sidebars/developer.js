@@ -498,7 +498,12 @@ const developer = [
                         type: 'doc',
                         id: 'developer/workshops/core/IV-capstone-dapp-kit',
                         label: 'Wrapping it up - Dapp',
-                    }
+                    },
+                    {
+                        type: 'doc',
+                        id: 'developer/workshops/minting-managing-tokens',
+                        label: 'Minting and Managing Tokens',
+                    },
                 ],
             },
         ],
