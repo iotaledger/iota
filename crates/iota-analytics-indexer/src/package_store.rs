@@ -6,7 +6,7 @@ use std::{path::Path, sync::Arc};
 
 use async_trait::async_trait;
 use iota_package_resolver::{
-    Package, PackageStore, PackageStoreWithLruCache, Result, error::Error as PackageResolverError,
+    Package, PackageStore, PackageStoreWithLruCache, error::Error as PackageResolverError,
 };
 use iota_rest_api::Client;
 use iota_types::{base_types::ObjectID, object::Object};
@@ -51,7 +51,7 @@ impl PackageStoreTables {
             None,
         ))
     }
-    pub(crate) fn update(&self, package: &Object) -> Result<()> {
+    pub(crate) fn update(&self, package: &Object) -> iota_package_resolver::Result<()> {
         let mut batch = self.packages.batch();
         batch
             .insert_batch(&self.packages, std::iter::once((package.id(), package)))
@@ -79,7 +79,7 @@ impl LocalDBPackageStore {
         }
     }
 
-    pub fn update(&self, object: &Object) -> Result<()> {
+    pub fn update(&self, object: &Object) -> iota_package_resolver::Result<()> {
         let Some(_package) = object.data.try_as_package() else {
             return Ok(());
         };
@@ -87,7 +87,7 @@ impl LocalDBPackageStore {
         Ok(())
     }
 
-    pub async fn get(&self, id: AccountAddress) -> Result<Object> {
+    pub async fn get(&self, id: AccountAddress) -> iota_package_resolver::Result<Object> {
         let object = if let Some(object) = self
             .package_store_tables
             .packages
@@ -110,7 +110,7 @@ impl LocalDBPackageStore {
 
 #[async_trait]
 impl PackageStore for LocalDBPackageStore {
-    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>> {
+    async fn fetch(&self, id: AccountAddress) -> iota_package_resolver::Result<Arc<Package>> {
         let object = self.get(id).await?;
         Ok(Arc::new(Package::read_from_object(&object)?))
     }
