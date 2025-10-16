@@ -17,7 +17,9 @@ use iota_types::{
     messages_consensus::{TimestampMs, VersionedDkgConfirmation},
     signature::GenericSignature,
 };
+use moka::{policy::EvictionPolicy, sync::SegmentedCache as MokaCache};
 use parking_lot::Mutex;
+use rand::seq::SliceRandom;
 use tracing::{debug, info};
 use typed_store::{Map, rocks::DBBatch};
 
@@ -361,6 +363,9 @@ pub(crate) struct ConsensusOutputCache {
     pub(super) user_signatures_for_checkpoints:
         Mutex<HashMap<TransactionDigest, Vec<GenericSignature>>>,
 
+    executed_in_epoch: RwLock<DashMap<TransactionDigest, ()>>,
+    executed_in_epoch_cache: MokaCache<TransactionDigest, ()>,
+
     metrics: Arc<EpochMetrics>,
 }
 
@@ -374,11 +379,25 @@ impl ConsensusOutputCache {
             .get_all_deferred_transactions_v2()
             .expect("load deferred transactions v2 cannot fail");
 
+        let executed_in_epoch_cache_capacity = if cfg!(msim) {
+            // Ensure that we test under conditions of constant, frequent,
+            // and rare cache evictions.
+            *[2, 100, 50000].choose(&mut rand::thread_rng()).unwrap()
+        } else {
+            50_000
+        };
+
         Self {
             shared_version_assignments: Default::default(),
             deferred_transactions: Mutex::new(deferred_transactions),
             deferred_transactions_v2: Mutex::new(deferred_transactions_v2),
             user_signatures_for_checkpoints: Default::default(),
+            executed_in_epoch: RwLock::new(DashMap::with_shard_amount(2048)),
+            executed_in_epoch_cache: MokaCache::builder(8)
+                // most queries should be for recent transactions
+                .max_capacity(executed_in_epoch_cache_capacity)
+                .eviction_policy(EvictionPolicy::lru())
+                .build(),
             metrics,
         }
     }
@@ -437,6 +456,52 @@ impl ConsensusOutputCache {
         self.metrics
             .shared_object_assignments_size
             .sub(removed_count as i64);
+    }
+
+    pub fn executed_in_current_epoch(&self, digest: &TransactionDigest) -> bool {
+        self.executed_in_epoch
+            .read()
+            .contains_key(digest) ||
+            // we use get instead of contains key to mark the entry as read
+            self.executed_in_epoch_cache.get(digest).is_some()
+    }
+
+    // Called by execution
+    pub fn insert_executed_in_epoch(&self, tx_digest: TransactionDigest) {
+        assert!(
+            self.executed_in_epoch
+                .read()
+                .insert(tx_digest, ())
+                .is_none(),
+            "transaction already executed"
+        );
+        self.executed_in_epoch_cache.insert(tx_digest, ());
+    }
+
+    // CheckpointExecutor calls this (indirectly) in order to prune the in-memory
+    // cache of executed transactions. By the time this is called, the
+    // transaction digests will have been committed to
+    // the `executed_transactions_to_checkpoint` table.
+    pub fn remove_executed_in_epoch(&self, tx_digests: &[TransactionDigest]) {
+        let executed_in_epoch = self.executed_in_epoch.read();
+        for tx_digest in tx_digests {
+            executed_in_epoch.remove(tx_digest);
+        }
+    }
+
+    pub fn remove_reverted_transaction(&self, tx_digest: &TransactionDigest) {
+        // reverted transactions are not guaranteed to have been executed
+        self.executed_in_epoch.read().remove(tx_digest);
+    }
+
+    /// At reconfig time, all checkpointed transactions must have been removed
+    /// from self.executed_in_epoch
+    pub fn get_uncheckpointed_transactions(&self) -> Vec<TransactionDigest> {
+        self.executed_in_epoch
+            .write() // exclusive lock to ensure consistent view
+            .iter()
+            .map(|e| *e.key())
+            .collect()
     }
 }
 

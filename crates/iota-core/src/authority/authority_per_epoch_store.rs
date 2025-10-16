@@ -21,7 +21,10 @@ use futures::{
     FutureExt,
     future::{Either, join_all, select},
 };
-use iota_common::sync::{notify_once::NotifyOnce, notify_read::NotifyRead};
+use iota_common::{
+    fatal,
+    sync::{notify_once::NotifyOnce, notify_read::NotifyRead},
+};
 use iota_config::node::ExpensiveSafetyCheckConfig;
 use iota_execution::{self, Executor};
 use iota_macros::{fail_point, fail_point_arg};
@@ -541,6 +544,8 @@ pub struct AuthorityEpochTables {
     transaction_cert_signatures: DBMap<TransactionDigest, AuthorityStrongQuorumSignInfo>,
 
     /// Transactions that were executed in the current epoch.
+    #[allow(dead_code)]
+    #[deprecated]
     executed_in_epoch: DBMap<TransactionDigest, ()>,
 
     // TODO: delete the deprecated tables in the next release
@@ -1327,18 +1332,15 @@ impl AuthorityPerEpochStore {
         tx_digest: &TransactionDigest,
     ) -> IotaResult {
         let tables = self.tables()?;
-        let mut batch = self.tables()?.executed_in_epoch.batch();
 
-        batch.insert_batch(&tables.executed_in_epoch, [(tx_digest, ())])?;
-
-        if !matches!(tx_key, TransactionKey::Digest(_)) {
-            batch.insert_batch(&tables.transaction_key_to_digest, [(tx_key, tx_digest)])?;
-        }
-        batch.write()?;
+        self.consensus_output_cache
+            .insert_executed_in_epoch(*tx_digest);
 
         if !matches!(tx_key, TransactionKey::Digest(_)) {
+            tables.transaction_key_to_digest.insert(tx_key, tx_digest)?;
             self.executed_digests_notify_read.notify(tx_key, tx_digest);
         }
+
         Ok(())
     }
 
@@ -1355,9 +1357,10 @@ impl AuthorityPerEpochStore {
     }
 
     pub fn revert_executed_transaction(&self, tx_digest: &TransactionDigest) -> IotaResult {
+        self.consensus_output_cache
+            .remove_reverted_transaction(tx_digest);
         let tables = self.tables()?;
         let mut batch = tables.effects_signatures.batch();
-        batch.delete_batch(&tables.executed_in_epoch, [*tx_digest])?;
         batch.delete_batch(&tables.effects_signatures, [*tx_digest])?;
         batch.write()?;
         Ok(())
@@ -1380,14 +1383,30 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
-    pub fn transactions_executed_in_cur_epoch<'a>(
+    pub fn transactions_executed_in_cur_epoch(
         &self,
-        digests: impl IntoIterator<Item = &'a TransactionDigest>,
+        digests: &[TransactionDigest],
     ) -> IotaResult<Vec<bool>> {
-        Ok(self
-            .tables()?
-            .executed_in_epoch
-            .multi_contains_keys(digests)?)
+        let tables = self.tables()?;
+        Ok(do_fallback_lookup(
+            digests,
+            |digest| {
+                if self
+                    .consensus_output_cache
+                    .executed_in_current_epoch(digest)
+                {
+                    CacheResult::Hit(true)
+                } else {
+                    CacheResult::Miss
+                }
+            },
+            |digests| {
+                tables
+                    .executed_transactions_to_checkpoint
+                    .multi_contains_keys(digests)
+                    .expect("db error")
+            },
+        ))
     }
 
     pub fn get_effects_signature(
@@ -1535,6 +1554,9 @@ impl AuthorityPerEpochStore {
         let mut quarantine = self.consensus_quarantine.write();
         quarantine.update_highest_executed_checkpoint(seq, self, &mut batch)?;
         batch.write()?;
+
+        self.consensus_output_cache
+            .remove_executed_in_epoch(digests);
 
         Ok(())
     }
@@ -4376,32 +4398,23 @@ impl AuthorityPerEpochStore {
         self.signature_verifier.clear_signature_cache();
     }
 
-    pub(crate) fn check_all_executed_transactions_in_checkpoint(&self) -> IotaResult<()> {
-        let tables = self.tables().unwrap();
+    pub(crate) fn check_all_executed_transactions_in_checkpoint(&self) {
+        let uncheckpointed_transactions = self
+            .consensus_output_cache
+            .get_uncheckpointed_transactions();
 
-        info!("Verifying that all executed transactions are in a checkpoint");
-
-        let mut executed_iter = tables.executed_in_epoch.safe_iter();
-        let mut checkpointed_iter = tables.executed_transactions_to_checkpoint.safe_iter();
-
-        // verify that the two iterators (which are both sorted) are identical
-        loop {
-            let executed = executed_iter.next().transpose()?;
-            let checkpointed = checkpointed_iter.next().transpose()?;
-            match (executed, checkpointed) {
-                (Some((left, ())), Some((right, _))) => {
-                    if left != right {
-                        panic!(
-                            "Executed transactions and checkpointed transactions do not match: {left:?} {right:?}"
-                        );
-                    }
-                }
-                (None, None) => break Ok(()),
-                (left, right) => panic!(
-                    "Executed transactions and checkpointed transactions do not match: {left:?} {right:?}"
-                ),
-            }
+        if uncheckpointed_transactions.is_empty() {
+            info!("Verified that all executed transactions are in a checkpoint");
+            return;
         }
+
+        // TODO: should this be debug_fatal? Its potentially very serious in that it
+        // could indicate that we broke the checkpoint inclusion guarantee, but
+        // we won't be able to do anything about it if it happens.
+        fatal!(
+            "The following transactions were neither reverted nor checkpointed: {:?}",
+            uncheckpointed_transactions
+        );
     }
 
     // Only for testing purposes. Loads initial object debts from the consensus
