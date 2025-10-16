@@ -3,9 +3,7 @@
 
 use anyhow::anyhow;
 use futures::{Stream, StreamExt};
-use iota_grpc_types::v0::events::{
-    Event, EventStreamRequest, event_service_client::EventServiceClient,
-};
+use iota_grpc_types::v0::events as grpc_events;
 use iota_json_rpc_types::{BcsEvent, IotaEvent};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TransactionDigest},
@@ -20,14 +18,14 @@ use tonic::transport::Channel;
 /// events with filtering capabilities.
 #[derive(Clone)]
 pub struct EventClient {
-    client: EventServiceClient<Channel>,
+    client: grpc_events::event_service_client::EventServiceClient<Channel>,
 }
 
 impl EventClient {
     /// Create a new EventClient from a shared gRPC channel.
     pub(super) fn new(channel: Channel) -> Self {
         Self {
-            client: EventServiceClient::new(channel),
+            client: grpc_events::event_service_client::EventServiceClient::new(channel),
         }
     }
 
@@ -40,9 +38,9 @@ impl EventClient {
     /// A stream of IOTA events that match the specified filter
     pub async fn stream_events(
         &mut self,
-        filter: iota_grpc_types::v0::events::EventFilter,
+        filter: grpc_events::EventFilter,
     ) -> Result<impl Stream<Item = Result<IotaEvent, tonic::Status>>, tonic::Status> {
-        let request = EventStreamRequest {
+        let request = grpc_events::EventStreamRequest {
             filter: Some(filter),
         };
         let stream = self.client.stream_events(request).await?.into_inner();
@@ -57,7 +55,7 @@ impl EventClient {
     }
 
     /// Deserialize event data from BCS bytes.
-    fn deserialize_event(event: &Event) -> anyhow::Result<IotaEvent> {
+    fn deserialize_event(event: &grpc_events::Event) -> anyhow::Result<IotaEvent> {
         let event_id = event
             .event_id
             .as_ref()

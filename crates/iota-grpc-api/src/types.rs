@@ -9,7 +9,7 @@ use iota_grpc_types::{
         CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
         CheckpointData as GrpcCheckpointData,
     },
-    v0::{checkpoints::Checkpoint, common::BcsData},
+    v0::{checkpoints as grpc_checkpoints, common as grpc_common},
 };
 use iota_json_rpc_types::{EventFilter, IotaEvent};
 use iota_types::{
@@ -187,7 +187,7 @@ impl EventSubscriber for () {
 }
 
 // Type aliases and utility types
-pub type CheckpointStreamResult = Result<Checkpoint, Status>;
+pub type CheckpointStreamResult = Result<grpc_checkpoints::Checkpoint, Status>;
 
 // Storage abstraction traits for gRPC access
 // These traits provide an abstraction layer over the storage backend,
@@ -328,8 +328,8 @@ impl GrpcReader {
                     if let Some(item) = fetch_historical(&reader, start) {
                         debug!("[profile][grpc] Fetched checkpoint {data_type_name} for index {start} from DB.");
                         let sequence_number = get_sequence_number(&item);
-                        let response = BcsData::serialize_from(&*item)
-                            .map(|data| Checkpoint {
+                        let response = grpc_common::BcsData::serialize_from(&*item)
+                            .map(|data| grpc_checkpoints::Checkpoint {
                                 sequence_number,
                                 bcs_data: Some(data),
                                 is_full,
@@ -361,8 +361,8 @@ impl GrpcReader {
                         debug!("[profile][grpc] Get checkpoint {data_type_name} for index {} from broadcast channel", get_sequence_number(&item));
                         let sequence_number = get_sequence_number(&item);
                         if start == sequence_number {
-                            let response = BcsData::serialize_from(&*item)
-                                .map(|data| Checkpoint {
+                            let response = grpc_common::BcsData::serialize_from(&*item)
+                                .map(|data| grpc_checkpoints::Checkpoint {
                                     sequence_number,
                                     bcs_data: Some(data),
                                     is_full,
