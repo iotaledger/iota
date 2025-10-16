@@ -4,7 +4,8 @@
 use std::{str::FromStr, sync::Arc};
 
 use futures::StreamExt;
-use iota_json_rpc_types::{EventFilter, IotaEvent};
+use iota_grpc_types::v0::events::{Event, EventStreamRequest, event_service_server::EventService};
+use iota_json_rpc_types::EventFilter;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
     digests::TransactionDigest,
@@ -14,10 +15,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::debug;
 
-use crate::{
-    events::{Event, EventId, EventStreamRequest, event_service_server::EventService},
-    types::EventSubscriber,
-};
+use crate::types::EventSubscriber;
 
 pub struct EventGrpcService {
     pub event_subscriber: Arc<dyn EventSubscriber>,
@@ -102,8 +100,10 @@ impl EventService for EventGrpcService {
 }
 
 /// Convert protobuf EventFilter to iota_json_rpc_types::EventFilter
-fn create_event_filter(proto_filter: &crate::events::EventFilter) -> Result<EventFilter, Status> {
-    use crate::events::event_filter::Filter;
+fn create_event_filter(
+    proto_filter: &iota_grpc_types::v0::events::EventFilter,
+) -> Result<EventFilter, Status> {
+    use iota_grpc_types::v0::events::event_filter::Filter;
 
     match &proto_filter.filter {
         Some(Filter::All(_)) => Ok(EventFilter::All(vec![])),
@@ -149,7 +149,7 @@ fn create_event_filter(proto_filter: &crate::events::EventFilter) -> Result<Even
 
 // Helper functions to reduce repetition and improve error messages
 fn parse_object_id(
-    address: &Option<crate::common::Address>,
+    address: &Option<iota_grpc_types::v0::common::Address>,
     field_name: &str,
 ) -> Result<ObjectID, Status> {
     let address = address
@@ -165,7 +165,7 @@ fn parse_identifier(id_str: &str, field_name: &str) -> Result<Identifier, Status
 }
 
 fn parse_iota_address(
-    address: &Option<crate::common::Address>,
+    address: &Option<iota_grpc_types::v0::common::Address>,
     field_name: &str,
 ) -> Result<IotaAddress, Status> {
     let address = address
@@ -176,7 +176,7 @@ fn parse_iota_address(
 }
 
 fn parse_tx_digest(
-    digest: &Option<crate::common::TransactionDigest>,
+    digest: &Option<iota_grpc_types::v0::common::TransactionDigest>,
     field_name: &str,
 ) -> Result<TransactionDigest, Status> {
     let digest = digest
@@ -184,31 +184,4 @@ fn parse_tx_digest(
         .ok_or_else(|| Status::invalid_argument(format!("{field_name} is required")))?;
     TransactionDigest::try_from(digest.digest.as_slice())
         .map_err(|e| Status::invalid_argument(format!("Invalid {field_name}: {e}")))
-}
-
-// Convert IotaEvent to protobuf Event
-impl From<&IotaEvent> for Event {
-    fn from(event: &IotaEvent) -> Self {
-        Event {
-            event_id: Some(EventId {
-                event_seq: event.id.event_seq,
-                tx_digest: Some(crate::common::TransactionDigest {
-                    digest: event.id.tx_digest.into_inner().to_vec(),
-                }),
-            }),
-            package_id: Some(crate::common::Address {
-                address: event.package_id.to_vec(),
-            }),
-            transaction_module: event.transaction_module.to_string(),
-            sender: Some(crate::common::Address {
-                address: event.sender.to_vec(),
-            }),
-            type_name: event.type_.to_string(),
-            parsed_json: event.parsed_json.to_string(),
-            timestamp_ms: event.timestamp_ms,
-            event_data: Some(crate::common::BcsData {
-                data: event.bcs.bytes().to_vec(),
-            }),
-        }
-    }
 }

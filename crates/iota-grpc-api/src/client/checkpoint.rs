@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::{Stream, StreamExt};
-use iota_grpc_types::{CertifiedCheckpointSummary, CheckpointData};
+use iota_grpc_types::{
+    checkpoints::{CertifiedCheckpointSummary, CheckpointData},
+    v0::checkpoints::checkpoint_service_client::CheckpointServiceClient,
+};
 use tonic::transport::Channel;
-
-use crate::checkpoint::checkpoint_service_client::CheckpointServiceClient;
 
 /// Enum representing the content of a checkpoint, either full data or summary.
 #[derive(Debug, Clone)]
@@ -46,7 +47,7 @@ impl CheckpointClient {
         end_sequence_number: Option<u64>,
         full: bool,
     ) -> Result<impl Stream<Item = Result<CheckpointContent, tonic::Status>>, tonic::Status> {
-        let request = crate::checkpoint::CheckpointStreamRequest {
+        let request = iota_grpc_types::v0::checkpoints::CheckpointStreamRequest {
             start_sequence_number,
             end_sequence_number,
             full,
@@ -67,7 +68,7 @@ impl CheckpointClient {
         &mut self,
         epoch: u64,
     ) -> Result<u64, tonic::Status> {
-        let request = crate::checkpoint::EpochRequest { epoch };
+        let request = iota_grpc_types::v0::checkpoints::EpochRequest { epoch };
         let response = self
             .client
             .get_epoch_first_checkpoint_sequence_number(request)
@@ -83,7 +84,7 @@ impl CheckpointClient {
     /// summary). Returns either checkpoint data or summary depending on the
     /// checkpoint type.
     fn deserialize_checkpoint(
-        checkpoint: &crate::checkpoint::Checkpoint,
+        checkpoint: &iota_grpc_types::v0::checkpoints::Checkpoint,
     ) -> anyhow::Result<CheckpointContent> {
         let bcs_data = checkpoint
             .bcs_data

@@ -5,8 +5,8 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use iota_config::local_ip_utils;
-use iota_grpc_api::{
-    client::{EventClient, NodeClient},
+use iota_grpc_api::client::{EventClient, NodeClient};
+use iota_grpc_types::v0::{
     common::Address,
     events::{AllFilter, EventFilter, MoveEventTypeFilter, SenderFilter, event_filter::Filter},
 };

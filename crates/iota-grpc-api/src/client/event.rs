@@ -3,6 +3,9 @@
 
 use anyhow::anyhow;
 use futures::{Stream, StreamExt};
+use iota_grpc_types::v0::events::{
+    Event, EventStreamRequest, event_service_client::EventServiceClient,
+};
 use iota_json_rpc_types::{BcsEvent, IotaEvent};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TransactionDigest},
@@ -10,8 +13,6 @@ use iota_types::{
 };
 use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use tonic::transport::Channel;
-
-use crate::events::{Event, EventStreamRequest, event_service_client::EventServiceClient};
 
 /// Dedicated client for event-related gRPC operations.
 ///
@@ -39,7 +40,7 @@ impl EventClient {
     /// A stream of IOTA events that match the specified filter
     pub async fn stream_events(
         &mut self,
-        filter: crate::events::EventFilter,
+        filter: iota_grpc_types::v0::events::EventFilter,
     ) -> Result<impl Stream<Item = Result<IotaEvent, tonic::Status>>, tonic::Status> {
         let request = EventStreamRequest {
             filter: Some(filter),

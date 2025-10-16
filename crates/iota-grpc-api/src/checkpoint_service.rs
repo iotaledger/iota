@@ -3,17 +3,15 @@
 
 use std::{pin::Pin, sync::Arc};
 
+use iota_grpc_types::v0::checkpoints::{
+    CheckpointSequenceNumberResponse, CheckpointStreamRequest, EpochRequest,
+    checkpoint_service_server::CheckpointService,
+};
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::{debug, info};
 
-use crate::{
-    checkpoint::{
-        CheckpointSequenceNumberResponse, CheckpointStreamRequest, EpochRequest,
-        checkpoint_service_server::CheckpointService,
-    },
-    types::*,
-};
+use crate::types::*;
 
 pub struct CheckpointGrpcService {
     pub reader: Arc<GrpcReader>,
@@ -74,8 +72,12 @@ impl CheckpointGrpcService {
 // any gRPC checkpoint service must implement.
 #[tonic::async_trait]
 impl CheckpointService for CheckpointGrpcService {
-    type StreamCheckpointsStream =
-        Pin<Box<dyn futures::Stream<Item = Result<crate::checkpoint::Checkpoint, Status>> + Send>>;
+    type StreamCheckpointsStream = Pin<
+        Box<
+            dyn futures::Stream<Item = Result<iota_grpc_types::v0::checkpoints::Checkpoint, Status>>
+                + Send,
+        >,
+    >;
 
     async fn stream_checkpoints(
         &self,

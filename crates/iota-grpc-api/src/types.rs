@@ -5,8 +5,11 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use iota_grpc_types::{
-    CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
-    CheckpointData as GrpcCheckpointData,
+    checkpoints::{
+        CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
+        CheckpointData as GrpcCheckpointData,
+    },
+    v0::{checkpoints::Checkpoint, common::BcsData},
 };
 use iota_json_rpc_types::{EventFilter, IotaEvent};
 use iota_types::{
@@ -14,13 +17,11 @@ use iota_types::{
     messages_checkpoint::CertifiedCheckpointSummary,
     storage::{RestStateReader, error::Kind},
 };
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tokio::sync::broadcast::{Receiver, Sender, error::RecvError};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 use tracing::debug;
-
-use crate::{checkpoint::Checkpoint, common::BcsData};
 
 /// Trait for broadcasting checkpoint summaries
 pub trait CheckpointSummaryBroadcaster {
@@ -37,7 +38,7 @@ pub trait EventSubscriber: Send + Sync {
     /// Subscribe to events with the given filter
     fn subscribe_events(
         &self,
-        filter: iota_json_rpc_types::EventFilter,
+        filter: EventFilter,
     ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin>;
 }
 
@@ -182,23 +183,6 @@ impl EventSubscriber for () {
         _filter: EventFilter,
     ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin> {
         Box::new(Box::pin(futures::stream::empty()))
-    }
-}
-
-impl BcsData {
-    pub fn serialize_from<T>(data: &T) -> Result<Self, bcs::Error>
-    where
-        T: Serialize,
-    {
-        let serialized = bcs::to_bytes(data)?;
-        Ok(BcsData { data: serialized })
-    }
-
-    pub fn deserialize_into<T>(&self) -> Result<T, bcs::Error>
-    where
-        T: for<'de> Deserialize<'de>,
-    {
-        bcs::from_bytes(&self.data)
     }
 }
 

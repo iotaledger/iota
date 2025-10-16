@@ -6,6 +6,10 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
+use iota_grpc_types::v0::{
+    checkpoints::checkpoint_service_server::CheckpointServiceServer,
+    events::event_service_server::EventServiceServer,
+};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
@@ -14,8 +18,6 @@ use tonic::transport::Server;
 use crate::{
     CheckpointGrpcService, EventGrpcService, GrpcCheckpointDataBroadcaster,
     GrpcCheckpointSummaryBroadcaster, GrpcReader,
-    checkpoint::checkpoint_service_server::CheckpointServiceServer,
-    events::event_service_server::EventServiceServer,
 };
 
 /// Handle to control a running gRPC server
