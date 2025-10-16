@@ -257,7 +257,7 @@ mod checked {
     /// happens since we cannot charge it separately in the current
     /// implementation.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
-    pub fn validate_transaction(
+    pub fn validate_transaction<Mode: ExecutionMode>(
         store: &dyn BackingStore,
         // Configuration
         protocol_config: &ProtocolConfig,
@@ -281,7 +281,7 @@ mod checked {
         move_vm: &Arc<MoveVM>,
     ) -> (
         u64, // gas computation cost
-        Result<<execution_mode::Validation as ExecutionMode>::ExecutionResults, ExecutionError>,
+        Result<Mode::ExecutionResults, ExecutionError>,
     ) {
         // Check the preconditions.
         debug_assert!(
@@ -352,20 +352,19 @@ mod checked {
             setup_authenticator_move_call(authenticator, authenticator_info).unwrap(); //TODO
 
         // Execute the authenticator transaction.
-        let (computation_gas_cost, execution_result) =
-            execute_authenticator_move_call::<execution_mode::Validation>(
-                &mut temporary_store,
-                authenticator_move_call,
-                gas_charger,
-                &mut tx_ctx,
-                move_vm,
-                protocol_config,
-                metrics,
-                false,
-                contains_deleted_input,
-                cancelled_objects,
-                trace_builder_opt,
-            );
+        let (computation_gas_cost, execution_result) = execute_authenticator_move_call::<Mode>(
+            &mut temporary_store,
+            authenticator_move_call,
+            gas_charger,
+            &mut tx_ctx,
+            move_vm,
+            protocol_config,
+            metrics,
+            false,
+            contains_deleted_input,
+            cancelled_objects,
+            trace_builder_opt,
+        );
 
         // Check the execution result.
         let status = if let Err(error) = &execution_result {

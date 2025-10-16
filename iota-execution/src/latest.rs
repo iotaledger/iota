@@ -192,7 +192,7 @@ impl executor::Executor for Executor {
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (u64, Result<(), ExecutionError>) {
-        validate_transaction(
+        validate_transaction::<execution_mode::Validation>(
             store,
             protocol_config,
             metrics,
