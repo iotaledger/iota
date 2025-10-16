@@ -122,7 +122,7 @@ export function PasskeyAccountPage() {
                         <Button
                             type={ButtonType.Secondary}
                             text="Cancel"
-                            onClick={() => navigate(-1)}
+                            onClick={() => navigate('/accounts/manage')}
                             fullWidth
                         />
                         <Button
