@@ -4,6 +4,9 @@
 import { expect, type Page } from '@playwright/test';
 import { createWallet } from './auth';
 import { SHORT_TIMEOUT } from 'tests/constants/timeout.constants';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { type Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { IotaClient } from '@iota/iota-sdk/client';
 
 export async function setupWalletWithFunds(page: Page, extensionUrl: string) {
     await createWallet(page, extensionUrl);
@@ -85,4 +88,46 @@ async function retryAction<T>(action: () => Promise<T>, maxRetries = 3, delay = 
     }
 
     throw new Error(`Action failed after ${maxRetries} attempts.`);
+}
+
+export async function splitCoinsTransaction(
+    keypair: Ed25519Keypair,
+    objectCount: number,
+    amountPerObject: number,
+): Promise<string> {
+    const client = new IotaClient({
+        url: 'http://localhost:9000',
+    });
+    const tx = new Transaction();
+
+    const splitAmounts = new Array(objectCount).fill(amountPerObject);
+    const coins = tx.splitCoins(tx.gas, splitAmounts);
+
+    const coinArgs = [...Array(splitAmounts.length).keys()].map((i) => {
+        return {
+            kind: 'NestedResult',
+            NestedResult: [coins[0].NestedResult[0], i] as [number, number],
+        };
+    });
+
+    const address = keypair.getPublicKey().toIotaAddress();
+    tx.transferObjects(coinArgs, tx.pure.address(address));
+
+    const { digest } = await client.signAndExecuteTransaction({
+        transaction: tx,
+        signer: keypair,
+        options: {
+            showEffects: true,
+            showEvents: true,
+            showInput: true,
+            showObjectChanges: true,
+        },
+    });
+
+    await client.waitForTransaction({
+        digest,
+        timeout: 30000,
+    });
+
+    return digest;
 }
