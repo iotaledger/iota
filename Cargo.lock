@@ -7023,6 +7023,8 @@ dependencies = [
  "iota-macros",
  "iota-metrics",
  "iota-network-stack",
+ "iota-protocol-config",
+ "iota-simulator",
  "iota-storage",
  "iota-swarm-config",
  "iota-types",
