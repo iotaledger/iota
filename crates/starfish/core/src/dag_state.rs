@@ -17,7 +17,7 @@ use itertools::Itertools as _;
 use tokio::sync::mpsc::UnboundedSender;
 use starfish_config::AuthorityIndex;
 use tokio::time::Instant;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::{
     block_header::{
@@ -29,6 +29,7 @@ use crate::{
         GENESIS_COMMIT_INDEX, SubDagBase, TrustedCommit, load_pending_subdag_from_store,
     },
     context::Context,
+    cordial_knowledge::{CordialKnowledgeMessage},
     leader_scoring::{ReputationScores, ScoringSubdag},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
@@ -159,27 +160,6 @@ pub(crate) struct DagState {
     /// corresponding blocks
     pending_acknowledgments: BTreeSet<BlockRef>,
 
-    // TODO: add metrics for recent_dag_cordial_knowledge and block_headers_not_known_by_authority
-    // and pending_acknowledgments
-    /// Keeps track of the most recent BlockHeaderDAG cordial
-    /// knowledge (who knows which blocks) for each authority. This is a helper
-    /// structure that is used primarily for traversing the recent DAG. This
-    /// struct is evicted after flushing the dag state to storage and is not
-    /// persisted. To access the cordial knowledge of a given block_ref, one
-    /// shall retrieve it from `recent_dag_cordial_knowledge[block_ref.
-    /// author][(block_ref.round, block_ref.digest)]`. The value is a tuple
-    /// of (parents, who knows the block header).
-    recent_dag_cordial_knowledge:
-        Vec<BTreeMap<(Round, BlockHeaderDigest), (Vec<BlockRef>, HashSet<AuthorityIndex>)>>,
-    /// Keeps tracks of block headers that are not known by the authority.
-    /// Is used to ensure that we send block headers that are really needed
-    /// to the authority, and not the ones that they already know.
-    block_headers_not_known_by_authority: Vec<BTreeSet<BlockRef>>,
-
-    /// Keeps tracks of all shards we know and haven't sent yet to the
-    /// authority.
-    shards_not_known_by_authority: Vec<BTreeSet<BlockRef>>,
-
     /// Transactions to be flushed to storage.
     transactions_to_write: Vec<VerifiedTransactions>,
     block_headers_to_write: Vec<VerifiedBlockHeader>,
@@ -250,13 +230,13 @@ impl DagState {
                 });
         }
 
-        tracing::info!(
+        info!(
             "DagState was initialized with the following state: \
             {last_commit:?}; {last_committed_rounds:?}; {} unscored committed subdags;",
             unscored_committed_subdags.len()
         );
 
-        scoring_subdag.add_subdags(std::mem::take(&mut unscored_committed_subdags));
+        scoring_subdag.add_subdags(mem::take(&mut unscored_committed_subdags));
 
         let mut state = Self {
             context,
@@ -278,9 +258,6 @@ impl DagState {
             commits_to_write: vec![],
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
-            recent_dag_cordial_knowledge: vec![BTreeMap::new(); num_authorities],
-            block_headers_not_known_by_authority: vec![BTreeSet::new(); num_authorities],
-            shards_not_known_by_authority: vec![BTreeSet::new(); num_authorities],
             scoring_subdag,
             store: store.clone(),
             cached_rounds,
@@ -325,12 +302,11 @@ impl DagState {
         state
     }
 
-    pub(crate) fn with_cordial_knowledge_sender(
-        mut self,
+    pub fn set_cordial_knowledge_sender(
+        &mut self,
         sender: UnboundedSender<CordialKnowledgeMessage>,
-    ) -> Self {
+    ) {
         self.cordial_knowledge_sender = Some(sender);
-        self
     }
 
     /// Accepts a block header into DagState and keeps it in memory.
@@ -447,17 +423,7 @@ impl DagState {
             .insert(block_ref, shard.serialized_shard)
             .is_none()
         {
-            tracing::debug!("Adding shard for block ref: {block_ref}");
-            for authority_index in 0..self.shards_not_known_by_authority.len() {
-                // we are going to send shard to every authority except our own and the author
-                // of the block
-                if (authority_index == block_ref.author.value())
-                    || (authority_index == self.context.own_index.value())
-                {
-                    continue;
-                }
-                self.shards_not_known_by_authority[authority_index].insert(block_ref);
-            }
+            debug!("Adding shard for block ref: {block_ref}");
             if let Some(sender) = &self.cordial_knowledge_sender {
                 let cordial_message = CordialKnowledgeMessage::NewShard(block_ref);
                 if let Err(e) = sender.send(cordial_message) {
@@ -675,6 +641,16 @@ impl DagState {
         }
 
         block_headers
+    }
+    /// Gets shards by checking cached recent shards in memory.
+    pub(crate) fn get_cached_shards(&self, block_refs: &[BlockRef]) -> Vec<Option<Bytes>> {
+        let mut shards: Vec<Option<Bytes>> = vec![None; block_refs.len()];
+        for (index, block_ref) in block_refs.iter().enumerate() {
+            if let Some(shard) = self.recent_shards.get(block_ref) {
+                shards[index] = Some(shard.clone());
+            }
+        }
+        shards
     }
 
     /// Gets all uncommitted block headers in a slot.
@@ -1275,225 +1251,6 @@ impl DagState {
         self.commit_info_to_write
             .push((last_commit.reference(), commit_info));
     }
-    /// Removes and returns up to `MAX_HEADERS_PER_BUNDLE` block references that
-    /// the given authority has not yet seen, limited to rounds strictly
-    /// below `round_upper_bound_exclusive`.
-    ///
-    /// Side effects:
-    /// - Updates `block_headers_not_known_by_authority` so these refs are no
-    ///   longer considered "unknown" for the authority.
-    /// - Marks the given authority as knowing these blocks inside
-    ///   `recent_dag_cordial_knowledge`.
-    ///
-    /// Returns:
-    /// - A vector of `BlockRef`s corresponding to the unknown blocks that were
-    ///   revealed to the authority.
-    fn take_unknown_block_refs_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-    ) -> Vec<BlockRef> {
-        let mut set =
-            mem::take(&mut self.block_headers_not_known_by_authority[authority_index.value()]);
-
-        let split_point = {
-            let round_bound = BlockRef::new(
-                round_upper_bound_exclusive,
-                AuthorityIndex::MIN,
-                BlockHeaderDigest::MIN,
-            );
-            let nth_element = set
-                .iter()
-                .nth(self.context.parameters.max_headers_per_bundle)
-                .map_or(round_bound, |x| *x);
-            min(nth_element, round_bound)
-        };
-
-        self.block_headers_not_known_by_authority[authority_index.value()] =
-            set.split_off(&split_point);
-        let mut block_refs: Vec<BlockRef> = vec![];
-        for block_ref in set.into_iter() {
-            block_refs.push(block_ref);
-            let opt_block_knowledge = self.recent_dag_cordial_knowledge[block_ref.author.value()]
-                .get_mut(&(block_ref.round, block_ref.digest));
-            let (_, who_knows_given_block) = opt_block_knowledge
-                .expect("We expect block ref to be in recent dag cordial knowledge");
-            who_knows_given_block.insert(authority_index);
-        }
-        block_refs
-    }
-
-    /// Removes and returns up to `context.parameters.max_headers_per_bundle`
-    /// block references that the given authority has not yet seen, limited
-    /// to rounds strictly below `round_upper_bound_exclusive` and filtered
-    /// by the provided authors `useful_authorities`.
-    ///
-    /// Side effects:
-    /// - Updates `block_headers_not_known_by_authority` so these refs are no
-    ///   longer considered "unknown" for the authority.
-    /// - Marks the given authority as knowing these blocks inside
-    ///   `recent_dag_cordial_knowledge`.
-    ///
-    /// Returns:
-    /// - A vector of `BlockRef`s corresponding to the unknown blocks that were
-    ///   revealed to the authority.
-    fn take_useful_block_refs_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-        useful_authorities: BTreeSet<AuthorityIndex>,
-    ) -> Vec<BlockRef> {
-        let set = &mut self.block_headers_not_known_by_authority[authority_index.value()];
-
-        // Collect candidate block_refs we want to take out
-        let mut to_take = Vec::new();
-
-        for block_ref in set.iter() {
-            if to_take.len() >= self.context.parameters.max_headers_per_bundle
-                || block_ref.round >= round_upper_bound_exclusive
-            {
-                break;
-            }
-            if useful_authorities.contains(&block_ref.author) {
-                to_take.push(*block_ref);
-            }
-        }
-
-        // Remove the references from the set and update cordial knowledge
-        for block_ref in &to_take {
-            set.remove(block_ref);
-
-            if let Some((_, who_knows_given_block)) = self.recent_dag_cordial_knowledge
-                [block_ref.author.value()]
-            .get_mut(&(block_ref.round, block_ref.digest))
-            {
-                who_knows_given_block.insert(authority_index);
-            } else {
-                warn!("Block_ref {block_ref} missing in recent_dag_cordial_knowledge");
-            }
-        }
-
-        to_take
-    }
-
-    fn take_block_refs_of_useful_shards_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-        useful_authorities: BTreeSet<AuthorityIndex>,
-    ) -> Vec<BlockRef> {
-        let set = &mut self.shards_not_known_by_authority[authority_index.value()];
-
-        // Collect candidate block_refs we want to take out
-        let mut to_take = Vec::new();
-
-        for block_ref in set.iter() {
-            if to_take.len() >= self.context.parameters.max_shards_per_bundle
-                || block_ref.round >= round_upper_bound_exclusive
-            {
-                break;
-            }
-            if useful_authorities.contains(&block_ref.author) {
-                to_take.push(*block_ref);
-            }
-        }
-
-        // Remove the references from the set and update cordial knowledge
-        for block_ref in &to_take {
-            set.remove(block_ref);
-        }
-
-        to_take
-    }
-
-    /// Retrieves up to `MAX_HEADERS_PER_BUNDLE` previously unknown block
-    /// headers for the given authority, restricted to rounds strictly below
-    /// `round_upper_bound_exclusive`.
-    ///
-    /// This builds on [`take_unknown_block_refs_for_authority`], resolving the
-    /// returned block references into full `VerifiedBlockHeader`s.
-    ///
-    /// Panics if any of the block headers are missing from `DagState` or disk.
-    pub(crate) fn take_unknown_headers_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-    ) -> Vec<VerifiedBlockHeader> {
-        let block_refs = self
-            .take_unknown_block_refs_for_authority(authority_index, round_upper_bound_exclusive);
-
-        self.get_block_headers(&block_refs)
-            .into_iter()
-            .map(|opt| opt.expect("All headers should be in DagState or on disk"))
-            .collect()
-    }
-    /// Retrieves up to `MAX_HEADERS_PER_BUNDLE` unknown block headers for the
-    /// given authority, but only those authored by peers listed in
-    /// `useful_authorities`. Excludes blocks from other authorities.
-    ///
-    /// This builds on [`take_unknown_block_refs_for_authority`], filtering the
-    /// result with `useful_authorities` and resolving the returned block
-    /// references into full `VerifiedBlockHeader`s.
-    ///
-    /// Panics if any of the block headers are missing from `DagState` or disk.
-    pub(crate) fn take_useful_headers_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-        useful_authorities: BTreeSet<AuthorityIndex>,
-    ) -> Vec<VerifiedBlockHeader> {
-        let block_refs = self.take_useful_block_refs_for_authority(
-            authority_index,
-            round_upper_bound_exclusive,
-            useful_authorities,
-        );
-
-        self.get_block_headers(&block_refs)
-            .into_iter()
-            .map(|opt| opt.expect("All headers should be in DagState or on disk"))
-            .collect()
-    }
-
-    pub(crate) fn take_useful_shards_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-        useful_authorities: BTreeSet<AuthorityIndex>,
-    ) -> Vec<Bytes> {
-        let block_refs = self.take_block_refs_of_useful_shards_for_authority(
-            authority_index,
-            round_upper_bound_exclusive,
-            useful_authorities,
-        );
-        block_refs
-            .iter()
-            .map(|block_ref| {
-                self.recent_shards
-                    .get(block_ref)
-                    .expect("Shard should be in DagState")
-                    .clone()
-            })
-            .collect::<Vec<_>>()
-    }
-
-    pub(crate) fn get_useful_shards_authors(
-        last_useful_round: Vec<Round>,
-        block_round: Round,
-    ) -> BTreeSet<AuthorityIndex> {
-        let mut useful_shard_authors = BTreeSet::new();
-        for (i, round) in last_useful_round.iter().enumerate() {
-            // Check that block_round >= round to avoid underflow. This can happen if we've
-            // received a block from a more recent round than the block we are about to
-            // send, especially during startup when we're sending older blocks.
-            if block_round >= *round
-                && block_round - round <= MAX_ROUND_GAP_FOR_USEFUL_SHARDS as u32
-            {
-                useful_shard_authors.insert(AuthorityIndex::from(i as u8));
-            }
-        }
-        useful_shard_authors
-    }
-
 
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
         let mut votes = Vec::new();
@@ -1584,13 +1341,11 @@ impl DagState {
     pub(crate) fn evict_cordial_knowledge(&mut self) {
         if let Some(cordial_knowledge_sender) = &self.cordial_knowledge_sender {
             let mut eviction_rounds = vec![];
-            for (authority_index,_) in self.context.committee.authorities() {
+            for (authority_index, _) in self.context.committee.authorities() {
                 let eviction_round = self.calculate_authority_eviction_round(authority_index);
                 eviction_rounds.push(eviction_round);
             }
-            let cordial_message = CordialKnowledgeMessage::EvictBelow(
-                eviction_rounds,
-            );
+            let cordial_message = CordialKnowledgeMessage::EvictBelow(eviction_rounds);
             if let Err(e) = cordial_knowledge_sender.send(cordial_message) {
                 warn!("Failed to send cordial knowledge eviction message: {e}");
             }

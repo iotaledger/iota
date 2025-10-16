@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::max,
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, VecDeque},
     pin::Pin,
     sync::Arc,
     time::Duration,
@@ -17,10 +16,13 @@ use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::sync::{Mutex, broadcast, mpsc::Sender};
+use tokio::{
+    sync::{Mutex, broadcast, mpsc::Sender, oneshot},
+    time::sleep,
+};
+use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
-
 use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
@@ -32,6 +34,10 @@ use crate::{
     commit::{CommitAPI as _, CommitRange, TrustedCommit},
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
+    cordial_knowledge::{
+        AdditionalPartsForBundle, ConnectionKnowledgeMessage,
+        ConnectionKnowledgeMessage::TakeAdditionalPartForBundle, CordialKnowledge,
+    },
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
     encoder::ShardEncoder,
@@ -46,7 +52,7 @@ use crate::{
     synchronizer::SynchronizerHandle,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
-use crate::cordial_knowledge::ConnectionKnowledgeMessage;
+use crate::cordial_knowledge::CordialKnowledgeMessage;
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
@@ -113,26 +119,11 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     received_block_headers: FilterForHeaders,
     /// Sender to send received transaction messages to the shard reconstructor
     transaction_message_sender: Sender<Vec<TransactionMessage>>,
-    /// For each peer, the set of authorities whose block headers the local node
-    /// considered useful when receiving a block bundle from that peer.
-    /// Keyed by the peer’s AuthorityIndex.
-    useful_headers_authors_from_peer:
-        Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
-    /// For each peer, the set of local authorities that the peer reported as
-    /// useful to them (communicated inside their block bundles).
-    /// Keyed by the peer’s AuthorityIndex.
-    useful_headers_authors_to_peer: Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
-    /// For each peer, stores the latest round in which a received block bundle
-    /// from any peer included a useful shard originating from a block
-    /// created by authority `i`.
-    last_round_with_useful_shards_by_block_author: Arc<RwLock<Vec<Round>>>,
-    /// For each peer `i`, stores a set of authority indices representing the
-    /// authors of blocks whose shards were reported as useful by peer `i`.
-    useful_shards_authors_to_peer: Arc<RwLock<Vec<BTreeSet<AuthorityIndex>>>>,
-    /// Senders to send connection knowledge messages to the respected Connection Knowledge
-    /// It is used to retrieve block refs for headers and shards potentially unknown to the peer
+    /// Senders to send connection knowledge messages to the respected
+    /// Connection Knowledge It is used to retrieve block refs for headers
+    /// and shards potentially unknown to the peer
     connection_knowledge_senders: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
-
+    cordial_knowledge_sender: UnboundedSender<CordialKnowledgeMessage>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -148,12 +139,12 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         store: Arc<dyn Store>,
         transaction_message_sender: Sender<Vec<TransactionMessage>>,
         connection_knowledge_senders: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
+        cordial_knowledge_sender: UnboundedSender<CordialKnowledgeMessage>,
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
             core_dispatcher.clone(),
         ));
-        let committee_size = context.committee.size();
 
         Self {
             context,
@@ -167,18 +158,9 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             dag_state,
             store,
             received_block_headers: FilterForHeaders::new(),
-            useful_headers_authors_from_peer: Arc::new(RwLock::new(BTreeMap::new())),
-            useful_headers_authors_to_peer: Arc::new(RwLock::new(BTreeMap::new())),
             transaction_message_sender,
-            last_round_with_useful_shards_by_block_author: Arc::new(RwLock::new(vec![
-                GENESIS_ROUND;
-                committee_size
-            ])),
-            useful_shards_authors_to_peer: Arc::new(RwLock::new(vec![
-                BTreeSet::new();
-                committee_size
-            ])),
             connection_knowledge_senders,
+            cordial_knowledge_sender
         }
     }
 }
@@ -194,27 +176,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
-        let serialized_block_bundle_parts =
+        let mut serialized_block_bundle_parts =
             SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
-
-        // Cache authorities this peer finds useful for cordial
-        let useful_authorities_to_peer = serialized_block_bundle_parts.useful_headers_authors();
-        {
-            let mut guard = self.useful_headers_authors_to_peer.write();
-            guard.insert(peer, useful_authorities_to_peer);
-        }
-        let useful_shards_authors_to_peer = serialized_block_bundle_parts.useful_shards_authors();
-        {
-            let mut guard = self.useful_shards_authors_to_peer.write();
-            guard[peer] = useful_shards_authors_to_peer;
-        }
 
         // 1. Create a verified block and make some preliminary checks
         let SerializedHeaderAndTransactions {
             serialized_block_header,
             serialized_transactions,
         } = SerializedHeaderAndTransactions::try_from(SerializedBlock {
-            serialized_block: serialized_block_bundle_parts.serialized_block,
+            serialized_block: serialized_block_bundle_parts.serialized_block.clone(),
         })?;
 
         let signed_block_header: SignedBlockHeader =
@@ -298,17 +268,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 4. Create block headers from bytes from a bundle
         // 4.a. Truncate headers in bundle to max_headers_per_bundle
-        let serialized_headers = if serialized_block_bundle_parts.serialized_headers.len()
+        let mut serialized_headers = std::mem::take(&mut serialized_block_bundle_parts.serialized_headers);
+        if serialized_headers.len()
             > self.context.parameters.max_headers_per_bundle
         {
             warn!("BlockBundle: {block_ref} exceeds max_headers_per_bundle.");
-            serialized_block_bundle_parts
-                .serialized_headers
-                .into_iter()
-                .take(self.context.parameters.max_headers_per_bundle)
-                .collect::<Vec<_>>()
-        } else {
-            serialized_block_bundle_parts.serialized_headers
+            serialized_headers.truncate(self.context.parameters.max_headers_per_bundle);
         };
 
         let mut additional_block_headers = vec![];
@@ -383,18 +348,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 5. Collect shards from a bundle and check their proofs.
         // 5.a. Truncate shards in bundle to max_shards_per_bundle.
-        let serialized_shards = if serialized_block_bundle_parts.serialized_shards.len()
-            > self.context.parameters.max_shards_per_bundle
-        {
+
+        let mut serialized_shards = std::mem::take(&mut serialized_block_bundle_parts.serialized_shards);
+
+        if serialized_shards.len() > self.context.parameters.max_shards_per_bundle {
             warn!("BlockBundle: {block_ref} exceeds max_shards_per_bundle.");
-            serialized_block_bundle_parts
-                .serialized_shards
-                .into_iter()
-                .take(self.context.parameters.max_shards_per_bundle)
-                .collect::<Vec<_>>()
-        } else {
-            serialized_block_bundle_parts.serialized_shards
-        };
+            serialized_shards.truncate(self.context.parameters.max_shards_per_bundle);
+        }
 
         let mut verified_shards: Vec<ShardWithProof> = vec![];
         for serialized_shard in &serialized_shards {
@@ -595,40 +555,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
 
-        // 13. update `useful_headers_authors_from_peer`
-        // create a set of authority indexes from the `additional_block_headers`
-        // and `missing_ancestors`
-        {
-            let useful_headers_authors = additional_block_headers
-                .iter()
-                .map(|block_header| block_header.author())
-                .chain(missing_ancestors.iter().map(|block_ref| block_ref.author))
-                .collect::<BTreeSet<_>>();
+        // 13. Report useful info for cordial and connection knowledge
+        CordialKnowledge::report_useful_info(
+            &self.connection_knowledge_senders[peer],
+            &self.cordial_knowledge_sender,
+            &serialized_block_bundle_parts,
+            &additional_block_headers,
+            &missing_ancestors,
+            block_round,
+        )
+        .await;
 
-            let mut useful_authorities_from_peer_write_guard =
-                self.useful_headers_authors_from_peer.write();
-            useful_authorities_from_peer_write_guard.insert(peer, useful_headers_authors);
-        }
-        // 14. Update `last_round_with_useful_shards_by_block_author`:
-        // For each validator whose block is in `additional_block_headers`,
-        // set their entry to the maximum of its current value and the round of the
-        // received block.
-        {
-            let useful_shard_authors = additional_block_headers
-                .iter()
-                .map(|block_header| block_header.author())
-                .collect::<Vec<_>>();
-            let mut last_round_with_useful_shards_from_peer_write_guard =
-                self.last_round_with_useful_shards_by_block_author.write();
-            for author in useful_shard_authors {
-                last_round_with_useful_shards_from_peer_write_guard[author] = max(
-                    last_round_with_useful_shards_from_peer_write_guard[author],
-                    block_round,
-                );
-            }
-        }
-
-        // 15. schedule the fetching of missing ancestors (if any) from this peer
+        // 14. schedule the fetching of missing ancestors (if any) from this peer
         if !missing_ancestors.is_empty() {
             if let Err(err) = self
                 .synchronizer
@@ -689,77 +627,44 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // Return a stream of blocks that first yields missed blocks as requested, then
         // new blocks.
         Ok(Box::pin(missed_blocks.chain({
-            let dag_state = Arc::clone(&self.dag_state);
-            let useful_headers_authors_from_peer =
-                Arc::clone(&self.useful_headers_authors_from_peer);
-            let useful_headers_authors_to_peer = Arc::clone(&self.useful_headers_authors_to_peer);
-            let last_round_with_useful_shards_by_block_author =
-                Arc::clone(&self.last_round_with_useful_shards_by_block_author);
-            let useful_shards_authors_to_peer = Arc::clone(&self.useful_shards_authors_to_peer);
-            let committee = self
-                .context
-                .committee
-                .authorities()
-                .map(|(index, _)| index)
-                .collect::<BTreeSet<_>>();
-
+            let connection_knowledge_sender = self.connection_knowledge_senders[peer].clone();
             broadcasted_blocks.filter_map(move |block| {
-                let useful_headers_authors_to_peer_guard = useful_headers_authors_to_peer.read();
-                let useful_headers_authors_to_peer_read = useful_headers_authors_to_peer_guard
-                    .get(&peer)
-                    .map(|authorities| authorities.iter().cloned().collect::<BTreeSet<_>>());
-                drop(useful_headers_authors_to_peer_guard);
-
-                let useful_shards_authors_to_peer_guard = useful_shards_authors_to_peer.read();
-                let useful_shards_authors_to_peer_read =
-                    useful_shards_authors_to_peer_guard[peer].clone();
-                drop(useful_shards_authors_to_peer_guard);
-
-                let useful_headers_authors_from_peer_guard =
-                    useful_headers_authors_from_peer.read();
-                let useful_headers_authors_from_peer_read =
-                    match useful_headers_authors_from_peer_guard.get(&peer) {
-                        None => committee.clone(),
-                        Some(useful_authorities) => useful_authorities.clone(),
-                    };
-                drop(useful_headers_authors_from_peer_guard);
-
-                let last_round_with_useful_shards_by_block_author_guard =
-                    last_round_with_useful_shards_by_block_author.read();
-                let last_round_with_useful_shards_by_block_author_read =
-                    last_round_with_useful_shards_by_block_author_guard.clone();
-                drop(last_round_with_useful_shards_by_block_author_guard);
-
-                let mut dag_state_guard = dag_state.write();
-                let block_headers = match useful_headers_authors_to_peer_read {
-                    None => dag_state_guard.take_unknown_headers_for_authority(peer, block.round()),
-                    Some(authorities) => dag_state_guard.take_useful_headers_for_authority(
-                        peer,
-                        block.round(),
-                        authorities,
-                    ),
-                };
-
-                let serialized_shards = dag_state_guard.take_useful_shards_for_authority(
-                    peer,
-                    block.round(),
-                    useful_shards_authors_to_peer_read,
-                );
-                drop(dag_state_guard);
-
-                let useful_shards_authors = DagState::get_useful_shards_authors(
-                    last_round_with_useful_shards_by_block_author_read,
-                    block.round(),
-                );
-
-                let block_bundle = BlockBundle {
-                    verified_block: block,
-                    verified_headers: block_headers,
-                    serialized_shards,
-                    useful_headers_authors: useful_headers_authors_from_peer_read,
-                    useful_shards_authors,
-                };
+                let connection_knowledge_sender = connection_knowledge_sender.clone();
                 async move {
+                    let (tx, rx) = oneshot::channel();
+
+                    let msg = TakeAdditionalPartForBundle {
+                        round_upper_bound_exclusive: block.round(),
+                        respond_to: tx,
+                    };
+
+                    // Send message asynchronously to corresponding ConnectionKnowledge task
+                    if let Err(e) = connection_knowledge_sender.send(vec![msg]).await {
+                        warn!("Failed to send TakeAdditionalPartForBundle to Connection Knowledge: {e}");
+                        return None;
+                    }
+
+                    // Await response from ConnectionKnowledge
+                    let block_bundle = match rx.await {
+                        Ok(AdditionalPartsForBundle {
+                               headers,
+                               shards,
+                               useful_headers_authors_from_peer,
+                               useful_shards_authors_from_peer,
+                           }) => BlockBundle {
+                            verified_block: block,
+                            verified_headers: headers,
+                            serialized_shards: shards,
+                            useful_headers_authors: useful_headers_authors_from_peer,
+                            useful_shards_authors: useful_shards_authors_from_peer,
+                        },
+                        Err(_) => {
+                            warn!("Connection Knowledge oneshot dropped before response");
+                            // Construct bundle (fill in your actual vars)
+                            return None;
+                        }
+                    };
+
                     match SerializedBlockBundle::try_from(block_bundle) {
                         Ok(serialized_block_bundle) => Some(serialized_block_bundle),
                         Err(e) => {
@@ -1332,6 +1237,7 @@ mod tests {
         commit_observer::CommitObserver,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
+        cordial_knowledge::CordialKnowledge,
         core::{Core, CoreSignals},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::{DagState, TransactionSource},
@@ -1412,10 +1318,11 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
-
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
@@ -1450,7 +1357,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
-            connection_knowledge_senders
+            connection_knowledge_senders,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1493,9 +1400,11 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
@@ -1530,7 +1439,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
-            connection_knowledge_senders
+            connection_knowledge_senders,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1583,9 +1492,11 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
@@ -1620,7 +1531,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
-            connection_knowledge_senders
+            connection_knowledge_senders,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1665,9 +1576,11 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
@@ -1702,7 +1615,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
-            connection_knowledge_senders
+            connection_knowledge_senders,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1805,9 +1718,11 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
@@ -1842,6 +1757,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
+            connection_knowledge_senders,
         ));
 
         // Create some blocks for a few authorities. Create some equivocations as well
@@ -1934,8 +1850,11 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
         let network_client = Arc::new(FakeNetworkClient::default());
 
         // Set up synchronizers
@@ -2202,9 +2121,11 @@ mod tests {
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -2361,9 +2282,11 @@ mod tests {
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2494,6 +2417,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2535,10 +2459,6 @@ mod tests {
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
         let network_client = Arc::new(FakeNetworkClient::default());
 
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
-
         // Set up synchronizers
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
@@ -2571,7 +2491,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge.connection_knowledge_senders(),
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2611,8 +2531,8 @@ mod tests {
         let mut received_bundles = Vec::new();
 
         // Collect expected blocks from the first batch
-        let expected_blocks = first_batch_end_exclusive - 1 - last_received_round;
-        for _ in 0..expected_blocks {
+        let expected_number = first_batch_end_exclusive - 1 - last_received_round;
+        for _ in 0..expected_number {
             if let Some(bundle) = stream.next().await {
                 received_bundles.push(bundle);
             }
@@ -2624,8 +2544,8 @@ mod tests {
 
         assert_eq!(
             received_bundles.len() as u32,
-            expected_blocks,
-            "Should receive {expected_blocks} missed blocks",
+            expected_number,
+            "Should receive {expected_number} missed blocks",
         );
 
         // Check the correctness of the received blocks
@@ -2803,9 +2723,11 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -2947,9 +2869,11 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -3112,9 +3036,11 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -3299,9 +3225,11 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size()).map(|_| mpsc::channel(100)).collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) = channels.into_iter().unzip();
-
+        let channels: Vec<_> = (0..context.committee.size())
+            .map(|_| mpsc::channel(100))
+            .collect();
+        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
+            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -3337,7 +3265,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
-            connection_knowledge_senders
+            connection_knowledge_senders,
         ));
         let mut encoder = create_encoder(&context);
 

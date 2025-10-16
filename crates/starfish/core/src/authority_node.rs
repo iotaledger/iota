@@ -20,6 +20,7 @@ use crate::{
     commit_syncer::{CommitSyncer, CommitSyncerHandle},
     commit_vote_monitor::CommitVoteMonitor,
     context::{Clock, Context},
+    cordial_knowledge::{CordialKnowledge, CordialKnowledgeHandle},
     core::{Core, CoreSignals},
     core_thread::{ChannelCoreThreadDispatcher, CoreThreadHandle},
     dag_state::DagState,
@@ -34,7 +35,6 @@ use crate::{
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
     transactions_synchronizer::{TransactionsSynchronizer, TransactionsSynchronizerHandle},
 };
-use crate::cordial_knowledge::{CordialKnowledge, CordialKnowledgeHandle};
 
 pub struct ConsensusAuthority {
     context: Arc<Context>,
@@ -117,13 +117,9 @@ impl ConsensusAuthority {
 
         let store_path = context.parameters.db_path.as_path().to_str().unwrap();
         let store = Arc::new(RocksDBStore::new(store_path));
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
-        let cordial_knowledge = CordialKnowledge::start(context.clone());
-
-        let dag_state = DagState::new(context.clone(), store.clone())
-            .with_cordial_knowledge_sender(cordial_knowledge.cordial_knowledge_sender());
-        let dag_state = Arc::new(RwLock::new(dag_state));
-
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let highest_known_commit_at_startup = dag_state.read().last_commit_index();
 
@@ -236,6 +232,7 @@ impl ConsensusAuthority {
             store,
             shard_reconstructor.transaction_message_sender(),
             cordial_knowledge.connection_knowledge_senders(),
+            cordial_knowledge.cordial_knowledge_sender(),
         ));
 
         let subscriber = Subscriber::new(
@@ -312,7 +309,7 @@ impl ConsensusAuthority {
                 e
             );
         };
-        
+
         if let Err(e) = self.cordial_knowledge.stop().await {
             if e.is_panic() {
                 std::panic::resume_unwind(e.into_panic());
