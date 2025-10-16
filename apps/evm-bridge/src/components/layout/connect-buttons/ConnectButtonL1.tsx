@@ -25,14 +25,9 @@ export function ConnectButtonL1({
     useEffect(() => {
         if (l1Wallet.isConnected && l1Account?.address) {
             const walletType = l1Wallet.currentWallet?.name || 'unknown';
-
-            // Set wallet group for future events
             setWalletUserGroup({ l1WalletType: walletType });
-
-            // Send connection event
             ampli.connectedL1Wallet({ walletType });
         } else {
-            // Clear wallet group when disconnected
             clearWalletUserGroup('l1');
         }
     }, [l1Wallet.isConnected, l1Wallet.currentWallet?.name, l1Account?.address]);

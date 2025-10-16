@@ -19,14 +19,9 @@ export function ConnectButtonL2({
         if (l2Account.isConnected && l2Account.address) {
             const walletType = l2Account.connector?.name || 'unknown';
             const chainId = l2Account.chainId?.toString() || 'unknown';
-
-            // Set wallet group for future events
             setWalletUserGroup({ l2WalletType: walletType, l2ChainId: chainId });
-
-            // Send connection event
             ampli.connectedL2Wallet({ walletType, chainId });
         } else {
-            // Clear wallet group when disconnected
             clearWalletUserGroup('l2');
         }
     }, [l2Account.isConnected, l2Account.address, l2Account.connector?.name, l2Account.chainId]);
