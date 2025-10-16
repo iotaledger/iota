@@ -270,19 +270,11 @@ where
         locked.is_empty()
     }
 
-    fn unbounded_iter(&'a self) -> Self::Iterator {
-        unimplemented!("unimplemented API");
-    }
-
     fn iter_with_bounds(
         &'a self,
         _lower_bound: Option<K>,
         _upper_bound: Option<K>,
     ) -> Self::Iterator {
-        unimplemented!("unimplemented API");
-    }
-
-    fn range_iter(&'a self, _range: impl RangeBounds<K>) -> Self::Iterator {
         unimplemented!("unimplemented API");
     }
 
