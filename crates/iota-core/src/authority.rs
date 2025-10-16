@@ -934,7 +934,7 @@ impl AuthorityState {
             let (kind, signer, _) = tx_data.execution_parts();
 
             // Execute the Move authenticator.
-            let validation_result = epoch_store.executor().validate_transaction(
+            let (_, validation_result) = epoch_store.executor().validate_transaction(
                 self.get_backing_store().as_ref(),
                 protocol_config,
                 self.metrics.limits_metrics.clone(),
@@ -1778,77 +1778,69 @@ impl AuthorityState {
 
         let (kind, signer, gas) = tx_data.execution_parts();
 
-        let authenticator_computation_cost = if let Some(move_authenticator) =
-            certificate.move_authenticator()
-        {
-            // It is supposed that `Move authentication` availability is checked in
-            // `SenderSignedData::validity_check`.
+        let (authenticator_computation_cost, validation_result, authenticator_input_objects) =
+            if let Some(move_authenticator) = certificate.move_authenticator() {
+                // It is supposed that `Move authentication` availability is checked in
+                // `SenderSignedData::validity_check`.
 
-            // Check basic `object_to_authenticate` preconditions and get its components.
-            let (
-                auth_account_object_id,
-                auth_account_object_seq_number,
-                auth_account_object_digest,
-            ) = move_authenticator.object_to_authenticate_components()?;
+                // Check basic `object_to_authenticate` preconditions and get its components.
+                let (
+                    auth_account_object_id,
+                    auth_account_object_seq_number,
+                    auth_account_object_digest,
+                ) = move_authenticator.object_to_authenticate_components()?;
 
-            // Since the `object_to_authenticate` components are provided, it is supposed
-            // that the account object is loaded.
-            let account_object = account_object.expect("Account object must be provided");
+                // Since the `object_to_authenticate` components are provided, it is supposed
+                // that the account object is loaded.
+                let account_object = account_object.expect("Account object must be provided");
 
-            let authenticator_info = self.check_move_account(
-                auth_account_object_id,
-                auth_account_object_seq_number,
-                auth_account_object_digest,
-                account_object,
-                &signer,
-            )?;
+                let authenticator_info = self.check_move_account(
+                    auth_account_object_id,
+                    auth_account_object_seq_number,
+                    auth_account_object_digest,
+                    account_object,
+                    &signer,
+                )?;
 
-            let authenticator_input_objects = authenticator_input_objects.expect(
+                let authenticator_input_objects = authenticator_input_objects.expect(
                 "In case of a `MoveAuthenticator` signature, the authenticator input objects must be provided",
             );
 
-            // Check the `MoveAuthenticator` input objects.
-            let (authenticator_gas_status, authenticator_input_objects) =
-                Self::check_move_authenticator_inputs_for_executing(
-                    protocol_config,
-                    reference_gas_price,
-                    tx_data,
-                    authenticator_input_objects,
-                    &tx_input_objects,
-                )?;
+                // Check the `MoveAuthenticator` input objects.
+                let (authenticator_gas_status, authenticator_input_objects) =
+                    Self::check_move_authenticator_inputs_for_executing(
+                        protocol_config,
+                        reference_gas_price,
+                        tx_data,
+                        authenticator_input_objects,
+                        &tx_input_objects,
+                    )?;
 
-            // Execute the Move authenticator.
-            let validation_result = epoch_store.executor().validate_transaction(
-                backing_store,
-                protocol_config,
-                self.metrics.limits_metrics.clone(),
-                &epoch_id,
-                epoch_start_timestamp,
-                authenticator_gas_status,
-                move_authenticator.to_owned(),
-                authenticator_info,
-                authenticator_input_objects,
-                kind.clone(),
-                signer,
-                tx_digest,
-                &mut None,
-            );
-
-            match validation_result {
-                Ok(authenticator_computation_cost) => authenticator_computation_cost,
-                Err(validation_error) => {
-                    // If an error occurs during execution, the storage, effects, and the execution
-                    // error itself are returned so that the gas can be charged.
-                    // I case of validation we do not support this, so the only available option
-                    // here is to return an error.
-                    return Err(IotaError::MoveAuthenticatorExecutionFailure {
-                        error: validation_error.to_string(),
-                    });
-                }
-            }
-        } else {
-            0
-        };
+                // Execute the Move authenticator.
+                let (authenticator_computation_cost, validation_result) =
+                    epoch_store.executor().validate_transaction(
+                        backing_store,
+                        protocol_config,
+                        self.metrics.limits_metrics.clone(),
+                        &epoch_id,
+                        epoch_start_timestamp,
+                        authenticator_gas_status,
+                        move_authenticator.to_owned(),
+                        authenticator_info,
+                        authenticator_input_objects.clone(),
+                        kind.clone(),
+                        signer,
+                        tx_digest,
+                        &mut None,
+                    );
+                (
+                    authenticator_computation_cost,
+                    validation_result,
+                    Some(authenticator_input_objects),
+                )
+            } else {
+                (0, Ok(()), None)
+            };
 
         // The cost of partially re-auditing a transaction before execution is
         // tolerated.
@@ -1867,8 +1859,8 @@ impl AuthorityState {
         self.check_owned_locks(&owned_object_refs)?;
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
-        let (inner_temp_store, _, mut effects, execution_error_opt) =
-            epoch_store.executor().execute_transaction_to_effects(
+        let (inner_temp_store, _, mut effects, execution_error_opt) = match validation_result {
+            Ok(_) => epoch_store.executor().execute_transaction_to_effects(
                 backing_store,
                 protocol_config,
                 self.metrics.limits_metrics.clone(),
@@ -1887,7 +1879,33 @@ impl AuthorityState {
                 signer,
                 tx_digest,
                 &mut None,
-            );
+            ),
+            Err(validation_error) => {
+                let authenticator_input_objects = authenticator_input_objects
+                    .expect("Inputs must be present if validation failed");
+                let (inner_temp_store, gas_status, mut effects, execution_error) =
+                    epoch_store.executor().invalid_transaction_to_effects(
+                        backing_store,
+                        protocol_config,
+                        self.metrics.limits_metrics.clone(),
+                        self.config
+                            .expensive_safety_check_config
+                            .enable_deep_per_tx_iota_conservation_check(),
+                        self.config.certificate_deny_config.certificate_deny_set(),
+                        &epoch_id,
+                        epoch_start_timestamp,
+                        tx_gas_status,
+                        gas,
+                        validation_error,
+                        authenticator_input_objects,
+                        tx_input_objects,
+                        kind,
+                        signer,
+                        tx_digest,
+                    );
+                (inner_temp_store, gas_status, effects, Err(execution_error))
+            }
+        };
 
         fail_point_if!("cp_execution_nondeterminism", || {
             #[cfg(msim)]

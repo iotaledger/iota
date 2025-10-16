@@ -2900,13 +2900,13 @@ impl InputObjectKind {
 /// The result of reading an object for execution. Because shared objects may be
 /// deleted, one possible result of reading a shared object is that
 /// ObjectReadResultKind::Deleted is returned.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ObjectReadResult {
     pub input_object_kind: InputObjectKind,
     pub object: ObjectReadResultKind,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum ObjectReadResultKind {
     Object(Object),
     // The version of the object that the transaction intended to read, and the digest of the tx
@@ -3086,6 +3086,7 @@ impl std::fmt::Debug for InputObjects {
 
 // An InputObjects new-type that has been verified by iota-transaction-checks,
 // and can be safely passed to execution.
+#[derive(Clone)]
 pub struct CheckedInputObjects(InputObjects);
 
 // DO NOT CALL outside of iota-transaction-checks, genesis, or replay.
@@ -3297,6 +3298,10 @@ impl InputObjects {
 
     pub fn push(&mut self, object: ObjectReadResult) {
         self.objects.push(object);
+    }
+
+    pub fn extend(&mut self, other: Self) {
+        self.objects.extend(other.objects);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ObjectReadResult> {
