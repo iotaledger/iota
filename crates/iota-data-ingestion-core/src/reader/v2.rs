@@ -222,8 +222,8 @@ impl CheckpointReaderActor {
                 || self.is_checkpoint_ahead(&checkpoints[0], self.current_checkpoint_number))
     }
 
-    /// Fetch checkpoints from the historical object store and stream them to a
-    /// channel.
+    /// Fetches checkpoints from the historical object store and streams them to
+    /// a channel.
     async fn fetch_historical(
         &mut self,
         historical_reader: &HistoricalReader,
@@ -290,7 +290,7 @@ impl CheckpointReaderActor {
         Ok(())
     }
 
-    /// Fetch checkpoints from the live object store and stream them to a
+    /// Fetches checkpoints from the live object store and streams them to a
     /// channel.
     async fn fetch_live(
         &mut self,
@@ -310,7 +310,7 @@ impl CheckpointReaderActor {
     }
 
     /// Fetches checkpoints from the fullnode trough a gRPC streaming connection
-    /// and stream them to a channel.
+    /// and streams them to a channel.
     async fn fetch_from_fullnode(&mut self, client: &mut CheckpointClient) -> IngestionResult<()> {
         // the genesis checkpoint needs to be handled differently since it may be
         // processed in chunks due to its size.
@@ -322,7 +322,7 @@ impl CheckpointReaderActor {
     }
 
     /// Fetches the genesis checkpoint from the fullnode through a gRPC
-    /// streaming connection.
+    /// streaming connection and streams them to a channel.
     async fn fetch_genesis_checkpoint_from_fullnode(
         &mut self,
         client: &mut CheckpointClient,
