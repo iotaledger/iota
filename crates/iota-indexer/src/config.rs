@@ -488,7 +488,7 @@ pub mod deprecated {
                     db_name
                 ))),
                 _ => bail!(
-                    "unvalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided"
+                    "invalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided"
                 ),
             }
         }
