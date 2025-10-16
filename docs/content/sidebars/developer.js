@@ -493,6 +493,11 @@ const developer = [
                         type: 'doc',
                         id: 'developer/workshops/core/III-capabilities-state-tests',
                         label: 'Capabilities, Type-State, Abilities & Tests',
+                    },
+                    {
+                        type: 'doc',
+                        id: 'developer/workshops/core/IV-capstone-dapp-kit',
+                        label: 'Wrapping it up - Dapp',
                     }
                 ],
             },
