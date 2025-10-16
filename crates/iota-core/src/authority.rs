@@ -3243,7 +3243,9 @@ impl AuthorityState {
         );
 
         if cfg!(debug_assertions) {
-            cur_epoch_store.check_all_executed_transactions_in_checkpoint();
+            cur_epoch_store
+                .check_all_executed_transactions_in_checkpoint()
+                .expect("failed to check all executed transactions in checkpoint");
         }
 
         self.get_reconfig_api()
@@ -5076,7 +5078,7 @@ impl AuthorityState {
             self.get_object_store().clone(),
             expensive_safety_check_config,
             epoch_last_checkpoint,
-        );
+        )?;
         self.epoch_store.store(new_epoch_store.clone());
         Ok(new_epoch_store)
     }
