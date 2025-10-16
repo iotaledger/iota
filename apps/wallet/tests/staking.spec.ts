@@ -8,93 +8,140 @@ import {
     navigateToStakePage,
     navigateToUnstakePage,
     setupWalletWithFunds,
+    splitCoinsTransaction,
     submitAndVerifyStaking,
     submitAndVerifyUnstaking,
 } from './utils/staking';
+import { generateKeypair } from './utils/localnet';
+import { importWallet } from './utils/auth';
+import { LONG_TIMEOUT } from './constants/timeout.constants';
 
 const SHORT_TIMEOUT = 30 * 1000;
 const STAKE_AMOUNT = 100;
 
-test('staking', async ({ page, extensionUrl }) => {
-    test.setTimeout(4 * SHORT_TIMEOUT);
+test.describe('Staking functionality', () => {
+    test.describe.configure({ mode: 'parallel' });
 
-    await setupWalletWithFunds(page, extensionUrl);
-
-    await navigateToStakePage(page);
-
-    await page.getByPlaceholder('0 IOTA').fill(STAKE_AMOUNT.toString());
-    await submitAndVerifyStaking(page);
-
-    await navigateToUnstakePage(page);
-    await submitAndVerifyUnstaking(page);
-    await expect(page.getByText(`${STAKE_AMOUNT} IOTA`)).not.toBeVisible({
-        timeout: SHORT_TIMEOUT,
+    test.describe('Basic staking', () => {
+        test('should stake a specific amount and then unstake it', async ({
+            page,
+            extensionUrl,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            await setupWalletWithFunds(page, extensionUrl);
+            await navigateToStakePage(page);
+            await page.getByPlaceholder('0 IOTA').fill(STAKE_AMOUNT.toString());
+            await submitAndVerifyStaking(page);
+            await navigateToUnstakePage(page);
+            await submitAndVerifyUnstaking(page);
+            await expect(page.getByText(`${STAKE_AMOUNT} IOTA`)).not.toBeVisible({
+                timeout: SHORT_TIMEOUT,
+            });
+        });
     });
-});
 
-test('stake max amount using Max button', async ({ page, extensionUrl }) => {
-    test.setTimeout(4 * SHORT_TIMEOUT);
+    test.describe('Staking with amount selection methods', () => {
+        test('should stake using Max button and then unstake', async ({ page, extensionUrl }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            await setupWalletWithFunds(page, extensionUrl);
+            await navigateToStakePage(page);
+            await page.getByRole('button', { name: 'Max' }).click();
+            await submitAndVerifyStaking(page);
+            await navigateToUnstakePage(page);
+            await submitAndVerifyUnstaking(page);
+        });
 
-    await setupWalletWithFunds(page, extensionUrl);
+        test('should stake using Recommended amount button and then unstake', async ({
+            page,
+            extensionUrl,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            await setupWalletWithFunds(page, extensionUrl);
+            await navigateToStakePage(page);
+            await page.getByRole('button', { name: 'Max' }).click();
+            await page.getByText('Set recommended amount').click();
+            await submitAndVerifyStaking(page);
+            await navigateToUnstakePage(page);
+            await submitAndVerifyUnstaking(page);
+        });
+    });
 
-    await navigateToStakePage(page);
+    test.describe('Edge case staking amounts', () => {
+        test('should stake minimum allowed amount and then unstake', async ({
+            page,
+            extensionUrl,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            await setupWalletWithFunds(page, extensionUrl);
+            await navigateToStakePage(page);
+            await page.getByPlaceholder('0 IOTA').fill(MIN_NUMBER_IOTA_TO_STAKE.toString());
+            await submitAndVerifyStaking(page);
+            await navigateToUnstakePage(page);
+            await submitAndVerifyUnstaking(page);
+        });
 
-    await page.getByRole('button', { name: 'Max' }).click();
-    await submitAndVerifyStaking(page);
+        test('should stake max amount minus 1 nano and then unstake', async ({
+            page,
+            extensionUrl,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            await setupWalletWithFunds(page, extensionUrl);
+            await navigateToStakePage(page);
 
-    await navigateToUnstakePage(page);
-    await submitAndVerifyUnstaking(page);
-});
+            await page.getByRole('button', { name: 'Max' }).click();
+            const inputField = page.getByPlaceholder('0 IOTA');
+            const maxAmountValue = await inputField.inputValue();
+            const maxAmount = parseFloat(maxAmountValue);
+            const adjustedAmount = maxAmount - 0.0000001;
+            await inputField.fill('');
+            await inputField.fill(adjustedAmount.toString());
 
-test('stake max recommended amount', async ({ page, extensionUrl }) => {
-    test.setTimeout(4 * SHORT_TIMEOUT);
+            await submitAndVerifyStaking(page);
+            await navigateToUnstakePage(page);
+            await submitAndVerifyUnstaking(page);
+        });
 
-    await setupWalletWithFunds(page, extensionUrl);
+        test('should stake using multiple small objects and then unstake', async ({
+            page,
+            extensionUrl,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            const { mnemonic, keypair } = await generateKeypair();
+            await importWallet(page, extensionUrl, mnemonic);
+            await page.getByText(/Request localnet tokens/i).click();
+            await expect(page.getByTestId('coin-balance')).not.toHaveText('0', {
+                timeout: SHORT_TIMEOUT,
+            });
 
-    await navigateToStakePage(page);
+            await splitCoinsTransaction(keypair, 99, 10000000000);
 
-    await page.getByRole('button', { name: 'Max' }).click();
-    await page.getByText('Set recommended amount').click();
-    await submitAndVerifyStaking(page);
+            await navigateToStakePage(page);
+            await page.getByPlaceholder('0 IOTA').fill('499');
+            await submitAndVerifyStaking(page);
 
-    await navigateToUnstakePage(page);
-    await submitAndVerifyUnstaking(page);
-});
+            await navigateToUnstakePage(page);
+            await submitAndVerifyUnstaking(page);
+        });
 
-test('stake min amount', async ({ page, extensionUrl }) => {
-    test.setTimeout(4 * SHORT_TIMEOUT);
+        test('should show error message when using over 50 small objects', async ({
+            page,
+            extensionUrl,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            const { mnemonic, keypair } = await generateKeypair();
+            await importWallet(page, extensionUrl, mnemonic);
+            await page.getByText(/Request localnet tokens/i).click();
+            await expect(page.getByTestId('coin-balance')).not.toHaveText('0', {
+                timeout: SHORT_TIMEOUT,
+            });
 
-    await setupWalletWithFunds(page, extensionUrl);
+            await splitCoinsTransaction(keypair, 99, 10000000000);
 
-    await navigateToStakePage(page);
-
-    await page.getByPlaceholder('0 IOTA').fill(MIN_NUMBER_IOTA_TO_STAKE.toString());
-    await submitAndVerifyStaking(page);
-
-    await navigateToUnstakePage(page);
-    await submitAndVerifyUnstaking(page);
-});
-
-test('stake max amount minus 1 nano', async ({ page, extensionUrl }) => {
-    test.setTimeout(4 * SHORT_TIMEOUT);
-
-    await setupWalletWithFunds(page, extensionUrl);
-
-    await navigateToStakePage(page);
-
-    await page.getByRole('button', { name: 'Max' }).click();
-
-    const inputField = page.getByPlaceholder('0 IOTA');
-    const maxAmountStr = await inputField.inputValue();
-
-    const maxAmount = parseFloat(maxAmountStr);
-    const adjustedAmount = Math.max(0, maxAmount - 0.0000001);
-
-    await inputField.fill('');
-    await inputField.fill(adjustedAmount.toString());
-
-    await submitAndVerifyStaking(page);
-
-    await navigateToUnstakePage(page);
-    await submitAndVerifyUnstaking(page);
+            await navigateToStakePage(page);
+            await page.getByPlaceholder('0 IOTA').fill('500');
+            await expect(page.getByTestId('error-info-box')).toBeVisible({
+                timeout: SHORT_TIMEOUT,
+            });
+        });
+    });
 });
