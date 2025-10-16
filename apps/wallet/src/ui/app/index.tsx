@@ -61,6 +61,7 @@ import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
 import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder/AccountsFinderIntroPage';
 import { ImportKeystone } from './pages/accounts/ImportKeystone';
+import { useLegacyBrowser } from '@iota/core';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -84,6 +85,8 @@ export function App() {
         const menuVisible = !HIDDEN_MENU_PATHS.some((aPath) => location.pathname.startsWith(aPath));
         dispatch(setNavVisibility(menuVisible));
     }, [location, dispatch]);
+
+    useLegacyBrowser();
 
     useInitialPageView();
     const { data: accounts } = useAccounts();

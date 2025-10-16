@@ -1,6 +1,6 @@
 {
     "extends": "./configs/ts/tsconfig.dev",
-    "include": ["src", "configs", "tests"],
+    "include": ["src", "configs", "tests", "../core/src/utils/isLegacyBrowser.ts"],
     "compilerOptions": {
         "noEmit": true
     }
