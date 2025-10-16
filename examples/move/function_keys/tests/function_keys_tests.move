@@ -31,7 +31,7 @@ use std::ascii;
 // Happy path (delegated): attach → grant(pubkey, function) → authenticate OK
 // ----------------------------------------------------------------------------
 #[test]
-fun test_fk_authenticate_happy_path_delegated() {
+fun test_fk_authenticate_happy_path() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
@@ -53,14 +53,14 @@ fun test_fk_authenticate_happy_path_delegated() {
 
         scen::return_shared(account);
     };
-    let delegated_sender = @0xA;
-    // TX 2: delegated authenticate (sender != account), exactly one matching MoveCall
-    scenario.next_tx(delegated_sender);
+
+    // TX 2: exactly one matching MoveCall
+    scenario.next_tx(account_address);
     {
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
 
         let account = scenario.take_shared<IOTAccount>();
-        let ctx = create_tx_context_for_testing(delegated_sender, digest);
+        let ctx = create_tx_context_for_testing(account_address, digest);
 
         let mut cmds = vector::empty<Command>();
         vector::push_back(
@@ -100,38 +100,14 @@ fun test_fk_authenticate_happy_path_owner() {
 
     let owner_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
     let account_address = create_iotaccount_with_pk_for_testing(scenario, owner_pk);
-    let package_id = object::id_from_bytes(iota::hash::blake2b256(&b"0x123"));
 
-    // TX 1: attach FK store + grant permission for this pub_key
-    scenario.next_tx(account_address);
-    {
-        let mut account = scenario.take_shared<IOTAccount>();
-        let ctx = scen::ctx(scenario);
-
-        let fk = make_func_key(package_id.to_address(), b"wallet", b"withdraw");
-
-        function_keys::grant_permission(&mut account, owner_pk, fk, ctx);
-
-        scen::return_shared(account);
-    };
-    // TX 2: delegated authenticate (sender != account), exactly one matching MoveCall
+    // TX 1
     scenario.next_tx(account_address);
     {
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-
         let account = scenario.take_shared<IOTAccount>();
         let ctx = create_tx_context_for_testing(account_address, digest);
-
-        let mut cmds = vector::empty<Command>();
-        vector::push_back(
-            &mut cmds,
-            make_move_call_for_testing(
-                package_id,
-                b"wallet".to_ascii_string(),
-                b"withdraw".to_ascii_string(),
-            ),
-        );
-        let auth_ctx = create_auth_context_with_commands_for_testing(cmds);
+        let auth_ctx = create_auth_context_with_commands_for_testing(vector::empty<Command>());
 
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
@@ -153,7 +129,7 @@ fun test_fk_authenticate_happy_path_owner() {
 // ----------------------------------------------------------------------------
 #[test]
 #[expected_failure(abort_code = function_keys::EUnauthorized)]
-fun test_fk_authenticate_unauthorized_delegated() {
+fun test_fk_authenticate_unauthorized() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
@@ -173,14 +149,13 @@ fun test_fk_authenticate_unauthorized_delegated() {
 
         scen::return_shared(account);
     };
-    let delegated_sender = @0xA;
-    // delegated authenticate calling "deposit" instead → EUnauthorized
-    scenario.next_tx(delegated_sender);
+
+    scenario.next_tx(account_address);
     {
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
 
         let account = scenario.take_shared<IOTAccount>();
-        let ctx = create_tx_context_for_testing(delegated_sender, digest);
+        let ctx = create_tx_context_for_testing(account_address, digest);
 
         let mut cmds = vector::empty<Command>();
         vector::push_back(
@@ -213,7 +188,7 @@ fun test_fk_authenticate_unauthorized_delegated() {
 // ----------------------------------------------------------------------------
 #[test]
 #[expected_failure(abort_code = function_keys::EInvalidAmountOfCommands)]
-fun test_fk_authenticate_too_many_commands_delegated() {
+fun test_fk_authenticate_too_many_commands() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
@@ -234,14 +209,12 @@ fun test_fk_authenticate_too_many_commands_delegated() {
         scen::return_shared(account);
     };
 
-    // delegated authenticate with 2 commands → EInvalidAmountOfCommands
     scenario.next_tx(account_address);
     {
-        let delegated_sender = @0xA;
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
 
         let account = scenario.take_shared<IOTAccount>();
-        let ctx = create_tx_context_for_testing(delegated_sender, digest);
+        let ctx = create_tx_context_for_testing(account_address, digest);
 
         let mut cmds = vector::empty<Command>();
         vector::push_back(
@@ -282,7 +255,7 @@ fun test_fk_authenticate_too_many_commands_delegated() {
 // ----------------------------------------------------------------------------
 #[test]
 #[expected_failure(abort_code = function_keys::EUnauthorized)]
-fun test_fk_revoke_then_fails_delegated() {
+fun test_fk_revoke_then_fails() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
@@ -304,14 +277,12 @@ fun test_fk_revoke_then_fails_delegated() {
         scen::return_shared(account);
     };
 
-    // delegated authenticate should now fail with EUnauthorized
     scenario.next_tx(account_address);
     {
-        let delegated_sender = @0xA;
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
 
         let account = scenario.take_shared<IOTAccount>();
-        let ctx = create_tx_context_for_testing(delegated_sender, digest);
+        let ctx = create_tx_context_for_testing(account_address, digest);
 
         let mut cmds = vector::empty<Command>();
         vector::push_back(
@@ -412,7 +383,7 @@ fun test_fk_remove_missing_should_fail() {
 // ----------------------------------------------------------------------------
 #[test]
 #[expected_failure(abort_code = function_keys::EFunctionKeysNotInitialized)]
-fun test_fk_authenticate_without_init_delegated() {
+fun test_fk_authenticate_without_init() {
     let mut scenario_val = scen::begin(@0x0);
     let scenario = &mut scenario_val;
 
@@ -466,14 +437,6 @@ fun test_fk_authenticate_unauthorized_granted_permission() {
     let user_public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
     let owner_pk = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
     create_iotaccount_with_pk_for_testing(&mut sc, owner_pk);
-
-    // scen::next_tx(&mut sc, account_addr);
-    // {
-    //     let mut acc = scen::take_shared<IOTAccount>(&sc);
-    //     let ctx = scen::ctx(&mut sc);
-    //     function_keys::attach(&mut acc, ctx);
-    //     scen::return_shared(acc);
-    // };
 
     // Try to grant from a different sender → must fail
     scen::next_tx(&mut sc, @0xA);

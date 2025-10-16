@@ -38,7 +38,7 @@ use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
 use iota::ed25519;
 use iota::hex::decode;
-use iotaccount::iotaccount::{builder, IOTAccount};
+use iotaccount::iotaccount::{builder, ensure_tx_sender_is_account, IOTAccount};
 
 // --------------------
 // Errors
@@ -134,6 +134,8 @@ public fun authenticate(
     auth_ctx: &AuthContext,
     ctx: &TxContext,
 ) {
+    // Check that the sender of this transaction is the account.
+    ensure_tx_sender_is_account(account, ctx);
     // Decode signature once for both attempts.
     let sig_bytes = decode(signature);
     // Verify against the stored owner public key.
@@ -165,7 +167,11 @@ public fun borrow_public_key(account: &IOTAccount): &vector<u8> {
 /// Creates a new `IOTAccount` as a shared object with the given authenticator, but without
 /// attaching the Function Keys store. This is useful for testing purposes.
 #[test_only]
-public fun create_without_fk_store(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
+public fun create_without_fk_store(
+    public_key: vector<u8>,
+    authenticator: AuthenticatorInfoV1,
+    ctx: &mut TxContext,
+) {
     let account = builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
         .finish();
