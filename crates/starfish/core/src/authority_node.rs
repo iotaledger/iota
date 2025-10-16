@@ -231,8 +231,7 @@ impl ConsensusAuthority {
             dag_state.clone(),
             store,
             shard_reconstructor.transaction_message_sender(),
-            cordial_knowledge.connection_knowledge_senders(),
-            cordial_knowledge.cordial_knowledge_sender(),
+            cordial_knowledge.clone(),
         ));
 
         let subscriber = Subscriber::new(

@@ -52,7 +52,7 @@ use crate::{
     synchronizer::SynchronizerHandle,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
-use crate::cordial_knowledge::CordialKnowledgeMessage;
+use crate::cordial_knowledge::{CordialKnowledgeHandle, CordialKnowledgeMessage};
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
@@ -138,8 +138,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
         transaction_message_sender: Sender<Vec<TransactionMessage>>,
-        connection_knowledge_senders: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
-        cordial_knowledge_sender: UnboundedSender<CordialKnowledgeMessage>,
+        cordial_knowledge_handle: Arc<CordialKnowledgeHandle>,
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
@@ -159,8 +158,8 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             store,
             received_block_headers: FilterForHeaders::new(),
             transaction_message_sender,
-            connection_knowledge_senders,
-            cordial_knowledge_sender
+            connection_knowledge_senders: cordial_knowledge_handle.connection_knowledge_senders(),
+            cordial_knowledge_sender: cordial_knowledge_handle.cordial_knowledge_sender(),
         }
     }
 }
@@ -1318,15 +1317,15 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
+
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
@@ -1357,7 +1356,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1400,15 +1399,14 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
@@ -1439,7 +1437,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1492,15 +1490,15 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
+
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
@@ -1531,7 +1529,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1576,15 +1574,14 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
@@ -1615,7 +1612,7 @@ mod tests {
             dag_state,
             store,
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -1718,15 +1715,14 @@ mod tests {
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
@@ -1757,7 +1753,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
 
         // Create some blocks for a few authorities. Create some equivocations as well
@@ -1808,6 +1804,10 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -1850,11 +1850,6 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
         let network_client = Arc::new(FakeNetworkClient::default());
 
         // Set up synchronizers
@@ -1889,7 +1884,7 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
 
         // Set up DAG with blocks
@@ -2081,6 +2076,10 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2121,11 +2120,6 @@ mod tests {
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -2158,7 +2152,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2242,6 +2236,10 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2282,11 +2280,6 @@ mod tests {
         });
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
         let transactions_synchronizer = TransactionsSynchronizer::start(
@@ -2318,7 +2311,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2417,6 +2410,11 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
+
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -2491,7 +2489,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
-            cordial_knowledge.connection_knowledge_senders(),
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2685,6 +2683,11 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
+
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2723,11 +2726,6 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -2763,7 +2761,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
 
         // Set up DAG with blocks
@@ -2831,6 +2829,10 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2869,11 +2871,6 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -2909,7 +2906,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
 
         // Set up DAG with blocks
@@ -2994,6 +2991,10 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -3036,11 +3037,6 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -3076,7 +3072,7 @@ mod tests {
             dag_state.clone(),
             store.clone(),
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
 
         // Set up DAG with blocks
@@ -3187,6 +3183,10 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(
+            context.clone(),
+            dag_state.clone(),
+        );
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -3225,11 +3225,6 @@ mod tests {
 
         let (_tx_block_broadcast, rx_block_broadcast) = broadcast::channel(100);
         let (tx_message_sender, _tx_message_receiver) = mpsc::channel(100);
-        let channels: Vec<_> = (0..context.committee.size())
-            .map(|_| mpsc::channel(100))
-            .collect();
-        let (connection_knowledge_senders, _tx_message_receivers): (Vec<_>, Vec<_>) =
-            channels.into_iter().unzip();
 
         let network_client = Arc::new(FakeNetworkClient::default());
 
@@ -3265,7 +3260,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
-            connection_knowledge_senders,
+            cordial_knowledge,
         ));
         let mut encoder = create_encoder(&context);
 
