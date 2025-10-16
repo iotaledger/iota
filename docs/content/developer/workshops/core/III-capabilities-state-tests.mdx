@@ -58,6 +58,7 @@ module scholarflow::access {
     use iota::transfer;
     use iota::event;
     use iota::table::{Self as table, Table};
+    use scholarflow::grant; // Reuse the AdminCap minted in grant::init
 
     /// Errors
     const ENotAdmin: u64 = 1;
@@ -66,8 +67,7 @@ module scholarflow::access {
     const EAlreadyHasRole: u64 = 4;
     const ENoSuchRole: u64 = 5;
 
-    /// Capability anchoring authority to manage roles.
-    public struct AdminCap has key { id: UID }
+    // Capability is defined in scholarflow::grant::AdminCap (minted in init).
 
     /// Roles tracked in a shared Roles object.
     public struct Roles has key {
@@ -82,7 +82,7 @@ module scholarflow::access {
     public struct RoleRevoked has copy, drop, store { role: vector<u8>, who: address, by: address }
 
     /// Create and share role registry (seeded with publisher as admin).
-    public entry fun create_roles(_cap: &AdminCap, ctx: &mut TxContext) {
+    public entry fun create_roles(_cap: &grant::AdminCap, ctx: &mut TxContext) {
         // Step 1: Get the transaction sender address.
         // Step 2: Create a new Roles object with empty admin/issuer/revoker tables.
         // Step 3: Add the sender address to the admins table.
@@ -93,7 +93,7 @@ module scholarflow::access {
 
     /// Grant a role (admin-gated).
     public entry fun grant_role(
-        _roles: &mut Roles, _role: vector<u8>, _who: address, _cap: &AdminCap
+        _roles: &mut Roles, _role: vector<u8>, _who: address, _cap: &grant::AdminCap
     ) {
         // Gate with AdminCap (_cap). Suggested flow:
         // 1) Match role bytes: b"admin" | b"issuer" | b"revoker".
@@ -105,7 +105,7 @@ module scholarflow::access {
 
     /// Revoke a role (admin-gated).
     public entry fun revoke_role(
-        _roles: &mut Roles, _role: vector<u8>, _who: address, _cap: &AdminCap
+        _roles: &mut Roles, _role: vector<u8>, _who: address, _cap: &grant::AdminCap
     ) {
         // Gate with AdminCap (_cap). Suggested flow:
         // 1) Match role bytes and check presence with table::contains; abort with ENoSuchRole if missing.
@@ -139,89 +139,152 @@ module scholarflow::access {
 Roles let you separate duties (admin vs issuer vs revoker) and rotate safely without republishing contracts.
 :::
 
-## Lifecycle as type‑state
+## Lifecycle (pending queue + approval mint)
 
-Create `sources/lifecycle.move`. Encode lifecycle with explicit entries and role gates. Avoid raw “status” unless you strictly guard transitions.
+Create `sources/lifecycle.move`. Encode a pending queue in a shared object and mint on approval.
 
 ```move
 module scholarflow::lifecycle {
-    use iota::object::{Self, UID, ID};
-    use iota::tx_context::{Self, TxContext};
-    use iota::transfer;
     use iota::event;
-    use scholarflow::access;
+    use iota::object::{Self as object, UID, ID};
+    use iota::transfer;
+    use iota::tx_context::{Self as tx_context, TxContext};
+    use iota::table::{Self as table, Table};
+    use scholarflow::{access, grant};
+    use std::vector;
 
-    /// Errors
     const EOnlyIssuer: u64 = 10;
     const EOnlyRevoker: u64 = 11;
     const EInvalidTransition: u64 = 12;
+    const ENoRequest: u64 = 13;
 
-    /// States (string tags to keep events human-readable).
     const S_PENDING: vector<u8> = b"pending";
     const S_ACTIVE: vector<u8>  = b"active";
     const S_REVOKED: vector<u8> = b"revoked";
 
-    /// Lifecycle events
-    public struct GrantRequested has copy, drop, store { student: address }
+    /// Emitted when a student places/updates a grant request with an amount.
+    public struct GrantRequested has copy, drop, store { student: address, amount: u64 }
     public struct GrantApproved  has copy, drop, store { grant_id: ID, student: address }
     public struct GrantRevoked   has copy, drop, store { grant_id: ID, by: address }
 
-    /// Resource with explicit lifecycle.
-    public struct Grant has key {
+    /// Shared queue of requested grants: student -> requested amount.
+    public struct Requests has key {
         id: UID,
-        student: address,
-        amount: u64,
-        state: vector<u8>, // must be guarded by entries below
+        by_student: Table<address, u64>,
     }
 
-    /// Request a grant (creates a pending resource owned by the issuer for review).
-    public entry fun request_grant(_student: address, _amount: u64, _roles: &access::Roles, _ctx: &mut TxContext) {
-        // Step 1: Read sender from `_ctx`.
-        // Step 2: Ensure sender is an issuer via `access::is_issuer`.
-        // Step 3: Emit GrantRequested with student.
-        // Step 4: Create a Grant with state = S_PENDING.
-        // Step 5: Transfer the new Grant to the issuer (sender) for review.
+    /// Create and share the Requests queue.
+    public entry fun create_requests(_cap: &grant::AdminCap, _ctx: &mut TxContext) {
+        // Step 1: Create Requests { id: object::new(ctx), by_student: table::new<address,u64>(ctx) }.
+        // Step 2: share_object the queue.
         abort 9001
     }
 
-    /// Approve a pending grant (issuer-only) → ACTIVE and transfer to student.
-    public entry fun approve_grant(_g: &mut Grant, _roles: &access::Roles) {
-        // Implementer guidance:
-        // 1) Ensure only an issuer can approve. Typical check uses tx_context::sender(ctx),
-        //    so add a TxContext param in your code if needed, or require an issuer-specific Cap.
-        // 2) assert!(_g.state == S_PENDING, EInvalidTransition);
-        // 3) Set _g.state = S_ACTIVE;
-        // 4) event::emit(GrantApproved { grant_id: object::id(_g), student: _g.student });
-        // 5) If policy is "transfer on approve", transfer::transfer(*_g, _g.student) and redesign to pass by value.
+    /// A student requests a grant; upsert (student -> amount) and emit event.
+    public entry fun request_grant(
+        _requests: &mut Requests,
+        _amount: u64,
+        _ctx: &mut TxContext,
+    ) {
+        // Step 1: student = tx_context::sender(ctx).
+        // Step 2: If contains, remove existing; then insert student -> amount.
+        // Step 3: event::emit(GrantRequested { student, amount }).
         abort 9001
     }
 
-    /// Revoke an active grant (revoker-only) → REVOKED (remain owned or reclaim? define policy).
-    public entry fun revoke_grant(_g: &mut Grant, _roles: &access::Roles) {
-        // Implementer guidance:
-        // 1) Ensure only a revoker can revoke (via tx_context::sender(ctx) or a RevokerCap).
-        // 2) assert!(_g.state == S_ACTIVE, EInvalidTransition);
-        // 3) Set _g.state = S_REVOKED;
-        // 4) event::emit(GrantRevoked { grant_id: object::id(_g), by: /* actor */ 0x0 });
-        // 5) Decide policy for ownership on revoke (stay with owner, clawback, or park under admin).
+    /// Approve a student's pending request: remove from queue, mint via grant, transfer to student, emit event.
+    public entry fun approve_grant(
+        _requests: &mut Requests,
+        _student: address,
+        _roles: &access::Roles,
+        _cap: &grant::AdminCap,
+        _ctx: &mut TxContext
+    ) {
+        // Step 1: assert!(access::is_issuer(roles, sender)).
+        // Step 2: assert pending exists for student, read & remove amount.
+        // Step 3: call grant::mint_return_id(student, amount, /*state=*/ S_ACTIVE, cap, ctx).
+        // Step 4: emit GrantApproved with the returned ID.
         abort 9001
     }
 
-    /// Pure helpers for UIs/tests.
-    public fun is_active(_g: &Grant): bool {
-        // Step 1: Compare `_g.state` with S_ACTIVE; return true if equal.
+    /// Mark ACTIVE grant as REVOKED and emit event (issuer/ or revoker-gated per policy).
+    public entry fun revoke_grant(_g: &mut grant::Grant, _roles: &access::Roles, _ctx: &mut TxContext) {
+        // Step 1: Gate with your chosen role (issuer or revoker).
+        // Step 2: Ensure state is ACTIVE (if your grant::Grant encodes lifecycle state).
+        // Step 3: Set state to REVOKED via grant helper if provided, or only emit event.
+        // Step 4: event::emit(GrantRevoked { grant_id: object::id(g), by: sender }).
         abort 9001
     }
-    public fun state_of(_g: &Grant): vector<u8> {
-        // Step 1: Return the current state bytes of `_g`.
-        abort 9001
-    }
+
+    /// Optional helpers (if you expose state helpers from grant module).
+    // public fun is_active(_g: &grant::Grant): bool { abort 9001 }
+    // public fun state_of(_g: &grant::Grant): vector<u8> { abort 9001 }
 }
 ```
 
 :::info Design choice
-Keep transitions only in entry functions; never mutate `state` directly from other modules. This centralizes invariants and keeps tests focused.
+We record "pending" requests on-chain in a shared queue and mint on approval to avoid multi-signer flows. Keep transitions centralized and avoid cross-module state mutation unless your grant module exposes explicit helpers.
 :::
+
+## Grant changes (helpers + mint API)
+
+Update `sources/grant.move` to expose lifecycle-friendly helpers and a mint that accepts a state tag.
+
+```move
+module scholarflow::grant {
+    use iota::object::{Self as object, UID, ID};
+    use iota::tx_context::{Self as tx_context, TxContext};
+    use iota::transfer;
+    use iota::event;
+    use std::vector;
+
+    /// Capability granting authority to mint grants.
+    public struct AdminCap has key { id: UID }
+
+    /// An owned grant object assigned to a student with a lifecycle state.
+    public struct Grant has key {
+        id: UID,
+        student: address,
+        amount: u64,
+        state: vector<u8>,
+    }
+
+    /// Emitted when a grant is minted.
+    public struct GrantMinted has copy, drop, store { student: address, amount: u64, grant_id: ID }
+
+    /// Runs once at package publish. Transfers AdminCap to the publisher.
+    fun init(_ctx: &mut TxContext) { /* seed AdminCap to publisher */ }
+
+    /// Construct a grant (module-internal helper).
+    public fun create(_student: address, _amount: u64, _state: vector<u8>, _ctx: &mut TxContext): Grant {
+        // Step: return a new Grant { id: object::new(ctx), student, amount, state }
+        abort 9001
+    }
+
+    /// Read/mutate helpers for other modules (optional if you keep state external).
+    public fun get_state(_g: &Grant): vector<u8> { /* return a copy */ abort 9001 }
+    public fun set_state(_g: &mut Grant, _state: vector<u8>) { /* assign */ abort 9001 }
+    public fun state_eq(_g: &Grant, _tag: &vector<u8>): bool { /* byte-wise compare */ abort 9001 }
+
+    /// Mint to a student with a chosen lifecycle state and emit event.
+    public entry fun mint(
+        _student: address,
+        _amount: u64,
+        _state: vector<u8>,
+        _cap: &AdminCap,
+        _ctx: &mut TxContext
+    ) { /* create -> emit -> transfer */ abort 9001 }
+
+    /// Mint and return the new Grant ID (for PTB composition / callers like lifecycle::approve_grant).
+    public entry fun mint_return_id(
+        _student: address,
+        _amount: u64,
+        _state: vector<u8>,
+        _cap: &AdminCap,
+        _ctx: &mut TxContext
+    ): ID { /* create -> emit -> transfer -> return id */ abort 9001 }
+}
+```
 
 ## Abilities audit (guided)
 
