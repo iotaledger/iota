@@ -562,8 +562,7 @@ impl CordialKnowledge {
         // Notify global cordial knowledge about useful shards from this peer
         let cordial_knowledge_message =
             CordialKnowledgeMessage::UsefulShardsFromPeer(useful_shard_authors);
-        let _ = cordial_knowledge_sender
-            .send(cordial_knowledge_message);
+        let _ = cordial_knowledge_sender.send(cordial_knowledge_message);
     }
 }
 

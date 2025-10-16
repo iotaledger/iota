@@ -48,6 +48,7 @@ tower-http.workspace = true
 tracing.workspace = true
 
 # internal dependencies
+ahash = "0.8.11"
 iota-common.workspace = true
 iota-http.workspace = true
 iota-macros.workspace = true
@@ -58,7 +59,6 @@ iota-tls.workspace = true
 shared-crypto.workspace = true
 starfish-config.workspace = true
 typed-store.workspace = true
-ahash = "0.8.11"
 
 [dev-dependencies]
 # external dependencies

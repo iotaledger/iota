@@ -17,12 +17,16 @@ use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::{
-    sync::{Mutex, broadcast, mpsc::Sender, oneshot},
+    sync::{
+        Mutex, broadcast,
+        mpsc::{Sender, UnboundedSender},
+        oneshot,
+    },
     time::sleep,
 };
-use tokio::sync::mpsc::UnboundedSender;
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
+
 use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
@@ -37,6 +41,7 @@ use crate::{
     cordial_knowledge::{
         AdditionalPartsForBundle, ConnectionKnowledgeMessage,
         ConnectionKnowledgeMessage::TakeAdditionalPartForBundle, CordialKnowledge,
+        CordialKnowledgeHandle, CordialKnowledgeMessage,
     },
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
@@ -52,7 +57,6 @@ use crate::{
     synchronizer::SynchronizerHandle,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
-use crate::cordial_knowledge::{CordialKnowledgeHandle, CordialKnowledgeMessage};
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
@@ -267,10 +271,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 4. Create block headers from bytes from a bundle
         // 4.a. Truncate headers in bundle to max_headers_per_bundle
-        let mut serialized_headers = std::mem::take(&mut serialized_block_bundle_parts.serialized_headers);
-        if serialized_headers.len()
-            > self.context.parameters.max_headers_per_bundle
-        {
+        let mut serialized_headers =
+            std::mem::take(&mut serialized_block_bundle_parts.serialized_headers);
+        if serialized_headers.len() > self.context.parameters.max_headers_per_bundle {
             warn!("BlockBundle: {block_ref} exceeds max_headers_per_bundle.");
             serialized_headers.truncate(self.context.parameters.max_headers_per_bundle);
         };
@@ -348,7 +351,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // 5. Collect shards from a bundle and check their proofs.
         // 5.a. Truncate shards in bundle to max_shards_per_bundle.
 
-        let mut serialized_shards = std::mem::take(&mut serialized_block_bundle_parts.serialized_shards);
+        let mut serialized_shards =
+            std::mem::take(&mut serialized_block_bundle_parts.serialized_shards);
 
         if serialized_shards.len() > self.context.parameters.max_shards_per_bundle {
             warn!("BlockBundle: {block_ref} exceeds max_shards_per_bundle.");
@@ -1321,10 +1325,7 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
@@ -1403,10 +1404,7 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
@@ -1494,10 +1492,7 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
@@ -1578,10 +1573,7 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
@@ -1719,10 +1711,7 @@ mod tests {
         let network_client = Arc::new(FakeNetworkClient::default());
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         let transactions_synchronizer = TransactionsSynchronizer::start(
             network_client.clone(),
             context.clone(),
@@ -1804,10 +1793,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2076,10 +2062,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2236,10 +2219,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2410,10 +2390,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
@@ -2683,11 +2660,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
-
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2829,10 +2802,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -2991,10 +2961,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
@@ -3183,10 +3150,7 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(
-            context.clone(),
-            dag_state.clone(),
-        );
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
         let (_transaction_client, tx_receiver) = TransactionClient::new(context.clone());
