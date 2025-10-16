@@ -128,7 +128,7 @@ impl IndexerReader {
             .connection_timeout(config.connection_timeout)
             .connection_customizer(Box::new(connection_config))
             .build(manager)
-            .map_err(|e| anyhow!("Failed to initialize connection pool. Error: {:?}. If Error is None, please check whether the configured pool size (currently {}) exceeds the maximum number of connections allowed by the database.", e, config.pool_size))?;
+            .map_err(|e| anyhow!("failed to initialize connection pool. Error: {:?}. If Error is None, please check whether the configured pool size (currently {}) exceeds the maximum number of connections allowed by the database.", e, config.pool_size))?;
 
         Ok(Self::new(pool))
     }
@@ -838,10 +838,10 @@ impl IndexerReader {
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to join all tx block futures: {}", e))?
+            .tap_err(|e| tracing::error!("failed to join all tx block futures: {e}"))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to collect tx block futures: {}", e))?;
+            .tap_err(|e| tracing::error!("failed to collect tx block futures: {e}"))?;
         Ok(tx_blocks)
     }
 
@@ -1373,7 +1373,7 @@ impl IndexerReader {
                 self.stored_transaction_to_transaction_block(vec![stored_tx], options)
                     .await?
                     .pop()
-                    .expect("There should be exactly one response"),
+                    .expect("there should be exactly one response"),
             ))
         } else {
             Ok(None)
@@ -1426,7 +1426,7 @@ impl IndexerReader {
             order_map
                 .get(&tx.digest)
                 .copied()
-                .expect("All digests should have some order")
+                .expect("all digests should have some order")
         });
         Ok(transactions)
     }
@@ -1523,10 +1523,10 @@ impl IndexerReader {
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to join iota event futures: {}", e))?
+            .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to collect iota event futures: {}", e))?;
+            .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
         Ok(iota_events)
     }
 
@@ -1733,10 +1733,10 @@ impl IndexerReader {
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to join iota event futures: {}", e))?
+            .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to collect iota event futures: {}", e))?;
+            .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
         Ok(iota_events)
     }
 
@@ -1764,14 +1764,11 @@ impl IndexerReader {
         }
         let df_infos = futures::future::try_join_all(df_futures)
             .await
-            .tap_err(|e| tracing::error!("Error joining DF futures: {:?}", e))?
+            .tap_err(|e| tracing::error!("error joining DF futures: {e:?}"))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| {
-                tracing::error!(
-                    "Error calling DF try_create_dynamic_field_info function: {:?}",
-                    e
-                )
+                tracing::error!("error calling DF try_create_dynamic_field_info function: {e:?}")
             })?
             .into_iter()
             .flatten()
@@ -2287,7 +2284,7 @@ impl IndexerReader {
         let mut cache = self
             .obj_type_cache
             .lock()
-            .inspect_err(|e| tracing::error!("cache poisoned: {:?}", e))
+            .inspect_err(|e| tracing::error!("cache poisoned: {e:?}"))
             .map_err(|_| IndexerError::Generic("failed to lock cache".into()))?;
 
         let maybe_obj = match cache.cache_get(&cache_key) {

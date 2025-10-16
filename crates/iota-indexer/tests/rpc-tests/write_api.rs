@@ -235,12 +235,12 @@ fn dev_inspect_transaction_block() {
 
         assert_eq!(
             actual_object_data.version, seq_num,
-            "The object sequence number should not mutate"
+            "the object sequence number should not mutate"
         );
         assert_eq!(
             actual_object_data.owner.unwrap(),
             Owner::AddressOwner(sender),
-            "The initial owner of the object should not change"
+            "the initial owner of the object should not change"
         );
     });
 }
@@ -625,7 +625,7 @@ fn test_parallel_shared_object_updates() {
                         .collect();
                     assert!(
                         relevant_deps.is_subset(&seen_digests),
-                        "Tx: {tx_digest:?} should have bigger order than it's deps: {relevant_deps:?}",
+                        "tx: {tx_digest:?} should have bigger order than it's deps: {relevant_deps:?}",
 
                     );
                     seen_digests.insert(tx_digest);

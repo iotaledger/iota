@@ -29,7 +29,7 @@ fn get_move_function_arg_types_empty() {
 
         assert!(
             indexer_function_args_type.is_empty(),
-            "Should not have any function args"
+            "should not have any function args"
         )
     });
 }
