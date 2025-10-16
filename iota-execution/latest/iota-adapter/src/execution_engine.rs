@@ -64,7 +64,7 @@ mod checked {
 
     use crate::{
         adapter::new_move_vm,
-        execution_mode::{self, ExecutionMode, Normal},
+        execution_mode::{self, ExecutionMode, Validation},
         gas_charger::GasCharger,
         programmable_transactions,
         temporary_store::TemporaryStore,
@@ -339,13 +339,17 @@ mod checked {
             AuthContext::new_from_components(authenticator.digest(), &ptb)
         };
 
-        // Setup a move authenticator transaction; push the authenticator context as the
-        // last argument.
+        // Store the authenticator context in the temporary store.
+        // It will be added to the authenticator's parameter list later, just before
+        // execution.
+        temporary_store.store_auth_context(auth_ctx);
+
+        // Setup a move authenticator transaction.
         let authenticator_move_call =
-            setup_authenticator_move_call(authenticator, authenticator_info, auth_ctx)?;
+            setup_authenticator_move_call(authenticator, authenticator_info)?;
 
         // Execute the authenticator transaction.
-        let (computation_gas_cost, execution_result) = execute_authenticator_move_call::<Normal>(
+        let (computation_gas_cost, execution_result) = execute_authenticator_move_call::<Validation>(
             &mut temporary_store,
             authenticator_move_call,
             gas_charger,
@@ -1648,26 +1652,19 @@ mod checked {
 
     /// Construct a PTB with a single move call. This calls the authenticator
     /// function found in `AuthenticatorInfo`. The inputs for the function are
-    /// found in `MoveAuthenticator`. Then, the `AuthContext` is pushed as the
-    /// last input.
+    /// found in `MoveAuthenticator`.
     fn setup_authenticator_move_call(
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfoV1,
-        auth_ctx: AuthContext,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
         let mut builder = ProgrammableTransactionBuilder::new();
-
-        // Add `AuthContext` as the last argument; `TxContext` will be added later
-        // if required.
-        let mut args = authenticator.call_args().clone();
-        args.push(CallArg::Pure(auth_ctx.to_bcs_bytes()));
 
         let res = builder.move_call(
             authenticator_info.package,
             Identifier::new(authenticator_info.module.clone()).unwrap(),
             Identifier::new(authenticator_info.function.clone()).unwrap(),
-            authenticator.type_arguments().clone(),
-            args,
+            authenticator.type_arguments().to_owned(),
+            authenticator.call_args().to_owned(),
         );
 
         assert_invariant!(

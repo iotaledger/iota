@@ -40,7 +40,7 @@ const MAIN_ADDRESS_MNEMONIC: &str = "rain flip mad lamp owner siren tower buddy 
 
 pub const GAS_BUDGET: u64 = 100_000_000;
 
-const IOTACCOUNT_PACKAGE_PATH: &str = "../../../examples/move/iota_account/";
+const IOTACCOUNT_PACKAGE_PATH: &str = "../../../examples/move/iotaccount/";
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
@@ -193,7 +193,7 @@ pub async fn create_iota_account<K: AccountKeystore>(
         // create auth info
         let arguments = vec![
             builder.pure(iotaccount_package_id)?,
-            builder.pure("iota_account")?,
+            builder.pure("keyed_iotaccount")?,
             builder.pure("authenticate_ed25519")?,
         ];
         if let Argument::Result(authenticator_info_v1) = builder.programmable_move_call(
@@ -210,7 +210,7 @@ pub async fn create_iota_account<K: AccountKeystore>(
             ];
             builder.programmable_move_call(
                 iotaccount_package_id,
-                ident_str!("iota_account").to_owned(),
+                ident_str!("keyed_iotaccount").to_owned(),
                 ident_str!("create").to_owned(),
                 vec![],
                 arguments,

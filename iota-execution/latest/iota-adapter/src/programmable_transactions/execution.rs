@@ -417,7 +417,7 @@ mod checked {
             is_init,
         )?;
         // build the arguments, storing meta data about by-mut-ref args
-        let (tx_context_kind, by_mut_ref, serialized_arguments) =
+        let (tx_context_kind, has_auth_context, by_mut_ref, serialized_arguments) =
             build_move_args::<Mode>(context, runtime_id, function, kind, &signature, &arguments)?;
         // invoke the VM
         let SerializedReturnValues {
@@ -429,6 +429,7 @@ mod checked {
             function,
             type_arguments,
             tx_context_kind,
+            has_auth_context,
             serialized_arguments,
             trace_builder_opt,
         )?;
@@ -871,9 +872,18 @@ mod checked {
         function: &IdentStr,
         type_arguments: Vec<Type>,
         tx_context_kind: TxContextKind,
+        has_auth_context: bool,
         mut serialized_arguments: Vec<Vec<u8>>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<SerializedReturnValues, ExecutionError> {
+        if has_auth_context {
+            let auth_context = context.state_view.read_auth_context();
+            assert_invariant!(
+                auth_context.is_some(),
+                "The `iota::auth_context::AuthContext` value is expected to be read from the storage"
+            );
+            serialized_arguments.push(auth_context.unwrap().to_bcs_bytes());
+        }
         match tx_context_kind {
             TxContextKind::None => (),
             TxContextKind::Mutable | TxContextKind::Immutable => {
@@ -1294,6 +1304,7 @@ mod checked {
 
     type ArgInfo = (
         TxContextKind,
+        bool,
         // mut ref
         Vec<(LocalIndex, ValueKind)>,
         Vec<Vec<u8>>,
@@ -1315,13 +1326,37 @@ mod checked {
             Some(t) => is_tx_context(context, t)?,
             None => TxContextKind::None,
         };
+        // Check if the second last parameter is an auth context.
+        // According to the current design, authenticators must contain `TxContext` as
+        // the last parameter and `AuthContext` as the second last.
+        let has_auth_context = match parameters.iter().rev().nth(1) {
+            Some(t) => is_auth_context(context, t)?,
+            None => false,
+        };
+        if has_auth_context {
+            if !context.protocol_config.move_auth() {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_auth` feature is disabled",
+                ));
+            }
+            if !Mode::allow_auth_context() {
+                return Err(ExecutionError::new_with_source(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    "`iota::auth_context::AuthContext` can't be used as a parameter in this execution mode",
+                ));
+            }
+        }
         // an init function can have one or two arguments, with the last one always
         // being of type &mut TxContext and the additional (first) one
         // representing a one time witness type (see one_time_witness verifier
         // pass for additional explanation)
         let has_one_time_witness = function_kind == FunctionKind::Init && parameters.len() == 2;
         let has_tx_context = tx_ctx_kind != TxContextKind::None;
-        let num_args = args.len() + (has_one_time_witness as usize) + (has_tx_context as usize);
+        let num_args = args.len()
+            + (has_one_time_witness as usize)
+            + (has_auth_context as usize)
+            + (has_tx_context as usize);
         if num_args != parameters.len() {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::ArityMismatch,
@@ -1395,21 +1430,7 @@ mod checked {
                     idx,
                 ));
             }
-            // We allow passing in the `AuthContext` as an argument to authenticate
-            // functions.
-            // It must be the last one in the arguments list since the `TxContext` is not
-            // injected yet.
-            //
-            // TODO: We must check the `AuthContext` parameter here because it is added
-            // to the `args` list when the authenticator transaction is created. It leads to
-            // having a more complex validation logic, so we need to refactor this and
-            // inject `AuthContext` in the same way how it is done for `TxContext`.
-            let is_last_arg = idx == (args.len() - 1);
-            if is_last_arg && is_auth_context(context, non_ref_param_ty)? {
-                check_auth_context_value(context, idx, &value)?;
-            } else {
-                check_param_type::<Mode>(context, idx, &value, non_ref_param_ty)?;
-            }
+            check_param_type::<Mode>(context, idx, &value, non_ref_param_ty)?;
             let bytes = {
                 let mut v = vec![];
                 value.write_bcs_bytes(&mut v, None)?;
@@ -1417,7 +1438,7 @@ mod checked {
             };
             serialized_args.push(bytes);
         }
-        Ok((tx_ctx_kind, by_mut_ref, serialized_args))
+        Ok((tx_ctx_kind, has_auth_context, by_mut_ref, serialized_args))
     }
 
     /// checks that the value is compatible with the specified type
@@ -1427,11 +1448,6 @@ mod checked {
         value: &Value,
         param_ty: &Type,
     ) -> Result<(), ExecutionError> {
-        assert_invariant!(
-            !is_auth_context(context, param_ty)?,
-            "`iota::auth_context::AuthContext` struct is not expected to be used here"
-        );
-
         match value {
             // For dev-spect, allow any BCS bytes. This does mean internal invariants for types can
             // be violated (like for string or Option)
@@ -1519,30 +1535,6 @@ mod checked {
         Ok(())
     }
 
-    /// Checks that the value represents the `iota::auth_context::AuthContext`
-    /// type.
-    fn check_auth_context_value(
-        context: &mut ExecutionContext<'_, '_, '_>,
-        idx: usize,
-        value: &Value,
-    ) -> Result<(), ExecutionError> {
-        assert_invariant!(
-            context.protocol_config.move_auth(),
-            "`iota::auth_context::AuthContext` can't be used as a parameter if the `move_auth` feature is disabled"
-        );
-
-        // TODO: Consider creating a MOVE_AUTHENTICATION execution mode to make sure
-        // that `AuthContext` is used only for authentication.
-        if matches!(value, Value::Raw(RawValueType::Any, _)) {
-            return Ok(());
-        }
-
-        Err(command_argument_error(
-            CommandArgumentError::TypeMismatch,
-            idx,
-        ))
-    }
-
     fn to_identifier(
         context: &mut ExecutionContext<'_, '_, '_>,
         ident: String,
@@ -1628,7 +1620,12 @@ mod checked {
         context: &ExecutionContext<'_, '_, '_>,
         t: &Type,
     ) -> Result<bool, ExecutionError> {
-        let Type::Datatype(idx) = t else {
+        let inner = match t {
+            Type::Reference(inner) => inner,
+            _ => return Ok(false),
+        };
+
+        let Type::Datatype(idx) = &**inner else {
             return Ok(false);
         };
 

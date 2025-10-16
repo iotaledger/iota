@@ -201,6 +201,7 @@ impl AdapterInitConfig {
             custom_validator_account,
             reference_gas_price,
             default_gas_price,
+            move_auth,
             snapshot_config,
             flavor,
             epochs_to_keep,
@@ -226,6 +227,9 @@ impl AdapterInitConfig {
                 panic!("Cannot set max gas in simulator mode");
             }
             protocol_config.set_max_tx_gas_for_testing(mx_tx_gas_override)
+        }
+        if let Some(enable) = move_auth {
+            protocol_config.set_move_auth_for_testing(enable);
         }
         if custom_validator_account && !simulator {
             panic!("Can only set custom validator account in simulator mode");
