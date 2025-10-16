@@ -251,6 +251,7 @@ impl CordialKnowledge {
             tokio::select! {
                 // Main channel to receive message for updating the state and propogate to connection tasks
                 maybe_msg = self.cordial_knowledge_receiver.recv() => {
+                    debug!("Cordial knowledge message {maybe_msg:?} received");
                     match maybe_msg {
                         Some(cordial_knowledge_message) => {
                             match cordial_knowledge_message {

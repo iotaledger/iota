@@ -1224,7 +1224,7 @@ mod tests {
         sync::{broadcast, mpsc},
         time::sleep,
     };
-
+    use telemetry_subscribers::init_for_testing;
     use crate::{
         CommitConsumer, Round, Transaction, TransactionClient,
         authority_service::{
@@ -2378,6 +2378,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_subscribe_block_bundles_request() {
+        telemetry_subscribers::init_for_testing();
         // GIVEN
         let rounds = 10;
         let validators = 4;
@@ -2390,8 +2391,6 @@ mod tests {
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
-
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
