@@ -59,6 +59,7 @@ static PERIODIC_PRUNING_TABLES: Lazy<BTreeSet<String>> = Lazy::new(|| {
     .collect()
 });
 pub const EPOCH_DURATION_MS_FOR_TESTING: u64 = 24 * 60 * 60 * 1000;
+pub const MIN_EPOCHS_TO_RETAIN_FOR_INDEXES: u64 = 7;
 
 /// The `AuthorityStorePruner` manages the pruning process for object stores
 /// within the `AuthorityStore`. It includes a cancellation handle that can be
@@ -569,9 +570,9 @@ impl AuthorityStorePruner {
         if let (Some(mut epochs_to_retain), Some(indexes)) =
             (config.num_epochs_to_retain_for_indexes, indexes)
         {
-            if epochs_to_retain < 7 {
+            if epochs_to_retain < MIN_EPOCHS_TO_RETAIN_FOR_INDEXES {
                 warn!("num_epochs_to_retain_for_indexes is too low. Resetting it to 7");
-                epochs_to_retain = 7;
+                epochs_to_retain = MIN_EPOCHS_TO_RETAIN_FOR_INDEXES;
             }
             let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
             if let Some(cut_time_ms) =
