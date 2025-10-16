@@ -12,7 +12,7 @@ use iota_metrics::monitored_mpsc::UnboundedSender;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::time::Instant;
-use tracing::{debug, info};
+use tracing::{debug, info, instrument};
 
 use crate::{
     BlockRef, CommitConsumer, CommittedSubDag,
@@ -94,6 +94,7 @@ impl CommitObserver {
     ///   committed leaders.
     /// - A vector of block references to transactions that were missing during
     ///   the commit.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,

@@ -9,6 +9,7 @@ use std::{
 
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
+use tracing::instrument;
 
 use crate::{
     Round,
@@ -200,6 +201,7 @@ impl Linearizer {
     // committed sub-dags.
     // Leaders in `committed_leaders` are assumed to be ordered in increasing
     // rounds.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
