@@ -18,7 +18,7 @@ use tokio::{
     task::JoinError,
     time::{Instant, sleep_until},
 };
-use tracing::{debug, log::warn};
+use tracing::{debug, warn};
 
 use crate::{
     BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader,
@@ -426,12 +426,12 @@ impl CordialKnowledge {
         author_round_map.insert(block_digest, (ancestors, who_knows_this_block));
 
         //  === 2) Mark this header as "unknown" for other authorities  ===
-        for other_idx in 0..self.context.committee.size() {
+        for (other_idx, item) in vec_knowledge_msgs.iter_mut().enumerate().take(self.context.committee.size()) {
             if other_idx == block_author || other_idx == own_index {
                 continue;
             }
             let msg = ConnectionKnowledgeMessage::NewHeader { block_ref };
-            vec_knowledge_msgs[other_idx].push(msg);
+            item.push(msg);
         }
 
         //  === 3) Notify that the block_author now knows transaction data for certain
@@ -667,7 +667,7 @@ impl ConnectionKnowledge {
     /// Returns `None` if all selected deques are empty.
     #[inline]
     fn min_front_round<'a, T>(
-        all_deques: &Vec<VecDeque<(Round, T)>>,
+        all_deques: &[VecDeque<(Round, T)>],
         authorities: impl IntoIterator<Item = &'a usize>,
     ) -> Option<Round> {
         let mut min_round: Option<Round> = None;
@@ -976,7 +976,7 @@ impl ConnectionKnowledge {
             dag_state_read
                 .get_cached_block_headers(&useful_headers_block_refs_to_peer)
                 .into_iter()
-                .filter_map(|opt| opt) // Filter out None values
+                .flatten() // Filter out None values
                 .collect()
         };
         // 2. Identify useful authorities for shards and take the corresponding shards
@@ -1002,7 +1002,7 @@ impl ConnectionKnowledge {
             dag_state_read
                 .get_cached_shards(&useful_shards_block_refs_to_peer)
                 .into_iter()
-                .filter_map(|opt| opt) // Filter out None values
+                .flatten() // Filter out None values
                 .collect()
         };
         // 3. Get useful header authors from peer
