@@ -27,11 +27,10 @@ const ApiKey = {
 
 export async function initAmplitude() {
     await ampli.load({
-        disabled: IS_PROD_ENV,
+        disabled: !IS_PROD_ENV,
         client: {
             apiKey: ApiKey.production,
             configuration: {
-                // cookieStorage: persistableStorage,
                 logLevel: IS_PROD_ENV ? LogLevel.Warn : amplitude.Types.LogLevel.Debug,
             },
         },
@@ -53,9 +52,9 @@ export function getUrlWithDeviceId(url: URL) {
 
 /**
  * Set wallet information as groups for connected wallets.
- * This attaches wallet information to all future events as groups for better segmentation and cohort analysis.
+ * Groups are attached to all future events for better segmentation and cohort analysis.
  */
-export function setWalletUserProperties(walletInfo: {
+export function setWalletUserGroup(walletInfo: {
     l1WalletType?: string;
     l2WalletType?: string;
     l2ChainId?: string;
@@ -78,7 +77,7 @@ export function setWalletUserProperties(walletInfo: {
 /**
  * Clear wallet groups when disconnected.
  */
-export function clearWalletUserProperties(layer: 'l1' | 'l2') {
+export function clearWalletUserGroup(layer: 'l1' | 'l2') {
     if (!ampli.client) return;
 
     if (layer === 'l1') {

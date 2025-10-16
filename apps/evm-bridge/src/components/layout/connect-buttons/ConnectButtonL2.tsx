@@ -4,7 +4,7 @@
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { useEffect } from 'react';
 import { useAccount } from 'wagmi';
-import { setWalletUserProperties, clearWalletUserProperties } from '../../../shared/analytics';
+import { ampli, setWalletUserGroup, clearWalletUserGroup } from '../../../shared/analytics';
 
 interface ConnectButtonL2Props {
     text?: string;
@@ -17,14 +17,17 @@ export function ConnectButtonL2({
 
     useEffect(() => {
         if (l2Account.isConnected && l2Account.address) {
-            // Set wallet info as user properties (attached to all future events)
-            setWalletUserProperties({
-                l2WalletType: l2Account.connector?.name || 'unknown',
-                l2ChainId: l2Account.chainId?.toString() || 'unknown',
-            });
+            const walletType = l2Account.connector?.name || 'unknown';
+            const chainId = l2Account.chainId?.toString() || 'unknown';
+
+            // Set wallet group for future events
+            setWalletUserGroup({ l2WalletType: walletType, l2ChainId: chainId });
+
+            // Send connection event
+            ampli.connectedL2Wallet({ walletType, chainId });
         } else {
-            // Clear wallet info when disconnected
-            clearWalletUserProperties('l2');
+            // Clear wallet group when disconnected
+            clearWalletUserGroup('l2');
         }
     }, [l2Account.isConnected, l2Account.address, l2Account.connector?.name, l2Account.chainId]);
 

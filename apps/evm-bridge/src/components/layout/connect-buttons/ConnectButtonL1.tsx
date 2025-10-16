@@ -4,7 +4,7 @@
 import { ConnectButton } from '@iota/dapp-kit';
 import { useEffect } from 'react';
 import { useCurrentAccount, useCurrentWallet } from '@iota/dapp-kit';
-import { setWalletUserProperties, clearWalletUserProperties } from '../../../shared/analytics';
+import { ampli, setWalletUserGroup, clearWalletUserGroup } from '../../../shared/analytics';
 
 interface ConnectButtonL1Props {
     connectText?: string;
@@ -24,13 +24,16 @@ export function ConnectButtonL1({
 
     useEffect(() => {
         if (l1Wallet.isConnected && l1Account?.address) {
-            // Set wallet info as user properties (attached to all future events)
-            setWalletUserProperties({
-                l1WalletType: l1Wallet.currentWallet?.name || 'unknown',
-            });
+            const walletType = l1Wallet.currentWallet?.name || 'unknown';
+
+            // Set wallet group for future events
+            setWalletUserGroup({ l1WalletType: walletType });
+
+            // Send connection event
+            ampli.connectedL1Wallet({ walletType });
         } else {
-            // Clear wallet info when disconnected
-            clearWalletUserProperties('l1');
+            // Clear wallet group when disconnected
+            clearWalletUserGroup('l1');
         }
     }, [l1Wallet.isConnected, l1Wallet.currentWallet?.name, l1Account?.address]);
 
