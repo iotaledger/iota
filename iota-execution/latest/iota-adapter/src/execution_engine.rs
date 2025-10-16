@@ -64,7 +64,7 @@ mod checked {
 
     use crate::{
         adapter::new_move_vm,
-        execution_mode::{self, ExecutionMode, Validation},
+        execution_mode::{self, ExecutionMode},
         gas_charger::GasCharger,
         programmable_transactions,
         temporary_store::TemporaryStore,
@@ -279,7 +279,10 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
-    ) -> Result<u64, ExecutionError> {
+    ) -> (
+        u64, // gas computation cost
+        Result<<execution_mode::Validation as ExecutionMode>::ExecutionResults, ExecutionError>,
+    ) {
         // Check the preconditions.
         debug_assert!(
             authenticated_transaction_kind.is_programmable_transaction(),
@@ -346,22 +349,23 @@ mod checked {
 
         // Setup a move authenticator transaction.
         let authenticator_move_call =
-            setup_authenticator_move_call(authenticator, authenticator_info)?;
+            setup_authenticator_move_call(authenticator, authenticator_info).unwrap(); //TODO
 
         // Execute the authenticator transaction.
-        let (computation_gas_cost, execution_result) = execute_authenticator_move_call::<Validation>(
-            &mut temporary_store,
-            authenticator_move_call,
-            gas_charger,
-            &mut tx_ctx,
-            move_vm,
-            protocol_config,
-            metrics,
-            false,
-            contains_deleted_input,
-            cancelled_objects,
-            trace_builder_opt,
-        );
+        let (computation_gas_cost, execution_result) =
+            execute_authenticator_move_call::<execution_mode::Validation>(
+                &mut temporary_store,
+                authenticator_move_call,
+                gas_charger,
+                &mut tx_ctx,
+                move_vm,
+                protocol_config,
+                metrics,
+                false,
+                contains_deleted_input,
+                cancelled_objects,
+                trace_builder_opt,
+            );
 
         // Check the execution result.
         let status = if let Err(error) = &execution_result {
@@ -405,7 +409,140 @@ mod checked {
             status
         );
 
-        execution_result.map(|_| computation_gas_cost)
+        (computation_gas_cost, execution_result)
+    }
+
+    ///
+    #[instrument(name = "tx_invalid_to_effects", level = "debug", skip_all)]
+    pub fn invalid_transaction_to_effects(
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_status: IotaGasStatus,
+        gas_coins: Vec<ObjectRef>,
+        // Validation
+        validation_execution_error: ExecutionError,
+        validation_input_objects: CheckedInputObjects,
+        // Transaction
+        invalid_transaction_input_objects: CheckedInputObjects,
+        invalid_transaction_kind: TransactionKind,
+        invalid_transaction_signer: IotaAddress,
+        invalid_transaction_digest: TransactionDigest,
+        // VM
+        move_vm: &Arc<MoveVM>,
+    ) -> (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        ExecutionError,
+    ) {
+        let mut input_objects = invalid_transaction_input_objects.into_inner();
+        input_objects.extend(validation_input_objects.into_inner());
+        let mutable_inputs = if enable_expensive_checks {
+            input_objects.mutable_inputs().keys().copied().collect()
+        } else {
+            HashSet::new()
+        };
+        let shared_object_refs = input_objects.filter_shared_objects();
+        let receiving_objects = invalid_transaction_kind.receiving_objects();
+        let mut transaction_dependencies = input_objects.transaction_dependencies();
+        let contains_deleted_input = input_objects.contains_deleted_objects();
+        let cancelled_objects = input_objects.get_cancelled_objects();
+
+        let mut temporary_store = TemporaryStore::new(
+            store,
+            input_objects,
+            receiving_objects,
+            invalid_transaction_digest,
+            protocol_config,
+            *epoch_id,
+        );
+
+        let mut gas_charger = GasCharger::new(
+            invalid_transaction_digest,
+            gas_coins,
+            gas_status,
+            protocol_config,
+        );
+
+        let mut tx_ctx = TxContext::new_from_components(
+            &invalid_transaction_signer,
+            &invalid_transaction_digest,
+            epoch_id,
+            epoch_timestamp_ms,
+        );
+
+        let is_epoch_change = invalid_transaction_kind.is_end_of_epoch_tx();
+
+        let deny_cert = is_certificate_denied(&invalid_transaction_digest, certificate_deny_set);
+        let (gas_cost_summary, execution_error) = invalid_transaction(
+            &mut temporary_store,
+            invalid_transaction_kind,
+            validation_execution_error,
+            &mut gas_charger,
+            &mut tx_ctx,
+            move_vm,
+            protocol_config,
+            metrics,
+            enable_expensive_checks,
+            deny_cert,
+            contains_deleted_input,
+            cancelled_objects,
+        );
+
+        let (status, command) = execution_error.to_execution_status();
+        let status = ExecutionStatus::new_failure(status, command);
+
+        #[skip_checked_arithmetic]
+        trace!(
+            tx_digest = ?invalid_transaction_digest,
+            computation_gas_cost = gas_cost_summary.computation_cost,
+            computation_gas_cost_burned = gas_cost_summary.computation_cost_burned,
+            storage_gas_cost = gas_cost_summary.storage_cost,
+            storage_gas_rebate = gas_cost_summary.storage_rebate,
+            "Finished execution of transaction with status {:?}",
+            status
+        );
+
+        // Genesis writes a special digest to indicate that an object was created during
+        // genesis and not written by any normal transaction - remove that from the
+        // dependencies
+        transaction_dependencies.remove(&TransactionDigest::genesis_marker());
+
+        if enable_expensive_checks && !execution_mode::Normal::allow_arbitrary_function_calls() {
+            temporary_store
+                .check_ownership_invariants(
+                    &invalid_transaction_signer,
+                    &mut gas_charger,
+                    &mutable_inputs,
+                    is_epoch_change,
+                )
+                .unwrap()
+        } // else, in dev inspect mode and anything goes--don't check
+
+        let (inner, effects) = temporary_store.into_effects(
+            shared_object_refs,
+            &invalid_transaction_digest,
+            transaction_dependencies,
+            gas_cost_summary,
+            status,
+            &mut gas_charger,
+            *epoch_id,
+        );
+
+        (
+            inner,
+            gas_charger.into_gas_status(),
+            effects,
+            execution_error,
+        )
     }
 
     /// Executes an authentication move call by processing the specified
@@ -625,6 +762,82 @@ mod checked {
         }
 
         (cost_summary, result)
+    }
+
+    #[instrument(name = "tx_invalid", level = "debug", skip_all)]
+    fn invalid_transaction(
+        temporary_store: &mut TemporaryStore<'_>,
+        transaction_kind: TransactionKind,
+        validation_execution_error: ExecutionError,
+        gas_charger: &mut GasCharger,
+        tx_ctx: &mut TxContext,
+        move_vm: &Arc<MoveVM>,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        deny_cert: bool,
+        contains_deleted_input: bool,
+        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+    ) -> (GasCostSummary, ExecutionError) {
+        gas_charger.smash_gas(temporary_store);
+
+        // At this point no charges have been applied yet
+        debug_assert!(
+            gas_charger.no_charges_for_execution(),
+            "No gas charges must be applied yet"
+        );
+
+        let advance_epoch_gas_summary = transaction_kind.get_advance_epoch_tx_gas_summary();
+
+        let mut result: Result<(), ExecutionError> = {
+            // Run the checks that must take precedence over the validation execution error.
+            let pre_check: Result<(), ExecutionError> = (|| {
+                // We must charge object read here we must still ensure an effect is committed
+                // and all objects versions incremented
+                gas_charger.charge_input_objects(temporary_store)?;
+
+                run_inputs_checks(
+                    protocol_config,
+                    deny_cert,
+                    contains_deleted_input,
+                    cancelled_objects,
+                )?;
+
+                check_meter_limit(
+                    temporary_store,
+                    gas_charger,
+                    protocol_config,
+                    metrics.clone(),
+                )?;
+
+                Ok(())
+            })();
+
+            // If any of the pre-checks failed, that error has priority; otherwise use
+            // the provided validation_execution_error.
+            match pre_check {
+                Ok(()) => Err(validation_execution_error),
+                Err(e) => Err(e),
+            }
+        };
+
+        let cost_summary = gas_charger.charge_gas(temporary_store, &mut result);
+
+        if let Err(e) = run_conservation_checks::<execution_mode::Normal>(
+            temporary_store,
+            gas_charger,
+            tx_ctx,
+            move_vm,
+            enable_expensive_checks,
+            &cost_summary,
+            false,
+            advance_epoch_gas_summary,
+        ) {
+            // FIXME: we cannot fail the transaction if this is an epoch change transaction.
+            result = Err(e);
+        }
+
+        (cost_summary, result.err().unwrap())
     }
 
     /// Performs IOTA conservation checks during transaction execution, ensuring

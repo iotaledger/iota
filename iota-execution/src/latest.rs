@@ -7,7 +7,8 @@ use std::{collections::HashSet, path::PathBuf, sync::Arc};
 use iota_adapter_latest::{
     adapter::{new_move_vm, run_metered_move_bytecode_verifier},
     execution_engine::{
-        execute_genesis_state_update, execute_transaction_to_effects, validate_transaction,
+        execute_genesis_state_update, execute_transaction_to_effects,
+        invalid_transaction_to_effects, validate_transaction,
     },
     execution_mode,
     type_layout_resolver::TypeLayoutResolver,
@@ -190,7 +191,7 @@ impl executor::Executor for Executor {
         authenticated_transaction_digest: TransactionDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<u64, ExecutionError> {
+    ) -> (u64, Result<(), ExecutionError>) {
         validate_transaction(
             store,
             protocol_config,
@@ -205,6 +206,54 @@ impl executor::Executor for Executor {
             authenticated_transaction_signer,
             authenticated_transaction_digest,
             trace_builder_opt,
+            &self.0,
+        )
+    }
+
+    fn invalid_transaction_to_effects(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_status: IotaGasStatus,
+        gas_coins: Vec<ObjectRef>,
+        // Validation
+        validation_execution_error: ExecutionError,
+        validation_input_objects: CheckedInputObjects,
+        // Transaction
+        invalid_transaction_input_objects: CheckedInputObjects,
+        invalid_transaction_kind: TransactionKind,
+        invalid_transaction_signer: IotaAddress,
+        invalid_transaction_digest: TransactionDigest,
+    ) -> (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        ExecutionError,
+    ) {
+        invalid_transaction_to_effects(
+            store,
+            protocol_config,
+            metrics,
+            enable_expensive_checks,
+            certificate_deny_set,
+            epoch_id,
+            epoch_timestamp_ms,
+            gas_status,
+            gas_coins,
+            validation_execution_error,
+            validation_input_objects,
+            invalid_transaction_input_objects,
+            invalid_transaction_kind,
+            invalid_transaction_signer,
+            invalid_transaction_digest,
             &self.0,
         )
     }

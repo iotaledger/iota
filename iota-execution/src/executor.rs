@@ -102,7 +102,36 @@ pub trait Executor {
         authenticated_transaction_digest: TransactionDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<u64, ExecutionError>;
+    ) -> (u64, Result<(), ExecutionError>);
+
+    fn invalid_transaction_to_effects(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_status: IotaGasStatus,
+        gas_coins: Vec<ObjectRef>,
+        // Validation
+        validation_execution_error: ExecutionError,
+        validation_input_objects: CheckedInputObjects,
+        // Transaction
+        invalid_transaction_input_objects: CheckedInputObjects,
+        invalid_transaction_kind: TransactionKind,
+        invalid_transaction_signer: IotaAddress,
+        invalid_transaction_digest: TransactionDigest,
+    ) -> (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        ExecutionError,
+    );
 
     fn update_genesis_state(
         &self,
