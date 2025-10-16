@@ -15,7 +15,7 @@ use downcast::Any;
 use tracing::{error, info};
 
 use crate::{
-    db::ConnectionPool, errors::IndexerError, handlers::EpochToCommit,
+    db::ConnectionPool, errors::IndexerError, ingestion::primary::persist::EpochToCommit,
     models::epoch::StoredEpochInfo, store::diesel_macro::*,
 };
 

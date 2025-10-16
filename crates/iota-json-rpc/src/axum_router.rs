@@ -127,7 +127,7 @@ fn from_template<S: Into<axum::body::Body>>(
         .body(body.into())
         // Parsing `StatusCode` and `HeaderValue` is infalliable but
         // parsing body content is not.
-        .expect("Unable to parse response body for type conversion")
+        .expect("unable to parse response body for type conversion")
 }
 
 /// Create a valid JSON response.
@@ -174,21 +174,17 @@ async fn process_raw_request<L: Logger>(
                     let header_contents = header_val.split(',').map(str::trim).collect::<Vec<_>>();
                     if num_hops == 0 {
                         error!(
-                            "x-forwarded-for: 0 specified. x-forwarded-for contents: {:?}. Please assign nonzero value for \
+                            "x-forwarded-for: 0 specified. x-forwarded-for contents: {header_contents:?}. Please assign nonzero value for \
                                 number of hops here, or use `socket-addr` client-id-source type if requests are not being proxied \
                                 to this node. Skipping traffic controller request handling.",
-                            header_contents,
                         );
                         return None;
                     }
                     let contents_len = header_contents.len();
                     let Some(client_ip) = header_contents.get(contents_len - num_hops) else {
                         error!(
-                            "x-forwarded-for header value of {:?} contains {} values, but {} hops were specified. \
+                            "x-forwarded-for header value of {header_contents:?} contains {contents_len} values, but {num_hops} hops were specified. \
                                 Expected {} values. Skipping traffic controller request handling.",
-                            header_contents,
-                            contents_len,
-                            num_hops,
                             num_hops + 1,
                         );
                         return None;
@@ -196,7 +192,7 @@ async fn process_raw_request<L: Logger>(
                     parse_ip(client_ip)
                 }
                 Err(e) => {
-                    error!("Invalid UTF-8 in x-forwarded-for header: {:?}", e);
+                    error!("invalid UTF-8 in x-forwarded-for header: {e:?}");
                     None
                 }
             };

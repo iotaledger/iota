@@ -131,6 +131,6 @@ async fn _merge_coins(gas_coin: &str, wallet: WalletContext) -> Result<(), anyho
 
 pub fn create_wallet_context(timeout_secs: u64) -> Result<WalletContext, anyhow::Error> {
     let wallet_conf = iota_config_dir()?.join(IOTA_CLIENT_CONFIG);
-    info!("Initialize wallet from config path: {:?}", wallet_conf);
+    info!("Initialize wallet from config path: {wallet_conf:?}");
     WalletContext::new(&wallet_conf, Some(Duration::from_secs(timeout_secs)), None)
 }

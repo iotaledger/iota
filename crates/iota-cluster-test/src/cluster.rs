@@ -96,13 +96,15 @@ impl Cluster for RemoteRunningCluster {
                 options
                     .fullnode_address
                     .clone()
-                    .expect("Expect 'fullnode_address' for Env::Custom"),
+                    .expect("expect 'fullnode_address' for Env::Custom"),
                 options
                     .faucet_address
                     .clone()
-                    .expect("Expect 'faucet_address' for Env::Custom"),
+                    .expect("expect 'faucet_address' for Env::Custom"),
             ),
-            Env::NewLocal => unreachable!("NewLocal shouldn't use RemoteRunningCluster"),
+            Env::NewLocal => {
+                unreachable!("the NewLocal variant shouldn't use RemoteRunningCluster")
+            }
         };
 
         // TODO: test connectivity before proceeding?
@@ -162,12 +164,12 @@ impl Cluster for LocalNewCluster {
         // TODO: options should contain port instead of address
         let fullnode_rpc_addr = options.fullnode_address.as_ref().map(|addr| {
             addr.parse::<SocketAddr>()
-                .expect("Unable to parse fullnode address")
+                .expect("unable to parse fullnode address")
         });
 
         let indexer_address = options.indexer_address.as_ref().map(|addr| {
             addr.parse::<SocketAddr>()
-                .expect("Unable to parse indexer address")
+                .expect("unable to parse indexer address")
         });
 
         let mut cluster_builder = TestClusterBuilder::new()
@@ -185,7 +187,7 @@ impl Cluster for LocalNewCluster {
                 committee_with_network: _,
             } = PersistedConfig::read(&network_config_path).map_err(|err| {
                 err.context(format!(
-                    "Cannot open IOTA network config file at {network_config_path:?}"
+                    "cannot open IOTA network config file at {network_config_path:?}"
                 ))
             })?;
 
@@ -327,7 +329,7 @@ impl Cluster for LocalNewCluster {
 impl Cluster for Box<dyn Cluster + Send + Sync> {
     async fn start(_options: &ClusterTestOpt) -> Result<Self, anyhow::Error> {
         unreachable!(
-            "If we already have a boxed Cluster trait object we wouldn't have to call this function"
+            "if we already have a boxed Cluster trait object we wouldn't have to call this function"
         );
     }
     fn fullnode_url(&self) -> &str {
@@ -361,7 +363,7 @@ pub fn new_wallet_context_from_cluster(
     let config_dir = cluster.config_directory();
     let wallet_config_path = config_dir.join("client.yaml");
     let fullnode_url = cluster.fullnode_url();
-    info!("Use RPC: {}", &fullnode_url);
+    info!("Use RPC: {fullnode_url}");
     let keystore_path = config_dir.join(IOTA_KEYSTORE_FILENAME);
     let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
     let address: IotaAddress = key_pair.public().into();
@@ -382,6 +384,6 @@ pub fn new_wallet_context_from_cluster(
     );
 
     WalletContext::new(&wallet_config_path, None, None).unwrap_or_else(|e| {
-        panic!("Failed to init wallet context from path {wallet_config_path:?}, error: {e}")
+        panic!("failed to init wallet context from path {wallet_config_path:?}, error: {e}")
     })
 }

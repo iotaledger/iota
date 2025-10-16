@@ -17,7 +17,7 @@ use iota_config::{
     Config, ExecutionCacheConfig, ExecutionCacheType, IOTA_CLIENT_CONFIG, IOTA_KEYSTORE_FILENAME,
     IOTA_NETWORK_CONFIG, NodeConfig, PersistedConfig,
     genesis::Genesis,
-    node::{AuthorityOverloadConfig, DBCheckpointConfig, RunWithRange},
+    node::{AuthorityOverloadConfig, DBCheckpointConfig, GrpcApiConfig, RunWithRange},
 };
 use iota_core::{
     authority_aggregator::AuthorityAggregator, authority_client::NetworkAuthorityClient,
@@ -313,7 +313,7 @@ impl TestCluster {
             }
         })
             .await
-            .expect("Timed out waiting for cluster to hit target epoch and recv shutdown signal from iota-node")
+            .expect("timed out waiting for cluster to hit target epoch and recv shutdown signal from iota-node")
     }
 
     pub async fn wait_for_protocol_version(
@@ -341,7 +341,7 @@ impl TestCluster {
             }
         })
         .await
-        .expect("Timed out waiting for cluster to target protocol version")
+        .expect("timed out waiting for cluster to target protocol version")
     }
 
     /// Ask 2f+1 validators to close epoch actively, and wait for the entire
@@ -363,7 +363,7 @@ impl TestCluster {
                 .with_async(|node| async {
                     node.close_epoch_for_testing().await.unwrap_or_else(|_| {
                         fatal!(
-                            "Failed to close epoch for validator {:?}",
+                            "failed to close epoch for validator {:?}",
                             node.state().name
                         );
                     });
@@ -421,15 +421,15 @@ impl TestCluster {
                     _ => (),
                 }
             }
-            unreachable!("Broken reconfig channel");
+            unreachable!("broken reconfig channel");
         })
             .await
             .unwrap_or_else(|_| {
-                error!("Timed out waiting for cluster to reach epoch {target_epoch:?}");
+                error!("timed out waiting for cluster to reach epoch {target_epoch:?}");
                 if let Some(state) = state {
-                    panic!("Timed out waiting for cluster to reach epoch {target_epoch:?}. Current epoch: {}", state.epoch());
+                    panic!("timed out waiting for cluster to reach epoch {target_epoch:?}. Current epoch: {}", state.epoch());
                 }
-                panic!("Timed out waiting for cluster to target epoch {target_epoch:?}")
+                panic!("timed out waiting for cluster to target epoch {target_epoch:?}")
             })
     }
 
@@ -469,7 +469,7 @@ impl TestCluster {
                         tokio::time::sleep(Duration::from_secs(1)).await;
                         retries += 1;
                         if retries % 5 == 0 {
-                            tracing::warn!(validator=?node.state().name.concise(), "Waiting for {:?} seconds to reach epoch {:?}. Currently at epoch {:?}", retries, target_epoch, epoch);
+                            tracing::warn!(validator=?node.state().name.concise(), "waiting for {retries:?} seconds to reach epoch {target_epoch:?}. Currently at epoch {epoch:?}");
                         }
                     }
                 })
@@ -543,13 +543,13 @@ impl TestCluster {
                         match &tx.data().intent_message().value.kind() {
                             TransactionKind::EndOfEpochTransaction(_) => (),
                             TransactionKind::AuthenticatorStateUpdateV1(_) => break,
-                            _ => panic!("{tx:?}"),
+                            _ => panic!("received unexpected transaction kind: {tx:?}"),
                         }
                     }
                 }),
         )
         .await
-        .expect("Timed out waiting for authenticator state update");
+        .expect("timed out waiting for authenticator state update");
     }
 
     /// Return the highest observed protocol version in the test cluster.
@@ -739,7 +739,7 @@ impl TestCluster {
         let Faucet { address, keypair } = &self
             .faucet
             .as_ref()
-            .expect("Faucet not initialized: incompatible with `NetworkConfig`.");
+            .expect("faucet not initialized: incompatible with `NetworkConfig`.");
 
         let keypair = &*keypair.lock().await;
 
@@ -825,7 +825,7 @@ impl TestCluster {
             }
         })
         .await
-        .expect("Timeout waiting for indexer to catchup to checkpoint");
+        .expect("timeout waiting for indexer to catchup to checkpoint");
     }
 
     /// Get all objects owned by an address
@@ -1002,7 +1002,7 @@ pub struct TestClusterBuilder {
     fullnode_run_with_range: Option<RunWithRange>,
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_fw_config: Option<RemoteFirewallConfig>,
-    fullnode_grpc_api_config: Option<iota_grpc_api::Config>,
+    fullnode_grpc_api_config: Option<GrpcApiConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
     validator_state_accumulator_config: StateAccumulatorV1EnabledConfig,

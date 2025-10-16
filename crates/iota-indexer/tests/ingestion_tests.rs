@@ -15,7 +15,7 @@ mod ingestion_tests {
     use iota_indexer::{
         db::get_pool_connection,
         errors::{Context, IndexerError},
-        handlers::TransactionObjectChangesToCommit,
+        ingestion::common::prepare::CheckpointObjectChanges,
         insert_or_ignore_into,
         models::{
             checkpoints::StoredCheckpoint,
@@ -28,8 +28,7 @@ mod ingestion_tests {
         },
         store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
-        transform::CheckpointObjectChanges,
-        types::{EventIndex, IndexedDeletedObject, IndexedObject, TxIndex},
+        types::{EventIndex, TxIndex},
     };
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID, base_types::IotaAddress, effects::TransactionEffectsAPI,
@@ -76,33 +75,6 @@ mod ingestion_tests {
         pg_store
             .persist_checkpoint_objects(checkpoint_objects)
             .await?;
-        Ok(())
-    }
-
-    #[tokio::test]
-    pub async fn objects_ingestion() -> Result<(), IndexerError> {
-        let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            None,
-        )
-        .await;
-
-        let mut objects = Vec::new();
-        for _ in 0..1000 {
-            objects.push(TransactionObjectChangesToCommit {
-                changed_objects: vec![IndexedObject::random()],
-                deleted_objects: vec![IndexedDeletedObject::random()],
-            });
-        }
-        pg_store.persist_objects(objects).await?;
         Ok(())
     }
 

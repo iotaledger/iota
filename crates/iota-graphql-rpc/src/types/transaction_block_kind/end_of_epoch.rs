@@ -172,16 +172,16 @@ impl EndOfEpochTransaction {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(self.native.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let tx = EndOfEpochTransactionKind::from(self.native[c.ix].clone(), c.c);
             connection.edges.push(Edge::new(c.encode_cursor(), tx));
         }
@@ -251,7 +251,7 @@ impl ChangeEpochTransaction {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) = page.paginate_consistent_indices(
+        let Some(consistent_page) = page.paginate_consistent_indices(
             self.native.system_packages.len(),
             self.checkpoint_viewed_at,
         )?
@@ -259,10 +259,10 @@ impl ChangeEpochTransaction {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let (version, modules, deps) = &self.native.system_packages[c.ix];
             let compiled_modules = modules
                 .iter()
@@ -358,16 +358,16 @@ impl ChangeEpochTransactionV2 {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) = page
+        let Some(consistent_page) = page
             .paginate_consistent_indices(self.system_packages.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let (version, modules, deps) = &self.system_packages[c.ix];
             let compiled_modules = modules
                 .iter()

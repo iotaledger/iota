@@ -269,9 +269,9 @@ impl ServerBuilder {
         (
             address,
             schema.finish(),
-            db_reader.expect("DB reader not initialized"),
-            resolver.expect("Package resolver not initialized"),
-            router.expect("Router not initialized"),
+            db_reader.expect("db reader not initialized"),
+            resolver.expect("package resolver not initialized"),
+            router.expect("router not initialized"),
         )
     }
 
@@ -756,7 +756,7 @@ pub mod tests {
             connection_config.db_pool_size,
             service_config.limits.request_timeout_ms.into(),
         )
-        .expect("Failed to create pg connection pool");
+        .expect("failed to create pg connection pool");
 
         let version = Version::for_testing();
         let metrics = metrics();
@@ -864,7 +864,7 @@ pub mod tests {
         test_timeout(delay, timeout, query, optimistic_tx_executor)
             .await
             .into_result()
-            .expect("Should complete successfully");
+            .expect("should complete successfully");
 
         // Should timeout
         let errs: Vec<_> = test_timeout(delay, delay, query, optimistic_tx_executor)
@@ -943,7 +943,7 @@ pub mod tests {
         exec_query_depth_limit(1, "{ chainIdentifier }")
             .await
             .into_result()
-            .expect("Should complete successfully");
+            .expect("should complete successfully");
 
         exec_query_depth_limit(
             5,
@@ -951,7 +951,7 @@ pub mod tests {
         )
         .await
         .into_result()
-        .expect("Should complete successfully");
+        .expect("should complete successfully");
 
         // Should fail
         let errs: Vec<_> = exec_query_depth_limit(0, "{ chainIdentifier }")
@@ -995,7 +995,7 @@ pub mod tests {
         exec_query_node_limit(1, "{ chainIdentifier }")
             .await
             .into_result()
-            .expect("Should complete successfully");
+            .expect("should complete successfully");
 
         exec_query_node_limit(
             5,
@@ -1003,7 +1003,7 @@ pub mod tests {
         )
         .await
         .into_result()
-        .expect("Should complete successfully");
+        .expect("should complete successfully");
 
         // Should fail
         let err: Vec<_> = exec_query_node_limit(0, "{ chainIdentifier }")
@@ -1080,7 +1080,7 @@ pub mod tests {
             .execute("{ objects(first: 1) { nodes { version } } }")
             .await
             .into_result()
-            .expect("Should complete successfully");
+            .expect("should complete successfully");
 
         // Should fail
         let err: Vec<_> = schema
@@ -1108,7 +1108,7 @@ pub mod tests {
             .execute("{ chainIdentifier }")
             .await
             .into_result()
-            .expect("Should complete successfully");
+            .expect("should complete successfully");
 
         let req_metrics = metrics.request_metrics;
         assert_eq!(req_metrics.input_nodes.get_sample_count(), 1);
@@ -1122,7 +1122,7 @@ pub mod tests {
             .execute("{ chainIdentifier protocolConfig { configs { value key }} }")
             .await
             .into_result()
-            .expect("Should complete successfully");
+            .expect("should complete successfully");
 
         assert_eq!(req_metrics.input_nodes.get_sample_count(), 2);
         assert_eq!(req_metrics.output_nodes.get_sample_count(), 2);

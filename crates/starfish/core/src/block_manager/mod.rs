@@ -149,7 +149,7 @@ impl BlockManager {
                 // for this accepted header we already have a block, so we add it to dag_state
                 self.dag_state
                     .write()
-                    .add_transactions(block.verified_transactions, "block streaming");
+                    .add_transactions(block.verified_transactions, "Block streaming");
             }
         }
 
