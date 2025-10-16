@@ -4,8 +4,6 @@
 //# publish
 module 0x0::account;
 
-use iota::auth_context::AuthContext;
-
 #[allow(unused_field)]
 public struct Account<T: store> has key {
     id: UID,

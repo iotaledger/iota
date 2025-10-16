@@ -4,7 +4,6 @@
 //# publish
 module 0x0::receiving;
 
-use iota::auth_context::AuthContext;
 use iota::transfer::Receiving;
 use iota::vec_map::VecMap;
 

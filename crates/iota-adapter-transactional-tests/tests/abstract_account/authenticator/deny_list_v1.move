@@ -37,9 +37,8 @@ module test_coin::regulated_coin {
 
 //# publish --sender A --dependencies test_coin simple_abstract_account
 module test_account::authenticate {
-    use simple_abstract_account::abstract_account::AbstractAccount;
-    use iota::auth_context::AuthContext;
     use iota::coin::Coin;
+    use simple_abstract_account::abstract_account::AbstractAccount;
     use test_coin::regulated_coin::REGULATED_COIN;
 
     #[authenticator]
