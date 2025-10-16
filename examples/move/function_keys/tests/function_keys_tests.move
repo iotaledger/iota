@@ -397,10 +397,10 @@ fun test_fk_authenticate_without_init() {
 
     scenario.next_tx(account_address);
     {
-        let mut account = scenario.take_shared<IOTAccount>();
+        let account = scenario.take_shared<IOTAccount>();
 
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-        let mut ctx = create_tx_context_for_testing(account_address, digest);
+        let ctx = create_tx_context_for_testing(account_address, digest);
 
         let mut cmds = vector::empty<Command>();
         vector::push_back(
