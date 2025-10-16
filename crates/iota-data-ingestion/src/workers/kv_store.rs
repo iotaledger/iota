@@ -185,7 +185,7 @@ impl KVStoreWorker {
             .inspect_err(|err| warn!("dynamodb error: {err}"));
 
         if res.is_err() {
-            info!("attempt to store chekpoint contents on S3");
+            info!("attempt to store checkpoint contents on S3");
             let location = Path::from(base64_url::encode(&key));
             self.remote_store
                 .put(&location, Bytes::from(bcs_bytes).into())

@@ -25,28 +25,28 @@ pub enum IngestionError {
     #[error(transparent)]
     RestApi(#[from] iota_rest_api::client::sdk::Error),
 
-    #[error("Register at least one worker pool")]
+    #[error("register at least one worker pool")]
     EmptyWorkerPool,
 
     #[error("{component} shutdown error: `{msg}`")]
     Shutdown { component: String, msg: String },
 
-    #[error("Channel error: `{0}`")]
+    #[error("channel error: `{0}`")]
     Channel(String),
 
-    #[error("Checkpoint processing failed: `{0}`")]
+    #[error("checkpoint processing failed: `{0}`")]
     CheckpointProcessing(String),
 
-    #[error("Checkpoint hook processing failed: `{0}`")]
+    #[error("checkpoint hook processing failed: `{0}`")]
     CheckpointHookProcessing(String),
 
-    #[error("Progress Store error: `{0}`")]
+    #[error("progress store error: `{0}`")]
     ProgressStore(String),
 
-    #[error("Reducer error: `{0}`")]
+    #[error("reducer error: `{0}`")]
     Reducer(String),
 
-    #[error("Deserialize checkpoint failed: `{0}`")]
+    #[error("deserialize checkpoint failed: `{0}`")]
     DeserializeCheckpoint(String),
 
     #[error(transparent)]
@@ -55,9 +55,9 @@ pub enum IngestionError {
     #[error("reading historical data failed: `{0}`")]
     HistoryRead(String),
 
-    #[error("Max downloaded checkpoints limit reached")]
+    #[error("max downloaded checkpoints limit reached")]
     MaxCheckpointsCapacityReached,
 
-    #[error("Checkpoint not available yet")]
+    #[error("checkpoint not available yet")]
     CheckpointNotAvailableYet,
 }

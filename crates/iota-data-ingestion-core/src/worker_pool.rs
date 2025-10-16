@@ -461,7 +461,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
             // get next backoff duration or panic if max retries exceeded.
             let duration = backoff
                 .next_backoff()
-                .expect("max elapsed time exceeded: checkpoint processing failed for checkpoint");
+                .expect("max elapsed time exceeded: checkpoint processing failed for checkpoint {sequence_number}");
             // if cancellation occurs during backoff wait, exit early with Shutdown.
             // Otherwise (if timeout expires), continue with the next retry attempt.
             if tokio::time::timeout(duration, token.cancelled())
