@@ -1837,7 +1837,7 @@ impl AuthorityState {
             reference_gas_price,
             move_authentication_result
                 .as_ref()
-                .map(|(authentication_cost, _, _)| *authentication_cost)
+                .map(|(computation_cost, _, _)| *computation_cost)
                 .unwrap_or(0),
         )?;
 
@@ -1870,8 +1870,9 @@ impl AuthorityState {
                     )
                 }
                 Some((_, Err(move_authentication_error), authentication_checked_input_objects)) => {
-                    let (store, gas_status, effects, error) =
-                        epoch_store.executor().invalid_transaction_to_effects(
+                    let (store, gas_status, effects, error) = epoch_store
+                        .executor()
+                        .produce_effects_for_invalid_authentication(
                             backing_store,
                             protocol_config,
                             self.metrics.limits_metrics.clone(),

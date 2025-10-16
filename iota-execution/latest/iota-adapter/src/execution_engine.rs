@@ -412,9 +412,14 @@ mod checked {
         (computation_gas_cost, execution_result)
     }
 
-    ///
-    #[instrument(name = "tx_invalid_to_effects", level = "debug", skip_all)]
-    pub fn invalid_transaction_to_effects(
+    /// This function produces transaction effects for a transaction that failed
+    /// the Move authentication. It charges gas for the failed execution of the
+    /// authentication and produces transaction effects with the appropriate
+    /// error status. It combines the input objects from both the failed
+    /// authentication and the original transaction and updates their sequence
+    /// numbers.
+    #[instrument(name = "produce_effects_for_invalid_auth", level = "debug", skip_all)]
+    pub fn produce_effects_for_invalid_authentication<Mode: ExecutionMode>(
         store: &dyn BackingStore,
         // Configuration
         protocol_config: &ProtocolConfig,
@@ -427,14 +432,14 @@ mod checked {
         // Gas related
         gas_status: IotaGasStatus,
         gas_coins: Vec<ObjectRef>,
-        // Validation
-        validation_execution_error: ExecutionError,
-        validation_input_objects: CheckedInputObjects,
+        // Invalid Authentication
+        invalid_authentication_execution_error: ExecutionError,
+        invalid_authentication_input_objects: CheckedInputObjects,
         // Transaction
-        invalid_transaction_input_objects: CheckedInputObjects,
-        invalid_transaction_kind: TransactionKind,
-        invalid_transaction_signer: IotaAddress,
-        invalid_transaction_digest: TransactionDigest,
+        transaction_input_objects: CheckedInputObjects,
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
         // VM
         move_vm: &Arc<MoveVM>,
     ) -> (
@@ -443,15 +448,15 @@ mod checked {
         TransactionEffects,
         ExecutionError,
     ) {
-        let mut input_objects = invalid_transaction_input_objects.into_inner();
-        input_objects.extend(validation_input_objects.into_inner());
+        let mut input_objects = transaction_input_objects.into_inner();
+        input_objects.extend(invalid_authentication_input_objects.into_inner());
         let mutable_inputs = if enable_expensive_checks {
             input_objects.mutable_inputs().keys().copied().collect()
         } else {
             HashSet::new()
         };
         let shared_object_refs = input_objects.filter_shared_objects();
-        let receiving_objects = invalid_transaction_kind.receiving_objects();
+        let receiving_objects = transaction_kind.receiving_objects();
         let mut transaction_dependencies = input_objects.transaction_dependencies();
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
@@ -460,32 +465,28 @@ mod checked {
             store,
             input_objects,
             receiving_objects,
-            invalid_transaction_digest,
+            transaction_digest,
             protocol_config,
             *epoch_id,
         );
 
-        let mut gas_charger = GasCharger::new(
-            invalid_transaction_digest,
-            gas_coins,
-            gas_status,
-            protocol_config,
-        );
+        let mut gas_charger =
+            GasCharger::new(transaction_digest, gas_coins, gas_status, protocol_config);
 
         let mut tx_ctx = TxContext::new_from_components(
-            &invalid_transaction_signer,
-            &invalid_transaction_digest,
+            &transaction_signer,
+            &transaction_digest,
             epoch_id,
             epoch_timestamp_ms,
         );
 
-        let is_epoch_change = invalid_transaction_kind.is_end_of_epoch_tx();
+        let is_epoch_change = transaction_kind.is_end_of_epoch_tx();
 
-        let deny_cert = is_certificate_denied(&invalid_transaction_digest, certificate_deny_set);
-        let (gas_cost_summary, execution_error) = invalid_transaction(
+        let deny_cert = is_certificate_denied(&transaction_digest, certificate_deny_set);
+        let (gas_cost_summary, execution_error) = charge_gas_for_invalid_authentication::<Mode>(
             &mut temporary_store,
-            invalid_transaction_kind,
-            validation_execution_error,
+            transaction_kind,
+            invalid_authentication_execution_error,
             &mut gas_charger,
             &mut tx_ctx,
             move_vm,
@@ -502,7 +503,7 @@ mod checked {
 
         #[skip_checked_arithmetic]
         trace!(
-            tx_digest = ?invalid_transaction_digest,
+            tx_digest = ?transaction_digest,
             computation_gas_cost = gas_cost_summary.computation_cost,
             computation_gas_cost_burned = gas_cost_summary.computation_cost_burned,
             storage_gas_cost = gas_cost_summary.storage_cost,
@@ -516,10 +517,10 @@ mod checked {
         // dependencies
         transaction_dependencies.remove(&TransactionDigest::genesis_marker());
 
-        if enable_expensive_checks && !execution_mode::Normal::allow_arbitrary_function_calls() {
+        if enable_expensive_checks && !Mode::allow_arbitrary_function_calls() {
             temporary_store
                 .check_ownership_invariants(
-                    &invalid_transaction_signer,
+                    &transaction_signer,
                     &mut gas_charger,
                     &mutable_inputs,
                     is_epoch_change,
@@ -529,7 +530,7 @@ mod checked {
 
         let (inner, effects) = temporary_store.into_effects(
             shared_object_refs,
-            &invalid_transaction_digest,
+            &transaction_digest,
             transaction_dependencies,
             gas_cost_summary,
             status,
@@ -764,11 +765,18 @@ mod checked {
         (cost_summary, result)
     }
 
-    #[instrument(name = "tx_invalid", level = "debug", skip_all)]
-    fn invalid_transaction(
+    /// Runs checks that must be performed on the transaction inputs before
+    /// charging gas for the invalid authentication. These checks include
+    /// verifying if the transaction certificate is denied, if any input
+    /// objects have been deleted, and if any cancelled objects are present.
+    /// If any of these checks fail, an appropriate `ExecutionError` is
+    /// returned. Otherwise, the original authentication execution error is
+    /// returned. It also returns the gas cost summary for the charged gas.
+    #[instrument(name = "charge_gas_for_invalid_auth", level = "debug", skip_all)]
+    fn charge_gas_for_invalid_authentication<Mode: ExecutionMode>(
         temporary_store: &mut TemporaryStore<'_>,
         transaction_kind: TransactionKind,
-        validation_execution_error: ExecutionError,
+        invalid_authentication_execution_error: ExecutionError,
         gas_charger: &mut GasCharger,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
@@ -814,16 +822,16 @@ mod checked {
             })();
 
             // If any of the pre-checks failed, that error has priority; otherwise use
-            // the provided validation_execution_error.
+            // the provided invalid_authentication_execution_error.
             match pre_check {
-                Ok(()) => Err(validation_execution_error),
+                Ok(()) => Err(invalid_authentication_execution_error),
                 Err(e) => Err(e),
             }
         };
 
         let cost_summary = gas_charger.charge_gas(temporary_store, &mut result);
 
-        if let Err(e) = run_conservation_checks::<execution_mode::Normal>(
+        if let Err(e) = run_conservation_checks::<Mode>(
             temporary_store,
             gas_charger,
             tx_ctx,

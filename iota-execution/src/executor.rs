@@ -104,7 +104,7 @@ pub trait Executor {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (u64, Result<(), ExecutionError>);
 
-    fn invalid_transaction_to_effects(
+    fn produce_effects_for_invalid_authentication(
         &self,
         store: &dyn BackingStore,
         // Configuration
@@ -118,14 +118,14 @@ pub trait Executor {
         // Gas related
         gas_status: IotaGasStatus,
         gas_coins: Vec<ObjectRef>,
-        // Validation
-        validation_execution_error: ExecutionError,
-        validation_input_objects: CheckedInputObjects,
+        // Invalid Authentication
+        invalid_authentication_execution_error: ExecutionError,
+        invalid_authentication_input_objects: CheckedInputObjects,
         // Transaction
-        invalid_transaction_input_objects: CheckedInputObjects,
-        invalid_transaction_kind: TransactionKind,
-        invalid_transaction_signer: IotaAddress,
-        invalid_transaction_digest: TransactionDigest,
+        transaction_input_objects: CheckedInputObjects,
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
     ) -> (
         InnerTemporaryStore,
         IotaGasStatus,

@@ -8,7 +8,7 @@ use iota_adapter_latest::{
     adapter::{new_move_vm, run_metered_move_bytecode_verifier},
     execution_engine::{
         execute_genesis_state_update, execute_transaction_to_effects,
-        invalid_transaction_to_effects, validate_transaction,
+        produce_effects_for_invalid_authentication, validate_transaction,
     },
     execution_mode,
     type_layout_resolver::TypeLayoutResolver,
@@ -210,7 +210,7 @@ impl executor::Executor for Executor {
         )
     }
 
-    fn invalid_transaction_to_effects(
+    fn produce_effects_for_invalid_authentication(
         &self,
         store: &dyn BackingStore,
         // Configuration
@@ -224,21 +224,21 @@ impl executor::Executor for Executor {
         // Gas related
         gas_status: IotaGasStatus,
         gas_coins: Vec<ObjectRef>,
-        // Validation
-        validation_execution_error: ExecutionError,
-        validation_input_objects: CheckedInputObjects,
+        // Invalid Authentication
+        invalid_authentication_execution_error: ExecutionError,
+        invalid_authentication_input_objects: CheckedInputObjects,
         // Transaction
-        invalid_transaction_input_objects: CheckedInputObjects,
-        invalid_transaction_kind: TransactionKind,
-        invalid_transaction_signer: IotaAddress,
-        invalid_transaction_digest: TransactionDigest,
+        transaction_input_objects: CheckedInputObjects,
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
     ) -> (
         InnerTemporaryStore,
         IotaGasStatus,
         TransactionEffects,
         ExecutionError,
     ) {
-        invalid_transaction_to_effects(
+        produce_effects_for_invalid_authentication::<execution_mode::Normal>(
             store,
             protocol_config,
             metrics,
@@ -248,12 +248,12 @@ impl executor::Executor for Executor {
             epoch_timestamp_ms,
             gas_status,
             gas_coins,
-            validation_execution_error,
-            validation_input_objects,
-            invalid_transaction_input_objects,
-            invalid_transaction_kind,
-            invalid_transaction_signer,
-            invalid_transaction_digest,
+            invalid_authentication_execution_error,
+            invalid_authentication_input_objects,
+            transaction_input_objects,
+            transaction_kind,
+            transaction_signer,
+            transaction_digest,
             &self.0,
         )
     }
