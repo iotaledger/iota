@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use move_core_types::language_storage::{StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
+use typed_store_error::TypedStoreError;
 
 use super::{ObjectStore, error::Result};
 use crate::{
@@ -816,6 +817,8 @@ pub trait RestStateReader: ObjectStore + ReadStore + Send + Sync {
     fn indexes(&self) -> Option<&dyn RestIndexes>;
 }
 
+pub type DynamicFieldIteratorItem =
+    Result<(DynamicFieldKey, DynamicFieldIndexInfo), TypedStoreError>;
 pub trait RestIndexes: Send + Sync {
     fn get_transaction_checkpoint(
         &self,
@@ -826,13 +829,13 @@ pub trait RestIndexes: Send + Sync {
         &self,
         owner: IotaAddress,
         cursor: Option<ObjectID>,
-    ) -> Result<Box<dyn Iterator<Item = AccountOwnedObjectInfo> + '_>>;
+    ) -> Result<Box<dyn Iterator<Item = Result<AccountOwnedObjectInfo, TypedStoreError>> + '_>>;
 
     fn dynamic_field_iter(
         &self,
         parent: ObjectID,
         cursor: Option<ObjectID>,
-    ) -> Result<Box<dyn Iterator<Item = (DynamicFieldKey, DynamicFieldIndexInfo)> + '_>>;
+    ) -> Result<Box<dyn Iterator<Item = DynamicFieldIteratorItem> + '_>>;
 
     fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
 }

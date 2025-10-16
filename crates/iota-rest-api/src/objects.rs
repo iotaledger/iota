@@ -222,7 +222,16 @@ async fn list_dynamic_fields(
     let mut dynamic_fields = indexes
         .dynamic_field_iter(parent.into(), start)?
         .take(limit + 1)
-        .map(DynamicFieldInfo::try_from)
+        .map(|result| {
+            result
+                .map_err(|err| {
+                    RestError::new(
+                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        err.to_string(),
+                    )
+                })
+                .and_then(|x| DynamicFieldInfo::try_from(x)?.pipe(Ok))
+        })
         .collect::<Result<Vec<_>, _>>()?;
 
     let cursor = if dynamic_fields.len() > limit {
