@@ -14,11 +14,6 @@ module function_keys::fk_store;
 use iota::programmable_transaction::{Command, move_call_data};
 use iota::table::{Self as tbl, Table};
 use iota::vec_set::{Self, VecSet};
-use iotaccount::iotaccount::IOTAccount;
-
-#[error(code = 0)]
-const EFunctionKeysStoreAlreadyAttached: vector<u8> =
-    b"The function keys store has been attached already";
 
 #[error(code = 1)]
 const EFunctionKeyAlreadyAdded: vector<u8> = b"The function key has been added already";
@@ -32,9 +27,6 @@ const EPublicKeyNotFound: vector<u8> = b"Public key entry not found";
 // =========================
 // Types
 // =========================
-
-/// Dynamic-field name for the Function Keys store inside the `IOTAccount`.
-public struct FunctionKeysName has copy, drop, store {}
 
 /// An **exact** function identity (no wildcards, no type args in v1).
 /// - `package`: on-chain address of the package containing the module
@@ -57,31 +49,9 @@ public struct FunctionKeysStore has store {
 // =========================
 // Accessors / helpers
 // =========================
-public(package) fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
-
-public fun attach_fk_store(account: &mut IOTAccount, ctx: &mut TxContext) {
-    assert!(!account.has_field(fk_store_key()), EFunctionKeysStoreAlreadyAttached);
-    account.add_field(
-        fk_store_key(),
-        FunctionKeysStore { function_keys: tbl::new<vector<u8>, VecSet<FunctionKey>>(ctx) },
-        ctx,
-    );
-}
 
 public fun build_fn_keys_store(ctx: &mut TxContext): FunctionKeysStore {
     FunctionKeysStore { function_keys: tbl::new<vector<u8>, VecSet<FunctionKey>>(ctx) }
-}
-
-public fun fk_store_exists(account: &IOTAccount): bool {
-    account.has_field(fk_store_key())
-}
-
-public fun borrow_fk_store(account: &IOTAccount): &FunctionKeysStore {
-    account.borrow_field(fk_store_key())
-}
-
-public fun borrow_fk_store_mut(account: &mut IOTAccount, ctx: &TxContext): &mut FunctionKeysStore {
-    account.borrow_field_mut(fk_store_key(), ctx)
 }
 
 public fun make_func_key(

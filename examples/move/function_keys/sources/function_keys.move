@@ -24,12 +24,8 @@ module function_keys::function_keys;
 use function_keys::fk_store::{
     extract_func_key,
     FunctionKey,
-    attach_fk_store,
-    borrow_fk_store,
+    FunctionKeysStore,
     build_fn_keys_store,
-    borrow_fk_store_mut,
-    fk_store_exists,
-    fk_store_key,
     allow,
     disallow,
     is_allowed
@@ -59,8 +55,10 @@ const EEd25519VerificationFailed: vector<u8> = b"Ed25519 verification has failed
 
 public struct OwnerPublicKey has copy, drop, store {}
 
-/// Initializes the Function Keys store under the given `account`.
-public fun attach(account: &mut IOTAccount, ctx: &mut TxContext) { attach_fk_store(account, ctx); }
+/// Dynamic-field name for the Function Keys store inside the `IOTAccount`.
+public struct FunctionKeysName has copy, drop, store {}
+
+fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
 
 /// Creates a new `IOTAccount` as a shared object with the given authenticator.
 public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
@@ -79,9 +77,12 @@ public fun grant_permission(
     func_key: FunctionKey,
     ctx: &mut TxContext,
 ) {
-    assert!(fk_store_exists(account), EFunctionKeysNotInitialized);
+    assert!(account.has_field(fk_store_key()), EFunctionKeysNotInitialized);
 
-    let fk_store = borrow_fk_store_mut(account, ctx);
+    let fk_store = account.borrow_field_mut<FunctionKeysName, FunctionKeysStore>(
+        fk_store_key(),
+        ctx,
+    );
     fk_store.allow(pub_key, func_key);
 }
 
@@ -92,16 +93,19 @@ public fun revoke_permission(
     func_key: &FunctionKey,
     ctx: &TxContext,
 ) {
-    assert!(fk_store_exists(account), EFunctionKeysNotInitialized);
+    assert!(account.has_field(fk_store_key()), EFunctionKeysNotInitialized);
 
-    let fk_store = borrow_fk_store_mut(account, ctx);
+    let fk_store = account.borrow_field_mut<FunctionKeysName, FunctionKeysStore>(
+        fk_store_key(),
+        ctx,
+    );
     fk_store.disallow(pub_key, func_key);
 }
 
 /// Read-only query for membership in the per-pubkey allow-set.
 public fun has_permission(account: &IOTAccount, pub_key: vector<u8>, func_key: &FunctionKey): bool {
-    if (!fk_store_exists(account)) return false;
-    let fk_store = borrow_fk_store(account);
+    if (!account.has_field(fk_store_key())) return false;
+    let fk_store = account.borrow_field<FunctionKeysName, FunctionKeysStore>(fk_store_key());
     fk_store.is_allowed(pub_key, func_key)
 }
 // --------------------
@@ -147,7 +151,7 @@ public fun authenticate(
         assert!(is_ed25519_verified, EEd25519VerificationFailed);
     } else {
         // FUNCTION KEY FLOW
-        assert!(fk_store_exists(account), EFunctionKeysNotInitialized);
+        assert!(account.has_field(fk_store_key()), EFunctionKeysNotInitialized);
         // Verify delegated signature against provided pub_key.
         assert!(is_ed25519_verified, EEd25519VerificationFailed);
 
@@ -155,7 +159,7 @@ public fun authenticate(
         assert!(auth_ctx.tx_commands().length() == 1, EInvalidAmountOfCommands);
         // Extract and check allow-set membership.
         let func_key = extract_func_key(&auth_ctx.tx_commands()[0]);
-        let fk_store = borrow_fk_store(account);
+        let fk_store = account.borrow_field<FunctionKeysName, FunctionKeysStore>(fk_store_key());
         assert!(fk_store.is_allowed(pub_key, &func_key), EUnauthorized);
     }
 }
