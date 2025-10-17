@@ -355,6 +355,8 @@ impl CordialKnowledge {
             }
         }
 
+        self.context.metrics.node_metrics.cordial_knowledge_useful_shards.set()
+
         // Notify per-connection tasks about eviction
         self.notify_connection_tasks_for_eviction(rounds).await;
     }

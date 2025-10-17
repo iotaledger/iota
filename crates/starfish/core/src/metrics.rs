@@ -138,6 +138,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) cordial_knowledge_buffer_size: IntGauge,
     pub(crate) cordial_knowledge_processed_messages: IntCounter,
     pub(crate) cordial_knowledge_rounds: IntGaugeVec,
+    pub(crate) cordial_knowledge_useful_shards: IntGauge,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) fetch_block_headers_scheduler_inflight: IntGauge,
@@ -446,6 +447,11 @@ impl NodeMetrics {
                 "cordial_knowledge_buffer_size",
                 "Size of the cordial knowledge buffer received",
                 registry,
+            ).unwrap(),
+            cordial_knowledge_useful_shards: register_int_gauge_with_registry!(
+            "cordial_knowledge_useful_shards",
+            "The number of authorities with useful shards",
+            registry,
             ).unwrap(),
             cordial_knowledge_processed_messages: register_int_counter_with_registry!(
                 "cordial_knowledge_processed_messages",
