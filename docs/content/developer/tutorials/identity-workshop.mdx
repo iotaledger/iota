@@ -516,7 +516,7 @@ pub fn get_stronghold_storage(
 ### Explanation:
 
 - **What it does**: The `get_stronghold_storage` function creates a `StrongholdStorage` instance, which is used to securely store cryptographic keys. It takes an optional file path (`path`) for the Stronghold file; if none is provided, it generates a random path using `random_stronghold_path`. The function sets a default password (`secure_password`), builds a `StrongholdSecretManager`, and wraps it in a `StrongholdStorage` instance, returning it as a `Storage` type compatible with IOTA Identity.
-- **Why it matters**: Secure key storage is essential for managing private keys used in DID creation, VC issuance, and VP signing. Stronghold ensures keys are encrypted and protected, preventing unauthorized access. This function provides a reusable storage setup for all identity operations in the workshop.
+- **Why it matters**: Secure key storage is essential for managing private keys used in DID creation, VC issuance, and Verifiable Presentation signing. Stronghold ensures keys are encrypted and protected, preventing unauthorized access. This function provides a reusable storage setup for all identity operations in the workshop.
 - **Key concepts**:
     - **Stronghold**: A secure storage system for cryptographic keys.
     - *PathBuf*: A Rust type for handling file paths, used to specify where the Stronghold file is stored.
@@ -621,7 +621,7 @@ where
     - **Publish DID**: Anchors the DID document to the IOTA network, making it publicly resolvable.
     - **Gas Budget**: Allocates funds for the network transaction to publish the DID.
 
-### Integration with `create_or_load_did`
+## Integration with `create_or_load_did`
 
 These helper functions are called by `create_or_load_did` to create a new DID:
 
@@ -631,7 +631,7 @@ These helper functions are called by `create_or_load_did` to create a new DID:
 
 Together, they ensure the Student’s DID is created securely, funded, and anchored to the IOTA network, or loaded from disk if it already exists.
 
-### Checkpoint
+## Checkpoint
 
 - Verify that `get_stronghold_storage` creates a Stronghold file (e.g., `holder.stronghold`).
 - Check that `get_funded_client` successfully requests test funds by monitoring the IOTA test network faucet.
@@ -666,7 +666,7 @@ const handleIssueVc = async () => {
 - **Key concepts**:
     - **Verifiable Credential**: A signed document asserting the student’s degree (e.g., Bachelor of Science).
     - **JSON Web Token**: The Verifiable Credential is encoded as a `JSON Web Token` for secure transmission.
-    - **React State**: Stores the `VC JWT` for use in VP creation.
+    - **React State**: Stores the `VC JWT` for use in Verifiable Presentation creation.
 
 **Backend** (`src/main.rs`): In this step, the Uinversity (issuer) creates or loads its Decentralized Identifier (DID) and issues a Verifiable Credential (VC) representing a university degree for the Student (holder, Alice). This VC is signed and returned as a JSON Web Token (JWT) to the React frontend for use in subsequent steps.
 
@@ -842,7 +842,7 @@ Ok(Json(JwtResponse {
 }))
 ```
 - **What it does**: Wraps the Verifiable Credential JWT in a `JwtResponse` struct and returns it as a JSON response to the frontend.
-- **Why it matters**: The JWT is sent to the React frontend, where it’s stored for use in the next step (VP creation).
+- **Why it matters**: The JWT is sent to the React frontend, where it’s stored for use in the next step (Verifiable Presentation creation).
 - **Key concepts**:
     - **Axum Response**: Uses `Json` to serialize the response for HTTP communication.
     - **JwtResponse**: A custom struct to structure the API response.
@@ -868,7 +868,7 @@ Output after a successful creation of the student’s Verifiable Credential.
 
 ![Create DID output](./images/IssueVC.png)
 
-### Step 2.4: Step 3: Student Creates Verifiable Presentation
+## Step 2.4: Step 3: Student Creates Verifiable Presentation
 
 | Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored |
 | :--- | :--- | :--- | :--- |
@@ -890,18 +890,18 @@ const handleCreateVp = async () => {
 
 ## Explanation:
 
-- **What it does**: The `handleCreateVp` function sends a POST request to the `/holder/create-vp` endpoint, including the VC JWT (`vcJwt`) from the previous step. The backend returns a VP JWT, which is stored in the React state (`setVpJwt`) for display and verification.
-- **Why it matters**: This allows the student to create a signed VP, proving they own the VC when presenting it to an employer.
+- **What it does**: The `handleCreateVp` function sends a POST request to the `/holder/create-vp` endpoint, including the VC JWT (`vcJwt`) from the previous step. The backend returns a Verifiable Presentation JWT, which is stored in the React state (`setVpJwt`) for display and verification.
+- **Why it matters**: This allows the student to create a signed Verifiable Presentation, proving they own the VC when presenting it to an employer.
 - **Key concepts**:
-    - **VP**: A signed package containing the Verifiable Credential, proving the Student's ownership.
-    - **Payload**: Sends the Verifiable Credential JWT to the backend for inclusion in the VP.
-    - **React State**: Stores the VP JWT for the final verification step.
+    - **Verifiable Presentation**: A signed package containing the Verifiable Credential, proving the Student's ownership.
+    - **Payload**: Sends the Verifiable Credential JWT to the backend for inclusion in the Verifiable Presentation.
+    - **React State**: Stores the Verifiable Presentation JWT for the final verification step.
 
 **Backend** (`src/main.rs`): In this step, the Holder (student, Alice) packages the received Verifiable Credential (VC) into a Verifiable Presentation (VP) and signs it for presentation to a employer (verifier). The Verifiable Presentation proves that Alice controls the Verifiable Credential and hasn't tampered with it.
 
 ## Backend: `holder_create_vp` Function
 
-The `holder_create_vp` function handles the `/holder/create-vp` endpoint in the Rust Axum backend, receiving the VC JWT from the frontend and creating a signed VP.
+The `holder_create_vp` function handles the `/holder/create-vp` endpoint in the Rust Axum backend, receiving the VC JWT from the frontend and creating a signed Verifiable Presentation.
 
 ```Rust
 // iota-identity-backend/src/main.rs (holder_create_vp)
@@ -960,9 +960,9 @@ async fn holder_create_vp(Json(body): Json<VcJwt>) -> Result<Json<JwtResponse>, 
 
 - What it does: The `holder_create_vp` function handles the `/holder/create-vp` HTTP endpoint, triggered by the React frontend. It performs three key steps:
     1. **Load Holder DID**: Retrieves the Student's DID document and signing fragment from disk (created in Step 1).
-    2. **Build VP**: Creates a Verifiable Presentation that embeds the received VC JWT (`body.vc_jwt`), sets the Student's DID as the presenter, and configures expiration and challenge parameters.
-    3. **Sign VP**: Uses the Student's private key (stored in Stronghold) to sign the VP, creating a JWT that proves Alice controls the VC.
-- **Why it matters**: This function enables the student to create a signed presentation of their degree credential, which they can securely share with employers. The VP proves both the authenticity of the VC (from Step 2) and Alice's ownership of it, completing the Student's role in the identity flow.
+    2. **Build Verifiable Presentation**: Creates a Verifiable Presentation that embeds the received VC JWT (`body.vc_jwt`), sets the Student's DID as the presenter, and configures expiration and challenge parameters.
+    3. **Sign Verifiable Presentation**: Uses the Student's private key (stored in Stronghold) to sign the Verifiable Presentation, creating a JWT that proves Alice controls the VC.
+- **Why it matters**: This function enables the student to create a signed presentation of their degree credential, which they can securely share with employers. The Verifiable Presentation proves both the authenticity of the VC (from Step 2) and Alice's ownership of it, completing the Student's role in the identity flow.
 - **Key concepts**:
     - **Verifiable Presentation (VP)**: A signed package containing one or more Verifiable Credentials, proving the presenter's control and ownership.
     - **Challenge/Nonce**: A unique string (`challenge-123`) that prevents replay attacks and ensures the VP is fresh.
@@ -984,7 +984,7 @@ let (holder_doc, holder_fragment) = create_or_load_did(
 ```
 
     - **What it does**: Calls the `create_or_load_did` helper function to load the Student's DID document and signing fragment from `holder_doc.json` and `holder_fragment.txt` (created in Step 1). Since the DID already exists, it reads from disk rather than creating a new one.
-    - **Why it matters**: The Student's DID is needed to identify Alice as the presenter of the VP and to access her private key for signing. This ensures the VP is linked to her identity.
+    - **Why it matters**: The Student's DID is needed to identify Alice as the presenter of the Verifiable Presentation and to access her private key for signing. This ensures the Verifiable Presentation is linked to her identity.
     - **Key concepts**:
         - **DID Persistence**: The DID document and fragment are loaded from disk, ensuring consistency across API calls.
         - **HTTP Error Handling**: Returns `StatusCode::NOT_FOUND` if the DID files don't exist, indicating Step 1 wasn't completed.
@@ -1000,11 +1000,11 @@ let expires = Timestamp::now_utc().checked_add(Duration::minutes(10)).unwrap();
 ```
 
     - **What it does**: Initializes Stronghold storage for accessing the Student's private keys and sets security parameters: a fixed challenge (`challenge-123`) for nonce validation and an expiration time 10 minutes from now.
-    - **Why it matters**: Stronghold provides secure access to Alice's private key for signing the VP. The challenge prevents replay attacks (using the same VP multiple times), and the expiration ensures the VP has limited validity, enhancing security.
+    - **Why it matters**: Stronghold provides secure access to Alice's private key for signing the Verifiable Presentation. The challenge prevents replay attacks (using the same Verifiable Presentation multiple times), and the expiration ensures the Verifiable Presentation has limited validity, enhancing security.
     - **Key concepts**:
         - **Stronghold Storage**: Securely stores and retrieves the Student's private keys.
-        - **Challenge/Nonce**: A unique identifier included in the VP signature, verified by the recipient to ensure freshness.
-        - **Timestamp & Duration**: Sets the VP's expiration using UTC time, preventing indefinite use.
+        - **Challenge/Nonce**: A unique identifier included in the Verifiable Presentation signature, verified by the recipient to ensure freshness.
+        - **Timestamp & Duration**: Sets the Verifiable Presentation's expiration using UTC time, preventing indefinite use.
 
 3. Build Verifiable Presentation:
 
@@ -1022,10 +1022,10 @@ let presentation: Presentation<Jwt> = PresentationBuilder::new(
 ```
 
     - **What it does**: Creates a `PresentationBuilder` with the Student's DID as the presenter, embeds the received VC JWT (`body.vc_jwt`) from the frontend, and builds the presentation structure. The `Jwt::new(body.vc_jwt)` wraps the VC JWT as a credential within the presentation.
-    - **Why it matters**: This constructs the VP structure that contains Alice's degree credential, linking it to her identity. The presentation format allows employers to validate both the VC's authenticity and Alice's ownership.
+    - **Why it matters**: This constructs the Verifiable Presentation structure that contains Alice's degree credential, linking it to her identity. The presentation format allows employers to validate both the VC's authenticity and Alice's ownership.
     - **Key concepts**:
-        - **PresentationBuilder**: Builds the VP structure with the presenter's DID and embedded credentials.
-        - **Credential Embedding**: The VC JWT (from Step 2) is included in the VP for presentation to employers.
+        - **PresentationBuilder**: Builds the Verifiable Presentation structure with the presenter's DID and embedded credentials.
+        - **Credential Embedding**: The VC JWT (from Step 2) is included in the Verifiable Presentation for presentation to employers.
         - **URL Conversion**: The Student's DID is converted to a URL format for use in the presentation.
 
 4. Sign Verifiable Presentation:
@@ -1072,7 +1072,7 @@ Ok(Json(JwtResponse {
 
 ## Integration with the Workshop
 
-The `holder_create_vp` function is triggered by the React frontend's "Execute Step 3" button, which calls the `/holder/create-vp` endpoint with the VC JWT from Step 2. It relies on:
+The `holder_create_Verifiable Presentation` function is triggered by the React frontend's "Execute Step 3" button, which calls the `/holder/create-vp` endpoint with the VC JWT from Step 2. It relies on:
 
 - Input: The VC JWT (`body.vc_jwt`) received from the frontend (issued in Step 2).
 - **Dependencies**: `create_or_load_did` to load the Student's DID and `get_stronghold_storage` to access private keys.
@@ -1080,7 +1080,7 @@ The `holder_create_vp` function is triggered by the React frontend's "Execute St
 
 The returned VP JWT is stored in the frontend's state and used in Step 4 for verification by the employer.
 
-Output after a successful creation of the student’s VP.
+Output after a successful creation of the student’s Verifiable Presentation.
 ![Create DID output](./images/CreateVP.png)
 
 ### Step 2.5: Step 4: Employer Validates VP (The Final Proof)
@@ -1213,17 +1213,17 @@ async fn verifier_validate(Json(body): Json<VpJwt>) -> Result<Json<ValidationRes
 
 ## Explanation:
 
-- What it does: The verifier_validate function handles the /verifier/validate HTTP endpoint, triggered by the React frontend. It validates the VP JWT received from the frontend (body.vp_jwt) by performing four key steps:
+- What it does: The verifier_validate function handles the /verifier/validate HTTP endpoint, triggered by the React frontend. It validates the Verifiable Presentation JWT received from the frontend (body.Verifiable Presentation_jwt) by performing four key steps:
     1. Setup Resolver and Client: Initializes an IOTA resolver and read-only client to fetch DID documents from the IOTA network.
-    2. Resolve Holder DID: Extracts and resolves the Student's DID from the VP to retrieve their public key.
-    3. Validate VP Signature and Challenge: Verifies the VP’s signature and nonce (challenge) to ensure its authenticity and freshness.
+    2. Resolve Student DID: Extracts and resolves the Student's DID from the Verifiable Presentation to retrieve their public key.
+    3. Validate Verifiable Presentation Signature and Challenge: Verifies the Verifiable Presentation signature and nonce (challenge) to ensure its authenticity and freshness.
     4. Validate Embedded Credentials: Extracts and verifies the signatures of all embedded VCs, ensuring they were issued by trusted universities.
 - Why it matters: This function completes the IOTA Identity flow by enabling the employer (Verifier) to confirm the authenticity of Alice’s degree credential (VC) and her ownership of it (via the VP). It ensures trust without intermediaries, fulfilling the workshop’s goal of a secure, decentralized degree verification system.
 - Key concepts:
     - Resolver: A tool to fetch DID documents from the IOTA network, providing public keys for signature verification.
-    - Verifiable Presentation Validation: Verifies the VP’s signature, nonce, and Student's identity.
-    - Verifiable Credential Validation: Confirms the embedded VC’s signature and university, ensuring it’s untampered and trustworthy.
-    - Nonce/Challenge: Ensures the VP is fresh and not reused (challenge-123).
+    - Verifiable Presentation Validation: Verifies the Verifiable Presentation signature, nonce, and Student's identity.
+    - Verifiable Credential Validation: Confirms the embedded Verifiable Credential signature and university, ensuring it’s untampered and trustworthy.
+    - Nonce/Challenge: Ensures the Verifiable Presentation is fresh and not reused (challenge-123).
     - Validation Log: A detailed string (output) tracking each step’s success or failure, returned to the frontend.
 
 ## Step-by-Step Breakdown
@@ -1240,9 +1240,9 @@ output.push_str(&format!(" Using challenge: {}\n", challenge));
     - What it does: Initializes a read-only IOTA client (via get_read_only_client) and sets up a Resolver to fetch DID documents from the IOTA network. Configures verification options with the expected challenge (challenge-123) and logs it to the output string.
     - Why it matters: The resolver is essential for retrieving public keys from the IOTA network to verify signatures. The read-only client ensures network access without requiring funds.
     - Key concepts:
-        - Resolver: Fetches DID documents using the IOTA network.
+        - Resolver: Fetches Decentralized Identifier documents using the IOTA network.
         - Read-Only Client: Provides network access for resolving DIDs without transaction capabilities.
-        - Challenge: Ensures the VP’s nonce matches the expected value (challenge-123).
+        - Challenge: Ensures the Verifiable Presentation nonce matches the expected value (challenge-123).
 2. Resolve Holder DID:
     - Code:
 ```rust
@@ -1256,14 +1256,14 @@ let holder_doc: IotaDocument = resolver.resolve(&holder_did).await.map_err(|e| {
 output.push_str(&format!("✅ Resolved holder DID from network: {}\n", holder_doc.id()));
 ```
 
-    - What it does: Extracts the Student's DID from the VP JWT and uses the resolver to fetch the corresponding DID document from the IOTA network. Logs the extracted and resolved DID to the output string.
-    - Why it matters: The Student's DID document contains Alice’s public key, needed to verify the VP’s signature. Resolving it from the network ensures the DID is valid and untampered.
+    - What it does: Extracts the Student's Decentralized Identifier from the VP JWT and uses the resolver to fetch the corresponding DID document from the IOTA network. Logs the extracted and resolved DID to the output string.
+    - Why it matters: The Student's DID document contains Alice’s public key, needed to verify the Verifiable Presentation signature. Resolving it from the network ensures the DID is valid and untampered.
     - Key concepts:
         - CoreDID: A standardized DID representation (e.g., did:iota:...).
         - Resolver: Retrieves the DID document, including public keys, from the IOTA network.
         - Logging: Tracks the DID resolution process for debugging and user feedback.
 
-3. ## Validate VP Signature and Challenge:
+3. ## Validate Verifiable Presentation Signature and Challenge:
 
     - Code:
 
@@ -1276,16 +1276,16 @@ let decoded_vp: DecodedJwtPresentation<Jwt> = JwtPresentationValidator::with_sig
         output.push_str(&format!(" VP Validation Failed: {:?}\n", e));
         StatusCode::BAD_REQUEST
     })?;
-output.push_str("✅ VP JWT verified successfully\n");
-output.push_str(&format!("✅ VP Holder matches Subject: {}\n", decoded_vp.presentation.holder));
+output.push_str("VP JWT verified successfully\n");
+output.push_str(&format!(" VP Student matches Subject: {}\n", decoded_vp.presentation.holder));
 ```
 
-- What it does: Configures VP validation options with the expected nonce, then uses JwtPresentationValidator with an Ed25519 verifier to check the VP’s signature and nonce against the Student's public key (from holder_doc). Logs the successful validation and confirms the Student's DID matches the VP’s presenter.
-- Why it matters: This verifies that Alice signed the VP and that it hasn’t been tampered with, ensuring she controls the presented credentials. The nonce check prevents replay attacks.
+- What it does: Configures Verifiable Presentation validation options with the expected nonce, then uses JwtPresentationValidator with an Ed25519 verifier to check the VP’s signature and nonce against the Student's public key (from holder_doc). Logs the successful validation and confirms the Student's DID matches the VP’s presenter.
+- Why it matters: This verifies that Alice signed the Verifiable Presentation and that it hasn’t been tampered with, ensuring she controls the presented credentials. The nonce check prevents replay attacks.
 - Key concepts:
-    - Signature Verification: Uses the Student's public key to verify the VP’s Ed25519 signature.
+    - Signature Verification: Uses the Student's public key to verify the Verifiable Presentation Ed25519 signature.
     - Nonce Validation: Ensures the VP’s nonce matches challenge-123.
-    - DecodedJwtPresentation: The validated VP structure, containing the embedded VCs and Student's DID.
+    - DecodedJwtPresentation: The validated Verifiable Presentation structure, containing the embedded VCs and Student's DID.
 
 4. ## Extract and Validate Embedded Credentials:
     - Code:
@@ -1329,10 +1329,10 @@ for (index, jwt_vc) in jwt_credentials.iter().enumerate() {
 }
 ```
 
-- What it does: Extracts the VCs from the VP, retrieves the University's DID for each VC, and resolves their DID documents. Validates each VC’s signature against the University's public key, ensuring the VC was issued by the university and the subject matches the Student's DID. Logs each credential’s validation result.
+- What it does: Extracts the Verifiable Credential from the Verifiable Presentation, retrieves the University's DID for each VC, and resolves their DID documents. Validates each VC’s signature against the University's public key, ensuring the VC was issued by the university and the subject matches the Student's DID. Logs each credential’s validation result.
 - Why it matters: This confirms the degree credential’s authenticity, ensuring it was issued by a trusted university and hasn’t been altered. The subject-holder relationship check verifies that Alice is the legitimate subject of the VC.
 - Key concepts:
-    - Credential Validation: Verifies the VC’s signature using the University's public key.
+    - Credential Validation: Verifies the Verifiable Credential signature using the University's public key.
     - University Resolution: Fetches the University's DID document to access their public key.
     - Subject-Holder Relationship: Ensures the VC’s subject (Alice) matches the Student's DID.
     - FailFast: Stops validation on the first error to avoid unnecessary processing.
@@ -1345,7 +1345,7 @@ output.push_str("\n🎉 All credentials in the VP are valid!");
 Ok(Json(ValidationResponse { success: true, output }))
 ```
 - What it does: If all validations pass, logs a success message and returns a ValidationResponse with success: true and the detailed validation log (output) to the frontend.
-- Why it matters: The response informs the frontend whether the VP and its VCs are valid, updating the UI to show “SUCCESS” or “FAIL” and displaying the validation log.
+- Why it matters: The response informs the frontend whether the Verifiable Presentation and its Verifiable Credential are valid, updating the UI to show “SUCCESS” or “FAIL” and displaying the validation log.
 - Key concepts:
     - ValidationResponse: A custom struct containing a boolean (success) and log (output).
     - JSON Response: Serializes the result for HTTP communication with the React frontend.
@@ -1359,7 +1359,7 @@ The verifier_validate function is triggered by the React frontend’s “Execute
 
 The returned ValidationResponse updates the frontend UI, displaying the validation outcome and log.
 
-Output after a successful validation of the student’s VP.
+Output after a successful validation of the student’s Verifiable Presentation.
 ![Create DID output](./images/VerifyVP2.png)
     
 -==
@@ -1389,10 +1389,10 @@ This starts the React app (e.g., at http://localhost:5173).
 
 3. Interact with the UI:
 
-- Click “Execute Step 1” to create the Student's DID.
-- Click “Execute Step 2” to issue the VC.
-- Click “Execute Step 3” to create the VP.
-- Click “Execute Step 4” to verify the VP.
+- Click  Create the Student's Decentralized Identifier.
+- Click  University the Verifiable Credential.
+- Click  Create the Verifiable Presentation.
+- Click  Verify the Verifiable Presentation.
 
 ## Troubleshooting
 
@@ -1405,10 +1405,10 @@ This starts the React app (e.g., at http://localhost:5173).
 
 You’ve built a full-stack IOTA Identity application:
 
-- Created a DID for a student (Holder).
+- Created a Decentralized Identifier for a student (Holder).
 - Issued a tamper-proof degree credential (VC).
-- Packaged the VC into a signed VP.
-- Verified the VP and VC on the IOTA network.
+- Packaged the Verifiable Credential into a signed Verifiable Presentation.
+- Verified the Verifiable Presentation and Verifiable Credential on the IOTA network.
 
 ## Workshop tasks
 
