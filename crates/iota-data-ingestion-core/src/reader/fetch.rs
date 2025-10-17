@@ -80,7 +80,7 @@ pub(crate) trait LocalRead {
     fn read_local_files(&self) -> IngestionResult<Vec<Arc<CheckpointData>>> {
         // files are already sorted by sequence number in ascending order
         let files = self.list_unprocessed_checkpoint_files()?;
-        debug!("unprocessed local files {:?}", files);
+        debug!("unprocessed local files {files:?}");
         let mut checkpoints = vec![];
         for (_, filename) in files.iter().take(MAX_CHECKPOINTS_IN_PROGRESS) {
             let checkpoint = self.read_checkpoint_file(filename)?;
