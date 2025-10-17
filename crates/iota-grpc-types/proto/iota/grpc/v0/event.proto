@@ -3,7 +3,7 @@
 
 syntax = "proto3";
 
-package iota.grpc.events;
+package iota.grpc.v0.events;
 
 import "common.proto";
 
@@ -17,18 +17,18 @@ message EventStreamRequest {
 
 message Event {
   EventID event_id = 1;
-  iota.grpc.common.Address package_id = 2;
+  iota.grpc.v0.common.Address package_id = 2;
   string transaction_module = 3;
-  iota.grpc.common.Address sender = 4;
+  iota.grpc.v0.common.Address sender = 4;
   string type_name = 5;                      
   string parsed_json = 6;                    
   optional uint64 timestamp_ms = 7;
-  iota.grpc.common.BcsData event_data = 8;  
+  iota.grpc.v0.common.BcsData event_data = 8;  
 }
 
 message EventID {
   uint64 event_seq = 1;
-  iota.grpc.common.TransactionDigest tx_digest = 2;
+  iota.grpc.v0.common.TransactionDigest tx_digest = 2;
 }
 
 // Rich event filter that supports gRPC event filtering
@@ -51,30 +51,30 @@ message AllFilter {
 
 // Filter by sender address
 message SenderFilter {
-  iota.grpc.common.Address sender = 1;           // Sender address
+  iota.grpc.v0.common.Address sender = 1;           // Sender address
 }
 
 // Filter by transaction digest
 message TransactionFilter {
-  iota.grpc.common.TransactionDigest tx_digest = 1;        // Transaction digest
+  iota.grpc.v0.common.TransactionDigest tx_digest = 1;        // Transaction digest
 }
 
 // Filter by transaction execution module (different from event definition module)
 message MoveModuleFilter {
-  iota.grpc.common.Address package_id = 1;       // Package ID
+  iota.grpc.v0.common.Address package_id = 1;       // Package ID
   string module = 2;                             // Module name
 }
 
 // Filter by Move event type (package::module::event_name)
 message MoveEventTypeFilter {
-  iota.grpc.common.Address package_id = 1;      // Package ID
+  iota.grpc.v0.common.Address package_id = 1;      // Package ID
   string module = 2;                         // Module name (e.g., "request")
   string name = 3;                           // Event name (e.g., "RequestEvent")
 }
 
 // Filter by package and module
 message MoveEventModuleFilter {
-  iota.grpc.common.Address package_id = 1;   // Package ID
+  iota.grpc.v0.common.Address package_id = 1;   // Package ID
   string module = 2;                         // Module name
 }
 

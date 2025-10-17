@@ -10047,7 +10047,7 @@
           "arguments": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/IotaJsonValue"
+              "$ref": "#/components/schemas/PtbInput"
             }
           },
           "function": {
@@ -11486,6 +11486,16 @@
       },
       "ProtocolVersion": {
         "$ref": "#/components/schemas/BigInt_for_uint64"
+      },
+      "PtbInput": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/IotaArgument"
+          },
+          {
+            "$ref": "#/components/schemas/IotaJsonValue"
+          }
+        ]
       },
       "PublicKey": {
         "oneOf": [

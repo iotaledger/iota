@@ -3028,7 +3028,7 @@ impl AuthorityState {
     pub fn execution_lock_for_executable_transaction(
         &self,
         transaction: &VerifiedExecutableTransaction,
-    ) -> IotaResult<ExecutionLockReadGuard> {
+    ) -> IotaResult<ExecutionLockReadGuard<'_>> {
         let lock = self
             .execution_lock
             .try_read()
@@ -3048,13 +3048,13 @@ impl AuthorityState {
     /// finished handling the signing request. Otherwise, in-memory lock
     /// state could be cleared (by `ObjectLocks::clear_cached_locks`)
     /// while we are attempting to acquire locks for the transaction.
-    pub fn execution_lock_for_signing(&self) -> IotaResult<ExecutionLockReadGuard> {
+    pub fn execution_lock_for_signing(&self) -> IotaResult<ExecutionLockReadGuard<'_>> {
         self.execution_lock
             .try_read()
             .map_err(|_| IotaError::ValidatorHaltedAtEpochEnd)
     }
 
-    pub async fn execution_lock_for_reconfiguration(&self) -> ExecutionLockWriteGuard {
+    pub async fn execution_lock_for_reconfiguration(&self) -> ExecutionLockWriteGuard<'_> {
         self.execution_lock.write().await
     }
 

@@ -2,16 +2,20 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::BTreeMap, slice, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    slice,
+    sync::Arc,
+};
 
 use async_trait::async_trait;
 use iota_data_ingestion_core::Worker;
+use iota_json_rpc::{ObjectProvider, get_balance_changes_from_effect, get_object_changes};
 use iota_json_rpc_types::IotaTransactionKind;
-use iota_metrics::{get_metrics, spawn_monitored_task};
 use iota_types::{
-    base_types::ObjectID,
-    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
-    effects::TransactionEffectsAPI,
+    base_types::{ObjectID, SequenceNumber},
+    digests::TransactionDigest,
+    effects::{TransactionEffects, TransactionEffectsAPI},
     event::{SystemEpochInfoEvent, SystemEpochInfoEventV1, SystemEpochInfoEventV2},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     iota_system_state::{IotaSystemStateTrait, get_iota_system_state},
@@ -19,22 +23,19 @@ use iota_types::{
         CertifiedCheckpointSummary, CheckpointContents, CheckpointSequenceNumber,
     },
     object::{Object, Owner},
-    transaction::TransactionDataAPI,
+    transaction::{TransactionData, TransactionDataAPI},
 };
 use itertools::Itertools;
-use move_core_types::{
-    self,
-    language_storage::{StructTag, TypeTag},
-};
-use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
 use crate::{
     db::ConnectionPool,
     errors::IndexerError,
-    handlers::{
-        EpochToCommit, TransactionObjectChangesToCommit,
-        tx_processor::{EpochEndIndexingObjectStore, TxChangesProcessor},
+    ingestion::{
+        common::prepare::{CheckpointObjectChanges, try_extract_df_kind},
+        primary::persist::{
+            CheckpointDataToCommit, EpochToCommit, TransactionObjectChangesToCommit,
+        },
     },
     metrics::IndexerMetrics,
     models::{
@@ -42,48 +43,15 @@ use crate::{
         epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
         obj_indices::StoredObjectVersion,
     },
-    persist::{CheckpointDataToCommit, start_tx_checkpoint_commit_task},
     store::{IndexerStore, PgIndexerStore},
-    transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEpochInfoEvent, IndexedEvent,
-        IndexedObject, IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
+        IndexedObject, IndexedObjectChange, IndexedPackage, IndexedTransaction, IndexerResult,
+        TxIndex,
     },
 };
 
-const CHECKPOINT_QUEUE_SIZE: usize = 100;
-
-pub async fn new_handlers(
-    state: PgIndexerStore,
-    metrics: IndexerMetrics,
-    next_checkpoint_sequence_number: CheckpointSequenceNumber,
-    cancel: CancellationToken,
-) -> Result<CheckpointHandler, IndexerError> {
-    let checkpoint_queue_size = std::env::var("CHECKPOINT_QUEUE_SIZE")
-        .unwrap_or(CHECKPOINT_QUEUE_SIZE.to_string())
-        .parse::<usize>()
-        .unwrap();
-    let global_metrics = get_metrics().unwrap();
-    let (indexed_checkpoint_sender, indexed_checkpoint_receiver) =
-        iota_metrics::metered_channel::channel(
-            checkpoint_queue_size,
-            &global_metrics
-                .channel_inflight
-                .with_label_values(&["checkpoint_indexing"]),
-        );
-
-    let metrics_clone = metrics.clone();
-    spawn_monitored_task!(start_tx_checkpoint_commit_task(
-        state,
-        metrics_clone,
-        indexed_checkpoint_receiver,
-        next_checkpoint_sequence_number,
-        cancel.clone()
-    ));
-    Ok(CheckpointHandler::new(metrics, indexed_checkpoint_sender))
-}
-
-pub struct CheckpointHandler {
+pub struct PrimaryWorker {
     metrics: IndexerMetrics,
     indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
 }
@@ -97,7 +65,7 @@ pub type IndexedTransactionComponents = (
 );
 
 #[async_trait]
-impl Worker for CheckpointHandler {
+impl Worker for PrimaryWorker {
     type Message = ();
     type Error = IndexerError;
 
@@ -146,8 +114,8 @@ impl Worker for CheckpointHandler {
     }
 }
 
-impl CheckpointHandler {
-    fn new(
+impl PrimaryWorker {
+    pub(crate) fn new(
         metrics: IndexerMetrics,
         indexed_checkpoint_sender: iota_metrics::metered_channel::Sender<CheckpointDataToCommit>,
     ) -> Self {
@@ -450,7 +418,7 @@ impl CheckpointHandler {
             .chain(output_objects.iter())
             .collect::<Vec<_>>();
 
-        let (balance_change, object_changes) = TxChangesProcessor::new(&objects, metrics.clone())
+        let (balance_change, object_changes) = InMemTxChanges::new(&objects, metrics.clone())
             .get_changes(tx, fx, tx_digest)
             .await?;
 
@@ -661,29 +629,205 @@ impl CheckpointHandler {
     }
 }
 
-/// If `o` is a dynamic `Field<K, V>`, determine whether it represents a Dynamic
-/// Field or a Dynamic Object Field based on its type.
-pub(crate) fn try_extract_df_kind(o: &Object) -> IndexerResult<Option<DynamicFieldType>> {
-    // Skip if not a move object
-    let Some(move_object) = o.data.try_as_move() else {
-        return Ok(None);
-    };
+pub struct InMemObjectCache {
+    id_map: HashMap<ObjectID, Object>,
+    seq_map: HashMap<(ObjectID, SequenceNumber), Object>,
+}
 
-    if !move_object.type_().is_dynamic_field() {
-        return Ok(None);
+impl InMemObjectCache {
+    pub fn new() -> Self {
+        Self {
+            id_map: HashMap::new(),
+            seq_map: HashMap::new(),
+        }
     }
 
-    let type_: StructTag = move_object.type_().clone().into();
-    let [name, _] = type_.type_params.as_slice() else {
-        return Ok(None);
-    };
+    pub fn insert_object(&mut self, obj: Object) {
+        self.id_map.insert(obj.id(), obj.clone());
+        self.seq_map.insert((obj.id(), obj.version()), obj);
+    }
 
-    Ok(Some(
-        if matches!(name, TypeTag::Struct(s) if DynamicFieldInfo::is_dynamic_object_field_wrapper(s))
-        {
-            DynamicFieldType::DynamicObject
+    pub fn get(&self, id: &ObjectID, version: Option<&SequenceNumber>) -> Option<&Object> {
+        if let Some(version) = version {
+            self.seq_map.get(&(*id, *version))
         } else {
-            DynamicFieldType::DynamicField
-        },
-    ))
+            self.id_map.get(id)
+        }
+    }
+}
+
+impl Default for InMemObjectCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Along with InMemObjectCache, TxChangesProcessor implements ObjectProvider
+/// so it can be used in indexing write path to get object/balance changes.
+/// Its lifetime is per checkpoint.
+pub struct InMemTxChanges {
+    object_cache: InMemObjectCache,
+    metrics: IndexerMetrics,
+}
+
+impl InMemTxChanges {
+    pub fn new(objects: &[&Object], metrics: IndexerMetrics) -> Self {
+        let mut object_cache = InMemObjectCache::new();
+        for obj in objects {
+            object_cache.insert_object(<&Object>::clone(obj).clone());
+        }
+        Self {
+            object_cache,
+            metrics,
+        }
+    }
+
+    pub(crate) async fn get_changes(
+        &self,
+        tx: &TransactionData,
+        effects: &TransactionEffects,
+        tx_digest: &TransactionDigest,
+    ) -> IndexerResult<(
+        Vec<iota_json_rpc_types::BalanceChange>,
+        Vec<IndexedObjectChange>,
+    )> {
+        let _timer = self
+            .metrics
+            .indexing_tx_object_changes_latency
+            .start_timer();
+        let object_change: Vec<_> = get_object_changes(
+            self,
+            tx.sender(),
+            effects.modified_at_versions(),
+            effects.all_changed_objects(),
+            effects.all_removed_objects(),
+        )
+        .await?
+        .into_iter()
+        .map(IndexedObjectChange::from)
+        .collect();
+        let balance_change = get_balance_changes_from_effect(
+            self,
+            effects,
+            tx.input_objects().unwrap_or_else(|e| {
+                panic!("Checkpointed tx {tx_digest:?} has invalid input objects: {e}",)
+            }),
+            None,
+        )
+        .await?;
+        Ok((balance_change, object_change))
+    }
+}
+
+#[async_trait]
+impl ObjectProvider for InMemTxChanges {
+    type Error = IndexerError;
+
+    async fn get_object(
+        &self,
+        id: &ObjectID,
+        version: &SequenceNumber,
+    ) -> Result<Object, Self::Error> {
+        let object = self
+            .object_cache
+            .get(id, Some(version))
+            .as_ref()
+            .map(|o| <&Object>::clone(o).clone());
+        if let Some(o) = object {
+            self.metrics.indexing_get_object_in_mem_hit.inc();
+            return Ok(o);
+        }
+
+        panic!(
+            "Object {} is not found in TxChangesProcessor as an ObjectProvider (fn get_object)",
+            id
+        );
+    }
+
+    async fn find_object_lt_or_eq_version(
+        &self,
+        id: &ObjectID,
+        version: &SequenceNumber,
+    ) -> Result<Option<Object>, Self::Error> {
+        // First look up the exact version in object_cache.
+        let object = self
+            .object_cache
+            .get(id, Some(version))
+            .as_ref()
+            .map(|o| <&Object>::clone(o).clone());
+        if let Some(o) = object {
+            self.metrics.indexing_get_object_in_mem_hit.inc();
+            return Ok(Some(o));
+        }
+
+        // Second look up the latest version in object_cache. This may be
+        // called when the object is deleted hence the version at deletion
+        // is given.
+        let object = self
+            .object_cache
+            .get(id, None)
+            .as_ref()
+            .map(|o| <&Object>::clone(o).clone());
+        if let Some(o) = object {
+            if o.version() > *version {
+                panic!(
+                    "Found a higher version {} for object {}, expected lt_or_eq {}",
+                    o.version(),
+                    id,
+                    *version
+                );
+            }
+            if o.version() <= *version {
+                self.metrics.indexing_get_object_in_mem_hit.inc();
+                return Ok(Some(o));
+            }
+        }
+
+        panic!(
+            "Object {} is not found in TxChangesProcessor as an ObjectProvider (fn find_object_lt_or_eq_version)",
+            id
+        );
+    }
+}
+
+/// Represents objects for end-of-epoch indexing.
+/// Used to extract IotaSystemState and its dynamic children for end-of-epoch
+/// indexing.
+pub(crate) struct EpochEndIndexingObjectStore<'a> {
+    objects: Vec<&'a Object>,
+}
+
+impl<'a> EpochEndIndexingObjectStore<'a> {
+    pub fn new(data: &'a CheckpointData) -> Self {
+        Self {
+            objects: data.latest_live_output_objects(),
+        }
+    }
+}
+
+impl iota_types::storage::ObjectStore for EpochEndIndexingObjectStore<'_> {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectID,
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
+        Ok(self
+            .objects
+            .iter()
+            .find(|o| o.id() == *object_id)
+            .cloned()
+            .cloned())
+    }
+
+    fn try_get_object_by_key(
+        &self,
+        object_id: &ObjectID,
+        version: iota_types::base_types::VersionNumber,
+    ) -> Result<Option<Object>, iota_types::storage::error::Error> {
+        Ok(self
+            .objects
+            .iter()
+            .find(|o| o.id() == *object_id && o.version() == version)
+            .cloned()
+            .cloned())
+    }
 }

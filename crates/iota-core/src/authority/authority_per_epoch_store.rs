@@ -2512,11 +2512,11 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    pub fn get_reconfig_state_read_lock_guard(&self) -> RwLockReadGuard<ReconfigState> {
+    pub fn get_reconfig_state_read_lock_guard(&self) -> RwLockReadGuard<'_, ReconfigState> {
         self.reconfig_state_mem.read()
     }
 
-    pub fn get_reconfig_state_write_lock_guard(&self) -> RwLockWriteGuard<ReconfigState> {
+    pub fn get_reconfig_state_write_lock_guard(&self) -> RwLockWriteGuard<'_, ReconfigState> {
         self.reconfig_state_mem.write()
     }
 
@@ -3268,7 +3268,7 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<(
         Vec<VerifiedExecutableTransaction>,    // transactions to schedule
         Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
-        Option<RwLockWriteGuard<ReconfigState>>,
+        Option<RwLockWriteGuard<'_, ReconfigState>>,
         bool,                   // true if final round
         Option<TransactionKey>, // consensus commit prologue root
     )> {
@@ -3518,7 +3518,7 @@ impl AuthorityPerEpochStore {
         transactions: &[VerifiedSequencedConsensusTransaction],
         commit_has_deferred_txns: bool,
     ) -> IotaResult<(
-        Option<RwLockWriteGuard<ReconfigState>>,
+        Option<RwLockWriteGuard<'_, ReconfigState>>,
         bool, // true if final round
     )> {
         let mut lock = None;
