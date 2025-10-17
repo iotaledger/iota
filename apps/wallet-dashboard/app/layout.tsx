@@ -65,7 +65,7 @@ const legacyBannerScript = `
     return;
   } catch {
     const fallback = document.createElement('div');
-    fallback.textContent = Your browser is too old to display this page.';
+    fallback.textContent = 'Your browser is too old to display this page.';
     fallback.style.cssText =
       'position:fixed;top:1rem;right:1rem;z-index:99999;background:#f87171;color:white;padding:0.75rem 1rem;border-radius:0.5rem;font-family:sans-serif;';
     document.addEventListener('DOMContentLoaded', () => document.body.appendChild(fallback));
