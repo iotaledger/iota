@@ -11,6 +11,7 @@ use std::{
 
 use iota_types::{
     base_types::ObjectID,
+    digests::TransactionDigest,
     effects::{InputSharedObject, TransactionEffects, TransactionEffectsAPI},
     execution_status::CongestedObjects,
     messages_checkpoint::{CheckpointTimestamp, VerifiedCheckpoint},
@@ -43,9 +44,14 @@ type CongestionInfoMap = HashMap<ObjectID, CongestionInfo>;
 
 /// Struct to hold data about a given transaction
 struct TxData {
+    checkpoint: CheckpointTimestamp,
+    digest: TransactionDigest,
     objects: Vec<ObjectID>,
     gas_price: u64,
     gas_price_feedback: Option<u64>,
+    sui_prediction: u64,
+    ogd_prediction: u64,
+    cleread: bool,
 }
 
 /// Holds tracked per-object congestion info.
@@ -182,63 +188,64 @@ impl CongestionTracker {
                 .transaction_data()
                 .gas_price();
 
+            let block = transaction_cache_reader
+                .get_transaction_block(effects.transaction_digest())
+                .unwrap_or_else(|| {
+                    panic!("block not found in transaction cache");
+                });
+
+            let tx_data = block.transaction_data();
+            let sui_prediction = self
+                .get_prediction_suggested_gas_price(tx_data)
+                .unwrap_or(self.reference_gas_price);
+            let ogd_prediction = self.get_suggested_gas_price_with_ogd(tx_data);
+
+            // Skip system transactions
+            if gas_price == 1 {
+                continue;
+            }
+
             if let Some(CongestedObjects(congested_objects)) =
                 effects.status().get_congested_objects()
             {
-                let gas_price_feedback = effects
-                    .status()
-                    .get_feedback_suggested_gas_price()
-                    .unwrap_or(self.reference_gas_price);
                 congestion_txs_data.push(TxData {
+                    checkpoint: checkpoint.sequence_number,
+                    digest: *effects.transaction_digest(),
                     objects: congested_objects.clone(),
                     gas_price,
-                    gas_price_feedback: Some(gas_price_feedback),
+                    gas_price_feedback: Some(
+                        effects
+                            .status()
+                            .get_feedback_suggested_gas_price()
+                            .unwrap_or(self.reference_gas_price),
+                    ),
+                    sui_prediction: sui_prediction,
+                    ogd_prediction: ogd_prediction,
+                    cleread: false,
                 });
-                let block = transaction_cache_reader
-                    .get_transaction_block(effects.transaction_digest())
-                    .unwrap_or_else(|| {
-                        panic!("block not found in transaction cache");
-                    });
-
-                let tx_data = block.transaction_data();
-                let prediction_sui = self
-                    .get_prediction_suggested_gas_price(tx_data)
-                    .unwrap_or(self.reference_gas_price);
-                let prediction_ogd = self.get_suggested_gas_price_with_ogd(tx_data);
-
-                info!(
-                    "Checkpoint: {} | Gas price: {} | Feedback: {} | Prediction (Sui): {:?} | Prediction (IOTA): {:?}",
-                    checkpoint.sequence_number,
-                    gas_price,
-                    gas_price_feedback,
-                    prediction_sui,
-                    prediction_ogd
-                );
-                self.dump_prediction_to_csv(
-                    "prediction.csv",
-                    checkpoint.sequence_number,
-                    gas_price,
-                    gas_price_feedback,
-                    prediction_sui,
-                    prediction_ogd,
-                )
-                .unwrap();
             } else {
-                clearing_txs_data.push(TxData {
-                    objects: effects
-                        .input_shared_objects()
-                        .into_iter()
-                        .filter_map(|object| match object {
-                            InputSharedObject::Mutate((id, _, _)) => Some(id),
-                            InputSharedObject::Cancelled(_, _)
-                            | InputSharedObject::ReadOnly(_)
-                            | InputSharedObject::ReadDeleted(_, _)
-                            | InputSharedObject::MutateDeleted(_, _) => None,
-                        })
-                        .collect::<Vec<_>>(),
-                    gas_price,
-                    gas_price_feedback: None,
-                });
+                let mutated_objects: Vec<ObjectID> = effects
+                    .input_shared_objects()
+                    .into_iter()
+                    .filter_map(|object| match object {
+                        InputSharedObject::Mutate((id, _, _)) => Some(id),
+                        _ => None,
+                    })
+                    .collect();
+
+                // Only push to clearing_txs_data if there are mutated objects
+                if !mutated_objects.is_empty() {
+                    clearing_txs_data.push(TxData {
+                        checkpoint: checkpoint.sequence_number,
+                        digest: *effects.transaction_digest(),
+                        objects: mutated_objects,
+                        gas_price,
+                        gas_price_feedback: None,
+                        sui_prediction,
+                        ogd_prediction,
+                        cleread: true,
+                    });
+                }
             }
         }
 
@@ -247,6 +254,48 @@ impl CongestionTracker {
             &congestion_txs_data,
             &clearing_txs_data,
         );
+
+        if !clearing_txs_data.is_empty() {
+            for tx in &mut clearing_txs_data {
+                let block = transaction_cache_reader
+                    .get_transaction_block(&tx.digest)
+                    .unwrap_or_else(|| {
+                        panic!("block not found in transaction cache");
+                    });
+
+                let tx_data = block.transaction_data();
+
+                tx.gas_price_feedback = self.get_prediction_suggested_gas_price(tx_data);
+                info!(
+                    "Clearing tx gas price feedback updated: {:?}",
+                    tx.gas_price_feedback
+                );
+            }
+        }
+
+        for tx in congestion_txs_data.iter().chain(clearing_txs_data.iter()) {
+            info!(
+                "Checkpoint: {} | Digest: {:?} | Gas price: {} | Feedback: {} | Prediction (Sui): {:?} | Prediction (IOTA): {:?} |  Cleared: {}",
+                tx.checkpoint,
+                tx.digest,
+                tx.gas_price,
+                tx.gas_price_feedback.unwrap_or(1000),
+                tx.sui_prediction,
+                tx.ogd_prediction,
+                tx.cleread,
+            );
+
+            let _ = self.dump_prediction_to_csv(
+                "prediction.csv",
+                tx.checkpoint,
+                &tx.digest,
+                tx.gas_price,
+                tx.gas_price_feedback.unwrap_or(1000),
+                tx.sui_prediction,
+                tx.ogd_prediction,
+                tx.cleread,
+            );
+        }
 
         if !self.get_all_hotness().is_empty() {
             info!(
@@ -317,10 +366,12 @@ impl CongestionTracker {
         &self,
         file_name: &str,
         checkpoint: u64,
+        digest: &TransactionDigest,
         gas_price: u64,
         gas_price_feedback: u64,
         prediction_sui: u64,
         prediction_ogd: u64,
+        cleared: bool,
     ) -> std::io::Result<()> {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         path.push("src");
@@ -336,17 +387,23 @@ impl CongestionTracker {
 
         // Write header if the file is new
         if !file_exists {
-            writeln!(file, "checkpoint,gasprice,feedback,sui,ogd")?;
+            writeln!(file, "checkpoint,digest,gasprice,feedback,sui,ogd,cleared")?;
         }
 
         // Build row
         let row = format!(
-            "{},{},{},{},{}",
-            checkpoint, gas_price, gas_price_feedback, prediction_sui, prediction_ogd
+            "{},{},{},{},{},{},{}",
+            checkpoint,
+            digest,
+            gas_price,
+            gas_price_feedback,
+            prediction_sui,
+            prediction_ogd,
+            cleared
         );
 
         // Column-count check
-        if row.split(',').count() != 5 {
+        if row.split(',').count() != 7 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Malformed row: {}", row),
@@ -487,9 +544,12 @@ impl CongestionTracker {
         let mut congestion_info_map = CongestionInfoMap::new();
 
         for TxData {
+            checkpoint,
+            digest,
             objects,
             gas_price,
             gas_price_feedback,
+            ..
         } in congestion_txs_data
         {
             // Get the object with the maximum hotness among all objects in the transaction.
@@ -621,14 +681,24 @@ mod tests {
         let time = 1_000;
         let congestion_txs_data = vec![
             TxData {
+                checkpoint: time,
+                digest: TransactionDigest::random(),
                 objects: vec![object_1],
                 gas_price: 100,
                 gas_price_feedback: Some(1000),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
             TxData {
+                checkpoint: time,
+                digest: TransactionDigest::random(),
                 objects: vec![object_2],
                 gas_price: 200,
                 gas_price_feedback: Some(1000),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
         ];
         let clearing_txs_data = vec![];
@@ -660,14 +730,24 @@ mod tests {
         let time = 1_000;
         let congestion_txs_data = vec![
             TxData {
+                checkpoint: time,
+                digest: TransactionDigest::random(),
                 gas_price: 100,
                 objects: vec![object],
                 gas_price_feedback: Some(1000),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
             TxData {
+                checkpoint: time,
+                digest: TransactionDigest::random(),
                 gas_price: 75,
                 objects: vec![object],
                 gas_price_feedback: Some(1000),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
         ];
         let clearing_txs_data = vec![];
@@ -685,9 +765,14 @@ mod tests {
         let time = 2_000;
         let congestion_txs_data = vec![];
         let clearing_txs_data = vec![TxData {
+            checkpoint: time,
+            digest: TransactionDigest::random(),
             objects: vec![object],
             gas_price: 150,
             gas_price_feedback: None,
+            sui_prediction: 1000,
+            ogd_prediction: 1000,
+            cleread: false,
         }];
         tracker.process_congestion_and_clearing_txs_data(
             time,
@@ -706,17 +791,32 @@ mod tests {
             objects: vec![object],
             gas_price: 100,
             gas_price_feedback: Some(1000),
+            checkpoint: time,
+            digest: TransactionDigest::random(),
+            sui_prediction: 1000,
+            ogd_prediction: 1000,
+            cleread: false,
         }];
         let clearing_txs_data = vec![
             TxData {
                 objects: vec![object],
                 gas_price: 175,
                 gas_price_feedback: None,
+                checkpoint: time,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
             TxData {
                 objects: vec![object],
                 gas_price: 125,
                 gas_price_feedback: None,
+                checkpoint: time,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
         ];
         tracker.process_congestion_and_clearing_txs_data(
@@ -743,11 +843,21 @@ mod tests {
                 objects: vec![object_1],
                 gas_price: 100,
                 gas_price_feedback: Some(1000),
+                checkpoint: time,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
             TxData {
                 objects: vec![object_2],
                 gas_price: 200,
                 gas_price_feedback: Some(1000),
+                checkpoint: time,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
         ];
         let clearing_txs_data = vec![];
@@ -768,11 +878,21 @@ mod tests {
                 objects: vec![object_1],
                 gas_price: 100,
                 gas_price_feedback: Some(1000),
+                checkpoint: time,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
             TxData {
                 objects: vec![object_2],
                 gas_price: 200,
                 gas_price_feedback: Some(1000),
+                checkpoint: time,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
         ];
         let clearing_txs_data = vec![
@@ -780,11 +900,21 @@ mod tests {
                 objects: vec![object_1],
                 gas_price: 100,
                 gas_price_feedback: None,
+                checkpoint: time,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
             TxData {
                 objects: vec![object_2],
                 gas_price: 150,
                 gas_price_feedback: None,
+                checkpoint: time,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
         ];
         tracker.process_congestion_and_clearing_txs_data(
@@ -816,21 +946,41 @@ mod tests {
                 objects: vec![obj1],
                 gas_price: 1000,
                 gas_price_feedback: Some(900),
+                checkpoint: now,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
             TxData {
                 objects: vec![obj2],
                 gas_price: 1000,
                 gas_price_feedback: Some(1200),
+                checkpoint: now,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
             TxData {
                 objects: vec![obj2],
                 gas_price: 1000,
                 gas_price_feedback: Some(1200),
+                checkpoint: now,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             },
             TxData {
                 objects: vec![obj2, obj3],
                 gas_price: 1000,
+                checkpoint: now,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
                 gas_price_feedback: Some(1600),
+                cleread: false,
             },
         ];
         let cleared_events = vec![]; // no clearing in this round
@@ -868,6 +1018,11 @@ mod tests {
                 objects: vec![obj1],
                 gas_price: 100,
                 gas_price_feedback: Some(1500),
+                checkpoint: 1000,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             }],
             &[],
         );
@@ -879,6 +1034,11 @@ mod tests {
                 objects: vec![obj1, obj2],
                 gas_price: 100,
                 gas_price_feedback: Some(1700),
+                checkpoint: 1100,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             }],
             &[],
         );
@@ -896,6 +1056,11 @@ mod tests {
                 objects: vec![obj2],
                 gas_price: 100,
                 gas_price_feedback: Some(1050),
+                checkpoint: 1000,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             }],
             &[],
         );
@@ -907,11 +1072,21 @@ mod tests {
                     objects: vec![obj1, obj2],
                     gas_price: 100,
                     gas_price_feedback: Some(1150),
+                    checkpoint: 1000,
+                    digest: TransactionDigest::random(),
+                    sui_prediction: 1000,
+                    ogd_prediction: 1000,
+                    cleread: false,
                 },
                 TxData {
                     objects: vec![obj1],
                     gas_price: 100,
                     gas_price_feedback: Some(1020),
+                    checkpoint: 1000,
+                    digest: TransactionDigest::random(),
+                    sui_prediction: 1000,
+                    ogd_prediction: 1000,
+                    cleread: false,
                 },
             ],
             &[],
@@ -943,6 +1118,11 @@ mod tests {
                 objects: vec![obj1, obj2],
                 gas_price: 100,
                 gas_price_feedback: Some(1010),
+                checkpoint: 1000,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             }],
             &[],
         );
@@ -954,6 +1134,11 @@ mod tests {
                 objects: vec![obj2],
                 gas_price: 100,
                 gas_price_feedback: Some(1007),
+                checkpoint: 1000,
+                digest: TransactionDigest::random(),
+                sui_prediction: 1000,
+                ogd_prediction: 1000,
+                cleread: false,
             }],
             &[],
         );
