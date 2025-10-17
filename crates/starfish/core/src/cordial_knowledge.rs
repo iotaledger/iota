@@ -82,10 +82,10 @@ pub(crate) struct CordialKnowledge {
     /// author][(block_ref.round, block_ref.digest)]`. The value is a tuple
     /// of (parents, who knows the block header).
     cordial_knowledge: Vec<
-        VecDeque<(
+        BTreeMap<
             Round,
             AHashMap<BlockHeaderDigest, (Ancestors, SubsetAuthorities)>,
-        )>,
+        >,
     >,
     /// Per-connection message channels
     connections: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
@@ -174,7 +174,7 @@ impl CordialKnowledge {
                 context,
                 connections,
                 cordial_knowledge_receiver,
-                cordial_knowledge: vec![VecDeque::new(); num_authorities],
+                cordial_knowledge: vec![BTreeMap::new(); num_authorities],
                 last_useful_shards_from_peer_round: vec![GENESIS_ROUND; num_authorities],
             },
             cordial_knowledge_sender,
@@ -328,7 +328,7 @@ impl CordialKnowledge {
         self.update_cordial_knowledge(&header).await;
     }
 
-    /// Called when a new *own shard* (produced locally) is added.
+    /// Called when a new *own shard* (created locally) is added to dag state.
     async fn handle_new_shard(&mut self, block_ref: BlockRef) {
         for tx in &self.connections {
             let msg = ConnectionKnowledgeMessage::NewShard { block_ref };
@@ -339,23 +339,28 @@ impl CordialKnowledge {
     /// Called when older rounds should be pruned globally.
     async fn handle_evict_below(&mut self, rounds: Vec<Round>) {
         // Evict locally
-        for (index, deque) in &mut self.cordial_knowledge.iter_mut().enumerate() {
-            while let Some((front_round, _)) = deque.front() {
-                if *front_round < rounds[index] {
-                    deque.pop_front();
-                } else {
-                    break;
-                }
-                self.context
-                    .metrics
-                    .node_metrics
-                    .cordial_knowledge_rounds
-                    .with_label_values(&[&index.to_string()])
-                    .set(deque.len() as i64);
-            }
+        for (index, btree_map) in &mut self.cordial_knowledge.iter_mut().enumerate() {
+            let split_round = rounds[index];
+            *btree_map = btree_map.split_off(&split_round);
+            self.context
+                .metrics
+                .node_metrics
+                .cordial_knowledge_rounds
+                .with_label_values(&[&index.to_string()])
+                .set(btree_map.len() as i64);
         }
-
-        self.context.metrics.node_metrics.cordial_knowledge_useful_shards.set()
+        let largest_round = self.cordial_knowledge
+            .iter()
+            .filter_map(|btree_map| btree_map.keys().max())
+            .max()
+            .cloned()
+            .unwrap_or(GENESIS_ROUND);
+        let useful_shards_from_peer_count = self
+            .last_useful_shards_from_peer_round
+            .iter()
+            .filter(|&&r| r + MAX_ROUND_GAP_FOR_USEFUL_HEADERS >= largest_round)
+            .count();
+        self.context.metrics.node_metrics.cordial_knowledge_useful_shards.set(useful_shards_from_peer_count as i64);
 
         // Notify per-connection tasks about eviction
         self.notify_connection_tasks_for_eviction(rounds).await;
@@ -366,52 +371,6 @@ impl CordialKnowledge {
             let msg = ConnectionKnowledgeMessage::EvictBelow(rounds.clone());
             let _ = tx.send(vec![msg]).await;
         }
-    }
-
-    /// Map a round to an index inside a per-author VecDeque<(Round, T)>.
-    /// Returns None if `round` is outside the current rolling window stored in
-    /// the deque.
-    #[inline]
-    fn round_to_index<T>(dq: &VecDeque<(Round, T)>, round: Round) -> Option<usize> {
-        let (front_round, _) = dq.front()?;
-        if round < *front_round {
-            return None;
-        }
-        let idx = (round - *front_round) as usize;
-        if idx < dq.len() { Some(idx) } else { None }
-    }
-
-    /// Ensure the author's deque contains `round`, extending **only that
-    /// author's deque** forward as needed. Returns a mutable handle to
-    /// the (Round, Map) entry for `round`.
-    #[inline]
-    fn ensure_author_round_map(
-        &mut self,
-        author_value: usize,
-        target_round: Round,
-    ) -> &mut AHashMap<BlockHeaderDigest, (Ancestors, SubsetAuthorities)> {
-        let deque = &mut self.cordial_knowledge[author_value];
-        match deque.back() {
-            // Empty -> push exactly this round
-            None => {
-                deque.push_back((target_round, AHashMap::default()));
-            }
-            Some((last_round, _)) => {
-                if *last_round < target_round {
-                    // Extend forward up to `round`
-                    let mut r = *last_round + 1;
-                    while r <= target_round {
-                        deque.push_back((r, AHashMap::default()));
-                        r += 1;
-                    }
-                }
-            }
-        }
-
-        let index = Self::round_to_index(deque, target_round).expect(
-            "We should expect round to be within or equal to the deque window after adjustments",
-        );
-        &mut deque[index].1
     }
 
     /// Update cordial knowledge for exactly one new header.
@@ -426,103 +385,88 @@ impl CordialKnowledge {
         let block_round = block_ref.round;
         let block_digest = block_ref.digest;
         let own_index = self.context.own_index.value();
-        let mut vec_knowledge_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
-            (0..self.context.committee.size())
-                .map(|_| Vec::new())
-                .collect();
 
-        //  === 1) Get (or create forward) the author's round bucket and insert if
-        // missing  ===
-        let author_round_map = self.ensure_author_round_map(block_author, block_round);
-        if author_round_map.contains_key(&block_digest) {
-            // Already recorded — nothing else to do here.
+        // Pre-allocate message buffers
+        let mut vec_knowledge_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
+            (0..self.context.committee.size()).map(|_| Vec::new()).collect();
+
+        // === 1) Ensure we have a round map for this author and insert the block ===
+        let btree_map = &mut self.cordial_knowledge[block_author];
+        let round_map = btree_map.entry(block_round).or_insert_with(AHashMap::new);
+
+        // Already recorded — nothing else to do.
+        if round_map.contains_key(&block_digest) {
             return;
         }
 
+        // Insert block into cordial knowledge
         let ancestors: Ancestors = Arc::from(header.ancestors());
-
-        // (who_knows initially marks: author + self)
         let who_knows_this_block = SubsetAuthorities::new_with(block_author, own_index);
-        author_round_map.insert(block_digest, (ancestors, who_knows_this_block));
+        round_map.insert(block_digest, (ancestors.clone(), who_knows_this_block));
 
-        //  === 2) Mark this header as "unknown" for other authorities  ===
-        for (other_idx, item) in vec_knowledge_msgs
-            .iter_mut()
-            .enumerate()
-            .take(self.context.committee.size())
-        {
-            if other_idx == block_author || other_idx == own_index {
+        // === 2) Notify all *other* authorities (except self and block_author) ===
+        for (authority, msgs) in vec_knowledge_msgs.iter_mut().enumerate() {
+            if authority == block_author || authority == own_index {
                 continue;
             }
-            let msg = ConnectionKnowledgeMessage::NewHeader { block_ref };
-            item.push(msg);
+            msgs.push(ConnectionKnowledgeMessage::NewHeader { block_ref });
         }
 
-        //  === 3) Notify that the block_author now knows transaction data for certain
-        // blocks ===
+        // === 3) The block_author now acknowledges previously known transactions ===
         for acknowledgment in header.acknowledgments() {
             vec_knowledge_msgs[block_author].push(ConnectionKnowledgeMessage::RemoveShard {
                 block_ref: *acknowledgment,
             });
         }
 
-        // === 4) Traverse the DAG and update the knowledge of block author about the
-        // causal past === We do a DFS traversal using a stack (buffer).
-        // For each parent, if the block_author does not know it yet, we mark it
-        // as known by block_author, send a message to the corresponding connection,
-        // and push the parent onto the stack for further traversal.
-        let mut buffer = vec![block_ref];
+        // === 4) Traversing back and marking the causal past as known by block_author ===
+        let mut stack = vec![block_ref];
+        while let Some(current_ref) = stack.pop() {
+            let current_author = current_ref.author.value();
+            let current_round = current_ref.round;
+            let current_digest = current_ref.digest;
 
-        while let Some(traversed_ref) = buffer.pop() {
-            let current_author = traversed_ref.author.value();
-            let current_round = traversed_ref.round;
-            let current_digest = traversed_ref.digest;
-
-            // Locate the round bucket for this traversed block
-            let deque = &mut self.cordial_knowledge[current_author];
-            if let Some(index) = Self::round_to_index(deque, current_round) {
-                // Found correct round bucket
-                let (_r, map) = &mut deque[index];
-
-                // Get this block’s entry
-                let parents = match map.get(&current_digest) {
-                    Some((ancestors, _)) => ancestors.clone(),
-                    None => continue, // skip block which is not stored in cordial knowledge
+            // ---- Get parents of current block ----
+            let parents_buf: Vec<BlockRef> = {
+                let author_map = &self.cordial_knowledge[current_author];
+                let Some(current_round_map) = author_map.get(&current_round) else {
+                    continue;
                 };
+                let Some((parents, _)) = current_round_map.get(&current_digest) else {
+                    continue;
+                };
+                parents.iter().copied().collect()
+            };
 
-                // Iterate over the parents
-                for parent in parents.iter() {
-                    let parent_author = parent.author;
-                    let parent_round = parent.round;
-                    let parent_digest = parent.digest;
+            // Traverse parents
+            for parent_ref in parents_buf {
+                let parent_author = parent_ref.author.value();
+                let parent_round = parent_ref.round;
+                let parent_digest = parent_ref.digest;
 
-                    // Find the parent’s round bucket
-                    let deque_parent_author = &mut self.cordial_knowledge[parent_author.value()];
-                    if let Some(parent_index) =
-                        Self::round_to_index(deque_parent_author, parent_round)
-                    {
-                        let (_, parent_map) = &mut deque_parent_author[parent_index];
+                let parent_author_map = &mut self.cordial_knowledge[parent_author];
 
-                        if let Some((_, who_knows_parent)) = parent_map.get_mut(&parent_digest) {
-                            // Insert new knowledge as block_author knows this parent
-                            if who_knows_parent.insert(block_author) {
-                                vec_knowledge_msgs[block_author].push(
-                                    ConnectionKnowledgeMessage::RemoveHeader { block_ref: *parent },
-                                );
-                                // Push parent to buffer for further propagation
-                                buffer.push(*parent);
-                            }
-                        } else {
-                            // Parent not found in cordial knowledge — skip
-                            continue;
+                if let Some(parent_round_map) = parent_author_map.get_mut(&parent_round) {
+                    if let Some((_, who_knows_parent)) = parent_round_map.get_mut(&parent_digest) {
+                        // Mark that block_author now knows this parent
+                        if who_knows_parent.insert(block_author) {
+                            vec_knowledge_msgs[block_author].push(
+                                ConnectionKnowledgeMessage::RemoveHeader {
+                                    block_ref: parent_ref,
+                                },
+                            );
+                            stack.push(parent_ref);
                         }
                     }
                 }
             }
         }
-        self.send_connection_knowledge_messages(vec_knowledge_msgs)
-            .await;
+
+
+        // === 5) Send all accumulated knowledge messages ===
+        self.send_connection_knowledge_messages(vec_knowledge_msgs).await;
     }
+
 
     async fn send_connection_knowledge_messages(&self, msgs: Vec<Vec<ConnectionKnowledgeMessage>>) {
         for (index, msg) in msgs.into_iter().enumerate() {
@@ -638,8 +582,8 @@ pub struct ConnectionKnowledge {
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
     peer_index: usize,
-    headers_not_known: Vec<VecDeque<(Round, AHashSet<BlockRef>)>>,
-    shards_not_known: Vec<VecDeque<(Round, AHashSet<BlockRef>)>>,
+    headers_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
+    shards_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
     last_useful_shards_to_peer_round: Vec<Round>,
     last_useful_headers_to_peer_round: Vec<Round>,
     last_useful_shards_from_peer_round: Vec<Round>,
@@ -664,8 +608,8 @@ impl ConnectionKnowledge {
         receiver: Receiver<Vec<ConnectionKnowledgeMessage>>,
     ) -> Self {
         let num_authorities = context.committee.size();
-        let headers_not_known = vec![VecDeque::new(); num_authorities];
-        let shards_not_known = vec![VecDeque::new(); num_authorities];
+        let headers_not_known = vec![BTreeMap::new(); num_authorities];
+        let shards_not_known = vec![BTreeMap::new(); num_authorities];
         Self {
             dag_state,
             last_useful_headers_to_peer_round: vec![GENESIS_ROUND; num_authorities],
@@ -679,194 +623,101 @@ impl ConnectionKnowledge {
             receiver,
         }
     }
-
-    #[inline]
-    fn round_to_index<T>(deque: &VecDeque<(Round, T)>, round: Round) -> Option<usize> {
-        let (front_round, _) = deque.front()?;
-        if round < *front_round {
-            return None;
-        }
-        let index = (round - *front_round) as usize;
-        (index < deque.len()).then_some(index)
-    }
-
-    /// Find the minimum front round among the given authorities’ deques.
-    /// Returns `None` if all selected deques are empty.
-    #[inline]
-    fn min_front_round<'a, T>(
-        all_deques: &[VecDeque<(Round, T)>],
-        authorities: impl IntoIterator<Item = &'a usize>,
-    ) -> Option<Round> {
-        let mut min_round: Option<Round> = None;
-        for authority in authorities {
-            if let Some((round, _)) = all_deques[*authority].front() {
-                min_round = Some(min_round.map_or(*round, |m| m.min(*round)));
-            }
-        }
-        min_round
-    }
-
-    #[inline]
-    fn ensure_round_in_deque(
-        deque: &mut VecDeque<(Round, AHashSet<BlockRef>)>,
-        target_round: Round,
-    ) -> Option<usize> {
-        // 1. If deque is empty, initialize with this round
-        if deque.is_empty() {
-            deque.push_back((target_round, AHashSet::default()));
-            return Some(0);
-        }
-
-        let front_round = deque.front().unwrap().0;
-        let back_round = deque.back().unwrap().0;
-
-        // 2. If round is older than the current window → skip (already evicted)
-        if target_round < front_round {
-            return None;
-        }
-
-        // 3. Extend forward up to the requested round
-        if target_round > back_round {
-            for current_round in (back_round + 1)..=target_round {
-                deque.push_back((current_round, AHashSet::default()));
-            }
-        }
-
-        // 4. Compute index for this round
-        let idx = (target_round - front_round) as usize;
-        Some(idx)
-    }
-    /// Block ref selection:
-    ///  - iterate rounds from the earliest available among `useful_authorities`
-    ///    up to (but excluding) `round_upper_bound_exclusive`,
-    ///  - for each round, scan only the given `useful_authorities`,
-    ///  - collect up to `max_headers_per_bundle`,
-    ///  - then remove them from this connection’s unknown sets.
-    fn take_useful_block_refs_round(
-        &mut self,
+    fn take_useful_refs_round(
+        maps: &mut Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
+        max_take: usize,
     ) -> Vec<BlockRef> {
-        let max_take = self.context.parameters.max_headers_per_bundle;
-
-        // Nothing to do
         if useful_authorities.is_empty() || max_take == 0 {
             return Vec::new();
         }
 
-        // Start from the earliest front round across the selected authorities.
-        let Some(min_round) =
-            Self::min_front_round(&self.headers_not_known, useful_authorities.iter())
-        else {
+        // Find the smallest existing round among all useful authorities.
+        let min_round = useful_authorities
+            .iter()
+            .filter_map(|&auth| maps[auth].keys().next().copied())
+            .min();
+
+        let Some(mut current_round) = min_round else {
             return Vec::new();
         };
 
-        let mut current_round = min_round;
-
-        let mut taken: Vec<BlockRef> = Vec::with_capacity(max_take);
+        let mut taken = Vec::with_capacity(max_take);
 
         'outer: while current_round < round_upper_bound_exclusive {
-            for authority in useful_authorities {
-                let deque = &self.headers_not_known[*authority];
-
-                // If this authority has this round bucket, take from it.
-                if let Some(index) = Self::round_to_index(deque, current_round) {
-                    // Iterate the set without mutating it yet.
-                    for block_ref in deque[index].1.iter() {
-                        taken.push(*block_ref);
+            for &authority in useful_authorities {
+                let map = &maps[authority];
+                if let Some(blocks) = map.get(&current_round) {
+                    for &block_ref in blocks {
+                        taken.push(block_ref);
                         if taken.len() >= max_take {
                             break 'outer;
                         }
                     }
                 }
             }
-            // advance round
             current_round = current_round.saturating_add(1);
         }
 
-        // Remove the selected ones from local unknown sets.
+        // Remove the taken blocks from the corresponding authorities
         for block_ref in &taken {
             let authority = block_ref.author.value();
-            let deque = &mut self.headers_not_known[authority];
-            if let Some(index) = Self::round_to_index(deque, block_ref.round) {
-                deque[index].1.remove(block_ref);
+            if let Some(set) = maps[authority].get_mut(&block_ref.round) {
+                set.remove(block_ref);
+                // Optional cleanup: remove empty rounds to keep map small
+                if set.is_empty() {
+                    maps[authority].remove(&block_ref.round);
+                }
             }
         }
 
         taken
     }
 
-    /// Same as `take_useful_block_refs_round` but for shards.
+    fn take_useful_header_block_refs_round(
+        &mut self,
+        round_upper_bound_exclusive: Round,
+        useful_authorities: &[usize],
+    ) -> Vec<BlockRef> {
+        let max_take = self.context.parameters.max_headers_per_bundle;
+        Self::take_useful_refs_round(
+            &mut self.headers_not_known,
+            round_upper_bound_exclusive,
+            useful_authorities,
+            max_take,
+        )
+    }
+
     fn take_useful_shard_block_refs_round(
         &mut self,
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
     ) -> Vec<BlockRef> {
         let max_take = self.context.parameters.max_shards_per_bundle;
-
-        if useful_authorities.is_empty() || max_take == 0 {
-            return Vec::new();
-        }
-
-        let Some(min_round) =
-            Self::min_front_round(&self.shards_not_known, useful_authorities.iter())
-        else {
-            return Vec::new();
-        };
-
-        let mut current_round = min_round;
-
-        let mut taken: Vec<BlockRef> = Vec::with_capacity(max_take);
-
-        'outer: while current_round < round_upper_bound_exclusive {
-            for authority in useful_authorities {
-                let deque = &self.shards_not_known[*authority];
-
-                if let Some(index) = Self::round_to_index(deque, current_round) {
-                    for block_ref in deque[index].1.iter() {
-                        taken.push(*block_ref);
-                        if taken.len() >= max_take {
-                            break 'outer;
-                        }
-                    }
-                }
-            }
-            // Advance round
-            current_round = current_round.saturating_add(1);
-        }
-
-        // Remove the selected ones from unknown sets
-        for block_ref in &taken {
-            let authority = block_ref.author.value();
-            let deque = &mut self.shards_not_known[authority];
-            if let Some(index) = Self::round_to_index(deque, block_ref.round) {
-                deque[index].1.remove(block_ref);
-            }
-        }
-
-        taken
+        Self::take_useful_refs_round(
+            &mut self.shards_not_known,
+            round_upper_bound_exclusive,
+            useful_authorities,
+            max_take,
+        )
     }
+
+
 
     fn evict_below(&mut self, rounds_exclusive: Vec<Round>) {
-        for (index, deque) in self.headers_not_known.iter_mut().enumerate() {
-            while let Some((front_round, _)) = deque.front() {
-                if *front_round < rounds_exclusive[index] {
-                    deque.pop_front();
-                } else {
-                    break;
-                }
-            }
+        for (index, map) in self.headers_not_known.iter_mut().enumerate() {
+            let threshold_round = rounds_exclusive[index];
+            // Keep only entries >= threshold
+            *map = map.split_off(&threshold_round);
         }
-        for (index, deque) in self.shards_not_known.iter_mut().enumerate() {
-            while let Some((front_round, _)) = deque.front() {
-                if *front_round < rounds_exclusive[index] {
-                    deque.pop_front();
-                } else {
-                    break;
-                }
-            }
+
+        for (index, map) in self.shards_not_known.iter_mut().enumerate() {
+            let threshold_round = rounds_exclusive[index];
+            *map = map.split_off(&threshold_round);
         }
     }
+
 
     /// Async task loop — just receives messages and dispatches to processing
     /// logic.
@@ -1012,7 +863,7 @@ impl ConnectionKnowledge {
             useful_headers_authors_to_peer
         );
 
-        let useful_headers_block_refs_to_peer = self.take_useful_block_refs_round(
+        let useful_headers_block_refs_to_peer = self.take_useful_header_block_refs_round(
             round_upper_bound_exclusive,
             &useful_headers_authors_to_peer,
         );
@@ -1093,12 +944,12 @@ impl ConnectionKnowledge {
     fn handle_new_header(&mut self, block_ref: BlockRef) {
         let round = block_ref.round;
         let authority = block_ref.author.value();
-        if let Some(index) =
-            Self::ensure_round_in_deque(&mut self.headers_not_known[authority], round)
-        {
-            let (_r, set) = &mut self.headers_not_known[authority][index];
-            set.insert(block_ref);
-        }
+
+        // Insert the block into the set for that (authority, round)
+        self.headers_not_known[authority]
+            .entry(round)
+            .or_default()
+            .insert(block_ref);
     }
 
     /// Handles adding a new shard to the unknown set.
@@ -1106,31 +957,37 @@ impl ConnectionKnowledge {
         let round = block_ref.round;
         let authority = block_ref.author.value();
 
-        if let Some(index) =
-            Self::ensure_round_in_deque(&mut self.shards_not_known[authority], round)
-        {
-            let (_r, set) = &mut self.shards_not_known[authority][index];
-            set.insert(block_ref);
-        }
+        self.shards_not_known[authority]
+            .entry(round)
+            .or_default()
+            .insert(block_ref);
     }
 
     /// Handles removing a header that this peer now knows.
     fn handle_remove_header(&mut self, block_ref: BlockRef) {
         let authority = block_ref.author.value();
         let round = block_ref.round;
-        if let Some(index) = Self::round_to_index(&self.headers_not_known[authority], round) {
-            let (_r, set) = &mut self.headers_not_known[authority][index];
+
+        if let Some(set) = self.headers_not_known[authority].get_mut(&round) {
             set.remove(&block_ref);
+            // Optional: remove empty round entries to keep map clean
+            if set.is_empty() {
+                self.headers_not_known[authority].remove(&round);
+            }
         }
     }
 
     /// Handles removing a shard that this peer now knows.
     fn handle_remove_shard(&mut self, block_ref: BlockRef) {
-        let round = block_ref.round;
         let authority = block_ref.author.value();
-        if let Some(index) = Self::round_to_index(&self.shards_not_known[authority], round) {
-            let (_r, set) = &mut self.shards_not_known[authority][index];
+        let round = block_ref.round;
+
+        if let Some(set) = self.shards_not_known[authority].get_mut(&round) {
             set.remove(&block_ref);
+            if set.is_empty() {
+                self.shards_not_known[authority].remove(&round);
+            }
         }
     }
+
 }
