@@ -24,10 +24,10 @@ Universities can issue tamper-proof Verifiable Credentials (VCs) that students c
 
 We're building a complete, system that connects a modern React frontend to a high-performance Rust backend. You'll learn how the frontend triggers the entire IOTA Identity lifecycle:
 
-- **Holder (Student)**: Creates a **Decentralized Identifier (DID)** and stores it securely.
-- **Issuer (University)**: Issues a **Verifiable Credential (VC)** representing the degree.
-- **Holder**: Packages the credential into a **Verifiable Presentation (VP)** and signs it.
-- **Verifier (Employer)**: Verifies the authenticity of the presentation and credentials against the IOTA network.
+- **Student (Holder)**: Creates a **Decentralized Identifier (DID)** and stores it securely.
+- **University (Issuer)**: Issues a **Verifiable Credential (VC)** representing the degree.
+- **Student**: Packages the credential into a **Verifiable Presentation (VP)** and signs it.
+- **Employer (Verifier)**: Verifies the authenticity of the presentation and credentials against the IOTA network.
 
 ## Alternative Use Cases for IOTA Identity
 
@@ -258,7 +258,7 @@ Visual Studio Code (VS Code) is a lightweight code editor that you'll use to edi
 
 We will create two separate projects that communicate via HTTP: the React Frontend (the user interface) and the Rust Axum Backend (the identity logic engine).
 
-### Step 1.1: Project Initialization
+## Step 1.1: Project Initialization
 
 Start by creating the root folder and initializing the two sub-projects.
 
@@ -283,7 +283,7 @@ npm create vite@latest . -- --template react
 npm install
 npm install lucide-react # For icons
 ```
-### Explanation:
+## Explanation:
 
 - **What it does**: Creates a project structure with a Rust backend (`iota-identity-backend`) and a React frontend (`iota-identity-frontend`). The `cargo init` command sets up a Rust project with a `Cargo.toml` file, while `npm create vite` initializes a React app using Vite for fast development. The `lucide-react` library adds icons for the UI.
 - **Why it matters**: This sets up a full-stack environment where the frontend handles user interaction and the backend processes IOTA Identity logic. The utility folder (`crates/identity_logic`) will hold shared Rust code.
@@ -370,7 +370,7 @@ const handleApiCall = useCallback(async (step, endpoint, body) => {
     - Error Handling: Catches HTTP errors (e.g., 404, 500) and displays meaningful messages.
     - State Updates: Stores results (e.g., DID, JWT) in React state for display.
 
-### Step 2.2: Step 1: Holder Creates DID
+### Step 2.2: Step 1: Student Creates Decentralized Identifier (DID)
 
 | Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored (State) |
 | :--- | :--- | :--- | :--- |
@@ -560,7 +560,7 @@ where
 }
 ```
 
-### Explanation:
+## Explanation:
 
 - **What it does**: The `get_funded_client` function generates a new Ed25519 key pair in the provided `storage`, creates a `StorageSigner` for signing transactions, derives an IOTA address from the public key, and requests test funds for that address from the IOTA test network faucet. It then builds an `IdentityClient` by combining a read-only IOTA client (from `get_read_only_client`) with the signer, enabling the client to perform funded operations like publishing DIDs.
 - **Why it matters**: Publishing a DID to the IOTA network requires funds to cover transaction fees. This function automates key generation, funding, and client setup, ensuring the client is ready for identity operations. It’s a critical step for creating and anchoring DIDs in the workshop.
@@ -611,7 +611,7 @@ where
 }
 ```
 
-### Explanation:
+## Explanation:
 
 - **What it does**: The `create_did_document` function creates a new, unpublished `IotaDocument` for the specified IOTA network, generates an Ed25519 verification method (key pair) stored in `storage`, and adds it to the document. It then publishes the document to the IOTA network using the provided `identity_client`, allocating a gas budget (`TEST_GAS_BUDGET`) for the transaction. The function returns the published DID document and the fragment (identifier) of the verification method.
 - **Why it matters**: This function is the core of DID creation, anchoring the Holder’s identity to the IOTA network. The published DID document and its verification method enable secure signing of credentials and presentations, forming the foundation of the workshop’s identity flow.
@@ -637,7 +637,11 @@ Together, they ensure the Holder’s DID is created securely, funded, and anchor
 - Check that `get_funded_client` successfully requests test funds by monitoring the IOTA test network faucet.
 - Confirm that `create_did_document` produces a valid DID (e.g., `did:iota:...`) by printing the returned `IotaDocument`’s `id`.
 
-### Step 2.3: Step 2: Issuer Issues Verifiable Credential
+Output after a successful creation of the student’s DID.
+
+![Create DID output](./images/CreateDID.png)
+
+### Step 2.3: Step 2: University Issues Verifiable Credential
 
 | Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored |
 | :--- | :--- | :--- | :--- |
@@ -655,7 +659,7 @@ const handleIssueVc = async () => {
     }
 };
 ```
-### Explanation
+## Explanation
 
 - **What it does**: The `handleIssueVc` function sends a POST request to the `/issuer/issue-vc` endpoint with an empty body. The backend generates a VC and returns its JWT, which is stored in the React state (`setVcJwt`) for display and use in the next step.
 - **Why it matters**: This triggers the issuance of a degree credential, which the student can later present to employers. It connects the frontend UI to the backend’s VC logic.
@@ -860,7 +864,11 @@ The returned Verifiable Credential JWT is stored in the frontend’s state and u
 - Check the frontend UI to confirm the VC JWT is displayed (e.g., a long string starting with `eyJ...`).
 - Use an online JWT decoder to inspect the VC’s contents (e.g., Alice’s name, degree).
 
-### Step 2.4: Step 3: Holder Creates Verifiable Presentation
+Output after a successful creation of the student’s VC.
+
+![Create DID output](./images/IssueVC.png)
+
+### Step 2.4: Step 3: Student Creates Verifiable Presentation
 
 | Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored |
 | :--- | :--- | :--- | :--- |
@@ -1072,7 +1080,10 @@ The `holder_create_vp` function is triggered by the React frontend's "Execute St
 
 The returned VP JWT is stored in the frontend's state and used in Step 4 for verification by the employer.
 
-### Step 2.5: Step 4: Verifier Validates VP (The Final Proof)
+Output after a successful creation of the student’s VP.
+![Create DID output](./images/CreateVP.png)
+
+### Step 2.5: Step 4: Employer Validates VP (The Final Proof)
 
 | Frontend Action | Rust Endpoint | Payload Sent (Body) | Result Stored |
 | :--- | :--- | :--- | :--- |
@@ -1262,7 +1273,7 @@ let vp_validation_options = JwtPresentationValidationOptions::default()
 let decoded_vp: DecodedJwtPresentation<Jwt> = JwtPresentationValidator::with_signature_verifier(EdDSAJwsVerifier::default())
     .validate(&vp_jwt, &holder_doc, &vp_validation_options)
     .map_err(|e| {
-        output.push_str(&format!("❌ VP Validation Failed: {:?}\n", e));
+        output.push_str(&format!(" VP Validation Failed: {:?}\n", e));
         StatusCode::BAD_REQUEST
     })?;
 output.push_str("✅ VP JWT verified successfully\n");
@@ -1311,7 +1322,7 @@ for (index, jwt_vc) in jwt_credentials.iter().enumerate() {
             ));
         },
         Err(e) => {
-            output.push_str(&format!("❌ Credential [{}] Validation Failed: {:?}\n", index + 1, e));
+            output.push_str(&format!(" Credential [{}] Validation Failed: {:?}\n", index + 1, e));
             return Ok(Json(ValidationResponse { success: false, output }));
         }
     }
@@ -1348,6 +1359,8 @@ The verifier_validate function is triggered by the React frontend’s “Execute
 
 The returned ValidationResponse updates the frontend UI, displaying the validation outcome and log.
 
+Output after a successful validation of the student’s VP.
+![Create DID output](./images/VerifyVP2.png)
     
 -==
 ## Explanation:
