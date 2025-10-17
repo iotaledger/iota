@@ -1,8 +1,8 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { test, expect } from './fixtures';
-import { connectWallet, createWallet } from './utils';
+import { test, expect } from './utils/fixtures';
+import { connectWallet, createWallet } from './utils/utils';
 import 'dotenv/config';
 
 test.describe.serial('Wallet Connection', () => {

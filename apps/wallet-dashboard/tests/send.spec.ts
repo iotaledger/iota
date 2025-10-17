@@ -1,8 +1,12 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { test, expect } from './fixtures';
-import { connectWallet, getAddressByIndexPath, requestFaucetTokensOnWalletHome } from './utils';
+import { test, expect } from './utils/fixtures';
+import {
+    connectWallet,
+    getAddressByIndexPath,
+    requestFaucetTokensOnWalletHome,
+} from './utils/utils';
 
 const AMOUNT_TO_SEND = 10;
 

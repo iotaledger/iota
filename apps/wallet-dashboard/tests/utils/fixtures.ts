@@ -7,7 +7,7 @@ import path from 'path';
 import { test as base, chromium, Page, type BrowserContext } from '@playwright/test';
 import { createWallet } from './utils';
 
-const EXTENSION_PATH = path.join(__dirname, '../../wallet/dist');
+const EXTENSION_PATH = path.join(__dirname, '../../../wallet/dist');
 
 const DEFAULT_SHARED_STATE = { extension: {}, wallet: {} };
 
