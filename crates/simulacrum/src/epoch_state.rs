@@ -132,7 +132,7 @@ impl EpochState {
             &receiving_objects,
             &self.bytecode_verifier_metrics,
             verifier_signing_config,
-            true
+            true,
         )?;
 
         let transaction_data = transaction.data().transaction_data();
