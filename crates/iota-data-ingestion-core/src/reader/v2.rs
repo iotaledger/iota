@@ -9,7 +9,7 @@ use std::{
 };
 
 use backoff::backoff::Backoff;
-use futures::StreamExt;
+use futures::{StreamExt, TryStreamExt};
 use iota_config::{
     node::ArchiveReaderConfig,
     object_storage_config::{ObjectStoreConfig, ObjectStoreType},
@@ -224,7 +224,7 @@ impl CheckpointReaderActor {
 
     /// Fetches checkpoints from the historical object store and streams them to
     /// a channel.
-    async fn fetch_historical(
+    async fn relay_from_historical(
         &mut self,
         historical_reader: &HistoricalReader,
     ) -> IngestionResult<()> {
@@ -292,7 +292,7 @@ impl CheckpointReaderActor {
 
     /// Fetches checkpoints from the live object store and streams them to a
     /// channel.
-    async fn fetch_live(
+    async fn relay_from_live(
         &mut self,
         batch_size: usize,
         live: &dyn ObjectStore,
@@ -311,19 +311,19 @@ impl CheckpointReaderActor {
 
     /// Fetches checkpoints from the fullnode trough a gRPC streaming connection
     /// and streams them to a channel.
-    async fn fetch_from_fullnode(&mut self, client: &mut CheckpointClient) -> IngestionResult<()> {
+    async fn relay_from_fullnode(&mut self, client: &mut CheckpointClient) -> IngestionResult<()> {
         // the genesis checkpoint needs to be handled differently since it may be
         // processed in chunks due to its size.
         if self.current_checkpoint_number == 0 {
-            self.fetch_genesis_checkpoint_from_fullnode(client).await?;
+            self.relay_genesis_checkpoint_from_fullnode(client).await?;
         }
-        self.fetch_post_genesis_checkpoints_from_fullnode(client)
+        self.relay_post_genesis_checkpoints_from_fullnode(client)
             .await
     }
 
     /// Fetches the genesis checkpoint from the fullnode through a gRPC
     /// streaming connection and streams them to a channel.
-    async fn fetch_genesis_checkpoint_from_fullnode(
+    async fn relay_genesis_checkpoint_from_fullnode(
         &mut self,
         client: &mut CheckpointClient,
     ) -> IngestionResult<()> {
@@ -333,7 +333,8 @@ impl CheckpointReaderActor {
             .await
             .map_err(|e| {
                 IngestionError::Grpc(format!("failed to initialize the checkpoint stream: {e}"))
-            })?;
+            })?
+            .map_ok(GrpcCheckpoint);
 
         // TODO: When genesis checkpoint chunked streaming will be implemented, collect
         // all chunks, assemble them into a full CheckpointData, then send it
@@ -348,7 +349,7 @@ impl CheckpointReaderActor {
             return Err(IngestionError::Grpc("checkpoint stream was closed".into()));
         };
 
-        let checkpoint: CheckpointData = genesis_checkpoint.map(GrpcCheckpoint)?.try_into()?;
+        let checkpoint: CheckpointData = genesis_checkpoint?.try_into()?;
 
         let size = bcs::serialized_size(&checkpoint)?;
         self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
@@ -356,7 +357,7 @@ impl CheckpointReaderActor {
     }
 
     /// Fetches checkpoints from the fullnode through a gRPC streaming
-    /// connection.
+    /// connection and streams them to a channel.
     ///
     /// # Note
     /// It should be used to download checkpoints except genesis one.
@@ -364,7 +365,7 @@ impl CheckpointReaderActor {
     /// For downloading the genesis checkpoint the
     /// [`fetch_genesis_checkpoint_from_fullnode`](Self::fetch_genesis_checkpoint_from_fullnode)
     /// method should be used.
-    async fn fetch_post_genesis_checkpoints_from_fullnode(
+    async fn relay_post_genesis_checkpoints_from_fullnode(
         &mut self,
         client: &mut CheckpointClient,
     ) -> IngestionResult<()> {
@@ -383,10 +384,11 @@ impl CheckpointReaderActor {
             .await
             .map_err(|e| {
                 IngestionError::Grpc(format!("failed to initialize the checkpoint stream: {e}"))
-            })?;
+            })?
+            .map_ok(GrpcCheckpoint);
 
-        while let Some(checkpoint) = checkpoints_stream.next().await {
-            let checkpoint: CheckpointData = checkpoint.map(GrpcCheckpoint)?.try_into()?;
+        while let Some(grpc_checkpoint) = checkpoints_stream.next().await {
+            let checkpoint: CheckpointData = grpc_checkpoint?.try_into()?;
 
             let size = bcs::serialized_size(&checkpoint)?;
             self.send_remote_checkpoint_with_capacity_check(Arc::new(checkpoint), size)
@@ -409,15 +411,15 @@ impl CheckpointReaderActor {
         let batch_size = self.reader_options.batch_size;
         match remote_store.as_ref() {
             RemoteStore::Fullnode(client) => {
-                self.fetch_from_fullnode(&mut client.clone()).await?;
+                self.relay_from_fullnode(&mut client.clone()).await?;
             }
             RemoteStore::HybridHistoricalStore { historical, live } => {
-                if let Err(err) = self.fetch_historical(historical).await {
+                if let Err(err) = self.relay_from_historical(historical).await {
                     // attempt to fetch from live object store if historical store does not contain
                     // the requested checkpoint.
                     if matches!(err, IngestionError::CheckpointNotAvailableYet) {
                         let live = live.as_ref().ok_or(err)?;
-                        return self.fetch_live(batch_size, live).await;
+                        return self.relay_from_live(batch_size, live).await;
                     }
                     return Err(err);
                 }
@@ -682,7 +684,7 @@ impl GrpcCheckpoint {
     }
 }
 
-impl TryFrom<GrpcCheckpoint> for iota_types::full_checkpoint_content::CheckpointData {
+impl TryFrom<GrpcCheckpoint> for CheckpointData {
     type Error = IngestionError;
 
     fn try_from(grpc_data: GrpcCheckpoint) -> Result<Self, Self::Error> {
