@@ -881,7 +881,7 @@ impl AuthorityState {
     ) -> IotaResult<VerifiedSignedTransaction> {
         // Ensure that validator cannot reconfigure while we are signing the tx
         let _execution_lock = self.execution_lock_for_signing();
-
+        let mut is_gas_check_required = true;
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
 
@@ -929,8 +929,10 @@ impl AuthorityState {
                     protocol_config,
                     reference_gas_price,
                     tx_data,
+                    is_gas_check_required,
                 )?;
-
+            //
+            is_gas_check_required = false;
             let (kind, signer, _) = tx_data.execution_parts();
 
             // Execute the Move authenticator.
@@ -960,8 +962,6 @@ impl AuthorityState {
             }
         }
 
-        // TODO: Gas coins should not be double-checked if `GenericSignature` is of type
-        // `MoveAuthenticator`.
         let (_gas_status, tx_checked_input_objects) =
             iota_transaction_checks::check_transaction_input(
                 protocol_config,
@@ -971,6 +971,7 @@ impl AuthorityState {
                 &tx_receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,
                 &self.config.verifier_signing_config,
+                is_gas_check_required,
             )?;
 
         check_coin_deny_list_v1_during_signing(
@@ -1755,6 +1756,7 @@ impl AuthorityState {
     )> {
         let _scope = monitored_scope("Execution::prepare_certificate");
         let _metrics_guard = self.metrics.prepare_certificate_latency.start_timer();
+        let mut is_gas_check_required = true;
         let prepare_certificate_start_time = tokio::time::Instant::now();
 
         let protocol_config = epoch_store.protocol_config();
@@ -1815,7 +1817,12 @@ impl AuthorityState {
                     tx_data,
                     authenticator_input_objects,
                     &tx_input_objects,
+                    is_gas_check_required,
                 )?;
+
+            // After checking the `MoveAuthenticator` inputs, gas check is not required
+            // in order to avoid gas double-checking.
+            is_gas_check_required = false;
 
             // Execute the Move authenticator.
             let validation_result = epoch_store.executor().validate_transaction(
@@ -1852,15 +1859,13 @@ impl AuthorityState {
 
         // The cost of partially re-auditing a transaction before execution is
         // tolerated.
-        //
-        //  TODO: Gas coins should not be double-checked if `GenericSignature` is of
-        // type `MoveAuthenticator`.
         let (tx_gas_status, tx_input_objects) = iota_transaction_checks::check_certificate_input(
             certificate,
             tx_input_objects,
             protocol_config,
             reference_gas_price,
             authenticator_computation_cost,
+            is_gas_check_required,
         )?;
 
         let owned_object_refs = tx_input_objects.inner().filter_owned_objects();
@@ -1983,7 +1988,7 @@ impl AuthorityState {
     )> {
         // Cheap validity checks for a transaction, including input size limits.
         transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
-
+        let is_gas_check_required = true;
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
 
@@ -2034,6 +2039,7 @@ impl AuthorityState {
                     gas_object,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
+                    is_gas_check_required,
                 )?,
                 Some(gas_object_id),
             )
@@ -2047,6 +2053,7 @@ impl AuthorityState {
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
+                    is_gas_check_required,
                 )?,
                 None,
             )
@@ -2226,6 +2233,7 @@ impl AuthorityState {
                     gas_object,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
+                    true,
                 )?,
                 Some(gas_object_id),
             )
@@ -2239,6 +2247,7 @@ impl AuthorityState {
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
+                    true,
                 )?,
                 None,
             )
@@ -2295,7 +2304,7 @@ impl AuthorityState {
         skip_checks: Option<bool>,
     ) -> IotaResult<DevInspectResults> {
         let epoch_store = self.load_epoch_store_one_call_per_task();
-
+        let is_gas_check_required = true;
         if !self.is_fullnode(&epoch_store) {
             return Err(IotaError::UnsupportedFeature {
                 error: "dev-inspect is only supported on fullnodes".to_string(),
@@ -2414,6 +2423,7 @@ impl AuthorityState {
                     dummy_gas_object,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
+                    is_gas_check_required,
                 )?
             } else {
                 iota_transaction_checks::check_transaction_input(
@@ -2424,6 +2434,7 @@ impl AuthorityState {
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
+                    is_gas_check_required,
                 )?
             }
         };
@@ -5500,6 +5511,7 @@ impl AuthorityState {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         transaction: &TransactionData,
+        is_gas_check_required: bool,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects, AuthenticatorInfoV1)> {
         let digest = transaction.digest();
         let signer = transaction.sender();
@@ -5602,6 +5614,7 @@ impl AuthorityState {
                 transaction.gas_price(),
                 authenticator_input_objects,
                 tx_input_objects,
+                is_gas_check_required,
             )?;
 
         Ok((gas_status, checked_input_objects, authenticator_info))
@@ -5614,6 +5627,7 @@ impl AuthorityState {
         transaction: &TransactionData,
         authenticator_input_objects: InputObjects,
         tx_input_objects: &InputObjects,
+        is_gas_check_required: bool,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         // The `MoveAuthenticator` receiving objects are checked on the signing step.
 
@@ -5630,6 +5644,7 @@ impl AuthorityState {
             transaction.gas_price(),
             authenticator_input_objects,
             tx_input_objects,
+            is_gas_check_required,
         )
     }
 

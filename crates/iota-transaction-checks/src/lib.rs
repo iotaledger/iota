@@ -54,6 +54,7 @@ mod checked {
         reference_gas_price: u64,
         authenticator_computation_cost: u64,
         transaction: &TransactionData,
+        is_gas_check_required: bool,
     ) -> IotaResult<IotaGasStatus> {
         if transaction.is_system_tx() {
             Ok(IotaGasStatus::new_unmetered())
@@ -75,6 +76,7 @@ mod checked {
                 gas_budget_to_use,
                 gas_spent_for_authentication,
                 transaction.gas_price(),
+                is_gas_check_required,
             )
         }
     }
@@ -88,6 +90,7 @@ mod checked {
         receiving_objects: &ReceivingObjects,
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
+        is_gas_check_required: bool,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         // `MoveAuthenticator`computation cost is not used here at the moment.
         let authenticator_computation_cost = 0;
@@ -99,6 +102,7 @@ mod checked {
             transaction,
             &input_objects,
             &[],
+            is_gas_check_required,
         )?;
         check_receiving_objects(&input_objects, receiving_objects)?;
         // Runs verifier, which could be expensive.
@@ -121,6 +125,7 @@ mod checked {
         gas_object: Object,
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
+        is_gas_check_required: bool,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_object_ref = gas_object.compute_object_reference();
         input_objects.push(ObjectReadResult::new_from_gas_object(&gas_object));
@@ -135,6 +140,7 @@ mod checked {
             transaction,
             &input_objects,
             &[gas_object_ref],
+            is_gas_check_required,
         )?;
         check_receiving_objects(&input_objects, &receiving_objects)?;
         // Runs verifier, which could be expensive.
@@ -160,6 +166,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         authenticator_computation_cost: u64,
+        is_gas_check_required: bool,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let transaction = cert.data().transaction_data();
         let gas_status = check_transaction_input_inner(
@@ -169,6 +176,7 @@ mod checked {
             transaction,
             &input_objects,
             &[],
+            is_gas_check_required,
         )?;
         // NB: We do not check receiving objects when executing. Only at signing time do
         // we check. NB: move verifier is only checked at signing time, not at
@@ -230,6 +238,7 @@ mod checked {
         gas_price: u64,
         authenticator_input_objects: InputObjects,
         tx_input_objects: &InputObjects,
+        is_gas_check_required: bool,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         // To be sure that we can cover the Move authenticator + transaction execution
         // gas cost.
@@ -247,6 +256,7 @@ mod checked {
             gas_budget_to_use,
             gas_spent_for_authentication,
             gas_price,
+            is_gas_check_required,
         )?;
 
         check_move_authenticator_objects(&authenticator_input_objects)?;
@@ -263,6 +273,7 @@ mod checked {
         input_objects: &InputObjects,
         // Overrides the gas objects in the transaction.
         gas_override: &[ObjectRef],
+        is_gas_check_required: bool,
     ) -> IotaResult<IotaGasStatus> {
         // Cheap validity checks that is ok to run multiple times during processing.
         let gas = if gas_override.is_empty() {
@@ -278,6 +289,7 @@ mod checked {
             reference_gas_price,
             authenticator_computation_cost,
             transaction,
+            is_gas_check_required,
         )?;
         check_objects(transaction, input_objects)?;
 
@@ -414,6 +426,7 @@ mod checked {
         gas_budget_to_use: u64,
         gas_spent_for_authentication: u64,
         gas_price: u64,
+        is_gas_check_required: bool,
     ) -> IotaResult<IotaGasStatus> {
         debug_assert!(
             gas_budget_to_use <= gas_budget_to_check,
@@ -428,18 +441,20 @@ mod checked {
             protocol_config,
         )?;
 
-        // Check the balance and coins consistency; Load all the gas coins.
-        let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
-        let mut gas_objects = vec![];
-        for obj_ref in gas {
-            let obj = objects.get(&obj_ref.0);
-            let obj = *obj.ok_or(UserInputError::ObjectNotFound {
-                object_id: obj_ref.0,
-                version: Some(obj_ref.1),
-            })?;
-            gas_objects.push(obj);
+        if is_gas_check_required {
+            // Check the balance and coins consistency; Load all the gas coins.
+            let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
+            let mut gas_objects = vec![];
+            for obj_ref in gas {
+                let obj = objects.get(&obj_ref.0);
+                let obj = *obj.ok_or(UserInputError::ObjectNotFound {
+                    object_id: obj_ref.0,
+                    version: Some(obj_ref.1),
+                })?;
+                gas_objects.push(obj);
+            }
+            gas_status.check_gas_balance(&gas_objects, gas_budget_to_check)?;
         }
-        gas_status.check_gas_balance(&gas_objects, gas_budget_to_check)?;
 
         Ok(gas_status)
     }
