@@ -198,6 +198,7 @@ export function AddAccountPage() {
             isTitleCentered
             onClose={() => navigate('/')}
             showBackButton
+            onBack={() => navigate('/')}
         >
             <div className="flex h-full w-full flex-col gap-4 ">
                 {cardGroups.map((group, groupIndex) => (

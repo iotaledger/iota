@@ -81,6 +81,9 @@ export function PasskeyAccountPage() {
             title={`${isCreateFlow ? 'Create' : 'Import'} Passkey Account`}
             isTitleCentered
             showBackButton
+            onBack={() => {
+                navigate('/accounts/manage');
+            }}
         >
             <Form
                 className="flex h-full flex-col justify-between"
@@ -119,7 +122,7 @@ export function PasskeyAccountPage() {
                         <Button
                             type={ButtonType.Secondary}
                             text="Cancel"
-                            onClick={() => navigate(-1)}
+                            onClick={() => navigate('/accounts/manage')}
                             fullWidth
                         />
                         <Button
