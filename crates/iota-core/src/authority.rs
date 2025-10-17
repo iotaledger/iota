@@ -913,7 +913,7 @@ impl AuthorityState {
         )?;
 
         if let Some(move_authenticator) = transaction.move_authenticator() {
-            // It is supposed that `Move authentication` availability is checked in
+            // It is supposed that `MoveAuthenticator` availability is checked in
             // `SenderSignedData::validity_check`.
 
             // Check the `MoveAuthenticator` input objects.
@@ -1349,7 +1349,7 @@ impl AuthorityState {
             .start_timer();
 
         let objects = if let Some(move_authenticator) = certificate.move_authenticator() {
-            // It is supposed that `Move authentication` availability is checked in
+            // It is supposed that `MoveAuthenticator` availability is checked in
             // `SenderSignedData::validity_check`.
 
             // Load the account object.
@@ -5625,7 +5625,7 @@ impl AuthorityState {
         tx_input_objects: &InputObjects,
         tx_signer: IotaAddress,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects, AuthenticatorInfoV1)> {
-        // It is supposed that `Move authentication` availability is checked in
+        // It is supposed that `MoveAuthenticator` availability is checked in
         // `SenderSignedData::validity_check`.
 
         // Check basic `object_to_authenticate` preconditions and get its components.
