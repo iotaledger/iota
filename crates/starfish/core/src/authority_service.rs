@@ -2485,7 +2485,11 @@ mod tests {
         let first_batch_end_exclusive = 5;
         for round in 1..first_batch_end_exclusive {
             core_dispatcher
-                .add_blocks(all_blocks[round as usize].clone())
+                .add_blocks(all_blocks[round as usize - 1].clone())
+                .await
+                .expect("blocks are expected to be added successfully");
+            core_dispatcher
+                .add_blocks(vec![all_blocks[round as usize][0].clone()])
                 .await
                 .expect("blocks are expected to be added successfully");
             sleep(Duration::from_millis(50)).await;
@@ -2572,19 +2576,22 @@ mod tests {
                 all_blocks[i + (last_received_round + 1) as usize][0],
             );
         }
+        received_bundles = vec![];
 
         for round in first_batch_end_exclusive..=rounds {
             core_dispatcher
-                .add_blocks(all_blocks[round as usize].clone())
+                .add_blocks(all_blocks[round as usize - 1].clone())
                 .await
                 .expect("blocks are expected to be added successfully");
+            core_dispatcher
+                .add_blocks(vec![all_blocks[round as usize][0].clone()])
+                .await
+                .expect("blocks are expected to be added successfully");
+            sleep(Duration::from_millis(50)).await;
             tx_block_broadcast
                 .send(all_blocks[round as usize][0].clone())
                 .expect("We expect that block is sent successfully");
-        }
-
-        received_bundles = vec![];
-        for _ in first_batch_end_exclusive..rounds {
+            sleep(Duration::from_millis(50)).await;
             if let Some(bundle) = stream.next().await {
                 received_bundles.push(bundle);
             }
@@ -2592,13 +2599,13 @@ mod tests {
 
         // Check blocks from the second batch
         for (i, bundle) in received_bundles.into_iter().enumerate() {
-            let serialized_block_and_headers =
+            let serialized_block_bundle_parts =
                 SerializedBlockBundleParts::try_from(bundle).unwrap();
             let SerializedHeaderAndTransactions {
                 serialized_block_header,
                 serialized_transactions,
             } = SerializedHeaderAndTransactions::try_from(SerializedBlock {
-                serialized_block: serialized_block_and_headers.serialized_block,
+                serialized_block: serialized_block_bundle_parts.serialized_block,
             })
             .unwrap();
 
@@ -2637,6 +2644,29 @@ mod tests {
                 verified_block,
                 all_blocks[i + first_batch_end_exclusive as usize][0],
             );
+
+            let mut authorities = vec![];
+            for serialized_header in serialized_block_bundle_parts.serialized_headers {
+                let signed_header: SignedBlockHeader = bcs::from_bytes(&serialized_header)
+                    .map_err(ConsensusError::MalformedHeader)
+                    .unwrap();
+                assert_eq!(
+                    verified_block.round(),
+                    signed_header.round() + 1,
+                    "Headers should be from the previous round"
+                );
+                authorities.push(signed_header.author());
+            }
+            authorities.sort();
+            assert_eq!(
+                authorities,
+                vec![
+                    AuthorityIndex::new_for_test(2),
+                    AuthorityIndex::new_for_test(3)
+                ],
+                "We should have pushed headers from other authorities in round {:?}", verified_block.round(),
+            );
+
         }
     }
 

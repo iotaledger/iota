@@ -845,10 +845,10 @@ impl ConnectionKnowledge {
         taken
     }
 
-    fn evict_below(&mut self, rounds: Vec<Round>) {
+    fn evict_below(&mut self, rounds_exclusive: Vec<Round>) {
         for (index, deque) in self.headers_not_known.iter_mut().enumerate() {
             while let Some((front_round, _)) = deque.front() {
-                if *front_round < rounds[index] {
+                if *front_round < rounds_exclusive[index] {
                     deque.pop_front();
                 } else {
                     break;
@@ -857,7 +857,7 @@ impl ConnectionKnowledge {
         }
         for (index, deque) in self.shards_not_known.iter_mut().enumerate() {
             while let Some((front_round, _)) = deque.front() {
-                if *front_round < rounds[index] {
+                if *front_round < rounds_exclusive[index] {
                     deque.pop_front();
                 } else {
                     break;
@@ -948,24 +948,30 @@ impl ConnectionKnowledge {
         self.last_useful_shards_from_peer_round = useful_shards_from_peer_round;
     }
 
-    fn handle_useful_headers_from(&mut self, authorities: BTreeMap<AuthorityIndex, Round>) {
-        for (authority, round) in authorities {
+    fn handle_useful_headers_from(
+        &mut self,
+        authorities_with_round: BTreeMap<AuthorityIndex, Round>,
+    ) {
+        for (authority, round) in authorities_with_round {
             if round > self.last_useful_headers_from_peer_round[authority] {
                 self.last_useful_headers_from_peer_round[authority] = round;
             }
         }
     }
 
-    fn handle_useful_shards_to(&mut self, authorities: BTreeMap<AuthorityIndex, Round>) {
-        for (authority, round) in authorities {
+    fn handle_useful_shards_to(&mut self, authorities_with_round: BTreeMap<AuthorityIndex, Round>) {
+        for (authority, round) in authorities_with_round {
             if round > self.last_useful_shards_to_peer_round[authority] {
                 self.last_useful_shards_to_peer_round[authority] = round;
             }
         }
     }
 
-    fn handle_useful_headers_to(&mut self, authorities: BTreeMap<AuthorityIndex, Round>) {
-        for (authority, round) in authorities {
+    fn handle_useful_headers_to(
+        &mut self,
+        authorities_with_round: BTreeMap<AuthorityIndex, Round>,
+    ) {
+        for (authority, round) in authorities_with_round {
             if round > self.last_useful_headers_to_peer_round[authority] {
                 self.last_useful_headers_to_peer_round[authority] = round;
             }
@@ -977,7 +983,14 @@ impl ConnectionKnowledge {
         round_upper_bound_exclusive: Round,
         respond_to: oneshot::Sender<AdditionalPartsForBundle>,
     ) {
-        // 1. Identify useful authorities for headers and take the corresponding headers
+        // 1. Own headers and shards for round up to round_upper_bound_exclusive should
+        //    be marked as known
+        let own_index = self.context.own_index;
+        let mut rounds = vec![Round::MIN; self.context.committee.size()];
+        rounds[own_index] = round_upper_bound_exclusive + 1; // We are supposed to send own block of this round in a bundle when calling this function with this parameter
+
+        self.evict_below(rounds);
+        // 2. Identify useful authorities for headers and take the corresponding headers
         //    from the DAG state
         let useful_headers_authors_to_peer: Vec<usize> = self
             .last_useful_headers_to_peer_round
@@ -992,6 +1005,11 @@ impl ConnectionKnowledge {
             })
             .collect();
 
+        debug!(
+            "Useful header authors: {:?}",
+            useful_headers_authors_to_peer
+        );
+
         let useful_headers_block_refs_to_peer = self.take_useful_block_refs_round(
             round_upper_bound_exclusive,
             &useful_headers_authors_to_peer,
@@ -1005,7 +1023,7 @@ impl ConnectionKnowledge {
                 .flatten() // Filter out None values
                 .collect()
         };
-        // 2. Identify useful authorities for shards and take the corresponding shards
+        // 3. Identify useful authorities for shards and take the corresponding shards
         //    from the DAG state
         let useful_shards_authors_to_peer: Vec<usize> = self
             .last_useful_shards_to_peer_round
@@ -1031,7 +1049,7 @@ impl ConnectionKnowledge {
                 .flatten() // Filter out None values
                 .collect()
         };
-        // 3. Get useful header authors from peer
+        // 4. Get useful header authors from peer
         let useful_headers_authors_from_peer = self
             .last_useful_headers_from_peer_round
             .iter()
@@ -1044,7 +1062,7 @@ impl ConnectionKnowledge {
                 }
             })
             .collect::<BTreeSet<AuthorityIndex>>();
-        // 4. Get useful shard authors from peer
+        // 5. Get useful shard authors from peer
         let useful_shards_authors_from_peer = self
             .last_useful_shards_from_peer_round
             .iter()
@@ -1057,7 +1075,8 @@ impl ConnectionKnowledge {
                 }
             })
             .collect::<BTreeSet<AuthorityIndex>>();
-        // 5. Build a response message and send it back
+
+        // 6. Build a response message and send it back
         let message = AdditionalPartsForBundle {
             headers: useful_headers_to_peer,
             shards: useful_shards,
