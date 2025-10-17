@@ -448,19 +448,26 @@ mod checked {
         TransactionEffects,
         ExecutionError,
     ) {
+        // Merge input objects coming from the transaction together with
+        // those coming from the failed authenticator execution.
         let mut input_objects = transaction_input_objects.into_inner();
         input_objects.extend(invalid_authentication_input_objects.into_inner());
+
+        // Read objects and dependencies from both TX and authenticator.
         let mutable_inputs = if enable_expensive_checks {
             input_objects.mutable_inputs().keys().copied().collect()
         } else {
             HashSet::new()
         };
         let shared_object_refs = input_objects.filter_shared_objects();
-        let receiving_objects = transaction_kind.receiving_objects();
         let mut transaction_dependencies = input_objects.transaction_dependencies();
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
 
+        // Read receiving objects only from the TX.
+        let receiving_objects = transaction_kind.receiving_objects();
+
+        // Prepare the needed environment for a normal transaction execution.
         let mut temporary_store = TemporaryStore::new(
             store,
             input_objects,
@@ -483,6 +490,8 @@ mod checked {
         let is_epoch_change = transaction_kind.is_end_of_epoch_tx();
 
         let deny_cert = is_certificate_denied(&transaction_digest, certificate_deny_set);
+
+        // Then, instead of executing the TX, charge gas for the failed authentication.
         let (gas_cost_summary, execution_error) = charge_gas_for_invalid_authentication::<Mode>(
             &mut temporary_store,
             transaction_kind,
@@ -498,6 +507,7 @@ mod checked {
             cancelled_objects,
         );
 
+        // Prepare the failure status.
         let (status, command) = execution_error.to_execution_status();
         let status = ExecutionStatus::new_failure(status, command);
 
@@ -517,6 +527,7 @@ mod checked {
         // dependencies
         transaction_dependencies.remove(&TransactionDigest::genesis_marker());
 
+        // Final checks
         if enable_expensive_checks && !Mode::allow_arbitrary_function_calls() {
             temporary_store
                 .check_ownership_invariants(
@@ -528,6 +539,7 @@ mod checked {
                 .unwrap()
         } // else, in dev inspect mode and anything goes--don't check
 
+        // Produce the final effects.
         let (inner, effects) = temporary_store.into_effects(
             shared_object_refs,
             &transaction_digest,
@@ -801,9 +813,14 @@ mod checked {
             // Run the checks that must take precedence over the validation execution error.
             let pre_check: Result<(), ExecutionError> = (|| {
                 // We must charge object read here we must still ensure an effect is committed
-                // and all objects versions incremented
+                // and all objects versions incremented.
+                // This can fail only if not enough gas units are left.
                 gas_charger.charge_input_objects(temporary_store)?;
 
+                // This checks for denied certificates, deleted input objects,
+                // and cancelled objects due to congestion or
+                // randomness unavailability. If any of
+                // these conditions are met, it fails.
                 run_inputs_checks(
                     protocol_config,
                     deny_cert,
@@ -811,6 +828,11 @@ mod checked {
                     cancelled_objects,
                 )?;
 
+                // This checks a size limit based on the number of written_objects, number of
+                // modified_objects and number of input_objects. So, in this context, it should
+                // fail only if the number of input_objects is too large.
+                // TODO: adapt the limit to support the merge of TX and authenticator input
+                // objects.
                 check_meter_limit(
                     temporary_store,
                     gas_charger,
@@ -829,6 +851,7 @@ mod checked {
             }
         };
 
+        // Finally, charge gas for the invalid authentication execution.
         let cost_summary = gas_charger.charge_gas(temporary_store, &mut result);
 
         if let Err(e) = run_conservation_checks::<Mode>(
@@ -838,10 +861,9 @@ mod checked {
             move_vm,
             enable_expensive_checks,
             &cost_summary,
-            false,
+            false, // not genesis or epoch change tx
             advance_epoch_gas_summary,
         ) {
-            // FIXME: we cannot fail the transaction if this is an epoch change transaction.
             result = Err(e);
         }
 
