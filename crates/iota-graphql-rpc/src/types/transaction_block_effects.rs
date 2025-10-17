@@ -637,12 +637,24 @@ impl TryFrom<OptimisticTransaction> for TransactionBlockEffectsKind {
     }
 }
 
-impl TryFrom<TransactionBlock> for TransactionBlockEffects {
+impl TryFrom<OptimisticTransaction> for TransactionBlockEffects {
+    type Error = Error;
+
+    fn try_from(tx: OptimisticTransaction) -> Result<Self, Error> {
+        // set to u64::MAX, as the executed transaction has not been indexed yet
+        let checkpoint_viewed_at = u64::MAX;
+        Ok(Self {
+            kind: tx.try_into()?,
+            checkpoint_viewed_at,
+        })
+    }
+}
+
+impl TryFrom<TransactionBlock> for TransactionBlockEffectsKind {
     type Error = Error;
 
     fn try_from(block: TransactionBlock) -> Result<Self, Error> {
-        let checkpoint_viewed_at = block.checkpoint_viewed_at;
-        let kind = match block.inner {
+        match block.inner {
             TransactionBlockInner::Checkpointed { stored_tx, .. } => {
                 bcs::from_bytes(&stored_tx.raw_effects)
                     .map(|native| TransactionBlockEffectsKind::Checkpointed {
@@ -666,10 +678,17 @@ impl TryFrom<TransactionBlock> for TransactionBlockEffects {
                 native: effects,
                 events,
             }),
-        }?;
+        }
+    }
+}
 
+impl TryFrom<TransactionBlock> for TransactionBlockEffects {
+    type Error = Error;
+
+    fn try_from(block: TransactionBlock) -> Result<Self, Error> {
+        let checkpoint_viewed_at = block.checkpoint_viewed_at;
         Ok(Self {
-            kind,
+            kind: block.try_into()?,
             checkpoint_viewed_at,
         })
     }
