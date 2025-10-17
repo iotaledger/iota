@@ -530,6 +530,8 @@ impl FunctionDefinitionGen {
             function: function_handle,
             visibility: self.visibility,
             is_entry: self.is_entry,
+            // TODO fix this
+            authenticator_version: None,
             acquires_global_resources,
             code: Some(self.code.materialize(state)),
         })

@@ -250,7 +250,8 @@ fn test_attributes(attrs: &P::Attributes) -> Vec<(Loc, known_attributes::Testing
                 | KnownAttribute::External(_)
                 | KnownAttribute::Syntax(_)
                 | KnownAttribute::Error(_)
-                | KnownAttribute::Deprecation(_) => None,
+                | KnownAttribute::Deprecation(_)
+                | KnownAttribute::Authenticator(_) => None,
             },
         )
         .collect()

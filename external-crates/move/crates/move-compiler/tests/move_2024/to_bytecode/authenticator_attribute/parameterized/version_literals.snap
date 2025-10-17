@@ -1,0 +1,36 @@
+---
+source: crates/move-compiler/tests/move_check_testsuite.rs
+info:
+  flavor: core
+  edition: 2024.alpha
+  lint: false
+---
+error[E10003]: invalid attribute value
+  ┌─ tests/move_2024/to_bytecode/authenticator_attribute/parameterized/version_literals.move:9:27
+  │
+9 │ #[authenticator(version = 3u16)]
+  │                           ^^^^ Only unannotated or u8 literal `version` values are supported.
+
+error[E10003]: invalid attribute value
+   ┌─ tests/move_2024/to_bytecode/authenticator_attribute/parameterized/version_literals.move:12:27
+   │
+12 │ #[authenticator(version = 3u32)]
+   │                           ^^^^ Only unannotated or u8 literal `version` values are supported.
+
+error[E10003]: invalid attribute value
+   ┌─ tests/move_2024/to_bytecode/authenticator_attribute/parameterized/version_literals.move:15:27
+   │
+15 │ #[authenticator(version = 3u64)]
+   │                           ^^^^ Only unannotated or u8 literal `version` values are supported.
+
+error[E10003]: invalid attribute value
+   ┌─ tests/move_2024/to_bytecode/authenticator_attribute/parameterized/version_literals.move:18:27
+   │
+18 │ #[authenticator(version = 3u128)]
+   │                           ^^^^^ Only unannotated or u8 literal `version` values are supported.
+
+error[E10003]: invalid attribute value
+   ┌─ tests/move_2024/to_bytecode/authenticator_attribute/parameterized/version_literals.move:21:27
+   │
+21 │ #[authenticator(version = 3u256)]
+   │                           ^^^^^ Only unannotated or u8 literal `version` values are supported.

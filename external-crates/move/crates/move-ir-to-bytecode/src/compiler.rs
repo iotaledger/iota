@@ -6,13 +6,13 @@
 use std::{
     clone::Clone,
     collections::{
-        hash_map::Entry::{Occupied, Vacant},
         BTreeSet, HashMap, HashSet,
+        hash_map::Entry::{Occupied, Vacant},
     },
     fmt::Write,
 };
 
-use anyhow::{bail, format_err, Result};
+use anyhow::{Result, bail, format_err};
 use move_binary_format::{
     file_format::{
         Ability, AbilitySet, Bytecode, CodeOffset, CodeUnit, CompiledModule, Constant,
@@ -413,10 +413,11 @@ pub fn compile_module<'a>(
     }
 
     for ir_constant in module.constants {
-        // If the constant is an error constant in the source, then add the error constant's name
-        // look up the constant's name, as a constant value -- this may be present already,
-        // e.g., in the case of something like `const Foo: vector<u8> = b"Foo"` in which case the
-        // new index will not be added and the previous index will be used.
+        // If the constant is an error constant in the source, then add the error
+        // constant's name look up the constant's name, as a constant value --
+        // this may be present already, e.g., in the case of something like
+        // `const Foo: vector<u8> = b"Foo"` in which case the new index will not
+        // be added and the previous index will be used.
         if ir_constant.is_error_constant {
             // Will add if not present, and will return the index, or will just return
             // index if already present.
@@ -956,6 +957,7 @@ fn compile_function(
     let ast_function = ast_function.value;
 
     let is_entry = ast_function.is_entry;
+    let authenticator_version = ast_function.authenticator_version;
     let visibility = match ast_function.visibility {
         FunctionVisibility::Public => Visibility::Public,
         FunctionVisibility::Friend => Visibility::Friend,
@@ -967,6 +969,7 @@ fn compile_function(
         function: fh_idx,
         visibility,
         is_entry,
+        authenticator_version,
         acquires_global_resources: vec![],
         code,
     })

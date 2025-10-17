@@ -2,10 +2,94 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+//! Attributes
+//!
+//! The compiler has a built in system for processing arbitrary attributes,
+//! but has no generalized concept of validating or storing them.
+//! A fully compiled program will loose all attributes by the end of compilation
+//! and while attributes are initially processed and propagated through the
+//! stages, they have no effect until they are handled by the developer.
+//! This means that adding an attribute stub is simple, but properly handling it
+//! may happen on an arbitrary stage of compilation.
+//!
+//! ## Processing stages
+//!
+//! The **parser** stage of compilation will extract everything the compiler
+//! understands about an attribute. Where is it from, what form does it have,
+//! but nothing else is known.
+//! During the **expansion** stage an attribute will be turned into a
+//! [KnownAttribute] or unknown attribute after it passed the
+//! [AttributePosition] check and any associated values will be attached to it.
+//! After this point the attributes will propagate through the stages up until
+//! **to_bytecode** at which point they will be discarded completely.
+//!
+//! ## Structure
+//!
+//! There are tree types of attributes, defined in the **expansion**
+//! stage.
+//!
+//! Named attributes, which only have an identifier to them.
+//! ```
+//! #[NamedAttribute]
+//! ....
+//! ```
+//! which can be listed in one unit or separated into more lines:
+//! ```
+//! #[NamedAttribute1, NamedAttribute2]
+//! ...
+//!
+//! #[NamedAttribute1]
+//! #[NamedAttribute2]
+//! ...
+//! ```
+//! Assigned attributes, which also have an associated value:
+//! ```
+//! #[AssignedAttribute = AttributeValue]
+//! ...
+//! ```
+//! which can be listed/grouped similarly to the named version above.
+//!
+//! Parameterized attributes, which can recursively contain
+//! all other types of attributes:
+//! ```
+//! #[Parameterized(NamedAttribute)]
+//! ...
+//!
+//! #[Parameterized(AssignedAttribute = AttributeValue)]
+//! ...
+//!
+//! #[Parameterized(Parameterized(...))]
+//! ...
+//! ```
+//! which follows the same listing rules as seen above.
+//!
+//! The compiler ensures that no duplicate attributes are specified
+//! and checks if the values fit into a set of allowed types, but
+//! there is no further validation. Everything else is up to the
+//! developer.
+//!
+//! ## Attribute implementation patterns
+//!
+//! Simple **named** and **assigned** attributes are easy to implement and apart
+//! from setting the appropriate [AttributePosition] and trait implementations
+//! only require a type check to be implemented by the developer.
+//!
+//! **Parameterized** attributes are considerably trickier to be used properly
+//! as they can contain other attribute types recursively, but
+//! [AttributePosition] is not capable of expressing that a given attribute may
+//! only appear in such a nested structure. This means that after defining the
+//! top level **parameterized** attribute it is up the developer to define
+//! exactly what internal formats are expected.
+//! For example see [TestingAttribute::ExpectedFailure] implementation.
+
 use std::{collections::BTreeSet, fmt};
 
 use once_cell::sync::Lazy;
 
+/// All the code positions at which an attribute may be placed
+/// at in code.
+///
+/// A [KnownAttribute] specifies on which positions it may appear.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum AttributePosition {
     AddressBlock,
@@ -19,6 +103,10 @@ pub enum AttributePosition {
     Spec,
 }
 
+/// The list of attribute types recognized by the compiler.
+///
+/// These variants not necessarily specify a single attribute
+/// , but a whole class of them like [KnownAttribute::Testing].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum KnownAttribute {
     Testing(TestingAttribute),
@@ -30,6 +118,7 @@ pub enum KnownAttribute {
     Syntax(SyntaxAttribute),
     Error(ErrorAttribute),
     Deprecation(DeprecationAttribute),
+    Authenticator(AuthenticatorAttribute),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -80,6 +169,9 @@ pub struct ErrorAttribute;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DeprecationAttribute;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct AuthenticatorAttribute;
+
 impl AttributePosition {
     const ALL: &'static [Self] = &[
         Self::AddressBlock,
@@ -109,6 +201,7 @@ impl KnownAttribute {
             SyntaxAttribute::SYNTAX => SyntaxAttribute::Syntax.into(),
             ErrorAttribute::ERROR => ErrorAttribute.into(),
             DeprecationAttribute::DEPRECATED => DeprecationAttribute.into(),
+            AuthenticatorAttribute::AUTHENTICATOR => AuthenticatorAttribute.into(),
             _ => return None,
         })
     }
@@ -124,6 +217,7 @@ impl KnownAttribute {
             Self::Syntax(a) => a.name(),
             Self::Error(a) => a.name(),
             Self::Deprecation(a) => a.name(),
+            Self::Authenticator(a) => a.name(),
         }
     }
 
@@ -138,6 +232,7 @@ impl KnownAttribute {
             Self::Syntax(a) => a.expected_positions(),
             Self::Error(a) => a.expected_positions(),
             Self::Deprecation(a) => a.expected_positions(),
+            Self::Authenticator(a) => a.expected_positions(),
         }
     }
 }
@@ -357,6 +452,21 @@ impl DeprecationAttribute {
     }
 }
 
+impl AuthenticatorAttribute {
+    pub const AUTHENTICATOR: &'static str = "authenticator";
+    pub const VERSION: &'static str = "version";
+
+    pub const fn name(&self) -> &str {
+        Self::AUTHENTICATOR
+    }
+
+    pub fn expected_positions(&self) -> &'static BTreeSet<AttributePosition> {
+        static AUTHENTICATOR_POSITIONS: Lazy<BTreeSet<AttributePosition>> =
+            Lazy::new(|| BTreeSet::from([AttributePosition::Function]));
+        &AUTHENTICATOR_POSITIONS
+    }
+}
+
 //**************************************************************************************************
 // Display
 //**************************************************************************************************
@@ -389,6 +499,7 @@ impl fmt::Display for KnownAttribute {
             Self::Syntax(a) => a.fmt(f),
             Self::Error(a) => a.fmt(f),
             Self::Deprecation(a) => a.fmt(f),
+            Self::Authenticator(a) => a.fmt(f),
         }
     }
 }
@@ -447,6 +558,12 @@ impl fmt::Display for DeprecationAttribute {
     }
 }
 
+impl fmt::Display for AuthenticatorAttribute {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
 //**************************************************************************************************
 // From
 //**************************************************************************************************
@@ -494,5 +611,10 @@ impl From<ErrorAttribute> for KnownAttribute {
 impl From<DeprecationAttribute> for KnownAttribute {
     fn from(a: DeprecationAttribute) -> Self {
         Self::Deprecation(a)
+    }
+}
+impl From<AuthenticatorAttribute> for KnownAttribute {
+    fn from(a: AuthenticatorAttribute) -> Self {
+        Self::Authenticator(a)
     }
 }

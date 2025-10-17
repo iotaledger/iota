@@ -3,18 +3,19 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt,
     str::FromStr,
 };
 
-use crate::lexer::*;
+use anyhow::anyhow;
 use move_command_line_common::files::FileHash;
 use move_core_types::{account_address::AccountAddress, u256};
 use move_ir_types::{ast::*, location::*};
 use move_symbol_pool::Symbol;
+
+use crate::lexer::*;
 
 // FIXME: The following simplified version of ParseError copied from
 // lalrpop-util should be replaced.
@@ -1636,6 +1637,8 @@ fn parse_function_decl(
     } else {
         false
     };
+    // TODO what the hell is this function even supposed to do?
+    let authenticator_version = None;
 
     let (name, type_parameters) = parse_name_and_type_parameters(tokens, parse_type_parameter)?;
     consume_token(tokens, Tok::LParen)?;
@@ -1662,6 +1665,7 @@ fn parse_function_decl(
         make_loc(tokens.file_hash(), start_loc, end_loc),
         visibility,
         is_entry,
+        authenticator_version,
         args,
         ret.unwrap_or_default(),
         type_parameters,

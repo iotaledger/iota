@@ -1163,7 +1163,8 @@ fn gate_known_attribute(context: &mut Context, loc: Loc, known: &KnownAttribute)
         | KnownAttribute::DefinesPrimitive(_)
         | KnownAttribute::External(_)
         | KnownAttribute::Syntax(_)
-        | KnownAttribute::Deprecation(_) => (),
+        | KnownAttribute::Deprecation(_)
+        | KnownAttribute::Authenticator(_) => (),
         KnownAttribute::Error(_) => {
             let pkg = context.current_package();
             context.check_feature(pkg, FeatureGate::CleverAssertions, loc);

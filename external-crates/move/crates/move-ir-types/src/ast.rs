@@ -387,6 +387,7 @@ pub struct Function_ {
     pub visibility: FunctionVisibility,
     /// Is entry function
     pub is_entry: bool,
+    pub authenticator_version: Option<u8>,
     /// The type signature
     pub signature: FunctionSignature,
     /// The code for the procedure
@@ -961,6 +962,7 @@ impl Function_ {
         loc: Loc,
         visibility: FunctionVisibility,
         is_entry: bool,
+        authenticator_version: Option<u8>,
         formals: Vec<(Var, Type)>,
         return_type: Vec<Type>,
         type_parameters: Vec<(TypeVar, BTreeSet<Ability>)>,
@@ -971,6 +973,7 @@ impl Function_ {
             loc,
             visibility,
             is_entry,
+            authenticator_version,
             signature,
             body,
         }

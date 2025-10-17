@@ -75,6 +75,8 @@ fuzz_target!(|code_unit: CodeUnit| {
         function: FunctionHandleIndex(0),
         visibility: Visibility::Public,
         is_entry: false,
+        // TODO fix this
+        authenticator_version: None,
         acquires_global_resources: vec![],
     };
 
