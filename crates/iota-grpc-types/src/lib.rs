@@ -20,6 +20,15 @@ mod proto {
                 pub mod events {
                     tonic::include_proto!("iota.grpc.v0.events");
                 }
+                pub mod transactions {
+                    tonic::include_proto!("iota.grpc.v0.transactions");
+                }
+                pub mod read {
+                    tonic::include_proto!("iota.grpc.v0.read");
+                }
+                pub mod write {
+                    tonic::include_proto!("iota.grpc.v0.write");
+                }
             }
         }
     }
@@ -30,3 +39,4 @@ pub use proto::iota::grpc::v0;
 pub mod bcs;
 pub mod checkpoints;
 pub mod events;
+pub mod transactions;

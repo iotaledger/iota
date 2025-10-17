@@ -1,0 +1,158 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v0.write;
+
+import "common.proto";
+
+service WriteService {
+  rpc ExecuteTransaction (ExecuteTransactionRequest) returns (ExecuteTransactionResponse);
+}
+
+// ExecuteTransaction
+message ExecuteTransactionRequest {
+  // BCS serialized transaction data bytes
+  bytes tx_bytes = 1;
+  // List of signatures
+  repeated bytes signatures = 2;
+  // Options for specifying the content to be returned
+  optional TransactionResponseOptions options = 3;
+  // The request type
+  optional ExecuteTransactionRequestType request_type = 4;
+}
+
+message TransactionResponseOptions {
+  ///Whether to show transaction input data
+  bool show_input = 1;
+  /// Whether to show bcs-encoded transaction input data
+  bool show_raw_input = 2;
+  // Whether to show transaction effects
+  bool show_effects = 3;
+  // Whether to show transaction events
+  bool show_events = 4;
+  // Whether to show object changes
+  bool show_object_changes = 5;
+  // Whether to show balance changes
+  bool show_balance_changes = 6;
+  // Whether to show raw transaction effects
+  bool show_raw_effects = 7;
+}
+
+enum ExecuteTransactionRequestType {
+  WAIT_FOR_EFFECTS_CERT = 0;
+  WAIT_FOR_LOCAL_EXECUTION = 1;
+}
+
+// ObjectChange represents changes to objects during transaction execution
+message ObjectChange {
+  oneof change {
+    ObjectPublished published = 1;
+    ObjectTransferred transferred = 2;
+    ObjectMutated mutated = 3;
+    ObjectDeleted deleted = 4;
+    ObjectWrapped wrapped = 5;
+    ObjectCreated created = 6;
+  }
+}
+
+message ObjectPublished {
+  iota.grpc.v0.common.Address package_id = 1;
+  uint64 version = 2;
+  iota.grpc.v0.common.Digest digest = 3;
+  repeated string modules = 4;
+}
+
+message ObjectTransferred {
+  iota.grpc.v0.common.Address sender = 1;
+  iota.grpc.v0.common.Owner recipient = 2;
+  string object_type = 3;  // StructTag as string
+  iota.grpc.v0.common.Address object_id = 4;
+  uint64 version = 5;
+  iota.grpc.v0.common.Digest digest = 6;
+}
+
+message ObjectMutated {
+  iota.grpc.v0.common.Address sender = 1;
+  iota.grpc.v0.common.Owner owner = 2;
+  string object_type = 3;  // StructTag as string
+  iota.grpc.v0.common.Address object_id = 4;
+  uint64 version = 5;
+  uint64 previous_version = 6;
+  iota.grpc.v0.common.Digest digest = 7;
+}
+
+message ObjectDeleted {
+  iota.grpc.v0.common.Address sender = 1;
+  string object_type = 2;  // StructTag as string
+  iota.grpc.v0.common.Address object_id = 3;
+  uint64 version = 4;
+}
+
+message ObjectWrapped {
+  iota.grpc.v0.common.Address sender = 1;
+  string object_type = 2;  // StructTag as string
+  iota.grpc.v0.common.Address object_id = 3;
+  uint64 version = 4;
+}
+
+message ObjectCreated {
+  iota.grpc.v0.common.Address sender = 1;
+  iota.grpc.v0.common.Owner owner = 2;
+  string object_type = 3;  // StructTag as string
+  iota.grpc.v0.common.Address object_id = 4;
+  uint64 version = 5;
+  iota.grpc.v0.common.Digest digest = 6;
+}
+
+// BalanceChange represents balance changes during transaction execution
+message BalanceChange {
+  iota.grpc.v0.common.Owner owner = 1;
+  string coin_type = 2;  // TypeTag as string
+  // Amount as string to support i128 (can be negative)
+  // Format: decimal string representation of i128
+  string amount = 3;
+}
+
+message ExecuteTransactionResponse {
+  // Transaction digest (32-byte)
+  iota.grpc.v0.common.Digest digest = 1;
+
+  // Transaction input data (optional, based on show_input option)
+  // BCS-encoded TransactionData (core type from iota-types)
+  optional iota.grpc.v0.common.BcsData transaction = 2;
+
+  // BCS-encoded SenderSignedData (optional, based on show_raw_input option)
+  optional iota.grpc.v0.common.BcsData raw_transaction = 3;
+
+  // Transaction effects (optional, based on show_effects option)
+  // BCS-encoded TransactionEffects (core type from iota-types)
+  optional iota.grpc.v0.common.BcsData effects = 4;
+
+  // Transaction events (optional, based on show_events option)
+  // BCS-encoded TransactionEvents (core type from iota-types)
+  optional iota.grpc.v0.common.BcsData events = 5;
+
+  // Object changes (optional, based on show_object_changes option)
+  repeated ObjectChange object_changes = 6;
+
+  // Balance changes (optional, based on show_balance_changes option)
+  repeated BalanceChange balance_changes = 7;
+
+  // Timestamp in milliseconds
+  optional uint64 timestamp_ms = 8;
+
+  // Whether local execution was confirmed
+  optional bool confirmed_local_execution = 9;
+
+  // Checkpoint sequence number
+  optional uint64 checkpoint = 10;
+
+  // Error messages
+  repeated string errors = 11;
+
+  // BCS-encoded raw effects (optional, based on show_raw_effects option)
+  // BCS-encoded TransactionEffects (core type from iota-types)
+  optional iota.grpc.v0.common.BcsData raw_effects = 12;
+}

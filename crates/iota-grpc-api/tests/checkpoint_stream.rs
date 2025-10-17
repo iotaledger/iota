@@ -8,9 +8,9 @@ use std::{
 };
 
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
+use iota_core::subscription_handler::SubscriptionHandler;
 use iota_grpc_api::{
-    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, EventSubscriber, GrpcReader,
-    GrpcServerHandle,
+    CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, GrpcReader, GrpcServerHandle,
     client::{CheckpointClient, CheckpointContent, NodeClient},
     start_grpc_server,
 };
@@ -25,6 +25,7 @@ use iota_types::{
     },
     storage::{RestIndexes, RestStateReader, error::Result as StorageResult},
 };
+use prometheus::Registry;
 use tokio_stream::StreamExt;
 
 struct MockRestStateReader {
@@ -362,6 +363,8 @@ impl RestStateReader for MockRestStateReader {
     fn indexes(&self) -> Option<&dyn RestIndexes> {
         None
     }
+
+    // authority_state_any() uses default implementation (returns None)
 }
 
 async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
@@ -375,7 +378,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     let mock = Arc::new(MockRestStateReader::new_from_iter(checkpoint_range));
     let checkpoints = mock.checkpoints.clone();
     let cancellation_token = tokio_util::sync::CancellationToken::new();
-    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(mock));
+    let grpc_reader = Arc::new(GrpcReader::from_rest_state_reader(mock, None));
 
     let localhost = local_ip_utils::localhost_for_testing();
     let grpc_port = local_ip_utils::get_available_port(&localhost);
@@ -386,12 +389,14 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     };
     config_customizer(&mut config);
 
-    // Use the no-op EventSubscriber implementation for unit type
-    let dummy_event_subscriber = Arc::new(()) as Arc<dyn EventSubscriber>;
+    // Create a real SubscriptionHandler for testing
+    let registry = Registry::new();
+    let event_subscriber = Arc::new(SubscriptionHandler::new(&registry));
 
     let server_handle = start_grpc_server(
         grpc_reader,
-        dummy_event_subscriber,
+        event_subscriber,
+        None, // No write API for tests
         config,
         cancellation_token,
     )

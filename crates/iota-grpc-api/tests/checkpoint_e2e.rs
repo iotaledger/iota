@@ -4,28 +4,16 @@
 use std::time::Duration;
 
 use futures::StreamExt;
-use iota_config::local_ip_utils;
-use iota_grpc_api::client::{CheckpointClient, NodeClient};
-use test_cluster::{TestCluster, TestClusterBuilder};
+use iota_grpc_api::client::CheckpointClient;
+use test_cluster::TestCluster;
 
-async fn setup_test_cluster_and_client() -> (TestCluster, CheckpointClient) {
-    let localhost = local_ip_utils::localhost_for_testing();
-    let grpc_port = local_ip_utils::get_available_port(&localhost);
-    let grpc_addr = format!("{localhost}:{grpc_port}");
+mod utils;
+use utils::setup_test_cluster_and_client;
 
-    // Start a test cluster with gRPC enabled and pruning disabled
-    let cluster = TestClusterBuilder::new()
-        .with_fullnode_grpc_api_address(grpc_addr.parse().expect("Invalid gRPC address"))
-        .disable_fullnode_pruning()
-        .with_num_validators(1)
-        .build()
-        .await;
+async fn setup_test_cluster_and_checkpoint_client() -> (TestCluster, CheckpointClient) {
+    let (cluster, node_client) = setup_test_cluster_and_client().await;
 
-    let client = NodeClient::connect(&format!("http://{grpc_addr}"))
-        .await
-        .expect("connect gRPC");
-
-    let checkpoint_client = client
+    let checkpoint_client = node_client
         .checkpoint_client()
         .expect("Checkpoint client should be available");
 
@@ -34,7 +22,7 @@ async fn setup_test_cluster_and_client() -> (TestCluster, CheckpointClient) {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn e2e_stream_checkpoints() {
-    let (_cluster, mut client) = setup_test_cluster_and_client().await;
+    let (_cluster, mut client) = setup_test_cluster_and_checkpoint_client().await;
 
     // Request all checkpoints using the higher-level GrpcNodeClient API
     let mut stream = client
@@ -80,7 +68,7 @@ async fn e2e_stream_checkpoints() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_get_epoch_first_checkpoint_sequence_number() {
-    let (cluster, mut client) = setup_test_cluster_and_client().await;
+    let (cluster, mut client) = setup_test_cluster_and_checkpoint_client().await;
 
     let sender = cluster.get_address_0();
     let receiver = cluster.get_address_1();
@@ -154,7 +142,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn test_stream_full_checkpoint_data() {
-    let (_cluster, mut client) = setup_test_cluster_and_client().await;
+    let (_cluster, mut client) = setup_test_cluster_and_checkpoint_client().await;
 
     let mut stream = client
         .stream_checkpoints(None, Some(2), true)
@@ -186,4 +174,75 @@ async fn test_stream_full_checkpoint_data() {
     })
     .await
     .expect("waiting for checkpoint data timed out");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn test_get_latest_checkpoint() {
+    let (cluster, mut client) = setup_test_cluster_and_checkpoint_client().await;
+
+    let sender = cluster.get_address_0();
+    let receiver = cluster.get_address_1();
+
+    // Wait for at least a few checkpoints to be available
+    cluster.wait_for_checkpoint(2, None).await;
+
+    // Execute a transaction to generate some activity
+    cluster.transfer_iota_must_exceed(sender, receiver, 1).await;
+
+    // Wait for more checkpoints
+    cluster.wait_for_checkpoint(5, None).await;
+
+    // Test getting the latest checkpoint using the CheckpointClient
+    let latest_checkpoint = tokio::time::timeout(Duration::from_secs(30), async {
+        client.get_latest_checkpoint(false).await
+    })
+    .await
+    .expect("timeout waiting for latest checkpoint")
+    .expect("get_latest_checkpoint failed");
+
+    // The latest checkpoint should be at least 5
+    let sequence_number = match &latest_checkpoint {
+        iota_grpc_api::client::CheckpointContent::Summary(summary) => match summary {
+            iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(v1_summary) => {
+                *v1_summary.data().sequence_number()
+            }
+        },
+        iota_grpc_api::client::CheckpointContent::Data(data) => match data {
+            iota_grpc_types::checkpoints::CheckpointData::V1(v1_data) => {
+                v1_data.checkpoint_summary.sequence_number
+            }
+        },
+    };
+
+    assert!(
+        sequence_number >= 5,
+        "Latest checkpoint should be at least 5, got {sequence_number}"
+    );
+
+    // Test getting the latest checkpoint with full data
+    let latest_full_checkpoint = tokio::time::timeout(Duration::from_secs(30), async {
+        client.get_latest_checkpoint(true).await
+    })
+    .await
+    .expect("timeout waiting for latest full checkpoint")
+    .expect("get_latest_checkpoint with full data failed");
+
+    // Should have the same sequence number
+    let full_sequence_number = match &latest_full_checkpoint {
+        iota_grpc_api::client::CheckpointContent::Summary(summary) => match summary {
+            iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(v1_summary) => {
+                *v1_summary.data().sequence_number()
+            }
+        },
+        iota_grpc_api::client::CheckpointContent::Data(data) => match data {
+            iota_grpc_types::checkpoints::CheckpointData::V1(v1_data) => {
+                v1_data.checkpoint_summary.sequence_number
+            }
+        },
+    };
+
+    assert_eq!(
+        full_sequence_number, sequence_number,
+        "Full checkpoint should have same sequence number"
+    );
 }

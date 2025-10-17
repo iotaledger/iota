@@ -1,0 +1,84 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v0.transactions;
+
+import "common.proto";
+
+// Transaction subscription service
+service TransactionService {
+  rpc StreamTransactions (TransactionStreamRequest) returns (stream Transaction);
+}
+
+// Request to stream transactions with optional filtering
+message TransactionStreamRequest {
+  TransactionFilter filter = 1;
+}
+
+// Transaction data
+message Transaction {
+  iota.grpc.v0.common.BcsData bcs_data = 1;  // BCS-encoded TransactionEffects
+}
+
+// Rich transaction filter that supports gRPC transaction filtering
+message TransactionFilter {
+  oneof filter {
+    iota.grpc.v0.common.AllFilter all = 1;
+    CheckpointFilter checkpoint = 2;
+    iota.grpc.v0.common.MoveFunctionFilter move_function = 3;
+    InputObjectFilter input_object = 4;
+    ChangedObjectFilter changed_object = 5;
+    iota.grpc.v0.common.AddressFilter from_address = 6;
+    iota.grpc.v0.common.AddressFilter to_address = 7;
+    FromAndToAddressFilter from_and_to_address = 8;
+    iota.grpc.v0.common.AddressFilter from_or_to_address = 9;
+    TransactionKindFilter transaction_kind = 10;
+    TransactionKindInFilter transaction_kind_in = 11;
+  }
+}
+
+// Filter by checkpoint sequence number
+message CheckpointFilter {
+  uint64 checkpoint_sequence_number = 1;
+}
+
+// Filter by input object ID
+message InputObjectFilter {
+  iota.grpc.v0.common.Address object_id = 1;
+}
+
+// Filter by changed object ID (created, mutated, unwrapped)
+message ChangedObjectFilter {
+  iota.grpc.v0.common.Address object_id = 1;
+}
+
+
+// Filter by sender and recipient addresses
+message FromAndToAddressFilter {
+  iota.grpc.v0.common.Address from_address = 1;
+  iota.grpc.v0.common.Address to_address = 2;
+}
+
+
+// Filter by transaction kind
+message TransactionKindFilter {
+  TransactionKind kind = 1;
+}
+
+// Filter by transaction kinds (any of the specified kinds)
+message TransactionKindInFilter {
+  repeated TransactionKind kinds = 1;
+}
+
+// Transaction kinds
+enum TransactionKind {
+  SYSTEM_TRANSACTION = 0;
+  PROGRAMMABLE_TRANSACTION = 1;
+  GENESIS = 2;
+  CONSENSUS_COMMIT_PROLOGUE_V1 = 3;
+  AUTHENTICATOR_STATE_UPDATE_V1 = 4;
+  RANDOMNESS_STATE_UPDATE = 5;
+  END_OF_EPOCH_TRANSACTION = 6;
+}

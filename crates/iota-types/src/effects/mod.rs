@@ -4,8 +4,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use effects_v1::TransactionEffectsV1;
-pub use effects_v1::UnchangedSharedKind;
+pub use effects_v1::{TransactionEffectsV1, UnchangedSharedKind};
 use enum_dispatch::enum_dispatch;
 pub use object_change::{EffectsObjectChange, ObjectIn, ObjectOut};
 use serde::{Deserialize, Serialize};

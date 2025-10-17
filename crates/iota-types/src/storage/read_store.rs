@@ -814,6 +814,12 @@ pub trait RestStateReader: ObjectStore + ReadStore + Send + Sync {
 
     // Get a handle to an instance of the RpcIndexes
     fn indexes(&self) -> Option<&dyn RestIndexes>;
+
+    // Provides type-erased access to AuthorityState for authority-specific
+    // operations.
+    fn authority_state_any(&self) -> Option<&dyn std::any::Any> {
+        None // Default: not available
+    }
 }
 
 pub trait RestIndexes: Send + Sync {
