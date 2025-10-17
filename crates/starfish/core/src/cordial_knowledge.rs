@@ -285,7 +285,7 @@ impl CordialKnowledge {
             CordialKnowledgeMessage::EvictBelow(round) => {
                 self.handle_evict_below(round).await;
             }
-            CordialKnowledgeMessage::UsefulShardsFromPeer(useful_shards_from_peer) => {
+            CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
                 self.handle_useful_shards_from(useful_shards_from_peer)
                     .await;
             }
@@ -312,7 +312,7 @@ impl CordialKnowledge {
     async fn disseminate_useful_info_to_connection_tasks(&mut self) {
         for connection_sender in &self.connections {
             let msg = ConnectionKnowledgeMessage::UsefulInfo {
-                useful_shards_from_peer: self.last_useful_shards_from_peer_round.clone(),
+                useful_shards_from_peers: self.last_useful_shards_from_peer_round.clone(),
                 useful_headers_from_peer: BTreeMap::new(),
                 useful_headers_to_peer: BTreeMap::new(),
                 useful_shards_to_peer: BTreeMap::new(),
@@ -349,11 +349,7 @@ impl CordialKnowledge {
                 .with_label_values(&[&index.to_string()])
                 .set(btree_map.len() as i64);
         }
-        let largest_round = self.cordial_knowledge
-            .iter()
-            .filter_map(|btree_map| btree_map.keys().max())
-            .max()
-            .cloned()
+        let largest_round = self.cordial_knowledge[self.context.own_index].keys().max().cloned()
             .unwrap_or(GENESIS_ROUND);
         let useful_shards_from_peer_count = self
             .last_useful_shards_from_peer_round
@@ -513,16 +509,17 @@ impl CordialKnowledge {
             .iter()
             .map(|&a| (a, block_round))
             .collect::<BTreeMap<_, _>>();
+        let useful_headers_from_peer =  useful_headers_authors
+            .into_iter()
+            .map(|a| (a, block_round))
+            .collect();
 
         // Notify connection knowledge about useful headers and shards to/from this peer
         let connection_knowledge_message = ConnectionKnowledgeMessage::UsefulInfo {
             useful_headers_to_peer,
             useful_shards_to_peer,
-            useful_headers_from_peer: useful_headers_authors
-                .into_iter()
-                .map(|a| (a, GENESIS_ROUND))
-                .collect(),
-            useful_shards_from_peer: vec![],
+            useful_headers_from_peer,
+            useful_shards_from_peers: vec![],
         };
         let _ = connection_knowledge_sender
             .send(vec![connection_knowledge_message])
@@ -530,7 +527,7 @@ impl CordialKnowledge {
 
         // Notify global cordial knowledge about useful shards from this peer
         let cordial_knowledge_message =
-            CordialKnowledgeMessage::UsefulShardsFromPeer(useful_shard_authors);
+            CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shard_authors);
         let _ = cordial_knowledge_sender.send(cordial_knowledge_message);
     }
 }
@@ -550,7 +547,7 @@ pub enum ConnectionKnowledgeMessage {
         useful_headers_to_peer: BTreeMap<AuthorityIndex, Round>,
         useful_shards_to_peer: BTreeMap<AuthorityIndex, Round>,
         useful_headers_from_peer: BTreeMap<AuthorityIndex, Round>,
-        useful_shards_from_peer: Vec<Round>,
+        useful_shards_from_peers: Vec<Round>,
     },
     /// Take useful headers and shards for authorities, up to the given round
     /// (exclusive).
@@ -573,7 +570,7 @@ pub enum CordialKnowledgeMessage {
     EvictBelow(Vec<Round>),
     /// Update internal state about shards from which authorities are useful for
     /// us
-    UsefulShardsFromPeer(BTreeMap<AuthorityIndex, Round>),
+    UsefulShardsFromPeers(BTreeMap<AuthorityIndex, Round>),
 }
 
 /// Manages the knowledge state for a single connection to a peer.
@@ -762,7 +759,7 @@ impl ConnectionKnowledge {
                 useful_headers_to_peer,
                 useful_shards_to_peer,
                 useful_headers_from_peer,
-                useful_shards_from_peer,
+                useful_shards_from_peers: useful_shards_from_peer,
             } => {
                 self.handle_useful_info(
                     useful_headers_to_peer,
