@@ -398,8 +398,7 @@ impl DagState {
             .max()
             .expect("There should be at least one last committed round");
         debug!(
-            "Last solid commit has leader at round {}; last pending commit has leader at round {}",
-            last_solid_commit_leader_round, max_commit_round
+            "Last solid commit has leader at round {last_solid_commit_leader_round}; last commit has leader at round {max_commit_round}",
         );
         self.last_solid_commit_leader_round = Some(last_solid_commit_leader_round);
         let gap = (*max_commit_round).saturating_sub(last_solid_commit_leader_round);

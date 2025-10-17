@@ -246,7 +246,7 @@ impl Core {
 
         info!(
             "Core recovery completed with last proposed block {:?}",
-            last_proposed_block
+            last_proposed_block.map(|b| b.verified_block_header)
         );
 
         self
