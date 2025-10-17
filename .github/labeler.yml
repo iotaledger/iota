@@ -12,13 +12,12 @@ wallet-dashboard:
       - any-glob-to-any-file: apps/wallet-dashboard/**/*
 ts-sdk:
   - changed-files:
-      - any-glob-to-any-file:
-          - sdk/**/*
-          - apps/ui-icons/**/*
-          - apps/ui-kit/**/*
+      - any-glob-to-any-file: sdk/**/*
 apps-ui-kit:
   - changed-files:
-      - any-glob-to-any-file: apps/ui-kit/**/*
+      - any-glob-to-any-file: |
+          - apps/ui-kit/**/*
+          - apps/ui-icons/**/*
 apps-backend:
   - changed-files:
       - any-glob-to-any-file: apps/apps-backend/**/*
