@@ -2679,7 +2679,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Measures the average number of rounds in cordial knowledge DAG",
+          "description": "Number of peers with useful shards",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2772,7 +2772,7 @@
               "useBackend": false
             }
           ],
-          "title": "Average Rounds in Cordial Knowledge DAG",
+          "title": "Peers with useful shards",
           "type": "timeseries"
         }
       ],
@@ -2836,7 +2836,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -2851,7 +2852,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 46
+            "y": 52
           },
           "id": 158,
           "options": {
@@ -2930,7 +2931,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -2945,7 +2947,7 @@
             "h": 8,
             "w": 11,
             "x": 12,
-            "y": 46
+            "y": 52
           },
           "id": 120,
           "options": {
@@ -3025,7 +3027,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -3040,7 +3043,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 54
+            "y": 60
           },
           "id": 116,
           "options": {
@@ -3123,7 +3126,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -3138,7 +3142,7 @@
             "h": 8,
             "w": 11,
             "x": 12,
-            "y": 54
+            "y": 60
           },
           "id": 111,
           "options": {
@@ -3222,7 +3226,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -3237,7 +3242,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 62
+            "y": 68
           },
           "id": 113,
           "options": {
@@ -3319,7 +3324,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -3334,7 +3340,7 @@
             "h": 8,
             "w": 11,
             "x": 12,
-            "y": 62
+            "y": 68
           },
           "id": 135,
           "options": {
@@ -3417,7 +3423,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -3432,7 +3439,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 70
+            "y": 76
           },
           "id": 110,
           "options": {
@@ -3510,7 +3517,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -3525,7 +3533,7 @@
             "h": 8,
             "w": 11,
             "x": 12,
-            "y": 70
+            "y": 76
           },
           "id": 109,
           "options": {
@@ -3608,7 +3616,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -3624,7 +3633,7 @@
             "h": 8,
             "w": 11,
             "x": 12,
-            "y": 78
+            "y": 84
           },
           "id": 115,
           "options": {
@@ -10445,7 +10454,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10461,7 +10471,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 55
+            "y": 61
           },
           "id": 18,
           "options": {
@@ -10539,7 +10549,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10555,7 +10566,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 55
+            "y": 61
           },
           "id": 13,
           "options": {
@@ -10638,7 +10649,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10654,7 +10666,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 55
+            "y": 61
           },
           "id": 16,
           "options": {
@@ -10737,7 +10749,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10753,7 +10766,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 63
+            "y": 69
           },
           "id": 19,
           "options": {
@@ -10831,7 +10844,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10847,7 +10861,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 63
+            "y": 69
           },
           "id": 14,
           "options": {
@@ -10930,7 +10944,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10946,7 +10961,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 63
+            "y": 69
           },
           "id": 17,
           "options": {
@@ -11029,7 +11044,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -11045,7 +11061,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 71
+            "y": 77
           },
           "id": 42,
           "options": {
@@ -11123,7 +11139,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -11139,7 +11156,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 71
+            "y": 77
           },
           "id": 59,
           "options": {
@@ -11217,7 +11234,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -11233,7 +11251,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 71
+            "y": 77
           },
           "id": 50,
           "options": {
@@ -11680,6 +11698,6 @@
   "timezone": "Europe/Berlin",
   "title": "IOTA Starfish Overview - update",
   "uid": "StarfishOverviewsad",
-  "version": 7,
+  "version": 8,
   "weekStart": ""
 }
