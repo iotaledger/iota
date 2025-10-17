@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, type Page } from '@playwright/test';
-import { createWallet } from './auth';
+import { createWallet } from './wallet';
 import { SHORT_TIMEOUT } from 'tests/constants/timeout.constants';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { type Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';

@@ -5,14 +5,14 @@
 import type { Page } from '@playwright/test';
 import { SHORT_TIMEOUT } from '../constants/timeout.constants';
 
-export const PASSWORD = 'iota';
+const PASSWORD = 'iotae2etests';
 
 export async function createWallet(page: Page, extensionUrl: string) {
     await page.goto(extensionUrl, { waitUntil: 'commit' });
     await page.getByRole('button', { name: /Add Profile/ }).click({ timeout: SHORT_TIMEOUT });
     await page.getByText('Create New').click();
-    await page.getByTestId('password.input').fill('iotae2etests');
-    await page.getByTestId('password.confirmation').fill('iotae2etests');
+    await page.getByTestId('password.input').fill(PASSWORD);
+    await page.getByTestId('password.confirmation').fill(PASSWORD);
     await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
     await page.getByText('I saved my mnemonic').click();
@@ -38,8 +38,8 @@ export async function importWallet(page: Page, extensionUrl: string, mnemonic: s
     }
 
     await page.getByText('Add profile').click();
-    await page.getByTestId('password.input').fill('iotae2etests');
-    await page.getByTestId('password.confirmation').fill('iotae2etests');
+    await page.getByTestId('password.input').fill(PASSWORD);
+    await page.getByTestId('password.confirmation').fill(PASSWORD);
     await page.getByText('I read and agree').click();
     await page.getByRole('button', { name: /Create Wallet/ }).click();
 

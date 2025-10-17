@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { MIN_NUMBER_IOTA_TO_STAKE } from '@iota/core/src/constants/staking.constants';
-import { expect, test } from './fixtures';
+import { expect, test } from './utils/fixtures';
 import {
     navigateToStakePage,
     navigateToUnstakePage,
@@ -12,8 +12,8 @@ import {
     submitAndVerifyStaking,
     submitAndVerifyUnstaking,
 } from './utils/staking';
-import { generateKeypair } from './utils/localnet';
-import { importWallet } from './utils/auth';
+import { generateKeypair } from './utils/utils';
+import { importWallet } from './utils/wallet';
 import { LONG_TIMEOUT } from './constants/timeout.constants';
 
 const SHORT_TIMEOUT = 30 * 1000;
