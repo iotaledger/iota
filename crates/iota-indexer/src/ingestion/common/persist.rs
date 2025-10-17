@@ -1,6 +1,8 @@
-// Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+//! Types and associated logic to use while persisting
+//! data to the database.
 
 use std::collections::BTreeMap;
 
@@ -9,65 +11,56 @@ use futures::{FutureExt, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
-use crate::{
-    errors::IndexerError,
-    models::{
-        display::StoredDisplay,
-        epoch::{EndOfEpochUpdate, StartOfEpochUpdate},
-        obj_indices::StoredObjectVersion,
-    },
-    types::{
-        EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
-        IndexedPackage, IndexedTransaction, IndexerResult, TxIndex,
-    },
-};
-
-pub mod checkpoint_handler;
-pub mod objects_snapshot_handler;
-pub mod optimistic_pruner;
-pub mod pruner;
-pub mod tx_processor;
+use crate::{errors::IndexerError, types::IndexerResult};
 
 pub(crate) const CHECKPOINT_COMMIT_BATCH_SIZE: usize = 100;
 pub(crate) const UNPROCESSED_CHECKPOINT_SIZE_LIMIT: usize = 1000;
 
-#[derive(Debug)]
-pub struct CheckpointDataToCommit {
-    pub checkpoint: IndexedCheckpoint,
-    pub transactions: Vec<IndexedTransaction>,
-    pub events: Vec<IndexedEvent>,
-    pub event_indices: Vec<EventIndex>,
-    pub tx_indices: Vec<TxIndex>,
-    pub display_updates: BTreeMap<String, StoredDisplay>,
-    pub object_changes: TransactionObjectChangesToCommit,
-    pub object_history_changes: TransactionObjectChangesToCommit,
-    pub object_versions: Vec<StoredObjectVersion>,
-    pub packages: Vec<IndexedPackage>,
-    pub epoch: Option<EpochToCommit>,
-}
+/// Defines the logic of writing operations to the database.
+///
+/// The writing can refer to one or multiple tables in the database.
+#[async_trait]
+pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
+    /// Returns the writer name.
+    fn name(&self) -> String;
 
-#[derive(Clone, Debug, Default)]
-pub struct TransactionObjectChangesToCommit {
-    pub changed_objects: Vec<IndexedObject>,
-    pub deleted_objects: Vec<IndexedDeletedObject>,
-}
+    /// Commits batch of transformed data to DB.
+    async fn persist(&self, batch: Vec<T>) -> IndexerResult<()>;
 
-#[derive(Clone, Debug)]
-pub struct EpochToCommit {
-    pub(crate) last_epoch: Option<EndOfEpochUpdate>,
-    pub(crate) new_epoch: StartOfEpochUpdate,
-}
+    /// Reads high watermark of the table DB.
+    async fn get_watermark_hi(&self) -> IndexerResult<Option<u64>>;
 
-pub struct CommonHandler<T> {
-    handler: Box<dyn Handler<T>>,
-}
+    /// Sets high watermark of the table DB, also update metrics.
+    async fn set_watermark_hi(&self, watermark_hi: u64) -> IndexerResult<()>;
 
-impl<T> CommonHandler<T> {
-    pub fn new(handler: Box<dyn Handler<T>>) -> Self {
-        Self { handler }
+    /// Gets the current max checkpoint that can be committed by the writer.
+    ///
+    /// This is for writers that have a predefined lag compared to the latest
+    /// checkpoint in the network.
+    ///
+    /// One use-case is the objects snapshot handler, which waits for the lag
+    /// between snapshot and latest checkpoint to reach a certain threshold.
+    ///
+    /// # Note
+    /// By default, returns `u64::MAX`, which means no extra waiting is needed
+    /// before committing.
+    async fn get_max_committable_checkpoint(&self) -> IndexerResult<u64> {
+        Ok(u64::MAX)
     }
 
-    async fn start_transform_and_load(
+    /// Processes the received data and persists it into a storage.
+    ///
+    /// - The data are received form the ingestion worker in which stage is
+    ///   transformed into something which can be directly committed into the
+    ///   database.
+    /// - The data received by this function are not guaranteed to be in order.
+    ///   The purpose of this function is to order the data by checkpoint
+    ///   sequence number and to ensure data committed are in order and
+    ///   contiguous.
+    ///
+    /// In addition, the method updates the watermark of the table of the data
+    /// is persisted to.
+    async fn persist_sequentially(
         &self,
         cp_receiver: iota_metrics::metered_channel::Receiver<(u64, T)>,
         cancel: CancellationToken,
@@ -82,7 +75,6 @@ impl<T> CommonHandler<T> {
         let mut unprocessed = BTreeMap::new();
         let mut tuple_batch = vec![];
         let mut next_cp_to_process = self
-            .handler
             .get_watermark_hi()
             .await?
             .map(|n| n.saturating_add(1))
@@ -117,7 +109,7 @@ impl<T> CommonHandler<T> {
             }
 
             // Process unprocessed checkpoints, even no new checkpoints from stream
-            let checkpoint_lag_limiter = self.handler.get_max_committable_checkpoint().await?;
+            let checkpoint_lag_limiter = self.get_max_committable_checkpoint().await?;
             while next_cp_to_process <= checkpoint_lag_limiter {
                 if let Some(data_tuple) = unprocessed.remove(&next_cp_to_process) {
                     tuple_batch.push(data_tuple);
@@ -135,42 +127,18 @@ impl<T> CommonHandler<T> {
                     .into_iter()
                     .map(|(_cp_seq, data)| data)
                     .collect();
-                self.handler.load(batch).await.map_err(|e| {
+                self.persist(batch).await.map_err(|e| {
                     IndexerError::PostgresWrite(format!(
                         "Failed to load transformed data into DB for handler {}: {e}",
-                        self.handler.name()
+                        self.name()
                     ))
                 })?;
-                self.handler.set_watermark_hi(last_checkpoint_seq).await?;
+                self.set_watermark_hi(last_checkpoint_seq).await?;
             }
         }
         Err(IndexerError::ChannelClosed(format!(
             "Checkpoint channel is closed unexpectedly for handler {}",
-            self.handler.name()
+            self.name()
         )))
-    }
-}
-
-#[async_trait]
-pub trait Handler<T>: Send + Sync {
-    /// return handler name
-    fn name(&self) -> String;
-
-    /// commit batch of transformed data to DB
-    async fn load(&self, batch: Vec<T>) -> IndexerResult<()>;
-
-    /// read high watermark of the table DB
-    async fn get_watermark_hi(&self) -> IndexerResult<Option<u64>>;
-
-    /// set high watermark of the table DB, also update metrics.
-    async fn set_watermark_hi(&self, watermark_hi: u64) -> IndexerResult<()>;
-
-    /// By default, return u64::MAX, which means no extra waiting is needed
-    /// before committing; get max committable checkpoint, for handlers that
-    /// want to wait for some condition before committing, one use-case is
-    /// the objects snapshot handler, which waits for the lag between
-    /// snapshot and latest checkpoint to reach a certain threshold.
-    async fn get_max_committable_checkpoint(&self) -> IndexerResult<u64> {
-        Ok(u64::MAX)
     }
 }

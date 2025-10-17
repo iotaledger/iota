@@ -27,21 +27,32 @@ import {
 import { EvmRpcClientProvider } from './providers/EvmRpcClientProvider.tsx';
 import { Toaster } from './components/index.ts';
 import { IotaGraphQLClientProvider } from '@iota/core';
-import { growthbook } from './lib/utils/index.ts';
+import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
+import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
+
+// We intercept EIP-6963 announcements
+// to only allow certain wallets (metamask) to be discovered
+interceptProviderAnnouncements();
 
 growthbook.init();
 
 const queryClient = new QueryClient();
 
+const wagmiConfig = getDefaultConfig({
+    ...L2_WAGMI_CONFIG,
+    chains: [L2_CHAIN_CONFIG as Chain],
+    wallets: [
+        {
+            groupName: 'Suggested',
+            wallets: [metaMaskWallet, walletConnectWallet],
+        },
+    ],
+});
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
-        <WagmiProvider
-            config={getDefaultConfig({
-                ...L2_WAGMI_CONFIG,
-                chains: [L2_CHAIN_CONFIG as Chain],
-            })}
-        >
+        <WagmiProvider config={wagmiConfig}>
             <GrowthBookProvider growthbook={growthbook}>
                 <EvmRpcClientProvider baseUrl={L2_CHAIN_CONFIG.evmRpcUrl}>
                     <QueryClientProvider client={queryClient}>

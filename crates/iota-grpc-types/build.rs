@@ -5,11 +5,11 @@ fn main() {
     tonic_build::configure()
         .compile_protos(
             &[
-                "proto/common.proto",
-                "proto/checkpoint.proto",
-                "proto/event.proto",
+                "proto/iota/grpc/v0/common.proto",
+                "proto/iota/grpc/v0/checkpoint.proto",
+                "proto/iota/grpc/v0/event.proto",
             ],
-            &["proto/"],
+            &["proto/iota/grpc/v0/"],
         )
         .unwrap();
 }

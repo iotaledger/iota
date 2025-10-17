@@ -65,7 +65,7 @@ mod tests {
     fn assert_input_value_error<T, U>(result: Result<T, InputValueError<U>>) {
         match result {
             Err(InputValueError { .. }) => {}
-            _ => panic!("Expected InputValueError"),
+            _ => panic!("expected InputValueError"),
         }
     }
 

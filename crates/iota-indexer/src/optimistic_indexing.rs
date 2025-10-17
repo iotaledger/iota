@@ -20,10 +20,11 @@ use iota_types::{
 
 use crate::{
     errors::IndexerError,
-    handlers::{
-        TransactionObjectChangesToCommit,
-        checkpoint_handler::{
-            CheckpointHandler, IndexedTransactionComponents, try_extract_df_kind,
+    ingestion::{
+        common::prepare::try_extract_df_kind,
+        primary::{
+            persist::TransactionObjectChangesToCommit,
+            prepare::{IndexedTransactionComponents, PrimaryWorker},
         },
     },
     metrics::IndexerMetrics,
@@ -466,7 +467,7 @@ impl<'a> TransactionExtractor<'a> {
     ) -> IndexerResult<IndexedTransactionComponents> {
         let handle = tokio::runtime::Handle::current();
         handle.block_on(async move {
-            CheckpointHandler::index_transaction(
+            PrimaryWorker::index_transaction(
                 self.full_tx_data,
                 self.optimistic_sequence_number,
                 0, // checkpoint sequence number - unknown

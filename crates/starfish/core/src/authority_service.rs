@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    cmp::max,
     collections::{BTreeMap, BTreeSet, VecDeque},
     pin::Pin,
     sync::Arc,
@@ -117,11 +118,19 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// For each peer, the set of authorities whose block headers the local node
     /// considered useful when receiving a block bundle from that peer.
     /// Keyed by the peer’s AuthorityIndex.
-    useful_authorities_from_peer: Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
+    useful_headers_authors_from_peer:
+        Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
     /// For each peer, the set of local authorities that the peer reported as
     /// useful to them (communicated inside their block bundles).
     /// Keyed by the peer’s AuthorityIndex.
-    useful_authorities_to_peer: Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
+    useful_headers_authors_to_peer: Arc<RwLock<BTreeMap<AuthorityIndex, BTreeSet<AuthorityIndex>>>>,
+    /// For each peer, stores the latest round in which a received block bundle
+    /// from any peer included a useful shard originating from a block
+    /// created by authority `i`.
+    last_round_with_useful_shards_by_block_author: Arc<RwLock<Vec<Round>>>,
+    /// For each peer `i`, stores a set of authority indices representing the
+    /// authors of blocks whose shards were reported as useful by peer `i`.
+    useful_shards_authors_to_peer: Arc<RwLock<Vec<BTreeSet<AuthorityIndex>>>>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -141,6 +150,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             context.clone(),
             core_dispatcher.clone(),
         ));
+        let committee_size = context.committee.size();
 
         Self {
             context,
@@ -154,9 +164,17 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             dag_state,
             store,
             received_block_headers: FilterForHeaders::new(),
-            useful_authorities_from_peer: Arc::new(RwLock::new(BTreeMap::new())),
-            useful_authorities_to_peer: Arc::new(RwLock::new(BTreeMap::new())),
+            useful_headers_authors_from_peer: Arc::new(RwLock::new(BTreeMap::new())),
+            useful_headers_authors_to_peer: Arc::new(RwLock::new(BTreeMap::new())),
             transaction_message_sender,
+            last_round_with_useful_shards_by_block_author: Arc::new(RwLock::new(vec![
+                GENESIS_ROUND;
+                committee_size
+            ])),
+            useful_shards_authors_to_peer: Arc::new(RwLock::new(vec![
+                BTreeSet::new();
+                committee_size
+            ])),
         }
     }
 }
@@ -176,10 +194,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
 
         // Cache authorities this peer finds useful for cordial
-        let useful_authorities_to_peer = serialized_block_bundle_parts.useful_authorities();
+        let useful_authorities_to_peer = serialized_block_bundle_parts.useful_headers_authors();
         {
-            let mut guard = self.useful_authorities_to_peer.write();
+            let mut guard = self.useful_headers_authors_to_peer.write();
             guard.insert(peer, useful_authorities_to_peer);
+        }
+        let useful_shards_authors_to_peer = serialized_block_bundle_parts.useful_shards_authors();
+        {
+            let mut guard = self.useful_shards_authors_to_peer.write();
+            guard[peer] = useful_shards_authors_to_peer;
         }
 
         // 1. Create a verified block and make some preliminary checks
@@ -252,6 +275,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             verified_block_header.transactions_commitment(),
             serialized_transactions,
         );
+        let has_transactions = verified_transactions.has_transactions();
         let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
 
         let block_ref = verified_block.reference();
@@ -569,6 +593,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map_err(|_| ConsensusError::Shutdown)?;
 
         // 11. Add the block to dag, add its missing ancestors to the set
+        let block_round = verified_block.round();
         let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
             .add_blocks(vec![verified_block])
@@ -579,39 +604,61 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         missing_committed_txns.extend(missing_block_committed_transactions);
 
         // 12. Add our shard from the received block and its proof to the dag_state
-        let shard_for_core = ShardWithProof {
-            shard: our_shard,
-            transaction_commitment,
-            proof: proof_for_shard,
-            block_ref,
-        };
-        let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
-            .map_err(ConsensusError::SerializationFailure)?
-            .into();
-        let shard_for_core = VerifiedOwnShard {
-            serialized_shard: serialized_shard_for_core,
-            block_ref,
-        };
-        self.core_dispatcher
-            .add_shards(vec![shard_for_core])
-            .await
-            .map_err(|_| ConsensusError::Shutdown)?;
-
-        // 13. update `useful_authorities_from_peer`
-        // create a set of authority indexes from the `additional_block_headers`
-        // and `missing_ancestors`
-        let useful_authorities = additional_block_headers
-            .iter()
-            .map(|block_header| block_header.author())
-            .chain(missing_ancestors.iter().map(|block_ref| block_ref.author))
-            .collect::<BTreeSet<_>>();
-        {
-            let mut useful_authorities_from_peer_write_guard =
-                self.useful_authorities_from_peer.write();
-            useful_authorities_from_peer_write_guard.insert(peer, useful_authorities);
+        // only if it contains transactions
+        if has_transactions {
+            let shard_for_core = ShardWithProof {
+                shard: our_shard,
+                transaction_commitment,
+                proof: proof_for_shard,
+                block_ref,
+            };
+            let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
+                .map_err(ConsensusError::SerializationFailure)?
+                .into();
+            let shard_for_core = VerifiedOwnShard {
+                serialized_shard: serialized_shard_for_core,
+                block_ref,
+            };
+            self.core_dispatcher
+                .add_shards(vec![shard_for_core])
+                .await
+                .map_err(|_| ConsensusError::Shutdown)?;
         }
 
-        // 14. schedule the fetching of missing ancestors (if any) from this peer
+        // 13. update `useful_headers_authors_from_peer`
+        // create a set of authority indexes from the `additional_block_headers`
+        // and `missing_ancestors`
+        {
+            let useful_headers_authors = additional_block_headers
+                .iter()
+                .map(|block_header| block_header.author())
+                .chain(missing_ancestors.iter().map(|block_ref| block_ref.author))
+                .collect::<BTreeSet<_>>();
+
+            let mut useful_authorities_from_peer_write_guard =
+                self.useful_headers_authors_from_peer.write();
+            useful_authorities_from_peer_write_guard.insert(peer, useful_headers_authors);
+        }
+        // 14. Update `last_round_with_useful_shards_by_block_author`:
+        // For each validator whose block is in `additional_block_headers`,
+        // set their entry to the maximum of its current value and the round of the
+        // received block.
+        {
+            let useful_shard_authors = additional_block_headers
+                .iter()
+                .map(|block_header| block_header.author())
+                .collect::<Vec<_>>();
+            let mut last_round_with_useful_shards_from_peer_write_guard =
+                self.last_round_with_useful_shards_by_block_author.write();
+            for author in useful_shard_authors {
+                last_round_with_useful_shards_from_peer_write_guard[author] = max(
+                    last_round_with_useful_shards_from_peer_write_guard[author],
+                    block_round,
+                );
+            }
+        }
+
+        // 15. schedule the fetching of missing ancestors (if any) from this peer
         if !missing_ancestors.is_empty() {
             if let Err(err) = self
                 .synchronizer
@@ -622,7 +669,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // 15. schedule the fetching of missing committed transactions (if any)
+        // 16. schedule the fetching of missing committed transactions (if any)
         if !missing_committed_txns.is_empty() {
             if let Err(err) = self
                 .transactions_synchronizer
@@ -673,8 +720,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // new blocks.
         Ok(Box::pin(missed_blocks.chain({
             let dag_state = Arc::clone(&self.dag_state);
-            let useful_authorities_from_peer = Arc::clone(&self.useful_authorities_from_peer);
-            let useful_authorities_to_peer = Arc::clone(&self.useful_authorities_to_peer);
+            let useful_headers_authors_from_peer =
+                Arc::clone(&self.useful_headers_authors_from_peer);
+            let useful_headers_authors_to_peer = Arc::clone(&self.useful_headers_authors_to_peer);
+            let last_round_with_useful_shards_by_block_author =
+                Arc::clone(&self.last_round_with_useful_shards_by_block_author);
+            let useful_shards_authors_to_peer = Arc::clone(&self.useful_shards_authors_to_peer);
             let committee = self
                 .context
                 .committee
@@ -683,21 +734,34 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .collect::<BTreeSet<_>>();
 
             broadcasted_blocks.filter_map(move |block| {
-                let useful_authorities_to_peer_guard = useful_authorities_to_peer.read();
-                let useful_authorities_to_peer_read = useful_authorities_to_peer_guard
+                let useful_headers_authors_to_peer_guard = useful_headers_authors_to_peer.read();
+                let useful_headers_authors_to_peer_read = useful_headers_authors_to_peer_guard
                     .get(&peer)
                     .map(|authorities| authorities.iter().cloned().collect::<BTreeSet<_>>());
-                drop(useful_authorities_to_peer_guard);
-                let useful_authorities_from_peer_guard = useful_authorities_from_peer.read();
-                let useful_authorities_from_peer_read =
-                    match useful_authorities_from_peer_guard.get(&peer) {
+                drop(useful_headers_authors_to_peer_guard);
+
+                let useful_shards_authors_to_peer_guard = useful_shards_authors_to_peer.read();
+                let useful_shards_authors_to_peer_read =
+                    useful_shards_authors_to_peer_guard[peer].clone();
+                drop(useful_shards_authors_to_peer_guard);
+
+                let useful_headers_authors_from_peer_guard =
+                    useful_headers_authors_from_peer.read();
+                let useful_headers_authors_from_peer_read =
+                    match useful_headers_authors_from_peer_guard.get(&peer) {
                         None => committee.clone(),
                         Some(useful_authorities) => useful_authorities.clone(),
                     };
-                drop(useful_authorities_from_peer_guard);
+                drop(useful_headers_authors_from_peer_guard);
+
+                let last_round_with_useful_shards_by_block_author_guard =
+                    last_round_with_useful_shards_by_block_author.read();
+                let last_round_with_useful_shards_by_block_author_read =
+                    last_round_with_useful_shards_by_block_author_guard.clone();
+                drop(last_round_with_useful_shards_by_block_author_guard);
 
                 let mut dag_state_guard = dag_state.write();
-                let block_headers = match useful_authorities_to_peer_read {
+                let block_headers = match useful_headers_authors_to_peer_read {
                     None => dag_state_guard.take_unknown_headers_for_authority(peer, block.round()),
                     Some(authorities) => dag_state_guard.take_useful_headers_for_authority(
                         peer,
@@ -705,15 +769,25 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                         authorities,
                     ),
                 };
-                let serialized_shards =
-                    dag_state_guard.take_unknown_shards_for_authority(peer, block.round());
+
+                let serialized_shards = dag_state_guard.take_useful_shards_for_authority(
+                    peer,
+                    block.round(),
+                    useful_shards_authors_to_peer_read,
+                );
                 drop(dag_state_guard);
+
+                let useful_shards_authors = DagState::get_useful_shards_authors(
+                    last_round_with_useful_shards_by_block_author_read,
+                    block.round(),
+                );
 
                 let block_bundle = BlockBundle {
                     verified_block: block,
                     verified_headers: block_headers,
                     serialized_shards,
-                    useful_authorities: useful_authorities_from_peer_read,
+                    useful_headers_authors: useful_headers_authors_from_peer_read,
+                    useful_shards_authors,
                 };
                 async move {
                     match SerializedBlockBundle::try_from(block_bundle) {
@@ -1686,7 +1760,8 @@ mod tests {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
             serialized_shards: vec![],
-            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
+            useful_headers_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
+            useful_shards_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
         };
         let serialized_block_bundle_with_big_round = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(block_bundle_with_big_rounds).unwrap(),
@@ -1723,7 +1798,8 @@ mod tests {
             verified_block: input_block.clone(),
             verified_headers: headers.clone(),
             serialized_shards: vec![],
-            useful_authorities: (0u8..(committee_size as u8)).map(Into::into).collect(),
+            useful_headers_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
+            useful_shards_authors: (0u8..(committee_size as u8)).map(Into::into).collect(),
         };
         let serialized_block_bundle = SerializedBlockBundle::try_from(
             SerializedBlockBundleParts::try_from(block_bundle).unwrap(),
@@ -2218,7 +2294,10 @@ mod tests {
                     verified_block: block,
                     verified_headers: headers,
                     serialized_shards: vec![],
-                    useful_authorities: (0u8..(context.committee.size() as u8))
+                    useful_headers_authors: (0u8..(context.committee.size() as u8))
+                        .map(Into::into)
+                        .collect(),
+                    useful_shards_authors: (0u8..(context.committee.size() as u8))
                         .map(Into::into)
                         .collect(),
                 };
@@ -2361,7 +2440,10 @@ mod tests {
                     verified_block: block,
                     verified_headers: vec![],
                     serialized_shards: vec![],
-                    useful_authorities: (0u8..(context.committee.size() as u8))
+                    useful_headers_authors: (0u8..(context.committee.size() as u8))
+                        .map(Into::into)
+                        .collect(),
+                    useful_shards_authors: (0u8..(context.committee.size() as u8))
                         .map(Into::into)
                         .collect(),
                 };

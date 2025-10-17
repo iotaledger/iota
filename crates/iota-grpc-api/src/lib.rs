@@ -1,19 +1,6 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// Generated protobuf code
-pub mod common {
-    tonic::include_proto!("iota.grpc.common");
-}
-
-pub mod checkpoint {
-    tonic::include_proto!("iota.grpc.checkpoints");
-}
-
-pub mod events {
-    tonic::include_proto!("iota.grpc.events");
-}
-
 // Modules
 pub mod checkpoint_service;
 pub mod client;

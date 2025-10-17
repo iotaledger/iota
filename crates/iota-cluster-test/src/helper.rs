@@ -81,15 +81,14 @@ impl ObjectChecker {
                     .with_bcs(),
             )
             .await
-            .or_else(|err| bail!("Failed to get object info (id: {}), err: {err}", object_id))?;
+            .or_else(|err| bail!("failed to get object info (id: {object_id}), err: {err}"))?;
 
         trace!("getting object {object_id}, info :: {object_info:?}");
 
         match (object_info.data, object_info.error) {
             (None, Some(IotaObjectResponseError::NotExists { object_id })) => {
                 panic!(
-                    "Node can't find gas object {} with client {:?}",
-                    object_id,
+                    "node can't find gas object {object_id} with client {:?}",
                     client.read_api()
                 )
             }
@@ -100,8 +99,7 @@ impl ObjectChecker {
                 }),
             ) => {
                 panic!(
-                    "Node can't find dynamic field for {} with client {:?}",
-                    object_id,
+                    "node can't find dynamic field for {object_id} with client {:?}",
                     client.read_api()
                 )
             }
@@ -114,30 +112,30 @@ impl ObjectChecker {
                 }),
             ) => {
                 if !self.is_deleted {
-                    panic!("Gas object {object_id} was deleted");
+                    panic!("gas object {object_id} was deleted");
                 }
                 Ok(CheckerResultObject::new(None, None))
             }
             (Some(object), _) => {
                 if self.is_deleted {
-                    panic!("Expect Gas object {object_id} deleted, but it is not");
+                    panic!("expect gas object {object_id} deleted, but it is not");
                 }
                 if let Some(owner) = self.owner {
                     let object_owner = object
                         .owner
-                        .unwrap_or_else(|| panic!("Object {object_id} does not have owner"));
+                        .unwrap_or_else(|| panic!("object {object_id} does not have owner"));
                     assert_eq!(
                         object_owner, owner,
-                        "Gas coin {object_id} does not belong to {owner}, but {object_owner}"
+                        "gas coin {object_id} does not belong to {owner}, but {object_owner}"
                     );
                 }
                 if self.is_iota_coin == Some(true) {
                     let move_obj = object
                         .bcs
                         .as_ref()
-                        .unwrap_or_else(|| panic!("Object {object_id} does not have bcs data"))
+                        .unwrap_or_else(|| panic!("object {object_id} does not have bcs data"))
                         .try_as_move()
-                        .unwrap_or_else(|| panic!("Object {object_id} is not a move object"));
+                        .unwrap_or_else(|| panic!("object {object_id} is not a move object"));
 
                     let gas_coin = move_obj.deserialize()?;
                     return Ok(CheckerResultObject::new(Some(gas_coin), Some(object)));
@@ -145,10 +143,10 @@ impl ObjectChecker {
                 Ok(CheckerResultObject::new(None, Some(object)))
             }
             (None, Some(IotaObjectResponseError::Display { error })) => {
-                panic!("Display Error: {error:?}");
+                panic!("display error: {error:?}");
             }
             (None, None) | (None, Some(IotaObjectResponseError::Unknown)) => {
-                panic!("Unexpected response: object not found and no specific error provided");
+                panic!("unexpected response: object not found and no specific error provided");
             }
         }
     }
@@ -177,7 +175,7 @@ macro_rules! assert_eq_if_present {
         match (&$left, &$right) {
             (Some(left_val), right_val) => {
                  if !(&left_val == right_val) {
-                    panic!("{} does not match, left: {:?}, right: {:?}", $($arg)+, left_val, right_val);
+                    panic!("{} does not match, left: {left_val:?}, right: {right_val:?}", $($arg)+);
                 }
             }
             _ => ()
