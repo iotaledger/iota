@@ -275,6 +275,14 @@ Update `package.json` with scripts:
 - SHA-256 creates unique digital fingerprints that are impossible to reverse-engineer
 - We need to validate hash formats before sending to blockchain to prevent errors
 
+**Postman collection for testing the API endpoints**
+
+**Testing File Hash Generation Endpoint**
+
+The file upload API endpoint in Postman showing how a document is processed before notarization — the response returns the generated SHA-256 hash and associated file metadata, ready to be registered on-chain.
+
+![File Hash Generation](/img/developer/workshops/iota-notarization-truedoc/file-upload-hash.png)
+
 **Implementation**- Create [src/utils/crypto.ts](https://github.com/iota-community/workshops/blob/main/workshop-module-12/iota-notarization-backend/src/utils/crypto.ts):
 
 ```javascript reference
@@ -323,6 +331,14 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 - Both read-only and writable clients are required for different operations
 - Package ID from environment variables connects us to our specific contract
 
+**Postman collection for testing the API endpoints**
+
+**Testing Health Check Endpoint**
+
+A successful service health-check call that verifies the notarization service is running correctly, displaying API status, backend connectivity, and confirmation that all network components are operational.
+
+![Health Check](/img/developer/workshops/iota-notarization-truedoc/health-check.png)
+
 **Implementation**- Add to [src/services/notarizationService.ts](https://github.com/iota-community/workshops/blob/main/workshop-module-12/iota-notarization-backend/src/services/notarizationService.ts):
 
 ```javascript reference
@@ -347,6 +363,18 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 - Transfer capabilities allow ownership changes
 - Time-based locks provide security controls
 
+**Postman collection for testing the API endpoints**
+
+**Testing Dynamic Notarization Creation Endpoint**
+
+Creating a dynamic notarization with a transfer lock set to unlock at a future timestamp — demonstrating how time-based restrictions can be applied to prevent unauthorized transfers until the specified date.
+
+![Dynamic Notarization Creation with lock](/img/developer/workshops/iota-notarization-truedoc/create-dynamic-with-lock.png)
+
+Example of creating a dynamic notarization without any transfer or time locks — illustrating a fully flexible notarization that can later be updated or transferred by the owner without restriction.
+
+![Dynamic Notarization Creation without lock](/img/developer/workshops/iota-notarization-truedoc/create-dynamic-without-lock.png)
+
 **Implementation**- Add to [src/services/notarizationService.ts](https://github.com/iota-community/workshops/blob/main/workshop-module-12/iota-notarization-backend/src/services/notarizationService.ts):
 
 ```javascript reference
@@ -369,6 +397,18 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 - Provides cryptographic proof of existence at a specific time
 - Delete locks prevent accidental or malicious destruction
 - Perfect for regulatory compliance and audit trails
+
+**Postman collection for testing the API endpoints**
+
+**Testing Locked Notarization Creation Endpoint**
+
+Successful creation of a locked notarization with a delete lock set far in the future — ensuring the document remains permanently preserved on the blockchain until the unlock timestamp.
+
+![Locked Notarization Creation with lock](/img/developer/workshops/iota-notarization-truedoc/locked-success.png)
+
+Error response when attempting to create a locked notarization with an invalid timestamp — demonstrating the system's validation that prevents setting delete locks in the past.
+
+![Locked Notarization Creation Fail](/img/developer/workshops/iota-notarization-truedoc/locked-error-timestamp.png)
 
 **Implementation**- Add to src/services/notarizationService.ts:
 
@@ -393,6 +433,18 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 - Separate metadata updates don't affect content versioning
 - Only dynamic notarizations should be updatable
 
+**Postman collection for testing the API endpoints**
+
+**Testing State and Metadata Update Endpoint**
+
+Updating the content hash and metadata of a dynamic notarization — showing how document versions evolve while maintaining a complete audit trail of changes on the blockchain.
+
+![State Update](/img/developer/workshops/iota-notarization-truedoc/update-state.png)
+
+Modifying only the metadata of a dynamic notarization without changing the content hash — demonstrating how administrative information can be updated independently from the core document content.
+
+![Metadata Update](/img/developer/workshops/iota-notarization-truedoc/update-metadata.png)
+
 **Implementation**- Add to [src/services/notarizationService.ts](https://github.com/iota-community/workshops/blob/main/workshop-module-12/iota-notarization-backend/src/services/notarizationService.ts):
 
 ```javascript reference
@@ -415,6 +467,22 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 - Business processes often involve transferring responsibilities
 - Only dynamic notarizations should be transferable
 - Transfer locks can prevent unauthorized transfers
+
+**Postman collection for testing the API endpoints**
+
+**Testing Notarization Ownership Transfer Endpoint**
+
+Successful transfer of a dynamic notarization to another wallet address — confirming that ownership changes are properly recorded on the blockchain with transaction verification.
+
+![Notarization Transfer Success](/img/developer/workshops/iota-notarization-truedoc/transfer-succes-no-lock.png)
+
+Failed transfer attempt due to an active time lock — demonstrating how transfer restrictions protect documents from being moved before the specified unlock time.
+
+![Notarization Ownership Transfer with lock](/img/developer/workshops/iota-notarization-truedoc/transfer-fail-dueto-timelock.png)
+
+Error when attempting to transfer a locked notarization — showing the system's protection against transferring immutable records that are designed to be permanently owned.
+
+![Notarization Ownership Transfer Fail due to ownership non transferable](/img/developer/workshops/iota-notarization-truedoc/transfer-fail.png)
 
 **Implementation**- Add to [src/services/notarizationService.ts](https://github.com/iota-community/workshops/blob/main/workshop-module-12/iota-notarization-backend/src/services/notarizationService.ts):
 
@@ -439,6 +507,22 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 - Recovery of blockchain storage deposits
 - Compliance with data retention policies
 
+**Postman collection for testing the API endpoints**
+
+**Testing Notarization Destruction Endpoint**
+
+Successful deletion of a notarization that has no active locks — demonstrating proper cleanup and storage recovery when documents are no longer required.
+
+![Notarization Success](/img/developer/workshops/iota-notarization-truedoc/deletion-success.png)
+
+Failed deletion attempt because the notarization has already been transferred to another owner — showing the system's protection against unauthorized destruction by non-owners.
+
+![Notarization Destruction Fail already transfer](/img/developer/workshops/iota-notarization-truedoc/deletion-fail-due-to-already-transfer.png)
+
+Error when attempting to delete a locked notarization with an active delete lock — illustrating how time-based protection prevents premature document destruction.
+
+![Notarization Destruction Fail due to lock](/img/developer/workshops/iota-notarization-truedoc/deletion-failed-locked.png)
+
 **Implementation**- Add to [src/services/notarizationService.ts](https://github.com/iota-community/workshops/blob/main/workshop-module-12/iota-notarization-backend/src/services/notarizationService.ts):
 
 ```javascript reference
@@ -462,6 +546,29 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 - Version history provides audit trails
 - Lock status informs users about available actions
 
+**Postman collection for testing the API endpoints**
+
+**Testing Notarization Query and Verification Endpoint**
+
+**Notarization Details Retrieval**
+
+Retrieving complete details of a dynamic notarization — showing version history, current content hash, metadata, and lock status information for comprehensive document auditing.
+
+![Get Dynamic Notarization](/img/developer/workshops/iota-notarization-truedoc/get-dynamic.png)
+
+Viewing details of a locked notarization — displaying immutable properties, creation timestamp, and permanent lock status that distinguishes it from dynamic records.
+
+![Get Locked Notarization](/img/developer/workshops/iota-notarization-truedoc/get-notarization-locked.png)
+
+**Cryptographic Integrity Verification**
+
+Successful verification confirming that a document's current hash matches the expected value — providing cryptographic proof that the document hasn't been tampered with since notarization.
+
+![Notarization Verification Success](/img/developer/workshops/iota-notarization-truedoc/verify-true.png)
+
+Failed verification showing hash mismatch — alerting users when a document's content doesn't match the blockchain record, indicating potential tampering or version issues.
+
+![Notarization Verification Fail](/img/developer/workshops/iota-notarization-truedoc/verify-false.png)
 
 **Implementation**- Add to [src/services/notarizationService.ts](https://github.com/iota-community/workshops/blob/main/workshop-module-12/iota-notarization-backend/src/services/notarizationService.ts):
 
@@ -485,6 +592,14 @@ https://github.com/iota-community/workshops/blob/197bc63488c014c23ef0bf5109bf734
 - Wallet balance and address information
 - Network configuration verification
 - Debugging and operational support
+
+**Postman collection for testing the API endpoints**
+
+**Testing Wallet Info Endpoint**
+
+Wallet information endpoint displaying the connected IOTA address, current balance, and network status — essential for operational monitoring and debugging blockchain connectivity.
+
+![Wallet Info](/img/developer/workshops/iota-notarization-truedoc/wallet-info.png)
 
 **Implementation**- Add to [src/services/notarizationService.ts](https://github.com/iota-community/workshops/blob/main/workshop-module-12/iota-notarization-backend/src/services/notarizationService.ts):
 
