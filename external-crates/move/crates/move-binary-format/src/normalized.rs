@@ -473,7 +473,7 @@ impl Field {
 
 impl Struct {
     /// Create a `Struct` for `StructDefinition` `def` in module `m`. Panics if
-    /// `def` is a a native struct definition.
+    /// `def` is a native struct definition.
     pub fn new(m: &CompiledModule, def: &StructDefinition) -> (Identifier, Self) {
         let handle = m.datatype_handle_at(def.struct_handle);
         let fields = match &def.field_information {

@@ -93,7 +93,7 @@ enum ReferenceType {
     },
 }
 
-/// A `RootedType` is a a type layout with reference information, where any reference type is
+/// A `RootedType` is a type layout with reference information, where any reference type is
 /// fully rooted back to a specific location.
 #[derive(Debug, Clone)]
 struct RootedType {
