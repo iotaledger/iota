@@ -2664,9 +2664,9 @@ mod tests {
                     AuthorityIndex::new_for_test(2),
                     AuthorityIndex::new_for_test(3)
                 ],
-                "We should have pushed headers from other authorities in round {:?}", verified_block.round(),
+                "We should have pushed headers from other authorities in round {:?}",
+                verified_block.round(),
             );
-
         }
     }
 

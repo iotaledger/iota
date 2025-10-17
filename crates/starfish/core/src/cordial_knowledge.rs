@@ -23,11 +23,13 @@ use crate::{
     block_header::{BlockHeaderDigest, GENESIS_ROUND},
     context::Context,
     dag_state::DagState,
+    error::{ConsensusError, ConsensusResult},
     network::SerializedBlockBundleParts,
 };
 
-const MAX_ROUND_GAP_FOR_USEFUL_SHARDS: Round = 5;
-const MAX_ROUND_GAP_FOR_USEFUL_HEADERS: Round = 50;
+/// Maximum round gap to consider a peer's useful shards/headers as still
+/// relevant.
+const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 10;
 
 /// Represents a subset of authorities using a bitmask.
 /// Each bit in the `low` and `high` fields corresponds to an authority index.
@@ -67,11 +69,17 @@ impl SubsetAuthorities {
     }
 }
 
+/// Manages the global cordial knowledge state.
+/// Receives high-level updates from DAG state and Authority service and
+/// notifies per-connection tasks.
 pub(crate) struct CordialKnowledge {
     context: Arc<Context>,
     /// Receives high-level updates from DAG state (new headers, new own shards,
     /// evictions)
     cordial_knowledge_receiver: UnboundedReceiver<CordialKnowledgeMessage>,
+    /// Keeps track of the last round for which each peer's shards were
+    /// considered useful to us. This is a global knowledge and is shared with
+    /// all connection tasks.
     last_useful_shards_from_peer_round: Vec<Round>,
     /// Keeps track of the most recent DAG cordial
     /// knowledge (who knows which blocks) for each authority. This is a helper
@@ -79,18 +87,30 @@ pub(crate) struct CordialKnowledge {
     /// struct is evicted after flushing the dag state to storage and is not
     /// persisted. To access the cordial knowledge of a given block_ref, one
     /// shall retrieve it from `cordial_knowledge[block_ref.
-    /// author][(block_ref.round, block_ref.digest)]`. The value is a tuple
-    /// of (parents, who knows the block header).
-    cordial_knowledge: Vec<
-        BTreeMap<
-            Round,
-            AHashMap<BlockHeaderDigest, (Ancestors, SubsetAuthorities)>,
-        >,
-    >,
+    /// author][block_ref.round][block_ref.digest]`. The provided value is a
+    /// tuple of (parents, who knows the block header).
+    cordial_knowledge:
+        Vec<BTreeMap<Round, AHashMap<BlockHeaderDigest, (Ancestors, SubsetAuthorities)>>>,
     /// Per-connection message channels
     connections: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
 }
 
+/// High-level messages sent to the CordialKnowledge task.
+#[derive(Debug)]
+pub enum CordialKnowledgeMessage {
+    /// A new verified block header to integrate into cordial knowledge.
+    NewHeader(VerifiedBlockHeader),
+    /// A new verified own shard to integrate into cordial knowledge.
+    NewShard(BlockRef),
+    /// Evict old rounds globally.
+    EvictBelow(Vec<Round>),
+    /// Update internal state about shards from which authorities are useful for
+    /// us
+    UsefulShardsFromPeers(BTreeMap<AuthorityIndex, Round>),
+}
+
+/// Handle to the CordialKnowledge task, allowing interaction and graceful
+/// shutdown.
 pub struct CordialKnowledgeHandle {
     cordial_knowledge_sender: UnboundedSender<CordialKnowledgeMessage>,
     connection_knowledge_senders: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
@@ -140,6 +160,8 @@ impl CordialKnowledgeHandle {
 }
 
 impl CordialKnowledge {
+    /// Create a new CordialKnowledge instance along with its associated
+    /// channels.
     pub fn new(
         context: Arc<Context>,
     ) -> (
@@ -270,6 +292,7 @@ impl CordialKnowledge {
         debug!("Cordial Knowledge main loop finished");
     }
 
+    /// Processes a single high-level cordial knowledge message.
     async fn process_message(&mut self, cordial_knowledge_message: CordialKnowledgeMessage) {
         debug!(
             "Processing Cordial Message: {:?}",
@@ -297,6 +320,8 @@ impl CordialKnowledge {
             .inc();
     }
 
+    /// Update global knowledge about shards from which authors will be useful
+    /// for us
     async fn handle_useful_shards_from(
         &mut self,
         useful_shards_from_peer: BTreeMap<AuthorityIndex, Round>,
@@ -309,6 +334,7 @@ impl CordialKnowledge {
         self.disseminate_useful_info_to_connection_tasks().await;
     }
 
+    /// Disseminate updated useful info to all connection tasks.
     async fn disseminate_useful_info_to_connection_tasks(&mut self) {
         for connection_sender in &self.connections {
             let msg = ConnectionKnowledgeMessage::UsefulInfo {
@@ -328,7 +354,7 @@ impl CordialKnowledge {
         self.update_cordial_knowledge(&header).await;
     }
 
-    /// Called when a new *own shard* (created locally) is added to dag state.
+    /// Called when a new own shard (created locally) is added to dag state.
     async fn handle_new_shard(&mut self, block_ref: BlockRef) {
         for tx in &self.connections {
             let msg = ConnectionKnowledgeMessage::NewShard { block_ref };
@@ -349,14 +375,21 @@ impl CordialKnowledge {
                 .with_label_values(&[&index.to_string()])
                 .set(btree_map.len() as i64);
         }
-        let largest_round = self.cordial_knowledge[self.context.own_index].keys().max().cloned()
+        let largest_round = self.cordial_knowledge[self.context.own_index]
+            .keys()
+            .max()
+            .cloned()
             .unwrap_or(GENESIS_ROUND);
         let useful_shards_from_peer_count = self
             .last_useful_shards_from_peer_round
             .iter()
-            .filter(|&&r| r + MAX_ROUND_GAP_FOR_USEFUL_HEADERS >= largest_round)
+            .filter(|&&r| r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= largest_round)
             .count();
-        self.context.metrics.node_metrics.cordial_knowledge_useful_shards.set(useful_shards_from_peer_count as i64);
+        self.context
+            .metrics
+            .node_metrics
+            .cordial_knowledge_useful_shards
+            .set(useful_shards_from_peer_count as i64);
 
         // Notify per-connection tasks about eviction
         self.notify_connection_tasks_for_eviction(rounds).await;
@@ -371,10 +404,12 @@ impl CordialKnowledge {
 
     /// Update cordial knowledge for exactly one new header.
     /// Assumes all parents are already stored somewhere in
-    /// `recent_dag_cordial_knowledge`
-    /// - Only grows the author's deque if needed.
-    /// - For other authorities' "unknown headers" deques, we add the block only
-    ///   if the round bucket already exists (no growth).
+    /// `recent_dag_cordial_knowledge` (if not, they will be skipped).
+    /// We traverse back the causal past of the new header and mark all
+    /// ancestors as known by the block author. All acknowledged blocks are
+    /// marked as known by the block author as well.
+    /// At the end, we notify all connections about new
+    /// knowledge changes.
     async fn update_cordial_knowledge(&mut self, header: &VerifiedBlockHeader) {
         let block_ref = header.reference();
         let block_author = block_ref.author.value();
@@ -384,9 +419,12 @@ impl CordialKnowledge {
 
         // Pre-allocate message buffers
         let mut vec_knowledge_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
-            (0..self.context.committee.size()).map(|_| Vec::new()).collect();
+            (0..self.context.committee.size())
+                .map(|_| Vec::new())
+                .collect();
 
-        // === 1) Ensure we have a round map for this author and insert the block ===
+        // === 1) Ensure we have a round map for this author and insert the block if new
+        // ===
         let btree_map = &mut self.cordial_knowledge[block_author];
         let round_map = btree_map.entry(block_round).or_insert_with(AHashMap::new);
 
@@ -400,7 +438,8 @@ impl CordialKnowledge {
         let who_knows_this_block = SubsetAuthorities::new_with(block_author, own_index);
         round_map.insert(block_digest, (ancestors.clone(), who_knows_this_block));
 
-        // === 2) Notify all *other* authorities (except self and block_author) ===
+        // === 2) Notify all *other* authorities (except self and block_author) about
+        // new header ===
         for (authority, msgs) in vec_knowledge_msgs.iter_mut().enumerate() {
             if authority == block_author || authority == own_index {
                 continue;
@@ -415,7 +454,8 @@ impl CordialKnowledge {
             });
         }
 
-        // === 4) Traversing back and marking the causal past as known by block_author ===
+        // === 4) Traversing back and marking the causal past as known by block_author
+        // ===
         let mut stack = vec![block_ref];
         while let Some(current_ref) = stack.pop() {
             let current_author = current_ref.author.value();
@@ -423,7 +463,7 @@ impl CordialKnowledge {
             let current_digest = current_ref.digest;
 
             // ---- Get parents of current block ----
-            let parents_buf: Vec<BlockRef> = {
+            let parents_buf: Ancestors = {
                 let author_map = &self.cordial_knowledge[current_author];
                 let Some(current_round_map) = author_map.get(&current_round) else {
                     continue;
@@ -431,11 +471,11 @@ impl CordialKnowledge {
                 let Some((parents, _)) = current_round_map.get(&current_digest) else {
                     continue;
                 };
-                parents.iter().copied().collect()
+                parents.clone()
             };
 
             // Traverse parents
-            for parent_ref in parents_buf {
+            for parent_ref in parents_buf.iter() {
                 let parent_author = parent_ref.author.value();
                 let parent_round = parent_ref.round;
                 let parent_digest = parent_ref.digest;
@@ -448,22 +488,22 @@ impl CordialKnowledge {
                         if who_knows_parent.insert(block_author) {
                             vec_knowledge_msgs[block_author].push(
                                 ConnectionKnowledgeMessage::RemoveHeader {
-                                    block_ref: parent_ref,
+                                    block_ref: *parent_ref,
                                 },
                             );
-                            stack.push(parent_ref);
+                            stack.push(*parent_ref);
                         }
                     }
                 }
             }
         }
 
-
         // === 5) Send all accumulated knowledge messages ===
-        self.send_connection_knowledge_messages(vec_knowledge_msgs).await;
+        self.send_connection_knowledge_messages(vec_knowledge_msgs)
+            .await;
     }
 
-
+    /// Send accumulated connection knowledge messages to all connection tasks.
     async fn send_connection_knowledge_messages(&self, msgs: Vec<Vec<ConnectionKnowledgeMessage>>) {
         for (index, msg) in msgs.into_iter().enumerate() {
             if !msg.is_empty() {
@@ -472,6 +512,8 @@ impl CordialKnowledge {
         }
     }
 
+    /// Report from Authority Service useful information about headers and
+    /// shards to global knowledge and connection knowledge.
     pub async fn report_useful_info(
         connection_knowledge_sender: &Sender<Vec<ConnectionKnowledgeMessage>>,
         cordial_knowledge_sender: &UnboundedSender<CordialKnowledgeMessage>,
@@ -479,14 +521,22 @@ impl CordialKnowledge {
         additional_block_headers: &[VerifiedBlockHeader],
         missing_ancestors: &BTreeSet<BlockRef>,
         block_round: Round,
-    ) {
-        let useful_headers_authors = additional_block_headers
+    ) -> ConsensusResult<()> {
+        // Extract authorities this peer has useful headers from
+        let useful_headers_authors_from_peer = additional_block_headers
             .iter()
             .map(|block_header| block_header.author())
             .chain(missing_ancestors.iter().map(|block_ref| block_ref.author))
             .collect::<BTreeSet<_>>();
+        let useful_headers_from_peer = useful_headers_authors_from_peer
+            .into_iter()
+            .map(|a| (a, block_round))
+            .collect();
 
+        // Extract authorities this peer has useful shards from
         let mut useful_shard_authors: BTreeMap<AuthorityIndex, Round> = BTreeMap::new();
+        // Since headers showed up in the filter before the corresponding full blocks
+        // we consider all authors of additional headers as useful shard authors too.
         for header in additional_block_headers {
             let author = header.author();
             let round = header.round();
@@ -498,21 +548,19 @@ impl CordialKnowledge {
                 .or_insert(round);
         }
 
-        // Extract authorities this peer finds useful for cordial dissemination
+        // Extract authorities this peer finds useful for cordial dissemination from our
+        // side
         let useful_headers_to_peer = serialized_block_bundle_parts.useful_headers_authors();
         let useful_headers_to_peer = useful_headers_to_peer
             .iter()
             .map(|&a| (a, block_round))
             .collect::<BTreeMap<_, _>>();
+        // Extract authorities this peer finds useful shards from our side
         let useful_shards_to_peer = serialized_block_bundle_parts.useful_shards_authors();
         let useful_shards_to_peer = useful_shards_to_peer
             .iter()
             .map(|&a| (a, block_round))
             .collect::<BTreeMap<_, _>>();
-        let useful_headers_from_peer =  useful_headers_authors
-            .into_iter()
-            .map(|a| (a, block_round))
-            .collect();
 
         // Notify connection knowledge about useful headers and shards to/from this peer
         let connection_knowledge_message = ConnectionKnowledgeMessage::UsefulInfo {
@@ -521,17 +569,23 @@ impl CordialKnowledge {
             useful_headers_from_peer,
             useful_shards_from_peers: vec![],
         };
-        let _ = connection_knowledge_sender
+        connection_knowledge_sender
             .send(vec![connection_knowledge_message])
-            .await;
+            .await
+            .map_err(|_err| ConsensusError::Shutdown)?;
 
         // Notify global cordial knowledge about useful shards from this peer
         let cordial_knowledge_message =
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shard_authors);
-        let _ = cordial_knowledge_sender.send(cordial_knowledge_message);
+        cordial_knowledge_sender
+            .send(cordial_knowledge_message)
+            .map_err(|_err| ConsensusError::Shutdown)?;
+
+        Ok(())
     }
 }
 
+/// Messages sent to a ConnectionKnowledge task to update its state.
 #[derive(Debug)]
 pub enum ConnectionKnowledgeMessage {
     /// A new block header was added globally.
@@ -555,22 +609,8 @@ pub enum ConnectionKnowledgeMessage {
         round_upper_bound_exclusive: Round,
         respond_to: oneshot::Sender<AdditionalPartsForBundle>,
     },
-
     /// Global eviction (prune below round)
     EvictBelow(Vec<Round>),
-}
-
-#[derive(Debug)]
-pub enum CordialKnowledgeMessage {
-    /// A new verified block header to integrate into cordial knowledge.
-    NewHeader(VerifiedBlockHeader),
-    /// A new verified own shard to integrate into cordial knowledge.
-    NewShard(BlockRef),
-    /// Evict old rounds globally.
-    EvictBelow(Vec<Round>),
-    /// Update internal state about shards from which authorities are useful for
-    /// us
-    UsefulShardsFromPeers(BTreeMap<AuthorityIndex, Round>),
 }
 
 /// Manages the knowledge state for a single connection to a peer.
@@ -578,17 +618,30 @@ pub enum CordialKnowledgeMessage {
 pub struct ConnectionKnowledge {
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
+    /// Index of the peer authority this connection knowledge is for
     peer_index: usize,
+    /// Keeps track of which headers are not known by the peer yet.
     headers_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
+    /// Keeps track of which shards are not known by the peer yet.
     shards_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
+    /// Last rounds for (potentially) useful shards that can be sent to this
+    /// peer
     last_useful_shards_to_peer_round: Vec<Round>,
+    /// Last rounds for (potentially) useful headers that can be sent to this
+    /// peer
     last_useful_headers_to_peer_round: Vec<Round>,
+    /// Last rounds for potentially useful shards that could be received from
+    /// this peer
     last_useful_shards_from_peer_round: Vec<Round>,
+    /// Last rounds for (potentially) useful headers that could be received from
+    /// this peer
     last_useful_headers_from_peer_round: Vec<Round>,
     /// Receives updates from the global cordial knowledge
     receiver: Receiver<Vec<ConnectionKnowledgeMessage>>,
 }
 
+/// Additional parts (headers, shards, useful_headers_authors,
+/// useful_shards_authors) to include in a block bundle for a peer.
 #[derive(Debug)]
 pub(crate) struct AdditionalPartsForBundle {
     pub headers: Vec<VerifiedBlockHeader>,
@@ -620,6 +673,9 @@ impl ConnectionKnowledge {
             receiver,
         }
     }
+    /// Take useful block refs (headers or shards) for the given authorities
+    /// up to the given round (exclusive), up to max_take total.
+    /// Used for both headers and shards.
     fn take_useful_refs_round(
         maps: &mut Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
         round_upper_bound_exclusive: Round,
@@ -672,6 +728,8 @@ impl ConnectionKnowledge {
         taken
     }
 
+    /// Take useful header block refs from the given authorities up to the given
+    /// round (exclusive).
     fn take_useful_header_block_refs_round(
         &mut self,
         round_upper_bound_exclusive: Round,
@@ -686,6 +744,8 @@ impl ConnectionKnowledge {
         )
     }
 
+    /// Take useful shard block refs from the given authorities up to the given
+    /// round (exclusive).
     fn take_useful_shard_block_refs_round(
         &mut self,
         round_upper_bound_exclusive: Round,
@@ -700,8 +760,7 @@ impl ConnectionKnowledge {
         )
     }
 
-
-
+    /// Evict al connection knowledge below the given rounds (exclusive)
     fn evict_below(&mut self, rounds_exclusive: Vec<Round>) {
         for (index, map) in self.headers_not_known.iter_mut().enumerate() {
             let threshold_round = rounds_exclusive[index];
@@ -714,7 +773,6 @@ impl ConnectionKnowledge {
             *map = map.split_off(&threshold_round);
         }
     }
-
 
     /// Async task loop — just receives messages and dispatches to processing
     /// logic.
@@ -735,9 +793,9 @@ impl ConnectionKnowledge {
         );
     }
 
-    /// Processes a batch of knowledge updates synchronously (non-async).
-    /// This isolates all mutation logic so it can be tested without async
-    /// context.
+    /// Processes a batch of knowledge updates for this connection.
+    /// The only async message is `TakeAdditionalPartForBundle`, which awaits
+    /// and provides the additional parts for the bundle
     async fn process_message(&mut self, message: ConnectionKnowledgeMessage) {
         match message {
             ConnectionKnowledgeMessage::NewHeader { block_ref } => {
@@ -780,6 +838,9 @@ impl ConnectionKnowledge {
             }
         }
     }
+
+    /// Handle useful info update from global CordialKnowledge or
+    /// AuthorityService.
     fn handle_useful_info(
         &mut self,
         useful_headers_to_peer: BTreeMap<AuthorityIndex, Round>,
@@ -828,6 +889,10 @@ impl ConnectionKnowledge {
         }
     }
 
+    /// Handles taking additional parts (headers, shards) for a block bundle
+    /// to send to the peer.
+    /// This is an async function because it reads from the DAG state and
+    /// sends the response back via oneshot channel.
     async fn handle_take_additional_parts_for_bundle(
         &mut self,
         round_upper_bound_exclusive: Round,
@@ -840,6 +905,7 @@ impl ConnectionKnowledge {
         rounds[own_index] = round_upper_bound_exclusive + 1; // We are supposed to send own block of this round in a bundle when calling this function with this parameter
 
         self.evict_below(rounds);
+
         // 2. Identify useful authorities for headers and take the corresponding headers
         //    from the DAG state
         let useful_headers_authors_to_peer: Vec<usize> = self
@@ -847,7 +913,7 @@ impl ConnectionKnowledge {
             .iter()
             .enumerate()
             .filter_map(|(i, &r)| {
-                if r + MAX_ROUND_GAP_FOR_USEFUL_HEADERS >= round_upper_bound_exclusive {
+                if r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive {
                     Some(i)
                 } else {
                     None
@@ -873,6 +939,7 @@ impl ConnectionKnowledge {
                 .flatten() // Filter out None values
                 .collect()
         };
+
         // 3. Identify useful authorities for shards and take the corresponding shards
         //    from the DAG state
         let useful_shards_authors_to_peer: Vec<usize> = self
@@ -880,7 +947,7 @@ impl ConnectionKnowledge {
             .iter()
             .enumerate()
             .filter_map(|(i, &r)| {
-                if r + MAX_ROUND_GAP_FOR_USEFUL_SHARDS >= round_upper_bound_exclusive {
+                if r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive {
                     Some(i)
                 } else {
                     None
@@ -899,26 +966,28 @@ impl ConnectionKnowledge {
                 .flatten() // Filter out None values
                 .collect()
         };
+
         // 4. Get useful header authors from peer
         let useful_headers_authors_from_peer = self
             .last_useful_headers_from_peer_round
             .iter()
             .enumerate()
             .filter_map(|(i, &r)| {
-                if r + MAX_ROUND_GAP_FOR_USEFUL_HEADERS >= round_upper_bound_exclusive {
+                if r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive {
                     Some(AuthorityIndex::from(i as u8))
                 } else {
                     None
                 }
             })
             .collect::<BTreeSet<AuthorityIndex>>();
+
         // 5. Get useful shard authors from peer
         let useful_shards_authors_from_peer = self
             .last_useful_shards_from_peer_round
             .iter()
             .enumerate()
             .filter_map(|(i, &r)| {
-                if r + MAX_ROUND_GAP_FOR_USEFUL_SHARDS >= round_upper_bound_exclusive {
+                if r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive {
                     Some(AuthorityIndex::from(i as u8))
                 } else {
                     None
@@ -986,5 +1055,4 @@ impl ConnectionKnowledge {
             }
         }
     }
-
 }
