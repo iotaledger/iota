@@ -5,7 +5,7 @@ export function isLegacyBrowser(): boolean {
     const ua = navigator.userAgent;
 
     const chromeMatch = ua.match(/Chrome\/(\d+)/);
-    if (chromeMatch && Number(chromeMatch[1]) < 200) {
+    if (chromeMatch && Number(chromeMatch[1]) < 92) {
         return true;
     }
 

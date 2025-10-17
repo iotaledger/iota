@@ -1,14 +1,18 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+'use client';
+
 import '@iota/dapp-kit/dist/index.css';
 import './globals.css';
 import { Inter } from 'next/font/google';
 import { Metadata } from 'next';
+import { useEffect } from 'react';
 import { AppProviders } from '@/providers';
 import { FontLinks } from '@/components/FontLinks';
 import { ConnectionGuard } from '@/components/connection-guard';
 import { Amplitude } from '@/components/Amplitude';
+import { isLegacyBrowser, toast } from '@iota/core';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -38,6 +42,14 @@ export default function RootLayout({
 }: Readonly<{
     children: React.ReactNode;
 }>) {
+    useEffect(() => {
+        if (typeof window !== 'undefined' && isLegacyBrowser()) {
+            toast.warning(
+                'Your browser version is outdated. Please update it to the latest version.',
+            );
+        }
+    }, []);
+
     return (
         <html lang="en">
             <body className={inter.className}>
