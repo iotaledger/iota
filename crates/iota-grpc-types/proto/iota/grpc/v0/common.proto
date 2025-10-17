@@ -3,7 +3,7 @@
 
 syntax = "proto3";
 
-package iota.grpc.common;
+package iota.grpc.v0.common;
 
 // BCS-serialized data container
 message BcsData {
