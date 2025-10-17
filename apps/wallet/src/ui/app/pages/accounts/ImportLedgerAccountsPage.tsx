@@ -127,7 +127,11 @@ export function ImportLedgerAccountsPage() {
                 {importLedgerAccountsBody}
                 <div className="flex flex-1 items-end">
                     {areAllAccountsImported ? (
-                        <Button text="Finish" onClick={() => navigate(-1)} fullWidth />
+                        <Button
+                            text="Finish"
+                            onClick={() => navigate('/accounts/manage')}
+                            fullWidth
+                        />
                     ) : (
                         <Button
                             text="Next"
