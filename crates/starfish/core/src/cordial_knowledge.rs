@@ -1,7 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet, VecDeque},
     sync::Arc,
-    time::Duration,
 };
 
 use ahash::{AHashMap, AHashSet};
@@ -16,7 +15,6 @@ use tokio::{
         oneshot,
     },
     task::JoinError,
-    time::{Instant, sleep_until},
 };
 use tracing::{debug, warn};
 
@@ -240,46 +238,31 @@ impl CordialKnowledge {
 
         debug!("Cordial Knowledge main loop started");
 
-        const DISSEMINATE_TO_CONNECTION_KNOWLEDGE_TIMEOUT: Duration = Duration::from_millis(10);
-
-        // Start a recurring timeout timer (if you plan to use it later)
-        let dissemination_timeout =
-            sleep_until(Instant::now() + DISSEMINATE_TO_CONNECTION_KNOWLEDGE_TIMEOUT);
-        tokio::pin!(dissemination_timeout);
-
         loop {
-            tokio::select! {
-                // Main channel to receive message for updating the state and propogate to connection tasks
-                maybe_msg = self.cordial_knowledge_receiver.recv() => {
-                    debug!("Cordial knowledge message {maybe_msg:?} received");
-                    match maybe_msg {
-                        Some(cordial_knowledge_message) => {
-                            match cordial_knowledge_message {
-                                CordialKnowledgeMessage::NewHeader(header) => {
-                                    self.handle_new_header(header);
-                                }
-                                CordialKnowledgeMessage::NewShard(block_ref) => {
-                                    self.handle_new_shard(block_ref);
-                                }
-                                CordialKnowledgeMessage::EvictBelow(round) => {
-                                    self.handle_evict_below(round);
-                                }
-                                CordialKnowledgeMessage::UsefulShardsFromPeer(useful_shards_from_peer) => {
-                                    self.handle_useful_shards_from(useful_shards_from_peer);
-                                }
-                            }
-                        }
-                        None => {
-                            debug!("Cordial Knowledge channel closed; exiting loop");
-                            break;
-                        }
-                    }
-                }
+            match self.cordial_knowledge_receiver.recv().await {
+                Some(msg) => {
+                    // Handle the first received message
+                    self.process_message(msg).await;
 
-                //
-                _ = &mut dissemination_timeout => {
-                    dissemination_timeout.as_mut().reset(Instant::now() + DISSEMINATE_TO_CONNECTION_KNOWLEDGE_TIMEOUT);
-                        self.disseminate_useful_info_to_connection_tasks().await;
+                    // Report the buffer size after processing the first message
+                    let buffer_size = self.cordial_knowledge_receiver.len() + 1;
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .cordial_knowledge_buffer_size
+                        .set(buffer_size as i64);
+
+                    // Drain the rest of the buffer without awaiting
+                    while let Ok(msg) = self.cordial_knowledge_receiver.try_recv() {
+                        self.process_message(msg).await;
+                    }
+
+                    // Yield to give other tasks a chance before looping again
+                    tokio::task::yield_now().await;
+                }
+                None => {
+                    debug!("Cordial Knowledge channel closed; exiting loop");
+                    break;
                 }
             }
         }
@@ -287,7 +270,34 @@ impl CordialKnowledge {
         debug!("Cordial Knowledge main loop finished");
     }
 
-    fn handle_useful_shards_from(
+    async fn process_message(&mut self, cordial_knowledge_message: CordialKnowledgeMessage) {
+        debug!(
+            "Processing Cordial Message: {:?}",
+            cordial_knowledge_message
+        );
+        match cordial_knowledge_message {
+            CordialKnowledgeMessage::NewHeader(header) => {
+                self.handle_new_header(header).await;
+            }
+            CordialKnowledgeMessage::NewShard(block_ref) => {
+                self.handle_new_shard(block_ref).await;
+            }
+            CordialKnowledgeMessage::EvictBelow(round) => {
+                self.handle_evict_below(round).await;
+            }
+            CordialKnowledgeMessage::UsefulShardsFromPeer(useful_shards_from_peer) => {
+                self.handle_useful_shards_from(useful_shards_from_peer)
+                    .await;
+            }
+        }
+        self.context
+            .metrics
+            .node_metrics
+            .cordial_knowledge_processed_messages
+            .inc();
+    }
+
+    async fn handle_useful_shards_from(
         &mut self,
         useful_shards_from_peer: BTreeMap<AuthorityIndex, Round>,
     ) {
@@ -296,6 +306,7 @@ impl CordialKnowledge {
                 self.last_useful_shards_from_peer_round[authority] = round;
             }
         }
+        self.disseminate_useful_info_to_connection_tasks().await;
     }
 
     async fn disseminate_useful_info_to_connection_tasks(&mut self) {
@@ -313,20 +324,20 @@ impl CordialKnowledge {
     }
 
     /// Called when a new verified block header is received.
-    fn handle_new_header(&mut self, header: VerifiedBlockHeader) {
-        self.update_cordial_knowledge(&header);
+    async fn handle_new_header(&mut self, header: VerifiedBlockHeader) {
+        self.update_cordial_knowledge(&header).await;
     }
 
     /// Called when a new *own shard* (produced locally) is added.
-    fn handle_new_shard(&mut self, block_ref: BlockRef) {
+    async fn handle_new_shard(&mut self, block_ref: BlockRef) {
         for tx in &self.connections {
             let msg = ConnectionKnowledgeMessage::NewShard { block_ref };
-            let _ = tx.try_send(vec![msg]);
+            let _ = tx.send(vec![msg]).await;
         }
     }
 
     /// Called when older rounds should be pruned globally.
-    fn handle_evict_below(&mut self, rounds: Vec<Round>) {
+    async fn handle_evict_below(&mut self, rounds: Vec<Round>) {
         // Evict locally
         for (index, deque) in &mut self.cordial_knowledge.iter_mut().enumerate() {
             while let Some((front_round, _)) = deque.front() {
@@ -335,17 +346,23 @@ impl CordialKnowledge {
                 } else {
                     break;
                 }
+                self.context
+                    .metrics
+                    .node_metrics
+                    .cordial_knowledge_rounds
+                    .with_label_values(&[&index.to_string()])
+                    .set(deque.len() as i64);
             }
         }
 
         // Notify per-connection tasks about eviction
-        self.notify_connection_tasks_for_eviction(rounds);
+        self.notify_connection_tasks_for_eviction(rounds).await;
     }
     #[inline]
-    fn notify_connection_tasks_for_eviction(&self, rounds: Vec<Round>) {
+    async fn notify_connection_tasks_for_eviction(&self, rounds: Vec<Round>) {
         for tx in &self.connections {
             let msg = ConnectionKnowledgeMessage::EvictBelow(rounds.clone());
-            let _ = tx.try_send(vec![msg]);
+            let _ = tx.send(vec![msg]).await;
         }
     }
 
@@ -401,7 +418,7 @@ impl CordialKnowledge {
     /// - Only grows the author's deque if needed.
     /// - For other authorities' "unknown headers" deques, we add the block only
     ///   if the round bucket already exists (no growth).
-    fn update_cordial_knowledge(&mut self, header: &VerifiedBlockHeader) {
+    async fn update_cordial_knowledge(&mut self, header: &VerifiedBlockHeader) {
         let block_ref = header.reference();
         let block_author = block_ref.author.value();
         let block_round = block_ref.round;
@@ -427,7 +444,11 @@ impl CordialKnowledge {
         author_round_map.insert(block_digest, (ancestors, who_knows_this_block));
 
         //  === 2) Mark this header as "unknown" for other authorities  ===
-        for (other_idx, item) in vec_knowledge_msgs.iter_mut().enumerate().take(self.context.committee.size()) {
+        for (other_idx, item) in vec_knowledge_msgs
+            .iter_mut()
+            .enumerate()
+            .take(self.context.committee.size())
+        {
             if other_idx == block_author || other_idx == own_index {
                 continue;
             }
@@ -497,13 +518,14 @@ impl CordialKnowledge {
                 }
             }
         }
-        self.send_connection_knowledge_messages(vec_knowledge_msgs);
+        self.send_connection_knowledge_messages(vec_knowledge_msgs)
+            .await;
     }
 
-    fn send_connection_knowledge_messages(&self, msgs: Vec<Vec<ConnectionKnowledgeMessage>>) {
+    async fn send_connection_knowledge_messages(&self, msgs: Vec<Vec<ConnectionKnowledgeMessage>>) {
         for (index, msg) in msgs.into_iter().enumerate() {
             if !msg.is_empty() {
-                let _ = self.connections[index].try_send(msg);
+                let _ = self.connections[index].send(msg).await;
             }
         }
     }
@@ -567,6 +589,7 @@ impl CordialKnowledge {
     }
 }
 
+#[derive(Debug)]
 pub enum ConnectionKnowledgeMessage {
     /// A new block header was added globally.
     NewHeader { block_ref: BlockRef },
@@ -623,6 +646,7 @@ pub struct ConnectionKnowledge {
     receiver: Receiver<Vec<ConnectionKnowledgeMessage>>,
 }
 
+#[derive(Debug)]
 pub(crate) struct AdditionalPartsForBundle {
     pub headers: Vec<VerifiedBlockHeader>,
     pub shards: Vec<Bytes>,
@@ -848,6 +872,7 @@ impl ConnectionKnowledge {
         debug!("Connection Knowledge started for peer {}", self.peer_index);
 
         while let Some(knowledge_msgs) = self.receiver.recv().await {
+            debug!("Received knowledge message: {:?}", knowledge_msgs);
             for knowledge_msg in knowledge_msgs {
                 self.process_message(knowledge_msg).await;
             }

@@ -135,6 +135,9 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
+    pub(crate) cordial_knowledge_buffer_size: IntGauge,
+    pub(crate) cordial_knowledge_processed_messages: IntCounter,
+    pub(crate) cordial_knowledge_rounds: IntGaugeVec,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) fetch_block_headers_scheduler_inflight: IntGauge,
@@ -437,6 +440,22 @@ impl NodeMetrics {
             dag_state_recent_refs: register_int_gauge_with_registry!(
                 "dag_state_recent_refs",
                 "Number of recent refs cached in the DagState",
+                registry,
+            ).unwrap(),
+            cordial_knowledge_buffer_size: register_int_gauge_with_registry!(
+                "cordial_knowledge_buffer_size",
+                "Size of the cordial knowledge buffer received",
+                registry,
+            ).unwrap(),
+            cordial_knowledge_processed_messages: register_int_counter_with_registry!(
+                "cordial_knowledge_processed_messages",
+                "Number of cordial knowledge messages processed",
+                registry,
+            ).unwrap(),
+            cordial_knowledge_rounds: register_int_gauge_vec_with_registry!(
+                "cordial_knowledge_rounds",
+                "Number of cordial knowledge rounds processed per authority",
+                &["authority"],
                 registry,
             ).unwrap(),
             dag_state_store_read_count: register_int_counter_vec_with_registry!(
