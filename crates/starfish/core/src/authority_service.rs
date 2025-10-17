@@ -668,6 +668,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                         }
                     };
 
+                    debug!("Block bundle {block_bundle:?}");
+
                     match SerializedBlockBundle::try_from(block_bundle) {
                         Ok(serialized_block_bundle) => Some(serialized_block_bundle),
                         Err(e) => {
