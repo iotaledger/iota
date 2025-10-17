@@ -228,7 +228,9 @@ export function AddAccountPage() {
                                         <Button
                                             type={ButtonType.Secondary}
                                             onClick={() => handleCardAction(card.actionType)}
-                                            icon={<card.icon className="h-5 w-5" />}
+                                            icon={
+                                                <card.icon className="h-5 w-5 text-iota-primary-30 dark:text-iota-primary-80" />
+                                            }
                                             text={card.title}
                                             disabled={card.isDisabled}
                                         />
