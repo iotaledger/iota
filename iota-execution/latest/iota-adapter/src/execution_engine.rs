@@ -347,24 +347,25 @@ mod checked {
         // execution.
         temporary_store.store_auth_context(auth_ctx);
 
-        // Setup a move authenticator transaction.
-        let authenticator_move_call =
-            setup_authenticator_move_call(authenticator, authenticator_info).unwrap(); //TODO
-
         // Execute the authenticator transaction.
-        let (computation_gas_cost, execution_result) = execute_authenticator_move_call::<Mode>(
-            &mut temporary_store,
-            authenticator_move_call,
-            gas_charger,
-            &mut tx_ctx,
-            move_vm,
-            protocol_config,
-            metrics,
-            false,
-            contains_deleted_input,
-            cancelled_objects,
-            trace_builder_opt,
-        );
+        let (computation_gas_cost, execution_result) =
+            match setup_authenticator_move_call(authenticator, authenticator_info) {
+                Ok(authenticator_move_call) => execute_authenticator_move_call::<Mode>(
+                    &mut temporary_store,
+                    authenticator_move_call,
+                    gas_charger,
+                    &mut tx_ctx,
+                    move_vm,
+                    protocol_config,
+                    metrics,
+                    false,
+                    contains_deleted_input,
+                    cancelled_objects,
+                    trace_builder_opt,
+                ),
+                // TODO: charge a minimum gas amount for failed setup?
+                Err(authenticator_setup_error) => (0, Err(authenticator_setup_error)),
+            };
 
         // Check the execution result.
         let status = if let Err(error) = &execution_result {
