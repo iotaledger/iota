@@ -1,83 +1,161 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { test, expect } from './fixtures';
-import { connectWallet, requestFaucetTokensOnWalletHome } from './utils';
+import { formatBalance, IOTA_DECIMALS, parseAmount } from '@iota/iota-sdk/utils';
+import { MIN_NUMBER_IOTA_TO_STAKE } from '@iota/core/src/constants/staking.constants';
+import { test, expect } from './utils/fixtures';
 import 'dotenv/config';
+import {
+    getStakedAmount,
+    navigateToDashboardStakePage,
+    setupWalletWithFunds,
+    submitAndVerifyStaking,
+    submitAndVerifyUnstaking,
+} from './utils/stake';
+
+const LONG_TIMEOUT = 180_000;
+const STAKE_AMOUNT = 100;
 
 test.describe('Wallet staking', () => {
-    test.setTimeout(30_000);
-
     test('should allow to stake and unstake funds', async ({
-        context,
         pageWithFreshWallet,
+        context,
         extensionName,
     }) => {
-        await pageWithFreshWallet.bringToFront();
-        await requestFaucetTokensOnWalletHome(pageWithFreshWallet);
+        test.setTimeout(LONG_TIMEOUT);
+        const dashboardPage = await setupWalletWithFunds(
+            pageWithFreshWallet,
+            context,
+            extensionName,
+        );
+        await navigateToDashboardStakePage(dashboardPage);
 
-        const dashboardPage = await context.newPage();
-        await dashboardPage.goto('/');
-        await connectWallet(dashboardPage, context, extensionName);
+        await dashboardPage.getByLabel('Amount').fill(STAKE_AMOUNT.toString());
 
-        await dashboardPage.getByTestId('sidebar-staking').click();
-        // Move mouse to avoid keeping tooltip open
-        await dashboardPage.mouse.move(200, 0);
-        // Wait for tooltip to disappear
-        await expect(dashboardPage.getByRole('tooltip', { name: 'Staking' })).not.toBeVisible({
-            timeout: 5_000,
-        });
-        await dashboardPage.getByRole('button', { name: 'Stake' }).click();
-
-        await dashboardPage.getByText('validator-0').click();
-        await dashboardPage.getByText('Next').click();
-
-        await expect(dashboardPage.getByText(/IOTA Available/)).toBeVisible({ timeout: 30_000 });
-        await dashboardPage.getByLabel('Amount').fill('10');
-
-        let stakeButton = dashboardPage.getByTestId('stake-confirm-btn');
-        await expect(stakeButton).toBeVisible();
-
-        stakeButton = dashboardPage.getByTestId('stake-confirm-btn');
-        let walletApprovePagePromise = context.waitForEvent('page');
-        await stakeButton.click();
-
-        let walletApprovePage = await walletApprovePagePromise;
-        await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
-
-        await dashboardPage.bringToFront();
-
-        await expect(dashboardPage.getByText('Successfully sent')).toBeVisible({
-            timeout: 30_000,
-        });
-
-        await dashboardPage.getByTestId('close-icon').click();
+        await submitAndVerifyStaking(dashboardPage, context);
 
         await dashboardPage.reload();
+        const stakedAmount = await getStakedAmount(dashboardPage);
+        expect(stakedAmount).toEqual(STAKE_AMOUNT.toString());
 
-        const stakedAmount = await dashboardPage
-            .locator('div:has(> span:text("Your stake"))')
-            .locator('xpath=../../div/span')
-            .first()
-            .textContent();
-        expect(stakedAmount).toEqual('10');
+        await submitAndVerifyUnstaking(dashboardPage, context);
+    });
 
-        // UNSTAKE
-        await dashboardPage.getByText('validator-0').click();
-        await dashboardPage.getByText('Unstake').click();
+    test.describe('Staking with amount selection methods', () => {
+        test('should stake using Max button and then unstake', async ({
+            pageWithFreshWallet,
+            context,
+            extensionName,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            const dashboardPage = await setupWalletWithFunds(
+                pageWithFreshWallet,
+                context,
+                extensionName,
+            );
 
-        walletApprovePagePromise = context.waitForEvent('page');
-        await dashboardPage.getByRole('button', { name: 'Unstake' }).click();
-        walletApprovePage = await walletApprovePagePromise;
-        await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
+            await navigateToDashboardStakePage(dashboardPage);
 
-        await dashboardPage.bringToFront();
+            await dashboardPage.getByRole('button', { name: 'Max' }).click();
+            const inputField = dashboardPage.getByLabel('Amount');
+            const maxAmountValue = await inputField.inputValue();
+            const maxAmount = parseFloat(maxAmountValue);
+            const amountInNanos = parseAmount(maxAmount.toString(), IOTA_DECIMALS);
 
-        await dashboardPage.waitForSelector('text=Start Staking', {
-            timeout: 30_000,
+            await submitAndVerifyStaking(dashboardPage, context);
+
+            await dashboardPage.reload();
+            const stakedAmount = await getStakedAmount(dashboardPage);
+            expect(stakedAmount).toEqual(formatBalance(amountInNanos, IOTA_DECIMALS));
+
+            await submitAndVerifyUnstaking(dashboardPage, context);
         });
 
-        expect(dashboardPage.getByRole('button', { name: 'Stake' })).toBeVisible();
-        expect(dashboardPage.getByText('validator-0')).not.toBeVisible();
+        test('should stake using Recommended amount button and then unstake', async ({
+            pageWithFreshWallet,
+            context,
+            extensionName,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            test.setTimeout(LONG_TIMEOUT);
+            const dashboardPage = await setupWalletWithFunds(
+                pageWithFreshWallet,
+                context,
+                extensionName,
+            );
+
+            await navigateToDashboardStakePage(dashboardPage);
+
+            await dashboardPage.getByRole('button', { name: 'Max' }).click();
+            await dashboardPage.getByText('Set recommended amount').click();
+
+            const inputField = dashboardPage.getByLabel('Amount');
+            const maxAmountValue = await inputField.inputValue();
+            const maxAmount = parseFloat(maxAmountValue);
+            const amountInNanos = parseAmount(maxAmount.toString(), IOTA_DECIMALS);
+
+            await submitAndVerifyStaking(dashboardPage, context);
+
+            await dashboardPage.reload();
+            const stakedAmount = await getStakedAmount(dashboardPage);
+            expect(stakedAmount).toEqual(formatBalance(amountInNanos, IOTA_DECIMALS));
+
+            await submitAndVerifyUnstaking(dashboardPage, context);
+        });
+    });
+
+    test.describe('Edge case staking amounts', () => {
+        test('should stake minimum allowed amount and then unstake', async ({
+            pageWithFreshWallet,
+            context,
+            extensionName,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            const dashboardPage = await setupWalletWithFunds(
+                pageWithFreshWallet,
+                context,
+                extensionName,
+            );
+            await navigateToDashboardStakePage(dashboardPage);
+            await dashboardPage.getByLabel('Amount').fill(MIN_NUMBER_IOTA_TO_STAKE.toString());
+            await submitAndVerifyStaking(dashboardPage, context);
+
+            await dashboardPage.reload();
+            const stakedAmount = await getStakedAmount(dashboardPage);
+            expect(stakedAmount).toEqual(MIN_NUMBER_IOTA_TO_STAKE.toString());
+
+            await submitAndVerifyUnstaking(dashboardPage, context);
+        });
+
+        test('should stake max amount minus 1 nano and then unstake', async ({
+            pageWithFreshWallet,
+            context,
+            extensionName,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            const dashboardPage = await setupWalletWithFunds(
+                pageWithFreshWallet,
+                context,
+                extensionName,
+            );
+            await navigateToDashboardStakePage(dashboardPage);
+
+            await dashboardPage.getByRole('button', { name: 'Max' }).click();
+            const inputField = dashboardPage.getByLabel('Amount');
+            const maxAmountValue = await inputField.inputValue();
+            const maxAmount = parseFloat(maxAmountValue);
+            const adjustedAmount = maxAmount - 0.0000001;
+            const amountInNanos = parseAmount(adjustedAmount.toString(), IOTA_DECIMALS);
+            await inputField.fill('');
+            await inputField.fill(adjustedAmount.toString());
+
+            await submitAndVerifyStaking(dashboardPage, context);
+
+            await dashboardPage.reload();
+            const stakedAmount = await getStakedAmount(dashboardPage);
+            expect(stakedAmount).toEqual(formatBalance(amountInNanos, IOTA_DECIMALS));
+
+            await submitAndVerifyUnstaking(dashboardPage, context);
+        });
     });
 });
