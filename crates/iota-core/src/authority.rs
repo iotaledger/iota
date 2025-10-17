@@ -931,7 +931,9 @@ impl AuthorityState {
                     tx_data,
                     is_gas_check_required,
                 )?;
-            //
+
+            // After checking the `MoveAuthenticator` inputs, gas check is not required
+            // in order to avoid gas double-checking.
             is_gas_check_required = false;
             let (kind, signer, _) = tx_data.execution_parts();
 
@@ -2183,7 +2185,7 @@ impl AuthorityState {
     ) -> IotaResult<SimulateTransactionResult> {
         // Cheap validity checks for a transaction, including input size limits.
         transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
-
+        let is_gas_check_required = true;
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
 
@@ -2233,7 +2235,7 @@ impl AuthorityState {
                     gas_object,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
-                    true,
+                    is_gas_check_required,
                 )?,
                 Some(gas_object_id),
             )
@@ -2247,7 +2249,7 @@ impl AuthorityState {
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
-                    true,
+                    is_gas_check_required,
                 )?,
                 None,
             )
