@@ -10,7 +10,7 @@ import TabItem from '@theme/TabItem';
 
 # IOTA Identity Workshop
 
-In this workshop, we will build a production-ready **University Degree Verification system** using **IOTA Identity**, **Rust**, and **React.** By the end of this workshop, you’ll have a complete, end-to-end flow demonstrating how **Issuers**, **Holders**, and **Verifiers** interact in a real-world university degree validation scenario — all powered by IOTA Identity. We will build the application piece-by-piece, focusing on the communication flow for each of the four core identity steps (Decentralized Identifier creation, Verifiable Credential issuance, Verifiable Presentation creation, and Verification).
+In this workshop, we will build a production-ready **University Degree Verification system** using **IOTA Identity**, **Rust**, and **React.** By the end of this workshop, you’ll have a complete, end-to-end flow demonstrating how **universities**, **students**, and **employers** interact in a real-world university degree validation scenario — all powered by IOTA Identity. We will build the application piece-by-piece, focusing on the communication flow for each of the four core identity steps (Decentralized Identifier creation, Verifiable Credential issuance, Verifiable Presentation creation, and Verification).
 
 ## The Problem
 
@@ -435,7 +435,7 @@ async fn holder_create_did(Json(_body): Json<PackageId>) -> Result<Json<DidRespo
     - **Stronghold**: Securely stores the DID’s private keys.
     - **Axum Endpoint**: Handles HTTP requests and returns JSON responses.
 
-The `create_or_load_did` function is a critical helper function used by the `holder_create_did` endpoint to either create a new Decentralized Identifier (DID) for the Holder (student) or load an existing one from disk.
+The `create_or_load_did` function is a critical helper function used by the `holder_create_did` endpoint to either create a new Decentralized Identifier (DID) for the Student (Holder) or load an existing one from disk.
 
 ```Rust
 // iota-identity-backend/src/main.rs (create_or_load_did)
@@ -471,9 +471,9 @@ async fn create_or_load_did(
 ### Explanation:
 
 - **What it does**: The `create_or_load_did` function checks if a DID document exists at the specified `doc_file` path. If it doesn’t exist, it creates a new DID using the IOTA Identity library, funds it via an IOTA client, and saves the DID document and its signing fragment to `doc_file` and `fragment_file` respectively. If the file exists, it loads the DID document and fragment from disk. The function returns a tuple containing the `IotaDocument` (the DID document) and a `String` (the signing fragment).
-- **Why it matters**: This function ensures the Holder’s DID is either created and anchored to the IOTA network or loaded for reuse, providing persistence across server restarts. It abstracts the complexity of DID creation and storage, making it reusable across different endpoints (e.g., `holder_create_did`).
+- **Why it matters**: This function ensures the Students’s DID is either created and anchored to the IOTA network or loaded for reuse, providing persistence across server restarts. It abstracts the complexity of DID creation and storage, making it reusable across different endpoints (e.g., `holder_create_did`).
 - **Key concepts**:
-    - **DID Document**: A JSON object containing the Holder’s decentralized identifier (e.g., `did:iota`:...) and associated data like public keys.
+    - **DID Document**: A JSON object containing the student’s decentralized identifier (e.g., `did:iota`:...) and associated data like public keys.
     - **Stronghold Storage**: A secure storage system for private keys, accessed via `get_stronghold_storage`.
     - **Signing Fragment**: A reference to the verification method (e.g., an `Ed25519 key`) used for signing credentials or presentations.
     - **Persistence**: Saves the DID and fragment to disk to avoid recreating them, ensuring consistency in the identity flow.
@@ -481,7 +481,7 @@ async fn create_or_load_did(
 
 ## Context
 
-The `create_or_load_did` function, used by the `holder_create_did` endpoint, relies on three helper functions to create or load a DID. These functions, defined in `crates/identity_logic/src/lib.rs`, handle interactions with the IOTA Identity framework and the IOTA network, enabling the creation and management of Decentralized Identifiers (DIDs) for the Holder (student).
+The `create_or_load_did` function, used by the `holder_create_did` endpoint, relies on three helper functions to create or load a DID. These functions, defined in `crates/identity_logic/src/lib.rs`, handle interactions with the IOTA Identity framework and the IOTA network, enabling the creation and management of Decentralized Identifiers (DIDs) for the Student (holder).
 
 - `get_stronghold_storage`: Sets up secure storage for private keys.
 - `get_funded_client`: Creates an IOTA Identity client with sufficient funds for network operations.
@@ -614,7 +614,7 @@ where
 ## Explanation:
 
 - **What it does**: The `create_did_document` function creates a new, unpublished `IotaDocument` for the specified IOTA network, generates an Ed25519 verification method (key pair) stored in `storage`, and adds it to the document. It then publishes the document to the IOTA network using the provided `identity_client`, allocating a gas budget (`TEST_GAS_BUDGET`) for the transaction. The function returns the published DID document and the fragment (identifier) of the verification method.
-- **Why it matters**: This function is the core of DID creation, anchoring the Holder’s identity to the IOTA network. The published DID document and its verification method enable secure signing of credentials and presentations, forming the foundation of the workshop’s identity flow.
+- **Why it matters**: This function is the core of DID creation, anchoring the Student’s identity to the IOTA network. The published DID document and its verification method enable secure signing of credentials and presentations, forming the foundation of the workshop’s identity flow.
 - **Key concepts**:
     - **IotaDocument**: A JSON object representing a DID, including its identifier (e.g., `did:iota:...`) and verification methods.
     - **Verification Method**: An Ed25519 key pair used for signing, identified by a fragment (e.g., #sign-0).
@@ -629,7 +629,7 @@ These helper functions are called by `create_or_load_did` to create a new DID:
 - `get_funded_client`: Creates a funded IOTA Identity client to interact with the network.
 - `create_did_document`: Generates and publishes the DID document, returning it along with the signing fragment.
 
-Together, they ensure the Holder’s DID is created securely, funded, and anchored to the IOTA network, or loaded from disk if it already exists.
+Together, they ensure the Student’s DID is created securely, funded, and anchored to the IOTA network, or loaded from disk if it already exists.
 
 ### Checkpoint
 
@@ -661,19 +661,19 @@ const handleIssueVc = async () => {
 ```
 ## Explanation
 
-- **What it does**: The `handleIssueVc` function sends a POST request to the `/issuer/issue-vc` endpoint with an empty body. The backend generates a VC and returns its JWT, which is stored in the React state (`setVcJwt`) for display and use in the next step.
-- **Why it matters**: This triggers the issuance of a degree credential, which the student can later present to employers. It connects the frontend UI to the backend’s VC logic.
+- **What it does**: The `handleIssueVc` function sends a POST request to the `/issuer/issue-vc` endpoint with an empty body. The backend generates a Verifiable Credential and returns its JWT, which is stored in the React state (`setVcJwt`) for display and use in the next step.
+- **Why it matters**: This triggers the issuance of a degree credential, which the student can later present to employers. It connects the frontend UI to the backend’s Verifiable Credential logic.
 - **Key concepts**:
-    - **VC**: A signed document asserting the student’s degree (e.g., Bachelor of Science).
-    - **JWT**: The VC is encoded as a `JSON Web Token` for secure transmission.
+    - **Verifiable Credential**: A signed document asserting the student’s degree (e.g., Bachelor of Science).
+    - **JSON Web Token**: The Verifiable Credential is encoded as a `JSON Web Token` for secure transmission.
     - **React State**: Stores the `VC JWT` for use in VP creation.
 
-**Backend** (`src/main.rs`): In this step, the Issuer (university) creates or loads its Decentralized Identifier (DID) and issues a Verifiable Credential (VC) representing a university degree for the Holder (student, Alice). This VC is signed and returned as a JSON Web Token (JWT) to the React frontend for use in subsequent steps.
+**Backend** (`src/main.rs`): In this step, the Uinversity (issuer) creates or loads its Decentralized Identifier (DID) and issues a Verifiable Credential (VC) representing a university degree for the Student (holder, Alice). This VC is signed and returned as a JSON Web Token (JWT) to the React frontend for use in subsequent steps.
 
 The `issuer_issue_vc` function handles the `/issuer/issue-vc` endpoint in the Rust Axum backend, orchestrating the creation and signing of the VC.
 
 ```Rust
-// Issuer creates DID (if needed) and issues a VC to the Holder
+// Issuer creates DID (if needed) and issues a VC to the Student
 async fn issuer_issue_vc(Json(_body): Json<PackageId>) -> Result<Json<JwtResponse>, StatusCode> {
     let issuer_doc_file = "./issuer_doc.json";
     let issuer_fragment_file = "./issuer_fragment.txt";
@@ -689,11 +689,11 @@ async fn issuer_issue_vc(Json(_body): Json<PackageId>) -> Result<Json<JwtRespons
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
-    // 2. Load Holder DID (must exist from Step 1)
+    // 2. Load Student DID (must exist from Step 1)
     let holder_doc_json = fs::read_to_string("./holder_doc.json").map_err(|_| StatusCode::NOT_FOUND)?;
     let holder_doc = IotaDocument::from_json(&holder_doc_json).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // 3. Build VC
+    // 3. Build Verifiable Credential
     let subject = Subject::from_json_value(serde_json::json!({
         "id": holder_doc.id().as_str(),
         "name": "Alice",
@@ -708,7 +708,7 @@ async fn issuer_issue_vc(Json(_body): Json<PackageId>) -> Result<Json<JwtRespons
         .subject(subject)
         .build().map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    // 4. Sign VC
+    // 4. Sign Verifiable Credential
     let issuer_storage = get_stronghold_storage(Some(PathBuf::from(issuer_stronghold_path))).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
     let credential_jwt = issuer_doc
         .create_credential_jwt(
@@ -734,21 +734,21 @@ async fn issuer_issue_vc(Json(_body): Json<PackageId>) -> Result<Json<JwtRespons
 ## Explanation:
 
 - **What it does**: The `issuer_issue_vc` function handles the `/issuer/issue-vc` HTTP endpoint, triggered by the React frontend. It performs four key steps:
-    1. **Create/Load Issuer DID**: Calls `create_or_load_did` to either create a new DID for the Issuer (university) or load an existing one from disk.
-    2. **Load Holder DID**: Reads the Holder’s DID document from `holder_doc.json` (created in Step 1).
-    3. **Build VC**: Constructs a Verifiable Credential with the Holder’s DID, student details (e.g., name, degree, GPA), and an issuer identifier.
-    4. **Sign VC**: Uses the Issuer’s private key (stored in Stronghold) to sign the VC as a JWT, which is returned to the frontend.
-- **Why it matters**: This function creates a tamper-proof degree credential linked to the Holder’s DID, enabling secure verification by employers in later steps. It connects the frontend’s “Issue VC” button to the IOTA Identity framework, ensuring the credential is cryptographically signed and verifiable on the IOTA network.
+    1. **Create/Load Issuer DID**: Calls `create_or_load_did` to either create a new DID for the University (issuer) or load an existing one from disk.
+    2. **Load Student DID**: Reads the Student’s DID document from `holder_doc.json` (created in Step 1).
+    3. **Build Verifiable Credential**: Constructs a Verifiable Credential with the Student’s DID, student details (e.g., name, degree, GPA), and an university identifier.
+    4. **Sign Verifiable Credential**: Uses the University's private key (stored in Stronghold) to sign the Verifiable Credential as a JSON Web Token, which is returned to the frontend.
+- **Why it matters**: This function creates a tamper-proof degree credential linked to the Student’s DID, enabling secure verification by employers in later steps. It connects the frontend’s “Issue Verifiable Credential” button to the IOTA Identity framework, ensuring the credential is cryptographically signed and verifiable on the IOTA network.
 - **Key concepts**:
-    - **Verifiable Credential (VC)**: A digitally signed document asserting claims (e.g., Alice’s degree) linked to the Holder’s DID.
-    - **DID**: The Issuer’s and Holder’s decentralized identifiers, used to establish trust and ownership.
-    - **JWT**: A JSON Web Token encoding the VC, signed with the Issuer’s private key for authenticity.
-    - **Stronghold**: Securely stores the Issuer’s private key, accessed via `get_stronghold_storage`.
+    - **Verifiable Credential (VC)**: A digitally signed document asserting claims (e.g., Alice’s degree) linked to the Student’s DID.
+    - **Decentralized Identifier (DID)**: The Universities’s and Student’s decentralized identifiers, used to establish trust and ownership.
+    - **JWT**: A JSON Web Token encoding the VC, signed with the Universities’s private key for authenticity.
+    - **Stronghold**: Securely stores the Universities’s private key, accessed via `get_stronghold_storage`.
     - **CredentialBuilder**: An IOTA Identity utility for constructing VCs with standardized fields (e.g., `id`, `issuer`, `subject`).
 
 ## Step-by-Step Breakdown
 
-1. ## Create/Load Issuer DID:
+1. ## Create/Load University Decentralized Identifier (DID):
 
 - Code:
 
@@ -760,13 +760,13 @@ let (issuer_doc, issuer_fragment) = create_or_load_did(
 ).await.map_err(...)?;
 ```
 
-- **What it does**: Calls the `create_or_load_did` helper function to either create a new DID for the Issuer (saved to `issuer_doc.json` and `issuer_fragment.txt`) or load an existing one. The DID is anchored to the IOTA network if newly created.
-- **Why it matters**: The Issuer’s DID establishes the university’s identity, used to sign the VC and prove its authenticity.
+- **What it does**: Calls the `create_or_load_did` helper function to either create a new DID for the University (saved to `issuer_doc.json` and `issuer_fragment.txt`) or load an existing one. The DID is anchored to the IOTA network if newly created.
+- **Why it matters**: The University's DID establishes the university’s identity, used to sign the Verifiable Credential and prove its authenticity.
 - **Key concepts**:
-    - **DID Document**: Contains the Issuer’s identifier (e.g., `did:iota:...`) and verification methods.
+    - **DID Document**: Contains the University's identifier (e.g., `did:iota:...`) and verification methods.
     - **Fragment**: Identifies the signing key (e.g., `#sign-0`) in the DID document.
 
-2. ## Load Holder Decentralized Identifier:
+2. ## Load Student Decentralized Identifier:
 
 - **Code**:
 
@@ -775,8 +775,8 @@ let holder_doc_json = fs::read_to_string("./holder_doc.json").map_err(|_| Status
 let holder_doc = IotaDocument::from_json(&holder_doc_json).map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 ```
 
-- **What it does**: Reads the Holder’s DID document from `holder_doc.json` (created in Step 1) and deserializes it into an `IotaDocument`.
-- **Why it matters**: The Holder’s DID is needed to link the VC to the student (Alice), ensuring the credential is tied to her identity.
+- **What it does**: Reads the Student’s DID document from `holder_doc.json` (created in Step 1) and deserializes it into an `IotaDocument`.
+- **Why it matters**: The Student’s DID is needed to link the Verifiable Credential to the student (Alice), ensuring the credential is tied to her identity.
 - **Key concepts**:
     - File I/O: Uses Rust’s `fs` module to read the DID document from disk.
     - JSON Deserialization: Converts the JSON string into an `IotaDocument` using `from_json`.
@@ -800,11 +800,11 @@ let credential: Credential<Object> = CredentialBuilder::default()
     .build().map_err(...)?;
 ```
 
-- **What it does**: Creates a `Subject` object with the Holder’s DID, name, degree details, and GPA. Uses `CredentialBuilder` to construct a VC with a unique ID, the Issuer’s DID, a type (`UniversityDegreeCredential`), and the subject data.
-- **Why it matters**: The VC is the digital degree certificate, containing verifiable claims about Alice’s academic achievement. It follows the W3C Verifiable Credentials standard for interoperability.
+- **What it does**: Creates a `Subject` object with the Student's DID, name, degree details, and GPA. Uses `CredentialBuilder` to construct a Verifiable Credential with a unique ID, the University's DID, a type (`UniversityDegreeCredential`), and the subject data.
+- **Why it matters**: The Verifiable Credential is the digital degree certificate, containing verifiable claims about Alice’s academic achievement. It follows the W3C Verifiable Credentials standard for interoperability.
 - **Key concepts**:
-    - **Subject**: The entity (Alice) the VC is about, linked to her DID.
-    - **CredentialBuilder**: Builds a structured VC with standardized fields.
+    - **Subject**: The entity (Alice) the Verifiable Credential is about, linked to her DID.
+    - **CredentialBuilder**: Builds a structured Verifiable Credential with standardized fields.
     - **JSON Macro**: The `serde_json::json!` macro creates a JSON object for the subject data.
 
 4. ## Sign Verifiable Credential:
@@ -825,11 +825,11 @@ let credential_jwt = issuer_doc
     .map_err(...)?;
 ```
 
-- **What it does**: Initializes Stronghold storage for the Issuer’s private keys, then uses the `issuer_doc` to sign the VC with the specified `issuer_fragment` (signing key). The signed VC is encoded as a JWT.
-- **Why it matters**: Signing the VC ensures its authenticity and integrity, allowing verifiers (e.g., employers) to trust that it was issued by the university.
+- **What it does**: Initializes Stronghold storage for the University's private keys, then uses the `issuer_doc` to sign the Verifiable Credential with the specified `issuer_fragment` (signing key). The signed VC is encoded as a JWT.
+- **Why it matters**: Signing the VC ensures its authenticity and integrity, allowing employers (e.g., verifier) to trust that it was issued by the university.
 - **Key concepts**:
-    - **Digital Signature**: Uses the Issuer’s private key (via Stronghold) to sign the VC.
-    - **JWT**: Encodes the VC for secure transmission to the frontend.
+    - **Digital Signature**: Uses the University's private key (via Stronghold) to sign the Verifiable Credential.
+    - **JWT**: Encodes the Verifiable Credential for secure transmission to the frontend.
     - **JwsSignatureOptions**: Configures signing options (e.g., default algorithm is Ed25519).
 
 5. ## Return Verifiable Credential JWT:
@@ -841,7 +841,7 @@ Ok(Json(JwtResponse {
     jwt: credential_jwt.as_str().to_string(),
 }))
 ```
-- **What it does**: Wraps the VC JWT in a `JwtResponse` struct and returns it as a JSON response to the frontend.
+- **What it does**: Wraps the Verifiable Credential JWT in a `JwtResponse` struct and returns it as a JSON response to the frontend.
 - **Why it matters**: The JWT is sent to the React frontend, where it’s stored for use in the next step (VP creation).
 - **Key concepts**:
     - **Axum Response**: Uses `Json` to serialize the response for HTTP communication.
@@ -851,9 +851,9 @@ Ok(Json(JwtResponse {
 
 The `issuer_issue_vc` function is triggered by the React frontend’s “Execute Step 2” button, which calls the `/issuer/issue-vc` endpoint. It relies on:
 
-- `create_or_load_did`: To obtain the Issuer’s DID and signing fragment.
-- `get_stronghold_storage`: To access the Issuer’s private keys for signing.
-- The Holder’s DID document (`holder_doc.json`) from Step 1.
+- `create_or_load_did`: To obtain the University's DID and signing fragment.
+- `get_stronghold_storage`: To access the University's private keys for signing.
+- The Student's DID document (`holder_doc.json`) from Step 1.
 
 The returned Verifiable Credential JWT is stored in the frontend’s state and used in Step 3 to create a Verifiable Presentation (VP).
 
@@ -864,7 +864,7 @@ The returned Verifiable Credential JWT is stored in the frontend’s state and u
 - Check the frontend UI to confirm the VC JWT is displayed (e.g., a long string starting with `eyJ...`).
 - Use an online JWT decoder to inspect the VC’s contents (e.g., Alice’s name, degree).
 
-Output after a successful creation of the student’s VC.
+Output after a successful creation of the student’s Verifiable Credential.
 
 ![Create DID output](./images/IssueVC.png)
 
@@ -874,7 +874,7 @@ Output after a successful creation of the student’s VC.
 | :--- | :--- | :--- | :--- |
 | **Button Click** (`/holder/create-vp`) | `packageId, vcJwt` | `{ "vpJwt string}` |
 
-**Frontend** (`src/App.jsx`): The client sends the received VC back to the server, asking the server to wrap and sign it.
+**Frontend** (`src/App.jsx`): The client sends the received Verifiable Credential back to the server, asking the server to wrap and sign it.
 
 ```JavaScript
 // src/App.jsx (Holder VP Handler)
@@ -893,11 +893,11 @@ const handleCreateVp = async () => {
 - **What it does**: The `handleCreateVp` function sends a POST request to the `/holder/create-vp` endpoint, including the VC JWT (`vcJwt`) from the previous step. The backend returns a VP JWT, which is stored in the React state (`setVpJwt`) for display and verification.
 - **Why it matters**: This allows the student to create a signed VP, proving they own the VC when presenting it to an employer.
 - **Key concepts**:
-    - **VP**: A signed package containing the VC, proving the Holder’s ownership.
-    - **Payload**: Sends the VC JWT to the backend for inclusion in the VP.
+    - **VP**: A signed package containing the Verifiable Credential, proving the Student's ownership.
+    - **Payload**: Sends the Verifiable Credential JWT to the backend for inclusion in the VP.
     - **React State**: Stores the VP JWT for the final verification step.
 
-**Backend** (`src/main.rs`): In this step, the Holder (student, Alice) packages the received Verifiable Credential (VC) into a Verifiable Presentation (VP) and signs it for presentation to a verifier (employer). The VP proves that Alice controls the VC and hasn't tampered with it.
+**Backend** (`src/main.rs`): In this step, the Holder (student, Alice) packages the received Verifiable Credential (VC) into a Verifiable Presentation (VP) and signs it for presentation to a employer (verifier). The Verifiable Presentation proves that Alice controls the Verifiable Credential and hasn't tampered with it.
 
 ## Backend: `holder_create_vp` Function
 
@@ -959,12 +959,12 @@ async fn holder_create_vp(Json(body): Json<VcJwt>) -> Result<Json<JwtResponse>, 
 ## Explanation:
 
 - What it does: The `holder_create_vp` function handles the `/holder/create-vp` HTTP endpoint, triggered by the React frontend. It performs three key steps:
-    1. **Load Holder DID**: Retrieves the Holder's DID document and signing fragment from disk (created in Step 1).
-    2. **Build VP**: Creates a Verifiable Presentation that embeds the received VC JWT (`body.vc_jwt`), sets the Holder's DID as the presenter, and configures expiration and challenge parameters.
-    3. **Sign VP**: Uses the Holder's private key (stored in Stronghold) to sign the VP, creating a JWT that proves Alice controls the VC.
-- **Why it matters**: This function enables the student to create a signed presentation of their degree credential, which they can securely share with employers. The VP proves both the authenticity of the VC (from Step 2) and Alice's ownership of it, completing the Holder's role in the identity flow.
+    1. **Load Holder DID**: Retrieves the Student's DID document and signing fragment from disk (created in Step 1).
+    2. **Build VP**: Creates a Verifiable Presentation that embeds the received VC JWT (`body.vc_jwt`), sets the Student's DID as the presenter, and configures expiration and challenge parameters.
+    3. **Sign VP**: Uses the Student's private key (stored in Stronghold) to sign the VP, creating a JWT that proves Alice controls the VC.
+- **Why it matters**: This function enables the student to create a signed presentation of their degree credential, which they can securely share with employers. The VP proves both the authenticity of the VC (from Step 2) and Alice's ownership of it, completing the Student's role in the identity flow.
 - **Key concepts**:
-    - **Verifiable Presentation (VP)**: A signed package containing one or more VCs, proving the presenter's control and ownership.
+    - **Verifiable Presentation (VP)**: A signed package containing one or more Verifiable Credentials, proving the presenter's control and ownership.
     - **Challenge/Nonce**: A unique string (`challenge-123`) that prevents replay attacks and ensures the VP is fresh.
     - **Expiration**: The VP expires after 10 minutes, adding security by limiting its validity period.
     - **PresentationBuilder**: An IOTA Identity utility for constructing VPs with the presenter's DID and embedded credentials.
@@ -983,8 +983,8 @@ let (holder_doc, holder_fragment) = create_or_load_did(
 ).await.map_err(|_| StatusCode::NOT_FOUND)?; 
 ```
 
-    - **What it does**: Calls the `create_or_load_did` helper function to load the Holder's DID document and signing fragment from `holder_doc.json` and `holder_fragment.txt` (created in Step 1). Since the DID already exists, it reads from disk rather than creating a new one.
-    - **Why it matters**: The Holder's DID is needed to identify Alice as the presenter of the VP and to access her private key for signing. This ensures the VP is linked to her identity.
+    - **What it does**: Calls the `create_or_load_did` helper function to load the Student's DID document and signing fragment from `holder_doc.json` and `holder_fragment.txt` (created in Step 1). Since the DID already exists, it reads from disk rather than creating a new one.
+    - **Why it matters**: The Student's DID is needed to identify Alice as the presenter of the VP and to access her private key for signing. This ensures the VP is linked to her identity.
     - **Key concepts**:
         - **DID Persistence**: The DID document and fragment are loaded from disk, ensuring consistency across API calls.
         - **HTTP Error Handling**: Returns `StatusCode::NOT_FOUND` if the DID files don't exist, indicating Step 1 wasn't completed.
@@ -999,10 +999,10 @@ let challenge = "challenge-123";
 let expires = Timestamp::now_utc().checked_add(Duration::minutes(10)).unwrap();
 ```
 
-    - **What it does**: Initializes Stronghold storage for accessing the Holder's private keys and sets security parameters: a fixed challenge (`challenge-123`) for nonce validation and an expiration time 10 minutes from now.
+    - **What it does**: Initializes Stronghold storage for accessing the Student's private keys and sets security parameters: a fixed challenge (`challenge-123`) for nonce validation and an expiration time 10 minutes from now.
     - **Why it matters**: Stronghold provides secure access to Alice's private key for signing the VP. The challenge prevents replay attacks (using the same VP multiple times), and the expiration ensures the VP has limited validity, enhancing security.
     - **Key concepts**:
-        - **Stronghold Storage**: Securely stores and retrieves the Holder's private keys.
+        - **Stronghold Storage**: Securely stores and retrieves the Student's private keys.
         - **Challenge/Nonce**: A unique identifier included in the VP signature, verified by the recipient to ensure freshness.
         - **Timestamp & Duration**: Sets the VP's expiration using UTC time, preventing indefinite use.
 
@@ -1021,12 +1021,12 @@ let presentation: Presentation<Jwt> = PresentationBuilder::new(
     })?;
 ```
 
-    - **What it does**: Creates a `PresentationBuilder` with the Holder's DID as the presenter, embeds the received VC JWT (`body.vc_jwt`) from the frontend, and builds the presentation structure. The `Jwt::new(body.vc_jwt)` wraps the VC JWT as a credential within the presentation.
-    - **Why it matters**: This constructs the VP structure that contains Alice's degree credential, linking it to her identity. The presentation format allows verifiers to validate both the VC's authenticity and Alice's ownership.
+    - **What it does**: Creates a `PresentationBuilder` with the Student's DID as the presenter, embeds the received VC JWT (`body.vc_jwt`) from the frontend, and builds the presentation structure. The `Jwt::new(body.vc_jwt)` wraps the VC JWT as a credential within the presentation.
+    - **Why it matters**: This constructs the VP structure that contains Alice's degree credential, linking it to her identity. The presentation format allows employers to validate both the VC's authenticity and Alice's ownership.
     - **Key concepts**:
         - **PresentationBuilder**: Builds the VP structure with the presenter's DID and embedded credentials.
-        - **Credential Embedding**: The VC JWT (from Step 2) is included in the VP for presentation to verifiers.
-        - **URL Conversion**: The Holder's DID is converted to a URL format for use in the presentation.
+        - **Credential Embedding**: The VC JWT (from Step 2) is included in the VP for presentation to employers.
+        - **URL Conversion**: The Student's DID is converted to a URL format for use in the presentation.
 
 4. Sign Verifiable Presentation:
 
@@ -1048,10 +1048,10 @@ let vp_jwt: Jwt = holder_doc
     })?;
 ```
 
-- **What it does**: Uses the Holder's DID document to sign the presentation with her private key (accessed via `holder_storage` and identified by `holder_fragment`). The signature includes the challenge as a nonce and sets the expiration time. The signed presentation is encoded as a JWT.
-- **Why it matters**: Signing the VP with Alice's private key proves she controls the DID and the embedded VC, enabling verifiers to trust that she's the legitimate owner of the degree credential.
+- **What it does**: Uses the Student's DID document to sign the presentation with her private key (accessed via `holder_storage` and identified by `holder_fragment`). The signature includes the challenge as a nonce and sets the expiration time. The signed presentation is encoded as a JWT.
+- **Why it matters**: Signing the VP with Alice's private key proves she controls the Decentralized Identifier and the embedded Verifiable Credential, enabling employers to trust that she's the legitimate owner of the degree credential.
 - **Key concepts**:
-    - **Digital Signature**: Uses the Holder's private key to create a cryptographic proof of ownership.
+    - **Digital Signature**: Uses the Student's private key to create a cryptographic proof of ownership.
     - **create_presentation_jwt**: IOTA Identity function that signs the presentation and encodes it as a JWT.
     - **JwsSignatureOptions**: Configures the signature with a nonce (challenge) for replay protection.
     - **JwtPresentationOptions**: Sets presentation-specific options like expiration time.
@@ -1065,7 +1065,7 @@ Ok(Json(JwtResponse {
 }))
 ```
     - **What it does**: Wraps the signed VP JWT in a `JwtResponse` struct and returns it as a JSON response to the React frontend.
-    - **Why it matters**: The VP JWT is sent to the frontend, where it's stored for use in Step 4 (verification). This completes the Holder's role in creating a presentable credential package.
+    - **Why it matters**: The VP JWT is sent to the frontend, where it's stored for use in Step 4 (verification). This completes the Student's role in creating a presentable credential package.
     - **Key concepts**:
         - **Axum JSON Response**: Serializes the VP JWT for HTTP communication with the frontend.
         - **JwtResponse**: Custom API response structure containing the signed VP.
@@ -1075,8 +1075,8 @@ Ok(Json(JwtResponse {
 The `holder_create_vp` function is triggered by the React frontend's "Execute Step 3" button, which calls the `/holder/create-vp` endpoint with the VC JWT from Step 2. It relies on:
 
 - Input: The VC JWT (`body.vc_jwt`) received from the frontend (issued in Step 2).
-- **Dependencies**: `create_or_load_did` to load the Holder's DID and `get_stronghold_storage` to access private keys.
-- **Prerequisites**: The Holder's DID must exist from Step 1 (`holder_doc.json`).
+- **Dependencies**: `create_or_load_did` to load the Student's DID and `get_stronghold_storage` to access private keys.
+- **Prerequisites**: The Student's DID must exist from Step 1 (`holder_doc.json`).
 
 The returned VP JWT is stored in the frontend's state and used in Step 4 for verification by the employer.
 
@@ -1109,7 +1109,7 @@ const handleValidateVp = async () => {
 - What it does: The `handleValidateVp` function sends a POST request to the `/verifier/validate` endpoint with the VP JWT (`vpJwt`). The backend returns a validation result (log and success boolean), which updates the React state to display the outcome (e.g., “SUCCESS” or “FAIL”) in the UI.
 - Why it matters: This completes the identity flow by verifying the VP’s authenticity, ensuring the degree credential is valid and untampered.
 - Key concepts:
-    - Validation Result: Displays whether the VP and VC are valid.
+    - Validation Result: Displays whether the Verifiable Presentation and Verifiable Credential are valid.
     - React State: Updates the UI with the verification log and success status.
     - API Call: Sends the VP JWT to the backend for network-based verification.
 
@@ -1122,7 +1122,7 @@ In this step, the Verifier (employer) validates the Verifiable Presentation (VP)
 The `verifier_validate` function handles the `/verifier/validate` endpoint in the Rust Axum backend, receiving the VP JWT from the frontend and performing a multi-step validation process.
 
 ```Rust
-// Step 4: Verifier validates the VP and embedded VC
+// Step 4: Employer validates the Verifiable Presentation and embedded Verifiable Credential
 async fn verifier_validate(Json(body): Json<VpJwt>) -> Result<Json<ValidationResponse>, StatusCode> {
     let vp_jwt = Jwt::new(body.vp_jwt);
     let challenge = "challenge-123";
@@ -1215,14 +1215,14 @@ async fn verifier_validate(Json(body): Json<VpJwt>) -> Result<Json<ValidationRes
 
 - What it does: The verifier_validate function handles the /verifier/validate HTTP endpoint, triggered by the React frontend. It validates the VP JWT received from the frontend (body.vp_jwt) by performing four key steps:
     1. Setup Resolver and Client: Initializes an IOTA resolver and read-only client to fetch DID documents from the IOTA network.
-    2. Resolve Holder DID: Extracts and resolves the Holder’s DID from the VP to retrieve their public key.
+    2. Resolve Holder DID: Extracts and resolves the Student's DID from the VP to retrieve their public key.
     3. Validate VP Signature and Challenge: Verifies the VP’s signature and nonce (challenge) to ensure its authenticity and freshness.
-    4. Validate Embedded Credentials: Extracts and verifies the signatures of all embedded VCs, ensuring they were issued by trusted issuers.
+    4. Validate Embedded Credentials: Extracts and verifies the signatures of all embedded VCs, ensuring they were issued by trusted universities.
 - Why it matters: This function completes the IOTA Identity flow by enabling the employer (Verifier) to confirm the authenticity of Alice’s degree credential (VC) and her ownership of it (via the VP). It ensures trust without intermediaries, fulfilling the workshop’s goal of a secure, decentralized degree verification system.
 - Key concepts:
     - Resolver: A tool to fetch DID documents from the IOTA network, providing public keys for signature verification.
-    - VP Validation: Verifies the VP’s signature, nonce, and Holder’s identity.
-    - VC Validation: Confirms the embedded VC’s signature and issuer, ensuring it’s untampered and trustworthy.
+    - Verifiable Presentation Validation: Verifies the VP’s signature, nonce, and Student's identity.
+    - Verifiable Credential Validation: Confirms the embedded VC’s signature and university, ensuring it’s untampered and trustworthy.
     - Nonce/Challenge: Ensures the VP is fresh and not reused (challenge-123).
     - Validation Log: A detailed string (output) tracking each step’s success or failure, returned to the frontend.
 
@@ -1256,8 +1256,8 @@ let holder_doc: IotaDocument = resolver.resolve(&holder_did).await.map_err(|e| {
 output.push_str(&format!("✅ Resolved holder DID from network: {}\n", holder_doc.id()));
 ```
 
-    - What it does: Extracts the Holder’s DID from the VP JWT and uses the resolver to fetch the corresponding DID document from the IOTA network. Logs the extracted and resolved DID to the output string.
-    - Why it matters: The Holder’s DID document contains Alice’s public key, needed to verify the VP’s signature. Resolving it from the network ensures the DID is valid and untampered.
+    - What it does: Extracts the Student's DID from the VP JWT and uses the resolver to fetch the corresponding DID document from the IOTA network. Logs the extracted and resolved DID to the output string.
+    - Why it matters: The Student's DID document contains Alice’s public key, needed to verify the VP’s signature. Resolving it from the network ensures the DID is valid and untampered.
     - Key concepts:
         - CoreDID: A standardized DID representation (e.g., did:iota:...).
         - Resolver: Retrieves the DID document, including public keys, from the IOTA network.
@@ -1280,12 +1280,12 @@ output.push_str("✅ VP JWT verified successfully\n");
 output.push_str(&format!("✅ VP Holder matches Subject: {}\n", decoded_vp.presentation.holder));
 ```
 
-- What it does: Configures VP validation options with the expected nonce, then uses JwtPresentationValidator with an Ed25519 verifier to check the VP’s signature and nonce against the Holder’s public key (from holder_doc). Logs the successful validation and confirms the Holder’s DID matches the VP’s presenter.
+- What it does: Configures VP validation options with the expected nonce, then uses JwtPresentationValidator with an Ed25519 verifier to check the VP’s signature and nonce against the Student's public key (from holder_doc). Logs the successful validation and confirms the Student's DID matches the VP’s presenter.
 - Why it matters: This verifies that Alice signed the VP and that it hasn’t been tampered with, ensuring she controls the presented credentials. The nonce check prevents replay attacks.
 - Key concepts:
-    - Signature Verification: Uses the Holder’s public key to verify the VP’s Ed25519 signature.
+    - Signature Verification: Uses the Student's public key to verify the VP’s Ed25519 signature.
     - Nonce Validation: Ensures the VP’s nonce matches challenge-123.
-    - DecodedJwtPresentation: The validated VP structure, containing the embedded VCs and Holder’s DID.
+    - DecodedJwtPresentation: The validated VP structure, containing the embedded VCs and Student's DID.
 
 4. ## Extract and Validate Embedded Credentials:
     - Code:
@@ -1329,12 +1329,12 @@ for (index, jwt_vc) in jwt_credentials.iter().enumerate() {
 }
 ```
 
-- What it does: Extracts the VCs from the VP, retrieves the Issuer’s DID for each VC, and resolves their DID documents. Validates each VC’s signature against the Issuer’s public key, ensuring the VC was issued by the university and the subject matches the Holder’s DID. Logs each credential’s validation result.
+- What it does: Extracts the VCs from the VP, retrieves the University's DID for each VC, and resolves their DID documents. Validates each VC’s signature against the University's public key, ensuring the VC was issued by the university and the subject matches the Student's DID. Logs each credential’s validation result.
 - Why it matters: This confirms the degree credential’s authenticity, ensuring it was issued by a trusted university and hasn’t been altered. The subject-holder relationship check verifies that Alice is the legitimate subject of the VC.
 - Key concepts:
-    - Credential Validation: Verifies the VC’s signature using the Issuer’s public key.
-    - Issuer Resolution: Fetches the Issuer’s DID document to access their public key.
-    - Subject-Holder Relationship: Ensures the VC’s subject (Alice) matches the Holder’s DID.
+    - Credential Validation: Verifies the VC’s signature using the University's public key.
+    - University Resolution: Fetches the University's DID document to access their public key.
+    - Subject-Holder Relationship: Ensures the VC’s subject (Alice) matches the Student's DID.
     - FailFast: Stops validation on the first error to avoid unnecessary processing.
 
 5. ## Return Validation Result:
@@ -1355,7 +1355,7 @@ Ok(Json(ValidationResponse { success: true, output }))
 The verifier_validate function is triggered by the React frontend’s “Execute Step 4” button, which sends the VP JWT (from Step 3) to the /verifier/validate endpoint. It relies on:
     - Input: The VP JWT (body.vp_jwt) from the frontend.
     - Dependencies: get_read_only_client for network access and the Resolver for fetching DID documents.
-    - Prerequisites: The Holder’s DID (Step 1) and VC (Step 2) must exist, and the VP (Step 3) must be valid.
+    - Prerequisites: The Student's DID (Step 1) and VC (Step 2) must exist, and the VP (Step 3) must be valid.
 
 The returned ValidationResponse updates the frontend UI, displaying the validation outcome and log.
 
@@ -1389,7 +1389,7 @@ This starts the React app (e.g., at http://localhost:5173).
 
 3. Interact with the UI:
 
-- Click “Execute Step 1” to create the Holder’s DID.
+- Click “Execute Step 1” to create the Student's DID.
 - Click “Execute Step 2” to issue the VC.
 - Click “Execute Step 3” to create the VP.
 - Click “Execute Step 4” to verify the VP.
