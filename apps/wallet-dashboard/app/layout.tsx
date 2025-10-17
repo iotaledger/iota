@@ -50,24 +50,14 @@ const legacyBannerScript = `
     if (!isLegacy) return;
 
     const banner = Object.assign(document.createElement('div'), {
-      textContent: 'Your browser version is outdated. Please update it to the latest version.'
+      textContent: ' Your browser version is outdated. Please update it to the latest version.'
     });
-    banner.style.cssText =
-      'position:fixed;top:1rem;right:1rem;z-index:99999;background:#facc15;color:#1a1a1a;font:500 0.875rem/1.25rem system-ui,sans-serif;padding:0.75rem 1rem;border-radius:0.5rem;box-shadow:0 4px 10px rgba(0,0,0,0.15);transition:opacity .5s ease;';
-
-    document.addEventListener('DOMContentLoaded', () => {
-      document.body.appendChild(banner);
-      // Oculta el banner después de 6 segundos con una pequeña animación
-      setTimeout(() => {
-        banner.style.opacity = '0';
-        setTimeout(() => banner.remove(), 500);
-      }, 6000);
-    });
+    banner.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:99999;background:#facc15;color:#1a1a1a;font:500 0.875rem/1.25rem system-ui,sans-serif;padding:0.75rem 1rem;border-radius:0.5rem;box-shadow:0 4px 10px rgba(0,0,0,0.15)';
+    document.addEventListener('DOMContentLoaded', () => document.body.appendChild(banner));
   } catch {
     const fallback = document.createElement('div');
     fallback.textContent = 'Your browser is too old to display this page.';
-    fallback.style.cssText =
-      'position:fixed;top:1rem;right:1rem;z-index:99999;background:#f87171;color:white;padding:0.75rem 1rem;border-radius:0.5rem;font-family:sans-serif;';
+    fallback.style.cssText = 'position:fixed;top:1rem;right:1rem;z-index:99999;background:#f87171;color:white;padding:0.75rem 1rem;border-radius:0.5rem;font-family:sans-serif;';
     document.addEventListener('DOMContentLoaded', () => document.body.appendChild(fallback));
   }
 })();
