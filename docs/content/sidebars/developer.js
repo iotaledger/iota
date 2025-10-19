@@ -468,6 +468,7 @@ const developer = [
         ],
     },
     {
+<<<<<<< HEAD
         type: 'category',
         label: 'Workshops',
         link: {
@@ -505,6 +506,11 @@ const developer = [
                 type: 'doc',
                 id: 'developer/workshops/minting-managing-tokens',
                 label: 'Minting and Managing Tokens',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/iota-notarization-truedoc',
+                label: 'IOTA Notarization Workshop',
             },
         ],
     },
