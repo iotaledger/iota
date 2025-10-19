@@ -91,10 +91,8 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
         is_gas_check_required: bool,
+        authenticator_computation_cost: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        // `MoveAuthenticator`computation cost is not used here at the moment.
-        let authenticator_computation_cost = 0;
-
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
@@ -126,12 +124,10 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
         is_gas_check_required: bool,
+        authenticator_computation_cost: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_object_ref = gas_object.compute_object_reference();
         input_objects.push(ObjectReadResult::new_from_gas_object(&gas_object));
-
-        // `MoveAuthenticator`computation cost is not used here at the moment.
-        let authenticator_computation_cost = 0;
 
         let gas_status = check_transaction_input_inner(
             protocol_config,

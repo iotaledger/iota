@@ -133,6 +133,7 @@ impl EpochState {
             &self.bytecode_verifier_metrics,
             verifier_signing_config,
             true,
+            0, // authenticator_computation_cost as we don't charge for it without authenticator
         )?;
 
         let transaction_data = transaction.data().transaction_data();

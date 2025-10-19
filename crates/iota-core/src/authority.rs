@@ -884,6 +884,7 @@ impl AuthorityState {
         let mut is_gas_check_required = true;
         let protocol_config = epoch_store.protocol_config();
         let reference_gas_price = epoch_store.reference_gas_price();
+        let mut authenticator_computation_cost = 0;
 
         let epoch = epoch_store.epoch();
 
@@ -956,12 +957,14 @@ impl AuthorityState {
                 tx_digest.to_owned(),
                 &mut None,
             );
-
-            if let Err(validation_error) = validation_result {
-                return Err(IotaError::MoveAuthenticatorExecutionFailure {
-                    error: validation_error.to_string(),
-                });
-            }
+            match validation_result {
+                Ok(gas_cost) => authenticator_computation_cost = gas_cost,
+                Err(validation_error) => {
+                    return Err(IotaError::MoveAuthenticatorExecutionFailure {
+                        error: validation_error.to_string(),
+                    });
+                }
+            };
         }
 
         let (_gas_status, tx_checked_input_objects) =
@@ -974,6 +977,7 @@ impl AuthorityState {
                 &self.metrics.bytecode_verifier_metrics,
                 &self.config.verifier_signing_config,
                 is_gas_check_required,
+                authenticator_computation_cost,
             )?;
 
         check_coin_deny_list_v1_during_signing(
@@ -1991,6 +1995,7 @@ impl AuthorityState {
         // Cheap validity checks for a transaction, including input size limits.
         transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
         let is_gas_check_required = true;
+        let authenticator_computation_cost = 0;
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
 
@@ -2042,6 +2047,7 @@ impl AuthorityState {
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
                     is_gas_check_required,
+                    authenticator_computation_cost,
                 )?,
                 Some(gas_object_id),
             )
@@ -2056,6 +2062,7 @@ impl AuthorityState {
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
                     is_gas_check_required,
+                    authenticator_computation_cost,
                 )?,
                 None,
             )
@@ -2186,6 +2193,7 @@ impl AuthorityState {
         // Cheap validity checks for a transaction, including input size limits.
         transaction.validity_check_no_gas_check(epoch_store.protocol_config())?;
         let is_gas_check_required = true;
+        let authenticator_computation_cost = 0;
         let input_object_kinds = transaction.input_objects()?;
         let receiving_object_refs = transaction.receiving_objects();
 
@@ -2236,6 +2244,7 @@ impl AuthorityState {
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
                     is_gas_check_required,
+                    authenticator_computation_cost,
                 )?,
                 Some(gas_object_id),
             )
@@ -2250,6 +2259,7 @@ impl AuthorityState {
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
                     is_gas_check_required,
+                    authenticator_computation_cost,
                 )?,
                 None,
             )
@@ -2307,6 +2317,7 @@ impl AuthorityState {
     ) -> IotaResult<DevInspectResults> {
         let epoch_store = self.load_epoch_store_one_call_per_task();
         let is_gas_check_required = true;
+        let authenticator_computation_cost = 0;
         if !self.is_fullnode(&epoch_store) {
             return Err(IotaError::UnsupportedFeature {
                 error: "dev-inspect is only supported on fullnodes".to_string(),
@@ -2426,6 +2437,7 @@ impl AuthorityState {
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
                     is_gas_check_required,
+                    authenticator_computation_cost,
                 )?
             } else {
                 iota_transaction_checks::check_transaction_input(
@@ -2437,6 +2449,7 @@ impl AuthorityState {
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
                     is_gas_check_required,
+                    authenticator_computation_cost,
                 )?
             }
         };
