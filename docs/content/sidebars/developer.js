@@ -468,7 +468,6 @@ const developer = [
         ],
     },
     {
-<<<<<<< HEAD
         type: 'category',
         label: 'Workshops',
         link: {
