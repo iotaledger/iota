@@ -976,8 +976,8 @@ impl AuthorityState {
                 &tx_receiving_objects,
                 &self.metrics.bytecode_verifier_metrics,
                 &self.config.verifier_signing_config,
-                is_gas_check_required,
                 authenticator_computation_cost,
+                is_gas_check_required,
             )?;
 
         check_coin_deny_list_v1_during_signing(
