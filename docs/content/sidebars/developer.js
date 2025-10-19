@@ -482,22 +482,22 @@ const developer = [
                     {
                         type: 'doc',
                         id: 'developer/workshops/core/I-introduction-to-smart-contracts',
-                        label: 'Init and Deploy a Grants package',
+                        label: 'Core I: Init and Deploy a Grants package',
                     },
                     {
                         type: 'doc',
                         id: 'developer/workshops/core/II-shared-objects-dynamic-fields-ptbs',
-                        label: 'Coordination with Shared Objects, Dynamic Fields, and PTBs',
+                        label: 'CoreII: Coordination with Shared Objects, Dynamic Fields, and PTBs',
                     },
                     {
                         type: 'doc',
                         id: 'developer/workshops/core/III-capabilities-state-tests',
-                        label: 'Capabilities, Type-State, Abilities & Tests',
+                        label: 'Core III: Capabilities, Type-State, Abilities & Tests',
                     },
                     {
                         type: 'doc',
                         id: 'developer/workshops/core/IV-capstone-dapp-kit',
-                        label: 'Wrapping it up - Dapp',
+                        label: 'Core IV: Wrapping it up - Dapp',
                     },
                 ],
             },
