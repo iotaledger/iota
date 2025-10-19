@@ -28,7 +28,7 @@ We need a way to look up a student’s current grant. This is important for port
 What you’ll build next:
 
 - Share an on-chain `Registry` object that anyone can read
-- Add a write-gated `index_grant` entry for admins to upsert student → grant
+- Add a write-gated `index_grant` entry for admins to insert student → grant
 - Emit `GrantIndexed` when the index changes
 - Chain actions (mint → index) in a single PTB
 
@@ -36,7 +36,7 @@ What you’ll build next:
 
 - A `Registry` shared object that holds a table from `address -> ID`. Shared means many users can touch it.
 - A `GrantIndexed` event for analytics and UI updates. Will be emitted on every index change.
-- An `index_grant` function that “upserts” a student’s latest grant ID.
+- An `index_grant` function that “inserts” a student’s latest grant ID.
 - A `mint_return_id` entry so we can capture a newly created `Grant` ID and pass it to `index_grant` in the same PTB.
 
 :::info What is a shared object?
@@ -122,10 +122,10 @@ Sharing the registry allows many transactions to see and update the same object 
 
 ## Your turn: index a student’s grant
 
-The `index_grant` entry should upsert `student -> grant_id` and emit a `GrantIndexed` event. Add the signature and start with a placeholder; then implement.
+The `index_grant` entry should insert `student -> grant_id` and emit a `GrantIndexed` event. Add the signature and start with a placeholder; then implement.
 
 ```move
-    /// Upsert mapping student -> grant_id and emit an event.
+    /// insert mapping student -> grant_id and emit an event.
     public entry fun index_grant(
         reg: &mut Registry,
         student: address,
@@ -141,7 +141,7 @@ The `index_grant` entry should upsert `student -> grant_id` and emit a `GrantInd
 Tip: Remove an existing mapping first (if present), then insert the latest `grant_id`.
 
 :::note Big picture
-Upserting keeps the registry idempotent and always current for a given student. Frontends only need one read to show the latest grant.
+inserting keeps the registry idempotent and always current for a given student. Frontends only need one read to show the latest grant.
 :::
 
 ## Chain actions: return the minted ID

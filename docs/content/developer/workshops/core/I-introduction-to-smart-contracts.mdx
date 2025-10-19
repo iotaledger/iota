@@ -59,7 +59,7 @@ iota move new scholarflow_core
 cd scholarflow_core
 ```
 
-Minimal `Move.toml` so we speak 2024 Move and have named addresses:
+And a minimal `Move.toml`:
 
 ```toml
 [package]
@@ -171,10 +171,12 @@ Append this inside the same module:
     }
 ```
 
-:::info What are entry functions and transfers?
-- `public entry` functions are the only functions callable as transaction entry points; think of them as your public API.
+:::info Entry vs public, and transfers
+- Both `public` and `entry` functions can be called from programmable transaction blocks (CLI/SDK/PTB). The difference is in constraints and visibility: `entry` adds stricter rules; `public` can be called from other modules.
+- Why `public entry` here: we want to call `grant::mint` from the CLI as a top‑level transaction while keeping entry‑function constraints (inputs must be direct tx arguments; returns must have `drop`). Marking it `public` also leaves room for other modules to reuse `mint` if needed later.
+- If you don’t need inter‑module reuse, an `entry` function (without `public`) is sufficient for CLI calls.
+- When minting/transferring objects you pass a `&mut TxContext` so the runtime can create IDs and record effects.
 - `transfer::transfer(obj, recipient)` moves ownership of the on‑chain object to an address. One owner at a time, enforced by Move.
-- Like an HTTP POST handler that writes a new row and assigns it to a user.
 - Learn more: [Entry Functions](../../iota-101/move-overview/entry-functions.mdx) • [Object Ownership](../../iota-101/objects/object-ownership/object-ownership.mdx)
 :::
 
