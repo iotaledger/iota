@@ -10,6 +10,7 @@ import {
     type IotaObjectChangeWithDisplay,
     ExplorerLinkType,
     useGetDefaultIotaName,
+    formatIotaName,
 } from '../../';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cx from 'clsx';
@@ -235,7 +236,7 @@ function ObjectChangeByOwnerPanel({
                             value={
                                 <NamedAddressTooltip name={iotaName} address={owner}>
                                     <ExplorerLink type={ExplorerLinkType.Address} address={owner}>
-                                        {iotaName || formatAddress(owner)}
+                                        {formatIotaName(iotaName) || formatAddress(owner)}
                                     </ExplorerLink>
                                 </NamedAddressTooltip>
                             }

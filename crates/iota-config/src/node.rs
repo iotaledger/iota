@@ -168,11 +168,6 @@ pub struct NodeConfig {
     #[serde(default)]
     pub db_checkpoint_config: DBCheckpointConfig,
 
-    /// Defines a threshold for an object size above which object
-    /// is stored separately as `IndirectObject`. Used in `AuthorityStore`.
-    #[serde(default)]
-    pub indirect_objects_threshold: usize,
-
     /// Configuration for enabling/disabling expensive safety checks.
     #[serde(default)]
     pub expensive_safety_check_config: ExpensiveSafetyCheckConfig,
@@ -263,6 +258,55 @@ pub struct NodeConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iota_names_config: Option<IotaNamesConfig>,
+
+    /// Flag to enable the gRPC API.
+    #[serde(default)]
+    pub enable_grpc_api: bool,
+    #[serde(
+        default = "default_grpc_api_config",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub grpc_api_config: Option<GrpcApiConfig>,
+}
+
+/// Configuration for the gRPC API service
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct GrpcApiConfig {
+    /// The address to bind the gRPC server to
+    #[serde(default = "default_grpc_api_address")]
+    pub address: std::net::SocketAddr,
+
+    /// Buffer size for broadcast channels used for checkpoint streaming
+    #[serde(default = "default_checkpoint_broadcast_buffer_size")]
+    pub checkpoint_broadcast_buffer_size: usize,
+
+    /// Buffer size for broadcast channels used for event streaming
+    #[serde(default = "default_event_broadcast_buffer_size")]
+    pub event_broadcast_buffer_size: usize,
+}
+
+impl Default for GrpcApiConfig {
+    fn default() -> Self {
+        Self {
+            address: default_grpc_api_address(),
+            checkpoint_broadcast_buffer_size: default_checkpoint_broadcast_buffer_size(),
+            event_broadcast_buffer_size: default_event_broadcast_buffer_size(),
+        }
+    }
+}
+
+fn default_grpc_api_address() -> std::net::SocketAddr {
+    use std::net::{IpAddr, Ipv4Addr};
+    std::net::SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 50051)
+}
+
+fn default_checkpoint_broadcast_buffer_size() -> usize {
+    100
+}
+
+fn default_event_broadcast_buffer_size() -> usize {
+    1000
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
@@ -572,6 +616,10 @@ pub fn default_json_rpc_address() -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9000)
 }
 
+pub fn default_grpc_api_config() -> Option<GrpcApiConfig> {
+    None
+}
+
 pub fn default_concurrency_limit() -> Option<usize> {
     Some(DEFAULT_GRPC_CONCURRENCY_LIMIT)
 }
@@ -688,6 +736,8 @@ impl NodeConfig {
 pub enum ConsensusProtocol {
     #[serde(rename = "mysticeti")]
     Mysticeti,
+    #[serde(rename = "starfish")]
+    Starfish,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -866,7 +916,7 @@ impl ExpensiveSafetyCheckConfig {
 }
 
 fn default_checkpoint_execution_max_concurrency() -> usize {
-    200
+    40
 }
 
 fn default_local_execution_timeout_sec() -> u64 {
@@ -1466,6 +1516,13 @@ impl RunWithRange {
 
     pub fn matches_checkpoint(&self, seq_num: CheckpointSequenceNumber) -> bool {
         matches!(self, RunWithRange::Checkpoint(seq) if *seq == seq_num)
+    }
+
+    pub fn into_checkpoint_bound(self) -> Option<CheckpointSequenceNumber> {
+        match self {
+            RunWithRange::Epoch(_) => None,
+            RunWithRange::Checkpoint(seq) => Some(seq),
+        }
     }
 }
 

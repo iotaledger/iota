@@ -1,7 +1,6 @@
 ---
 source: crates/iota-swarm-config/tests/snapshot_tests.rs
 expression: network_config
-snapshot_kind: text
 ---
 validator_configs:
   - authority-key-pair:
@@ -47,11 +46,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -135,6 +133,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+    enable-grpc-api: false
   - authority-key-pair:
       value: avYcyVgYMXTyaUYh9IRwLK0gSzl7YF6ZQDAbrS1Bhvo=
     protocol-key-pair:
@@ -178,11 +177,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -266,6 +264,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+    enable-grpc-api: false
   - authority-key-pair:
       value: OXnx3yM1C/ppgnDMx/o1d49fJs7E05kq11mXNae/O+I=
     protocol-key-pair:
@@ -309,11 +308,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -397,6 +395,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+    enable-grpc-api: false
   - authority-key-pair:
       value: CyNkjqNVr3HrHTH7f/NLs7u5lUHJzuPAw0PqMTD2y2s=
     protocol-key-pair:
@@ -440,11 +439,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -528,6 +526,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+    enable-grpc-api: false
   - authority-key-pair:
       value: X/I/kM+KvHcxAKEf2UU6Sr7SpN3bhiE9nP5CuM/iIY0=
     protocol-key-pair:
@@ -571,11 +570,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -659,6 +657,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+    enable-grpc-api: false
   - authority-key-pair:
       value: N272EiFDyKtxRbDKbyN6ujenJ+skPcRoc/XolpOLGnU=
     protocol-key-pair:
@@ -702,11 +701,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -790,6 +788,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+    enable-grpc-api: false
   - authority-key-pair:
       value: a74f03IOjL8ZFSWFChFVEi+wiMwHNwNCPDGIYkGfgjs=
     protocol-key-pair:
@@ -833,11 +832,10 @@ validator_configs:
       max-transactions-in-batch: 1000
     end-of-epoch-broadcast-channel-capacity: 128
     checkpoint-executor-config:
-      checkpoint-execution-max-concurrency: 200
+      checkpoint-execution-max-concurrency: 40
       local-execution-timeout-sec: 30
     db-checkpoint-config:
       perform-db-checkpoints-at-epoch-end: false
-    indirect-objects-threshold: 18446744073709551615
     expensive-safety-check-config:
       enable-epoch-iota-conservation-check: false
       enable-deep-per-tx-iota-conservation-check: false
@@ -921,6 +919,7 @@ validator_configs:
       max-per-pkg-meter-units: ~
       max-back-edges-per-function: ~
       max-back-edges-per-module: ~
+    enable-grpc-api: false
 account_keys:
   - Hloy4pnf8pWEHGP+4OFsXz56bLdIJhkD2O+OdKMqCA4=
   - pvMScjoMR/DaN0M5IOxS2VpGC59N6kv6gDm63ufLQ5w=

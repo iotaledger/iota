@@ -9,7 +9,7 @@ pub(crate) use indexer_api::IndexerApi;
 pub(crate) use move_utils::MoveUtilsApi;
 pub(crate) use read_api::ReadApi;
 pub(crate) use transaction_builder_api::TransactionBuilderApi;
-pub(crate) use write_api::WriteApi;
+pub(crate) use write_api::{OptimisticWriteApi, WriteApi};
 
 mod coin_api;
 mod extended_api;

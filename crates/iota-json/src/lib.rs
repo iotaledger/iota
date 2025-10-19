@@ -766,7 +766,7 @@ pub fn is_receiving_argument(view: &CompiledModule, arg_type: &SignatureToken) -
     )
 }
 
-fn resolve_call_args(
+pub fn resolve_call_args(
     view: &CompiledModule,
     type_args: &[TypeTag],
     json_args: &[IotaJsonValue],
@@ -823,6 +823,7 @@ pub fn resolve_move_function_args(
             combined_args_json.len()
         );
     }
+
     // Check that the args are valid and convert to the correct format
     let call_args = resolve_call_args(&module, type_args, &combined_args_json, parameters)?;
     let tupled_call_args = call_args

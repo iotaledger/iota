@@ -96,7 +96,7 @@ impl New {
             w,
             r#"[package]
 name = "{name}"
-edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
+edition = "2024" # edition = "legacy" to use legacy (pre-2024) Move
 # license = ""           # e.g., "MIT", "GPL", "Apache 2.0"
 # authors = ["..."]      # e.g., ["Joe Smith (joesmith@noemail.com)", "John Snow (johnsnow@noemail.com)"]
 

@@ -13,6 +13,7 @@ use iota_types::{
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
+    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::{IotaSystemState, get_iota_system_state},
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -90,6 +91,7 @@ impl PassthroughCache {
 }
 
 impl ObjectCacheRead for PassthroughCache {
+    #[instrument(level = "trace", skip_all, fields(package_id))]
     fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.package_cache
             .get_package_object(package_id, &*self.store)
@@ -100,10 +102,12 @@ impl ObjectCacheRead for PassthroughCache {
             .force_reload_system_packages(system_package_ids.iter().cloned(), self);
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id = ?id))]
     fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
         self.store.try_get_object(id).map_err(Into::into)
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id, version))]
     fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
@@ -112,6 +116,7 @@ impl ObjectCacheRead for PassthroughCache {
         Ok(self.store.try_get_object_by_key(object_id, version)?)
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
@@ -119,6 +124,7 @@ impl ObjectCacheRead for PassthroughCache {
         Ok(self.store.try_multi_get_objects_by_key(object_keys)?)
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id, version))]
     fn try_object_exists_by_key(
         &self,
         object_id: &ObjectID,
@@ -127,10 +133,12 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.object_exists_by_key(object_id, version)
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
         self.store.multi_object_exists_by_key(object_keys)
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id))]
     fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectID,
@@ -138,6 +146,7 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.get_latest_object_ref_or_tombstone(object_id)
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id))]
     fn try_get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
@@ -145,6 +154,7 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.get_latest_object_or_tombstone(object_id)
     }
 
+    #[instrument(level = "trace", skip_all, fields(object_id, version_bound))]
     fn try_find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
@@ -196,6 +206,7 @@ impl ObjectCacheRead for PassthroughCache {
 }
 
 impl TransactionCacheRead for PassthroughCache {
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
@@ -208,6 +219,7 @@ impl TransactionCacheRead for PassthroughCache {
             .collect())
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
@@ -215,6 +227,7 @@ impl TransactionCacheRead for PassthroughCache {
         self.store.multi_get_executed_effects_digests(digests)
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
@@ -222,6 +235,7 @@ impl TransactionCacheRead for PassthroughCache {
         Ok(self.store.perpetual_tables.effects.multi_get(digests)?)
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
@@ -233,6 +247,7 @@ impl TransactionCacheRead for PassthroughCache {
             .boxed()
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
@@ -322,42 +337,20 @@ impl AccumulatorStore for PassthroughCache {
 }
 
 impl ExecutionCacheCommit for PassthroughCache {
-    fn try_commit_transaction_outputs<'a>(
-        &'a self,
+    fn try_commit_transaction_outputs(
+        &self,
         _epoch: EpochId,
-        _digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult> {
-        // Nothing needs to be done since they were already committed in
-        // write_transaction_outputs
-        async { Ok(()) }.boxed()
-    }
-
-    fn try_persist_transactions(
-        &self,
         _digests: &[TransactionDigest],
-    ) -> BoxFuture<'_, IotaResult> {
+    ) -> IotaResult {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
-        async { Ok(()) }.boxed()
+        Ok(())
     }
 
-    fn persist_transactions_and_effects(
-        &self,
-        _digests: &[(TransactionDigest, TransactionEffectsDigest)],
-    ) {
-        // Nothing needs to be done since all the data was already written.
-
-        // Explanation:
-        // In the WritebackCache, the `persist_transactions_and_effects`
-        // function is responsible for writing the pending transaction
-        // outputs and effects from `dirty.pending_transaction_writes` to the
-        // store (`perpetual_tables.transactions`, `perpetual_tables.
-        // events`). The only function that adds entries to the dirty set
-        // is `try_write_transaction_outputs`.
-        //
-        // In the PassthroughCache, exactly this function
-        // `try_write_transaction_outputs` already writes the data to the store,
-        // via `write_transaction_outputs` => `write_one_transaction_outputs`.
+    fn try_persist_transaction(&self, _tx: &VerifiedExecutableTransaction) -> IotaResult {
+        // Nothing needs to be done since they were already committed in
+        // write_transaction_outputs
+        Ok(())
     }
 
     fn approximate_pending_transaction_count(&self) -> u64 {

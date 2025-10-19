@@ -25,7 +25,7 @@ use fastcrypto::{
     hash::MultisetHash,
 };
 use iota_archival::reader::ArchiveReaderBalancer;
-use iota_common::debug_fatal;
+use iota_common::{debug_fatal, fatal};
 use iota_config::{
     NodeConfig,
     genesis::Genesis,
@@ -57,21 +57,24 @@ use iota_types::{
     authenticator_state::get_authenticator_state,
     base_types::*,
     committee::{Committee, EpochId, ProtocolVersion},
-    crypto::{AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer, default_hash},
+    crypto::{
+        AuthorityPublicKey, AuthoritySignInfo, AuthoritySignature, RandomnessRound, Signer,
+        default_hash,
+    },
     deny_list_v1::check_coin_deny_list_v1_during_signing,
-    digests::{ChainIdentifier, TransactionEventsDigest},
+    digests::{ChainIdentifier, Digest, TransactionEventsDigest},
     dynamic_field::{DynamicFieldInfo, DynamicFieldName, visitor as DFV},
     effects::{
         InputSharedObject, SignedTransactionEffects, TransactionEffects, TransactionEffectsAPI,
-        TransactionEvents, VerifiedCertifiedTransactionEffects, VerifiedSignedTransactionEffects,
+        TransactionEvents, VerifiedSignedTransactionEffects,
     },
     error::{ExecutionError, IotaError, IotaResult, UserInputError},
     event::{Event, EventID, SystemEpochInfoEvent},
     executable_transaction::VerifiedExecutableTransaction,
     execution_config_utils::to_binary_config,
     execution_status::ExecutionStatus,
-    fp_ensure,
     gas::{GasCostSummary, IotaGasStatus},
+    gas_coin::NANOS_PER_IOTA,
     inner_temporary_store::{
         InnerTemporaryStore, ObjectMap, PackageStoreWithFallback, TemporaryModuleResolver, TxCoins,
         WrittenObjects,
@@ -103,7 +106,9 @@ use iota_types::{
     storage::{
         BackingPackageStore, BackingStore, ObjectKey, ObjectOrTombstone, ObjectStore, WriteKind,
     },
-    supported_protocol_versions::{ProtocolConfig, SupportedProtocolVersions},
+    supported_protocol_versions::{
+        ProtocolConfig, SupportedProtocolVersions, SupportedProtocolVersionsWithHashes,
+    },
     transaction::*,
     transaction_executor::SimulateTransactionResult,
 };
@@ -124,14 +129,14 @@ use tokio::{
     sync::{RwLock, mpsc, mpsc::unbounded_channel, oneshot},
     task::JoinHandle,
 };
-use tracing::{Instrument, debug, error, info, instrument, trace, warn};
+use tracing::{debug, error, info, instrument, trace, warn};
 use typed_store::TypedStoreError;
 
 use self::{
     authority_store::ExecutionLockWriteGuard, authority_store_pruner::AuthorityStorePruningMetrics,
 };
 #[cfg(msim)]
-pub use crate::checkpoints::checkpoint_executor::{
+pub use crate::checkpoints::checkpoint_executor::utils::{
     CheckpointTimeoutConfig, init_checkpoint_timeout_config,
 };
 use crate::{
@@ -145,6 +150,7 @@ use crate::{
     },
     authority_client::NetworkAuthorityClient,
     checkpoints::CheckpointStore,
+    congestion_tracker::CongestionTracker,
     consensus_adapter::ConsensusAdapter,
     epoch::committee_store::CommitteeStore,
     execution_cache::{
@@ -236,7 +242,6 @@ pub struct AuthorityMetrics {
     execute_certificate_latency_single_writer: Histogram,
     execute_certificate_latency_shared_object: Histogram,
 
-    execute_certificate_with_effects_latency: Histogram,
     internal_execution_latency: Histogram,
     execution_load_input_objects_latency: Histogram,
     prepare_certificate_latency: Histogram,
@@ -343,7 +348,8 @@ const GAS_LATENCY_RATIO_BUCKETS: &[f64] = &[
     3000.0, 4000.0, 5000.0, 6000.0, 7000.0, 8000.0, 9000.0, 10000.0, 50000.0, 100000.0, 1000000.0,
 ];
 
-pub const DEV_INSPECT_GAS_COIN_VALUE: u64 = 1_000_000_000_000;
+/// Gas coin value used in dev-inspect and dry-runs if no gas coin was provided.
+pub const SIMULATION_GAS_COIN_VALUE: u64 = 1_000_000_000 * NANOS_PER_IOTA; // 1B IOTA
 
 impl AuthorityMetrics {
     pub fn new(registry: &prometheus::Registry) -> AuthorityMetrics {
@@ -438,13 +444,6 @@ impl AuthorityMetrics {
             .unwrap(),
             execute_certificate_latency_single_writer,
             execute_certificate_latency_shared_object,
-            execute_certificate_with_effects_latency: register_histogram_with_registry!(
-                "authority_state_execute_certificate_with_effects_latency",
-                "Latency of executing certificates with effects, including waiting for inputs",
-                LATENCY_SEC_BUCKETS.to_vec(),
-                registry,
-            )
-            .unwrap(),
             internal_execution_latency: register_histogram_with_registry!(
                 "authority_state_internal_execution_latency",
                 "Latency of actual certificate executions",
@@ -785,7 +784,7 @@ pub struct AuthorityState {
     pub rest_index: Option<Arc<RestIndexStore>>,
 
     pub subscription_handler: Arc<SubscriptionHandler>,
-    checkpoint_store: Arc<CheckpointStore>,
+    pub checkpoint_store: Arc<CheckpointStore>,
 
     committee_store: Arc<CommitteeStore>,
 
@@ -813,6 +812,8 @@ pub struct AuthorityState {
     /// The chain identifier is derived from the digest of the genesis
     /// checkpoint.
     chain_identifier: ChainIdentifier,
+
+    pub(crate) congestion_tracker: Arc<CongestionTracker>,
 }
 
 /// The authority state encapsulates all state, drives execution, and ensures
@@ -824,12 +825,19 @@ pub struct AuthorityState {
 ///
 /// Repeating valid commands should produce no changes and return no error.
 impl AuthorityState {
-    pub fn is_validator(&self, epoch_store: &AuthorityPerEpochStore) -> bool {
+    pub fn is_committee_validator(&self, epoch_store: &AuthorityPerEpochStore) -> bool {
         epoch_store.committee().authority_exists(&self.name)
     }
 
+    pub fn is_active_validator(&self, epoch_store: &AuthorityPerEpochStore) -> bool {
+        epoch_store
+            .active_validators()
+            .iter()
+            .any(|a| AuthorityName::from(a) == self.name)
+    }
+
     pub fn is_fullnode(&self, epoch_store: &AuthorityPerEpochStore) -> bool {
-        !self.is_validator(epoch_store)
+        !self.is_committee_validator(epoch_store)
     }
 
     pub fn committee_store(&self) -> &Arc<CommitteeStore> {
@@ -854,7 +862,7 @@ impl AuthorityState {
     /// This is a private method and should be kept that way. It doesn't check
     /// whether the provided transaction is a system transaction, and hence
     /// can only be called internally.
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     async fn handle_transaction_impl(
         &self,
         transaction: VerifiedTransaction,
@@ -929,7 +937,7 @@ impl AuthorityState {
     }
 
     /// Initiate a new transaction.
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(name = "handle_transaction", level = "trace", skip_all)]
     pub async fn handle_transaction(
         &self,
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -952,7 +960,7 @@ impl AuthorityState {
         let signed = self.handle_transaction_impl(transaction, epoch_store).await;
         match signed {
             Ok(s) => {
-                if self.is_validator(epoch_store) {
+                if self.is_committee_validator(epoch_store) {
                     if let Some(validator_tx_finalizer) = &self.validator_tx_finalizer {
                         let tx = s.clone();
                         let validator_tx_finalizer = validator_tx_finalizer.clone();
@@ -1048,84 +1056,6 @@ impl AuthorityState {
             .inc();
     }
 
-    /// Executes a transaction that's known to have correct effects.
-    /// For such transaction, we don't have to wait for consensus to set shared
-    /// object locks because we already know the shared object versions
-    /// based on the effects. This function can be called by a fullnode
-    /// only.
-    #[instrument(level = "trace", skip_all)]
-    pub async fn fullnode_execute_certificate_with_effects(
-        &self,
-        transaction: &VerifiedExecutableTransaction,
-        // NOTE: the caller of this must promise to wait until it
-        // knows for sure this tx is finalized, namely, it has seen a
-        // CertifiedTransactionEffects or at least f+1 identifical effects
-        // digests matching this TransactionEffectsEnvelope, before calling
-        // this function, in order to prevent a byzantine validator from
-        // giving us incorrect effects.
-        effects: &VerifiedCertifiedTransactionEffects,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult {
-        assert!(self.is_fullnode(epoch_store));
-        // NOTE: the fullnode can change epoch during local execution. It should not
-        // cause data inconsistency, but can be problematic for certain tests.
-        // The check below mitigates the issue, but it is not a fundamental solution to
-        // avoid race between local execution and reconfiguration.
-        if self.epoch_store.load().epoch() != epoch_store.epoch() {
-            return Err(IotaError::EpochEnded(epoch_store.epoch()));
-        }
-        let _metrics_guard = self
-            .metrics
-            .execute_certificate_with_effects_latency
-            .start_timer();
-        let digest = *transaction.digest();
-        debug!("execute_certificate_with_effects");
-        fp_ensure!(
-            *effects.data().transaction_digest() == digest,
-            IotaError::ErrorWhileProcessingCertificate {
-                err: "effects/tx digest mismatch".to_string()
-            }
-        );
-
-        if transaction.contains_shared_object() {
-            epoch_store
-                .acquire_shared_version_assignments_from_effects(
-                    transaction,
-                    effects.data(),
-                    self.get_object_cache_reader().as_ref(),
-                )
-                .await?;
-        }
-
-        let expected_effects_digest = effects.digest();
-
-        self.transaction_manager
-            .enqueue(vec![transaction.clone()], epoch_store);
-
-        let observed_effects = self
-            .get_transaction_cache_reader()
-            .try_notify_read_executed_effects(&[digest])
-            .instrument(tracing::debug_span!(
-                "notify_read_effects_in_execute_certificate_with_effects"
-            ))
-            .await?
-            .pop()
-            .expect("notify_read_effects should return exactly 1 element");
-
-        let observed_effects_digest = observed_effects.digest();
-        if &observed_effects_digest != expected_effects_digest {
-            panic!(
-                "Locally executed effects do not match canonical effects! expected_effects_digest={:?} observed_effects_digest={:?} expected_effects={:?} observed_effects={:?} input_objects={:?}",
-                expected_effects_digest,
-                observed_effects_digest,
-                effects.data(),
-                observed_effects,
-                transaction.data().transaction_data().input_objects()
-            );
-        }
-        Ok(())
-    }
-
     /// Executes a certificate for its effects.
     #[instrument(level = "trace", skip_all)]
     pub async fn execute_certificate(
@@ -1177,7 +1107,7 @@ impl AuthorityState {
     /// execute_certificate() should be called instead.
     ///
     /// Should only be called within iota-core.
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?certificate.digest()))]
     pub fn try_execute_immediately(
         &self,
         certificate: &VerifiedExecutableTransaction,
@@ -1202,8 +1132,7 @@ impl AuthorityState {
                 assert_eq!(
                     effects.digest(),
                     expected_effects_digest_inner,
-                    "Unexpected effects digest for transaction {:?}",
-                    tx_digest
+                    "Unexpected effects digest for transaction {tx_digest:?}"
                 );
             }
             tx_guard.release();
@@ -1773,13 +1702,13 @@ impl AuthorityState {
         let reference_gas_price = epoch_store.reference_gas_price();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.gas_owner();
-            // use a 1B iota coin
-            const NANOS_TO_IOTA: u64 = 1_000_000_000;
-            const DRY_RUN_IOTA: u64 = 1_000_000_000;
-            let max_coin_value = NANOS_TO_IOTA * DRY_RUN_IOTA;
             let gas_object_id = ObjectID::random();
             let gas_object = Object::new_move(
-                MoveObject::new_gas_coin(OBJECT_START_VERSION, gas_object_id, max_coin_value),
+                MoveObject::new_gas_coin(
+                    OBJECT_START_VERSION,
+                    gas_object_id,
+                    SIMULATION_GAS_COIN_VALUE,
+                ),
                 Owner::AddressOwner(sender),
                 TransactionDigest::genesis_marker(),
             );
@@ -1886,6 +1815,10 @@ impl AuthorityState {
 
         Ok((
             DryRunTransactionBlockResponse {
+                // to avoid cloning `transaction`, fields are populated in this order
+                suggested_gas_price: self
+                    .congestion_tracker
+                    .get_prediction_suggested_gas_price(&transaction),
                 input: IotaTransactionBlockData::try_from(transaction, &module_cache, tx_digest)
                     .map_err(|e| IotaError::TransactionSerialization {
                         error: format!(
@@ -1960,13 +1893,13 @@ impl AuthorityState {
         let mut gas_object_refs = transaction.gas().to_vec();
         let ((gas_status, checked_input_objects), mock_gas) = if transaction.gas().is_empty() {
             let sender = transaction.gas_owner();
-            // use a 1B iota coin
-            const NANOS_TO_IOTA: u64 = 1_000_000_000;
-            const DRY_RUN_IOTA: u64 = 1_000_000_000;
-            let max_coin_value = NANOS_TO_IOTA * DRY_RUN_IOTA;
             let gas_object_id = ObjectID::MAX;
             let gas_object = Object::new_move(
-                MoveObject::new_gas_coin(OBJECT_START_VERSION, gas_object_id, max_coin_value),
+                MoveObject::new_gas_coin(
+                    OBJECT_START_VERSION,
+                    gas_object_id,
+                    SIMULATION_GAS_COIN_VALUE,
+                ),
                 Owner::AddressOwner(sender),
                 TransactionDigest::genesis_marker(),
             );
@@ -2123,7 +2056,7 @@ impl AuthorityState {
 
         // Create and use a dummy gas object if there is no gas object provided.
         let dummy_gas_object = Object::new_gas_with_balance_and_owner_for_testing(
-            DEV_INSPECT_GAS_COIN_VALUE,
+            SIMULATION_GAS_COIN_VALUE,
             transaction.gas_owner(),
         );
 
@@ -2251,6 +2184,7 @@ impl AuthorityState {
         Ok(epoch_store.reference_gas_price())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn try_is_tx_already_executed(&self, digest: &TransactionDigest) -> IotaResult<bool> {
         self.get_transaction_cache_reader()
             .try_is_tx_already_executed(digest)
@@ -2758,7 +2692,7 @@ impl AuthorityState {
             (request.generate_layout, object.data.try_as_move())
         {
             Some(into_struct_layout(
-                self.load_epoch_store_one_call_per_task()
+                epoch_store
                     .executor()
                     .type_layout_resolver(Box::new(self.get_backing_package_store().as_ref()))
                     .get_annotated_layout(&move_obj.type_().clone().into())?,
@@ -2793,7 +2727,7 @@ impl AuthorityState {
                 Some(seq) => self
                     .checkpoint_store
                     .get_checkpoint_by_sequence_number(seq)?,
-                None => self.checkpoint_store.get_latest_certified_checkpoint(),
+                None => self.checkpoint_store.get_latest_certified_checkpoint()?,
             }
             .map(|v| v.into_inner());
             summary.map(CheckpointSummaryResponse::Certified)
@@ -2802,7 +2736,7 @@ impl AuthorityState {
                 Some(seq) => self.checkpoint_store.get_locally_computed_checkpoint(seq)?,
                 None => self
                     .checkpoint_store
-                    .get_latest_locally_computed_checkpoint(),
+                    .get_latest_locally_computed_checkpoint()?,
             };
             summary.map(CheckpointSummaryResponse::Pending)
         };
@@ -2856,7 +2790,6 @@ impl AuthorityState {
         genesis_objects: &[Object],
         db_checkpoint_config: &DBCheckpointConfig,
         config: NodeConfig,
-        indirect_objects_threshold: usize,
         archive_readers: ArchiveReaderBalancer,
         validator_tx_finalizer: Option<Arc<ValidatorTxFinalizer<NetworkAuthorityClient>>>,
         chain_identifier: ChainIdentifier,
@@ -2885,18 +2818,17 @@ impl AuthorityState {
             store.perpetual_tables.clone(),
             checkpoint_store.clone(),
             rest_index.clone(),
-            store.objects_lock_table.clone(),
             config.authority_store_pruning_config.clone(),
             epoch_store.committee().authority_exists(&name),
             epoch_store.epoch_start_state().epoch_duration_ms(),
             prometheus_registry,
-            indirect_objects_threshold,
             archive_readers,
             pruner_db,
         );
         let input_loader =
             TransactionInputLoader::new(execution_cache_trait_pointers.object_cache_reader.clone());
         let epoch = epoch_store.epoch();
+        let rgp = epoch_store.reference_gas_price();
         let state = Arc::new(AuthorityState {
             name,
             secret,
@@ -2919,6 +2851,7 @@ impl AuthorityState {
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
             chain_identifier,
+            congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
         });
 
         // Start a task to execute ready certificates.
@@ -2999,11 +2932,9 @@ impl AuthorityState {
             &self.database_for_testing().perpetual_tables,
             &self.checkpoint_store,
             self.rest_index.as_deref(),
-            &self.database_for_testing().objects_lock_table,
             None,
             config.authority_store_pruning_config,
             metrics,
-            config.indirect_objects_threshold,
             archive_readers,
             EPOCH_DURATION_MS_FOR_TESTING,
         )
@@ -3097,7 +3028,7 @@ impl AuthorityState {
     pub fn execution_lock_for_executable_transaction(
         &self,
         transaction: &VerifiedExecutableTransaction,
-    ) -> IotaResult<ExecutionLockReadGuard> {
+    ) -> IotaResult<ExecutionLockReadGuard<'_>> {
         let lock = self
             .execution_lock
             .try_read()
@@ -3117,13 +3048,13 @@ impl AuthorityState {
     /// finished handling the signing request. Otherwise, in-memory lock
     /// state could be cleared (by `ObjectLocks::clear_cached_locks`)
     /// while we are attempting to acquire locks for the transaction.
-    pub fn execution_lock_for_signing(&self) -> IotaResult<ExecutionLockReadGuard> {
+    pub fn execution_lock_for_signing(&self) -> IotaResult<ExecutionLockReadGuard<'_>> {
         self.execution_lock
             .try_read()
             .map_err(|_| IotaError::ValidatorHaltedAtEpochEnd)
     }
 
-    pub async fn execution_lock_for_reconfiguration(&self) -> ExecutionLockWriteGuard {
+    pub async fn execution_lock_for_reconfiguration(&self) -> ExecutionLockWriteGuard<'_> {
         self.execution_lock.write().await
     }
 
@@ -3137,6 +3068,7 @@ impl AuthorityState {
         accumulator: Arc<StateAccumulator>,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
         epoch_supply_change: i64,
+        epoch_last_checkpoint: CheckpointSequenceNumber,
     ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         Self::check_protocol_version(
             supported_protocol_versions,
@@ -3152,6 +3084,32 @@ impl AuthorityState {
 
         // Terminate all epoch-specific tasks (those started with within_alive_epoch).
         cur_epoch_store.epoch_terminated().await;
+
+        let highest_locally_built_checkpoint_seq = self
+            .checkpoint_store
+            .get_latest_locally_computed_checkpoint()?
+            .map(|c| *c.sequence_number())
+            .unwrap_or(0);
+
+        assert!(
+            epoch_last_checkpoint >= highest_locally_built_checkpoint_seq,
+            "expected {epoch_last_checkpoint} >= {highest_locally_built_checkpoint_seq}"
+        );
+        if highest_locally_built_checkpoint_seq == epoch_last_checkpoint {
+            // if we built the last checkpoint locally (as opposed to receiving it from a
+            // peer), then all shared_version_assignments except the one for the
+            // ChangeEpoch transaction should have been removed
+            let num_shared_version_assignments = cur_epoch_store.num_shared_version_assignments();
+            // Note that while 1 is the typical value, 0 is possible if the node restarts
+            // after committing the last checkpoint but before reconfiguring.
+            if num_shared_version_assignments > 1 {
+                // If this happens in prod, we have a memory leak, but not a correctness issue.
+                debug_fatal!(
+                    "all shared_version_assignments should have been removed \
+                    (num_shared_version_assignments: {num_shared_version_assignments})"
+                );
+            }
+        }
 
         // Safe to reconfigure now. No transactions are being executed,
         // and no epoch-specific tasks are running.
@@ -3200,6 +3158,7 @@ impl AuthorityState {
                 new_committee,
                 epoch_start_configuration,
                 expensive_safety_check_config,
+                epoch_last_checkpoint,
             )
             .await?;
         assert_eq!(new_epoch_store.epoch(), new_epoch);
@@ -3232,6 +3191,11 @@ impl AuthorityState {
             self.get_backing_package_store().clone(),
             self.get_object_store().clone(),
             &self.config.expensive_safety_check_config,
+            self.checkpoint_store
+                .get_epoch_last_checkpoint(epoch_store.epoch())
+                .unwrap()
+                .map(|c| *c.sequence_number())
+                .unwrap_or_default(),
         );
         let new_epoch = new_epoch_store.epoch();
         self.transaction_manager.reconfigure(new_epoch);
@@ -4312,7 +4276,7 @@ impl AuthorityState {
         inner_temporary_store: &InnerTemporaryStore,
         epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> Option<TxCoins> {
-        if self.indexes.is_none() || self.is_validator(epoch_store) {
+        if self.indexes.is_none() || self.is_committee_validator(epoch_store) {
             return None;
         }
         let written_coin_objects = inner_temporary_store
@@ -4574,7 +4538,7 @@ impl AuthorityState {
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         mut buffer_stake_bps: u64,
-    ) -> Option<(ProtocolVersion, Vec<ObjectRef>)> {
+    ) -> Option<(ProtocolVersion, Digest, Vec<ObjectRef>)> {
         if buffer_stake_bps > 10000 {
             warn!("clamping buffer_stake_bps to 10000");
             buffer_stake_bps = 10000;
@@ -4628,11 +4592,7 @@ impl AuthorityState {
 
                 let total_votes = stake_aggregator.total_votes();
                 let quorum_threshold = committee.quorum_threshold();
-                let f = committee.total_votes() - committee.quorum_threshold();
-
-                // multiple by buffer_stake_bps / 10000, rounded up.
-                let buffer_stake = (f * buffer_stake_bps).div_ceil(10000);
-                let effective_threshold = quorum_threshold + buffer_stake;
+                let effective_threshold = committee.effective_threshold(buffer_stake_bps);
 
                 info!(
                     protocol_config_digest = ?digest,
@@ -4646,7 +4606,7 @@ impl AuthorityState {
                 );
 
                 let has_support = total_votes >= effective_threshold;
-                has_support.then_some((proposed_protocol_version, packages))
+                has_support.then_some((proposed_protocol_version, digest, packages))
             })
     }
 
@@ -4655,27 +4615,94 @@ impl AuthorityState {
     /// returns the current protocol version and system packages.
     fn choose_protocol_version_and_system_packages_v1(
         current_protocol_version: ProtocolVersion,
+        current_protocol_digest: Digest,
         committee: &Committee,
         capabilities: Vec<AuthorityCapabilitiesV1>,
         buffer_stake_bps: u64,
-    ) -> (ProtocolVersion, Vec<ObjectRef>) {
+    ) -> (ProtocolVersion, Digest, Vec<ObjectRef>) {
         let mut next_protocol_version = current_protocol_version;
         let mut system_packages = vec![];
+        let mut protocol_version_digest = current_protocol_digest;
 
         // Finds the highest supported protocol version and system packages by
         // incrementing the proposed protocol version by one until no further
         // upgrades are supported.
-        while let Some((version, packages)) = Self::is_protocol_version_supported_v1(
+        while let Some((version, digest, packages)) = Self::is_protocol_version_supported_v1(
             next_protocol_version + 1,
             committee,
             capabilities.clone(),
             buffer_stake_bps,
         ) {
             next_protocol_version = version;
+            protocol_version_digest = digest;
             system_packages = packages;
         }
 
-        (next_protocol_version, system_packages)
+        (
+            next_protocol_version,
+            protocol_version_digest,
+            system_packages,
+        )
+    }
+
+    /// Returns the indices of validators that support the given protocol
+    /// version and digest. This includes both committee and non-committee
+    /// validators based on their capabilities. Uses active validators
+    /// instead of committee indices.
+    fn get_validators_supporting_protocol_version(
+        target_protocol_version: ProtocolVersion,
+        target_digest: Digest,
+        active_validators: &[AuthorityPublicKey],
+        capabilities: &[AuthorityCapabilitiesV1],
+    ) -> Vec<u64> {
+        let mut eligible_validators = Vec::new();
+
+        for capability in capabilities {
+            // Check if this validator supports the target protocol version and digest
+            if let Some(digest) = capability
+                .supported_protocol_versions
+                .get_version_digest(target_protocol_version)
+            {
+                if digest == target_digest {
+                    // Find the validator's index in the active validators list
+                    if let Some(index) = active_validators
+                        .iter()
+                        .position(|name| AuthorityName::from(name) == capability.authority)
+                    {
+                        eligible_validators.push(index as u64);
+                    }
+                }
+            }
+        }
+
+        // Sort indices for deterministic behavior
+        eligible_validators.sort();
+        eligible_validators
+    }
+
+    /// Calculates the sum of weights for eligible validators that are part of
+    /// the committee. Takes the indices from
+    /// get_validators_supporting_protocol_version and maps them back
+    /// to committee members to get their weights.
+    fn calculate_eligible_validators_weight(
+        eligible_validator_indices: &[u64],
+        active_validators: &[AuthorityPublicKey],
+        committee: &Committee,
+    ) -> u64 {
+        let mut total_weight = 0u64;
+
+        for &index in eligible_validator_indices {
+            let authority_pubkey = &active_validators[index as usize];
+            // Check if this validator is in the committee and get their weight
+            if let Some((_, weight)) = committee
+                .members()
+                .find(|(name, _)| *name == AuthorityName::from(authority_pubkey))
+            {
+                total_weight += weight;
+            }
+        }
+
+        total_weight
     }
 
     #[instrument(level = "debug", skip_all)]
@@ -4747,14 +4774,17 @@ impl AuthorityState {
         let next_epoch = epoch_store.epoch() + 1;
 
         let buffer_stake_bps = epoch_store.get_effective_buffer_stake_bps();
-
-        let (next_epoch_protocol_version, next_epoch_system_packages) =
+        let authority_capabilities = epoch_store
+            .get_capabilities_v1()
+            .expect("read capabilities from db cannot fail");
+        let (next_epoch_protocol_version, next_epoch_protocol_digest, next_epoch_system_packages) =
             Self::choose_protocol_version_and_system_packages_v1(
                 epoch_store.protocol_version(),
+                SupportedProtocolVersionsWithHashes::protocol_config_digest(
+                    epoch_store.protocol_config(),
+                ),
                 epoch_store.committee(),
-                epoch_store
-                    .get_capabilities_v1()
-                    .expect("read capabilities from db cannot fail"),
+                authority_capabilities.clone(),
                 buffer_stake_bps,
             );
 
@@ -4784,9 +4814,63 @@ impl AuthorityState {
             bail!("missing system packages: cannot form ChangeEpochTx");
         };
 
-        // ChangeEpochV2 requires that both options are set - ProtocolDefinedBaseFee and
-        // MaxCommitteeMembersCount.
-        if config.protocol_defined_base_fee()
+        // Use ChangeEpochV3 when the feature flag is enabled and ChangeEpochV2
+        // requirements are met
+
+        if config.select_committee_from_eligible_validators() {
+            // Get the list of eligible validators that support the target protocol version
+            let active_validators = epoch_store.epoch_start_state().get_active_validators();
+
+            let mut eligible_active_validators = (0..active_validators.len() as u64).collect();
+
+            // Use validators supporting the target protocol version as eligible validators
+            // in the next version if select_committee_supporting_next_epoch_version feature
+            // flag is set to true.
+            if config.select_committee_supporting_next_epoch_version() {
+                eligible_active_validators = Self::get_validators_supporting_protocol_version(
+                    next_epoch_protocol_version,
+                    next_epoch_protocol_digest,
+                    &active_validators,
+                    &authority_capabilities,
+                );
+
+                // Calculate the total weight of eligible validators in the committee
+                let eligible_validators_weight = Self::calculate_eligible_validators_weight(
+                    &eligible_active_validators,
+                    &active_validators,
+                    epoch_store.committee(),
+                );
+
+                // Safety check: ensure eligible validators have enough stake
+                // Use the same effective threshold calculation that was used to decide the
+                // protocol version
+                let committee = epoch_store.committee();
+                let effective_threshold = committee.effective_threshold(buffer_stake_bps);
+
+                if eligible_validators_weight < effective_threshold {
+                    error!(
+                        "Eligible validators weight {eligible_validators_weight} is less than effective threshold {effective_threshold}. \
+                        This could indicate a bug in validator selection logic or inconsistency with protocol version decision.",
+                    );
+                    // Pass all active validator indices as eligible validators
+                    // to perform selection among all of them.
+                    eligible_active_validators = (0..active_validators.len() as u64).collect();
+                }
+            }
+
+            txns.push(EndOfEpochTransactionKind::new_change_epoch_v3(
+                next_epoch,
+                next_epoch_protocol_version,
+                gas_cost_summary.storage_cost,
+                gas_cost_summary.computation_cost,
+                gas_cost_summary.computation_cost_burned,
+                gas_cost_summary.storage_rebate,
+                gas_cost_summary.non_refundable_storage_fee,
+                epoch_start_timestamp_ms,
+                next_epoch_system_package_bytes,
+                eligible_active_validators,
+            ));
+        } else if config.protocol_defined_base_fee()
             && config.max_committee_members_count_as_option().is_some()
         {
             txns.push(EndOfEpochTransactionKind::new_change_epoch_v2(
@@ -4950,6 +5034,7 @@ impl AuthorityState {
         new_committee: Committee,
         epoch_start_configuration: EpochStartConfiguration,
         expensive_safety_check_config: &ExpensiveSafetyCheckConfig,
+        epoch_last_checkpoint: CheckpointSequenceNumber,
     ) -> IotaResult<Arc<AuthorityPerEpochStore>> {
         let new_epoch = new_committee.epoch;
         info!(new_epoch = ?new_epoch, "re-opening AuthorityEpochTables for new epoch");
@@ -4966,6 +5051,7 @@ impl AuthorityState {
             self.get_object_store().clone(),
             expensive_safety_check_config,
             cur_epoch_store.get_chain_identifier(),
+            epoch_last_checkpoint,
         );
         self.epoch_store.store(new_epoch_store.clone());
         Ok(new_epoch_store)
@@ -5060,6 +5146,14 @@ impl RandomnessRoundReceiver {
         let transaction = VerifiedExecutableTransaction::new_system(transaction, epoch);
         let digest = *transaction.digest();
 
+        // Randomness state updates contain the full bls signature for the random round,
+        // which cannot necessarily be reconstructed again later. Therefore we must
+        // immediately persist this transaction. If we crash before its outputs
+        // are committed, this ensures we will be able to re-execute it.
+        self.authority_state
+            .get_cache_commit()
+            .persist_transaction(&transaction);
+
         // Send transaction to TransactionManager for execution.
         self.authority_state
             .transaction_manager()
@@ -5106,7 +5200,7 @@ impl RandomnessRoundReceiver {
             let mut effects = result.unwrap_or_else(|_| panic!("failed to get effects for randomness state update transaction at epoch {epoch}, round {round}"));
             let effects = effects.pop().expect("should return effects");
             if *effects.status() != ExecutionStatus::Success {
-                panic!(
+                fatal!(
                     "failed to execute randomness state update transaction at epoch {epoch}, round {round}: {effects:?}"
                 );
             }

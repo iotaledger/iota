@@ -183,6 +183,8 @@ export interface DryRunTransactionBlockResponse {
     events: IotaEvent[];
     input: TransactionBlockData;
     objectChanges: IotaObjectChange[];
+    /** If an input object is congested, suggest a gas price to use. */
+    suggestedGasPrice?: string | null;
 }
 export type DynamicFieldInfo =
     | {
@@ -522,6 +524,7 @@ export interface IotaChangeEpoch {
 export interface IotaChangeEpochV2 {
     computation_charge: string;
     computation_charge_burned: string;
+    eligible_active_validators?: string[] | null;
     epoch: string;
     epoch_start_timestamp_ms: string;
     storage_charge: string;
@@ -585,6 +588,13 @@ export interface IotaMoveModuleId {
     address: string;
     name: string;
 }
+export interface IotaMoveNormalizedEnum {
+    abilities: IotaMoveAbilitySet;
+    typeParameters: IotaMoveStructTypeParameter[];
+    variants: {
+        [key: string]: IotaMoveNormalizedField[];
+    };
+}
 export interface IotaMoveNormalizedField {
     name: string;
     type: IotaMoveNormalizedType;
@@ -598,6 +608,9 @@ export interface IotaMoveNormalizedFunction {
 }
 export interface IotaMoveNormalizedModule {
     address: string;
+    enums?: {
+        [key: string]: IotaMoveNormalizedEnum;
+    };
     exposedFunctions: {
         [key: string]: IotaMoveNormalizedFunction;
     };
@@ -1069,7 +1082,7 @@ export interface MoveCallMetrics {
     rank7Days: [MoveFunctionName, string][];
 }
 export interface MoveCallParams {
-    arguments: unknown[];
+    arguments: PtbInput[];
     function: string;
     module: string;
     packageObjectId: string;
@@ -1485,6 +1498,7 @@ export type ProtocolConfigValue =
     | {
           bool: string;
       };
+export type PtbInput = IotaArgument | unknown;
 export type PublicKey =
     | {
           Ed25519: string;

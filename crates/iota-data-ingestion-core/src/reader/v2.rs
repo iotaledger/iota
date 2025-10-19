@@ -30,6 +30,8 @@ use tokio::{
 };
 use tracing::{debug, error, info};
 
+#[cfg(not(target_os = "macos"))]
+use crate::reader::fetch::init_watcher;
 use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     history::reader::HistoricalReader,
@@ -116,7 +118,7 @@ impl RemoteStore {
                     use_for_pruning_watermark: false,
                 };
                 let historical = HistoricalReader::new(config)
-                    .inspect_err(|e| error!("Unable to instantiate historical reader: {e}"))?;
+                    .inspect_err(|e| error!("unable to instantiate historical reader: {e}"))?;
 
                 let live = live_url
                     .map(|url| create_remote_store_client(url, Default::default(), timeout_secs))
@@ -230,7 +232,7 @@ impl CheckpointReaderActor {
             )
             .await
             .map_err(|_| {
-                IngestionError::HistoryRead("Reading Manifest exceeded the timeout".into())
+                IngestionError::HistoryRead("reading manifest exceeded the timeout".into())
             })??;
 
             // Verify the requested checkpoint is now available after the manifest refresh.
@@ -265,7 +267,7 @@ impl CheckpointReaderActor {
             .await
             .map_err(|_| {
                 IngestionError::HistoryRead(format!(
-                    "Reading checkpoint {} exceeded the timeout",
+                    "reading checkpoint {} exceeded the timeout",
                     metadata.file_path()
                 ))
             })??
@@ -451,20 +453,25 @@ impl CheckpointReaderActor {
 
     /// Run the main loop of the checkpoint reader actor.
     async fn run(mut self) {
-        let (_watcher, mut inotify_rx) = self.setup_directory_watcher();
+        let (_inotify_tx, mut inotify_rx) = mpsc::channel::<()>(1);
+        std::fs::create_dir_all(self.path()).expect("failed to create a directory");
+
+        #[cfg(not(target_os = "macos"))]
+        let _watcher = init_watcher(_inotify_tx, self.path());
+
         self.data_limiter.gc(self.last_pruned_watermark);
         self.gc_processed_files(self.last_pruned_watermark)
-            .expect("Failed to clean the directory");
+            .expect("failed to clean the directory");
 
         loop {
             tokio::select! {
                 _ = &mut self.shutdown_rx => break,
                 Some(watermark) = self.gc_signal_rx.recv() => {
                     self.data_limiter.gc(watermark);
-                    self.gc_processed_files(watermark).expect("Failed to clean the directory");
+                    self.gc_processed_files(watermark).expect("failed to clean the directory");
                 }
                 Ok(Some(_)) | Err(_) = timeout(Duration::from_millis(self.reader_options.tick_interval_ms), inotify_rx.recv())  => {
-                    self.sync().await.expect("Failed to read checkpoint files");
+                    self.sync().await.expect("failed to read checkpoint files");
                 }
             }
         }
@@ -563,7 +570,7 @@ impl CheckpointReader {
     pub(crate) async fn shutdown(self) -> IngestionResult<()> {
         _ = self.shutdown_tx.send(());
         self.handle.await.map_err(|err| IngestionError::Shutdown {
-            component: "CheckpointReader".into(),
+            component: "checkpoint reader".into(),
             msg: err.to_string(),
         })
     }

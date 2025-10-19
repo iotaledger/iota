@@ -359,7 +359,7 @@ impl Scenario {
 
     // commit a transaction to the database
     pub async fn commit(&mut self, tx: TransactionDigest) {
-        self.cache().commit_transaction_outputs(1, &[tx]).await;
+        self.cache().commit_transaction_outputs(1, &[tx]);
         self.count_action();
     }
 
@@ -555,7 +555,7 @@ async fn test_committed() {
 
         s.assert_live(&[1, 2]);
         s.assert_dirty(&[1, 2]);
-        s.cache().commit_transaction_outputs(1, &[tx]).await;
+        s.cache().commit_transaction_outputs(1, &[tx]);
         s.assert_not_dirty(&[1, 2]);
         s.assert_cached(&[1, 2]);
 
@@ -1301,7 +1301,7 @@ async fn latest_object_cache_race_test() {
                     continue;
                 };
 
-                assert!(cur >= latest, "{} >= {}", cur, latest);
+                assert!(cur >= latest, "{cur} >= {latest}");
                 latest = cur;
             }
         })
@@ -1421,7 +1421,7 @@ async fn concurrent_latest_object_cache_race_test() {
             .get(&object_id)
             .and_then(|e| e.lock().version())
         {
-            assert!(cur >= checked_latest, "{} >= {}", cur, checked_latest);
+            assert!(cur >= checked_latest, "{cur} >= {checked_latest}");
             checked_latest = cur;
         }
     };

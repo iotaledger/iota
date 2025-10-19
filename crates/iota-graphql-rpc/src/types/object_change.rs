@@ -7,10 +7,23 @@ use iota_types::effects::{IDOperation, ObjectChange as NativeObjectChange};
 
 use crate::types::{iota_address::IotaAddress, object::Object};
 
+/// Represents the source of an object change (derived from transaction kind)
+#[derive(Clone, Debug)]
+pub(crate) enum ObjectChangeSource {
+    /// Object change from a checkpointed transaction
+    Checkpointed,
+    /// Object change from an executed (not yet checkpointed) transaction
+    Executed,
+    /// Object change from a dry run transaction (dryRunTransactionBlock)
+    DryRun,
+}
+
 pub(crate) struct ObjectChange {
     pub native: NativeObjectChange,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
+    /// The source of this object change (derived from transaction kind)
+    pub source: ObjectChangeSource,
 }
 
 /// Effect on an individual Object (keyed by its ID).
@@ -27,13 +40,15 @@ impl ObjectChange {
             return Ok(None);
         };
 
-        Object::query(
-            ctx,
-            self.native.id.into(),
-            Object::at_version(version.value(), self.checkpoint_viewed_at),
-        )
-        .await
-        .extend()
+        let object_lookup = match self.source {
+            ObjectChangeSource::Executed => Object::at_optimistic_version(version.value()),
+            ObjectChangeSource::Checkpointed | ObjectChangeSource::DryRun => {
+                Object::at_version(version.value(), self.checkpoint_viewed_at)
+            }
+        };
+        Object::query(ctx, self.native.id.into(), object_lookup)
+            .await
+            .extend()
     }
 
     /// The contents of the object immediately after the transaction.
@@ -42,13 +57,15 @@ impl ObjectChange {
             return Ok(None);
         };
 
-        Object::query(
-            ctx,
-            self.native.id.into(),
-            Object::at_version(version.value(), self.checkpoint_viewed_at),
-        )
-        .await
-        .extend()
+        let object_lookup = match self.source {
+            ObjectChangeSource::Executed => Object::at_optimistic_version(version.value()),
+            ObjectChangeSource::Checkpointed | ObjectChangeSource::DryRun => {
+                Object::at_version(version.value(), self.checkpoint_viewed_at)
+            }
+        };
+        Object::query(ctx, self.native.id.into(), object_lookup)
+            .await
+            .extend()
     }
 
     /// Whether the ID was created in this transaction.

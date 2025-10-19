@@ -22,6 +22,8 @@ pub struct Instance {
     pub region: String,
     /// The public ip address of the instance (accessible from anywhere).
     pub main_ip: Ipv4Addr,
+    /// The public ip address of the instance (accessible from the same VPC).
+    pub private_ip: Ipv4Addr,
     /// The list of tags associated with the instance.
     pub tags: Vec<String>,
     /// The specs of the instance.
@@ -57,7 +59,8 @@ impl Instance {
         Self {
             id,
             region: Default::default(),
-            main_ip: Ipv4Addr::new(127, 0, 0, 1),
+            main_ip: Ipv4Addr::LOCALHOST,
+            private_ip: Ipv4Addr::LOCALHOST,
             tags: Default::default(),
             specs: Default::default(),
             status: Default::default(),
@@ -172,6 +175,7 @@ pub mod test_client {
                 id: id.to_string(),
                 region: region.into(),
                 main_ip: format!("0.0.0.{id}").parse().unwrap(),
+                private_ip: format!("0.0.0.{id}").parse().unwrap(),
                 tags: Vec::new(),
                 specs: self.settings.specs.clone(),
                 status: "running".into(),

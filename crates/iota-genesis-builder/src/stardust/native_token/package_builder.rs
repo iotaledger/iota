@@ -68,7 +68,7 @@ module 0x0::$MODULE_NAME {
 const TOML_CONTENT: &str = r#"[package]
 name = "$PACKAGE_NAME"
 version = "0.0.1"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "$GENESIS_REVISION" }

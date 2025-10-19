@@ -33,10 +33,10 @@ pub fn create_rustls_server_config(
         rustls::crypto::ring::default_provider(),
     ))
     .with_protocol_versions(&[&rustls::version::TLS13])
-    .unwrap_or_else(|e| panic!("Failed to create TLS server config: {:?}", e))
+    .unwrap_or_else(|e| panic!("Failed to create TLS server config: {e:?}"))
     .with_no_client_auth()
     .with_single_cert(vec![tls_cert], tls_private_key)
-    .unwrap_or_else(|e| panic!("Failed to create TLS server config: {:?}", e));
+    .unwrap_or_else(|e| panic!("Failed to create TLS server config: {e:?}"));
     tls_config.alpn_protocols = vec![b"h2".to_vec()];
     tls_config
 }

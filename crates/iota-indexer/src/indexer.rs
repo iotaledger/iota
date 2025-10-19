@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, env};
+use std::{collections::HashMap, env, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use iota_data_ingestion_core::{
-    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
+    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
@@ -15,47 +15,37 @@ use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
+use crate::ingestion::common::persist::Writer;
+
+/// Timeout for waiting for tasks to shutdown gracefully after cancellation
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+
 use crate::{
     build_json_rpc_server,
-    config::{IngestionConfig, JsonRpcConfig, PruningOptions, SnapshotLagConfig},
+    config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::ConnectionPool,
     errors::IndexerError,
-    handlers::{
-        checkpoint_handler::new_handlers, objects_snapshot_handler::start_objects_snapshot_handler,
-        pruner::Pruner,
+    ingestion::{
+        primary::orchestration::{setup_primary, start_primary_writer_task},
+        snapshot::orchestration::setup_snapshot,
     },
-    indexer_reader::IndexerReader,
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
+    pruning::{optimistic_pruner::OptimisticPruner, pruner::Pruner},
+    read::IndexerReader,
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
 };
 
 pub struct Indexer;
 
 impl Indexer {
-    pub async fn start_writer(
-        config: &IngestionConfig,
-        store: PgIndexerStore,
-        metrics: IndexerMetrics,
-    ) -> Result<(), IndexerError> {
-        let snapshot_config = SnapshotLagConfig::default();
-        Indexer::start_writer_with_config(
-            config,
-            store,
-            metrics,
-            snapshot_config,
-            PruningOptions::default(),
-            CancellationToken::new(),
-        )
-        .await
-    }
-
     pub async fn start_writer_with_config(
         config: &IngestionConfig,
         store: PgIndexerStore,
         metrics: IndexerMetrics,
         snapshot_config: SnapshotLagConfig,
-        pruning_options: PruningOptions,
+        retention_config: Option<RetentionConfig>,
+        optimistic_pruner_batch_size: Option<u64>,
         cancel: CancellationToken,
     ) -> Result<(), IndexerError> {
         info!(
@@ -80,22 +70,36 @@ impl Indexer {
 
         // Start objects snapshot processor, which is a separate pipeline with its
         // ingestion pipeline.
-        let (object_snapshot_worker, object_snapshot_watermark) = start_objects_snapshot_handler(
-            store.clone(),
-            metrics.clone(),
-            snapshot_config,
-            cancel.clone(),
-        )
-        .await?;
+        let (object_snapshot_worker_pool, object_snapshot_writer, object_snapshot_receiver) =
+            setup_snapshot(
+                store.clone(),
+                metrics.clone(),
+                snapshot_config,
+                config.checkpoint_download_queue_size,
+            )
+            .await?;
+        let object_snapshot_watermark = object_snapshot_writer
+            .get_watermark_hi()
+            .await?
+            .unwrap_or_default();
 
-        if let Some(epochs_to_keep) = pruning_options.epochs_to_keep {
-            info!(
-                "Starting indexer pruner with epochs to keep: {}",
-                epochs_to_keep
+        if let Some(retention_config) = retention_config {
+            let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
+            let cancel_clone = cancel.clone();
+            spawn_monitored_task!(pruner.start(cancel_clone));
+        }
+
+        if let Some(optimistic_pruner_batch_size) = optimistic_pruner_batch_size {
+            info!("Starting indexer optimistic tables pruner");
+            let optimistic_pruner = OptimisticPruner::new(
+                store.clone(),
+                optimistic_pruner_batch_size,
+                metrics.clone(),
+            )?;
+            let cancellation_token_for_optimistic_pruner = cancel.child_token();
+            spawn_monitored_task!(
+                optimistic_pruner.start(cancellation_token_for_optimistic_pruner)
             );
-            assert!(epochs_to_keep > 0, "Epochs to keep must be positive");
-            let pruner: Pruner = Pruner::new(store.clone(), epochs_to_keep, metrics.clone())?;
-            spawn_monitored_task!(pruner.start(CancellationToken::new()));
         }
 
         // If we already have chain identifier indexed (i.e. the first checkpoint has
@@ -115,26 +119,30 @@ impl Indexer {
             DataIngestionMetrics::new(&Registry::new()),
             cancel.child_token(),
         );
-        let worker = new_handlers(store, metrics, primary_watermark, cancel.clone()).await?;
-        let worker_pool = WorkerPool::new(
-            worker,
-            "primary".to_string(),
+        let (primary_worker_pool, primary_writer) = setup_primary(
+            store.clone(),
+            metrics.clone(),
             config.checkpoint_download_queue_size,
-            Default::default(),
+        )
+        .await?;
+        executor.register(primary_worker_pool).await?;
+        let cancel_clone = cancel.clone();
+        spawn_monitored_task!(start_primary_writer_task(
+            primary_writer,
+            primary_watermark,
+            cancel_clone
+        ));
+
+        executor.register(object_snapshot_worker_pool).await?;
+        let object_snapshot_cancel = cancel.clone();
+        let mut object_snapshot_task_handle = spawn_monitored_task!(
+            object_snapshot_writer
+                .persist_sequentially(object_snapshot_receiver, object_snapshot_cancel)
         );
 
-        executor.register(worker_pool).await?;
-
-        let worker_pool = WorkerPool::new(
-            object_snapshot_worker,
-            "object_snapshot".to_string(),
-            config.checkpoint_download_queue_size,
-            Default::default(),
-        );
-        executor.register(worker_pool).await?;
         info!("Starting data ingestion executor...");
-        executor
-            .run(
+        let mut executor_handle = tokio::spawn(
+            executor.run(
                 config
                     .sources
                     .data_ingestion_path
@@ -147,22 +155,50 @@ impl Indexer {
                     .map(|url| url.as_str().to_owned()),
                 vec![],
                 extra_reader_options,
-            )
-            .await?;
+            ),
+        );
+
+        tokio::select! {
+            executor_result = &mut executor_handle => {
+                // Executor completed first - cancel snapshot task and check result
+                cancel.cancel();
+                let snapshot_result = tokio::time::timeout(
+                    SHUTDOWN_TIMEOUT,
+                    object_snapshot_task_handle
+                ).await
+                .context("timeout waiting for snapshot task to shutdown");
+                executor_result.context("failed to join data ingestion executor")?.context("data ingestion executor failed")?;
+                snapshot_result?.context("failed to join snapshot task during shutdown")?.context("snapshot task failed during shutdown")?;
+            },
+            snapshot_result = &mut object_snapshot_task_handle => {
+                // Snapshot task completed first - cancel executor and check result
+                cancel.cancel();
+                let executor_result = tokio::time::timeout(
+                    SHUTDOWN_TIMEOUT,
+                    executor_handle
+                ).await
+                .context("timeout waiting for executor to shutdown");
+                snapshot_result.context("failed to join snapshot task")?.context("snapshot task failed")?;
+                executor_result?.context("failed to join data ingestion executor during shutdown")?.context("data ingestion executor failed during shutdown")?;
+            }
+        };
+
         Ok(())
     }
 
     pub async fn start_reader(
         config: &JsonRpcConfig,
+        store: PgIndexerStore,
         registry: &Registry,
         connection_pool: ConnectionPool,
+        metrics: IndexerMetrics,
     ) -> Result<(), IndexerError> {
         info!(
             "IOTA Indexer Reader (version {:?}) started...",
             env!("CARGO_PKG_VERSION")
         );
-        let indexer_reader = IndexerReader::new(connection_pool);
-        let handle = build_json_rpc_server(registry, indexer_reader, config)
+        let read = IndexerReader::new(connection_pool);
+        let handle = build_json_rpc_server(store, registry, read, config, metrics)
             .await
             .expect("Json rpc server should not run into errors upon start.");
         tokio::spawn(async move { handle.stopped().await })

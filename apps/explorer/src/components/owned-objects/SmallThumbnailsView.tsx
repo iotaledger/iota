@@ -23,8 +23,8 @@ interface OwnObjectContainerProps {
 
 function OwnObjectContainer({ id, children }: OwnObjectContainerProps): JSX.Element {
     return (
-        <div className="rounded-xl p-xs hover:bg-iota-neutral-92 dark:hover:bg-iota-neutral-12">
-            <ObjectLink display="block" objectId={id} label={children} />
+        <div className="max-w-full rounded-xl p-xs hover:bg-iota-neutral-92 dark:hover:bg-iota-neutral-12">
+            <ObjectLink display="block" objectId={id} label={children} className="max-w-full" />
         </div>
     );
 }
@@ -60,7 +60,7 @@ function SmallThumbnail({ obj }: { obj: IotaObjectResponse }): JSX.Element {
                 disableAutoPlay
             />
             <div className="flex min-w-0 flex-col flex-nowrap gap-xxs">
-                <span className="text-label-md text-iota-neutral-10 dark:text-iota-neutral-92">
+                <span className="min-w-0 max-w-full overflow-hidden truncate text-label-md text-iota-neutral-10 dark:text-iota-neutral-92">
                     {name}
                 </span>
                 <div className="flex flex-row items-center gap-xs text-label-md text-iota-neutral-10 dark:text-iota-neutral-92">

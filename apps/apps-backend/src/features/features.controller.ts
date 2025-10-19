@@ -4,7 +4,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { Feature } from '@iota/core/enums/features.enums';
 import { Network } from '@iota/iota-sdk/client';
-import { KNOWN_ADDRESSES, NAME_ADDRESS_RESOLUTION_FEATURE } from './features.constants';
+import { NAME_ADDRESS_RESOLUTION_FEATURE, KNOWN_ADDRESSES_ALIASES } from './features.constants';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -93,14 +93,12 @@ export class FeaturesController {
                     },
                 },
                 [Feature.KnownAddressAlias]: {
-                    defaultValue: {
-                        enabled: true,
-                        addresses: KNOWN_ADDRESSES,
-                    },
+                    defaultValue: { enabled: true, addresses: KNOWN_ADDRESSES_ALIASES },
                 },
                 [Feature.KnownIotaEVMCoinTypes]: {
                     defaultValue: [
                         '0x3fbd238eea1f4ce7d797148954518fce853f24a8be01b47388bfa2262602fefa::vusd::VUSD',
+                        '0xe1e88f4962b3ea96cfad19aee42f666b04bbce4dc4327c3cd63f1b8ff16e13b2::tool_coin::TOOL_COIN',
                     ],
                 },
                 [Feature.IotaNames]: {
@@ -197,10 +195,7 @@ export class FeaturesController {
                     },
                 },
                 [Feature.KnownAddressAlias]: {
-                    defaultValue: {
-                        enabled: true,
-                        addresses: KNOWN_ADDRESSES,
-                    },
+                    defaultValue: { enabled: true, addresses: KNOWN_ADDRESSES_ALIASES },
                 },
                 [Feature.KnownIotaEVMCoinTypes]: {
                     defaultValue: [

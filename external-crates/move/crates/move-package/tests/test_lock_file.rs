@@ -2,22 +2,24 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use expect_test::expect;
 use std::{
     fs::{self, File},
     io::{self, Read, Write},
     path::PathBuf,
 };
-use tempfile::TempDir;
 
+use expect_test::expect;
 use move_compiler::editions::{Edition, Flavor};
-use move_package::lock_file::schema::{
-    update_managed_address, ManagedAddressUpdate, ManagedPackage, ToolchainVersion,
+use move_package::{
+    BuildConfig,
+    lock_file::{
+        LockFile,
+        schema::{ManagedAddressUpdate, ManagedPackage, ToolchainVersion, update_managed_address},
+    },
+    resolution::dependency_graph::DependencyGraph,
 };
-use move_package::lock_file::LockFile;
-use move_package::resolution::dependency_graph::DependencyGraph;
-use move_package::BuildConfig;
 use move_symbol_pool::Symbol;
+use tempfile::TempDir;
 
 #[test]
 fn commit() {
@@ -164,13 +166,13 @@ flavor = "iota"
 fn update_lock_file_toolchain_version() {
     let pkg = create_test_package().unwrap();
     let move_manifest = pkg.path().join("Move.toml");
-    // The 2024.beta in the manifest should override defaults.
+    // The 2024 in the manifest should override defaults.
     fs::write(
         move_manifest,
         r#"
           [package]
           name = "test"
-          edition = "2024.beta"
+          edition = "2024"
         "#,
     )
     .unwrap();
@@ -202,7 +204,7 @@ fn update_lock_file_toolchain_version() {
 
     let expected = expect![[r#"
         compiler-version = "0.0.1"
-        edition = "2024.beta"
+        edition = "2024"
         flavor = "iota"
     "#]];
     expected.assert_eq(&toml);

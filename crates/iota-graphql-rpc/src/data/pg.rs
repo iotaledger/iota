@@ -12,8 +12,7 @@ use diesel::{
     query_dsl::LoadQuery,
 };
 use iota_indexer::{
-    indexer_reader::IndexerReader, run_query_async, run_query_repeatable_async,
-    spawn_read_only_blocking,
+    read::IndexerReader, run_query_async, run_query_repeatable_async, spawn_read_only_blocking,
 };
 use tracing::error;
 
@@ -65,7 +64,7 @@ impl QueryExecutor for PgExecutor {
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
         if let Err(e) = &result {
-            error!("DB query error: {e:?}");
+            error!("db query error: {e:?}");
         }
         result.map_err(|e| Error::Internal(e.to_string()))
     }
@@ -89,7 +88,7 @@ impl QueryExecutor for PgExecutor {
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
         if let Err(e) = &result {
-            error!("DB query error: {e:?}");
+            error!("db query error: {e:?}");
         }
         result.map_err(|e| Error::Internal(e.to_string()))
     }

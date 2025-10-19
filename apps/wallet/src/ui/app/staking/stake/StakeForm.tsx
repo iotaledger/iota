@@ -5,7 +5,6 @@
 import {
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
-    parseAmount,
     StakeTransactionInfo,
     useBalance,
     useCoinMetadata,
@@ -42,7 +41,7 @@ import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
-import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
@@ -90,9 +89,20 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         [availableBalance, coinSymbol, decimals, minimumStake],
     );
 
+    const formik = useFormik<FormValues>({
+        initialValues: INITIAL_VALUES,
+        validationSchema: validationSchema,
+        onSubmit: handleSubmit,
+        validateOnMount: true,
+    });
+    const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
+    const { amount } = values;
+    const amountWithoutDecimals = parseAmount(amount, decimals);
+    const [stakedAmountFormatted] = useFormatCoin({ balance: amountWithoutDecimals });
+
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
         useMutation({
-            mutationFn: async (formikHelpers: FormikHelpers<FormValues>) => {
+            mutationFn: async () => {
                 if (!transaction || !signer) {
                     throw new Error('Failed, missing required field');
                 }
@@ -111,11 +121,10 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                     showEvents: true,
                                 },
                             });
-                            formikHelpers.resetForm();
                             await signer.client.waitForTransaction({
                                 digest: tx.digest,
                             });
-                            return tx;
+                            return { tx };
                         } finally {
                             span?.end();
                         }
@@ -124,7 +133,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
             },
             onSuccess: (_) => {
                 ampli.stakedIota({
-                    stakedAmount: Number(amountWithoutDecimals),
+                    stakedAmount: Number(stakedAmountFormatted),
                     validatorAddress: validatorAddress || '',
                 });
             },
@@ -133,10 +142,18 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
             },
         });
 
-    const handleSubmit = async (_: FormValues, formikHelpers: FormikHelpers<FormValues>) => {
+    async function handleSubmit(_: FormValues, formikHelpers: FormikHelpers<FormValues>) {
         try {
-            const response = await stakeTokenMutateAsync(formikHelpers);
-            onSuccess(response);
+            await stakeTokenMutateAsync(undefined, {
+                onSuccess(data) {
+                    ampli.stakedIota({
+                        stakedAmount: Number(amount),
+                        validatorAddress: validatorAddress || '',
+                    });
+                    formikHelpers.resetForm();
+                    onSuccess(data.tx);
+                },
+            });
         } catch (error) {
             toast.error(
                 <div className="flex max-w-xs flex-col overflow-hidden">
@@ -147,17 +164,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                 </div>,
             );
         }
-    };
-
-    const formik = useFormik<FormValues>({
-        initialValues: INITIAL_VALUES,
-        validationSchema: validationSchema,
-        onSubmit: handleSubmit,
-        validateOnMount: true,
-    });
-    const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
-    const { amount } = values;
-    const amountWithoutDecimals = parseAmount(amount, decimals);
+    }
 
     const {
         data: newStakeData,

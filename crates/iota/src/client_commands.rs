@@ -82,7 +82,6 @@ use prometheus::Registry;
 use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
-use shared_crypto::intent::Intent;
 use strum::{Display, EnumString};
 use tabled::{
     builder::Builder as TableBuilder,
@@ -103,6 +102,7 @@ use crate::{
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
     keytool::Key,
+    signing::sign_transaction,
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
@@ -620,7 +620,7 @@ impl PaymentArgs {
     pub fn into_args(self) -> Vec<String> {
         self.gas
             .into_iter()
-            .map(|gas_id| format!("--gas {}", gas_id))
+            .map(|gas_id| format!("--gas {gas_id}"))
             .collect()
     }
 }
@@ -661,13 +661,13 @@ impl GasDataArgs {
     pub fn into_args(self) -> Vec<String> {
         let mut args = Vec::new();
         if let Some(gas_budget) = self.gas_budget {
-            args.push(format!("--gas-budget {}", gas_budget));
+            args.push(format!("--gas-budget {gas_budget}"));
         }
         if let Some(gas_price) = self.gas_price {
-            args.push(format!("--gas-price {}", gas_price));
+            args.push(format!("--gas-price {gas_price}"));
         }
         if let Some(gas_sponsor) = self.gas_sponsor {
-            args.push(format!("--gas-sponsor @{}", gas_sponsor));
+            args.push(format!("--gas-sponsor @{gas_sponsor}"));
         }
         args
     }
@@ -736,7 +736,7 @@ impl TxProcessingArgs {
             args.push("--serialize-signed-transaction".to_string());
         }
         if let Some(sender) = self.sender {
-            args.push(format!("--sender @{}", sender));
+            args.push(format!("--sender @{sender}"));
         }
         if !self.display.is_empty() {
             let display_fields = self
@@ -745,7 +745,7 @@ impl TxProcessingArgs {
                 .map(|d| d.to_string())
                 .collect::<Vec<_>>()
                 .join(",");
-            args.push(format!("--display {}", display_fields));
+            args.push(format!("--display {display_fields}"));
         }
         args
     }
@@ -976,7 +976,11 @@ impl IotaClientCommands {
                 gas_data,
                 processing,
             } => {
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let client = context.get_client().await?;
                 let read_api = client.read_api();
                 let chain_id = read_api.get_chain_identifier().await.ok();
@@ -1129,7 +1133,11 @@ impl IotaClientCommands {
                     .into());
                 }
 
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let client = context.get_client().await?;
                 let read_api = client.read_api();
                 let chain_id = read_api.get_chain_identifier().await.ok();
@@ -1370,7 +1378,11 @@ impl IotaClientCommands {
                     .move_call_tx_kind(package, &module, &function, type_args, args)
                     .await?;
 
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let gas_payment = client
                     .transaction_builder()
                     .input_refs(&payment.gas)
@@ -1827,7 +1839,11 @@ impl IotaClientCommands {
                 };
 
                 let client = context.get_client().await?;
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let gas_payment = client
                     .transaction_builder()
                     .input_refs(&payment.gas)
@@ -2292,7 +2308,9 @@ pub(crate) async fn compile_package(
 
 /// Return the correct implicit dependencies for the [version], producing a
 /// warning or error if the protocol version is unknown or old
-fn implicit_deps_for_protocol_version(version: ProtocolVersion) -> anyhow::Result<Dependencies> {
+pub(crate) fn implicit_deps_for_protocol_version(
+    version: ProtocolVersion,
+) -> anyhow::Result<Dependencies> {
     if version > ProtocolVersion::MAX + 2 {
         eprintln!(
             "[{}]: The network is using protocol version {:?}, but this binary only recognizes protocol version {:?}; \
@@ -3365,16 +3383,13 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
-        let keystore = context.config().keystore();
-        let signature =
-            keystore.sign_secure(&tx_data.sender(), &tx_data, Intent::iota_transaction())?;
+        let signature = sign_transaction(context, &tx_data, &tx_data.sender()).await?;
 
         let mut signatures = vec![signature.into()];
 
         if let Some(gas_sponsor) = gas_sponsor {
             if gas_sponsor != signer {
-                let signature =
-                    keystore.sign_secure(&gas_sponsor, &tx_data, Intent::iota_transaction())?;
+                let signature = sign_transaction(context, &tx_data, &gas_sponsor).await?;
 
                 signatures.push(signature.into());
             }
@@ -3511,7 +3526,7 @@ async fn check_protocol_version_and_warn(read_api: &ReadApi) -> Result<(), anyho
         );
         let help_msg = if cli_protocol_version < on_chain_protocol_version {
             "Consider installing the latest version of the CLI - \
-            https://docs.iota.org/references/cli \n\n \
+            https://docs.iota.org/developer/references/cli \n\n \
             If publishing/upgrading returns a dependency verification error, then install the \
             latest CLI version."
         } else {

@@ -92,6 +92,8 @@ members = [
   "crates/iota-graphql-rpc",
   "crates/iota-graphql-rpc-client",
   "crates/iota-graphql-rpc-headers",
+  "crates/iota-grpc-api",
+  "crates/iota-grpc-types",
   "crates/iota-http",
   "crates/iota-indexer",
   "crates/iota-indexer-builder",
@@ -153,6 +155,9 @@ members = [
   "crates/prometheus-closure-metric",
   "crates/shared-crypto",
   "crates/simulacrum",
+  "crates/starfish/config",
+  "crates/starfish/core",
+  "crates/starfish/simtests",
   "crates/telemetry-subscribers",
   "crates/test-cluster",
   "crates/transaction-fuzzer",
@@ -169,7 +174,7 @@ members = [
 
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
-version = "1.5.0-alpha"
+version = "1.10.0-alpha"
 
 [profile.release]
 # debug = 1 means line charts only, which is minimum needed for good stack traces
@@ -282,7 +287,7 @@ hyper = "1"
 hyper-rustls = { version = "0.27", default-features = false, features = ["webpki-roots", "http1", "http2", "ring", "tls12"] }
 hyper-util = { version = "0.1.4", features = ["tokio", "server-auto", "service"] }
 im = "15"
-indexmap = { version = "2.1.0", features = ["serde"] }
+indexmap = { version = "2.11.0", features = ["serde"] }
 indicatif = "0.17.2"
 insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }
 integer-encoding = "3.0.1"
@@ -398,6 +403,8 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
+iota-grpc-api = { path = "crates/iota-grpc-api" }
+iota-grpc-types = { path = "crates/iota-grpc-types" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
@@ -435,7 +442,7 @@ iota-rosetta = { path = "crates/iota-rosetta" }
 iota-rpc-loadgen = { path = "crates/iota-rpc-loadgen" }
 iota-sdk = { path = "crates/iota-sdk" }
 # core-types with json format for REST API
-iota-sdk2 = { package = "iota-rust-sdk", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "93580286f3714248398d17e4481daf608508856a", features = ["hash", "serde", "schemars"] }
+iota-sdk2 = { package = "iota-rust-sdk", git = "https://github.com/iotaledger/iota-rust-sdk.git", rev = "d7084eaf0564f4e2381b2e8408ee1f7d51468450", features = ["hash", "serde", "schemars"] }
 iota-simulator = { path = "crates/iota-simulator" }
 iota-snapshot = { path = "crates/iota-snapshot" }
 iota-source-validation = { path = "crates/iota-source-validation" }
@@ -479,6 +486,9 @@ move-vm-test-utils = { path = "external-crates/move/crates/move-vm-test-utils/",
 prometheus-closure-metric = { path = "crates/prometheus-closure-metric" }
 shared-crypto = { path = "crates/shared-crypto" }
 simulacrum = { path = "crates/simulacrum" }
+starfish-config = { path = "crates/starfish/config" }
+starfish-core = { path = "crates/starfish/core" }
+starfish-simtests = { path = "crates/starfish/simtests" }
 telemetry-subscribers = { path = "crates/telemetry-subscribers" }
 test-cluster = { path = "crates/test-cluster" }
 transaction-fuzzer = { path = "crates/transaction-fuzzer" }

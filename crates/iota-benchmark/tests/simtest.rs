@@ -426,8 +426,6 @@ mod test {
         });
         register_fail_point_async("consensus-delay", || delay_failpoint(10..20, 0.001));
 
-        register_fail_point_async("writeback-cache-commit", || delay_failpoint(10..20, 0.001));
-
         test_simulated_load(test_cluster, 120).await;
     }
 
@@ -928,6 +926,7 @@ mod test {
             })
             .with_submit_delay_step_override_millis(3000)
             .with_num_unpruned_validators(default_num_of_unpruned_validators)
+            .with_disabled_address_verification_cooldown() // Disable cooldown for tests with node crashes
             .build()
             .await
             .into()

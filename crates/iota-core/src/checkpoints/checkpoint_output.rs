@@ -186,7 +186,7 @@ impl SendCheckpointToStateSync {
 
 #[async_trait]
 impl CertifiedCheckpointOutput for SendCheckpointToStateSync {
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", name = "checkpoint_created_from_consensus", skip_all)]
     async fn certified_checkpoint_created(
         &self,
         summary: &CertifiedCheckpointSummary,

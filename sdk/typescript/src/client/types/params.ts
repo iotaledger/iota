@@ -139,6 +139,11 @@ export interface GetTransactionBlockParams {
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
 }
+/** Return if the transaction has been indexed on the fullnode. */
+export interface IsTransactionIndexedOnNodeParams {
+    /** the digest of the queried transaction */
+    digest: string;
+}
 /** Return the object data for a list of objects */
 export interface MultiGetObjectsParams {
     /** the IDs of the queried objects */

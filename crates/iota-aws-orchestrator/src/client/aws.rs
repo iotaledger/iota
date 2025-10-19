@@ -113,6 +113,11 @@ impl AwsClient {
                 .unwrap_or("0.0.0.0") // Stopped instances do not have an ip address.
                 .parse()
                 .expect("AWS instance should have a valid ip"),
+            private_ip: aws_instance
+                .private_ip_address()
+                .unwrap_or("0.0.0.0") // Stopped instances do not have an ip address.
+                .parse()
+                .expect("AWS instance should have a valid ip"),
             tags: vec![self.settings.testbed_id.clone()],
             specs: format!(
                 "{:?}",

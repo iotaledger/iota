@@ -9,7 +9,7 @@
     All existing methods will continue to work, but the following methods have been deprecated and
     replaced with methods with improved names:
 
-    -   `toHEX` -> `toHEX`
+    -   `toHEX` -> `toHex`
     -   `fromHEX` -> `fromHex`
     -   `toB64` -> `toBase64`
     -   `fromB64` -> `fromBase64`

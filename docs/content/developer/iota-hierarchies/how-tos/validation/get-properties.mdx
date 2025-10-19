@@ -1,0 +1,158 @@
+---
+title: Get Properties
+sidebar_label: Get Properties
+description: Guide to retrieve properties from a federation hierarchy.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+## Get Properties
+
+This guide demonstrates how to retrieve properties from a federation using the offchain API.
+
+### Prerequisites
+
+- An existing hierarchy on the IOTA network
+- A funded client with write access
+- A federation with statements already added
+
+### Overview
+
+The get statements API allows you to retrieve all federation properties.
+
+### 1. Set Up Client
+
+Initialize a funded client to interact with the Hierarchies:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/03_get_properties.rs#L21
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/03_get_properties.ts#L10
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Federation
+
+Create a new Federation to add properties to:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/03_get_properties.rs#L23-L26
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/03_get_properties.ts#L11-L13
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Add First Property
+
+Add the first Property to the Federation:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/03_get_properties.rs#L29-L44
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/03_get_properties.ts#L18-L23
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Add Multiple Properties (Optional)
+
+You can add multiple Properties s to a Federation. Here's an example of adding a second statement with a multi-level name:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/03_get_properties.rs#L46-L61
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/03_get_properties.ts#L25-L31
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Retrieve Properties
+
+Get all Properties from the Federation:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/03_get_properties.rs#L63-L67
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/03_get_properties.ts#L32-L38
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### Key Points
+
+- **Federation Properties**: The retrieved data includes all federation properties
+- **Multiple Properties**: Federations can contain multiple properties with different names and values
+- **Multi-level Names**: Property name can have multiple levels (e.g., ["Example LTD 2", "Example LTD 3"])
+- **Read-Only Access**: Retrieving properties only requires read access to the hierarchy
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/validation/03_get_properties.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/validation/03_get_properties.ts
+```
+
+</TabItem>
+</Tabs>
+</div>

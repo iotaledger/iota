@@ -1,7 +1,6 @@
 import {
     AccountsContractMethod,
     CoreContract,
-    EvmRpcClient,
     getHname,
     IscTransaction,
     L2_FROM_L1_GAS_BUDGET,
@@ -14,9 +13,10 @@ import { beforeAll, expect, test } from 'vitest';
 import { CONFIG } from './config';
 import { Wallet } from 'ethers';
 import { bcs } from '@iota/iota-sdk/bcs';
-import { requestFunds } from './utils';
+import { checkL2BalanceWithRetries, requestFunds } from './utils';
 
-const { L1, L2 } = CONFIG;
+const { L1 } = CONFIG;
+
 let client: IotaClient;
 
 beforeAll(async () => {
@@ -65,11 +65,8 @@ test('Send IOTA', async () => {
         transaction,
     });
 
-    await sleep(2000);
-
-    const evmClient = new EvmRpcClient(L2.evmRpcUrl);
-    const evmBalance = await evmClient.getBalanceBaseToken(recipientAddress);
-    expect(evmBalance.baseTokens).toEqual(amountToSend.toString());
+    const evmBalance = await checkL2BalanceWithRetries(recipientAddress);
+    expect(evmBalance?.baseTokens).toEqual(amountToSend.toString());
 });
 
 test('Send Non-IOTA Tokens', async () => {
@@ -133,17 +130,12 @@ test('Send Non-IOTA Tokens', async () => {
         transaction,
     });
 
-    await sleep(2000);
-
-    const evmClient = new EvmRpcClient(L2.evmRpcUrl);
-    const evmBalance = await evmClient.getBalanceBaseToken(recipientAddress);
-    expect(evmBalance.baseTokens).toEqual(amountToSend.toString());
-    expect(evmBalance.nativeTokens).toEqual([
+    const evmBalance = await checkL2BalanceWithRetries(recipientAddress, TOKEN_COIN_TYPE);
+    expect(evmBalance?.baseTokens).toEqual(amountToSend.toString());
+    expect(evmBalance?.nativeTokens).toEqual([
         {
             coinType: TOKEN_COIN_TYPE,
             balance: tokenAmountToSend.toString(),
         },
     ]);
 });
-
-const sleep = (x) => new Promise((r) => setTimeout(r, x));

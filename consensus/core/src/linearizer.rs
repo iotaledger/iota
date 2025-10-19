@@ -7,6 +7,7 @@ use std::{collections::HashSet, sync::Arc};
 use consensus_config::AuthorityIndex;
 use itertools::Itertools;
 use parking_lot::RwLock;
+use tracing::instrument;
 
 use crate::{
     Round,
@@ -159,7 +160,7 @@ impl Linearizer {
         let mut to_commit = Vec::new();
 
         // The new logic will perform the recursion without stopping at the highest
-        // round round that has been committed per authority. Instead it will
+        // round that has been committed per authority. Instead it will
         // allow to commit blocks that are lower than the highest committed round for an
         // authority but higher than gc_round.
         if context.protocol_config.consensus_linearize_subdag_v2() {
@@ -259,6 +260,7 @@ impl Linearizer {
     // This function should be called whenever a new commit is observed. This will
     // iterate over the sequence of committed leaders and produce a list of
     // committed sub-dags.
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlock>,

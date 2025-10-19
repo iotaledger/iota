@@ -123,8 +123,7 @@ impl BenchmarkContext {
                 .commit_transaction_outputs(
                     effects.executed_epoch(),
                     &[*effects.transaction_digest()],
-                )
-                .await;
+                );
             let (owner, root_object) = effects
                 .created()
                 .into_iter()
@@ -193,9 +192,7 @@ impl BenchmarkContext {
             // object store, hence requiring these objects committed to DB.
             // For checkpoint executor, in order to commit a checkpoint it is required
             // previous versions of objects are already committed.
-            cache_commit
-                .commit_transaction_outputs(epoch_id, &[*effects.transaction_digest()])
-                .await;
+            cache_commit.commit_transaction_outputs(epoch_id, &[*effects.transaction_digest()]);
         }
         self.refresh_gas_objects(new_gas_objects);
         info!("Finished preparing shared objects");
@@ -404,7 +401,7 @@ impl BenchmarkContext {
             .await;
         info!("Built {} checkpoints", checkpoints.len());
         let last_checkpoint_seq = *checkpoints.last().unwrap().0.sequence_number();
-        let (mut checkpoint_executor, checkpoint_sender) = validator.create_checkpoint_executor();
+        let checkpoint_executor = validator.create_checkpoint_executor();
         for (checkpoint, contents) in checkpoints {
             let state = validator.get_validator();
             state
@@ -422,15 +419,11 @@ impl BenchmarkContext {
                 .get_checkpoint_store()
                 .update_highest_synced_checkpoint(&checkpoint)
                 .unwrap();
-            checkpoint_sender.send(checkpoint).unwrap();
         }
         let start_time = std::time::Instant::now();
         info!("Starting checkpoint execution. You can now attach a profiler");
         checkpoint_executor
-            .run_epoch(
-                validator.get_epoch_store().clone(),
-                Some(RunWithRange::Checkpoint(last_checkpoint_seq)),
-            )
+            .run_epoch(Some(RunWithRange::Checkpoint(last_checkpoint_seq)))
             .await;
         let elapsed = start_time.elapsed().as_millis() as f64 / 1000f64;
         info!(

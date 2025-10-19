@@ -2,33 +2,35 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Copy, IotaLogoMark } from '@iota/apps-ui-icons';
-import { useAddressAliasLookup, type GetAddressAliasParams } from '../../hooks';
 import cx from 'clsx';
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
+import { useAddressAliasLookup } from '../../hooks';
+import { trimOrFormatAddress } from '@iota/iota-sdk/utils';
 
-interface AddressAliasProps extends GetAddressAliasParams {
-    noFormatAddress?: boolean;
+interface AddressAliasProps {
+    address: string;
+    noTruncate?: boolean;
+    truncateUnknown?: boolean;
     onCopy?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-    renderAddress?: (formattedAddress: string) => React.ReactNode;
+    renderAddress?: (addressToDisplay: string) => React.ReactNode;
     renderAlias?: (addressAlias: string) => React.ReactNode;
 }
 
 export function AddressAlias({
     address,
-    formatUnknownAddress = true,
-    noFormatAddress,
+    noTruncate = false,
+    truncateUnknown = false,
     onCopy,
     renderAddress,
     renderAlias,
 }: AddressAliasProps): React.JSX.Element {
     const getAddressAlias = useAddressAliasLookup();
 
-    const { address: formattedAddress, alias } = getAddressAlias({
-        address,
-        formatUnknownAddress,
-    });
+    const alias = getAddressAlias(address);
 
-    const displayAddress = noFormatAddress ? address : formattedAddress;
+    const addressToDisplay =
+        noTruncate || !truncateUnknown ? address : trimOrFormatAddress(address);
+
     return (
         <>
             {alias && (
@@ -43,7 +45,7 @@ export function AddressAlias({
             )}
 
             <div className="flex flex-row items-center gap-xxs">
-                {renderAddress?.(displayAddress) ?? displayAddress}
+                {renderAddress?.(addressToDisplay) ?? addressToDisplay}
 
                 {onCopy && (
                     <ButtonUnstyled onClick={onCopy}>

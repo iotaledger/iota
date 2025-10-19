@@ -20,8 +20,8 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQuery, IotaTypeTag, MoveCallParams, MoveFunctionArgType,
     ObjectChange,
     ObjectValueKind::{ByImmutableReference, ByMutableReference, ByValue},
-    ObjectsPage, OwnedObjectRef, ProtocolConfigResponse, RPCTransactionRequestParams, Stake,
-    StakeStatus, TransactionBlockBytes, TransactionBlocksPage, TransactionFilter,
+    ObjectsPage, OwnedObjectRef, ProtocolConfigResponse, PtbInput, RPCTransactionRequestParams,
+    Stake, StakeStatus, TransactionBlockBytes, TransactionBlocksPage, TransactionFilter,
     TransferObjectParams, ValidatorApy, ValidatorApys,
 };
 use iota_open_rpc::ExamplePairing;
@@ -90,6 +90,7 @@ impl RpcExampleProvider {
             self.get_past_object_example(),
             self.get_owned_objects(),
             self.get_total_transaction_blocks(),
+            self.iota_is_transaction_indexed_on_node(),
             self.get_transaction_block(),
             self.query_transaction_blocks(),
             self.get_events(),
@@ -151,7 +152,10 @@ impl RpcExampleProvider {
                 arguments: vec![
                     IotaJsonValue::new(json!(coin_ref.0)).unwrap(),
                     IotaJsonValue::new(json!(random_amount)).unwrap(),
-                ],
+                ]
+                .into_iter()
+                .map(PtbInput::CallArg)
+                .collect(),
             }),
             RPCTransactionRequestParams::TransferObjectRequestParams(TransferObjectParams {
                 recipient,
@@ -517,6 +521,18 @@ impl RpcExampleProvider {
                 "Gets total number of transactions on the network.",
                 vec![],
                 json!("2451485"),
+            )],
+        )
+    }
+
+    fn iota_is_transaction_indexed_on_node(&mut self) -> Examples {
+        let digest = TransactionDigest::generate(self.rng.clone());
+        Examples::new(
+            "iota_isTransactionIndexedOnNode",
+            vec![ExamplePairing::new(
+                "Returns if the transaction has been indexed on the fullnode.",
+                vec![("digest", json!(digest))],
+                json!(true),
             )],
         )
     }
@@ -1049,6 +1065,7 @@ impl RpcExampleProvider {
             friends: vec![],
             name: "module".to_string(),
             structs: BTreeMap::new(),
+            enums: BTreeMap::new(),
         };
 
         Examples::new(
@@ -1072,6 +1089,7 @@ impl RpcExampleProvider {
             friends: vec![],
             name: "module".to_string(),
             structs: BTreeMap::new(),
+            enums: BTreeMap::new(),
         };
 
         Examples::new(
