@@ -2046,8 +2046,8 @@ impl AuthorityState {
                     gas_object,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
-                    is_gas_check_required,
                     authenticator_computation_cost,
+                    is_gas_check_required,
                 )?,
                 Some(gas_object_id),
             )
@@ -2061,8 +2061,8 @@ impl AuthorityState {
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
-                    is_gas_check_required,
                     authenticator_computation_cost,
+                    is_gas_check_required,
                 )?,
                 None,
             )
@@ -2243,8 +2243,8 @@ impl AuthorityState {
                     gas_object,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
-                    is_gas_check_required,
                     authenticator_computation_cost,
+                    is_gas_check_required,
                 )?,
                 Some(gas_object_id),
             )
@@ -2258,8 +2258,8 @@ impl AuthorityState {
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
-                    is_gas_check_required,
                     authenticator_computation_cost,
+                    is_gas_check_required,
                 )?,
                 None,
             )
@@ -2436,8 +2436,8 @@ impl AuthorityState {
                     dummy_gas_object,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
-                    is_gas_check_required,
                     authenticator_computation_cost,
+                    is_gas_check_required,
                 )?
             } else {
                 iota_transaction_checks::check_transaction_input(
@@ -2448,8 +2448,8 @@ impl AuthorityState {
                     &receiving_objects,
                     &self.metrics.bytecode_verifier_metrics,
                     &self.config.verifier_signing_config,
-                    is_gas_check_required,
                     authenticator_computation_cost,
+                    is_gas_check_required,
                 )?
             }
         };

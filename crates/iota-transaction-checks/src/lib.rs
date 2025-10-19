@@ -90,8 +90,8 @@ mod checked {
         receiving_objects: &ReceivingObjects,
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
-        is_gas_check_required: bool,
         authenticator_computation_cost: u64,
+        is_gas_check_required: bool,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_status = check_transaction_input_inner(
             protocol_config,
@@ -123,8 +123,8 @@ mod checked {
         gas_object: Object,
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
-        is_gas_check_required: bool,
         authenticator_computation_cost: u64,
+        is_gas_check_required: bool,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_object_ref = gas_object.compute_object_reference();
         input_objects.push(ObjectReadResult::new_from_gas_object(&gas_object));
