@@ -110,6 +110,14 @@ export function DepositForm({
         });
     }
 
+    function handleToggleBridgeDirection() {
+        const updatedDirection = !isFromLayer1;
+        setValue(BridgeFormInputName.IsFromLayer1, updatedDirection);
+        ampli.toggledBridgeDirection({
+            bridgeDirection: updatedDirection ? BridgeDirection.L1ToL2 : BridgeDirection.L2ToL1,
+        });
+    }
+
     const isMaxButtonDisabled =
         (isFromLayer1 && !isLayer1WalletConnected) ||
         (!isFromLayer1 && !isLayer2WalletConnected) ||
@@ -131,6 +139,7 @@ export function DepositForm({
         onChange: _onChange,
         ...registerDepositAmount
     } = register(BridgeFormInputName.DepositAmount);
+
     return (
         <form className="flex flex-col gap-y-md--rs" onSubmit={handleSubmit(onSubmit)}>
             <div data-testid="coin-selector">
@@ -177,15 +186,7 @@ export function DepositForm({
                     <Button
                         type={ButtonType.Primary}
                         icon={<SwapAccount className="rotate-90 -scale-x-100" />}
-                        onClick={() => {
-                            const newIsFromLayer1 = !isFromLayer1;
-                            setValue(BridgeFormInputName.IsFromLayer1, newIsFromLayer1);
-                            ampli.toggledBridgeDirection({
-                                bridgeDirection: newIsFromLayer1
-                                    ? BridgeDirection.L1ToL2
-                                    : BridgeDirection.L2ToL1,
-                            });
-                        }}
+                        onClick={handleToggleBridgeDirection}
                         testId="toggle-bridge-direction"
                     />
                 </div>

@@ -52,10 +52,6 @@ export function DepositLayer1() {
         if (!transactionData?.transaction) {
             throw Error('Transaction is missing');
         }
-        ampli.sentFromL1ToL2({
-            amount: depositAmount,
-            coinType: selectedCoinType,
-        });
         await signAndExecuteTransaction(
             {
                 transaction: transactionData.transaction,
@@ -75,6 +71,10 @@ export function DepositLayer1() {
                         .then(() => {
                             toast.success('Deposit transaction confirmed!');
                             refetchL2Balance();
+                            ampli.sentFromL1ToL2({
+                                amount: depositAmount,
+                                coinType: selectedCoinType,
+                            });
                         })
                         .catch((err) => {
                             if (import.meta.env.DEV) {
