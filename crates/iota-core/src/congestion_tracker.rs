@@ -543,8 +543,8 @@ impl CongestionTracker {
         let mut objects_with_mutated_hotness: Vec<ObjectID> = Vec::new();
 
         for TxData {
-            checkpoint,
-            digest,
+            checkpoint: _,
+            digest: _,
             objects,
             gas_price,
             gas_price_feedback,
