@@ -47,12 +47,11 @@ mod checked {
     // Called on both signing and execution.
     // On success the gas part of the transaction (gas data and gas coins)
     // is verified and good to go
-    pub fn get_gas_status(
+    fn get_gas_status(
         objects: &InputObjects,
         gas: &[ObjectRef],
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        authenticator_computation_cost: u64,
         transaction: &TransactionData,
     ) -> IotaResult<IotaGasStatus> {
         if transaction.is_system_tx() {
@@ -62,9 +61,8 @@ mod checked {
 
             // To be sure that we can cover the Move authenticator + transaction execution
             // gas cost.
-            let gas_budget_to_check = authenticator_computation_cost + transaction_gas_budget;
+            let gas_budget_to_check = transaction_gas_budget;
             let gas_budget_to_use = transaction_gas_budget;
-            let gas_spent_for_authentication = authenticator_computation_cost;
 
             check_gas(
                 objects,
@@ -73,7 +71,6 @@ mod checked {
                 gas,
                 gas_budget_to_check,
                 gas_budget_to_use,
-                gas_spent_for_authentication,
                 transaction.gas_price(),
             )
         }
@@ -89,13 +86,9 @@ mod checked {
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        // `MoveAuthenticator`computation cost is not used here at the moment.
-        let authenticator_computation_cost = 0;
-
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
-            authenticator_computation_cost,
             transaction,
             &input_objects,
             &[],
@@ -125,13 +118,9 @@ mod checked {
         let gas_object_ref = gas_object.compute_object_reference();
         input_objects.push(ObjectReadResult::new_from_gas_object(&gas_object));
 
-        // `MoveAuthenticator`computation cost is not used here at the moment.
-        let authenticator_computation_cost = 0;
-
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
-            authenticator_computation_cost,
             transaction,
             &input_objects,
             &[gas_object_ref],
@@ -159,13 +148,11 @@ mod checked {
         input_objects: InputObjects,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        authenticator_computation_cost: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let transaction = cert.data().transaction_data();
         let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
-            authenticator_computation_cost,
             transaction,
             &input_objects,
             &[],
@@ -235,7 +222,6 @@ mod checked {
         // gas cost.
         let gas_budget_to_check = authenticator_gas_budget + transaction_gas_budget;
         let gas_budget_to_use = authenticator_gas_budget;
-        let gas_spent_for_authentication = 0;
 
         let gas_status = check_gas(
             // Only the transaction input objects are used for gas checks.
@@ -245,7 +231,6 @@ mod checked {
             gas,
             gas_budget_to_check,
             gas_budget_to_use,
-            gas_spent_for_authentication,
             gas_price,
         )?;
 
@@ -258,7 +243,6 @@ mod checked {
     fn check_transaction_input_inner(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
-        authenticator_computation_cost: u64,
         transaction: &TransactionData,
         input_objects: &InputObjects,
         // Overrides the gas objects in the transaction.
@@ -276,7 +260,6 @@ mod checked {
             gas,
             protocol_config,
             reference_gas_price,
-            authenticator_computation_cost,
             transaction,
         )?;
         check_objects(transaction, input_objects)?;
@@ -412,7 +395,6 @@ mod checked {
         gas: &[ObjectRef],
         gas_budget_to_check: u64,
         gas_budget_to_use: u64,
-        gas_spent_for_authentication: u64,
         gas_price: u64,
     ) -> IotaResult<IotaGasStatus> {
         debug_assert!(
@@ -420,9 +402,8 @@ mod checked {
             "It is expected that the gas budget {gas_budget_to_use:?} is used for execution less or equal to the gas budget {gas_budget_to_check:?} is used to check the gas coins balance"
         );
 
-        let gas_status = IotaGasStatus::new_with_gas_spent_for_authentication(
+        let gas_status = IotaGasStatus::new(
             gas_budget_to_use,
-            gas_spent_for_authentication,
             gas_price,
             reference_gas_price,
             protocol_config,

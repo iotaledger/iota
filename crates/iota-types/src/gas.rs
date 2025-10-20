@@ -38,7 +38,6 @@ pub mod checked {
         fn storage_rebate(&self) -> u64;
         fn unmetered_storage_rebate(&self) -> u64;
         fn gas_used(&self) -> u64;
-        fn gas_used_for_authentication(&self) -> u64;
         fn reset_storage_cost_and_rebate(&mut self);
         fn charge_storage_read(&mut self, size: usize) -> Result<(), ExecutionError>;
         fn charge_publish_package(&mut self, size: usize) -> Result<(), ExecutionError>;
@@ -68,43 +67,8 @@ pub mod checked {
         ) -> IotaResult<Self> {
             Self::check_gas_preconditions(gas_price, reference_gas_price, config)?;
 
-            // `IotaGasStatus` is created with zero `gas_spent_for_authentication` value.
-            let gas_spent_for_authentication = 0;
-
             Ok(Self::V1(IotaGasStatusV1::new_with_budget(
                 gas_budget,
-                gas_spent_for_authentication,
-                gas_price,
-                reference_gas_price,
-                config,
-            )))
-        }
-
-        pub fn new_with_gas_spent_for_authentication(
-            gas_budget: u64,
-            gas_spent_for_authentication: u64,
-            gas_price: u64,
-            reference_gas_price: u64,
-            config: &ProtocolConfig,
-        ) -> IotaResult<Self> {
-            Self::check_gas_preconditions(gas_price, reference_gas_price, config)?;
-
-            let computation_budget =
-                crate::gas_model::gas_v1::computation_budget(gas_budget, gas_price, config);
-
-            if computation_budget < gas_spent_for_authentication {
-                return Err(
-                    UserInputError::ComputationBudgetLessThenGasSpentForAuthentication {
-                        computation_budget,
-                        gas_spent_for_authentication,
-                    }
-                    .into(),
-                );
-            }
-
-            Ok(Self::V1(IotaGasStatusV1::new_with_budget(
-                gas_budget,
-                gas_spent_for_authentication,
                 gas_price,
                 reference_gas_price,
                 config,
