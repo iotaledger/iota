@@ -1473,7 +1473,8 @@ impl DagState {
             // Check that block_round >= round to avoid underflow. This can happen if we've
             // received a block from a more recent round than the block we are about to
             // send, especially during startup when we're sending older blocks.
-            if block_round >= round && block_round - round <= MAX_ROUND_GAP_FOR_USEFUL_SHARDS as u32
+            if block_round >= *round
+                && block_round - round <= MAX_ROUND_GAP_FOR_USEFUL_SHARDS as u32
             {
                 useful_shard_authors.insert(AuthorityIndex::from(i as u8));
             }
