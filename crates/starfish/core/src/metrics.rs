@@ -156,6 +156,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) valid_shards_in_bundles: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
+    pub(crate) skipped_empty_transaction_acknowledgments: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
     pub(crate) verified_blocks: IntCounterVec,
     pub(crate) committed_leaders_total: IntCounterVec,
@@ -568,6 +569,12 @@ impl NodeMetrics {
             rejected_future_blocks: register_int_counter_vec_with_registry!(
                 "rejected_future_blocks",
                 "Number of blocks rejected because their timestamp is too far in the future",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            skipped_empty_transaction_acknowledgments: register_int_counter_vec_with_registry!(
+                "skipped_empty_transaction_acknowledgments",
+                "Number of transaction acknowledgments skipped due to empty transaction vector in VerifiedTransaction",
                 &["authority"],
                 registry,
             ).unwrap(),

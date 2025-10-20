@@ -642,7 +642,7 @@ fn try_convert_type(
     }
     warn!(
         fields =? fields,
-        "Failed to convert {struct_name} to IotaMoveValue"
+        "failed to convert {struct_name} to IotaMoveValue"
     );
     None
 }

@@ -5,6 +5,7 @@
 use std::{fs, net::SocketAddr, path::PathBuf};
 
 use crate::{
+    benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
     error::{MonitorError, MonitorResult},
     protocol::ProtocolMetrics,
@@ -43,13 +44,18 @@ impl Monitor {
     }
 
     /// Start a prometheus instance on each remote machine.
-    pub async fn start_prometheus<P: ProtocolMetrics>(
+    pub async fn start_prometheus<P: ProtocolMetrics, T: BenchmarkType>(
         &self,
         protocol_commands: &P,
+        parameters: &BenchmarkParameters<T>,
     ) -> MonitorResult<()> {
         let instance = std::iter::once(self.instance.clone());
-        let commands =
-            Prometheus::setup_commands(self.clients.clone(), self.nodes.clone(), protocol_commands);
+        let commands = Prometheus::setup_commands(
+            self.clients.clone(),
+            self.nodes.clone(),
+            protocol_commands,
+            parameters,
+        );
         self.ssh_manager
             .execute(instance, commands, CommandContext::default())
             .await?;
@@ -94,10 +100,16 @@ impl Prometheus {
 
     /// Generate the commands to update the prometheus configuration and restart
     /// prometheus.
-    pub fn setup_commands<I, P>(clients: I, nodes: I, protocol: &P) -> String
+    pub fn setup_commands<I, P, T>(
+        clients: I,
+        nodes: I,
+        protocol: &P,
+        parameters: &BenchmarkParameters<T>,
+    ) -> String
     where
         I: IntoIterator<Item = Instance>,
         P: ProtocolMetrics,
+        T: BenchmarkType,
     {
         // Generate the prometheus' global configuration.
         let mut config = vec![Self::global_configuration()];
@@ -111,7 +123,7 @@ impl Prometheus {
         }
 
         // Add configurations to scrape the nodes.
-        let nodes_metrics_path = protocol.nodes_metrics_path(nodes);
+        let nodes_metrics_path = protocol.nodes_metrics_path(nodes, parameters);
         for (i, (_, nodes_metrics_path)) in nodes_metrics_path.into_iter().enumerate() {
             let id = format!("node-{i}");
             let scrape_config = Self::scrape_configuration(&id, &nodes_metrics_path);

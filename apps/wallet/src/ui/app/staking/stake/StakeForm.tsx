@@ -89,6 +89,17 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
         [availableBalance, coinSymbol, decimals, minimumStake],
     );
 
+    const formik = useFormik<FormValues>({
+        initialValues: INITIAL_VALUES,
+        validationSchema: validationSchema,
+        onSubmit: handleSubmit,
+        validateOnMount: true,
+    });
+    const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
+    const { amount } = values;
+    const amountWithoutDecimals = parseAmount(amount, decimals);
+    const [stakedAmountFormatted] = useFormatCoin({ balance: amountWithoutDecimals });
+
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
         useMutation({
             mutationFn: async () => {
@@ -120,12 +131,18 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                     },
                 );
             },
+            onSuccess: (_) => {
+                ampli.stakedIota({
+                    stakedAmount: Number(stakedAmountFormatted),
+                    validatorAddress: validatorAddress || '',
+                });
+            },
             onError: (error) => {
                 throw error;
             },
         });
 
-    const handleSubmit = async (_: FormValues, formikHelpers: FormikHelpers<FormValues>) => {
+    async function handleSubmit(_: FormValues, formikHelpers: FormikHelpers<FormValues>) {
         try {
             await stakeTokenMutateAsync(undefined, {
                 onSuccess(data) {
@@ -147,17 +164,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                 </div>,
             );
         }
-    };
-
-    const formik = useFormik<FormValues>({
-        initialValues: INITIAL_VALUES,
-        validationSchema: validationSchema,
-        onSubmit: handleSubmit,
-        validateOnMount: true,
-    });
-    const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
-    const { amount } = values;
-    const amountWithoutDecimals = parseAmount(amount, decimals);
+    }
 
     const {
         data: newStakeData,

@@ -20,9 +20,7 @@ use iota_metrics::{
 use iota_storage::write_path_pending_tx_log::WritePathPendingTransactionLog;
 use iota_types::{
     base_types::TransactionDigest,
-    effects::{TransactionEffectsAPI, VerifiedCertifiedTransactionEffects},
     error::{IotaError, IotaResult},
-    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::IotaSystemState,
     quorum_driver_types::{
         ExecuteTransactionRequestType, ExecuteTransactionRequestV1, ExecuteTransactionResponseV1,
@@ -130,8 +128,7 @@ where
         let pending_tx_log_clone = pending_tx_log.clone();
         let _local_executor_handle = {
             spawn_monitored_task!(async move {
-                Self::loop_execute_finalized_tx_locally(effects_receiver, pending_tx_log_clone)
-                    .await;
+                Self::loop_pending_transaction_log(effects_receiver, pending_tx_log_clone).await;
             })
         };
         Self::schedule_txes_in_log(pending_tx_log.clone(), quorum_driver_handler.clone());
@@ -173,15 +170,9 @@ where
             request_type,
             ExecuteTransactionRequestType::WaitForLocalExecution
         ) {
-            let executable_tx = VerifiedExecutableTransaction::new_from_quorum_execution(
-                transaction,
-                response.effects_cert.executed_epoch(),
-            );
-            let executed_locally = Self::execute_finalized_tx_locally_with_timeout(
+            let executed_locally = Self::wait_for_finalized_tx_executed_locally_with_timeout(
                 &self.validator_state,
-                &epoch_store,
-                &executable_tx,
-                &response.effects_cert,
+                &transaction,
                 &self.metrics,
             )
             .await
@@ -364,27 +355,13 @@ where
         })
     }
 
-    #[instrument(name = "tx_orchestrator_execute_finalized_tx_locally_with_timeout", level = "debug", skip_all, fields(tx_digest = ?transaction.digest()), err)]
-    async fn execute_finalized_tx_locally_with_timeout(
+    #[instrument(name = "tx_orchestrator_wait_for_finalized_tx_executed_locally_with_timeout", level = "debug", skip_all, fields(tx_digest = ?transaction.digest()), err)]
+    async fn wait_for_finalized_tx_executed_locally_with_timeout(
         validator_state: &Arc<AuthorityState>,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-        transaction: &VerifiedExecutableTransaction,
-        effects_cert: &VerifiedCertifiedTransactionEffects,
+        transaction: &VerifiedTransaction,
         metrics: &TransactionOrchestratorMetrics,
     ) -> IotaResult {
-        // TODO: attempt a finalized tx at most once per request.
-        // Every WaitForLocalExecution request will be attempted to execute twice,
-        // one from the subscriber queue, one from the proactive execution before
-        // returning results to clients. This is not insanely bad because:
-        // 1. it's possible that one attempt finishes before the other, so there's zero
-        //    extra work except DB checks
-        // 2. an up-to-date fullnode should have minimal overhead to sync parents (for
-        //    one extra time)
-        // 3. at the end of day, the tx will be executed at most once per lock guard.
-        let tx_digest = transaction.digest();
-        if validator_state.try_is_tx_already_executed(tx_digest)? {
-            return Ok(());
-        }
+        let tx_digest = *transaction.digest();
         metrics.local_execution_in_flight.inc();
         let _metrics_guard =
             scopeguard::guard(metrics.local_execution_in_flight.clone(), |in_flight| {
@@ -396,14 +373,15 @@ where
         } else {
             metrics.local_execution_latency_single_writer.start_timer()
         };
-        debug!(?tx_digest, "Executing finalized tx locally.");
+        debug!(
+            ?tx_digest,
+            "Waiting for finalized tx to be executed locally."
+        );
         match timeout(
             LOCAL_EXECUTION_TIMEOUT,
-            validator_state.fullnode_execute_certificate_with_effects(
-                transaction,
-                effects_cert,
-                epoch_store,
-            ),
+            validator_state
+                .get_transaction_cache_reader()
+                .try_notify_read_executed_effects_digests(&[tx_digest]),
         )
         .instrument(trace_span!("local_execution"))
         .await
@@ -411,7 +389,7 @@ where
             Err(_elapsed) => {
                 debug!(
                     ?tx_digest,
-                    "Executing tx locally by orchestrator timed out within {:?}.",
+                    "Waiting for finalized tx to be executed locally timed out within {:?}.",
                     LOCAL_EXECUTION_TIMEOUT
                 );
                 metrics.local_execution_timeout.inc();
@@ -420,7 +398,7 @@ where
             Ok(Err(err)) => {
                 debug!(
                     ?tx_digest,
-                    "Executing tx locally by orchestrator failed with error: {:?}", err
+                    "Waiting for finalized tx to be executed locally failed with error: {:?}", err
                 );
                 metrics.local_execution_failure.inc();
                 Err(IotaError::TransactionOrchestratorLocalExecution {
@@ -434,7 +412,8 @@ where
         }
     }
 
-    async fn loop_execute_finalized_tx_locally(
+    // TODO: Potentially cleanup this function and pending transaction log.
+    async fn loop_pending_transaction_log(
         mut effects_receiver: Receiver<QuorumDriverEffectsQueueResult>,
         pending_transaction_log: Arc<WritePathPendingTransactionLog>,
     ) {

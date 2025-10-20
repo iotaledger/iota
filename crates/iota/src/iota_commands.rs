@@ -18,7 +18,8 @@ use fastcrypto::traits::KeyPair;
 use iota_config::{
     Config, FULL_NODE_DB_PATH, IOTA_BENCHMARK_GENESIS_GAS_KEYSTORE_FILENAME, IOTA_CLIENT_CONFIG,
     IOTA_FULLNODE_CONFIG, IOTA_GENESIS_FILENAME, IOTA_KEYSTORE_FILENAME, IOTA_NETWORK_CONFIG,
-    NodeConfig, PersistedConfig, genesis_blob_exists, iota_config_dir, node::Genesis,
+    NodeConfig, PersistedConfig, genesis_blob_exists, iota_config_dir,
+    node::{Genesis, GrpcApiConfig},
     p2p::SeedPeer,
 };
 use iota_faucet::{AppState, FaucetConfig, SimpleFaucet, create_wallet_context, start_faucet};
@@ -791,8 +792,8 @@ async fn start(
                     swarm_builder = swarm_builder.with_fullnode_grpc_api_config(grpc_config);
                 } else {
                     warn!("gRPC API enabled but no grpc-api-config provided, using default");
-                    swarm_builder = swarm_builder
-                        .with_fullnode_grpc_api_config(iota_grpc_api::Config::default());
+                    swarm_builder =
+                        swarm_builder.with_fullnode_grpc_api_config(GrpcApiConfig::default());
                 }
             }
         }

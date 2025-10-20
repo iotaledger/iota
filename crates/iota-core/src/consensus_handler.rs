@@ -208,7 +208,10 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
         // TODO: Is this check necessary? For now mysticeti will not
         // return more than one leader per round so we are not in danger of
         // ignoring any commits.
-        assert!(round >= last_committed_round);
+        assert!(
+            round >= last_committed_round,
+            "Consensus output round {round} is less than last committed round {last_committed_round}"
+        );
         if last_committed_round == round {
             // we can receive the same commit twice after restart
             // It is critical that the writes done by this function are atomic - otherwise

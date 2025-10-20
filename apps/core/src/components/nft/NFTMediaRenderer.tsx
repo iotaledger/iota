@@ -28,7 +28,10 @@ export function NFTMediaRenderer({
     disableAutoPlay = false,
 }: NFTMediaRendererProps) {
     const { isLoading, data: nftMediaHeaders } = useNFTMediaHeaders(src);
-    const { type, shouldAutoPlayVideo, isMediaSupported } = resolveNFTMedia(src, nftMediaHeaders);
+    const { resolvedSrc, type, shouldAutoPlayVideo, isMediaSupported } = resolveNFTMedia(
+        src,
+        nftMediaHeaders,
+    );
 
     const className = clsx('w-full h-full', objectFit);
 
@@ -46,12 +49,12 @@ export function NFTMediaRenderer({
 
     return type === VisualAssetType.Video ? (
         <Video
-            src={src}
+            src={resolvedSrc}
             isAutoPlayEnabled={!disableAutoPlay && shouldAutoPlayVideo}
             className={className}
             disableControls={disableVideoControls}
         />
     ) : (
-        <ImageWithFallback src={src} alt={alt} className={className} />
+        <ImageWithFallback src={resolvedSrc} alt={alt} className={className} />
     );
 }

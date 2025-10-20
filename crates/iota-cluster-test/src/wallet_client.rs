@@ -30,7 +30,7 @@ impl WalletClient {
             .instrument(info_span!("init_wallet_context_for_test_user"));
 
         let rpc_url = String::from(cluster.fullnode_url());
-        info!("Use fullnode rpc: {}", &rpc_url);
+        info!("Use fullnode rpc: {rpc_url}");
         let fullnode_client = IotaClientBuilder::default().build(rpc_url).await.unwrap();
 
         Self {
@@ -61,6 +61,6 @@ impl WalletClient {
             .config()
             .keystore()
             .sign_secure(&self.address, txn_data, Intent::iota_transaction())
-            .unwrap_or_else(|e| panic!("Failed to sign transaction for {desc}. {e}"))
+            .unwrap_or_else(|e| panic!("failed to sign transaction for {desc}. {e}"))
     }
 }

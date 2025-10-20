@@ -14,7 +14,7 @@ use tracing::warn;
 use url::Url;
 
 use crate::{
-    backfill::BackfillKind, db::ConnectionPoolConfig, handlers::pruner::PrunableTable,
+    backfill::BackfillKind, db::ConnectionPoolConfig, pruning::pruner::PrunableTable,
     types::IndexerResult,
 };
 
@@ -665,7 +665,7 @@ mod test {
     use tempfile::NamedTempFile;
 
     use super::*;
-    use crate::handlers::pruner::PrunableTable;
+    use crate::pruning::pruner::PrunableTable;
 
     fn parse_args<'a, T>(args: impl IntoIterator<Item = &'a str>) -> Result<T, clap::error::Error>
     where

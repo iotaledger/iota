@@ -325,11 +325,11 @@ impl DagBuilder {
         self
     }
 
-    pub(crate) fn layer(&mut self, round: Round) -> LayerBuilder {
+    pub(crate) fn layer(&mut self, round: Round) -> LayerBuilder<'_> {
         LayerBuilder::new(self, round)
     }
 
-    pub(crate) fn layers(&mut self, rounds: RangeInclusive<Round>) -> LayerBuilder {
+    pub(crate) fn layers(&mut self, rounds: RangeInclusive<Round>) -> LayerBuilder<'_> {
         let mut builder = LayerBuilder::new(self, *rounds.start());
         builder.end_round = Some(*rounds.end());
         builder
