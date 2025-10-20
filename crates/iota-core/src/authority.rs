@@ -1778,9 +1778,26 @@ impl AuthorityState {
 
         let (kind, signer, gas) = tx_data.execution_parts();
 
+        // The cost of partially re-auditing a transaction before execution is
+        // tolerated.
+        //
+        //  TODO: Gas coins should not be double-checked if `GenericSignature` is of
+        // type `MoveAuthenticator`.
+        let (tx_gas_status, tx_checked_input_objects) =
+            iota_transaction_checks::check_certificate_input(
+                certificate,
+                tx_input_objects.clone(), // TODO: avoid clone
+                protocol_config,
+                reference_gas_price,
+            )?;
+
+        let owned_object_refs = tx_checked_input_objects.inner().filter_owned_objects();
+        self.check_owned_locks(&owned_object_refs)?;
+
+        #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
+        let (inner_temp_store, _, mut effects, execution_error_opt) =
         // Check if the sender needs to be authenticated in Move and, if so, execute the
-        // authentication.
-        let move_authentication_result =
+        // authentication.        
             if let Some(move_authenticator) = certificate.move_authenticator() {
                 // Check the `MoveAuthenticator` input objects.
                 let (
@@ -1798,57 +1815,33 @@ impl AuthorityState {
                     signer,
                 )?;
 
-                // Execute the Move authentication.
-                let (authentication_computation_cost, authentication_result) =
-                    epoch_store.executor().validate_transaction(
+                epoch_store
+                    .executor()
+                    .authenticate_then_execute_transaction_to_effects(
                         backing_store,
                         protocol_config,
                         self.metrics.limits_metrics.clone(),
+                        self.config
+                            .expensive_safety_check_config
+                            .enable_deep_per_tx_iota_conservation_check(),
+                        self.config.certificate_deny_config.certificate_deny_set(),
                         &epoch_id,
                         epoch_start_timestamp,
                         authentication_gas_status,
+                        tx_gas_status,
+                        gas,
                         move_authenticator.to_owned(),
                         authenticator_info,
-                        authentication_checked_input_objects.clone(),
-                        kind.clone(),
+                        authentication_checked_input_objects,
+                        kind,
                         signer,
                         tx_digest,
+                        tx_checked_input_objects,
                         &mut None,
-                    );
-
-                Some((
-                    authentication_computation_cost,
-                    authentication_result,
-                    authentication_checked_input_objects,
-                ))
+                    )
             } else {
-                None
-            };
-
-        // The cost of partially re-auditing a transaction before execution is
-        // tolerated.
-        //
-        //  TODO: Gas coins should not be double-checked if `GenericSignature` is of
-        // type `MoveAuthenticator`.
-        let (tx_gas_status, tx_input_objects) = iota_transaction_checks::check_certificate_input(
-            certificate,
-            tx_input_objects,
-            protocol_config,
-            reference_gas_price,
-            move_authentication_result
-                .as_ref()
-                .map(|(computation_cost, _, _)| *computation_cost)
-                .unwrap_or(0),
-        )?;
-
-        let owned_object_refs = tx_input_objects.inner().filter_owned_objects();
-        self.check_owned_locks(&owned_object_refs)?;
-
-        #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
-        let (inner_temp_store, _, mut effects, execution_error_opt) =
-            match move_authentication_result {
-                None | Some((_, Ok(()), _)) => {
-                    epoch_store.executor().execute_transaction_to_effects(
+                // No Move authentication required, proceed to execute the transaction directly.
+                epoch_store.executor().execute_transaction_to_effects(
                         backing_store,
                         protocol_config,
                         self.metrics.limits_metrics.clone(),
@@ -1860,7 +1853,7 @@ impl AuthorityState {
                         self.config.certificate_deny_config.certificate_deny_set(),
                         &epoch_id,
                         epoch_start_timestamp,
-                        tx_input_objects,
+                        tx_checked_input_objects,
                         gas,
                         tx_gas_status,
                         kind,
@@ -1868,31 +1861,6 @@ impl AuthorityState {
                         tx_digest,
                         &mut None,
                     )
-                }
-                Some((_, Err(move_authentication_error), authentication_checked_input_objects)) => {
-                    let (store, gas_status, effects, error) = epoch_store
-                        .executor()
-                        .produce_effects_for_invalid_authentication(
-                            backing_store,
-                            protocol_config,
-                            self.metrics.limits_metrics.clone(),
-                            self.config
-                                .expensive_safety_check_config
-                                .enable_deep_per_tx_iota_conservation_check(),
-                            self.config.certificate_deny_config.certificate_deny_set(),
-                            &epoch_id,
-                            epoch_start_timestamp,
-                            tx_gas_status,
-                            gas,
-                            move_authentication_error,
-                            authentication_checked_input_objects,
-                            tx_input_objects,
-                            kind,
-                            signer,
-                            tx_digest,
-                        );
-                    (store, gas_status, effects, Err(error))
-                }
             };
 
         fail_point_if!("cp_execution_nondeterminism", || {

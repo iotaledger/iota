@@ -7,8 +7,8 @@ use std::{collections::HashSet, path::PathBuf, sync::Arc};
 use iota_adapter_latest::{
     adapter::{new_move_vm, run_metered_move_bytecode_verifier},
     execution_engine::{
-        execute_genesis_state_update, execute_transaction_to_effects,
-        produce_effects_for_invalid_authentication, validate_transaction,
+        authenticate_then_execute_transaction_to_effects, execute_genesis_state_update,
+        execute_transaction_to_effects, validate_transaction,
     },
     execution_mode,
     type_layout_resolver::TypeLayoutResolver,
@@ -106,6 +106,7 @@ impl executor::Executor for Executor {
             enable_expensive_checks,
             certificate_deny_set,
             trace_builder_opt,
+            None,
         )
     }
 
@@ -148,6 +149,7 @@ impl executor::Executor for Executor {
                 enable_expensive_checks,
                 certificate_deny_set,
                 &mut None,
+                None,
             )
         } else {
             execute_transaction_to_effects::<execution_mode::DevInspect<false>>(
@@ -166,8 +168,64 @@ impl executor::Executor for Executor {
                 enable_expensive_checks,
                 certificate_deny_set,
                 &mut None,
+                None,
             )
         }
+    }
+
+    fn authenticate_then_execute_transaction_to_effects(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        authenticator_gas_status: IotaGasStatus,
+        authenticated_transaction_gas_status: IotaGasStatus,
+        gas_coins: Vec<ObjectRef>,
+        // Authenticator
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfoV1,
+        authenticator_input_objects: CheckedInputObjects,
+        // Transaction
+        authenticated_transaction_kind: TransactionKind,
+        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_digest: TransactionDigest,
+        authenticated_transaction_input_objects: CheckedInputObjects,
+        // Tracing
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        Result<(), ExecutionError>,
+    ) {
+        authenticate_then_execute_transaction_to_effects::<execution_mode::Normal>(
+            store,
+            protocol_config,
+            metrics,
+            enable_expensive_checks,
+            certificate_deny_set,
+            epoch_id,
+            epoch_timestamp_ms,
+            authenticator_gas_status,
+            authenticated_transaction_gas_status,
+            gas_coins,
+            authenticator,
+            authenticator_info,
+            authenticator_input_objects,
+            authenticated_transaction_kind,
+            authenticated_transaction_signer,
+            authenticated_transaction_digest,
+            authenticated_transaction_input_objects,
+            trace_builder_opt,
+            &self.0,
+        )
     }
 
     fn validate_transaction(
@@ -192,7 +250,7 @@ impl executor::Executor for Executor {
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (u64, Result<(), ExecutionError>) {
-        validate_transaction::<execution_mode::Validation>(
+        validate_transaction(
             store,
             protocol_config,
             metrics,
@@ -206,54 +264,6 @@ impl executor::Executor for Executor {
             authenticated_transaction_signer,
             authenticated_transaction_digest,
             trace_builder_opt,
-            &self.0,
-        )
-    }
-
-    fn produce_effects_for_invalid_authentication(
-        &self,
-        store: &dyn BackingStore,
-        // Configuration
-        protocol_config: &ProtocolConfig,
-        metrics: Arc<LimitsMetrics>,
-        enable_expensive_checks: bool,
-        certificate_deny_set: &HashSet<TransactionDigest>,
-        // Epoch
-        epoch_id: &EpochId,
-        epoch_timestamp_ms: u64,
-        // Gas related
-        gas_status: IotaGasStatus,
-        gas_coins: Vec<ObjectRef>,
-        // Invalid Authentication
-        invalid_authentication_execution_error: ExecutionError,
-        invalid_authentication_input_objects: CheckedInputObjects,
-        // Transaction
-        transaction_input_objects: CheckedInputObjects,
-        transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
-        transaction_digest: TransactionDigest,
-    ) -> (
-        InnerTemporaryStore,
-        IotaGasStatus,
-        TransactionEffects,
-        ExecutionError,
-    ) {
-        produce_effects_for_invalid_authentication::<execution_mode::Normal>(
-            store,
-            protocol_config,
-            metrics,
-            enable_expensive_checks,
-            certificate_deny_set,
-            epoch_id,
-            epoch_timestamp_ms,
-            gas_status,
-            gas_coins,
-            invalid_authentication_execution_error,
-            invalid_authentication_input_objects,
-            transaction_input_objects,
-            transaction_kind,
-            transaction_signer,
-            transaction_digest,
             &self.0,
         )
     }

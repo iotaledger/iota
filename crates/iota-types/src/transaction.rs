@@ -3110,6 +3110,10 @@ impl CheckedInputObjects {
         Self(input_objects)
     }
 
+    pub fn extend_no_duplicates(&mut self, other: Self) {
+        self.0.extend_no_duplicates(other.0);
+    }
+
     pub fn inner(&self) -> &InputObjects {
         &self.0
     }
@@ -3300,8 +3304,13 @@ impl InputObjects {
         self.objects.push(object);
     }
 
-    pub fn extend(&mut self, other: Self) {
-        self.objects.extend(other.objects);
+    pub fn extend_no_duplicates(&mut self, other: Self) {
+        let new_objects: Vec<_> = other
+            .objects
+            .into_iter()
+            .filter(|x| !self.objects.contains(x))
+            .collect();
+        self.objects.extend(new_objects);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ObjectReadResult> {

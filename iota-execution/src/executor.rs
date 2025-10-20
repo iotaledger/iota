@@ -81,6 +81,39 @@ pub trait Executor {
         Result<Vec<ExecutionResult>, ExecutionError>,
     );
 
+    fn authenticate_then_execute_transaction_to_effects(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        authenticator_gas_status: IotaGasStatus,
+        authenticated_transaction_gas_status: IotaGasStatus,
+        gas_coins: Vec<ObjectRef>,
+        // Authenticator
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfoV1,
+        authenticator_input_objects: CheckedInputObjects,
+        // Transaction
+        authenticated_transaction_kind: TransactionKind,
+        authenticated_transaction_signer: IotaAddress,
+        authenticated_transaction_digest: TransactionDigest,
+        authenticated_transaction_input_objects: CheckedInputObjects,
+        // Tracing
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        Result<(), ExecutionError>,
+    );
+
     fn validate_transaction(
         &self,
         store: &dyn BackingStore,
@@ -103,35 +136,6 @@ pub trait Executor {
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (u64, Result<(), ExecutionError>);
-
-    fn produce_effects_for_invalid_authentication(
-        &self,
-        store: &dyn BackingStore,
-        // Configuration
-        protocol_config: &ProtocolConfig,
-        metrics: Arc<LimitsMetrics>,
-        enable_expensive_checks: bool,
-        certificate_deny_set: &HashSet<TransactionDigest>,
-        // Epoch
-        epoch_id: &EpochId,
-        epoch_timestamp_ms: u64,
-        // Gas related
-        gas_status: IotaGasStatus,
-        gas_coins: Vec<ObjectRef>,
-        // Invalid Authentication
-        invalid_authentication_execution_error: ExecutionError,
-        invalid_authentication_input_objects: CheckedInputObjects,
-        // Transaction
-        transaction_input_objects: CheckedInputObjects,
-        transaction_kind: TransactionKind,
-        transaction_signer: IotaAddress,
-        transaction_digest: TransactionDigest,
-    ) -> (
-        InnerTemporaryStore,
-        IotaGasStatus,
-        TransactionEffects,
-        ExecutionError,
-    );
 
     fn update_genesis_state(
         &self,
