@@ -1990,10 +1990,6 @@ where
                 let grouped_errors = group_errors(state.errors);
 
                 // Determine an error type based on which condition was met
-                println!(
-                    "non_retryable_errors: {}, retryable_errors: {}, quorum_threshold: {}",
-                    state.non_retryable_errors, state.retryable_errors, quorum_threshold
-                );
                 if state.non_retryable_errors >= quorum_threshold {
                     Err(
                         AggregatorSendCapabilityNotificationError::NonRetryableNotification {
