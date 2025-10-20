@@ -455,13 +455,13 @@ impl NodeMetrics {
             ).unwrap(),
             cordial_knowledge_processed_messages: register_int_counter_vec_with_registry!(
                 "cordial_knowledge_processed_messages",
-                "Number of cordial knowledge messages processed",
+                "Number of Cordial Knowledge messages processed",
                 &["type"],
                 registry,
             ).unwrap(),
             cordial_knowledge_rounds: register_int_gauge_vec_with_registry!(
                 "cordial_knowledge_rounds",
-                "Number of cordial knowledge rounds processed per authority",
+                "Number of rounds in DAG of Cordial Knowledge stored per authority",
                 &["authority"],
                 registry,
             ).unwrap(),

@@ -123,10 +123,15 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     received_block_headers: FilterForHeaders,
     /// Sender to send received transaction messages to the shard reconstructor
     transaction_message_sender: Sender<Vec<TransactionMessage>>,
-    /// Senders to send connection knowledge messages to the respected
-    /// Connection Knowledge It is used to retrieve block refs for headers
-    /// and shards potentially unknown to the peer
+    /// Senders to send messages to the respected
+    /// Connection Knowledge. One sender is intented for one peer. These senders
+    /// are used to update useful authors for blocks and shards. In addition,
+    /// one retrieves additional parts for block bundles when streaming own
+    /// blocks.
     connection_knowledge_senders: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
+    /// Sender to send messages to Cordial Knowledge. This sender is used to
+    /// update information shards of which authors should be requested in future
+    /// block bundles from peers.
     cordial_knowledge_sender: UnboundedSender<CordialKnowledgeMessage>,
 }
 

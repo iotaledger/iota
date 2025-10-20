@@ -79,7 +79,9 @@ pub(crate) struct CordialKnowledge {
     cordial_knowledge_receiver: UnboundedReceiver<CordialKnowledgeMessage>,
     /// Keeps track of the last round for which each peer's shards were
     /// considered useful to us. This is a global knowledge and is shared with
-    /// all connection tasks.
+    /// all connection tasks. Initialized to None for all authorities and
+    /// updated over time once Authority Service reports useful shards from
+    /// peers.
     last_useful_shards_from_peer_round: Vec<Option<Round>>,
     /// Keeps track of the most recent DAG cordial
     /// knowledge (who knows which blocks) for each authority. This is a helper
@@ -88,14 +90,17 @@ pub(crate) struct CordialKnowledge {
     /// persisted. To access the cordial knowledge of a given block_ref, one
     /// shall retrieve it from `cordial_knowledge[block_ref.
     /// author][block_ref.round][block_ref.digest]`. The provided value is a
-    /// tuple of (parents, who knows the block header).
+    /// tuple of (ancestors, who knows the block header).
     cordial_knowledge:
         Vec<BTreeMap<Round, AHashMap<BlockHeaderDigest, (Ancestors, SubsetAuthorities)>>>,
-    /// Per-connection message channels
+    /// Per-connection message channels. They are used to notify each
+    /// connection task about updates from cordial knowledge.
     connections: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
 }
 
 /// High-level messages sent to the CordialKnowledge task.
+/// NewHeader, NewShard, EvictBelow are received from DAG state.
+/// UsefulShardsFromPeers is received from Authority Service.
 #[derive(Debug)]
 pub enum CordialKnowledgeMessage {
     /// A new verified block header to integrate into cordial knowledge.
@@ -123,7 +128,7 @@ impl CordialKnowledgeHandle {
     pub fn cordial_knowledge_sender(&self) -> UnboundedSender<CordialKnowledgeMessage> {
         self.cordial_knowledge_sender.clone()
     }
-    /// Get a sender to send messages to a specific ConnectionKnowledge task.
+    /// Get all senders to send messages to all ConnectionKnowledge task.
     pub fn connection_knowledge_senders(&self) -> Vec<Sender<Vec<ConnectionKnowledgeMessage>>> {
         self.connection_knowledge_senders.clone()
     }
@@ -204,7 +209,9 @@ impl CordialKnowledge {
         )
     }
 
-    /// Start the CordialKnowledge task and return a handle to it.
+    /// Start the CordialKnowledge task and all ConnectionKnowledge tasks.
+    /// Updates the DAG state with the sender to the CordialKnowledge task.
+    /// Return a handle to these tasks.
     pub fn start(
         context: Arc<Context>,
         dag_state: Arc<RwLock<DagState>>,
@@ -1163,7 +1170,9 @@ mod tests {
         // Report useful info to connection knowledge corresponding to to_whom_index
         let connection_knowledge_sender =
             cordial_knowledge.connection_knowledge_senders[to_whom_index].clone();
-        // Inject useful info
+        // Inject useful info for connection knowledge of peer 1 (B)
+        // A says that C and D are useful for headers and shards when receiving from B
+        // B says that A and C are useful for headers and shards when sending from A
         let msg = ConnectionKnowledgeMessage::UsefulInfo {
             useful_headers_to_peer: BTreeMap::from([
                 (AuthorityIndex::new_for_test(2), GENESIS_ROUND),
