@@ -9,6 +9,7 @@ import { AppProviders } from '@/providers';
 import { FontLinks } from '@/components/FontLinks';
 import { ConnectionGuard } from '@/components/connection-guard';
 import { Amplitude } from '@/components/Amplitude';
+import { ErrorBoundary } from '@/components/error-boundary';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -33,45 +34,45 @@ export const metadata: Metadata = {
     },
 };
 
-const legacyBannerScript = `
-(() => {
-  try {
-    const ua = navigator.userAgent;
-    const version = (re) => +(ua.match(re)?.[1] || 999);
+// const legacyBannerScript = `
+// (() => {
+//   try {
+//     const ua = navigator.userAgent;
+//     const version = (re) => +(ua.match(re)?.[1] || 999);
 
-    const isLegacy =
-      version(/Chrome\\/(\\d+)/) < 200 ||
-      version(/Firefox\\/(\\d+)/) < 94 ||
-      (/Safari/.test(ua) && !/Chrome/.test(ua) && parseFloat(ua.match(/Version\\/(\\d+\\.\\d+)/)?.[1] || 99) < 15.4) ||
-      version(/Edg\\/(\\d+)/) < 98 ||
-      version(/OPR\\/(\\d+)/) < 84 ||
-      typeof structuredClone !== 'function';
+//     const isLegacy =
+//       version(/Chrome\\/(\\d+)/) < 200 ||
+//       version(/Firefox\\/(\\d+)/) < 94 ||
+//       (/Safari/.test(ua) && !/Chrome/.test(ua) && parseFloat(ua.match(/Version\\/(\\d+\\.\\d+)/)?.[1] || 99) < 15.4) ||
+//       version(/Edg\\/(\\d+)/) < 98 ||
+//       version(/OPR\\/(\\d+)/) < 84 ||
+//       typeof structuredClone !== 'function';
 
-    if (!isLegacy) return;
+//     if (!isLegacy) return;
 
-    const banner = Object.assign(document.createElement('div'), {
-      textContent: 'Your browser version is outdated. Please update it to the latest version.'
-    });
-    banner.style.cssText =
-      'position:fixed;top:1rem;right:1rem;z-index:99999;background:#facc15;color:#1a1a1a;font:500 0.875rem/1.25rem system-ui,sans-serif;padding:0.75rem 1rem;border-radius:0.5rem;box-shadow:0 4px 10px rgba(0,0,0,0.15);';
-    
-    document.addEventListener('DOMContentLoaded', () => {
-      document.body.appendChild(banner);
+//     const banner = Object.assign(document.createElement('div'), {
+//       textContent: 'Your browser version is outdated. Please update it to the latest version.'
+//     });
+//     banner.style.cssText =
+//       'position:fixed;top:1rem;right:1rem;z-index:99999;background:#facc15;color:#1a1a1a;font:500 0.875rem/1.25rem system-ui,sans-serif;padding:0.75rem 1rem;border-radius:0.5rem;box-shadow:0 4px 10px rgba(0,0,0,0.15);';
 
-      const scripts = document.querySelectorAll('script[src*="_next"], script[type="module"]');
-      scripts.forEach((s) => s.parentNode?.removeChild(s));
-    });
+//     document.addEventListener('DOMContentLoaded', () => {
+//       document.body.appendChild(banner);
 
-    return;
-  } catch {
-    const fallback = document.createElement('div');
-    fallback.textContent = 'Your browser is too old to display this page.';
-    fallback.style.cssText =
-      'position:fixed;top:1rem;right:1rem;z-index:99999;background:#f87171;color:white;padding:0.75rem 1rem;border-radius:0.5rem;font-family:sans-serif;';
-    document.addEventListener('DOMContentLoaded', () => document.body.appendChild(fallback));
-  }
-})();
-`;
+//       const scripts = document.querySelectorAll('script[src*="_next"], script[type="module"]');
+//       scripts.forEach((s) => s.parentNode?.removeChild(s));
+//     });
+
+//     return;
+//   } catch {
+//     const fallback = document.createElement('div');
+//     fallback.textContent = 'Your browser is too old to display this page.';
+//     fallback.style.cssText =
+//       'position:fixed;top:1rem;right:1rem;z-index:99999;background:#f87171;color:white;padding:0.75rem 1rem;border-radius:0.5rem;font-family:sans-serif;';
+//     document.addEventListener('DOMContentLoaded', () => document.body.appendChild(fallback));
+//   }
+// })();
+// `;
 
 export default function RootLayout({
     children,
@@ -80,14 +81,13 @@ export default function RootLayout({
 }>) {
     return (
         <html lang="en">
-            <head>
-                <script dangerouslySetInnerHTML={{ __html: legacyBannerScript }} />
-            </head>
             <body className={inter.className}>
                 <AppProviders>
                     <FontLinks />
                     <Amplitude />
-                    <ConnectionGuard>{children}</ConnectionGuard>
+                    <ErrorBoundary>
+                        <ConnectionGuard>{children}</ConnectionGuard>
+                    </ErrorBoundary>
                 </AppProviders>
             </body>
         </html>
