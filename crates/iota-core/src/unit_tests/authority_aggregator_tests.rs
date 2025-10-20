@@ -3027,3 +3027,43 @@ async fn test_send_capability_notification_5_retryable_5_non_retryable_errors() 
     assert_eq!(agg.metrics.capability_notification_success.get(), 0);
     assert_eq!(agg.metrics.capability_notification_errors.get(), 1);
 }
+
+#[tokio::test]
+async fn test_send_capability_notification_3_success_7_non_retryable() {
+    // Test Case: Boundary scenario - 3 success, 7 non-retryable, 0 retryable
+    // 3 success (3000 weight) < validity threshold (3334)
+    // 7 non-retryable (7000 weight) >= quorum threshold (6667)
+    // Should fail with NonRetryableNotification since non-retryable errors alone
+    // meet the quorum threshold, and we cannot reach the validity threshold
+    let config = CapabilityNotificationConfig {
+        success_count: 3,
+        non_retryable_errors: CapabilityNotificationErrorType::create_non_retryable_errors(7),
+        retryable_errors: vec![],
+        timeout_delay_ms: None,
+    };
+
+    let (authorities, clients) =
+        create_capability_notification_mock_clients_with_errors(10, config);
+    let agg = get_genesis_agg(authorities, clients);
+    let request = create_test_capability_notification_request();
+
+    let result = agg.send_capability_notification_to_quorum(request).await;
+    assert!(
+        result.is_err(),
+        "Capability notification should fail when non-retryable errors meet quorum threshold"
+    );
+
+    // Should be non-retryable since non-retryable errors alone meet quorum
+    // threshold
+    match result.unwrap_err() {
+        AggregatorSendCapabilityNotificationError::NonRetryableNotification { .. } => {
+            // Expected - non-retryable errors meet quorum threshold, so we
+            // cannot reach validity threshold even if we retry
+        }
+        other => panic!("Expected NonRetryableNotification, got: {other:?}"),
+    }
+
+    // Verify metrics
+    assert_eq!(agg.metrics.capability_notification_success.get(), 0);
+    assert_eq!(agg.metrics.capability_notification_errors.get(), 1);
+}
