@@ -3,9 +3,12 @@
 
 import { BrowserContext, Page } from '@playwright/test';
 import { expect } from './fixtures';
-import { connectWallet, requestFaucetTokensOnWalletHome } from './utils';
-
-const SHORT_TIMEOUT = 30 * 1000;
+import { requestFaucetTokensOnWalletHome } from './utils';
+import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { getNetwork, IotaClient } from '@iota/iota-sdk/client';
+import { Transaction } from '@iota/iota-sdk/transactions';
+import { connectWallet } from './wallet';
+import { SHORT_TIMEOUT } from '../constants/timeout.constants';
 
 export async function setupWalletWithFunds(
     page: Page,
@@ -94,4 +97,48 @@ export async function getStakedAmount(page: Page): Promise<string | null> {
         .locator('xpath=../../div/span')
         .first()
         .textContent();
+}
+
+export async function splitCoinsTransaction(
+    mnemonic: string,
+    objectCount: number,
+    amountPerObject: number,
+): Promise<string> {
+    const keypair = Ed25519Keypair.deriveKeypair(mnemonic);
+    const network = getNetwork('localnet');
+    const client = new IotaClient({
+        url: network.url,
+    });
+    const tx = new Transaction();
+
+    const splitAmounts = new Array(objectCount).fill(amountPerObject);
+    const coins = tx.splitCoins(tx.gas, splitAmounts);
+
+    const coinArgs = [...Array(splitAmounts.length).keys()].map((i) => {
+        return {
+            kind: 'NestedResult',
+            NestedResult: [coins[0].NestedResult[0], i] as [number, number],
+        };
+    });
+
+    const address = keypair.getPublicKey().toIotaAddress();
+    tx.transferObjects(coinArgs, tx.pure.address(address));
+
+    const { digest } = await client.signAndExecuteTransaction({
+        transaction: tx,
+        signer: keypair,
+        options: {
+            showEffects: true,
+            showEvents: true,
+            showInput: true,
+            showObjectChanges: true,
+        },
+    });
+
+    await client.waitForTransaction({
+        digest,
+        timeout: 30000,
+    });
+
+    return digest;
 }

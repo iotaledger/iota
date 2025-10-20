@@ -9,11 +9,12 @@ import {
     getStakedAmount,
     navigateToDashboardStakePage,
     setupWalletWithFunds,
+    splitCoinsTransaction,
     submitAndVerifyStaking,
     submitAndVerifyUnstaking,
-} from './utils/stake';
+} from './utils/staking';
+import { LONG_TIMEOUT, SHORT_TIMEOUT } from './constants/timeout.constants';
 
-const LONG_TIMEOUT = 180_000;
 const STAKE_AMOUNT = 100;
 
 test.describe('Wallet staking', () => {
@@ -156,6 +157,59 @@ test.describe('Wallet staking', () => {
             expect(stakedAmount).toEqual(formatBalance(amountInNanos, IOTA_DECIMALS));
 
             await submitAndVerifyUnstaking(dashboardPage, context);
+        });
+
+        test('should stake using multiple small objects and then unstake', async ({
+            pageWithFreshWallet,
+            context,
+            extensionName,
+            sharedState,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            const dashboardPage = await setupWalletWithFunds(
+                pageWithFreshWallet,
+                context,
+                extensionName,
+            );
+            if (!sharedState.wallet.mnemonic) {
+                throw new Error('Wallet mnemonic is undefined');
+            }
+            await splitCoinsTransaction(sharedState.wallet.mnemonic, 99, 10000000000);
+            await navigateToDashboardStakePage(dashboardPage);
+
+            await dashboardPage.getByLabel('Amount').fill('499');
+
+            await submitAndVerifyStaking(dashboardPage, context);
+
+            await dashboardPage.reload();
+            const stakedAmount = await getStakedAmount(dashboardPage);
+            expect(stakedAmount).toEqual('499');
+
+            await submitAndVerifyUnstaking(dashboardPage, context);
+        });
+
+        test('should show error message when using over 50 small objects', async ({
+            pageWithFreshWallet,
+            context,
+            extensionName,
+            sharedState,
+        }) => {
+            test.setTimeout(LONG_TIMEOUT);
+            const dashboardPage = await setupWalletWithFunds(
+                pageWithFreshWallet,
+                context,
+                extensionName,
+            );
+            if (!sharedState.wallet.mnemonic) {
+                throw new Error('Wallet mnemonic is undefined');
+            }
+            await splitCoinsTransaction(sharedState.wallet.mnemonic, 99, 10000000000);
+            await navigateToDashboardStakePage(dashboardPage);
+
+            await dashboardPage.getByLabel('Amount').fill('500');
+            await expect(dashboardPage.getByTestId('error-info-box')).toBeVisible({
+                timeout: SHORT_TIMEOUT,
+            });
         });
     });
 });
