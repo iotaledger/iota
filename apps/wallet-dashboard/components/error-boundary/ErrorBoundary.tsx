@@ -3,6 +3,8 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+import { useEffect, useState } from 'react';
 import { Warning } from '@iota/apps-ui-icons';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import type { ReactNode } from 'react';
@@ -15,14 +17,13 @@ function getBrowserCompatibilityMessage(): string | null {
         const version = (re: RegExp) => Number(ua.match(re)?.[1] || 999);
 
         const isLegacy =
-            version(/Chrome\/(\d+)/) < 200 ||
+            version(/Chrome\/(\d+)/) < 92 ||
             version(/Firefox\/(\d+)/) < 94 ||
             (/Safari/.test(ua) &&
                 !/Chrome/.test(ua) &&
                 parseFloat(ua.match(/Version\/(\d+\.\d+)/)?.[1] || '99') < 15.4) ||
             version(/Edg\/(\d+)/) < 98 ||
-            version(/OPR\/(\d+)/) < 84 ||
-            typeof structuredClone !== 'function';
+            version(/OPR\/(\d+)/) < 84;
 
         return isLegacy
             ? 'Your browser version is outdated and may not be compatible. Please update it to the latest version.'
@@ -32,26 +33,47 @@ function getBrowserCompatibilityMessage(): string | null {
     }
 }
 
-function Fallback({ error }: FallbackProps): JSX.Element {
-    const compatibilityMessage = getBrowserCompatibilityMessage();
-    const isStructuredCloneError = /structuredClone/i.test(error.message);
+function LegacyBrowserBanner() {
+    const [message, setMessage] = useState<string | null>(null);
 
-    let message = error.message;
+    useEffect(() => {
+        const msg = getBrowserCompatibilityMessage();
+        if (msg) setMessage(msg);
+    }, []);
 
-    if (compatibilityMessage) {
-        message = compatibilityMessage;
-    } else if (isStructuredCloneError) {
-        message =
-            'Your browser does not fully support structuredClone. Please update your browser.';
-    }
+    if (!message) return null;
 
     return (
-        <div className="p-4">
+        <div className="fixed right-4 top-4 z-[9999] max-w-sm">
             <InfoBox
-                title="Error"
+                title="Compatibility Warning"
                 supportingText={message}
                 icon={<Warning />}
-                type={InfoBoxType.Error}
+                type={InfoBoxType.Warning}
+                style={InfoBoxStyle.Elevated}
+            />
+        </div>
+    );
+}
+
+function Fallback({ error }: FallbackProps): JSX.Element {
+    const isCompatibilityError =
+        error.message?.includes('structuredClone') ||
+        error.message?.includes('DataCloneError') ||
+        error.name === 'TypeError';
+
+    const message = isCompatibilityError
+        ? (getBrowserCompatibilityMessage() ??
+          'Your browser version is outdated and may not be compatible. Please update it to the latest version.')
+        : error.message || 'An unexpected error occurred.';
+
+    return (
+        <div className="fixed right-4 top-4 z-[9999] max-w-sm">
+            <InfoBox
+                title={isCompatibilityError ? 'Compatibility Warning' : 'Application Error'}
+                supportingText={message}
+                icon={<Warning />}
+                type={isCompatibilityError ? InfoBoxType.Warning : InfoBoxType.Error}
                 style={InfoBoxStyle.Elevated}
             />
         </div>
@@ -59,5 +81,25 @@ function Fallback({ error }: FallbackProps): JSX.Element {
 }
 
 export function ErrorBoundary({ children }: { children: ReactNode }) {
-    return <ReactErrorBoundary FallbackComponent={Fallback}>{children}</ReactErrorBoundary>;
+    return (
+        <>
+            <LegacyBrowserBanner />
+            <ReactErrorBoundary FallbackComponent={Fallback}>{children}</ReactErrorBoundary>
+        </>
+    );
 }
+
+// export function ErrorTest() {
+//     useEffect(() => {
+//         delete window.structuredClone;
+
+//         structuredClone({});
+//     }, []);
+
+//     return (
+//         <div style={{ padding: '1rem' }}>
+//             <h2>Testing missing structuredClone...</h2>
+//             <p>This should trigger the ErrorBoundary fallback.</p>
+//         </div>
+//     );
+// }
