@@ -102,15 +102,25 @@ pub trait ProtocolMetrics {
     }
 
     /// The network path where the clients expose prometheus metrics.
-    fn clients_metrics_path<I>(&self, instances: I) -> Vec<(Instance, String)>
-    where
-        I: IntoIterator<Item = Instance>;
-    /// The command to retrieve the metrics from the clients.
-    fn clients_metrics_command<I>(&self, instances: I) -> Vec<(Instance, String)>
+    fn clients_metrics_path<I, T>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<T>,
+    ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
+        T: BenchmarkType;
+    /// The command to retrieve the metrics from the clients.
+    fn clients_metrics_command<I, T>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<T>,
+    ) -> Vec<(Instance, String)>
+    where
+        I: IntoIterator<Item = Instance>,
+        T: BenchmarkType,
     {
-        self.clients_metrics_path(instances)
+        self.clients_metrics_path(instances, parameters)
             .into_iter()
             .map(|(instance, path)| (instance, format!("curl {path}")))
             .collect()
@@ -150,9 +160,14 @@ pub mod test_protocol_metrics {
                 .collect()
         }
 
-        fn clients_metrics_path<I>(&self, instances: I) -> Vec<(Instance, String)>
+        fn clients_metrics_path<I, T>(
+            &self,
+            instances: I,
+            _parameters: &BenchmarkParameters<T>,
+        ) -> Vec<(Instance, String)>
         where
             I: IntoIterator<Item = Instance>,
+            T: BenchmarkType,
         {
             instances
                 .into_iter()
