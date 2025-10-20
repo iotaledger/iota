@@ -1666,17 +1666,17 @@ mod test {
 
     #[tokio::test]
     #[should_panic(
-        expected = "Attempted to check for slot S8[0] that is <= the last evicted round 8"
+        expected = "Attempted to check for slot S8[0] that is <= the last gc evicted round 8"
     )]
     async fn test_contains_cached_block_at_slot_panics_when_ask_out_of_range() {
         /// Only keep elements up to 2 rounds before the last committed round
         const CACHED_ROUNDS: Round = 2;
-
+        const GC_DEPTH: u32 = 1;
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
         context
             .protocol_config
-            .set_consensus_gc_depth_for_testing(0);
+            .set_consensus_gc_depth_for_testing(GC_DEPTH);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
@@ -2544,57 +2544,6 @@ mod test {
         expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority [2]"
     )]
     async fn test_get_cached_last_block_per_authority_requesting_out_of_round_range() {
-        // GIVEN
-        const CACHED_ROUNDS: Round = 1;
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context
-            .protocol_config
-            .set_consensus_gc_depth_for_testing(0);
-
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
-
-        // Create no blocks for authority 0
-        // Create one block (round 1) for authority 1
-        // Create two blocks (rounds 1,2) for authority 2
-        // Create three blocks (rounds 1,2,3) for authority 3
-        let mut all_blocks = Vec::new();
-        for author in 1..=3 {
-            for round in 1..=author {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
-                all_blocks.push(block.clone());
-                dag_state.accept_block(block);
-            }
-        }
-
-        dag_state.add_commit(TrustedCommit::new_for_test(
-            1 as CommitIndex,
-            CommitDigest::MIN,
-            0,
-            all_blocks.last().unwrap().reference(),
-            all_blocks
-                .into_iter()
-                .map(|block| block.reference())
-                .collect::<Vec<_>>(),
-        ));
-
-        // Flush the store so we keep in memory only the last 1 round from the last
-        // commit for each authority.
-        dag_state.flush();
-
-        // THEN the method should panic, as some authorities have already evicted rounds
-        // <= round 2
-        let end_round = 2;
-        dag_state.get_last_cached_block_per_authority(end_round);
-    }
-
-    #[tokio::test]
-    #[should_panic(
-        expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority [2]"
-    )]
-    async fn test_get_cached_last_block_per_authority_requesting_out_of_round_range_gc_enabled() {
         // GIVEN
         const CACHED_ROUNDS: Round = 1;
         const GC_DEPTH: u32 = 1;
