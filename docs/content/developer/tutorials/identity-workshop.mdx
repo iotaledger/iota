@@ -21,7 +21,7 @@ Today, verifying university degrees is a slow, manual, and often costly hurdle. 
 
 ## The Opportunity
 
-Universities can issue tamper-proof Verifiable Credentials (VCs) that students control using the IOTA Identity. Students present these credentials to employers, who can instantly verify them on the IOTA network without intermediaries, cutting costs and eliminating fraud.
+Universities can issue tamper-proof University Degrees that students control using the IOTA Identity. Students present these credentials to employers, who can instantly verify them on the IOTA network without intermediaries, cutting costs and eliminating fraud.
 
 ### What You’ll Build in this Workshop
 
@@ -39,6 +39,30 @@ We're building a complete, system that connects a modern React frontend to a hig
 
 - **Use Case 4:** IOTA Identity secures digital asset provenance by linking tokens to verified real-world identities and origins, preventing fraud and ensuring authenticity.
 :::
+
+## Understanding Key Terms
+
+Before diving into the workshop, let’s clarify three key IOTA Identity concepts used in our University Degree Verification system. These terms, Decentralized Identifier (DID), Verifiable Credential (VC), and Verifiable Presentation (VP)—are central to how we create, issue, share, and verify a digital university degree securely on the IOTA network.
+
+- **Decentralized Identifier (DID)**: A DID is a unique digital ID, like a secure online passport, that identifies someone or something without relying on a central authority. In this workshop:
+  - The **student (Holder)** creates a DID to represent their identity.
+  - The **university (Issuer)** has its own DID to prove it’s a trusted institution.
+  - The **employer (Verifier)** uses DIDs to check who issued and holds the degree.
+  - Example: A student’s DID might look like `did:iota:abc123...`, proving they are the legitimate owner of their degree.
+
+- **Verifiable Credential (VC)**: A VC is a tamper-proof digital document that proves something about its holder, signed by a trusted issuer. In this workshop:
+  - The VC is the **university degree** issued by the university to the student.
+  - It contains details like the student’s name, degree type (e.g., Bachelor of Science), and issuance date, all cryptographically signed to prevent fraud.
+  - Example: The university issues a VC saying, “Jane Doe earned a B.Sc. in Computer Science on May 2025.”
+
+- **Verifiable Presentation (VP)**: A VP is a way for the holder to share their VC (or parts of it) with someone else, proving its authenticity. In this workshop:
+  - The student creates a VP to **present their degree** to an employer.
+  - The VP is signed by the student’s DID, proving they are the rightful holder of the degree, and includes the VC from the university.
+  - Example: Jane Doe sends a VP to an employer, showing her degree is valid without revealing unnecessary personal details.
+
+These concepts work together to create a secure, decentralized system where the student controls their digital degree, the university issues it with trust, and the employer verifies it instantly using the IOTA network. In the steps ahead, you’ll build this system by creating a DID, issuing a VC, presenting a VP, and verifying it!
+
+**Next Steps**: Proceed to the setup sections to install the tools needed for the workshop.
 
 ## Prerequisites
 
@@ -656,16 +680,16 @@ const handleIssueVc = async () => {
 ```
 <h3>Explanation</h3>
 
-- **What it does**: The `handleIssueVc` function sends a POST request to the `/issuer/issue-vc` endpoint with an empty body. The backend generates a Verifiable Credential and returns its JWT, which is stored in the React state (`setVcJwt`) for display and use in the next step.
+- **What it does**: The `handleIssueVc` function sends a POST request to the `/issuer/issue-vc` endpoint with an empty body. The backend generates a Verifiable Credential (University Degree)and returns its JWT, which is stored in the React state (`setVcJwt`) for display and use in the next step.
 - **Why it matters**: This triggers the issuance of a degree credential, which the student can later present to employers. It connects the frontend UI to the backend’s Verifiable Credential logic.
 - **Key concepts**:
     - **Verifiable Credential**: A signed document asserting the student’s degree (e.g., Bachelor of Science).
-    - **JSON Web Token**: The Verifiable Credential is encoded as a `JSON Web Token` for secure transmission.
+    - **JSON Web Token**: The Verifiable Credential (Degree) is encoded as a `JSON Web Token` for secure transmission.
     - **React State**: Stores the `VC JWT` for use in Verifiable Presentation creation.
 
-**Backend** (`src/main.rs`): In this step, the Uinversity (issuer) creates or loads its Decentralized Identifier (DID) and issues a Verifiable Credential (VC) representing a university degree for the Student (holder, Alice). This VC is signed and returned as a JSON Web Token (JWT) to the React frontend for use in subsequent steps.
+**Backend** (`src/main.rs`): In this step, the Uinversity (issuer) creates or loads its Decentralized Identifier (DID) and issues a Verifiable Credential (Degree) representing a university degree for the Student (holder, Alice). This VC is signed and returned as a JSON Web Token (JWT) to the React frontend for use in subsequent steps.
 
-The `issuer_issue_vc` function handles the `/issuer/issue-vc` endpoint in the Rust Axum backend, orchestrating the creation and signing of the Verifiable Credential.
+The `issuer_issue_vc` function handles the `/issuer/issue-vc` endpoint in the Rust Axum backend, orchestrating the creation and signing of the Degree.
 
 ```Rust
 // Issuer creates DID (if needed) and issues a VC to the Student
@@ -731,8 +755,8 @@ async fn issuer_issue_vc(Json(_body): Json<PackageId>) -> Result<Json<JwtRespons
 - **What it does**: The `issuer_issue_vc` function handles the `/issuer/issue-vc` HTTP endpoint, triggered by the React frontend. It performs four key steps:
     1. **Create/Load Issuer Decentralized Identifier**: Calls `create_or_load_did` to either create a new Decentralized Identifier for the University (issuer) or load an existing one from disk.
     2. **Load Student Decentralized Identifier**: Reads the Student’s Decentralized Identifier document from `holder_doc.json` (created in Step 1).
-    3. **Build Verifiable Credential**: Constructs a Verifiable Credential with the Student’s Decentralized Identifier, student details (e.g., name, degree, GPA), and an university identifier.
-    4. **Sign Verifiable Credential**: Uses the University's private key (stored in Stronghold) to sign the Verifiable Credential as a JSON Web Token, which is returned to the frontend.
+    3. **Build Verifiable Credential**: Constructs a Verifiable Credential (Degree) with the Student’s Decentralized Identifier, student details (e.g., name, degree, GPA), and an university identifier.
+    4. **Sign Verifiable Credential**: Uses the University's private key (stored in Stronghold) to sign the Verifiable Credential (Degree) as a JSON Web Token, which is returned to the frontend.
 - **Why it matters**: This function creates a tamper-proof degree credential linked to the Student’s Decentralized Identifier, enabling secure verification by employers in later steps. It connects the frontend’s “Issue Verifiable Credential” button to the IOTA Identity framework, ensuring the credential is cryptographically signed and verifiable on the IOTA network.
 - **Key concepts**:
     - **Verifiable Credential (VC)**: A digitally signed document asserting claims (e.g., Alice’s degree) linked to the Student’s Decentralized Identifier.
