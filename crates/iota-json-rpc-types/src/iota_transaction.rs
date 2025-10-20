@@ -2075,6 +2075,13 @@ impl From<Argument> for IotaArgument {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum PtbInput {
+    PtbRef(IotaArgument),
+    CallArg(IotaJsonValue),
+}
+
 /// The transaction for calling a Move function, either an entry function or a
 /// public function (which cannot return references).
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -2221,7 +2228,7 @@ pub struct MoveCallParams {
     pub function: String,
     #[serde(default)]
     pub type_arguments: Vec<IotaTypeTag>,
-    pub arguments: Vec<IotaJsonValue>,
+    pub arguments: Vec<PtbInput>,
 }
 
 #[serde_as]

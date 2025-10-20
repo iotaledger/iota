@@ -22,7 +22,7 @@ impl<R: Processor + Send + Sync + Clone> WorkerThread<R> {
         let mut successful_commands = 0;
         match self.processor.apply(&self.payload).await {
             Ok(()) => successful_commands += 1,
-            Err(e) => error!("Thread returns error: {e}"),
+            Err(e) => error!("thread returns error: {e}"),
         }
         successful_commands
     }

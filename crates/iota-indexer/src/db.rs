@@ -20,7 +20,7 @@ use diesel::{
 use strum::IntoEnumIterator;
 use tracing::info;
 
-use crate::{errors::IndexerError, handlers::pruner::PrunableTable};
+use crate::{errors::IndexerError, pruning::pruner::PrunableTable};
 
 pub type ConnectionPool = Pool<ConnectionManager<PgConnection>>;
 pub type PoolConnection = PooledConnection<ConnectionManager<PgConnection>>;

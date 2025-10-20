@@ -605,6 +605,20 @@ impl TryFrom<StoredTransaction> for TransactionBlockInner {
     }
 }
 
+impl TryFrom<StoredTransaction> for TransactionBlock {
+    type Error = Error;
+
+    fn try_from(stored_tx: StoredTransaction) -> Result<Self, Error> {
+        let checkpoint_viewed_at = stored_tx.checkpoint_sequence_number as u64;
+        let inner = TransactionBlockInner::try_from(stored_tx)?;
+
+        Ok(TransactionBlock {
+            inner,
+            checkpoint_viewed_at,
+        })
+    }
+}
+
 impl TryFrom<OptimisticTransaction> for TransactionBlockInner {
     type Error = Error;
 

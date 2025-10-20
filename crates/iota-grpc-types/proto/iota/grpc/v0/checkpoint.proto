@@ -3,7 +3,7 @@
 
 syntax = "proto3";
 
-package iota.grpc.checkpoints;
+package iota.grpc.v0.checkpoints;
 
 import "common.proto";
 
@@ -33,5 +33,5 @@ message Checkpoint {
   // Indicates whether bcs_data contains full CheckpointData (true) or just CertifiedCheckpointSummary (false)
   bool is_full = 2;
   // BCS-encoded CertifiedCheckpointSummary (default) or CheckpointData (if full=true)
-  iota.grpc.common.BcsData bcs_data = 3;
+  iota.grpc.v0.common.BcsData bcs_data = 3;
 } 

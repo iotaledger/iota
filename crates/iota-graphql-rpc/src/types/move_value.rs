@@ -499,7 +499,7 @@ mod tests {
     macro_rules! struct_layout {
         ($type:literal { $($name:literal : $layout:expr),* $(,)?}) => {
             A::MoveTypeLayout::Struct(Box::new(S {
-                type_: StructTag::from_str($type).expect("Failed to parse struct"),
+                type_: StructTag::from_str($type).expect("failed to parse struct"),
                 fields: vec![$(MoveFieldLayout {
                     name: ident_str!($name).to_owned(),
                     layout: $layout,

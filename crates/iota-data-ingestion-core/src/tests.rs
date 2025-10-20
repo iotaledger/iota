@@ -73,7 +73,7 @@ async fn run(
             tokio::time::sleep(duration).await;
             token.cancel();
             handle.await.map_err(|err| IngestionError::Shutdown {
-                component: "Indexer Executor".into(),
+                component: "indexer executor".into(),
                 msg: err.to_string(),
             })?
         }
@@ -360,13 +360,13 @@ async fn file_progress_store_save_timeout_simulates_crash() {
     .await;
 
     // The operation should time out (simulate crash)
-    assert!(result.is_err(), "Save did not time out as expected");
+    assert!(result.is_err(), "save did not time out as expected");
 
     // The value should still be the old value, as the save was interrupted
     let value = store.load("task1".to_string()).await.unwrap();
     assert_eq!(
         value, 42,
-        "Value should remain unchanged after interrupted save"
+        "value should remain unchanged after interrupted save"
     );
 }
 
@@ -399,7 +399,7 @@ async fn file_progress_store() {
 
 fn temp_dir() -> std::path::PathBuf {
     tempfile::tempdir()
-        .expect("Failed to open temporary directory")
+        .expect("failed to open temporary directory")
         .keep()
 }
 
