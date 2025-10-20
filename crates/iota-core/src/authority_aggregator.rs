@@ -12,12 +12,12 @@ use std::{
     time::Duration,
 };
 
-use futures::{StreamExt, future::BoxFuture, stream::FuturesUnordered};
-use iota_authority_aggregation::{AsyncResult, ReduceOutput, quorum_map_then_reduce_with_timeout};
+use futures::{future::BoxFuture, stream::FuturesUnordered, StreamExt};
+use iota_authority_aggregation::{quorum_map_then_reduce_with_timeout, AsyncResult, ReduceOutput};
 use iota_config::genesis::Genesis;
-use iota_metrics::{GaugeGuard, MonitorCancellation, monitored_future, spawn_monitored_task};
+use iota_metrics::{monitored_future, spawn_monitored_task, GaugeGuard, MonitorCancellation};
 use iota_network::{
-    DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC, default_iota_network_config,
+    default_iota_network_config, DEFAULT_CONNECT_TIMEOUT_SEC, DEFAULT_REQUEST_TIMEOUT_SEC,
 };
 use iota_network_stack::config::Config;
 use iota_swarm_config::network_config::NetworkConfig;
@@ -32,8 +32,8 @@ use iota_types::{
     error::{IotaError, IotaResult, UserInputError},
     fp_ensure,
     iota_system_state::{
-        IotaSystemState, IotaSystemStateTrait,
-        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait},
+        epoch_start_iota_system_state::{EpochStartSystemState, EpochStartSystemStateTrait}, IotaSystemState,
+        IotaSystemStateTrait,
     },
     message_envelope::Message,
     messages_grpc::{
@@ -47,18 +47,18 @@ use iota_types::{
     transaction::*,
 };
 use prometheus::{
-    Histogram, IntCounter, IntCounterVec, IntGauge, Registry, register_histogram_with_registry,
-    register_int_counter_vec_with_registry, register_int_counter_with_registry,
-    register_int_gauge_with_registry,
+    register_histogram_with_registry, register_int_counter_vec_with_registry, register_int_counter_with_registry, register_int_gauge_with_registry, Histogram, IntCounter,
+    IntCounterVec, IntGauge,
+    Registry,
 };
 use thiserror::Error;
 use tokio::time::{sleep, timeout};
-use tracing::{Instrument, debug, error, info, instrument, trace, trace_span, warn};
+use tracing::{debug, error, info, instrument, trace, trace_span, warn, Instrument};
 
 use crate::{
     authority_client::{
-        AuthorityAPI, NetworkAuthorityClient, make_authority_clients_with_timeout_config,
-        make_network_authority_clients_with_network_config,
+        make_authority_clients_with_timeout_config, make_network_authority_clients_with_network_config, AuthorityAPI,
+        NetworkAuthorityClient,
     },
     epoch::committee_store::CommitteeStore,
     safe_client::{SafeClient, SafeClientMetrics, SafeClientMetricsBase},
@@ -1946,7 +1946,7 @@ where
                             Self::record_rpc_error_maybe(self.metrics.clone(), &display_name, &err);
 
                             let (retryable, _categorized) = err.is_retryable();
-                            if  retryable { // TODO: make sure how timeouts are handled
+                            if  retryable {
                                 // Other retryable errors (timeouts, etc.)
                                 state.retryable_errors += weight;
                             } else {
@@ -1955,8 +1955,8 @@ where
                             }
                             state.errors.push((err, vec![name], weight));
 
-                            // Check if we have reached 2f+1 total errors (cannot reach validity threshold)
-                            if state.non_retryable_errors + state.retryable_errors >= quorum_threshold {
+                            // Check if we have reached 2f+1 non-retryable errors OR we have reached 2f+1 total errors, and there is still a chance to reach the validity threshold with retryable errors and good responses.
+                            if state.non_retryable_errors >= quorum_threshold || (state.non_retryable_errors + state.retryable_errors  >= quorum_threshold && state.good_responses + state.retryable_errors >= validity_threshold) {
                                 return ReduceOutput::Failed(state);
                             }
                         }
@@ -1990,6 +1990,10 @@ where
                 let grouped_errors = group_errors(state.errors);
 
                 // Determine an error type based on which condition was met
+                println!(
+                    "non_retryable_errors: {}, retryable_errors: {}, quorum_threshold: {}",
+                    state.non_retryable_errors, state.retryable_errors, quorum_threshold
+                );
                 if state.non_retryable_errors >= quorum_threshold {
                     Err(
                         AggregatorSendCapabilityNotificationError::NonRetryableNotification {
