@@ -26,7 +26,13 @@ use super::pg_partition_manager::{EpochPartitionData, PgPartitionManager};
 use crate::{
     db::ConnectionPool,
     errors::{Context, IndexerError, IndexerResult},
-    handlers::{EpochToCommit, TransactionObjectChangesToCommit},
+    ingestion::{
+        common::prepare::{
+            CheckpointObjectChanges, LiveObject, RemovedObject,
+            retain_latest_objects_from_checkpoint_batch,
+        },
+        primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
+    },
     insert_or_ignore_into,
     metrics::IndexerMetrics,
     models::{
@@ -58,10 +64,6 @@ use crate::{
     },
     store::IndexerStore,
     transactional_blocking_with_retry,
-    transform::{
-        CheckpointObjectChanges, LiveObject, RemovedObject,
-        retain_latest_objects_from_checkpoint_batch,
-    },
     types::{
         EventIndex, IndexedCheckpoint, IndexedDeletedObject, IndexedEvent, IndexedObject,
         IndexedPackage, IndexedTransaction, TxIndex,
@@ -570,34 +572,6 @@ impl PgIndexerStore {
         })
     }
 
-    fn persist_object_mutation_chunk(
-        &self,
-        mutated_object_mutation_chunk: Vec<StoredObject>,
-    ) -> Result<(), IndexerError> {
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_objects_chunks
-            .start_timer();
-        let len = mutated_object_mutation_chunk.len();
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                self.persist_object_mutation_chunk_in_existing_transaction(
-                    conn,
-                    mutated_object_mutation_chunk.clone(),
-                )
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
-        .tap_ok(|_| {
-            let elapsed = guard.stop_and_record();
-            info!(elapsed, "Persisted {} chunked objects", len);
-        })
-        .tap_err(|e| {
-            tracing::error!("Failed to persist object mutations with error: {}", e);
-        })
-    }
-
     fn persist_object_mutation_chunk_in_existing_transaction(
         &self,
         conn: &mut PgConnection,
@@ -622,34 +596,6 @@ impl PgIndexerStore {
             conn
         );
         Ok::<(), IndexerError>(())
-    }
-
-    fn persist_object_deletion_chunk(
-        &self,
-        deleted_objects_chunk: Vec<StoredDeletedObject>,
-    ) -> Result<(), IndexerError> {
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_objects_chunks
-            .start_timer();
-        let len = deleted_objects_chunk.len();
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                self.persist_object_deletion_chunk_in_existing_transaction(
-                    conn,
-                    deleted_objects_chunk.clone(),
-                )
-            },
-            PG_DB_COMMIT_SLEEP_DURATION
-        )
-        .tap_ok(|_| {
-            let elapsed = guard.stop_and_record();
-            info!(elapsed, "Deleted {} chunked objects", len);
-        })
-        .tap_err(|e| {
-            tracing::error!("Failed to persist object deletions with error: {}", e);
-        })
     }
 
     fn persist_object_deletion_chunk_in_existing_transaction(
@@ -1670,61 +1616,6 @@ impl IndexerStore for PgIndexerStore {
             this.get_latest_object_snapshot_checkpoint_sequence_number()
         })
         .await
-    }
-
-    async fn persist_objects(
-        &self,
-        object_changes: Vec<TransactionObjectChangesToCommit>,
-    ) -> Result<(), IndexerError> {
-        if object_changes.is_empty() {
-            return Ok(());
-        }
-        let guard = self
-            .metrics
-            .checkpoint_db_commit_latency_objects
-            .start_timer();
-        let (indexed_mutations, indexed_deletions) = retain_latest_indexed_objects(object_changes);
-        let object_mutations = indexed_mutations
-            .into_iter()
-            .map(StoredObject::from)
-            .collect::<Vec<_>>();
-        let object_deletions = indexed_deletions
-            .into_iter()
-            .map(StoredDeletedObject::from)
-            .collect::<Vec<_>>();
-        let mutation_len = object_mutations.len();
-        let deletion_len = object_deletions.len();
-
-        let object_mutation_chunks =
-            chunk!(object_mutations, self.config.parallel_objects_chunk_size);
-        let object_deletion_chunks =
-            chunk!(object_deletions, self.config.parallel_objects_chunk_size);
-        let mutation_futures = object_mutation_chunks
-            .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_object_mutation_chunk(c)));
-        let deletion_futures = object_deletion_chunks
-            .into_iter()
-            .map(|c| self.spawn_blocking_task(move |this| this.persist_object_deletion_chunk(c)));
-        futures::future::try_join_all(mutation_futures.chain(deletion_futures))
-            .await
-            .map_err(|e| {
-                tracing::error!("Failed to join futures for persisting object chunks: {e}",);
-                IndexerError::from(e)
-            })?
-            .into_iter()
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| {
-                IndexerError::PostgresWrite(format!(
-                    "Failed to persist all object mutation and deletion chunks: {e:?}"
-                ))
-            })?;
-
-        let elapsed = guard.stop_and_record();
-        info!(
-            elapsed,
-            "Persisted objects with {mutation_len} mutations and {deletion_len} deletions",
-        );
-        Ok(())
     }
 
     fn persist_objects_in_existing_transaction(

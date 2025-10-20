@@ -64,7 +64,7 @@ impl QueryExecutor for PgExecutor {
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
         if let Err(e) = &result {
-            error!("DB query error: {e:?}");
+            error!("db query error: {e:?}");
         }
         result.map_err(|e| Error::Internal(e.to_string()))
     }
@@ -88,7 +88,7 @@ impl QueryExecutor for PgExecutor {
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
         if let Err(e) = &result {
-            error!("DB query error: {e:?}");
+            error!("db query error: {e:?}");
         }
         result.map_err(|e| Error::Internal(e.to_string()))
     }

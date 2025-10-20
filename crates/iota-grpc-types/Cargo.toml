@@ -11,7 +11,14 @@ workspace = true
 
 [dependencies]
 # external dependencies
+bcs.workspace = true
+prost.workspace = true
 serde.workspace = true
+tonic.workspace = true
 
 # internal dependencies
+iota-json-rpc-types.workspace = true
 iota-types.workspace = true
+
+[build-dependencies]
+tonic-build.workspace = true

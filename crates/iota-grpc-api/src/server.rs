@@ -6,6 +6,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
+use iota_grpc_types::v0::{checkpoints as grpc_checkpoints, events as grpc_events};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
@@ -14,8 +15,6 @@ use tonic::transport::Server;
 use crate::{
     CheckpointGrpcService, EventGrpcService, GrpcCheckpointDataBroadcaster,
     GrpcCheckpointSummaryBroadcaster, GrpcReader,
-    checkpoint::checkpoint_service_server::CheckpointServiceServer,
-    events::event_service_server::EventServiceServer,
 };
 
 /// Handle to control a running gRPC server
@@ -91,8 +90,14 @@ pub async fn start_grpc_server(
 
     // Create the server with proper address binding
     let server_builder = Server::builder()
-        .add_service(CheckpointServiceServer::new(checkpoint_service))
-        .add_service(EventServiceServer::new(event_service));
+        .add_service(
+            grpc_checkpoints::checkpoint_service_server::CheckpointServiceServer::new(
+                checkpoint_service,
+            ),
+        )
+        .add_service(grpc_events::event_service_server::EventServiceServer::new(
+            event_service,
+        ));
 
     // Bind to the address to get the actual local address (especially important for
     // port 0)

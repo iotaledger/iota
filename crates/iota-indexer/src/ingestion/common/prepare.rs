@@ -2,22 +2,92 @@
 // SPDX-License-Identifier: Apache-2.0
 
 //! Types and associated logic to use while
-//! transforming data from network checkpoints.
+//! extracting and transforming data from network checkpoints.
+
+use std::collections::BTreeMap;
 
 use iota_types::{
     base_types::{ObjectID, ObjectRef},
     digests::TransactionDigest,
+    dynamic_field::{DynamicFieldInfo, DynamicFieldType},
     full_checkpoint_content::CheckpointData,
     messages_checkpoint::CheckpointSequenceNumber,
     object::Object,
 };
+use move_core_types::language_storage::{StructTag, TypeTag};
 
 use crate::{
     errors::{IndexerError, IndexerResult},
-    extract,
-    handlers::checkpoint_handler::try_extract_df_kind,
     types::{IndexedDeletedObject, IndexedObject},
 };
+
+#[derive(Clone, Debug)]
+pub(crate) struct Extractor<'chk> {
+    checkpoint: &'chk CheckpointData,
+}
+
+impl<'chk> Extractor<'chk> {
+    pub fn new(checkpoint: &'chk CheckpointData) -> Self {
+        Self { checkpoint }
+    }
+
+    pub(crate) fn iter_live_objects(&'chk self) -> impl Iterator<Item = &'chk Object> + 'chk {
+        let mut latest_live_objects = BTreeMap::new();
+        for tx in self.checkpoint.transactions.iter() {
+            for obj in tx.output_objects.iter() {
+                latest_live_objects.insert(obj.id(), obj);
+            }
+            for obj_ref in tx.removed_object_refs_post_version() {
+                latest_live_objects.remove(&(obj_ref.0));
+            }
+        }
+        latest_live_objects.into_values()
+    }
+
+    pub(crate) fn iter_removed_objects(
+        &'chk self,
+    ) -> impl Iterator<Item = (ObjectRef, TransactionDigest)> + 'chk {
+        let mut eventually_removed_object_refs = BTreeMap::new();
+        for tx in self.checkpoint.transactions.iter() {
+            let digest = tx.transaction.digest();
+            for obj_ref in tx.removed_object_refs_post_version() {
+                eventually_removed_object_refs.insert(obj_ref.0, (obj_ref, *digest));
+            }
+            for obj in tx.output_objects.iter() {
+                eventually_removed_object_refs.remove(&(obj.id()));
+            }
+        }
+        eventually_removed_object_refs.into_values()
+    }
+}
+
+/// If `o` is a dynamic `Field<K, V>`, determine whether it represents a Dynamic
+/// Field or a Dynamic Object Field based on its type.
+pub(crate) fn try_extract_df_kind(o: &Object) -> IndexerResult<Option<DynamicFieldType>> {
+    // Skip if not a move object
+    let Some(move_object) = o.data.try_as_move() else {
+        return Ok(None);
+    };
+
+    if !move_object.type_().is_dynamic_field() {
+        return Ok(None);
+    }
+
+    let type_: StructTag = move_object.type_().clone().into();
+    let [name, _] = type_.type_params.as_slice() else {
+        return Ok(None);
+    };
+
+    Ok(Some(
+        if matches!(name, TypeTag::Struct(s) if DynamicFieldInfo::is_dynamic_object_field_wrapper(s))
+        {
+            DynamicFieldType::DynamicObject
+        } else {
+            DynamicFieldType::DynamicField
+        },
+    ))
+}
+
 /// Represent an object that is live at a certain snapshot
 /// of the network.
 #[derive(Clone, Debug)]
@@ -123,7 +193,7 @@ impl TryFrom<&CheckpointData> for CheckpointObjectChanges {
     type Error = IndexerError;
     fn try_from(data: &CheckpointData) -> Result<Self, Self::Error> {
         let checkpoint_seq = data.checkpoint_summary.sequence_number;
-        let extractor = extract::Extractor::new(data);
+        let extractor = Extractor::new(data);
 
         let deleted_objects = extractor
             .iter_removed_objects()

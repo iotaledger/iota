@@ -229,6 +229,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .run_background("node".into())
             .with_log_file("~/node.log".into())
             .with_execute_from_path(repo.into());
+
         self.ssh_manager
             .execute_per_instance(targets, context)
             .await?;
@@ -236,7 +237,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // Wait until all nodes are reachable.
         let commands = self
             .protocol_commands
-            .nodes_metrics_command(instances.clone());
+            .nodes_metrics_command(instances.clone(), parameters);
         self.ssh_manager.wait_for_success(commands).await;
 
         Ok(())
@@ -301,7 +302,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             display::action("Configuring monitoring instance");
 
             let monitor = Monitor::new(instance, clients, nodes, self.ssh_manager.clone());
-            monitor.start_prometheus(&self.protocol_commands).await?;
+            monitor
+                .start_prometheus(&self.protocol_commands, parameters)
+                .await?;
             monitor.start_grafana().await?;
 
             display::done();
@@ -329,6 +332,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             "cargo build --release",
         ]
         .join(" && ");
+
+        display::action(format!("update command: {command}"));
 
         let active = self.instances.iter().filter(|x| x.is_active()).cloned();
 
@@ -359,7 +364,10 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         // Generate the genesis configuration file and the keystore allowing access to
         // gas objects.
-        let command = self.protocol_commands.genesis_command(nodes.iter());
+        let command = self
+            .protocol_commands
+            .genesis_command(nodes.iter(), parameters);
+        display::action(format!("Genesis command: {command}"));
         let repo_name = self.settings.repository_name();
         let context = CommandContext::new().with_execute_from_path(repo_name.into());
         let all = clients.into_iter().chain(nodes);
@@ -454,7 +462,11 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // TODO: Remove this when consensus client latency metrics are available.
         // We will be getting latency metrics directly from consensus nodes instead from
         // the nw client
-        metrics_commands.append(&mut self.protocol_commands.nodes_metrics_command(nodes.clone()));
+        metrics_commands.append(
+            &mut self
+                .protocol_commands
+                .nodes_metrics_command(nodes.clone(), parameters),
+        );
 
         let mut aggregator = MeasurementsCollection::new(&self.settings, parameters.clone());
         let mut metrics_interval = time::interval(self.scrape_interval);

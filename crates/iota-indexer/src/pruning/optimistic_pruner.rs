@@ -6,9 +6,9 @@ use std::time::Duration;
 use tokio_util::sync::CancellationToken;
 use tracing::{info, warn};
 
-use super::checkpoint_handler::CheckpointHandler;
 use crate::{
     errors::IndexerError,
+    ingestion::primary::prepare::PrimaryWorker,
     metrics::IndexerMetrics,
     store::{
         IndexerStore, PgIndexerStore, TxGlobalOrderCursor, pg_partition_manager::PgPartitionManager,
@@ -43,7 +43,7 @@ impl OptimisticPruner {
         optimistic_pruner_batch_size: u64,
         metrics: IndexerMetrics,
     ) -> Result<Self, IndexerError> {
-        let blocking_cp = CheckpointHandler::pg_blocking_cp(store.clone())?;
+        let blocking_cp = PrimaryWorker::pg_blocking_cp(store.clone())?;
         let partition_manager = PgPartitionManager::new(blocking_cp.clone())?;
         Ok(Self {
             store,

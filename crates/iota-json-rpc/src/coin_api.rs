@@ -1297,7 +1297,7 @@ mod tests {
                 if let Some(pos) = result.iter().position(|i| *i == item) {
                     result.remove(pos);
                 } else {
-                    panic!("{item:?} not found in result");
+                    panic!("item {item:?} not found in result");
                 }
             }
             assert!(result.is_empty());
