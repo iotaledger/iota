@@ -215,6 +215,8 @@ pub struct Grafana;
 impl Grafana {
     /// The path to the datasources directory.
     const DATASOURCES_PATH: &'static str = "/etc/grafana/provisioning/datasources";
+    /// The path to the dashboards directory.
+    const DASHBOARDS_PATH: &'static str = "/etc/grafana/provisioning/dashboards";
     /// The default grafana port.
     pub const DEFAULT_PORT: u16 = 3000;
 
@@ -242,6 +244,23 @@ impl Grafana {
                 Self::datasource(),
                 Self::DATASOURCES_PATH
             ),
+            &format!("(rm -r {} || true)", Self::DASHBOARDS_PATH),
+            &format!("mkdir -p {}", Self::DASHBOARDS_PATH),
+            &format!(
+                "sudo echo \"{}\" > {}/dashboards.yml",
+                Self::dashboard_provider(),
+                Self::DASHBOARDS_PATH
+            ),
+            &format!(
+                "sudo echo '{}' > {}/aws-dashboard.json",
+                include_str!("../assets/grafana-dashboard.json"),
+                Self::DASHBOARDS_PATH
+            ),
+            &format!(
+                "sudo echo '{}' > {}/cluster-dashboard.json",
+                include_str!("../../../dev-tools/grafana-local/dashboards/cluster-status-dashboard.json"),
+                Self::DASHBOARDS_PATH
+            ),
             "sudo service grafana-server restart",
         ]
         .join(" && ")
@@ -266,6 +285,27 @@ impl Grafana {
         ]
         .join("\n")
     }
+
+    /// Generate the dashboard provider configuration.
+    fn dashboard_provider() -> String {
+        [
+            "apiVersion: 1",
+            "",
+            "providers:",
+            "  - name: \"testbed-dashboards\"",
+            "    orgId: 1",
+            "    folder: \"\"",
+            "    type: file",
+            "    disableDeletion: false",
+            "    editable: true",
+            "    allowUiUpdates: true",
+            "    options:",
+            &format!("      path: {}", Self::DASHBOARDS_PATH),
+            "      updateIntervalSeconds: 30",
+        ]
+        .join("\n")
+    }
+
 }
 
 /// Bootstrap the grafana with datasource to connect to the given instances.
