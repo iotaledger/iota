@@ -100,8 +100,10 @@ impl Query {
     ) -> Result<MoveViewResult> {
         let chain_id_cache: &ChainIdentifierCache = ctx.data_unchecked();
 
+        let db = ctx.data_unchecked();
+        let metrics = ctx.data_unchecked();
         let chain = chain_id_cache
-            .read(ctx.data_unchecked(), ctx.data_unchecked())
+            .read(db, metrics)
             .await
             .extend()?
             .into_inner()
