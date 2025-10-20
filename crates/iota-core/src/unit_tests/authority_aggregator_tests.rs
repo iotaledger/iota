@@ -2950,7 +2950,8 @@ async fn test_send_capability_notification_2_success_7_non_retryable_1_retryable
     // Test Case 4: Mixed scenario - 2 success, 7 non-retryable, 1 retryable
     // 2 success responses (below f+1 validity threshold of 3,334)
     // 7 non-retryable errors + 1 retryable error
-    // Should fail with NonRetryableNotification since the sum of retryable errors and success weights is below f+1 (3,334)
+    // Should fail with NonRetryableNotification since the sum of retryable errors
+    // and success weights is below f+1 (3,334)
 
     let config = CapabilityNotificationConfig {
         success_count: 2,
