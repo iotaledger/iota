@@ -470,6 +470,52 @@ const developer = [
     },
     {
         type: 'category',
+        label: 'Workshops',
+        link: {
+            type: 'doc',
+            id: 'developer/workshops/index',
+        },
+        items: [
+            {
+                type: 'category',
+                label: 'Core',
+                items: [
+                    {
+                        type: 'doc',
+                        id: 'developer/workshops/core/I-introduction-to-smart-contracts',
+                        label: 'Core I: Init and Deploy a Grants package',
+                    },
+                    {
+                        type: 'doc',
+                        id: 'developer/workshops/core/II-shared-objects-dynamic-fields-ptbs',
+                        label: 'CoreII: Coordination with Shared Objects, Dynamic Fields, and PTBs',
+                    },
+                    {
+                        type: 'doc',
+                        id: 'developer/workshops/core/III-capabilities-state-tests',
+                        label: 'Core III: Capabilities, Type-State, Abilities & Tests',
+                    },
+                    {
+                        type: 'doc',
+                        id: 'developer/workshops/core/IV-capstone-dapp-kit',
+                        label: 'Core IV: Wrapping it up - Dapp',
+                    },
+                ],
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/minting-managing-tokens',
+                label: 'Minting and Managing Tokens',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/iota-notarization-truedoc',
+                label: 'IOTA Notarization Workshop',
+            },
+        ],
+    },
+    {
+        type: 'category',
         label: 'Standards',
         link: {
             type: 'generated-index',
@@ -635,7 +681,7 @@ const developer = [
         ]
     },
     {
-        type:'category',
+        type: 'category',
         label: 'IOTA EVM',
         items: iotaEvm,
     },
