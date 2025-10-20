@@ -66,7 +66,7 @@ mod test {
                 committee: committee.clone(),
                 keypairs: keypairs.clone(),
                 network_type: iota_protocol_config::ConsensusNetwork::Tonic,
-                boot_counter: boot_counters[index],
+                boot_counter: boot_counters[authority_index.value() as usize],
                 protocol_config: protocol_config.clone(),
                 clock_drift: clock_drifts[authority_index.value() as usize],
             };
