@@ -116,7 +116,7 @@ impl BlockV1 {
     fn genesis_block(context: &Context, author: AuthorityIndex) -> Self {
         let timestamp_ms = if context
             .protocol_config
-            .enforce_checkpoint_timestamp_monotonicity()
+            .consensus_median_timestamp_with_checkpoint_enforcement()
         {
             context.epoch_start_timestamp_ms
         } else {
