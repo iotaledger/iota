@@ -1233,8 +1233,9 @@ mod tests {
             AuthorityService, BroadcastedBlockStream, MAX_FILTER_SIZE, SubscriptionCounter,
         },
         block_header::{
-            BlockHeaderAPI, BlockRef, SignedBlockHeader, TestBlockHeader, TransactionsCommitment,
-            VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
+            BlockHeaderAPI, BlockRef, GENESIS_ROUND, SignedBlockHeader, TestBlockHeader,
+            TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader, VerifiedOwnShard,
+            VerifiedTransactions,
         },
         block_manager::BlockManager,
         block_verifier::SignedBlockVerifier,
@@ -1242,7 +1243,7 @@ mod tests {
         commit_observer::CommitObserver,
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
-        cordial_knowledge::CordialKnowledge,
+        cordial_knowledge::{ConnectionKnowledgeMessage, CordialKnowledge},
         core::{Core, CoreSignals},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::{DagState, TransactionSource},
@@ -1260,8 +1261,6 @@ mod tests {
         transaction::TransactionConsumer,
         transactions_synchronizer::TransactionsSynchronizer,
     };
-    use crate::block_header::GENESIS_ROUND;
-    use crate::cordial_knowledge::ConnectionKnowledgeMessage;
 
     #[derive(Default)]
     struct FakeNetworkClient {}
@@ -2499,7 +2498,8 @@ mod tests {
         }
 
         // Inject useful info
-        let connection_knowledge_sender = cordial_knowledge.connection_knowledge_senders()[to_whom_authority].clone();
+        let connection_knowledge_sender =
+            cordial_knowledge.connection_knowledge_senders()[to_whom_authority].clone();
         let msg = ConnectionKnowledgeMessage::UsefulInfo {
             useful_headers_to_peer: BTreeMap::from([
                 (AuthorityIndex::new_for_test(2), GENESIS_ROUND),
@@ -2513,7 +2513,7 @@ mod tests {
                 (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
                 (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
             ]),
-            useful_shards_from_peers: vec![None,Some(GENESIS_ROUND),None,Some(GENESIS_ROUND)]
+            useful_shards_from_peers: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
         };
         let _ = connection_knowledge_sender.send(vec![msg]).await;
 
@@ -2521,10 +2521,7 @@ mod tests {
         // Call handle_subscribe_block_bundles_request with last_received = 2
         let last_received_round = 2;
         let block_bundle_stream = authority_service
-            .handle_subscribe_block_bundles_request(
-                to_whom_authority,
-                last_received_round,
-            )
+            .handle_subscribe_block_bundles_request(to_whom_authority, last_received_round)
             .await
             .expect("Should return a valid stream");
 

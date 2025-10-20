@@ -336,7 +336,6 @@ impl CordialKnowledge {
         }
     }
 
-
     /// Update global knowledge about shards from which authors will be useful
     /// for us
     async fn handle_useful_shards_from(
@@ -929,9 +928,9 @@ impl ConnectionKnowledge {
             .iter()
             .enumerate()
             .filter_map(|(i, &opt_round)| {
-                opt_round.filter(|&r| {
-                    r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive
-                }).map(|_| i)
+                opt_round
+                    .filter(|&r| r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive)
+                    .map(|_| i)
             })
             .collect();
 
@@ -961,9 +960,9 @@ impl ConnectionKnowledge {
             .iter()
             .enumerate()
             .filter_map(|(i, &opt_round)| {
-                opt_round.filter(|&r| {
-                    r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive
-                }).map(|_| i)
+                opt_round
+                    .filter(|&r| r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive)
+                    .map(|_| i)
             })
             .collect();
         let useful_shards_block_refs_to_peer = self.take_useful_shard_block_refs_round(
@@ -985,9 +984,9 @@ impl ConnectionKnowledge {
             .iter()
             .enumerate()
             .filter_map(|(i, &opt_round)| {
-                opt_round.filter(|&r| {
-                    r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive
-                }).map(|_| AuthorityIndex::from(i as u8))
+                opt_round
+                    .filter(|&r| r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive)
+                    .map(|_| AuthorityIndex::from(i as u8))
             })
             .collect::<BTreeSet<AuthorityIndex>>();
         debug!(
@@ -1001,9 +1000,9 @@ impl ConnectionKnowledge {
             .iter()
             .enumerate()
             .filter_map(|(i, &opt_round)| {
-                opt_round.filter(|&r| {
-                    r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive
-                }).map(|_| AuthorityIndex::from(i as u8))
+                opt_round
+                    .filter(|&r| r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive)
+                    .map(|_| AuthorityIndex::from(i as u8))
             })
             .collect::<BTreeSet<AuthorityIndex>>();
         debug!(
@@ -1086,9 +1085,9 @@ mod tests {
         context::Context,
         dag_state::DagState,
         storage::mem_store::MemStore,
+        test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
     };
-    use crate::test_dag_builder::DagBuilder;
 
     #[tokio::test]
     async fn test_cordial_knowledge_bundle_with_byzantine() {
@@ -1155,9 +1154,8 @@ mod tests {
         }
 
         // Report useful info to connection knowledge corresponding to to_whom_index
-        let connection_knowledge_sender = cordial_knowledge
-            .connection_knowledge_senders[to_whom_index]
-            .clone();
+        let connection_knowledge_sender =
+            cordial_knowledge.connection_knowledge_senders[to_whom_index].clone();
         // Inject useful info
         let msg = ConnectionKnowledgeMessage::UsefulInfo {
             useful_headers_to_peer: BTreeMap::from([
@@ -1172,18 +1170,14 @@ mod tests {
                 (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
                 (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
             ]),
-            useful_shards_from_peers: vec![None,Some(GENESIS_ROUND),None,Some(GENESIS_ROUND)]
+            useful_shards_from_peers: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
         };
         let _ = connection_knowledge_sender.send(vec![msg]).await;
 
         // get all blocks of D. They will be injected to dag state at final_round
         let d_blocks = all_blocks
             .iter()
-            .flat_map(|blocks| {
-                blocks
-                    .iter()
-                    .filter(|b| b.author() == byzantine_index)
-            })
+            .flat_map(|blocks| blocks.iter().filter(|b| b.author() == byzantine_index))
             .cloned()
             .collect::<Vec<VerifiedBlock>>();
         // Add block to DAG state and automatically update cordial knowledge
@@ -1195,11 +1189,10 @@ mod tests {
                         verified_block_header,
                         verified_transactions,
                     } = block.clone();
-                    dag_state
-                        .write()
-                        .accept_block_header(verified_block_header);
+                    dag_state.write().accept_block_header(verified_block_header);
                     let shard_for_core = VerifiedOwnShard {
-                        serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data
+                        serialized_shard: Bytes::from([0u8; 32].to_vec()), /* put some dummy
+                                                                            * shard data */
                         block_ref: verified_transactions.block_ref(),
                     };
                     dag_state.write().add_shard(shard_for_core);
@@ -1207,7 +1200,8 @@ mod tests {
             }
             // add all blocks of this round and our block of next round to dag state
             for block in all_blocks[round as usize]
-                .iter().filter(|b|b.author() != our_index && b.author() != byzantine_index)
+                .iter()
+                .filter(|b| b.author() != our_index && b.author() != byzantine_index)
                 .chain(std::iter::once(&all_blocks[round as usize + 1][our_index]))
             {
                 let VerifiedBlock {
@@ -1234,23 +1228,44 @@ mod tests {
             let AdditionalPartsForBundle {
                 headers, shards, ..
             } = additional_parts;
-            // In rounds 1..final_round, A should not know any of D's blocks, so no headers or shards
-            // should be sent to B.
+            // In rounds 1..final_round, A should not know any of D's blocks, so no headers
+            // or shards should be sent to B.
             if round < final_round - 1 {
                 // Only headers of C's block of previous round should be sent
-                assert_eq!(headers.len(), 1,  "In round {}, unexpected headers found: {:?}", round, headers);
-                assert_eq!(headers[0].digest(), all_blocks[round as usize][2].verified_block_header.digest());
-                assert_eq!(shards.len(), 1,  "In round {}, unexpected shards found: {:?}", round, shards);
+                assert_eq!(
+                    headers.len(),
+                    1,
+                    "In round {}, unexpected headers found: {:?}",
+                    round,
+                    headers
+                );
+                assert_eq!(
+                    headers[0].digest(),
+                    all_blocks[round as usize][2].verified_block_header.digest()
+                );
+                assert_eq!(
+                    shards.len(),
+                    1,
+                    "In round {}, unexpected shards found: {:?}",
+                    round,
+                    shards
+                );
             } else {
                 // In round 6, A should know about D's blocks and send them all to B
                 let d_headers_in_bundle: Vec<&VerifiedBlockHeader> = headers
                     .iter()
                     .filter(|h| h.author() == byzantine_index)
                     .collect();
-                assert_eq!(d_headers_in_bundle.len(), final_round as usize-1); // All 5 headers of D's blocks
-                // Validator A sends to B all 5 shards of D's blocks and 1 header/shard of C's block of
-                // round 5
-                assert_eq!(headers.len(), final_round as usize,  "In round {}, unexpected headers found: {:?}", round, headers);
+                assert_eq!(d_headers_in_bundle.len(), final_round as usize - 1); // All 5 headers of D's blocks
+                // Validator A sends to B all 5 shards of D's blocks and 1 header/shard of C's
+                // block of round 5
+                assert_eq!(
+                    headers.len(),
+                    final_round as usize,
+                    "In round {}, unexpected headers found: {:?}",
+                    round,
+                    headers
+                );
                 assert_eq!(shards.len(), final_round as usize);
             }
         }
@@ -1271,9 +1286,8 @@ mod tests {
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         // Report useful info to connection knowledge corresponding to to_whom_index
-        let connection_knowledge_sender = cordial_knowledge
-            .connection_knowledge_senders[to_whom_index]
-            .clone();
+        let connection_knowledge_sender =
+            cordial_knowledge.connection_knowledge_senders[to_whom_index].clone();
         // Inject useful info
         let msg = ConnectionKnowledgeMessage::UsefulInfo {
             useful_headers_to_peer: BTreeMap::from([
@@ -1288,10 +1302,11 @@ mod tests {
                 (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
                 (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
             ]),
-            useful_shards_from_peers: vec![None,Some(GENESIS_ROUND),None,Some(GENESIS_ROUND)]
+            useful_shards_from_peers: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
         };
         let _ = connection_knowledge_sender.send(vec![msg]).await;
-        // Build DAG with blocks from all validators up to final_round and add to dag_state
+        // Build DAG with blocks from all validators up to final_round and add to
+        // dag_state
         let _dag_builder = DagBuilder::new(context.clone())
             .set_protocol_keypair(protocol_keypairs)
             .layers(1..=final_round)
@@ -1307,13 +1322,26 @@ mod tests {
         let _ = connection_knowledge_sender.send(vec![msg]).await;
         let additional_parts = rx.await.unwrap();
         let AdditionalPartsForBundle {
-            headers, shards: _, useful_headers_authors_from_peer, useful_shards_authors_from_peer
+            headers,
+            shards: _,
+            useful_headers_authors_from_peer,
+            useful_shards_authors_from_peer,
         } = additional_parts;
         // Only headers and shards from authorities 2 and 3 should be included
         assert_eq!(headers.len(), 2);
-        assert!(headers.iter().all(|h| h.author() != our_index || h.author() == to_whom_index));
-        assert_eq!(useful_headers_authors_from_peer, BTreeSet::from([1,3].map(AuthorityIndex::new_for_test)));
-        assert_eq!(useful_shards_authors_from_peer, BTreeSet::from([1,3].map(AuthorityIndex::new_for_test)));
+        assert!(
+            headers
+                .iter()
+                .all(|h| h.author() != our_index || h.author() == to_whom_index)
+        );
+        assert_eq!(
+            useful_headers_authors_from_peer,
+            BTreeSet::from([1, 3].map(AuthorityIndex::new_for_test))
+        );
+        assert_eq!(
+            useful_shards_authors_from_peer,
+            BTreeSet::from([1, 3].map(AuthorityIndex::new_for_test))
+        );
         // Repeat the request, should get no headers this time
         let (tx, rx) = oneshot::channel();
         let msg = ConnectionKnowledgeMessage::TakeAdditionalPartForBundle {
@@ -1322,11 +1350,7 @@ mod tests {
         };
         let _ = connection_knowledge_sender.send(vec![msg]).await;
         let additional_parts = rx.await.unwrap();
-        let AdditionalPartsForBundle {
-            headers,..
-        } = additional_parts;
+        let AdditionalPartsForBundle { headers, .. } = additional_parts;
         assert_eq!(headers.len(), 0);
-
     }
-
 }
