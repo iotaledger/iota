@@ -251,13 +251,13 @@ const DestinationInput = forwardRef<HTMLInputElement, InputProps>(function Desti
     const layer2Account = useAccount();
 
     const toggleIsDepositAddressManualInput = useCallback(() => {
-        const newIsManualInput = !isManualInput;
-        setValue(BridgeFormInputName.IsDepositAddressManualInput, newIsManualInput, {
+        const updatedManualInputMode = !isManualInput;
+        setValue(BridgeFormInputName.IsDepositAddressManualInput, updatedManualInputMode, {
             shouldValidate: true,
         });
         ampli.toggledAddressInput({
             bridgeDirection: isFromLayer1 ? BridgeDirection.L1ToL2 : BridgeDirection.L2ToL1,
-            inputMode: newIsManualInput ? 'manual' : 'auto',
+            inputMode: updatedManualInputMode ? 'manual' : 'auto',
         });
     }, [isManualInput, isFromLayer1, setValue]);
 
