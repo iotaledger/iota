@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_graphql::OneofObject;
-use iota_indexer::stream::{ModuleFunction, StreamEventFilter, StreamTransactionFilter};
-use iota_json_rpc_types::IotaTransactionKind;
-use iota_types::base_types::ObjectID;
+use iota_indexer::models::{events::StoredEvent, transactions::StoredTransaction};
+use iota_json_rpc_types::{Filter, IotaTransactionKind};
+use iota_types::{base_types::ObjectID, transaction::TransactionDataAPI};
 
 use crate::types::{
     iota_address::IotaAddress,
@@ -22,18 +22,15 @@ pub(crate) enum SubscriptionEventFilter {
     EmittingModule(ModuleFilter),
 }
 
-impl From<SubscriptionEventFilter> for StreamEventFilter {
-    fn from(value: SubscriptionEventFilter) -> Self {
+impl Filter<StoredEvent> for SubscriptionEventFilter {
+    fn matches(&self, event: &StoredEvent) -> bool {
         use SubscriptionEventFilter::*;
-        match value {
+        match self {
             EmittingModule(ModuleFilter::ByPackage(package)) => {
-                StreamEventFilter::EmittingPackage(package.into())
+                event.package.as_slice() == package.as_slice()
             }
             EmittingModule(ModuleFilter::ByModule(package, module)) => {
-                StreamEventFilter::EmittingModule {
-                    package: package.into(),
-                    module,
-                }
+                event.package.as_slice() == package.as_slice() && event.module == *module
             }
         }
     }
@@ -54,22 +51,44 @@ pub(crate) enum SubscriptionTransactionFilter {
     Function(FqNameFilter),
 }
 
-impl From<SubscriptionTransactionFilter> for StreamTransactionFilter {
-    fn from(value: SubscriptionTransactionFilter) -> Self {
+impl Filter<StoredTransaction> for SubscriptionTransactionFilter {
+    fn matches(&self, transaction: &StoredTransaction) -> bool {
         use SubscriptionTransactionFilter::*;
-        match value {
-            Kind(kind) => StreamTransactionFilter::Kind(kind.into()),
-            SigningAddress(address) => StreamTransactionFilter::SigningAddress(address.into()),
+        match self {
+            Kind(kind) => transaction.transaction_kind == IotaTransactionKind::from(kind) as i16,
+            SigningAddress(address) => transaction
+                .try_into_sender_signed_data()
+                .map(|data| data.transaction_data().sender() == (*address).into())
+                .unwrap_or_default(),
             Function(name) => {
                 let (package, module) = name.into();
-                StreamTransactionFilter::Function { package, module }
+
+                transaction
+                    .try_into_sender_signed_data()
+                    .map(|data| {
+                        data.transaction_data()
+                            .move_calls()
+                            .iter()
+                            .any(|(p, m, f)| match module.as_ref() {
+                                Some(module_function) => {
+                                    let Some(ref function) = module_function.function_name else {
+                                        return **p == package && *m == module_function.module_name;
+                                    };
+                                    **p == package
+                                        && *m == module_function.module_name
+                                        && f == function
+                                }
+                                None => **p == package,
+                            })
+                    })
+                    .unwrap_or_default()
             }
         }
     }
 }
 
-impl From<TransactionBlockKindInput> for IotaTransactionKind {
-    fn from(value: TransactionBlockKindInput) -> Self {
+impl From<&TransactionBlockKindInput> for IotaTransactionKind {
+    fn from(value: &TransactionBlockKindInput) -> Self {
         match value {
             TransactionBlockKindInput::SystemTx => IotaTransactionKind::SystemTransaction,
             TransactionBlockKindInput::ProgrammableTx => {
@@ -90,20 +109,25 @@ impl From<TransactionBlockKindInput> for IotaTransactionKind {
     }
 }
 
-impl From<FqNameFilter> for (ObjectID, Option<ModuleFunction>) {
-    fn from(value: FqNameFilter) -> Self {
+struct ModuleFunction<'a> {
+    module_name: &'a str,
+    function_name: Option<&'a str>,
+}
+
+impl<'a> From<&'a FqNameFilter> for (ObjectID, Option<ModuleFunction<'a>>) {
+    fn from(value: &'a FqNameFilter) -> Self {
         use FqNameFilter::*;
         match value {
-            ByModule(ModuleFilter::ByPackage(package)) => (package.into(), None),
+            ByModule(ModuleFilter::ByPackage(package)) => ((*package).into(), None),
             ByModule(ModuleFilter::ByModule(package, module_name)) => (
-                package.into(),
+                (*package).into(),
                 Some(ModuleFunction {
                     module_name,
                     function_name: None,
                 }),
             ),
             ByFqName(package, module_name, function_name) => (
-                package.into(),
+                (*package).into(),
                 Some(ModuleFunction {
                     module_name,
                     function_name: Some(function_name),
