@@ -298,40 +298,46 @@ impl CordialKnowledge {
             "Processing Cordial Message: {:?}",
             cordial_knowledge_message
         );
+        let message_type: &str;
         match cordial_knowledge_message {
             CordialKnowledgeMessage::NewHeader(header) => {
                 self.handle_new_header(header).await;
+                message_type = "header";
             }
             CordialKnowledgeMessage::NewShard(block_ref) => {
                 self.handle_new_shard(block_ref).await;
+                message_type = "shard";
             }
             CordialKnowledgeMessage::EvictBelow(round) => {
                 self.handle_evict_below(round).await;
+                message_type = "eviction";
             }
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
                 self.handle_useful_shards_from(useful_shards_from_peer)
                     .await;
+                message_type = "useful_shards";
             }
         }
         self.context
             .metrics
             .node_metrics
             .cordial_knowledge_processed_messages
+            .with_label_values(&[message_type])
             .inc();
     }
 
     // Helper function to update authority rounds if the new round is greater
     fn update_authority_rounds_if_greater(
-        target: &mut Vec<Option<Round>>,
+        target: &mut [Option<Round>],
         updates: BTreeMap<AuthorityIndex, Round>,
     ) {
         for (authority, new_round) in updates {
-            if let Some(existing_round) = &mut target[authority] {
+            if let Some(existing_round) = &mut target[authority.value()] {
                 if new_round > *existing_round {
                     *existing_round = new_round;
                 }
             } else {
-                target[authority] = Some(new_round);
+                target[authority.value()] = Some(new_round);
             }
         }
     }

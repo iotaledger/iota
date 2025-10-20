@@ -136,7 +136,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_shards: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
     pub(crate) cordial_knowledge_buffer_size: IntGauge,
-    pub(crate) cordial_knowledge_processed_messages: IntCounter,
+    pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
     pub(crate) cordial_knowledge_rounds: IntGaugeVec,
     pub(crate) cordial_knowledge_useful_shards: IntGauge,
     pub(crate) dag_state_store_read_count: IntCounterVec,
@@ -453,9 +453,10 @@ impl NodeMetrics {
             "The number of authorities with useful shards",
             registry,
             ).unwrap(),
-            cordial_knowledge_processed_messages: register_int_counter_with_registry!(
+            cordial_knowledge_processed_messages: register_int_counter_vec_with_registry!(
                 "cordial_knowledge_processed_messages",
                 "Number of cordial knowledge messages processed",
+                &["type"],
                 registry,
             ).unwrap(),
             cordial_knowledge_rounds: register_int_gauge_vec_with_registry!(
