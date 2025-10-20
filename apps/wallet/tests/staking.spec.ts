@@ -14,9 +14,8 @@ import {
 } from './utils/staking';
 import { generateKeypair } from './utils/utils';
 import { importWallet } from './utils/wallet';
-import { LONG_TIMEOUT } from './constants/timeout.constants';
+import { LONG_TIMEOUT, SHORT_TIMEOUT } from './constants/timeout.constants';
 
-const SHORT_TIMEOUT = 30 * 1000;
 const STAKE_AMOUNT = 100;
 
 test.describe('Staking functionality', () => {
