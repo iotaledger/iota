@@ -1260,6 +1260,8 @@ mod tests {
         transaction::TransactionConsumer,
         transactions_synchronizer::TransactionsSynchronizer,
     };
+    use crate::block_header::GENESIS_ROUND;
+    use crate::cordial_knowledge::ConnectionKnowledgeMessage;
 
     #[derive(Default)]
     struct FakeNetworkClient {}
@@ -2384,6 +2386,7 @@ mod tests {
         // GIVEN
         let rounds = 10;
         let validators = 4;
+        let to_whom_authority = AuthorityIndex::new_for_test(1);
         let (context, key_pairs) = Context::new_for_test(validators);
         let context = Arc::new(context);
         let block_verifier = Arc::new(SignedBlockVerifier::new(
@@ -2466,7 +2469,7 @@ mod tests {
             dag_state.clone(),
             store,
             tx_message_sender,
-            cordial_knowledge,
+            cordial_knowledge.clone(),
         ));
         let mut encoder = create_encoder(&context);
 
@@ -2495,12 +2498,31 @@ mod tests {
             sleep(Duration::from_millis(50)).await;
         }
 
+        // Inject useful info
+        let connection_knowledge_sender = cordial_knowledge.connection_knowledge_senders()[to_whom_authority].clone();
+        let msg = ConnectionKnowledgeMessage::UsefulInfo {
+            useful_headers_to_peer: BTreeMap::from([
+                (AuthorityIndex::new_for_test(2), GENESIS_ROUND),
+                (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
+            ]),
+            useful_shards_to_peer: BTreeMap::from([
+                (AuthorityIndex::new_for_test(2), GENESIS_ROUND),
+                (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
+            ]),
+            useful_headers_from_peer: BTreeMap::from([
+                (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
+                (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
+            ]),
+            useful_shards_from_peers: vec![None,Some(GENESIS_ROUND),None,Some(GENESIS_ROUND)]
+        };
+        let _ = connection_knowledge_sender.send(vec![msg]).await;
+
         // WHEN
         // Call handle_subscribe_block_bundles_request with last_received = 2
         let last_received_round = 2;
         let block_bundle_stream = authority_service
             .handle_subscribe_block_bundles_request(
-                context.committee.to_authority_index(1).unwrap(),
+                to_whom_authority,
                 last_received_round,
             )
             .await
