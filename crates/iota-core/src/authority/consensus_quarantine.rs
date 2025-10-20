@@ -50,6 +50,11 @@ pub(crate) struct ConsensusCommitOutput {
     // transaction scheduling state
     next_shared_object_versions: Option<HashMap<ObjectID, SequenceNumber>>,
 
+    // congestion control state
+    // debts for shared objects with no randomness
+    congestion_control_object_debts: Vec<(ObjectID, u64)>,
+    // debts for shared objects with randomness
+    congestion_control_randomness_object_debts: Vec<(ObjectID, u64)>,
     // TODO: If we delay committing consensus output until after all deferrals have been loaded,
     // we can move deferred_txns to the ConsensusOutputCache and save disk bandwidth.
     deferred_txns: Vec<(DeferralKey, Vec<DeferredTransaction>)>,
@@ -70,10 +75,6 @@ pub(crate) struct ConsensusCommitOutput {
     // jwk state
     pending_jwks: BTreeSet<(AuthorityName, JwkId, JWK)>,
     active_jwks: BTreeSet<(u64, (JwkId, JWK))>,
-
-    // congestion control state
-    congestion_control_object_debts: Vec<(ObjectID, u64)>,
-    congestion_control_randomness_object_debts: Vec<(ObjectID, u64)>,
 }
 
 impl ConsensusCommitOutput {
@@ -909,22 +910,20 @@ impl ConsensusOutputQuarantine {
     ) -> IotaResult<impl IntoIterator<Item = (ObjectID, u64)>> {
         let protocol_config = epoch_store.protocol_config();
         let tables = epoch_store.tables()?;
-        let default_per_commit_budget = protocol_config
+        let default_per_commit_limit = protocol_config
             .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
-            .unwrap_or(0);
-        let (hash_table, db_table, per_commit_budget) = if for_randomness {
+            .unwrap_or_default();
+        let (hash_table, db_table, per_commit_limit) = if for_randomness {
             (
                 &self.congestion_control_randomness_object_debts,
                 &tables.congestion_control_randomness_object_debts,
-                protocol_config
-                    .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
-                    .unwrap_or(default_per_commit_budget),
+                default_per_commit_limit,
             )
         } else {
             (
                 &self.congestion_control_object_debts,
                 &tables.congestion_control_object_debts,
-                default_per_commit_budget,
+                default_per_commit_limit,
             )
         };
         let mut shared_input_object_ids: Vec<_> = transactions
@@ -974,7 +973,7 @@ impl ConsensusOutputQuarantine {
                 // the debt is handled here.
                 assert!(current_round > round);
                 let num_rounds = (current_round - round - 1) as u64;
-                let debt = debt.saturating_sub(per_commit_budget * num_rounds);
+                let debt = debt.saturating_sub(per_commit_limit * num_rounds);
                 (object_id, debt)
             }))
     }

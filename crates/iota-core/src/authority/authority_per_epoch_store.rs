@@ -677,9 +677,14 @@ pub struct AuthorityEpochTables {
     /// Holds the timestamp of the most recently generated round of randomness.
     pub(crate) randomness_last_round_timestamp: DBMap<u64, CommitTimestampMs>,
 
+    // Tables for recording per-object debts for congestion control.
+
+    //
     /// Accumulated per-object debts for congestion control.
-    pub(crate) congestion_control_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
-    pub(crate) congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+    congestion_control_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
+
+    /// Accumulated per-object debts for randomness congestion control.
+    congestion_control_randomness_object_debts: DBMap<ObjectID, CongestionPerObjectDebt>,
 }
 
 fn signed_transactions_table_default_config() -> DBOptions {
@@ -1930,7 +1935,7 @@ impl AuthorityPerEpochStore {
     fn get_max_congestion_limit_overshoot_per_commit(&self) -> u64 {
         self.protocol_config()
             .max_congestion_limit_overshoot_per_commit_as_option()
-            .unwrap_or(0)
+            .unwrap_or_default()
     }
 
     #[instrument("transactions_sequencing", level = "trace", skip_all, fields(cert_digest = ?cert.digest(), scheduling_result = tracing::field::Empty))]
@@ -2934,9 +2939,8 @@ impl AuthorityPerEpochStore {
             self.protocol_config.consensus_transaction_ordering(),
         );
 
-        // We track transaction execution duration separately for regular transactions
-        // and transactions using randomness, since they will be in different
-        // checkpoints.
+        // We track transaction shared object congestion separately for regular
+        // transactions and transactions using randomness.
         let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
                 self,
