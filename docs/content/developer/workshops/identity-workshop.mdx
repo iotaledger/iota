@@ -321,7 +321,7 @@ Visit GitHub for the Scaffold Code,  copy the code for [main.rs](https://github.
 
 This section demonstrates how every button on the frontend connects to a specific function on the Rust backend, completing the identity flow.
 
-![Full Page](./images/CreateDID.png)
+![Full Page](./images/create-did.png)
 
 ### The Communication Layer (`handleApiCall`)
 
@@ -658,7 +658,7 @@ Together, they ensure the Student’s Decentralized Identifier is created secure
 
 Output after a successful creation of the student’s Decentralized Identifier.
 
-![Create Decentralized Identifier output](./images/didcreated.png)
+![Create Decentralized Identifier output](./images/created-did.png)
 
 ### University Issues Degree To Student
 
@@ -666,7 +666,7 @@ Output after a successful creation of the student’s Decentralized Identifier.
 | :--- | :--- | :--- | :--- |
 | **Button Click** (`/issuer/issue-vc`) | `packageId` | `{ "vcJwt" (string)}` |
 
-![Full Page](./images/issuedegree.png)
+![Full Page](./images/university-create-vc.png)
 
 <h3>Frontend (`src/App.jsx`):</h3>
 
@@ -887,7 +887,7 @@ The returned Verifiable Credential JWT is stored in the frontend’s state and u
 
 Output after a successful creation of the student’s Verifiable Credential.
 
-![Create Decentralized Identifier output](./images/vccreated.png)
+![Create Decentralized Identifier output](./images/university-output.png)
 
 ### Student Shows Degree to Employer
 
@@ -895,7 +895,7 @@ Output after a successful creation of the student’s Verifiable Credential.
 | :--- | :--- | :--- | :--- |
 | **Button Click** (`/holder/create-vp`) | `packageId, vcJwt` | `{ "vpJwt string}` |
 
-![Full Page](./images/showdegree.png)
+![Full Page](./images/show-degree.png)
 
 **Frontend** (`src/App.jsx`): The client sends the received Verifiable Credential back to the server, asking the server to wrap and sign it.
 
@@ -1104,7 +1104,7 @@ The `holder_create_Verifiable Presentation` function is triggered by the React f
 The returned VP JWT is stored in the frontend's state and used in Step 4 for verification by the employer.
 
 Output after a successful creation of the student’s Verifiable Presentation.
-![Create Decentralized Identifier output](./images/vpcreated.png)
+![Create Decentralized Identifier output](./images/show-degree-output.png)
 
 ### Employer Validates Degree
 
@@ -1113,7 +1113,7 @@ Output after a successful creation of the student’s Verifiable Presentation.
 | **Button Click** (`/verifier/validate`) | `packageId, vpJwt` | `{ "validationOutput log}` |
 
 
-![Full Page](./images/validatedegree.png)
+![Full Page](./images/verify-degree.png)
 
 **Frontend** (`src/App.jsx`):
 
