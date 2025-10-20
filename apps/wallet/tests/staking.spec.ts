@@ -19,8 +19,6 @@ import { LONG_TIMEOUT, SHORT_TIMEOUT } from './constants/timeout.constants';
 const STAKE_AMOUNT = 100;
 
 test.describe('Staking functionality', () => {
-    test.describe.configure({ mode: 'parallel' });
-
     test.describe('Basic staking', () => {
         test('should stake a specific amount and then unstake it', async ({
             page,

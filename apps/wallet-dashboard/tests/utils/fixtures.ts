@@ -12,7 +12,6 @@ const EXTENSION_PATH = path.join(__dirname, '../../../wallet/dist');
 const DEFAULT_SHARED_STATE = { extension: {}, wallet: {} };
 
 interface SharedState {
-    sharedContext?: BrowserContext;
     extension: {
         url?: string;
         name?: string;
@@ -23,8 +22,6 @@ interface SharedState {
     };
 }
 
-let sharedState: SharedState = { ...DEFAULT_SHARED_STATE };
-
 export const test = base.extend<{
     sharedState: SharedState;
     context: BrowserContext;
@@ -33,38 +30,30 @@ export const test = base.extend<{
     extensionName: string;
 }>({
     sharedState: async ({}, use) => {
-        await use(sharedState);
+        const state: SharedState = DEFAULT_SHARED_STATE;
+        await use(state);
     },
 
-    context: [
-        async ({ sharedState }, use) => {
-            const isCI = !!process.env.CI;
+    context: async ({}, use) => {
+        const isCI = !!process.env.CI;
 
-            if (sharedState.sharedContext) {
-                await use(sharedState.sharedContext);
-                return;
-            }
+        const context = await chromium.launchPersistentContext('', {
+            headless: isCI,
+            viewport: { width: 720, height: 720 },
+            args: [
+                `--disable-extensions-except=${EXTENSION_PATH}`,
+                `--load-extension=${EXTENSION_PATH}`,
+                '--user-agent=Playwright',
+                '--window-position=0,0',
+                ...(isCI ? ['--headless=new', '--disable-gpu'] : []),
+            ],
+        });
 
-            const context = await chromium.launchPersistentContext('', {
-                headless: isCI,
-                viewport: { width: 720, height: 720 },
-                args: [
-                    `--disable-extensions-except=${EXTENSION_PATH}`,
-                    `--load-extension=${EXTENSION_PATH}`,
-                    '--user-agent=Playwright',
-                    '--window-position=0,0',
-                    ...(isCI ? ['--headless=new', '--disable-gpu'] : []),
-                ],
-            });
+        await use(context);
+        await context.close();
+    },
 
-            sharedState.sharedContext = context;
-
-            await use(context);
-        },
-        { scope: 'test' },
-    ],
-
-    extensionUrl: async ({ context }, use) => {
+    extensionUrl: async ({ context, sharedState }, use) => {
         let [background] = context.serviceWorkers();
         if (!background) {
             background = await context.waitForEvent('serviceworker');
@@ -78,7 +67,7 @@ export const test = base.extend<{
         await use(extensionUrl);
     },
 
-    extensionName: async ({ context, extensionUrl }, use) => {
+    extensionName: async ({ context, extensionUrl, sharedState }, use) => {
         const extPage = await context.newPage();
         await extPage.goto(extensionUrl);
 
@@ -100,13 +89,6 @@ export const test = base.extend<{
 
         await use(extensionPage);
     },
-});
-
-test.afterAll(async () => {
-    if (sharedState.sharedContext) {
-        await sharedState.sharedContext.close();
-        sharedState = { ...DEFAULT_SHARED_STATE };
-    }
 });
 
 export const expect = test.expect;
