@@ -3145,8 +3145,7 @@ mod test {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "cannot be accepted! Block header timestamp")]
-    async fn test_panic_on_future_timestamp() {
+    async fn test_no_panic_on_future_timestamp() {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
 
@@ -3160,7 +3159,14 @@ mod test {
                 .set_timestamp_ms(future_timestamp)
                 .build(),
         );
-        dag_state.accept_block_header(block_header);
+        dag_state.accept_block_header(block_header.clone());
+
+        let accepted_header = dag_state
+            .recent_block_headers
+            .get(&block_header.reference())
+            .unwrap();
+
+        assert_eq!(accepted_header, &block_header);
     }
 
     #[tokio::test]

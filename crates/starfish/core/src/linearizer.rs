@@ -776,7 +776,23 @@ mod tests {
 
             tracing::info!("{subdag:?}");
             assert_eq!(subdag.leader, leaders[idx].reference());
-            assert_eq!(subdag.timestamp_ms, leaders[idx].timestamp_ms());
+
+            let block_refs = leaders[idx]
+                .ancestors()
+                .iter()
+                .filter(|block_ref| block_ref.round == leaders[idx].round() - 1)
+                .cloned()
+                .collect::<Vec<_>>();
+            let blocks = dag_state
+                .read()
+                .get_block_headers(&block_refs)
+                .into_iter()
+                .map(|block_opt| block_opt.expect("We should have all blocks in dag state."));
+
+            let expected_ts = median_timestamp_by_stake(&context, blocks).unwrap();
+
+            assert_eq!(subdag.timestamp_ms, expected_ts);
+
             if idx == 0 {
                 // First subdag includes the leader block only
                 assert_eq!(subdag.blocks.len(), 1);
@@ -1053,7 +1069,7 @@ mod tests {
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         // No blocks provided
         let err = median_timestamp_by_stake(&context, vec![].into_iter()).unwrap_err();
-        assert_eq!(err, "No blocks provided");
+        assert_eq!(err, "No block headers provided");
         // Blocks provided but total stake is less than a quorum threshold
         let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
         let err = median_timestamp_by_stake(&context, vec![block].into_iter()).unwrap_err();
