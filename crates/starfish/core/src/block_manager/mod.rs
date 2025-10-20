@@ -23,14 +23,13 @@ mod block_suspender;
 pub(crate) mod block_suspender;
 
 use crate::{
+    Round,
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
     },
     block_manager::block_suspender::BlockSuspender,
     context::Context,
     dag_state::DagState,
-    Round,
 };
 
 /// Block manager suspends incoming blocks until they are connected to the
@@ -364,7 +363,7 @@ mod tests {
     use std::{collections::BTreeSet, sync::Arc};
 
     use parking_lot::RwLock;
-    use rand::{prelude::StdRng, seq::SliceRandom, SeedableRng};
+    use rand::{SeedableRng, prelude::StdRng, seq::SliceRandom};
     use starfish_config::AuthorityIndex;
 
     use crate::{

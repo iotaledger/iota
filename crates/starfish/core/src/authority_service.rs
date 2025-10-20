@@ -1442,7 +1442,7 @@ mod tests {
         ));
         let mut encoder = create_encoder(&context);
 
-        // Test rejecting block with time drift.
+        // Test that block with timestamp drift to the future is not rejected.
         let now = context.clock.timestamp_utc_ms();
         let max_drift = context.parameters.max_forward_time_drift;
         let input_block = VerifiedBlock::new_for_test(
@@ -1453,24 +1453,6 @@ mod tests {
 
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
 
-        let result = authority_service
-            .handle_subscribed_block_bundle(
-                context.committee.to_authority_index(0).unwrap(),
-                serialized_block_bundle.clone(),
-                &mut encoder,
-            )
-            .await;
-
-        match result {
-            Err(ConsensusError::BlockRejected { reason, .. }) => {
-                assert!(reason.contains("timestamp is too far in the future"));
-            }
-            _ => panic!("Expected BlockRejected error, got {result:?}"),
-        }
-
-        // After this sleep time drift is within the limit, so we would not reject the
-        // block but wait
-        sleep(max_drift / 2).await;
         tokio::spawn(async move {
             authority_service
                 .handle_subscribed_block_bundle(
@@ -1481,6 +1463,9 @@ mod tests {
                 .await
                 .unwrap();
         });
+
+        // Give it some time to process
+        sleep(max_drift / 2).await;
 
         let blocks = core_dispatcher.get_blocks();
         assert_eq!(blocks.len(), 1);
