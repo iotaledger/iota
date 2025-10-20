@@ -13,7 +13,7 @@ In this workshop, we will build a production-ready **University Degree Verificat
 
 This is a snapshot of how the frontend looks.
 
-![Full Page](./images/fullimage1.png)
+![Full Page](./images/fullpage.png)
 
 ## The Problem
 
@@ -319,7 +319,7 @@ Visit the [Scaffold Code](/developer/tutorials/identity-workshop-scaffold) page 
 
 This section demonstrates how every button on the frontend connects to a specific function on the Rust backend, completing the identity flow.
 
-![Full Page](./images/createid.png)
+![Full Page](./images/createdid.png)
 
 ### The Communication Layer (`handleApiCall`)
 
@@ -656,7 +656,7 @@ Together, they ensure the Student’s Decentralized Identifier is created secure
 
 Output after a successful creation of the student’s Decentralized Identifier.
 
-![Create Decentralized Identifier output](./images/CreateDID.png)
+![Create Decentralized Identifier output](./images/didcreated.png)
 
 ### University Issues Degree To Student
 
@@ -885,7 +885,7 @@ The returned Verifiable Credential JWT is stored in the frontend’s state and u
 
 Output after a successful creation of the student’s Verifiable Credential.
 
-![Create Decentralized Identifier output](./images/IssueVC.png)
+![Create Decentralized Identifier output](./images/vccreated.png)
 
 ### Student Shows Degree to Employer
 
@@ -1102,7 +1102,7 @@ The `holder_create_Verifiable Presentation` function is triggered by the React f
 The returned VP JWT is stored in the frontend's state and used in Step 4 for verification by the employer.
 
 Output after a successful creation of the student’s Verifiable Presentation.
-![Create Decentralized Identifier output](./images/CreateVP.png)
+![Create Decentralized Identifier output](./images/vpcreated.png)
 
 ### Employer Validates Degree
 
@@ -1272,9 +1272,9 @@ output.push_str(&format!(" Using challenge: {}\n", challenge));
 ```rust
 let holder_did: CoreDID = JwtPresentationValidatorUtils::extract_holder(&vp_jwt)
     .map_err(|_| StatusCode::BAD_REQUEST)?;
-output.push_str(&format!("🔑 Extracted holder DID from VP: {}\n", holder_did));
+output.push_str(&format!("Extracted holder DID from VP: {}\n", holder_did));
 let holder_doc: IotaDocument = resolver.resolve(&holder_did).await.map_err(|e| {
-    output.push_str(&format!("❌ Failed to resolve holder DID: {:?}\n", e));
+    output.push_str(&format!("Failed to resolve holder DID: {:?}\n", e));
     StatusCode::INTERNAL_SERVER_ERROR
 })?;
 output.push_str(&format!("✅ Resolved holder DID from network: {}\n", holder_doc.id()));
