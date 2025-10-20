@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
 
@@ -426,7 +426,7 @@ impl CordialKnowledge {
         // === 1) Ensure we have a round map for this author and insert the block if new
         // ===
         let btree_map = &mut self.cordial_knowledge[block_author];
-        let round_map = btree_map.entry(block_round).or_insert_with(AHashMap::new);
+        let round_map = btree_map.entry(block_round).or_default();
 
         // Already recorded — nothing else to do.
         if round_map.contains_key(&block_digest) {
@@ -677,7 +677,7 @@ impl ConnectionKnowledge {
     /// up to the given round (exclusive), up to max_take total.
     /// Used for both headers and shards.
     fn take_useful_refs_round(
-        maps: &mut Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
+        maps: &mut [BTreeMap<Round, AHashSet<BlockRef>>],
         round_upper_bound_exclusive: Round,
         useful_authorities: &[usize],
         max_take: usize,
@@ -1052,6 +1052,145 @@ impl ConnectionKnowledge {
             set.remove(&block_ref);
             if set.is_empty() {
                 self.shards_not_known[authority].remove(&round);
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use parking_lot::RwLock;
+    use tokio::time::sleep;
+
+    use super::*;
+    use crate::{
+        block_header::{VerifiedBlock, VerifiedOwnShard},
+        context::Context,
+        dag_state::DagState,
+        storage::mem_store::MemStore,
+        test_dag_parser::parse_dag,
+    };
+
+    #[tokio::test]
+    async fn test_cordial_knowledge_bundle_with_byzantine() {
+        telemetry_subscribers::init_for_testing();
+        // GIVEN
+        let validators = 4;
+        let our_index = AuthorityIndex::new_for_test(0);
+        let to_whom_index = AuthorityIndex::new_for_test(1);
+        let (context, key_pairs) = Context::new_for_test(validators);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
+        // Set up DAG with blocks
+        let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
+        // Validator D does not disseminate its blocks.
+        // Validator A will learn about D's blocks only at round 6.
+        // After that, A should be able to send all D's blocks to B.
+        let dag_str = "DAG {
+                Round 0 : { 4 },
+                Round 1 :  { * },
+                Round 2 : {
+                    A -> [-D1],
+                    B -> [-D1],
+                    C -> [-D1],
+                    D -> [*],
+                },
+                Round 3 : {
+                    A -> [-D2],
+                    B -> [-D2],
+                    C -> [-D2],
+                    D -> [*],
+                },
+                Round 4 : {
+                    A -> [-D3],
+                    B -> [-D3],
+                    C -> [-D3],
+                    D -> [*],
+                },
+                Round 5 : {
+                    A -> [-D4],
+                    B -> [-D4],
+                    C -> [-D4],
+                    D -> [*],
+                },
+                Round 6 : {
+                    A -> [*],
+                    B -> [-D5],
+                    C -> [-D5],
+                    D -> [*],
+                },
+
+             }";
+        let rounds = 6;
+        let result = parse_dag(dag_str);
+        assert!(result.is_ok());
+
+        let mut dag_builder = result.unwrap().set_protocol_keypair(protocol_keypairs);
+        dag_builder.layers(1..=rounds).build();
+
+        // Get all blocks by rounds
+        let mut all_blocks: Vec<Vec<VerifiedBlock>> = vec![];
+        for round in 0..=rounds {
+            all_blocks.push(dag_builder.blocks(round..=round));
+        }
+
+        let connection_knowledge =
+            cordial_knowledge.connection_knowledge_senders[to_whom_index].clone();
+
+        // Add block to DAG state and automatically update cordial knowledge
+        for round in 0..=rounds - 1 {
+            // add all blocks of this round and our block of next round to dag state
+            for block in all_blocks[round as usize]
+                .iter()
+                .chain(std::iter::once(&all_blocks[round as usize + 1][our_index]))
+            {
+                let VerifiedBlock {
+                    verified_block_header,
+                    verified_transactions,
+                } = block.clone();
+                dag_state.write().accept_block_header(verified_block_header);
+                let shard_for_core = VerifiedOwnShard {
+                    serialized_shard: Bytes::from([0u8; 32].to_vec()), // put some dummy shard data
+                    block_ref: verified_transactions.block_ref(),
+                };
+                dag_state.write().add_shard(shard_for_core);
+            }
+            sleep(std::time::Duration::from_millis(1)).await; // give some time for cordial knowledge to update
+            // By default, for MAX_ROUND_GAP_FOR_USEFUL_PARTS rounds, all unknown
+            // shards/headers are useful
+            let (tx, rx) = oneshot::channel();
+            let msg = ConnectionKnowledgeMessage::TakeAdditionalPartForBundle {
+                round_upper_bound_exclusive: round + 1,
+                respond_to: tx,
+            };
+            connection_knowledge.send(vec![msg]).await.unwrap();
+            let additional_parts = rx.await.unwrap();
+            let AdditionalPartsForBundle {
+                headers, shards, ..
+            } = additional_parts;
+            // In rounds 0..=5, A should not know any of D's blocks, so no headers or shards
+            // should be sent to B.
+            if round <= 5 {
+                assert!(
+                    headers
+                        .iter()
+                        .all(|h| h.author() != AuthorityIndex::new_for_test(3))
+                );
+                assert_eq!(headers.len(), 1);
+            } else {
+                // In round 6, A should know about D's blocks and send them all to B
+                let d_headers: Vec<&VerifiedBlockHeader> = headers
+                    .iter()
+                    .filter(|h| h.author() == AuthorityIndex::new_for_test(3))
+                    .collect();
+                assert_eq!(d_headers.len(), 5);
+                // Validator A sends to B all 5 shards of D's blocks and 1 shard of C's block of
+                // round 5
+                assert_eq!(shards.len(), 6);
             }
         }
     }

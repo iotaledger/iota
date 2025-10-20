@@ -567,7 +567,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             &missing_ancestors,
             block_round,
         )
-        .await;
+        .await?;
 
         // 14. schedule the fetching of missing ancestors (if any) from this peer
         if !missing_ancestors.is_empty() {
