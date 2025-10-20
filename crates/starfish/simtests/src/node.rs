@@ -15,8 +15,8 @@ use parking_lot::Mutex;
 use prometheus::Registry;
 use starfish_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
-    Clock, CommitConsumer, CommitConsumerMonitor, CommittedSubDag, ConsensusAuthority,
-    TransactionClient, network::tonic_network::to_socket_addr,
+    BlockTimestampMs, Clock, CommitConsumer, CommitConsumerMonitor, CommittedSubDag,
+    ConsensusAuthority, TransactionClient, network::tonic_network::to_socket_addr,
     transaction::NoopTransactionVerifier,
 };
 use tempfile::TempDir;
