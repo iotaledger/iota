@@ -147,10 +147,7 @@ impl MetricsGuard {
                 .total_requests_succeeded
                 .with_label_values(&[&self.path, &self.user_agent])
                 .inc();
-            info!(
-                "Request succeeded for path {} in {:.2}s",
-                self.path, elapsed
-            );
+            info!("Request succeeded for path {} in {elapsed:.2}s", self.path);
         }
     }
 
@@ -164,16 +161,16 @@ impl MetricsGuard {
 
             if let Some(err) = error {
                 error!(
-                    "Request failed for path {} in {:.2}s, error {:?}",
-                    self.path, elapsed, err
+                    "request failed for path {} in {elapsed:.2}s, error {err:?}",
+                    self.path
                 );
             } else if let Some(status) = status {
                 error!(
-                    "Request failed for path {} in {:.2}s with status: {}",
-                    self.path, elapsed, status
+                    "Request failed for path {} in {elapsed:.2}s with status: {status}",
+                    self.path
                 );
             } else {
-                warn!("Request failed for path {} in {:.2}s", self.path, elapsed);
+                warn!("Request failed for path {} in {elapsed:.2}s", self.path);
             }
         }
     }
@@ -185,7 +182,7 @@ impl MetricsGuard {
                 .total_requests_shed
                 .with_label_values(&[&self.path, &self.user_agent])
                 .inc();
-            info!("Request shed for path {} in {:.2}s", self.path, elapsed);
+            info!("Request shed for path {} in {elapsed:.2}s", self.path);
         }
     }
 }
@@ -206,8 +203,8 @@ impl Drop for MetricsGuard {
                 .with_label_values(&[&self.path, &self.user_agent])
                 .inc();
             info!(
-                "Request disconnected for path {} in {:.2}s",
-                self.path, elapsed
+                "Request disconnected for path {} in {elapsed:.2}s",
+                self.path
             );
         }
     }

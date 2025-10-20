@@ -9,7 +9,7 @@ use std::{
 use parking_lot::RwLock;
 use tracing::debug;
 
-use crate::{BlockRef, CommittedSubDag, commit::PendingSubDag, dag_state::DagState};
+use crate::{BlockRef, CommitIndex, CommittedSubDag, commit::PendingSubDag, dag_state::DagState};
 
 /// The `DataManager` is responsible for managing and handling
 /// the commit process for newly committed sub-dags. It ensures that sub-dags
@@ -32,7 +32,7 @@ pub(crate) struct DataManager {
     // Buffer for pending subdags, keyed by commit_ref.index for order
     pending_subdags: BTreeMap<u32, PendingSubDag>,
     // The highest committed commit_ref.index
-    last_committed_index: u32,
+    last_committed_index: CommitIndex,
 }
 
 impl DataManager {
@@ -54,7 +54,7 @@ impl DataManager {
         }
     }
 
-    pub(crate) fn set_last_committed_index(&mut self, index: u32) {
+    pub(crate) fn set_last_committed_index(&mut self, index: CommitIndex) {
         self.last_committed_index = index;
     }
 
@@ -286,7 +286,7 @@ mod tests {
                 for (i, block) in genesis_blocks.iter().enumerate() {
                     state.accept_block_header(block.verified_block_header.clone());
                     if !excluded_transactions.contains(&(0, i)) {
-                        state.add_transactions(block.verified_transactions.clone());
+                        state.add_transactions(block.verified_transactions.clone(), "test");
                     }
                 }
             }
@@ -301,7 +301,7 @@ mod tests {
                 for (i, block) in blocks.iter().enumerate() {
                     state.accept_block_header(block.verified_block_header.clone());
                     if !excluded_transactions.contains(&(round, i)) {
-                        state.add_transactions(block.verified_transactions.clone());
+                        state.add_transactions(block.verified_transactions.clone(), "test");
                     }
                 }
             }
@@ -333,12 +333,12 @@ mod tests {
                 if round == 0 {
                     let genesis_blocks = genesis_blocks(self.context.clone());
                     if let Some(block) = genesis_blocks.get(block_index) {
-                        state.add_transactions(block.verified_transactions.clone());
+                        state.add_transactions(block.verified_transactions.clone(), "test");
                     }
                 } else {
                     let blocks = self.dag_builder.blocks(round..=round);
                     if let Some(block) = blocks.get(block_index) {
-                        state.add_transactions(block.verified_transactions.clone());
+                        state.add_transactions(block.verified_transactions.clone(), "test");
                     }
                 }
             }

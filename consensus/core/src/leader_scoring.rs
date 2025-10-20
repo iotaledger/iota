@@ -11,6 +11,7 @@ use std::{
 
 use consensus_config::AuthorityIndex;
 use serde::{Deserialize, Serialize};
+use tracing::instrument;
 
 use crate::{
     Round, VerifiedBlock,
@@ -197,6 +198,7 @@ impl ScoringSubdag {
         }
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn add_subdags(&mut self, committed_subdags: Vec<CommittedSubDag>) {
         let _s = self
             .context

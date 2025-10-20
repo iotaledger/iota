@@ -5,7 +5,7 @@
 #[cfg(test)]
 use std::collections::HashSet;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     fmt,
     path::Path,
     sync::{Arc, Weak},
@@ -37,9 +37,9 @@ use tokio::{
         mpsc::{self, Receiver, Sender},
         oneshot,
     },
-    time::{Duration, timeout},
+    time::{Duration, Instant, timeout},
 };
-use tracing::{error, info, warn};
+use tracing::{debug, error, info, warn};
 use ttl_cache::TtlCache;
 use typed_store::Map;
 use uuid::Uuid;
@@ -64,9 +64,14 @@ pub struct SimpleFaucet {
     task_id_cache: Mutex<TtlCache<Uuid, BatchSendStatus>>,
     ttl_expiration: u64,
     coin_amount: u64,
+    request_times: Mutex<HashMap<IotaAddress, VecDeque<Instant>>>,
     /// Shuts down the batch transfer task. Used only in testing.
     #[cfg_attr(not(test), expect(unused))]
     batch_transfer_shutdown: parking_lot::Mutex<Option<oneshot::Sender<()>>>,
+    // rate limiting
+    enable_rate_limiting: bool,
+    max_requests_per_window: usize,
+    rate_window_secs: u64,
 }
 
 /// We do not just derive(Debug) because WalletContext and the WriteAheadLog do
@@ -97,6 +102,8 @@ const DEFAULT_GAS_COMPUTATION_BUCKET: u64 = 10_000_000;
 const LOCK_TIMEOUT: Duration = Duration::from_secs(10);
 const RECV_TIMEOUT: Duration = Duration::from_secs(5);
 const BATCH_TIMEOUT: Duration = Duration::from_secs(10);
+
+const MAX_TRACKED_ADDRESSES: usize = 100_000;
 
 impl SimpleFaucet {
     pub async fn new(
@@ -170,7 +177,7 @@ impl SimpleFaucet {
                         info!(?coin_id, "Adding coin to gas pool");
                         metrics.total_available_coins.inc();
                     })
-                    .tap_err(|e| error!(?coin_id, "Failed to add coin to gas pools: {e:?}"))
+                    .tap_err(|e| error!(?coin_id, "failed to add coin to gas pools: {e:?}"))
                     .unwrap();
             } else {
                 batch_producer
@@ -180,7 +187,7 @@ impl SimpleFaucet {
                         info!(?coin_id, "Adding coin to batch gas pool");
                         metrics.total_available_coins.inc();
                     })
-                    .tap_err(|e| error!(?coin_id, "Failed to add coin to batch gas pools: {e:?}"))
+                    .tap_err(|e| error!(?coin_id, "failed to add coin to batch gas pools: {e:?}"))
                     .unwrap();
             }
         }
@@ -204,6 +211,11 @@ impl SimpleFaucet {
             ttl_expiration: config.ttl_expiration,
             coin_amount: config.amount,
             batch_transfer_shutdown: parking_lot::Mutex::new(Some(batch_transfer_shutdown)),
+            // rate limiting
+            request_times: Mutex::new(HashMap::<IotaAddress, VecDeque<Instant>>::new()),
+            enable_rate_limiting: config.enable_rate_limiting,
+            max_requests_per_window: config.max_requests_per_window,
+            rate_window_secs: config.rate_window_secs,
         };
 
         let arc_faucet = Arc::new(faucet);
@@ -222,14 +234,11 @@ impl SimpleFaucet {
                         if response == TransactionDigest::ZERO {
                             info!("Batch transfer incomplete due to faucet shutting down.");
                         } else {
-                            info!(
-                                "Batch transfer completed with transaction digest: {:?}",
-                                response
-                            );
+                            info!("Batch transfer completed with transaction digest: {response:?}");
                         }
                     }
                     Err(err) => {
-                        error!("{:?}", err);
+                        error!("{err:?}");
                     }
                 }
             }
@@ -254,13 +263,13 @@ impl SimpleFaucet {
         // as well.
         let Ok(mut consumer) = tokio::time::timeout(LOCK_TIMEOUT, self.consumer.lock()).await
         else {
-            error!(?uuid, "Timeout when getting consumer lock");
+            error!(?uuid, "timeout when getting consumer lock");
             return None;
         };
 
         info!(?uuid, "Got consumer lock, pulling coins.");
         let Ok(coin) = tokio::time::timeout(RECV_TIMEOUT, consumer.recv()).await else {
-            error!(?uuid, "Timeout when getting gas coin from the queue");
+            error!(?uuid, "timeout when getting gas coin from the queue");
             return None;
         };
 
@@ -282,13 +291,13 @@ impl SimpleFaucet {
         let Ok(mut batch_consumer) =
             tokio::time::timeout(LOCK_TIMEOUT, self.batch_consumer.lock()).await
         else {
-            error!(?uuid, "Timeout when getting batch consumer lock");
+            error!(?uuid, "timeout when getting batch consumer lock");
             return None;
         };
 
         info!(?uuid, "Got consumer lock, pulling coins.");
         let Ok(coin) = tokio::time::timeout(RECV_TIMEOUT, batch_consumer.recv()).await else {
-            error!(?uuid, "Timeout when getting gas coin from the queue");
+            error!(?uuid, "timeout when getting gas coin from the queue");
             return None;
         };
 
@@ -315,7 +324,7 @@ impl SimpleFaucet {
         };
 
         let Some(coin_id) = coin_id else {
-            warn!("Failed getting gas coin, try later!");
+            warn!("failed getting gas coin, try later!");
             return GasCoinResponse::NoGasCoinAvailable;
         };
 
@@ -336,7 +345,7 @@ impl SimpleFaucet {
             }
 
             Err(e) => {
-                error!(?uuid, ?coin_id, "Fullnode read error: {e:?}");
+                error!(?uuid, ?coin_id, "fullnode read error: {e:?}");
                 GasCoinResponse::UnknownGasCoin(coin_id)
             }
         }
@@ -380,7 +389,7 @@ impl SimpleFaucet {
         coin_id: ObjectID,
     ) -> anyhow::Result<Option<GasCoin>> {
         let gas_obj = self.get_coin(coin_id).await?;
-        info!(?coin_id, "Reading gas coin object: {:?}", gas_obj);
+        info!(?coin_id, "Reading gas coin object: {gas_obj:?}");
         Ok(gas_obj.and_then(|(owner_opt, coin)| match owner_opt {
             Some(Owner::AddressOwner(owner_addr)) if owner_addr == self.active_address => {
                 Some(coin)
@@ -460,7 +469,7 @@ impl SimpleFaucet {
                     ?recipient,
                     ?coin_id,
                     ?uuid,
-                    "Failed to execute PayIota transactions in faucet after {elapsed}. Coin will \
+                    "failed to execute PayIota transactions in faucet after {elapsed}. Coin will \
                      not be reused."
                 );
 
@@ -472,7 +481,7 @@ impl SimpleFaucet {
                         ?recipient,
                         ?coin_id,
                         ?uuid,
-                        "Failed to set coin in flight status in WAL: {:?}",
+                        "failed to set coin in flight status in WAL: {:?}",
                         err
                     );
                 }
@@ -494,7 +503,7 @@ impl SimpleFaucet {
                 // to the coin -- the worst that can happen is that the WAL
                 // contains a stale entry.
                 if self.wal.lock().await.commit(coin_id).is_err() {
-                    error!(?coin_id, "Failed to remove coin from WAL");
+                    error!(?coin_id, "failed to remove coin from WAL");
                 }
                 if for_batch {
                     self.recycle_gas_coin_for_batch(coin_id, uuid).await;
@@ -551,14 +560,14 @@ impl SimpleFaucet {
             }
 
             GasCoinResponse::GasCoinWithInsufficientBalance(coin_id) => {
-                warn!(?uuid, ?coin_id, "Insufficient balance, removing from pool");
+                warn!(?uuid, ?coin_id, "insufficient balance, removing from pool");
                 self.metrics.total_discarded_coins.inc();
                 self.transfer_gases(amounts, recipient, uuid).await
             }
 
             GasCoinResponse::InvalidGasCoin(coin_id) => {
                 // The coin does not exist, or does not belong to the current active address.
-                warn!(?uuid, ?coin_id, "Invalid, removing from pool");
+                warn!(?uuid, ?coin_id, "invalid, removing from pool");
                 self.metrics.total_discarded_coins.inc();
                 self.transfer_gases(amounts, recipient, uuid).await
             }
@@ -653,8 +662,7 @@ impl SimpleFaucet {
                     ?recipient,
                     ?coin_id,
                     ?uuid,
-                    "Transfer Transaction failed: {:?}",
-                    e
+                    "transfer Transaction failed: {e:?}"
                 )
             })?)
     }
@@ -693,9 +701,7 @@ impl SimpleFaucet {
             .await
             .map_err(|e| {
                 anyhow::anyhow!(
-                    "Failed to build PayIota transaction for coin {:?}, with err {:?}",
-                    coin_id,
-                    e
+                    "failed to build PayIota transaction for coin {coin_id:?}, with err {e:?}"
                 )
             })
     }
@@ -876,7 +882,7 @@ impl SimpleFaucet {
         loop {
             let coin_id = consumer
                 .try_recv()
-                .unwrap_or_else(|e| panic!("Expect the {i}th candidate but got {e}"));
+                .unwrap_or_else(|e| panic!("expect the {i}th candidate but got {e}"));
             candidates.insert(coin_id);
             i += 1;
             if i == expected_gas_count {
@@ -890,6 +896,55 @@ impl SimpleFaucet {
 
 #[async_trait]
 impl Faucet for SimpleFaucet {
+    async fn rate_limit(&self, recipient: IotaAddress) -> Result<(), FaucetError> {
+        let mut request_times = self.request_times.lock().await;
+
+        // Define the time window based on configuration.
+        let window = Duration::from_secs(self.rate_window_secs);
+        let now = Instant::now();
+
+        // clean map
+        if request_times.len() >= MAX_TRACKED_ADDRESSES {
+            request_times.retain(|_, times| {
+                times.retain(|&t| now.duration_since(t) < window);
+                !times.is_empty()
+            });
+            if request_times.len() >= MAX_TRACKED_ADDRESSES
+                && !request_times.contains_key(&recipient)
+            {
+                return Err(FaucetError::BatchSendQueueFull);
+            }
+        }
+
+        let entries = request_times.entry(recipient).or_insert_with(VecDeque::new);
+
+        // Remove timestamps older than the configured window.
+        entries.retain(|&timestamp| now.duration_since(timestamp) < window);
+
+        // Check if the number of requests in the window exceeds the configured limit.
+        if entries.len() >= self.max_requests_per_window {
+            info!(
+                "{:?} has {} requests in the past {} seconds; blocking.",
+                recipient,
+                entries.len(),
+                self.rate_window_secs
+            );
+            return Err(FaucetError::BatchSendQueueFull);
+        }
+
+        // Debug: log before recording the new request.
+        debug!(
+            "Allowing a new request for recipient {:?}; current count: {}",
+            recipient,
+            entries.len()
+        );
+
+        // Record the current request.
+        entries.push_back(now);
+
+        Ok(())
+    }
+
     async fn send(
         &self,
         id: Uuid,
@@ -898,6 +953,13 @@ impl Faucet for SimpleFaucet {
     ) -> Result<FaucetReceipt, FaucetError> {
         info!(?recipient, uuid = ?id, ?amounts, "Getting faucet requests");
 
+        // If rate limiting is enabled, perform the rate check.
+        if self.enable_rate_limiting {
+            self.rate_limit(recipient).await?;
+        }
+
+        // Continue with transaction processing if rate limiting is either disabled or
+        // the check passed.
         let (digest, coin_ids) = self.transfer_gases(amounts, recipient, id).await?;
 
         info!(uuid = ?id, ?recipient, ?digest, "PayIota txn succeeded");
@@ -912,8 +974,7 @@ impl Faucet for SimpleFaucet {
                     ?recipient,
                     ?coin_id,
                     uuid = ?id,
-                    "Could not find coin after successful transaction, error: {:?}",
-                    &res,
+                    "Could not find coin after successful transaction, error: {res:?}"
                 );
                 0
             };
@@ -985,7 +1046,7 @@ pub async fn batch_gather(
     // Gather the rest of the batch after the first item has been taken.
     for _ in 1..batch_request_size {
         let Some(req) = request_consumer.recv().await else {
-            error!("Request consumer queue closed");
+            error!("request consumer queue closed");
             return Err(FaucetError::ChannelClosed);
         };
 
@@ -1098,7 +1159,7 @@ pub async fn batch_transfer_gases(
             }
 
             GasCoinResponse::GasCoinWithInsufficientBalance(coin_id) => {
-                warn!(?uuid, ?coin_id, "Insufficient balance, removing from pool");
+                warn!(?uuid, ?coin_id, "insufficient balance, removing from pool");
                 faucet.metrics.total_discarded_coins.inc();
                 // Continue the loop to retry preparing the gas coin
                 continue;
@@ -1106,7 +1167,7 @@ pub async fn batch_transfer_gases(
 
             GasCoinResponse::InvalidGasCoin(coin_id) => {
                 // The coin does not exist, or does not belong to the current active address.
-                warn!(?uuid, ?coin_id, "Invalid, removing from pool");
+                warn!(?uuid, ?coin_id, "invalid, removing from pool");
                 faucet.metrics.total_discarded_coins.inc();
                 // Continue the loop to retry preparing the gas coin
                 continue;
@@ -1144,12 +1205,12 @@ mod tests {
 
         if let Some(effects) = result_effects {
             if matches!(effects.status(), IotaExecutionStatus::Failure { .. }) {
-                bail!("Error executing transaction: {:#?}", effects.status());
+                bail!("error executing transaction: {:#?}", effects.status());
             } else {
                 Ok(effects)
             }
         } else {
-            bail!("Effects from IotaTransactionBlockResult should not be empty");
+            bail!("effects from IotaTransactionBlockResult should not be empty");
         }
     }
 
@@ -1564,7 +1625,7 @@ mod tests {
 
         // Set in flight to false so WAL will clear
         wal.set_in_flight(coin_id, false)
-            .expect("Unable to set in flight status to false.");
+            .expect("unable to set in flight status to false.");
         drop(wal);
 
         faucet.retry_wal_coins().await.ok();
@@ -1662,7 +1723,7 @@ mod tests {
         tokio::task::yield_now().await;
         let discarded = faucet.metrics.total_discarded_coins.get();
 
-        info!("discarded: {:?}", discarded);
+        info!("discarded: {discarded:?}");
         let candidates = faucet.drain_gas_queue(gas_coins.len() - 1).await;
 
         assert_eq!(discarded, 1);
@@ -1871,7 +1932,7 @@ mod tests {
 
         // Set in flight to false so WAL will clear
         wal.set_in_flight(coin_id, false)
-            .expect("Unable to set in flight status to false.");
+            .expect("unable to set in flight status to false.");
         drop(wal);
         faucet.shutdown_batch_send_task();
 

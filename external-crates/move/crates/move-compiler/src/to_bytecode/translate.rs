@@ -1086,6 +1086,7 @@ fn exp(context: &mut Context, code: &mut IR::BytecodeBlock, e: H::Exp) {
         E::ErrorConstant {
             line_number_loc,
             error_constant,
+            error_code,
         } => {
             let line_no = context
                 .env
@@ -1101,6 +1102,7 @@ fn exp(context: &mut Context, code: &mut IR::BytecodeBlock, e: H::Exp) {
                 loc,
                 B::ErrorConstant {
                     line_number,
+                    error_code,
                     constant: error_constant.map(|n| context.constant_name(n)),
                 },
             ));

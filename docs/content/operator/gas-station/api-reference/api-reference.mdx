@@ -108,13 +108,36 @@ Authorization: Bearer YOUR_TOKEN_HERE
 ```json
 {
   "result": {
-    "sponsor_address": "iota1qxyz...",
-    "reservation_id": 12345,
+    "sponsor_address": "0xc408cb821190caaa4d0e3a66d47f4d3ba4a5de8a3a46049f71192d43ccb3a70c",
+    "reservation_id": 4,
     "gas_coins": [
-      { "id": "coin1", "amount": 500000 },
-      { "id": "coin2", "amount": 500000 }
+      {
+        "objectId": "0x01dc25a229a0d68699525809d8efa303eb873195c0e0fd7bb06fbd0eaf8efdd4",
+        "version": 3,
+        "digest": "CVr5PFWNoi5i2SmwetXoxbUssgX23i3Lf2xciB7ybrY5"
+      },
+      {
+        "objectId": "0x01e80806f756c3f49d6a7c39277a9ed6dbe8d7090703b69a1bb6433514c67c24",
+        "version": 3,
+        "digest": "AsMpLULuJmvkSKBYqjqQ5f163356Gva9D38FPPrKrZTr"
+      },
+      {
+        "objectId": "0x01e903e2f24e6d1fa035194d513168bb0fd18d11139210174319b31d0e704f64",
+        "version": 3,
+        "digest": "7m8wctf4LoWJ8AwM3AyHVr1NRPF1fpmicNWd5DAcKrjq"
+      },
+      {
+        "objectId": "0x01f7d07ee4c0370ae188c1c7ddd8367c6400efd5612697140e13338b48ff7c6c",
+        "version": 3,
+        "digest": "xA77CCa7FU2ecapFuA3skUdgKGuksMFwQxi9QY1msV4"
+      },
+      {
+        "objectId": "0x020420418e31e1c3e14b8ab6b6eff8398f661a625005b9b14c37006c5568b606",
+        "version": 3,
+        "digest": "7rMvXzq8PLvmKufpz4PKBkd4y7jdiZ4SP6uUrpULdf8c"
+      }
     ]
-  },
+  }
 }
 ```
 
@@ -159,15 +182,130 @@ Authorization: Bearer YOUR_TOKEN_HERE
 ```json
 {
   "effects": {
-    "transaction_digest": "0xabc123...",
-    "status": "success",
-    "details": {
-      "block_height": 56789,
-      "timestamp": "2024-02-17T12:34:56Z"
-    }
+    "messageVersion": "v1",
+    "status": {
+      "status": "success"
+    },
+    "executedEpoch": "4720",
+    "gasUsed": {
+      "computationCost": "1000000",
+      "computationCostBurned": "1000000",
+      "storageCost": "6368800",
+      "storageRebate": "4902000",
+      "nonRefundableStorageFee": "0"
+    },
+    "modifiedAtVersions": [
+      {
+        "objectId": "0x01dc25a229a0d68699525809d8efa303eb873195c0e0fd7bb06fbd0eaf8efdd4",
+        "sequenceNumber": "3"
+      },
+      {
+        "objectId": "0x01e80806f756c3f49d6a7c39277a9ed6dbe8d7090703b69a1bb6433514c67c24",
+        "sequenceNumber": "3"
+      },
+      {
+        "objectId": "0x01e903e2f24e6d1fa035194d513168bb0fd18d11139210174319b31d0e704f64",
+        "sequenceNumber": "3"
+      },
+      {
+        "objectId": "0x01f7d07ee4c0370ae188c1c7ddd8367c6400efd5612697140e13338b48ff7c6c",
+        "sequenceNumber": "3"
+      },
+      {
+        "objectId": "0x020420418e31e1c3e14b8ab6b6eff8398f661a625005b9b14c37006c5568b606",
+        "sequenceNumber": "3"
+      }
+    ],
+    "sharedObjects": [
+      {
+        "objectId": "0x0000000000000000000000000000000000000000000000000000000000000006",
+        "version": 4347636,
+        "digest": "J7BwPQsd5KHGeRPkPhNNiPTVJ2KGQEcfgWPi39v9LnvN"
+      }
+    ],
+    "transactionDigest": "87zDiKXukrjTvBmhDENSnb2QrJTDhHpLAobAYAFJWvfw",
+    "created": [
+      {
+        "owner": {
+          "Shared": {
+            "initial_shared_version": 4347637
+          }
+        },
+        "reference": {
+          "objectId": "0x76417e6fec0a9c06a2f7872fc52d97cc199ef1cea71e37c7f61a73de81e81bb1",
+          "version": 4347637,
+          "digest": "BQWkcCLoCA6adKqnniPAfrKZdf9yErAehzKHf7nPW2xM"
+        }
+      },
+      {
+        "owner": {
+          "AddressOwner": "0x443b6425a154a0681ba29e06e4f59bca5a6dbf14a753e9ebe06eabc2ca3cabe9"
+        },
+        "reference": {
+          "objectId": "0x8a63067b819265a873fc318b169ebeace5e832b49894eca7b9d4f25743e0df41",
+          "version": 4347637,
+          "digest": "3ddyifb2AJurGJpo8TqrkpMMZSauwFVFzT3n7y6jZ2Nx"
+        }
+      }
+    ],
+    "mutated": [
+      {
+        "owner": {
+          "AddressOwner": "0xc408cb821190caaa4d0e3a66d47f4d3ba4a5de8a3a46049f71192d43ccb3a70c"
+        },
+        "reference": {
+          "objectId": "0x01dc25a229a0d68699525809d8efa303eb873195c0e0fd7bb06fbd0eaf8efdd4",
+          "version": 4347637,
+          "digest": "Dc1BchUUFZpDSHw36tdoQaYXqdT8R89hyPigNvMPouR3"
+        }
+      }
+    ],
+    "deleted": [
+      {
+        "objectId": "0x01e80806f756c3f49d6a7c39277a9ed6dbe8d7090703b69a1bb6433514c67c24",
+        "version": 4347637,
+        "digest": "7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz"
+      },
+      {
+        "objectId": "0x01e903e2f24e6d1fa035194d513168bb0fd18d11139210174319b31d0e704f64",
+        "version": 4347637,
+        "digest": "7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz"
+      },
+      {
+        "objectId": "0x01f7d07ee4c0370ae188c1c7ddd8367c6400efd5612697140e13338b48ff7c6c",
+        "version": 4347637,
+        "digest": "7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz"
+      },
+      {
+        "objectId": "0x020420418e31e1c3e14b8ab6b6eff8398f661a625005b9b14c37006c5568b606",
+        "version": 4347637,
+        "digest": "7gyGAp71YXQRoxmFBaHxofQXAipvgHyBKPyxmdSJxyvz"
+      }
+    ],
+    "gasObject": {
+      "owner": {
+        "AddressOwner": "0xc408cb821190caaa4d0e3a66d47f4d3ba4a5de8a3a46049f71192d43ccb3a70c"
+      },
+      "reference": {
+        "objectId": "0x01dc25a229a0d68699525809d8efa303eb873195c0e0fd7bb06fbd0eaf8efdd4",
+        "version": 4347637,
+        "digest": "Dc1BchUUFZpDSHw36tdoQaYXqdT8R89hyPigNvMPouR3"
+      }
+    },
+    "eventsDigest": "Au699PVCMgm7qA7xaYC3buv6qzCvTWZZjSxak53ZXgw6",
+    "dependencies": [
+      "86Wh3jbx31jYYnvuRVMMxvFeV1fKAGt81GN6ZzRcPakr",
+      "AjGJMbRPtJFPr84y1qqHy9DCCFwFaW3aEHjhKshKTJqn",
+      "BjH9ntnSzydCYmYijXJh2nenbeVRhSiyJqJt4bzG7o5u",
+      "FrfyHw9f1jjPzYaHcnNtTrM4iSycGKDzdQvXBdfHsoXd",
+      "HrVH2REqTq5ZSm1JeW9APBgHomu7jEAKmpd9AkuUHQWE"
+    ]
   },
+  "error": null
 }
 ```
+
+The for information about the fields in the `effects` property, you can check the documentation of its internal type: [`IotaTransactionBlockEffects`](https://iotaledger.github.io/iota/iota_json_rpc_types/enum.IotaTransactionBlockEffects.html).  
 
 **Response (Error):**
 
@@ -176,6 +314,12 @@ Authorization: Bearer YOUR_TOKEN_HERE
   "error": "Invalid transaction signature"
 }
 ```
+
+**Validation Rules:**
+
+* The request body may also contain a `requestType` field, which is optional (defaults to `waitForEffectsCert`) and controls how transaction results are awaited in the gas station before returning a response. For details see [iota api ref](https://docs.iota.org/iota-api-ref#iota_executetransactionblock). Allowed values are:
+  - waitForEffectsCert
+  - waitForLocalExecution
 
 ---
 
@@ -211,12 +355,12 @@ Authorization: Bearer YOUR_TOKEN_HERE
 
 ## Error Codes
 
-| **Status Code** | **Description** |
-| --------------- | --------------- |
-| 200 | Request succeeded |
-| 400 | Bad request (invalid payload) |
-| 401 | Unauthorized (invalid token) |
-| 403 | Forbidden (access denied) |
-| 500 | Internal server error |
+| **Status Code** | **Description**               |
+| --------------- | ----------------------------- |
+| 200             | Request succeeded             |
+| 400             | Bad request (invalid payload) |
+| 401             | Unauthorized (invalid token)  |
+| 403             | Forbidden (access denied)     |
+| 500             | Internal server error         |
 
 ---

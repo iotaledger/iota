@@ -57,8 +57,10 @@ describe('GraphQL IotaClient compatibility', () => {
 
         transactionBlockDigest = result.digest;
 
-        await toolbox.client.waitForTransaction({ digest: transactionBlockDigest });
-        await graphQLClient.waitForTransaction({ digest: transactionBlockDigest });
+        await toolbox.client.waitForTransaction({
+            digest: transactionBlockDigest,
+            waitMode: 'checkpoint',
+        });
     });
 
     test('getRpcApiVersion', async () => {
@@ -90,16 +92,6 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphQLCoins).toEqual(rpcCoins);
     });
 
-    test('getBalance', async () => {
-        const rpcCoins = await toolbox.client.getBalance({
-            owner: toolbox.address(),
-        });
-        const graphQLCoins = await graphQLClient!.getBalance({
-            owner: toolbox.address(),
-        });
-
-        expect(graphQLCoins).toEqual(rpcCoins);
-    });
     test('getBalance', async () => {
         const rpcBalance = await toolbox.client.getBalance({
             owner: toolbox.address(),
@@ -558,19 +550,19 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphql).toEqual(rpc);
     });
 
-    test('getDynamicFieldObject', async () => {
+    test('getDynamicFieldObjectV1', async () => {
         const { data } = await toolbox.client.getDynamicFields({
             parentId: parentObjectId,
         });
 
         const field = data.find((field) => field.type === 'DynamicObject')!;
 
-        const rpc = await toolbox.client.getDynamicFieldObject({
+        const rpc = await toolbox.client.getDynamicFieldObjectV1({
             parentId: parentObjectId,
             name: field.name,
         });
 
-        const graphql = await graphQLClient!.getDynamicFieldObject({
+        const graphql = await graphQLClient!.getDynamicFieldObjectV1({
             parentId: parentObjectId,
             name: field.name,
         });
@@ -625,8 +617,6 @@ describe('GraphQL IotaClient compatibility', () => {
                 showRawInput: true,
             },
         });
-
-        await toolbox.client.waitForTransaction({ digest: transaction.digest });
 
         const {
             checkpoint: gCheckpoint,
@@ -811,5 +801,46 @@ describe('GraphQL IotaClient compatibility', () => {
         const graphql = await graphQLClient!.getProtocolConfig();
 
         expect(graphql).toEqual(rpc);
+    });
+
+    test('isTransactionIndexedOnNode', async () => {
+        const tx = new Transaction();
+        tx.setSender(toolbox.address());
+        const [coin] = tx.splitCoins(tx.gas, [1]);
+        tx.transferObjects([coin], toolbox.address());
+
+        let transaction = await graphQLClient!.signAndExecuteTransaction({
+            transaction: tx as Transaction,
+            signer: toolbox.keypair,
+            options: {
+                showBalanceChanges: true,
+                showEffects: true,
+                showEvents: true,
+                // TODO inputs missing valueType
+                showInput: false,
+                showObjectChanges: true,
+                showRawInput: true,
+            },
+        });
+
+        transaction = await toolbox.client.waitForTransaction({
+            digest: transaction.digest,
+            waitMode: 'indexed-on-node',
+        });
+        transaction = await graphQLClient.waitForTransaction({
+            digest: transaction.digest,
+            waitMode: 'indexed-on-node',
+        });
+
+        transaction = await toolbox.client.waitForTransaction({
+            digest: transaction.digest,
+            waitMode: 'checkpoint',
+        });
+        expect(transaction.checkpoint).toBeDefined();
+        transaction = await graphQLClient.waitForTransaction({
+            digest: transaction.digest,
+            waitMode: 'checkpoint',
+        });
+        expect(transaction.checkpoint).toBeDefined();
     });
 });

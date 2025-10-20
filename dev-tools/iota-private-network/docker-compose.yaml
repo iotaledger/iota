@@ -1,5 +1,3 @@
-version: "3"
-
 x-common-validator: &common-validator
   image: iotaledger/iota-node
   environment: &common-env
@@ -8,6 +6,7 @@ x-common-validator: &common-validator
     - RPC_WORKER_THREAD=12
     - NEW_CHECKPOINT_WARNING_TIMEOUT_MS=30000
     - NEW_CHECKPOINT_PANIC_TIMEOUT_MS=60000
+    - CONSENSUS_PROTOCOL=${CONSENSUS_PROTOCOL:-}
   command: &common-command [
     "/usr/local/bin/iota-node",
     "--config-path",

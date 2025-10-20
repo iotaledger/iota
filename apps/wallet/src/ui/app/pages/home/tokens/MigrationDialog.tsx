@@ -6,6 +6,7 @@ import { Button, Dialog, DialogContent, DialogBody, Header, Panel } from '@iota/
 import { Banner, BannerSize, Theme, useTheme } from '@iota/core';
 import { WALLET_DASHBOARD_URL } from '_src/shared/constants';
 import { Link } from 'react-router-dom';
+import { ampli } from '_src/shared/analytics/ampli';
 
 interface MigrationDialogProps {
     open: boolean;
@@ -21,6 +22,7 @@ export function MigrationDialog({ open, setOpen }: MigrationDialogProps) {
             : 'https://files.iota.org/media/tooling/wallet-dashboard-migration-light.mp4';
 
     function navigateToDashboard() {
+        ampli.openedLink({ url: WALLET_DASHBOARD_URL });
         window.open(WALLET_DASHBOARD_URL, '_blank', 'noopener noreferrer');
     }
     return (

@@ -131,6 +131,15 @@ export interface ClickedHideAssetProperties {
     objectId?: string;
 }
 
+export interface ClickedImportKeystoneProperties {
+    /**
+     * | Rule | Value |
+     * |---|---|
+     * | Regex |  |
+     */
+    sourceFlow?: string;
+}
+
 export interface ClickedImportPassphraseProperties {
     /**
      * | Rule | Value |
@@ -216,6 +225,10 @@ export interface OpenedConnectLedgerFlowProperties {
      * | Regex |  |
      */
     sourceFlow?: string;
+}
+
+export interface OpenedLinkProperties {
+    url: string;
 }
 
 export interface OpenedWalletExtensionProperties {
@@ -350,6 +363,12 @@ export interface UnstakedIotaProperties {
     /**
      * | Rule | Value |
      * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
      * | Regex |  |
      */
     validatorAddress?: string;
@@ -395,6 +414,14 @@ export class ClickedHideAsset implements BaseEvent {
     }
 }
 
+export class ClickedImportKeystone implements BaseEvent {
+    event_type = 'clicked import keystone';
+
+    constructor(public event_properties?: ClickedImportKeystoneProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
 export class ClickedImportPassphrase implements BaseEvent {
     event_type = 'clicked import passphrase';
 
@@ -407,6 +434,14 @@ export class ClickedImportPrivateKey implements BaseEvent {
     event_type = 'clicked import private key';
 
     constructor(public event_properties?: ClickedImportPrivateKeyProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class ClickedImportSeed implements BaseEvent {
+    event_type = 'clicked import seed';
+
+    constructor(public event_properties?: ClickedImportSeedProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -455,6 +490,14 @@ export class OpenedConnectLedgerFlow implements BaseEvent {
     event_type = 'opened connect ledger flow';
 
     constructor(public event_properties?: OpenedConnectLedgerFlowProperties) {
+        this.event_properties = event_properties;
+    }
+}
+
+export class OpenedLink implements BaseEvent {
+    event_type = 'opened link';
+
+    constructor(public event_properties: OpenedLinkProperties) {
         this.event_properties = event_properties;
     }
 }
@@ -754,6 +797,23 @@ export class Ampli {
   }
 
   /**
+   * clicked import keystone
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20import%20keystone)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. sourceFlow)
+   * @param options Amplitude event options.
+   */
+  clickedImportKeystone(
+    properties?: ClickedImportKeystoneProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ClickedImportKeystone(properties), options);
+  }
+
+  /**
    * clicked import passphrase
    *
    * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20import%20passphrase)
@@ -785,6 +845,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new ClickedImportPrivateKey(properties), options);
+  }
+
+  /**
+   * clicked import seed
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/clicked%20import%20seed)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. sourceFlow)
+   * @param options Amplitude event options.
+   */
+  clickedImportSeed(
+    properties?: ClickedImportSeedProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new ClickedImportSeed(properties), options);
   }
 
   /**
@@ -887,6 +964,23 @@ export class Ampli {
     options?: EventOptions,
   ) {
     return this.track(new OpenedConnectLedgerFlow(properties), options);
+  }
+
+  /**
+   * opened link
+   *
+   * [View in Tracking Plan](https://data.eu.amplitude.com/iota-foundation/IOTA%20Wallet/events/main/latest/opened%20link)
+   *
+   * Event has no description in tracking plan.
+   *
+   * @param properties The event's properties (e.g. url)
+   * @param options Amplitude event options.
+   */
+  openedLink(
+    properties: OpenedLinkProperties,
+    options?: EventOptions,
+  ) {
+    return this.track(new OpenedLink(properties), options);
   }
 
   /**

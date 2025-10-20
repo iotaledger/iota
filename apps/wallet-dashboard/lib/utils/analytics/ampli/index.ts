@@ -25,246 +25,273 @@ import * as amplitude from '@amplitude/analytics-browser';
 export type Environment = 'iotawalletdashboard';
 
 export const ApiKey: Record<Environment, string> = {
-    iotawalletdashboard: '4d570cb7dc58e267349bde33f7b8bdeb',
+  iotawalletdashboard: '4d570cb7dc58e267349bde33f7b8bdeb'
 };
 
 /**
  * Default Amplitude configuration options. Contains tracking plan information.
  */
 export const DefaultConfiguration: BrowserOptions = {
-    plan: {
-        version: '3',
-        branch: 'main',
-        source: 'web',
-        versionId: 'fd563f8a-ce76-4f47-a8f5-296a8ac394f8',
-    },
-    ...{
-        ingestionMetadata: {
-            sourceName: 'browser-typescript-ampli',
-            sourceVersion: '2.0.0',
-        },
-    },
-    serverZone: amplitude.Types.ServerZone.EU,
+  plan: {
+    version: '3',
+    branch: 'main',
+    source: 'web',
+    versionId: 'fd563f8a-ce76-4f47-a8f5-296a8ac394f8'
+  },
+  ...{
+    ingestionMetadata: {
+      sourceName: 'browser-typescript-ampli',
+      sourceVersion: '2.0.0'
+    }
+  },
+  serverZone: amplitude.Types.ServerZone.EU
 };
 
-export interface LoadOptionsBase {
-    disabled?: boolean;
-}
+export interface LoadOptionsBase { disabled?: boolean }
 
-export type LoadOptionsWithEnvironment = LoadOptionsBase & {
-    environment: Environment;
-    client?: { configuration?: BrowserOptions };
-};
-export type LoadOptionsWithApiKey = LoadOptionsBase & {
-    client: { apiKey: string; configuration?: BrowserOptions };
-};
-export type LoadOptionsWithClientInstance = LoadOptionsBase & {
-    client: { instance: BrowserClient };
-};
+export type LoadOptionsWithEnvironment = LoadOptionsBase & { environment: Environment; client?: { configuration?: BrowserOptions; }; };
+export type LoadOptionsWithApiKey = LoadOptionsBase & { client: { apiKey: string; configuration?: BrowserOptions; } };
+export type LoadOptionsWithClientInstance = LoadOptionsBase & { client: { instance: BrowserClient; } };
 
-export type LoadOptions =
-    | LoadOptionsWithEnvironment
-    | LoadOptionsWithApiKey
-    | LoadOptionsWithClientInstance;
+export type LoadOptions = LoadOptionsWithEnvironment | LoadOptionsWithApiKey | LoadOptionsWithClientInstance;
 
 export interface ClickedCollectibleCardProperties {
-    collectibleType?: string;
-    objectId?: string;
+  collectibleType?: string;
+  objectId?: string;
 }
 
 export interface ClickedStakeIotaProperties {
-    isCurrentlyStaking?: boolean;
-    sourceFlow?: string;
+  isCurrentlyStaking?: boolean;
+  sourceFlow?: string;
 }
 
 export interface ClickedUnstakeIotaProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    stakedAmount?: number;
-    validatorAddress?: string;
+  /**
+   * | Rule | Value |
+   * |---|---|
+   * | Type | number |
+   */
+  stakedAmount?: number;
+  validatorAddress?: string;
 }
 
 export interface MigrationProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    basicOutputObjects?: number;
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    nftOutputObjects?: number;
+  /**
+   * | Rule | Value |
+   * |---|---|
+   * | Type | number |
+   */
+  basicOutputObjects?: number;
+  isTimelocked?: boolean;
+  /**
+   * | Rule | Value |
+   * |---|---|
+   * | Type | number |
+   */
+  nftOutputObjects?: number;
 }
 
 export interface OpenedWalletDashboardProperties {
-    activeAccountType?: string;
-    activeNetwork?: string;
-    activeOrigin?: string;
-    pagePath?: string;
-    pagePathFragment?: string;
-    walletDashboardMode?: string;
-    walletDashboardRev?: string;
-    walletDashboardVersion?: string;
+  activeAccountType?: string;
+  activeNetwork?: string;
+  activeOrigin?: string;
+  pagePath?: string;
+  pagePathFragment?: string;
+  walletDashboardMode?: string;
+  walletDashboardRev?: string;
+  walletDashboardVersion?: string;
 }
 
 export interface SelectValidatorProperties {
-    validatorAddress?: string;
-    validatorAPY?: string;
-    validatorName?: string;
+  validatorAddress?: string;
+  validatorAPY?: string;
+  validatorName?: string;
 }
 
 export interface SentCoinsProperties {
-    coinType?: string;
+  coinType?: string;
 }
 
 export interface SentCollectibleProperties {
-    objectId?: string;
+  objectId?: string;
 }
 
 export interface StakedIotaProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    stakedAmount?: number;
-    validatorAddress?: string;
+  /**
+   * | Rule | Value |
+   * |---|---|
+   * | Type | number |
+   */
+  stakedAmount?: number;
+  validatorAddress?: string;
 }
 
 export interface SwitchedNetworkProperties {
-    toNetwork?: string;
+  toNetwork?: string;
 }
 
 export interface TimelockStakeProperties {
-    /**
-     * | Rule | Value |
-     * |---|---|
-     * | Type | number |
-     */
-    stakedAmount?: number;
-    validatorAddress?: string;
+  /**
+   * | Rule | Value |
+   * |---|---|
+   * | Type | number |
+   */
+  stakedAmount?: number;
+  validatorAddress?: string;
 }
 
 export interface TimelockUnstakeProperties {
-    validatorAddress?: string;
+  /**
+   * | Rule | Value |
+   * |---|---|
+   * | Type | number |
+   */
+  stakedAmount?: number;
+  validatorAddress?: string;
 }
 
 export interface UnstakedIotaProperties {
-    validatorAddress?: string;
+  /**
+   * | Rule | Value |
+   * |---|---|
+   * | Type | number |
+   */
+  stakedAmount?: number;
+  validatorAddress?: string;
 }
 
 export class ClickedCollectibleCard implements BaseEvent {
-    event_type = 'clicked collectible card';
+  event_type = 'clicked collectible card';
 
-    constructor(public event_properties?: ClickedCollectibleCardProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: ClickedCollectibleCardProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class ClickedStakeIota implements BaseEvent {
-    event_type = 'clicked stake IOTA';
+  event_type = 'clicked stake IOTA';
 
-    constructor(public event_properties?: ClickedStakeIotaProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: ClickedStakeIotaProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class ClickedUnstakeIota implements BaseEvent {
-    event_type = 'clicked unstake IOTA';
+  event_type = 'clicked unstake IOTA';
 
-    constructor(public event_properties?: ClickedUnstakeIotaProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: ClickedUnstakeIotaProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class Migration implements BaseEvent {
-    event_type = 'migration';
+  event_type = 'migration';
 
-    constructor(public event_properties?: MigrationProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: MigrationProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class OpenedWalletDashboard implements BaseEvent {
-    event_type = 'opened wallet dashboard';
+  event_type = 'opened wallet dashboard';
 
-    constructor(public event_properties?: OpenedWalletDashboardProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: OpenedWalletDashboardProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class SelectValidator implements BaseEvent {
-    event_type = 'select validator';
+  event_type = 'select validator';
 
-    constructor(public event_properties?: SelectValidatorProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: SelectValidatorProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class SentCoins implements BaseEvent {
-    event_type = 'sent coins';
+  event_type = 'sent coins';
 
-    constructor(public event_properties?: SentCoinsProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: SentCoinsProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class SentCollectible implements BaseEvent {
-    event_type = 'sent collectible';
+  event_type = 'sent collectible';
 
-    constructor(public event_properties?: SentCollectibleProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: SentCollectibleProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class StakedIota implements BaseEvent {
-    event_type = 'staked IOTA';
+  event_type = 'staked IOTA';
 
-    constructor(public event_properties?: StakedIotaProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: StakedIotaProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class SwitchedNetwork implements BaseEvent {
-    event_type = 'switched network';
+  event_type = 'switched network';
 
-    constructor(public event_properties?: SwitchedNetworkProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: SwitchedNetworkProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class TimelockCollect implements BaseEvent {
-    event_type = 'timelock collect';
+  event_type = 'timelock collect';
 }
 
 export class TimelockStake implements BaseEvent {
-    event_type = 'timelock stake';
+  event_type = 'timelock stake';
 
-    constructor(public event_properties?: TimelockStakeProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: TimelockStakeProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class TimelockUnstake implements BaseEvent {
-    event_type = 'timelock unstake';
+  event_type = 'timelock unstake';
 
-    constructor(public event_properties?: TimelockUnstakeProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: TimelockUnstakeProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export class UnstakedIota implements BaseEvent {
-    event_type = 'unstaked IOTA';
+  event_type = 'unstaked IOTA';
 
-    constructor(public event_properties?: UnstakedIotaProperties) {
-        this.event_properties = event_properties;
-    }
+  constructor(
+    public event_properties?: UnstakedIotaProperties,
+  ) {
+    this.event_properties = event_properties;
+  }
 }
 
 export type PromiseResult<T> = { promise: Promise<T | void> };
@@ -602,7 +629,7 @@ export class Ampli {
    *
    * Event has no description in tracking plan.
    *
-   * @param properties The event's properties (e.g. validatorAddress)
+   * @param properties The event's properties (e.g. stakedAmount)
    * @param options Amplitude event options.
    */
   unstakedIota(

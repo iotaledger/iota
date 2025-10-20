@@ -11,7 +11,7 @@ use std::{
 
 use arc_swap::ArcSwapOption;
 use enum_dispatch::enum_dispatch;
-use fastcrypto::groups::bls12381;
+use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use fastcrypto_zkp::bn254::{
     zk_login::{JWK, JwkId},
@@ -50,7 +50,8 @@ use iota_types::{
     },
     messages_consensus::{
         AuthorityCapabilitiesV1, ConsensusTransaction, ConsensusTransactionKey,
-        ConsensusTransactionKind, TimestampMs, VersionedDkgConfirmation, check_total_jwk_size,
+        ConsensusTransactionKind, SignedAuthorityCapabilitiesV1, TimestampMs,
+        VerifiedAuthorityCapabilitiesV1, VersionedDkgConfirmation, check_total_jwk_size,
     },
     signature::GenericSignature,
     storage::{BackingPackageStore, InputKey, ObjectStore},
@@ -138,6 +139,7 @@ pub(crate) mod consensus_quarantine;
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
+use iota_types::crypto::AuthorityPublicKey;
 
 // CertLockGuard and CertTxGuard are functionally identical right now, but we
 // retain a distinction anyway. If we need to support distributed object
@@ -206,6 +208,7 @@ impl DeferredTransaction {
 /// Represents a scheduling result: a transaction can be either scheduled
 /// for execution, or deferred for some reason. Scheduling result is
 /// returned by the `try_schedule` method of `AuthorityPerEpochStore`.
+#[derive(Debug)]
 pub(crate) enum SchedulingResult {
     /// Scheduling result indicating that a transaction is scheduled to be
     /// executed at start time
@@ -903,8 +906,19 @@ impl AuthorityPerEpochStore {
             _ => ZkLoginEnv::Test,
         };
 
+        // Get all active validators and filter out committee members to get
+        // non-committee validators
+        let non_committee_validators: BTreeSet<AuthorityName> = epoch_start_configuration
+            .epoch_start_state()
+            .get_active_validators()
+            .into_iter()
+            .filter_map(|pubkey| AuthorityName::from_bytes(pubkey.as_bytes()).ok())
+            .filter(|authority_name| !committee.authority_exists(authority_name))
+            .collect();
+
         let signature_verifier = SignatureVerifier::new(
             committee.clone(),
+            non_committee_validators,
             signature_verifier_metrics,
             zklogin_env,
             protocol_config.accept_zklogin_in_multisig(),
@@ -1195,6 +1209,10 @@ impl AuthorityPerEpochStore {
 
     pub fn protocol_version(&self) -> ProtocolVersion {
         self.epoch_start_state().protocol_version()
+    }
+
+    pub fn active_validators(&self) -> Vec<AuthorityPublicKey> {
+        self.epoch_start_state().get_active_validators()
     }
 
     pub fn module_cache(&self) -> &Arc<ExecutionModuleCache> {
@@ -1768,6 +1786,7 @@ impl AuthorityPerEpochStore {
     }
 
     // factoring of the above
+    #[instrument(level = "trace", skip_all)]
     fn load_deferred_transactions(
         &self,
         output: &mut ConsensusCommitOutput,
@@ -1903,6 +1922,7 @@ impl AuthorityPerEpochStore {
             .max_accumulated_txn_cost_per_object_in_mysticeti_commit_as_option()
     }
 
+    #[instrument("transactions_sequencing", level = "trace", skip_all, fields(cert_digest = ?cert.digest(), scheduling_result = tracing::field::Empty))]
     fn try_schedule(
         &self,
         cert: &VerifiedExecutableTransaction,
@@ -1924,13 +1944,17 @@ impl AuthorityPerEpochStore {
                         .deferred_from_round()
                 })
                 .unwrap_or(commit_round);
-            return SchedulingResult::Defer(
+            let result = SchedulingResult::Defer(
                 DeferralKey::new_for_randomness(deferred_from_round),
                 DeferralReason::RandomnessNotReady,
             );
+
+            // Record the result of scheduling for tracing.
+            tracing::Span::current().record("scheduling_result", tracing::field::debug(&result));
+            return result;
         }
 
-        if let Some(max_execution_duration_per_commit) =
+        let result = if let Some(max_execution_duration_per_commit) =
             self.get_max_execution_duration_per_commit()
         {
             // Initialise the free execution slots for the objects that are not in the
@@ -1957,7 +1981,11 @@ impl AuthorityPerEpochStore {
             // If we don't have a max execution duration, we don't need to check for
             // congestion.
             SchedulingResult::Schedule(0)
-        }
+        };
+
+        // Record the result of scheduling for tracing.
+        tracing::Span::current().record("scheduling_result", tracing::field::debug(&result));
+        result
     }
 
     /// Assign a sequence number for the shared objects of the input transaction
@@ -2323,7 +2351,7 @@ impl AuthorityPerEpochStore {
 
     /// Record most recently advertised capabilities of all authorities
     pub fn record_capabilities_v1(&self, capabilities: &AuthorityCapabilitiesV1) -> IotaResult {
-        info!("received capabilities v2 {:?}", capabilities);
+        info!("received capabilities v1 {capabilities:?}");
         let authority = &capabilities.authority;
         let tables = self.tables()?;
 
@@ -2405,6 +2433,7 @@ impl AuthorityPerEpochStore {
         Ok(())
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn get_new_jwks(&self, round: u64) -> IotaResult<Vec<ActiveJwk>> {
         self.consensus_quarantine.read().get_new_jwks(self, round)
     }
@@ -2483,11 +2512,11 @@ impl AuthorityPerEpochStore {
         }
     }
 
-    pub fn get_reconfig_state_read_lock_guard(&self) -> RwLockReadGuard<ReconfigState> {
+    pub fn get_reconfig_state_read_lock_guard(&self) -> RwLockReadGuard<'_, ReconfigState> {
         self.reconfig_state_mem.read()
     }
 
-    pub fn get_reconfig_state_write_lock_guard(&self) -> RwLockWriteGuard<ReconfigState> {
+    pub fn get_reconfig_state_write_lock_guard(&self) -> RwLockWriteGuard<'_, ReconfigState> {
         self.reconfig_state_mem.write()
     }
 
@@ -2557,6 +2586,16 @@ impl AuthorityPerEpochStore {
         self.signature_verifier
             .verify_tx(tx.data())
             .map(|_| VerifiedTransaction::new_from_verified(tx))
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    pub fn verify_authority_capabilities(
+        &self,
+        authority_capabilities: SignedAuthorityCapabilitiesV1,
+    ) -> IotaResult<VerifiedAuthorityCapabilitiesV1> {
+        self.signature_verifier
+            .verify_authority_capabilities(&authority_capabilities)
+            .map(|_| VerifiedAuthorityCapabilitiesV1::new_from_verified(authority_capabilities))
     }
 
     /// Verifies transaction signatures and other data
@@ -2632,6 +2671,23 @@ impl AuthorityPerEpochStore {
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(_),
+                ..
+            }) => {
+                // Signatures are verified as part of the consensus payload
+                // verification in IotaTxValidator. We don't need to check the
+                // sender_authority as it's correct that it's different from the
+                // authority in the notification.
+                // Here we only check if tracking non-committee authority capabilities is
+                // enabled.
+                if !self
+                    .protocol_config()
+                    .track_non_committee_eligible_validators()
+                {
+                    return None;
+                }
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::NewJWKFetched(authority, id, jwk),
                 ..
             }) => {
@@ -2689,7 +2745,7 @@ impl AuthorityPerEpochStore {
             .expect("test should not be write past end of epoch")
     }
 
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", skip_all)]
     pub(crate) async fn process_consensus_transactions_and_commit_boundary<
         C: CheckpointServiceNotify,
     >(
@@ -3192,7 +3248,7 @@ impl AuthorityPerEpochStore {
     /// - Verify and initialize the state to execute the certificates. Return
     ///   VerifiedCertificates for each executable certificate
     /// - Or update the state for checkpoint or epoch change protocol.
-    #[instrument(level = "debug", skip_all)]
+    #[instrument("process_consensus_transactions", level = "trace", skip_all)]
     #[expect(clippy::type_complexity)]
     pub(crate) async fn process_consensus_transactions<C: CheckpointServiceNotify>(
         &self,
@@ -3212,7 +3268,7 @@ impl AuthorityPerEpochStore {
     ) -> IotaResult<(
         Vec<VerifiedExecutableTransaction>,    // transactions to schedule
         Vec<SequencedConsensusTransactionKey>, // keys to notify as complete
-        Option<RwLockWriteGuard<ReconfigState>>,
+        Option<RwLockWriteGuard<'_, ReconfigState>>,
         bool,                   // true if final round
         Option<TransactionKey>, // consensus commit prologue root
     )> {
@@ -3462,7 +3518,7 @@ impl AuthorityPerEpochStore {
         transactions: &[VerifiedSequencedConsensusTransaction],
         commit_has_deferred_txns: bool,
     ) -> IotaResult<(
-        Option<RwLockWriteGuard<ReconfigState>>,
+        Option<RwLockWriteGuard<'_, ReconfigState>>,
         bool, // true if final round
     )> {
         let mut lock = None;
@@ -3822,6 +3878,31 @@ impl AuthorityPerEpochStore {
                 } else {
                     debug!(
                         "Ignoring CapabilityNotificationV1 from {:?} because of end of epoch",
+                        authority.concise()
+                    );
+                }
+                Ok(ConsensusCertificateResult::ConsensusMessage)
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_capabilities),
+                ..
+            }) => {
+                // Records capabilities for the authority.
+                // The signature is checked in a previous step, so we can safely access data
+                let capabilities = signed_capabilities.data();
+                let authority = capabilities.authority;
+                if self
+                    .get_reconfig_state_read_lock_guard()
+                    .should_accept_consensus_certs()
+                {
+                    debug!(
+                        "Received SignedCapabilityNotificationV1 from {:?}",
+                        authority.concise()
+                    );
+                    self.record_capabilities_v1(capabilities)?;
+                } else {
+                    debug!(
+                        "Ignoring SignedCapabilityNotificationV1 from {:?} because of end of epoch",
                         authority.concise()
                     );
                 }

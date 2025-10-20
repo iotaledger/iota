@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
@@ -32,13 +32,14 @@ use crate::{
     block_header::{
         BlockHeader, BlockHeaderAPI, BlockHeaderV1, BlockRef, BlockTimestampMs, GENESIS_ROUND,
         Round, SignedBlockHeader, Slot, TransactionsCommitment, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions,
+        VerifiedOwnShard, VerifiedTransactions,
     },
     block_manager::BlockManager,
     commit::{CertifiedCommits, PendingSubDag},
     commit_observer::CommitObserver,
     context::Context,
     dag_state::DagState,
+    encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -51,15 +52,6 @@ use crate::{
 // Maximum number of commit votes to include in a block.
 // TODO: Move to protocol config, and verify in BlockVerifier.
 const MAX_COMMIT_VOTES_PER_BLOCK: usize = 100;
-
-// Maximum number of acknowledgments to be included in a block. It must be
-// reasonably larger than the number of validators because not all validators
-// create their blocks at the same pace. For now we set it as a
-// constant to not make the block header size too large.
-// TODO: https://github.com/iotaledger/iota/issues/8378
-// After testing decide how to compress acknowledgments and move to a
-// protocol config
-const MAX_ACKNOWLEDGMENTS_PER_BLOCK: usize = 400;
 
 pub(crate) struct Core {
     context: Arc<Context>,
@@ -120,6 +112,8 @@ pub(crate) struct Core {
     /// None it means that the last block sync mechanism is enabled, but it
     /// hasn't been initialised yet.
     last_known_proposed_round: Option<Round>,
+    /// Encoder is used to encode transactions into a longer vector of shards
+    encoder: Box<dyn ShardEncoder + Send + Sync>,
 }
 
 impl Core {
@@ -171,6 +165,8 @@ impl Core {
             Some(0)
         };
 
+        let encoder = create_encoder(&context);
+
         Self {
             context,
             last_signaled_round,
@@ -187,6 +183,7 @@ impl Core {
             block_signer,
             dag_state,
             last_known_proposed_round: min_propose_round,
+            encoder,
         }
         .recover()
     }
@@ -224,7 +221,7 @@ impl Core {
         let last_proposed_block = match self.try_propose(true).unwrap() {
             (Some(block), _) => Some(block),
             (None, _) => {
-                let last_proposed_block = self.dag_state.read().get_last_proposed_block();
+                let last_proposed_block = self.dag_state.read().recover_last_own_block();
                 if self.should_propose() {
                     assert!(
                         last_proposed_block.round() != GENESIS_ROUND,
@@ -249,7 +246,7 @@ impl Core {
 
         info!(
             "Core recovery completed with last proposed block {:?}",
-            last_proposed_block
+            last_proposed_block.map(|b| b.verified_block_header)
         );
 
         self
@@ -260,7 +257,7 @@ impl Core {
     /// this call is known to be about not old blocks. The method returns:
     /// - The references of ancestors missing their block
     /// - The references of committed transactions that are missing
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument("consensus_add_blocks", skip_all)]
     pub(crate) fn add_blocks(
         &mut self,
         blocks: Vec<VerifiedBlock>,
@@ -385,6 +382,7 @@ impl Core {
     pub(crate) fn add_transactions(
         &mut self,
         transactions: Vec<VerifiedTransactions>,
+        source: &str,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::add_transactions");
         let _s = self
@@ -398,7 +396,7 @@ impl Core {
         // Add transactions to the dag state.
         let mut dag_state_guard = self.dag_state.write();
         for transaction in transactions {
-            dag_state_guard.add_transactions(transaction);
+            dag_state_guard.add_transactions(transaction, source);
         }
         // Safe to drop the guard here as the write/read locks will be asquired in
         // commit_observer
@@ -410,6 +408,31 @@ impl Core {
         // creating any new commits.
         self.commit_observer.handle_commit(Vec::new())?;
 
+        Ok(())
+    }
+
+    /// Adds shards to the DAG state. The proof is assumed to be already checked
+    pub(crate) fn add_shards(
+        &mut self,
+        serialized_shards: Vec<VerifiedOwnShard>,
+    ) -> ConsensusResult<()> {
+        let _scope = monitored_scope("Core::add_transactions");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Core::add_shards"])
+            .start_timer();
+
+        // Add shards to the dag state.
+        let mut dag_state_guard = self.dag_state.write();
+        for serialized_shard in serialized_shards {
+            dag_state_guard.add_shard(serialized_shard);
+        }
+        // Safe to drop the guard here as the write/read locks will be asquired in
+        // commit_observer
+        drop(dag_state_guard);
         Ok(())
     }
 
@@ -448,6 +471,7 @@ impl Core {
             return;
         }
         // Then send a signal to set up leader timeout.
+        tracing::trace!(round = ?new_clock_round, "new_consensus_round_sent");
         self.signals.new_round(new_clock_round);
         self.last_signaled_round = new_clock_round;
 
@@ -515,6 +539,7 @@ impl Core {
     /// Attempts to propose a new block for the next round. If a block has
     /// already proposed for latest or earlier round, then no block is
     /// created and None is returned.
+    #[instrument(level = "trace", skip_all)]
     fn try_new_block(&mut self, force: bool) -> Option<VerifiedBlock> {
         let _s = self
             .context
@@ -630,9 +655,12 @@ impl Core {
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("We should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
-        let transactions_commitment =
-            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                .expect("We should expect correct computation of the transactions commitment");
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized_transactions,
+            &self.context,
+            &mut self.encoder,
+        )
+        .expect("We should expect correct computation of the Merkle root for encoded transactions");
 
         self.context
             .metrics
@@ -642,10 +670,30 @@ impl Core {
 
         // Consume the acknowledgments about transaction data availability for past
         // blocks to be included.
-        let acknowledgments = self
-            .dag_state
-            .write()
-            .take_acknowledgments(MAX_ACKNOWLEDGMENTS_PER_BLOCK);
+        let acknowledgments = self.dag_state.write().take_acknowledgments(
+            self.context
+                .protocol_config
+                .consensus_max_acknowledgments_per_block_or_default() as usize,
+        );
+
+        self.context
+            .metrics
+            .node_metrics
+            .proposed_block_acknowledgments
+            .observe(acknowledgments.len() as f64);
+        for acknowledgment in &acknowledgments {
+            let authority = &self
+                .context
+                .committee
+                .authority(acknowledgment.author)
+                .hostname;
+            self.context
+                .metrics
+                .node_metrics
+                .proposed_block_acknowledgments_depth
+                .with_label_values(&[authority])
+                .observe(clock_round.saturating_sub(acknowledgment.round).into());
+        }
 
         // Consume the commit votes to be included.
         let commit_votes = self
@@ -664,6 +712,7 @@ impl Core {
             commit_votes,
             transactions_commitment,
         ));
+
         let signed_block_header = SignedBlockHeader::new(block_header, &self.block_signer)
             .expect("Block signing failed.");
 
@@ -737,6 +786,7 @@ impl Core {
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
     /// any `certified_commits` are provided, then it will attempt to commit
     /// those first before trying to commit any further leaders.
+    #[instrument(level = "trace", skip_all)]
     fn try_commit(
         &mut self,
     ) -> ConsensusResult<(
@@ -863,7 +913,7 @@ impl Core {
 
         self.transaction_consumer.notify_own_transactions_status(
             committed_transaction_refs,
-            self.dag_state.read().gc_round(),
+            self.dag_state.read().gc_round_for_last_commit(),
         );
 
         Ok((committed_sub_dags, all_missing_committed_txns))
@@ -878,7 +928,7 @@ impl Core {
             .scope_processing_time
             .with_label_values(&["Core::get_missing_blocks"])
             .start_timer();
-        self.block_manager.missing_block_headers()
+        self.block_manager.blocks_to_fetch()
     }
     pub(crate) fn get_missing_transaction_data(
         &self,
@@ -1085,11 +1135,6 @@ impl Core {
         self.last_proposed_block_header().round()
     }
 
-    #[expect(dead_code)]
-    fn last_proposed_block(&self) -> VerifiedBlock {
-        self.dag_state.read().get_last_proposed_block()
-    }
-
     fn last_proposed_block_header(&self) -> VerifiedBlockHeader {
         self.dag_state.read().get_last_proposed_block_header()
     }
@@ -1185,7 +1230,7 @@ pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<Cor
     let mut cores = Vec::new();
 
     for index in 0..authorities.len() {
-        let own_index = AuthorityIndex::new_for_test(index as u32);
+        let own_index = AuthorityIndex::new_for_test(index as u8);
         let core = CoreTextFixture::new(context.clone(), authorities.clone(), own_index, false);
         cores.push(core);
     }
@@ -1436,7 +1481,7 @@ mod test {
             };
 
             for (index, _authority) in context.committee.authorities().skip(authorities_to_skip) {
-                let block = TestBlockHeader::new(round, index.value() as u32)
+                let block = TestBlockHeader::new(round, index.value() as u8)
                     .set_ancestors(last_round_blocks.iter().map(|b| b.reference()).collect())
                     .build();
                 this_round_blocks.push(VerifiedBlock::new_for_test(block));
@@ -1568,6 +1613,7 @@ mod test {
             store.clone(),
             leader_schedule.clone(),
         );
+        let mut encoder = create_encoder(&context);
 
         // First send some transactions, since the block will be created once we recover
         // core
@@ -1645,9 +1691,12 @@ mod test {
         let serialized_transactions = Transaction::serialize(&transactions)
             .expect("we should expect correct serialization for transactions");
         // Compute transaction commitment that will be included in the block header
-        let transactions_commitment =
-            TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                .expect("we should expect correct computation of the transactions commitment");
+        let transactions_commitment = TransactionsCommitment::compute_transactions_commitment(
+            &serialized_transactions,
+            &context,
+            &mut encoder,
+        )
+        .expect("we should expect correct computation of the transactions commitment");
 
         // a new block should have been created during recovery.
         let verified_block = block_receiver

@@ -18,6 +18,10 @@
 			"cache": false,
 			"persistent": true
 		},
+		"codegen": {
+			"cache": false,
+			"persistent": true
+		},
 		"build": {
 			"dependsOn": ["^build"],
 			"outputs": [
@@ -43,6 +47,48 @@
 			]
 		},
 		"build:nightly": {
+			"dependsOn": [
+				"^build"
+			],
+			"outputs": [
+				"build/**",
+				"dist/**",
+				"storybook-static/**",
+				".next/**",
+				"!.next/cache/**",
+				"pkg/**"
+			]
+		},
+		"dev:firefox": {
+			"dependsOn": ["^build"],
+			"cache": false,
+			"persistent": true
+		},
+		"build:firefox": {
+			"dependsOn": ["^build"],
+			"outputs": [
+				"build/**",
+				"dist/**",
+				"storybook-static/**",
+				".next/**",
+				"!.next/cache/**",
+				"pkg/**"
+			]
+		},
+		"build:firefox:rc": {
+			"dependsOn": [
+				"^build"
+			],
+			"outputs": [
+				"build/**",
+				"dist/**",
+				"storybook-static/**",
+				".next/**",
+				"!.next/cache/**",
+				"pkg/**"
+			]
+		},
+		"build:firefox:nightly": {
 			"dependsOn": [
 				"^build"
 			],

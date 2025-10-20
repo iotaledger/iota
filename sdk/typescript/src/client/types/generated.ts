@@ -524,6 +524,7 @@ export interface IotaChangeEpoch {
 export interface IotaChangeEpochV2 {
     computation_charge: string;
     computation_charge_burned: string;
+    eligible_active_validators?: string[] | null;
     epoch: string;
     epoch_start_timestamp_ms: string;
     storage_charge: string;
@@ -1081,7 +1082,7 @@ export interface MoveCallMetrics {
     rank7Days: [MoveFunctionName, string][];
 }
 export interface MoveCallParams {
-    arguments: unknown[];
+    arguments: PtbInput[];
     function: string;
     module: string;
     packageObjectId: string;
@@ -1497,6 +1498,7 @@ export type ProtocolConfigValue =
     | {
           bool: string;
       };
+export type PtbInput = IotaArgument | unknown;
 export type PublicKey =
     | {
           Ed25519: string;

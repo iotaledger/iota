@@ -488,7 +488,7 @@ impl ReadApiServer for ReadApi {
             let state = self.state.clone();
             let object_read = spawn_monitored_task!(async move {
                 state.get_object_read(&object_id).map_err(|e| {
-                    warn!(?object_id, "Failed to get object: {:?}", e);
+                    warn!(?object_id, "failed to get object: {:?}", e);
                     Error::from(e)
                 })
             })
@@ -562,7 +562,7 @@ impl ReadApiServer for ReadApi {
                     .map(|result| match result {
                         Ok(response) => Ok(response),
                         Err(error) => {
-                            error!("Failed to fetch object with error: {error:?}");
+                            error!("failed to fetch object with error: {error:?}");
                             Err(format!("Error: {error}"))
                         }
                     })
@@ -601,7 +601,7 @@ impl ReadApiServer for ReadApi {
             let past_read = spawn_monitored_task!(async move {
             state.get_past_object_read(&object_id, version)
             .map_err(|e| {
-                error!("Failed to call try_get_past_object for object: {object_id:?} version: {version:?} with error: {e:?}");
+                error!("failed to call try_get_past_object for object: {object_id:?} version: {version:?} with error: {e:?}");
                 Error::from(e)
             })}).await.map_err(Error::from)??;
             let options = options.unwrap_or_default();
@@ -728,6 +728,31 @@ impl ReadApiServer for ReadApi {
     }
 
     #[instrument(skip(self))]
+    async fn is_transaction_indexed_on_node(&self, digest: TransactionDigest) -> RpcResult<bool> {
+        let transaction = async move {
+            let transaction_kv_store = self.transaction_kv_store.clone();
+            let mut transactions = spawn_monitored_task!(async move {
+                let ret = transaction_kv_store
+                    .multi_get_tx(&[digest])
+                    .await
+                    .map_err(|err| {
+                        debug!(tx_digest=?digest, "Failed to get transaction: {:?}", err);
+                        Error::from(err)
+                    });
+                add_server_timing("tx_kv_lookup");
+                ret
+            })
+            .await??;
+            Ok(transactions
+                .pop()
+                .expect("there should be one tx lookup response"))
+        }
+        .trace()
+        .await?;
+        Ok(transaction.map(|tx| *tx.digest()) == Some(digest))
+    }
+
+    #[instrument(skip(self))]
     async fn get_transaction_block(
         &self,
         digest: TransactionDigest,
@@ -790,7 +815,7 @@ impl ReadApiServer for ReadApi {
                 .get_transaction_perpetual_checkpoint(digest)
                 .await
                 .map_err(|e| {
-                    error!("Failed to retrieve checkpoint sequence for transaction {digest:?} with error: {e:?}");
+                    error!("failed to retrieve checkpoint sequence for transaction {digest:?} with error: {e:?}");
                     Error::from(e)
                 })?;
 
@@ -803,7 +828,7 @@ impl ReadApiServer for ReadApi {
                     .get_checkpoint_summary(checkpoint_seq)
                     .await
                     .map_err(|e| {
-                        error!("Failed to get checkpoint by sequence number: {checkpoint_seq:?} with error: {e:?}");
+                        error!("failed to get checkpoint by sequence number: {checkpoint_seq:?} with error: {e:?}");
                         Error::from(e)
                     })
                 }).await.map_err(Error::from)??;

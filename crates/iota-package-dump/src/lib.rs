@@ -43,7 +43,7 @@ pub async fn dump(
     for package in &packages {
         let IotaAddress(address) = &package.address;
         dump_package(&output_dir, package)
-            .with_context(|| format!("Failed to dump package {address}"))?;
+            .with_context(|| format!("failed to dump package {address}"))?;
     }
 
     if let Some(last_checkpoint) = last_checkpoint {
@@ -58,21 +58,21 @@ pub async fn dump(
 fn ensure_output_directory(path: impl Into<PathBuf>) -> Result<()> {
     let path: PathBuf = path.into();
     if !path.exists() {
-        fs::create_dir_all(&path).context("Making output directory")?;
+        fs::create_dir_all(&path).context("making output directory")?;
         return Ok(());
     }
 
     ensure!(
         path.is_dir(),
-        "Output path is not a directory: {}",
+        "output path is not a directory: {}",
         path.display()
     );
 
-    let metadata = fs::metadata(&path).context("Getting metadata for output path")?;
+    let metadata = fs::metadata(&path).context("getting metadata for output path")?;
 
     ensure!(
         !metadata.permissions().readonly(),
-        "Output directory is not writable: {}",
+        "output directory is not writable: {}",
         path.display()
     );
 
@@ -87,9 +87,9 @@ fn read_last_checkpoint(output: &Path) -> Result<Option<u64>> {
         return Ok(None);
     }
 
-    let content = fs::read_to_string(&path).context("Failed to read last checkpoint")?;
+    let content = fs::read_to_string(&path).context("failed to read last checkpoint")?;
     let checkpoint: u64 =
-        serde_json::from_str(&content).context("Failed to parse last checkpoint")?;
+        serde_json::from_str(&content).context("failed to parse last checkpoint")?;
 
     info!("Resuming download after checkpoint {checkpoint}");
 
@@ -101,9 +101,9 @@ fn read_last_checkpoint(output: &Path) -> Result<Option<u64>> {
 fn write_last_checkpoint(output: &Path, checkpoint: u64) -> Result<()> {
     let path = output.join("last-checkpoint");
     let content =
-        serde_json::to_string(&checkpoint).context("Failed to serialize last checkpoint")?;
+        serde_json::to_string(&checkpoint).context("failed to serialize last checkpoint")?;
 
-    fs::write(path, content).context("Failed to write last checkpoint")?;
+    fs::write(path, content).context("failed to write last checkpoint")?;
     Ok(())
 }
 
@@ -112,7 +112,7 @@ async fn max_page_size(client: &Client) -> Result<i32> {
     Ok(client
         .query(limits::build())
         .await
-        .context("Failed to fetch max page size")?
+        .context("failed to fetch max page size")?
         .service_config
         .max_page_size)
 }
@@ -147,7 +147,7 @@ async fn fetch_packages(
             before_checkpoint.map(UInt53),
         ))
         .await
-        .with_context(|| "Failed to fetch page 1 of packages.")?;
+        .with_context(|| "failed to fetch page 1 of packages.")?;
 
     for i in 2.. {
         if !page_info.has_next_page {
@@ -162,7 +162,7 @@ async fn fetch_packages(
                 before_checkpoint.map(UInt53),
             ))
             .await
-            .with_context(|| format!("Failed to fetch page {i} of packages."))?
+            .with_context(|| format!("failed to fetch page {i} of packages."))?
             .packages;
 
         nodes.extend(packages.nodes);
@@ -214,15 +214,15 @@ async fn fetch_packages(
 /// - `*.mv` -- a BCS serialization of each compiled module in the package.
 fn dump_package(output_dir: &Path, pkg: &packages::MovePackage) -> Result<()> {
     let Some(query::Base64(bcs)) = &pkg.bcs else {
-        bail!("Missing BCS");
+        bail!("missing BCS");
     };
 
-    let bytes = Base64::decode(bcs).context("Failed to decode BCS")?;
+    let bytes = Base64::decode(bcs).context("failed to decode BCS")?;
 
-    let object = bcs::from_bytes::<Object>(&bytes).context("Failed to deserialize")?;
+    let object = bcs::from_bytes::<Object>(&bytes).context("failed to deserialize")?;
     let id = object.id();
     let Some(package) = object.data.try_as_package() else {
-        bail!("Not a package");
+        bail!("not a package");
     };
 
     let origins: BTreeMap<_, _> = package
@@ -237,22 +237,22 @@ fn dump_package(output_dir: &Path, pkg: &packages::MovePackage) -> Result<()> {
         .collect();
 
     let package_dir = output_dir.join(format!("{}.{}", id, package.version().value()));
-    fs::create_dir(&package_dir).context("Failed to make output directory")?;
+    fs::create_dir(&package_dir).context("failed to make output directory")?;
 
     let linkage_json = serde_json::to_string_pretty(package.linkage_table())
-        .context("Failed to serialize linkage")?;
+        .context("failed to serialize linkage")?;
     let origins_json =
-        serde_json::to_string_pretty(&origins).context("Failed to serialize type origins")?;
+        serde_json::to_string_pretty(&origins).context("failed to serialize type origins")?;
 
-    fs::write(package_dir.join("object.bcs"), bytes).context("Failed to write object BCS")?;
-    fs::write(package_dir.join("linkage.json"), linkage_json).context("Failed to write linkage")?;
+    fs::write(package_dir.join("object.bcs"), bytes).context("failed to write object BCS")?;
+    fs::write(package_dir.join("linkage.json"), linkage_json).context("failed to write linkage")?;
     fs::write(package_dir.join("origins.json"), origins_json)
-        .context("Failed to write type origins")?;
+        .context("failed to write type origins")?;
 
     for (module_name, module_bytes) in package.serialized_module_map() {
         let module_path = package_dir.join(format!("{module_name}.mv"));
         fs::write(module_path, module_bytes)
-            .with_context(|| format!("Failed to write module: {module_name}"))?
+            .with_context(|| format!("failed to write module: {module_name}"))?
     }
 
     Ok(())

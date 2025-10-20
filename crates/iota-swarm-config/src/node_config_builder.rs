@@ -15,11 +15,11 @@ use iota_config::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
         ExecutionCacheConfig, ExecutionCacheType, ExpensiveSafetyCheckConfig, Genesis,
-        KeyPairWithPath, RunWithRange, StateArchiveConfig, StateSnapshotConfig,
+        GrpcApiConfig, KeyPairWithPath, RunWithRange, StateArchiveConfig, StateSnapshotConfig,
         default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
         default_zklogin_oauth_providers,
     },
-    p2p::{P2pConfig, SeedPeer, StateSyncConfig},
+    p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
     verifier_signing_config::VerifierSigningConfig,
 };
 use iota_names::config::IotaNamesConfig;
@@ -52,6 +52,7 @@ pub struct ValidatorConfigBuilder {
     firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
+    discovery_config: Option<DiscoveryConfig>,
 }
 
 impl ValidatorConfigBuilder {
@@ -129,6 +130,11 @@ impl ValidatorConfigBuilder {
         self
     }
 
+    pub fn with_discovery_config(mut self, discovery_config: DiscoveryConfig) -> Self {
+        self.discovery_config = Some(discovery_config);
+        self
+    }
+
     pub fn build_without_genesis(self, validator: ValidatorGenesisConfig) -> NodeConfig {
         let key_path = get_key_path(&validator.authority_key_pair);
         let config_directory = self
@@ -166,6 +172,8 @@ impl ValidatorConfigBuilder {
                 checkpoint_content_timeout_ms: Some(10_000),
                 ..Default::default()
             }),
+            // Use discovery config if provided
+            discovery: self.discovery_config,
             ..Default::default()
         };
 
@@ -245,6 +253,8 @@ impl ValidatorConfigBuilder {
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: None,
+            enable_grpc_api: false,
+            grpc_api_config: None,
         }
     }
 
@@ -292,6 +302,8 @@ pub struct FullnodeConfigBuilder {
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
+    grpc_api_config: Option<GrpcApiConfig>,
+    discovery_config: Option<DiscoveryConfig>,
 }
 
 impl FullnodeConfigBuilder {
@@ -417,6 +429,16 @@ impl FullnodeConfigBuilder {
         self
     }
 
+    pub fn with_grpc_api_config(mut self, config: GrpcApiConfig) -> Self {
+        self.grpc_api_config = Some(config);
+        self
+    }
+
+    pub fn with_discovery_config(mut self, discovery_config: DiscoveryConfig) -> Self {
+        self.discovery_config = Some(discovery_config);
+        self
+    }
+
     pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
         self,
         rng: &mut R,
@@ -471,6 +493,8 @@ impl FullnodeConfigBuilder {
                     checkpoint_content_timeout_ms: Some(10_000),
                     ..Default::default()
                 }),
+                // Use discovery config if provided
+                discovery: self.discovery_config,
                 ..Default::default()
             }
         };
@@ -562,6 +586,8 @@ impl FullnodeConfigBuilder {
             verifier_signing_config: VerifierSigningConfig::default(),
             enable_db_write_stall: None,
             iota_names_config: self.iota_names_config,
+            enable_grpc_api: self.grpc_api_config.is_some(),
+            grpc_api_config: self.grpc_api_config,
         }
     }
 

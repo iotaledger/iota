@@ -39,7 +39,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -160,7 +160,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -175,7 +175,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "validator_location{}",
@@ -263,7 +263,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -311,7 +311,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -329,7 +329,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -377,7 +377,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "max(current_epoch)",
@@ -392,7 +392,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -440,7 +440,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg(rate(total_transaction_certificates[2m]) > 1)",
@@ -457,7 +457,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "description": "",
       "fieldConfig": {
@@ -514,7 +514,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -532,7 +532,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -580,7 +580,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "max(highest_synced_checkpoint)",
@@ -596,7 +596,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -675,7 +675,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "last_sent_checkpoint_signature",
@@ -692,7 +692,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "description": "",
       "fieldConfig": {
@@ -752,7 +752,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -770,7 +770,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "description": "Number of followers/subscriptions per authority ",
       "fieldConfig": {
@@ -850,7 +850,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "sum by (host) (consensus_subscribed_by == 1)\n",
@@ -867,7 +867,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "description": "Number of followers/subscriptions per authority ",
       "fieldConfig": {
@@ -947,7 +947,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "sum by (host) (consensus_subscribed_by == 1)\n",
@@ -964,7 +964,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1043,7 +1043,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "consensus_num_of_bad_nodes",
@@ -1060,7 +1060,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "description": "Pair of non existing subscritions\n",
       "fieldConfig": {
@@ -1116,7 +1116,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -1134,7 +1134,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1213,7 +1213,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg by(host) (irate(consensus_block_timestamp_drift_wait_ms[5m]))",
@@ -1230,7 +1230,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1309,7 +1309,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "consensus_rejected_future_blocks",
@@ -1326,7 +1326,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "description": "Number of subscriptions  per authority (only authorities with problems) ",
       "fieldConfig": {
@@ -1396,7 +1396,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "scalar(quantile(0.5, sum(consensus_subscribed_to) by (host))) - sum(consensus_subscribed_to) by (host) > 1",
@@ -1408,7 +1408,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "scalar(quantile(0.5, sum(consensus_subscribed_by) by (host))) - sum(consensus_subscribed_by) by (host) > 1",
@@ -1426,7 +1426,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1495,7 +1495,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "count by (host) (\n  rate(consensus_block_timestamp_drift_wait_ms[5m]) > 100\n) > 10",
@@ -1507,7 +1507,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "count by (authority) (\n  rate(consensus_block_timestamp_drift_wait_ms[5m]) > 100\n) > 10",
@@ -1525,7 +1525,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1605,7 +1605,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "disableTextWrap": false,
           "editorMode": "builder",
@@ -1626,7 +1626,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "description": "Authorities committing less blocks than network median for all authorities. ",
       "fieldConfig": {
@@ -1691,7 +1691,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "  avg(irate(consensus_committed_messages[2m])) by (authority)\n  <\n  scalar(\n    quantile(0.5, avg(irate(consensus_committed_messages[2m])) by (authority)) / 2\n  )\n",
@@ -1708,7 +1708,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -1989,7 +1989,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "disableTextWrap": false,
           "editorMode": "code",
@@ -2008,7 +2008,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -2023,7 +2023,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -2038,7 +2038,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -2053,7 +2053,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -2068,7 +2068,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -2083,7 +2083,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -2098,7 +2098,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "exemplar": false,
@@ -2213,7 +2213,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "description": "This metric calculates, for each authority, the fraction of 2-minute intervals over the past 24 hours in which the authority committed at least one consensus message.",
       "fieldConfig": {
@@ -2299,7 +2299,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "disableTextWrap": false,
           "editorMode": "code",
@@ -2322,7 +2322,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "description": "Rate of total number of committed consensus messages",
       "fieldConfig": {
@@ -2404,7 +2404,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg(irate(consensus_committed_messages[2m])) by (authority)",
@@ -2420,7 +2420,7 @@
       "datasource": {
         "default": false,
         "type": "prometheus",
-        "uid": "PAE45454D0EDB9216"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -2492,7 +2492,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg(irate(consensus_committed_messages[2m])) by (authority)",
@@ -2518,7 +2518,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the average execution time (in seconds) per task call, computed as the rate of total processing time divided by the rate of task invocations over a 5-minute window. Data is grouped by task label and hostname using Prometheus histogram metrics (scope_processing_time_sum / scope_processing_time_count).",
           "fieldConfig": {
@@ -2598,7 +2598,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum by (scope) (\n  rate(consensus_scope_processing_time_sum{scope=~\"Core::.*\"}[5m])\n)\n/\nsum by (scope) (\n  rate(consensus_scope_processing_time_count{scope=~\"Core::.*\"}[5m])\n)",
@@ -2615,7 +2615,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": " Interval between two successive block proposals.             ",
           "fieldConfig": {
@@ -2695,7 +2695,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -2714,7 +2714,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Measures time between block timestamp and consensus commit (latency).",
           "fieldConfig": {
@@ -2795,7 +2795,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -2817,7 +2817,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Total number of unforced blocks proposed.",
           "fieldConfig": {
@@ -2897,7 +2897,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -2916,7 +2916,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Counts blocks accepted into the DAG, labeled by origin (own/others).",
           "fieldConfig": {
@@ -2996,7 +2996,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -3017,7 +3017,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Total number of forced blocks created (by host) forcefully via a leader timeout",
           "fieldConfig": {
@@ -3097,7 +3097,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -3117,7 +3117,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Counts blocks accepted into the DAG, labeled by origin (own/others).",
           "fieldConfig": {
@@ -3197,7 +3197,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -3218,7 +3218,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "    \n\t\n\nNumber of times a leader wait was counted during proposal.                ",
           "fieldConfig": {
@@ -3298,7 +3298,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -3317,7 +3317,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Number of forced leader timeouts",
           "fieldConfig": {
@@ -3397,7 +3397,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -3417,7 +3417,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Counts how often a new block was created due to a leader timeout",
           "fieldConfig": {
@@ -3506,7 +3506,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Measures how many subdags are included in each consensus commit cycle.",
           "fieldConfig": {
@@ -3587,7 +3587,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -3622,7 +3622,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the rate of live block fetches initiated by each host, aggregated across all authorities. This helps monitor the overall load each node contributes to the synchronization process by tracking how many blocks it pulls from peers per second. Useful for detecting imbalances or overactive fetchers",
           "fieldConfig": {
@@ -3727,7 +3727,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -3749,7 +3749,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the rate of live block fetch requests initiated by each host, aggregated across all authorities. This helps monitor the overall load each node contributes to the synchronization process by tracking how many blocks it pulls from peers per second. Useful for detecting imbalances or overactive requester.",
           "fieldConfig": {
@@ -3854,7 +3854,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -3876,7 +3876,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the rate of live block fetches authored from each authority, aggregated across all hosts. This helps monitor the overall load each node contributes to the synchronization process by tracking how often its blocks needs to be fetched. ",
           "fieldConfig": {
@@ -3956,7 +3956,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -3978,7 +3978,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the rate of live block requests authored from each authority, aggregated across all hosts. This helps monitor the overall load each node contributes to the synchronization process by tracking how often its blocks is requested. ",
           "fieldConfig": {
@@ -4058,7 +4058,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -4080,7 +4080,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Number of currently active periodic fetch scheduler tasks.",
           "fieldConfig": {
@@ -4179,7 +4179,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "consensus_fetch_blocks_scheduler_inflight",
@@ -4196,7 +4196,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Rate of periodic sync request per block author",
           "fieldConfig": {
@@ -4276,7 +4276,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -4298,7 +4298,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the rate of periodic block fetches initiated by each host, aggregated across all authorities. This helps monitor the overall load each node contributes to the synchronization process by tracking how many blocks it pulls from peers per second. Useful for detecting imbalances or overactive fetchers",
           "fieldConfig": {
@@ -4378,7 +4378,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -4400,7 +4400,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the rate of periodic block fetches initiated by each host, aggregated across all authorities. This helps monitor the overall load each node contributes to the synchronization process by tracking how many blocks it pulls from peers per second. Useful for detecting imbalances or overactive fetchers",
           "fieldConfig": {
@@ -4480,7 +4480,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -4502,7 +4502,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the rate of periodic block fetches authored from each authority, aggregated across all hosts. This helps monitor the overall load each node contributes to the synchronization process by tracking how often its blocks needs to be fetched. ",
           "fieldConfig": {
@@ -4582,7 +4582,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -4604,7 +4604,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the rate of periodic block requests authored from each authority, aggregated across all hosts. This helps monitor the overall load each node contributes to the synchronization process by tracking how often its blocks needs to be fetched. ",
           "fieldConfig": {
@@ -4684,7 +4684,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -4706,7 +4706,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -4806,7 +4806,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "consensus_block_manager_missing_blocks",
@@ -4823,7 +4823,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -4923,7 +4923,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "consensus_block_manager_missing_ancestors",
@@ -4940,7 +4940,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -5040,7 +5040,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "consensus_block_manager_suspended_blocks",
@@ -5057,7 +5057,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the top 5 authorities whose blocks most frequently lack required ancestors, based on the 5-minute rate. High rates may indicate improper block propagation or network delays.",
           "fieldConfig": {
@@ -5158,7 +5158,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "topk(5, rate(consensus_block_manager_missing_ancestors_by_authority[5m]))",
@@ -5175,7 +5175,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Rate of live sync request per block author",
           "fieldConfig": {
@@ -5255,7 +5255,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -5277,7 +5277,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "This metric tracks the average number of referencing blocks per missing block. It reflects how many other blocks are waiting on missing data to be processed.",
           "fieldConfig": {
@@ -5378,7 +5378,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "consensus_block_manager_missing_ancestors\n/\nconsensus_block_manager_missing_blocks",
@@ -5409,7 +5409,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "The number of blocks that the host  garbage collected.",
           "fieldConfig": {
@@ -5489,7 +5489,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -5510,7 +5510,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "The number of times a block issued by the authority was  garbage collected.",
           "fieldConfig": {
@@ -5590,7 +5590,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -5611,7 +5611,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "The number of blocks unsuspended inside the host. ",
           "fieldConfig": {
@@ -5691,7 +5691,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -5712,7 +5712,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "The number of blocks unsuspended  authored by authority summed over all hosts.",
           "fieldConfig": {
@@ -5792,7 +5792,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "builder",
@@ -5827,7 +5827,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Current number of ongoing fetch tasks. ",
           "fieldConfig": {
@@ -5907,7 +5907,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "consensus_commit_sync_inflight_fetches",
@@ -5924,7 +5924,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Rate of number of commits fetched from other authorities.",
           "fieldConfig": {
@@ -6004,7 +6004,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(consensus_commit_sync_fetched_commits[5m]) ",
@@ -6021,7 +6021,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Rate of counts instances where commit sync couldn’t proceed due to a gap in block sequence",
           "fieldConfig": {
@@ -6101,7 +6101,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(consensus_commit_sync_gap_on_processing[5m]) ",
@@ -6118,7 +6118,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Average fetch commits from a peer authority.  ",
           "fieldConfig": {
@@ -6198,7 +6198,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(consensus_commit_sync_fetch_once_latency_sum[5m]) / rate(consensus_commit_sync_fetch_once_latency_count[5m])",
@@ -6215,7 +6215,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Number of pending commit ranges queued for fetch. ",
           "fieldConfig": {
@@ -6295,7 +6295,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "consensus_commit_sync_pending_fetches",
@@ -6312,7 +6312,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Rate of fetch failures per authority and error type.",
           "fieldConfig": {
@@ -6392,7 +6392,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(consensus_commit_sync_fetch_once_errors[5m])",
@@ -6423,7 +6423,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "This plot shows the average time (in milliseconds per second) that all validators collectively spend per consensus processing scope",
           "fieldConfig": {
@@ -6503,7 +6503,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "avg by (scope) (\n  rate(consensus_scope_processing_time_sum[5m])\n) *1000",
@@ -6520,7 +6520,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "This panel shows the average total time (in seconds per second) spent by each validator (grouped by host) on executing consensus core tasks",
           "fieldConfig": {
@@ -6600,7 +6600,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "disableTextWrap": false,
               "editorMode": "code",
@@ -6621,7 +6621,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the average execution time (in seconds) per task call, computed as the rate of total processing time divided by the rate of task invocations over a 5-minute window. Data is grouped by task label and hostname using Prometheus histogram metrics (scope_processing_time_sum / scope_processing_time_count).",
           "fieldConfig": {
@@ -6701,7 +6701,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum by (scope, host) (\n  rate(consensus_scope_processing_time_sum[5m])\n  /\n  rate(consensus_scope_processing_time_count[5m])\n) *1000",
@@ -6718,7 +6718,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the average execution time (in seconds) per task call, computed as the rate of total processing time divided by the rate of task invocations over a 5-minute window. Data is grouped by task label and hostname using Prometheus histogram metrics (scope_processing_time_sum / scope_processing_time_count).",
           "fieldConfig": {
@@ -6798,7 +6798,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum by (scope, host) (\n  rate(consensus_scope_processing_time_sum{scope=~\"Core::.*\"}[5m])\n  /\n  rate(consensus_scope_processing_time_count{scope=~\"Core::.*\"}[5m])\n) * 1000",
@@ -6815,7 +6815,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the average execution time (in seconds) per task call, computed as the rate of total processing time divided by the rate of task invocations over a 5-minute window. Data is grouped by task label and hostname using Prometheus histogram metrics (scope_processing_time_sum / scope_processing_time_count).",
           "fieldConfig": {
@@ -6895,7 +6895,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum by (scope, host) (\n  rate(consensus_scope_processing_time_sum{scope=~\"DagState::.*\"}[5m])\n  /\n  rate(consensus_scope_processing_time_count{scope=~\"DagState::.*\"}[5m])\n) * 1000",
@@ -6912,7 +6912,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the average execution time (in seconds) per task call, computed as the rate of total processing time divided by the rate of task invocations over a 5-minute window. Data is grouped by task label and hostname using Prometheus histogram metrics (scope_processing_time_sum / scope_processing_time_count).",
           "fieldConfig": {
@@ -6992,7 +6992,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum by (scope, host) (\n  rate(consensus_scope_processing_time_sum{scope=~\"LeaderSchedule::.*\"}[5m])\n  /\n  rate(consensus_scope_processing_time_count{scope=~\"LeaderSchedule::.*\"}[5m])\n) *1000",
@@ -7009,7 +7009,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "description": "Displays the average execution time (in seconds) per task call, computed as the rate of total processing time divided by the rate of task invocations over a 5-minute window. Data is grouped by task label and hostname using Prometheus histogram metrics (scope_processing_time_sum / scope_processing_time_count).",
           "fieldConfig": {
@@ -7089,7 +7089,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum by (scope, host) (\n  rate(consensus_scope_processing_time_sum{scope=~\"CommitObserver::.*\"}[5m])\n  /\n  rate(consensus_scope_processing_time_count{scope=~\"CommitObserver::.*\"}[5m])\n) * 1000",
@@ -7402,7 +7402,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -7481,7 +7481,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(irate(errors_by_route[2m])) by (instance)",
@@ -7497,7 +7497,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -7577,7 +7577,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "irate(total_transaction_certificates[2m])",
@@ -7592,7 +7592,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -7671,7 +7671,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "iota_network_peers",
@@ -7686,7 +7686,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -7766,7 +7766,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "current_epoch",
@@ -7781,7 +7781,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -7860,7 +7860,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "clamp_min(highest_synced_checkpoint - highest_known_checkpoint, 0)",
@@ -7876,7 +7876,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -7955,7 +7955,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "highest_known_checkpoint",
@@ -7972,7 +7972,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -8051,7 +8051,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "irate(quorum_driver_total_err_responses[2m])",
@@ -8068,7 +8068,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -8148,7 +8148,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "irate(req_latency_by_route_sum[2m])",
@@ -8164,7 +8164,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -8244,7 +8244,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "irate(indexer_req_latency_by_route_sum[2m])",
@@ -8274,7 +8274,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -8353,7 +8353,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(irate(traefik_service_requests_total{instance=~\"lb.*\"}[2m])) by (service)",
@@ -8368,7 +8368,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -8448,7 +8448,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(irate(traefik_service_request_duration_seconds_sum{instance=~\"lb.*\"}[2m])) by (service)",
@@ -8463,7 +8463,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -8544,7 +8544,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "traefik_service_server_up",
@@ -8573,7 +8573,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -8653,7 +8653,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum((sum(irate(node_cpu_seconds_total {mode!=\"idle\"} [1m])) without (cpu)) / count(node_cpu_seconds_total) without (cpu)) without (mode) * 100",
@@ -8669,7 +8669,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -8753,7 +8753,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(container_cpu_usage_seconds_total{name=\"iota\"}[5m]) * 100",
@@ -8770,7 +8770,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -8854,7 +8854,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(container_cpu_usage_seconds_total{name=~\"indexer.*\"}[5m]) * 100",
@@ -8871,7 +8871,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -8951,7 +8951,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "(1 - (node_memory_MemAvailable_bytes / (node_memory_MemTotal_bytes)))",
@@ -8967,7 +8967,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -9051,7 +9051,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "container_memory_rss{name=\"iota\"}",
@@ -9068,7 +9068,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -9152,7 +9152,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "container_memory_rss{name=~\"indexer.*\"}",
@@ -9169,7 +9169,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -9249,7 +9249,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum by (instance) (\n  100 - ((node_filesystem_avail_bytes{device!~'rootfs'} * 100) / node_filesystem_size_bytes{device!~'rootfs'})\n)",
@@ -9265,7 +9265,7 @@
           "datasource": {
             "default": false,
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -9345,7 +9345,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "sum(irate(node_disk_reads_completed_total[1m]) + irate(node_disk_writes_completed_total[1m])) without (device)",
@@ -9361,7 +9361,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -9441,7 +9441,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "scrape_duration_seconds{job!=\"cadvisor\"}",
@@ -9470,7 +9470,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -9549,7 +9549,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(iota_inbound_requests[1m])",
@@ -9564,7 +9564,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -9644,7 +9644,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "irate(iota_inbound_request_latency_sum[2m])",
@@ -9659,7 +9659,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -9738,7 +9738,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "rate(iota_outbound_requests[1m])",
@@ -9753,7 +9753,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PAE45454D0EDB9216"
+            "uid": "prometheus"
           },
           "fieldConfig": {
             "defaults": {
@@ -9833,7 +9833,7 @@
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "PAE45454D0EDB9216"
+                "uid": "prometheus"
               },
               "editorMode": "code",
               "expr": "irate(iota_outbound_request_latency_sum[2m])",
@@ -9858,7 +9858,7 @@
       {
         "datasource": {
           "type": "prometheus",
-          "uid": "PAE45454D0EDB9216"
+          "uid": "prometheus"
         },
         "filters": [],
         "hide": 0,

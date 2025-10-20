@@ -22,6 +22,7 @@ use crate::{
     commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
     dag_state::DagState,
+    encoder::{ShardEncoder, create_encoder},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::{BlockStoreAPI, Linearizer},
 };
@@ -117,6 +118,8 @@ pub(crate) struct DagBuilder {
     // Protocol keypairs are used to compute signature for headers. If it is None, then the Default
     // signature is used
     protocol_keypair: Option<Vec<ProtocolKeyPair>>,
+
+    encoder: Box<dyn ShardEncoder + Send + Sync>,
 }
 /// The `AncestorSelection` enum is an interim data structure used to specify
 /// how ancestors should be selected for a block in the `DagBuilder`. `UseLast`
@@ -150,6 +153,8 @@ impl DagBuilder {
             .map(|block| (block.reference(), block))
             .collect();
         let last_ancestors = genesis.keys().cloned().collect();
+
+        let encoder = create_encoder(&context);
         Self {
             last_committed_rounds: vec![0; context.committee.size()],
             context,
@@ -163,6 +168,7 @@ impl DagBuilder {
             transactions: BTreeMap::new(),
             committed_sub_dags: vec![],
             protocol_keypair: None,
+            encoder,
         }
     }
 
@@ -278,6 +284,7 @@ impl DagBuilder {
                 leader_block,
                 self.last_committed_rounds.clone(),
                 &storage,
+                self.context.protocol_config.gc_depth(),
             );
 
             // Update the last committed rounds
@@ -383,11 +390,11 @@ impl DagBuilder {
         self
     }
 
-    pub(crate) fn layer(&mut self, round: Round) -> LayerBuilder {
+    pub(crate) fn layer(&mut self, round: Round) -> LayerBuilder<'_> {
         LayerBuilder::new(self, round)
     }
 
-    pub(crate) fn layers(&mut self, rounds: RangeInclusive<Round>) -> LayerBuilder {
+    pub(crate) fn layers(&mut self, rounds: RangeInclusive<Round>) -> LayerBuilder<'_> {
         let mut builder = LayerBuilder::new(self, *rounds.start());
         builder.end_round = Some(*rounds.end());
         builder
@@ -400,7 +407,7 @@ impl DagBuilder {
         for block_transactions in self.transactions.values() {
             dag_state
                 .write()
-                .add_transactions(block_transactions.clone());
+                .add_transactions(block_transactions.clone(), "test");
         }
     }
 
@@ -560,7 +567,7 @@ impl DagBuilder {
         let mut references = Vec::new();
 
         for (authority, ancestors) in connections {
-            let author = authority.value() as u32;
+            let author = authority.value() as u8;
             let base_ts = round as BlockTimestampMs * 1000;
             let block = VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(round, author)
@@ -591,9 +598,12 @@ impl DagBuilder {
             rng.fill(&mut tx_bytes[..]);
             let transactions = vec![Transaction::new(tx_bytes.to_vec())];
             let serialized_transactions = Transaction::serialize(&transactions).unwrap();
-            let commitment =
-                TransactionsCommitment::compute_transactions_commitment(&serialized_transactions)
-                    .unwrap();
+            let commitment = TransactionsCommitment::compute_transactions_commitment(
+                &serialized_transactions,
+                &self.context,
+                &mut self.encoder,
+            )
+            .unwrap();
 
             let verified_transactions = VerifiedTransactions::new(
                 transactions,
@@ -855,7 +865,7 @@ impl<'a> LayerBuilder<'a> {
         let mut dag_state = dag_state.write();
         dag_state.accept_block_headers(self.block_headers.clone());
         for transactions in self.transactions.clone() {
-            dag_state.add_transactions(transactions);
+            dag_state.add_transactions(transactions, "test");
         }
     }
 
@@ -1044,7 +1054,7 @@ impl<'a> LayerBuilder<'a> {
             let num_blocks = self.num_blocks_to_create(authority);
 
             for num_block in 0..num_blocks {
-                let author = authority.value() as u32;
+                let author = authority.value() as u8;
                 let base_ts = match self.timestamp_delay_ms {
                     Some(delay) => (round as BlockTimestampMs * 1000) + delay,
                     None => round as BlockTimestampMs * 1000,
@@ -1057,6 +1067,8 @@ impl<'a> LayerBuilder<'a> {
                 let serialized_transactions = Transaction::serialize(&transactions).unwrap();
                 let commitment = TransactionsCommitment::compute_transactions_commitment(
                     &serialized_transactions,
+                    &self.dag_builder.context,
+                    &mut self.dag_builder.encoder,
                 )
                 .unwrap();
 
@@ -1068,7 +1080,7 @@ impl<'a> LayerBuilder<'a> {
                             .cloned()
                             .unwrap_or_default(),
                     )
-                    .set_timestamp_ms(base_ts + (author + round + num_block) as u64)
+                    .set_timestamp_ms(base_ts + (author as u32 + round + num_block) as u64)
                     .set_commitment(commitment)
                     .build();
                 let block_header =

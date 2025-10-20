@@ -82,7 +82,6 @@ use prometheus::Registry;
 use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
-use shared_crypto::intent::Intent;
 use strum::{Display, EnumString};
 use tabled::{
     builder::Builder as TableBuilder,
@@ -103,6 +102,7 @@ use crate::{
     displays::Pretty,
     key_identity::{KeyIdentity, get_identity_address},
     keytool::Key,
+    signing::sign_transaction,
     upgrade_compatibility::check_compatibility,
     verifier_meter::{AccumulatingMeter, Accumulator},
 };
@@ -976,7 +976,11 @@ impl IotaClientCommands {
                 gas_data,
                 processing,
             } => {
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let client = context.get_client().await?;
                 let read_api = client.read_api();
                 let chain_id = read_api.get_chain_identifier().await.ok();
@@ -1129,7 +1133,11 @@ impl IotaClientCommands {
                     .into());
                 }
 
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let client = context.get_client().await?;
                 let read_api = client.read_api();
                 let chain_id = read_api.get_chain_identifier().await.ok();
@@ -1370,7 +1378,11 @@ impl IotaClientCommands {
                     .move_call_tx_kind(package, &module, &function, type_args, args)
                     .await?;
 
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let gas_payment = client
                     .transaction_builder()
                     .input_refs(&payment.gas)
@@ -1827,7 +1839,11 @@ impl IotaClientCommands {
                 };
 
                 let client = context.get_client().await?;
-                let sender = context.infer_sender(&payment.gas).await?;
+                let sender = if let Some(sender) = processing.sender {
+                    sender
+                } else {
+                    context.infer_sender(&payment.gas).await?
+                };
                 let gas_payment = client
                     .transaction_builder()
                     .input_refs(&payment.gas)
@@ -3367,16 +3383,13 @@ pub(crate) async fn dry_run_or_execute_or_serialize(
     } else if tx_digest {
         Ok(IotaClientCommandResult::ComputeTransactionDigest(tx_data))
     } else {
-        let keystore = context.config().keystore();
-        let signature =
-            keystore.sign_secure(&tx_data.sender(), &tx_data, Intent::iota_transaction())?;
+        let signature = sign_transaction(context, &tx_data, &tx_data.sender()).await?;
 
         let mut signatures = vec![signature.into()];
 
         if let Some(gas_sponsor) = gas_sponsor {
             if gas_sponsor != signer {
-                let signature =
-                    keystore.sign_secure(&gas_sponsor, &tx_data, Intent::iota_transaction())?;
+                let signature = sign_transaction(context, &tx_data, &gas_sponsor).await?;
 
                 signatures.push(signature.into());
             }
