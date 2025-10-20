@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './utils/fixtures';
-import { connectWallet, createWallet } from './utils/utils';
+import { connectWallet, createWallet } from './utils/wallet';
 import 'dotenv/config';
 
 test.describe.serial('Wallet Connection', () => {

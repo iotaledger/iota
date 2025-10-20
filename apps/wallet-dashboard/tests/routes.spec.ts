@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, test } from './utils/fixtures';
-import { connectWallet, createWallet } from './utils/utils';
+import { connectWallet, createWallet } from './utils/wallet';
 import { Page } from '@playwright/test';
 
 test.describe.serial('Protected Routes', () => {

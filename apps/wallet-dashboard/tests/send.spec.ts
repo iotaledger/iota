@@ -2,11 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './utils/fixtures';
-import {
-    connectWallet,
-    getAddressByIndexPath,
-    requestFaucetTokensOnWalletHome,
-} from './utils/utils';
+import { getAddressByIndexPath, requestFaucetTokensOnWalletHome } from './utils/utils';
+import { connectWallet } from './utils/wallet';
 
 const AMOUNT_TO_SEND = 10;
 

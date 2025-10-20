@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { test, expect } from './utils/fixtures';
-import { connectWallet, requestFaucetTokensOnWalletHome } from './utils/utils';
+import { requestFaucetTokensOnWalletHome } from './utils/utils';
+import { connectWallet } from './utils/wallet';
 
 test.describe.serial('Balance changes', () => {
     let prevAmount: string | null;
