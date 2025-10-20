@@ -911,7 +911,8 @@ impl ConnectionKnowledge {
     }
 
     /// Handles taking additional parts (headers, shards) for a block bundle
-    /// to send to the peer.
+    /// to send to the peer. In addition, it returns block from which authors
+    /// have useful headers and shards from the peer.
     /// This is an async function because it reads from the DAG state and
     /// sends the response back via oneshot channel.
     async fn handle_take_additional_parts_for_bundle(
