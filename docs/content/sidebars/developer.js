@@ -303,8 +303,6 @@ const developer = [
             'developer/tutorials/live-concert',
             'developer/tutorials/retail-store',
             'developer/tutorials/validate-university-degree',
-            'developer/tutorials/identity-workshop',
-            'developer/tutorials/identity-workshop-scaffold',
         ],
     },
     {
@@ -470,21 +468,6 @@ const developer = [
             },
         ],
     },
-   {
-    type: 'category',
-    label: 'Workshops',
-    link: {
-        type: 'doc',
-        id: 'developer/workshops/index',
-    },
-    items: [
-    {
-      type: 'doc',
-      id: 'developer/workshops/minting-managing-tokens',
-      label: 'Minting and Managing Tokens',
-    },
-  ],
-    },
     {
         type: 'category',
         label: 'Workshops',
@@ -528,6 +511,16 @@ const developer = [
                 type: 'doc',
                 id: 'developer/workshops/iota-notarization-truedoc',
                 label: 'IOTA Notarization Workshop',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/identity-workshop',
+                label: 'IOTA Identity Workshop',
+            },
+            {
+                type: 'doc',
+                id: 'developer/workshops/identity-workshop-scaffold',
+                label: 'IOTA Identity Workshop Scaffold',
             },
         ],
     },
