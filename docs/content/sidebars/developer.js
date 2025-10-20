@@ -517,11 +517,6 @@ const developer = [
                 id: 'developer/workshops/identity-workshop',
                 label: 'IOTA Identity Workshop',
             },
-            {
-                type: 'doc',
-                id: 'developer/workshops/identity-workshop-scaffold',
-                label: 'IOTA Identity Workshop Scaffold',
-            },
         ],
     },
     {
