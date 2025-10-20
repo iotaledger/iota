@@ -4,7 +4,6 @@
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, VecDeque, hash_map};
 
-use consensus_core::Round;
 use dashmap::DashMap;
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
 use fastcrypto_zkp::bn254::zk_login::{JWK, JwkId};
@@ -42,7 +41,7 @@ use crate::{
 #[derive(Default)]
 pub(crate) struct ConsensusCommitOutput {
     // Consensus and reconfig state
-    consensus_round: Round,
+    consensus_round: CommitRound,
     consensus_messages_processed: BTreeSet<SequencedConsensusTransactionKey>,
     end_of_publish: BTreeSet<AuthorityName>,
     reconfig_state: Option<ReconfigState>,
@@ -78,7 +77,7 @@ pub(crate) struct ConsensusCommitOutput {
 }
 
 impl ConsensusCommitOutput {
-    pub fn new(consensus_round: Round) -> Self {
+    pub fn new(consensus_round: CommitRound) -> Self {
         Self {
             consensus_round,
             ..Default::default()
@@ -904,7 +903,7 @@ impl ConsensusOutputQuarantine {
     pub(crate) fn load_initial_object_debts(
         &self,
         epoch_store: &AuthorityPerEpochStore,
-        current_round: Round,
+        current_round: CommitRound,
         for_randomness: bool,
         transactions: &[VerifiedSequencedConsensusTransaction],
     ) -> IotaResult<impl IntoIterator<Item = (ObjectID, u64)>> {

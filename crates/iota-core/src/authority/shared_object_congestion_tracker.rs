@@ -4,7 +4,6 @@
 
 use std::{cmp::Ordering, collections::HashMap};
 
-use consensus_core::Round;
 use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_types::{
     base_types::{CommitRound, ObjectID},
@@ -553,15 +552,15 @@ impl SharedObjectCongestionTracker {
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum CongestionPerObjectDebt {
-    V1(Round, u64),
+    V1(CommitRound, u64),
 }
 
 impl CongestionPerObjectDebt {
-    pub fn new(round: Round, debt: u64) -> Self {
+    pub fn new(round: CommitRound, debt: u64) -> Self {
         Self::V1(round, debt)
     }
 
-    pub fn into_v1(self) -> (Round, u64) {
+    pub fn into_v1(self) -> (CommitRound, u64) {
         match self {
             Self::V1(round, debt) => (round, debt),
         }

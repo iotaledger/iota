@@ -10,7 +10,6 @@ use std::{
 };
 
 use arc_swap::ArcSwapOption;
-use consensus_core::Round;
 use enum_dispatch::enum_dispatch;
 use fastcrypto::{groups::bls12381, traits::ToFromBytes};
 use fastcrypto_tbls::{dkg_v1, nodes::PartyId};
@@ -2799,7 +2798,7 @@ impl AuthorityPerEpochStore {
             }
         }
 
-        let mut output = ConsensusCommitOutput::new(consensus_commit_info.round as Round);
+        let mut output = ConsensusCommitOutput::new(consensus_commit_info.round);
 
         // Load transactions deferred from previous commits.
         let deferred_txs: Vec<(DeferralKey, Vec<DeferredTransaction>)> = self
@@ -2941,7 +2940,7 @@ impl AuthorityPerEpochStore {
         let shared_object_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
                 self,
-                consensus_commit_info.round as Round,
+                consensus_commit_info.round,
                 false,
                 &sequenced_transactions,
             )?,
@@ -2950,7 +2949,7 @@ impl AuthorityPerEpochStore {
         let shared_object_using_randomness_congestion_tracker = SharedObjectCongestionTracker::new(
             self.consensus_quarantine.read().load_initial_object_debts(
                 self,
-                consensus_commit_info.round as Round,
+                consensus_commit_info.round,
                 true,
                 &sequenced_randomness_transactions,
             )?,
