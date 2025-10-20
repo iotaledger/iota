@@ -312,7 +312,8 @@ impl CordialKnowledge {
                 "eviction"
             }
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
-                self.handle_useful_shards_from(useful_shards_from_peer).await;
+                self.handle_useful_shards_from(useful_shards_from_peer)
+                    .await;
                 "useful_shards"
             }
         };
@@ -323,7 +324,6 @@ impl CordialKnowledge {
             .cordial_knowledge_processed_messages
             .with_label_values(&[message_type])
             .inc();
-
     }
 
     // Helper function to update authority rounds if the new round is greater
@@ -1313,8 +1313,9 @@ mod tests {
         let _ = connection_knowledge_sender.send(vec![msg]).await;
         // Build DAG with blocks from all validators up to final_round and add to
         // dag_state
-        let _dag_builder = DagBuilder::new(context.clone())
-            .set_protocol_keypair(protocol_keypairs)
+        let mut dag_builder =
+            DagBuilder::new(context.clone()).set_protocol_keypair(protocol_keypairs);
+        dag_builder
             .layers(1..=final_round)
             .build()
             .persist_layers(dag_state.clone());
@@ -1358,5 +1359,34 @@ mod tests {
         let additional_parts = rx.await.unwrap();
         let AdditionalPartsForBundle { headers, .. } = additional_parts;
         assert_eq!(headers.len(), 0);
+
+        // Add more rounds to DAG
+        let last_round = final_round + MAX_ROUND_GAP_FOR_USEFUL_PARTS;
+        dag_builder
+            .layers(final_round + 1..=last_round)
+            .build()
+            .persist_layers(dag_state.clone());
+        sleep(std::time::Duration::from_millis(1)).await;
+
+        // Make a request for a last round, should get no headers, no shards and no
+        // useful authorities as the last useful rounds are beyond
+        // MAX_ROUND_GAP_FOR_USEFUL_PARTS from last_round
+        let (tx, rx) = oneshot::channel();
+        let msg = ConnectionKnowledgeMessage::TakeAdditionalPartForBundle {
+            round_upper_bound_exclusive: last_round + 1,
+            respond_to: tx,
+        };
+        let _ = connection_knowledge_sender.send(vec![msg]).await;
+        let additional_parts = rx.await.unwrap();
+        let AdditionalPartsForBundle {
+            headers,
+            shards,
+            useful_headers_authors_from_peer,
+            useful_shards_authors_from_peer,
+        } = additional_parts;
+        assert!(headers.is_empty());
+        assert!(shards.is_empty());
+        assert!(useful_headers_authors_from_peer.is_empty());
+        assert!(useful_shards_authors_from_peer.is_empty());
     }
 }
