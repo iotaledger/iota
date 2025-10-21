@@ -2439,8 +2439,9 @@ impl SenderSignedData {
                 .into());
             }
 
-            // The following restrictions are temporary added until we implement
-            // MoveAuthenticator support for sponsors.
+            // TODO(https://github.com/iotaledger/iota/issues/8966): The following
+            // restrictions are temporary added until we implement MoveAuthenticator support
+            // for sponsors.
 
             if authenticators_num > 1 {
                 return Err(UserInputError::Unsupported(
