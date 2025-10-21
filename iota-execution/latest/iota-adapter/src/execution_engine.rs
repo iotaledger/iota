@@ -292,7 +292,7 @@ mod checked {
         TransactionEffects,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
-        let (gas_status_post_authentication, authentication_result) = validate_transaction(
+        let (gas_status_post_authentication, authentication_result) = authenticate_transaction(
             store,
             protocol_config,
             metrics.clone(),
@@ -342,14 +342,10 @@ mod checked {
     /// the authentication function found in `AuthenticatorInfo`, that is
     /// retrieved from the abstracted IOTA account.
     ///
-    /// Returns an error if it happens or the move authenticator computation gas
-    /// cost without bucketing. It is different from the
-    /// `execute_transaction_to_effects` return type, because, in this case, we
-    /// do not need to return the gas value used for execution when an error
-    /// happens since we cannot charge it separately in the current
-    /// implementation.
+    /// Returns an error if it happens or and the gas status that can be later
+    /// used to check the computation cost.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
-    pub fn validate_transaction(
+    pub fn authenticate_transaction(
         store: &dyn BackingStore,
         // Configuration
         protocol_config: &ProtocolConfig,

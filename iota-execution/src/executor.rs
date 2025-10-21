@@ -113,7 +113,7 @@ pub trait Executor {
         Result<(), ExecutionError>,
     );
 
-    fn validate_transaction(
+    fn authenticate_transaction(
         &self,
         store: &dyn BackingStore,
         // Configuration

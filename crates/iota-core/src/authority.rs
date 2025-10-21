@@ -934,7 +934,7 @@ impl AuthorityState {
             let (kind, signer, _) = tx_data.execution_parts();
 
             // Execute the Move authenticator.
-            let (_, validation_result) = epoch_store.executor().validate_transaction(
+            let (_, validation_result) = epoch_store.executor().authenticate_transaction(
                 self.get_backing_store().as_ref(),
                 protocol_config,
                 self.metrics.limits_metrics.clone(),

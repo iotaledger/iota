@@ -7,8 +7,8 @@ use std::{collections::HashSet, path::PathBuf, sync::Arc};
 use iota_adapter_latest::{
     adapter::{new_move_vm, run_metered_move_bytecode_verifier},
     execution_engine::{
-        authenticate_then_execute_transaction_to_effects, execute_genesis_state_update,
-        execute_transaction_to_effects, validate_transaction,
+        authenticate_then_execute_transaction_to_effects, authenticate_transaction,
+        execute_genesis_state_update, execute_transaction_to_effects,
     },
     execution_mode,
     type_layout_resolver::TypeLayoutResolver,
@@ -226,7 +226,7 @@ impl executor::Executor for Executor {
         )
     }
 
-    fn validate_transaction(
+    fn authenticate_transaction(
         &self,
         store: &dyn BackingStore,
         // Configuration
@@ -248,7 +248,7 @@ impl executor::Executor for Executor {
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (IotaGasStatus, Result<(), ExecutionError>) {
-        validate_transaction(
+        authenticate_transaction(
             store,
             protocol_config,
             metrics,
