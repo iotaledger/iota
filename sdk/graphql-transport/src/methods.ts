@@ -66,7 +66,7 @@ import {
     QueryTransactionBlocksDocument,
     TransactionBlockKindInput,
     TryGetPastObjectDocument,
-    ViewDocument
+    ViewDocument,
 } from './generated/queries.js';
 import { mapJsonToBcs } from './mappers/bcs.js';
 import { mapGraphQLCheckpointToRpcCheckpoint } from './mappers/checkpoint.js';
@@ -1484,21 +1484,21 @@ export const RPC_METHODS: {
                 variables: {
                     functionName,
                     typeArgs,
-                    arguments: callArgs
+                    arguments: callArgs,
                 },
             },
             (data) => {
-                if(data.moveViewCall.error) {
+                if (data.moveViewCall.error) {
                     return {
-                        executionError: data.moveViewCall.error
+                        executionError: data.moveViewCall.error,
                     } as IotaMoveViewCallResults;
                 } else {
                     return {
-                        functionReturnValues: data.moveViewCall.results
+                        functionReturnValues: data.moveViewCall.results,
                     } as IotaMoveViewCallResults;
                 }
             },
-        )
+        );
     },
 };
 
