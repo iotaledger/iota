@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
@@ -365,7 +368,7 @@ impl CordialKnowledge {
     /// Disseminate updated useful info to all connection tasks.
     async fn disseminate_useful_info_to_connection_tasks(&mut self) {
         for connection_sender in &self.connections {
-            let msg = ConnectionKnowledgeMessage::UsefulInfo {
+            let msg = ConnectionKnowledgeMessage::UsefulAuthors {
                 useful_shards_from_peers: self.last_useful_shards_from_peer_round.clone(),
                 useful_headers_from_peer: BTreeMap::new(),
                 useful_headers_to_peer: BTreeMap::new(),
@@ -595,7 +598,7 @@ impl CordialKnowledge {
             .collect::<BTreeMap<_, _>>();
 
         // Notify connection knowledge about useful headers and shards to/from this peer
-        let connection_knowledge_message = ConnectionKnowledgeMessage::UsefulInfo {
+        let connection_knowledge_message = ConnectionKnowledgeMessage::UsefulAuthors {
             useful_headers_to_peer,
             useful_shards_to_peer,
             useful_headers_from_peer,
@@ -629,7 +632,7 @@ pub enum ConnectionKnowledgeMessage {
     /// Remove a header from the "unknown" set.
     RemoveShard { block_ref: BlockRef },
     /// Update useful info about which authorities are useful to/from the peer.
-    UsefulInfo {
+    UsefulAuthors {
         useful_headers_to_peer: BTreeMap<AuthorityIndex, Round>,
         useful_shards_to_peer: BTreeMap<AuthorityIndex, Round>,
         useful_headers_from_peer: BTreeMap<AuthorityIndex, Round>,
@@ -732,8 +735,8 @@ impl ConnectionKnowledge {
         'outer: while current_round < round_upper_bound_exclusive {
             for &authority in useful_authorities {
                 let map = &maps[authority];
-                if let Some(blocks) = map.get(&current_round) {
-                    for &block_ref in blocks {
+                if let Some(block_refs_from_authority_in_round) = map.get(&current_round) {
+                    for &block_ref in block_refs_from_authority_in_round {
                         taken.push(block_ref);
                         if taken.len() >= max_take {
                             break 'outer;
@@ -741,16 +744,18 @@ impl ConnectionKnowledge {
                     }
                 }
             }
-            current_round = current_round.saturating_add(1);
+            current_round = current_round + 1;
         }
 
         // Remove the taken blocks from the corresponding authorities
         for block_ref in &taken {
             let authority = block_ref.author.value();
-            if let Some(set) = maps[authority].get_mut(&block_ref.round) {
-                set.remove(block_ref);
-                // Optional cleanup: remove empty rounds to keep map small
-                if set.is_empty() {
+            if let Some(block_refs_from_authority_in_round) =
+                maps[authority].get_mut(&block_ref.round)
+            {
+                block_refs_from_authority_in_round.remove(block_ref);
+                // Remove empty rounds to keep map small
+                if block_refs_from_authority_in_round.is_empty() {
                     maps[authority].remove(&block_ref.round);
                 }
             }
@@ -791,7 +796,7 @@ impl ConnectionKnowledge {
         )
     }
 
-    /// Evict al connection knowledge below the given rounds (exclusive)
+    /// Evict all connection knowledge below the given rounds (exclusive)
     fn evict_below(&mut self, rounds_exclusive: Vec<Round>) {
         for (index, map) in self.headers_not_known.iter_mut().enumerate() {
             let threshold_round = rounds_exclusive[index];
@@ -805,13 +810,12 @@ impl ConnectionKnowledge {
         }
     }
 
-    /// Async task loop — just receives messages and dispatches to processing
+    /// Async task loop —  receives messages and dispatches to processing
     /// logic.
     pub async fn run(mut self) {
         debug!("Connection Knowledge started for peer {}", self.peer_index);
 
         while let Some(knowledge_msgs) = self.receiver.recv().await {
-            debug!("Received knowledge message: {:?}", knowledge_msgs);
             for knowledge_msg in knowledge_msgs {
                 self.process_message(knowledge_msg).await;
             }
@@ -844,13 +848,13 @@ impl ConnectionKnowledge {
             ConnectionKnowledgeMessage::EvictBelow(rounds) => {
                 self.evict_below(rounds);
             }
-            ConnectionKnowledgeMessage::UsefulInfo {
+            ConnectionKnowledgeMessage::UsefulAuthors {
                 useful_headers_to_peer,
                 useful_shards_to_peer,
                 useful_headers_from_peer,
                 useful_shards_from_peers: useful_shards_from_peer,
             } => {
-                self.handle_useful_info(
+                self.handle_useful_authors(
                     useful_headers_to_peer,
                     useful_shards_to_peer,
                     useful_headers_from_peer,
@@ -872,7 +876,7 @@ impl ConnectionKnowledge {
 
     /// Handle useful info update from global CordialKnowledge or
     /// AuthorityService.
-    fn handle_useful_info(
+    fn handle_useful_authors(
         &mut self,
         useful_headers_to_peer: BTreeMap<AuthorityIndex, Round>,
         useful_shards_to_peer: BTreeMap<AuthorityIndex, Round>,
@@ -886,10 +890,14 @@ impl ConnectionKnowledge {
         self.handle_useful_shards_from(useful_shards_from_peer);
     }
 
+    /// Update last useful shards from peer rounds by copying the given vector
+    /// from Cordial Knowledge.
     fn handle_useful_shards_from(&mut self, useful_shards_from_peer_round: Vec<Option<Round>>) {
         self.last_useful_shards_from_peer_round = useful_shards_from_peer_round;
     }
 
+    /// Update last rounds of useful headers from peer. Iterate over the given
+    /// map (authority, round) and update only if the new round is greater.
     fn handle_useful_headers_from(
         &mut self,
         authorities_with_round: BTreeMap<AuthorityIndex, Round>,
@@ -900,6 +908,8 @@ impl ConnectionKnowledge {
         );
     }
 
+    /// Update last rounds of useful shards to peer. Iterate over the given map
+    /// (authority, round) and update only if the new round is greater.
     fn handle_useful_shards_to(&mut self, authorities_with_round: BTreeMap<AuthorityIndex, Round>) {
         CordialKnowledge::update_authority_rounds_if_greater(
             &mut self.last_useful_shards_to_peer_round,
@@ -907,6 +917,8 @@ impl ConnectionKnowledge {
         );
     }
 
+    /// Update last rounds of useful headers to peer. Iterate over the given map
+    /// (authority, round) and update only if the new round is greater.
     fn handle_useful_headers_to(
         &mut self,
         authorities_with_round: BTreeMap<AuthorityIndex, Round>,
@@ -918,8 +930,8 @@ impl ConnectionKnowledge {
     }
 
     /// Handles taking additional parts (headers, shards) for a block bundle
-    /// to send to the peer. In addition, it returns block from which authors
-    /// have useful headers and shards from the peer.
+    /// to send to the peer. In addition, it returns from which authors
+    /// the peer can send additional headers and shards to the peer.
     /// This is an async function because it reads from the DAG state and
     /// sends the response back via oneshot channel.
     async fn handle_take_additional_parts_for_bundle(
@@ -943,15 +955,13 @@ impl ConnectionKnowledge {
             .enumerate()
             .filter_map(|(i, &opt_round)| {
                 opt_round
-                    .filter(|&r| r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive)
+                    .filter(|&r| {
+                        r.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
+                            >= round_upper_bound_exclusive
+                    })
                     .map(|_| i)
             })
             .collect();
-
-        debug!(
-            "Useful header authors to peer: {:?}",
-            useful_headers_authors_to_peer
-        );
 
         let useful_headers_block_refs_to_peer = self.take_useful_header_block_refs_round(
             round_upper_bound_exclusive,
@@ -975,7 +985,10 @@ impl ConnectionKnowledge {
             .enumerate()
             .filter_map(|(i, &opt_round)| {
                 opt_round
-                    .filter(|&r| r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive)
+                    .filter(|&r| {
+                        r.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
+                            >= round_upper_bound_exclusive
+                    })
                     .map(|_| i)
             })
             .collect();
@@ -992,37 +1005,38 @@ impl ConnectionKnowledge {
                 .collect()
         };
 
-        // 4. Get useful header authors from peer
+        // 4. Get useful header authors from peer. Authority is (potentially) useful if
+        //    the
+        // last known useful round + MAX_ROUND_GAP_FOR_USEFUL_PARTS >=
+        // round_upper_bound_exclusive
         let useful_headers_authors_from_peer = self
             .last_useful_headers_from_peer_round
             .iter()
             .enumerate()
-            .filter_map(|(i, &opt_round)| {
+            .filter_map(|(index, &opt_round)| {
                 opt_round
-                    .filter(|&r| r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive)
-                    .map(|_| AuthorityIndex::from(i as u8))
+                    .filter(|&r| {
+                        r.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
+                            >= round_upper_bound_exclusive
+                    })
+                    .map(|_| AuthorityIndex::from(index as u8))
             })
             .collect::<BTreeSet<AuthorityIndex>>();
-        debug!(
-            "Useful header authors from peer: {:?}",
-            useful_headers_authors_from_peer
-        );
 
         // 5. Get useful shard authors from peer
         let useful_shards_authors_from_peer = self
             .last_useful_shards_from_peer_round
             .iter()
             .enumerate()
-            .filter_map(|(i, &opt_round)| {
+            .filter_map(|(index, &opt_round)| {
                 opt_round
-                    .filter(|&r| r + MAX_ROUND_GAP_FOR_USEFUL_PARTS >= round_upper_bound_exclusive)
-                    .map(|_| AuthorityIndex::from(i as u8))
+                    .filter(|&r| {
+                        r.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
+                            >= round_upper_bound_exclusive
+                    })
+                    .map(|_| AuthorityIndex::from(index as u8))
             })
             .collect::<BTreeSet<AuthorityIndex>>();
-        debug!(
-            "Useful shard authors from peer: {:?}",
-            useful_shards_authors_from_peer
-        );
 
         // 6. Build a response message and send it back
         let message = AdditionalPartsForBundle {
@@ -1035,7 +1049,7 @@ impl ConnectionKnowledge {
         respond_to.send(message).ok();
     }
 
-    /// Handles adding a new block to the unknown set.
+    /// Handles adding a new header to the set of potentially unknown headers
     fn handle_new_header(&mut self, block_ref: BlockRef) {
         let round = block_ref.round;
         let authority = block_ref.author.value();
@@ -1047,7 +1061,7 @@ impl ConnectionKnowledge {
             .insert(block_ref);
     }
 
-    /// Handles adding a new shard to the unknown set.
+    /// Handles adding a new shard to the set of potentially unknown shards.
     fn handle_new_shard(&mut self, block_ref: BlockRef) {
         let round = block_ref.round;
         let authority = block_ref.author.value();
@@ -1103,6 +1117,8 @@ mod tests {
         test_dag_parser::parse_dag,
     };
 
+    /// Test that cordial knowledge correctly tracks blocks from a byzantine
+    /// validator that does not disseminate its blocks until a certain round.
     #[tokio::test]
     async fn test_cordial_knowledge_bundle_with_byzantine() {
         telemetry_subscribers::init_for_testing();
@@ -1173,7 +1189,7 @@ mod tests {
         // Inject useful info for connection knowledge of peer 1 (B)
         // A says that C and D are useful for headers and shards when receiving from B
         // B says that A and C are useful for headers and shards when sending from A
-        let msg = ConnectionKnowledgeMessage::UsefulInfo {
+        let msg = ConnectionKnowledgeMessage::UsefulAuthors {
             useful_headers_to_peer: BTreeMap::from([
                 (AuthorityIndex::new_for_test(2), GENESIS_ROUND),
                 (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
@@ -1287,6 +1303,8 @@ mod tests {
         }
     }
 
+    /// Test that connection knowledge correctly takes additional parts for
+    /// a bundle based on useful authorities info.
     #[tokio::test]
     async fn test_connection_knowledge_take_additional_parts() {
         telemetry_subscribers::init_for_testing();
@@ -1305,7 +1323,7 @@ mod tests {
         let connection_knowledge_sender =
             cordial_knowledge.connection_knowledge_senders[to_whom_index].clone();
         // Inject useful info
-        let msg = ConnectionKnowledgeMessage::UsefulInfo {
+        let msg = ConnectionKnowledgeMessage::UsefulAuthors {
             useful_headers_to_peer: BTreeMap::from([
                 (AuthorityIndex::new_for_test(2), GENESIS_ROUND),
                 (AuthorityIndex::new_for_test(3), GENESIS_ROUND),

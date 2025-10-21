@@ -124,7 +124,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     /// Sender to send received transaction messages to the shard reconstructor
     transaction_message_sender: Sender<Vec<TransactionMessage>>,
     /// Senders to send messages to the respected
-    /// Connection Knowledge. One sender is intented for one peer. These senders
+    /// Connection Knowledge. One sender is intended for one peer. These senders
     /// are used to update useful authors for blocks and shards. In addition,
     /// one retrieves additional parts for block bundles when streaming own
     /// blocks.
@@ -2505,7 +2505,7 @@ mod tests {
         // Inject useful info
         let connection_knowledge_sender =
             cordial_knowledge.connection_knowledge_senders()[to_whom_authority].clone();
-        let msg = ConnectionKnowledgeMessage::UsefulInfo {
+        let msg = ConnectionKnowledgeMessage::UsefulAuthors {
             useful_headers_to_peer: BTreeMap::from([
                 (AuthorityIndex::new_for_test(2), GENESIS_ROUND),
                 (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
