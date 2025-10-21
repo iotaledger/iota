@@ -41,6 +41,7 @@ Supports the following flags:
 - `-S <true|false>`: enable the transaction spammer (default: `false`)
 - `-T <TPS>`: transactions per second used by the spammer (default: `100`)
 - `-Z <TRX_SIZE>`: number of shared objects per transaction for the spammer (default: `10`)
+- `-C <spammer_type>`: type of spammer to use (default: `stress`; another option: `iota-spammer`)
 
 The script should be run from inside the `iota/dev-tools/iota-private-network/experiments/` directory.
 
@@ -62,18 +63,19 @@ The script should be run from inside the `iota/dev-tools/iota-private-network/ex
 ## Optional Transaction Spammer
 
 The experiment suite can optionally include a transaction spammer to generate load on the validator network during the run.
+It supports two types of spammer tools, by default the stress test from the iota benchmark, and optionally the `iota-spammer` from a private repository.
 
-### With spammer enabled:
+### With default spammer enabled:
 
 ```bash
-./run-all.sh -n 4 -p mysticeti -S true -T 100 -Z 10KiB
+./run-all.sh -n 4 -p mysticeti -S true -T 500
 ```
 
-This will Launch the spammer from an external repository with the configured transaction rate, TPS=100, and size, 10KiB.
+This will load the default spammer with a TPS of 500.
 
-### Required Setup for Spammer
+### Required Setup for optional Spammer
 
-To enable the spammer (`-S true`), you must clone the following **private** repository:
+To enable the optional spammer set `-S true` and '-C iota-spammer' you must clone the following **private** repository:
 
 ```
 https://github.com/iotaledger/iota-spammer
@@ -84,3 +86,11 @@ Place it at the following relative path from `run-all.sh`, or update the path in
 ```
 ../../../iota-spammer
 ```
+
+The optional spammer allows a special transaction type, called `sizable`, and can be used as follows:
+
+```bash
+./run-all.sh -n 4 -p mysticeti -S true -T 100 -Z 10KiB
+```
+
+This will launch the spammer from the external repository with the configured transaction rate, TPS=100, and size, 10KiB.

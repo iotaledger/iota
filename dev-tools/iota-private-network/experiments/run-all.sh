@@ -27,6 +27,7 @@ DEFAULT_NETWORK_METRIC=false
 DEFAULT_SPAMMER_ENABLE=false
 DEFAULT_SPAMMER_TPS=10
 DEFAULT_SPAMMER_SIZE="10KiB"
+DEFAULT_SPAMMER_TYPE="stress"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # Set the root directory of the private network (one level up from experiments)
@@ -127,9 +128,13 @@ cleanup_and_kill() {
 # Kill any lingering spammer processes and remove locks
 kill_spammer_processes() {
     log "Killing lingering spammer processes (if any) and removing locks..."
+    # Stop the stress benchmark container by name if it exists
+    docker stop stress-benchmark >/dev/null 2>&1 || true
     # kill common spammer process forms
     pkill -9 -f 'iota-spammer spammer spam' 2>/dev/null || true
     pkill -9 -f 'cargo run --release -- spammer spam' 2>/dev/null || true
+    pkill -9 -f 'cargo run --release -- spammer spam' 2>/dev/null || true
+    pkill -9 -f 'cargo run --release --.* stress' 2>/dev/null || true
     pkill -9 -f 'spamming_fuzz_test.sh' 2>/dev/null || true
     pkill -9 -f 'network-fuzz-disruption.sh' 2>/dev/null || true
 
@@ -159,7 +164,7 @@ usage() {
   echo "Usage: $0 [-n num_validators(4..19)] [-p protocol(mysticeti|starfish)] [-b build_images(true|false)]"
   echo "          [-g geodistributed(true|false)] [-s seed(number)] [-x percent_block_connection(0..100)] [-l percent_loss_packets(0..100)]"
   echo "          [-t run_duration_seconds] [-r percent_restart(0..100)] [-m flag_to_output_network_statistics]"
-  echo "          [-S spammer_enable(true|false)] [-T spammer_tps(number)] [-Z spammer_size_per_tx(KiB) | --size spammer_size_per_tx(KiB)]"
+  echo "          [-S spammer_enable(true|false)] [-T spammer_tps(number)] [-Z spammer_size_per_tx(KiB)] [-C spammer_type(iota-spammer|stress)]"
 }
 
 # --- Default values ---
@@ -176,9 +181,10 @@ NETWORK_METRIC=$DEFAULT_NETWORK_METRIC
 SPAMMER_ENABLE=$DEFAULT_SPAMMER_ENABLE
 SPAMMER_TPS=$DEFAULT_SPAMMER_TPS
 SPAMMER_SIZE_PER_TX=$DEFAULT_SPAMMER_SIZE
+SPAMMER_TYPE=$DEFAULT_SPAMMER_SIZE
 
 # --- Parse command-line arguments ---
-while getopts ":n:p:b:g:s:x:l:t:r:mS:T:Z:h" opt; do
+while getopts ":n:p:b:g:s:x:l:t:r:mS:T:Z:C:h" opt; do
   case "$opt" in
     n) NUM_VALIDATORS="$OPTARG" ;;
     p) PROTOCOL="$OPTARG" ;;
@@ -193,6 +199,7 @@ while getopts ":n:p:b:g:s:x:l:t:r:mS:T:Z:h" opt; do
     S) SPAMMER_ENABLE="$OPTARG" ;;
     T) SPAMMER_TPS="$OPTARG" ;;
     Z) SPAMMER_SIZE_PER_TX="$OPTARG" ;;
+    C) SPAMMER_TYPE="$OPTARG";;
     h) usage; exit 0 ;;
     \?) usage; exit 2 ;;
     :)  usage; exit 2 ;;
@@ -217,8 +224,13 @@ log "Percent restart validator  : $PERCENT_RESTART"
 log "Run experiments duration   : $RUN_DURATION s"
 log "Network metrics enabled    : $NETWORK_METRIC"
 log "Spammer enabled            : $SPAMMER_ENABLE"
-log "Spammer TPS                : $SPAMMER_TPS"
-log "Spammer size per tx        : $SPAMMER_SIZE_PER_TX"
+if [ "$SPAMMER_ENABLE" = true ]; then
+  log "Spammer type               : $SPAMMER_TYPE"
+  log "Spammer TPS                : $SPAMMER_TPS"
+  if [ "$SPAMMER_TYPE" = "iota-spammer"]; then
+    log "Spammer size per tx        : $SPAMMER_SIZE_PER_TX"
+  fi
+fi
 log "==========================="
 
 # --- Pre-clean to ensure a fresh start (explicit, not via trap) ---
@@ -301,30 +313,61 @@ if [ "$SPAMMER_ENABLE" = true ]; then
     if [ "$SPAMMER_DURATION" -lt 10 ]; then
       SPAMMER_DURATION=10
     fi
-    USER_HOME=$(getent passwd "${SUDO_USER:-$USER}" | cut -d: -f6)
-    SPAMMER_SCRIPT="${SPAMMER_SCRIPT:-$USER_HOME/iota-spammer/scripts/spamming_fuzz_test.sh}"
-    if [ ! -f "$SPAMMER_SCRIPT" ]; then
-      log "Error: Spammer script not found at $SPAMMER_SCRIPT"
-      exit 1
+
+    if [ "$SPAMMER_TYPE" = "stress" ]; then
+            log "Starting 'stress' benchmark with TPS=$SPAMMER_TPS, duration=${SPAMMER_DURATION}s..."
+            # This command runs the `stress` binary from the iota-tools image inside the docker network
+            docker run -d --rm --name stress-benchmark \
+              --network iota-private-network_iota-network \
+              -v "$(pwd)/../configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro" \
+              -v "$(pwd)/../configs/faucet/iota.keystore:/opt/iota/config/iota.keystore:ro" \
+              iotaledger/iota-tools /usr/local/bin/stress \
+                --local false \
+                --use-fullnode-for-execution true \
+                --fullnode-rpc-addresses http://fullnode-1:9000 \
+                --genesis-blob-path /opt/iota/config/genesis.blob \
+                --keystore-path /opt/iota/config/iota.keystore \
+                --primary-gas-owner-id 0x7cc6ff19b379d305b8363d9549269e388b8c1515772253ed4c868ee80b149ca0 \
+                bench \
+                --target-qps "$SPAMMER_TPS" \
+                --in-flight-ratio 5 \
+                --transfer-object 100
+
+
+            # Follow the logs of the detached container and redirect to the spammer log file
+            docker logs -f stress-benchmark > "$LOG_DIR/spammer.log" 2>&1 &
+
+
+    elif [ "$SPAMMER_TYPE" = "iota-spammer" ]; then
+            USER_HOME=$(getent passwd "${SUDO_USER:-$USER}" | cut -d: -f6)
+            SPAMMER_SCRIPT="${SPAMMER_SCRIPT:-$USER_HOME/iota-spammer/scripts/spamming_fuzz_test.sh}"
+            if [ ! -f "$SPAMMER_SCRIPT" ]; then
+              log "Error: Spammer script not found at $SPAMMER_SCRIPT"
+              exit 1
+            fi
+            log "Starting 'iota-spammer' with TPS=$SPAMMER_TPS, size per tx=$SPAMMER_SIZE_PER_TX, duration=${SPAMMER_DURATION}s..."
+            if [ -n "${SUDO_USER:-}" ]; then
+              log "Detected sudo; running spammer as $SUDO_USER to inherit user Rust toolchain"
+              sudo -u "$SUDO_USER" -H bash "$SPAMMER_SCRIPT" \
+                -T "$SPAMMER_TPS" \
+                -s "$SPAMMER_SIZE_PER_TX" \
+                -d "${SPAMMER_DURATION}s" \
+                > "$LOG_DIR/spammer.log" 2>&1 &
+            else
+              bash "$SPAMMER_SCRIPT" \
+                -T "$SPAMMER_TPS" \
+                -s "$SPAMMER_SIZE_PER_TX" \
+                -d "${SPAMMER_DURATION}s" \
+                > "$LOG_DIR/spammer.log" 2>&1 &
+            fi
+        else
+            log "Error: Unknown SPAMMER_TYPE '$SPAMMER_TYPE'. Must be 'iota-spammer' or 'stress'."
+            exit 1
+        fi
+
+        SPAM_PID=$!
+        log "Spammer started in background (pid=$SPAM_PID); logs: $LOG_DIR/spammer.log"
     fi
-    log "Starting spammer with TPS=$SPAMMER_TPS, size per tx=$SPAMMER_SIZE_PER_TX, duration=${SPAMMER_DURATION}s..."
-    if [ -n "${SUDO_USER:-}" ]; then
-      log "Detected sudo; running spammer as $SUDO_USER to inherit user Rust toolchain"
-      sudo -u "$SUDO_USER" -H bash "$SPAMMER_SCRIPT" \
-        -T "$SPAMMER_TPS" \
-        -s "$SPAMMER_SIZE_PER_TX" \
-        -d "${SPAMMER_DURATION}s" \
-        > "$LOG_DIR/spammer.log" 2>&1 &
-    else
-      bash "$SPAMMER_SCRIPT" \
-        -T "$SPAMMER_TPS" \
-        -s "$SPAMMER_SIZE_PER_TX" \
-        -d "${SPAMMER_DURATION}s" \
-        > "$LOG_DIR/spammer.log" 2>&1 &
-    fi
-    SPAM_PID=$!
-    log "Spammer started in background (pid=$SPAM_PID); logs: $LOG_DIR/spammer.log"
-fi
 
 # --- 6) Run for specified duration, periodically saving logs ---
 log "Running experiments for $RUN_DURATION seconds, saving logs every $LOG_INTERVAL seconds..."
