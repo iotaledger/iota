@@ -4,7 +4,7 @@
 import {
     MOCKED_SUPPLY_INCREASE_VESTING_TIMELOCKED_OBJECTS,
     MOCKED_VESTING_TIMELOCKED_STAKED_OBJECTS,
-} from '@/lib/constants/vesting.constants';
+} from '../../constants/vesting.constants';
 import {
     getMockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate,
     getMockedVestingTimelockedStakedObjectsWithDynamicDate,
