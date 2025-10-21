@@ -20,5 +20,5 @@ insta.workspace = true
 move-command-line-common.workspace = true
 
 [[test]]
-name = "manifest_parsing_tests"
+name = "parsing_tests"
 harness = false
