@@ -16,12 +16,10 @@ use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::{
-    sync::{
-        Mutex, broadcast,
-        mpsc::{Sender, UnboundedSender},
-        oneshot,
-    },
+use tokio::sync::{
+    Mutex, broadcast,
+    mpsc::{Sender, UnboundedSender},
+    oneshot,
 };
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
