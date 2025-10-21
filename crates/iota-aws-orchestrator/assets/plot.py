@@ -50,7 +50,9 @@ def aggregate_stdev_latency(measurement, i=-1):
         else:
             first_term = float(last['squared_sum']['secs']) / count
             second_term = (float(last['sum']['secs']) / count)**2
-            stdev += [math.sqrt(first_term - second_term)]
+            # Ensure we don't take square root of a negative number due to floating-point precision
+            variance = max(0, first_term - second_term)
+            stdev += [math.sqrt(variance)]
     return max(stdev)
 
 
