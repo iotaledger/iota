@@ -8,9 +8,11 @@ publish = false
 
 [dependencies]
 anyhow.workspace = true
+codespan-reporting.workspace = true
 derive-where.workspace = true
 serde.workspace = true
 serde_spanned.workspace = true
+thiserror.workspace = true
 toml.workspace = true
 toml_edit.workspace = true
 
