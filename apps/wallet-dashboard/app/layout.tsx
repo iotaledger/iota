@@ -5,11 +5,12 @@ import '@iota/dapp-kit/dist/index.css';
 import './globals.css';
 import { Inter } from 'next/font/google';
 import { Metadata } from 'next';
+
+import { ErrorBoundary } from '@/components/error-boundary';
 import { AppProviders } from '@/providers';
 import { FontLinks } from '@/components/FontLinks';
 import { ConnectionGuard } from '@/components/connection-guard';
 import { Amplitude } from '@/components/Amplitude';
-import { ErrorBoundary } from '@/components/error-boundary';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -42,13 +43,13 @@ export default function RootLayout({
     return (
         <html lang="en">
             <body className={inter.className}>
-                <AppProviders>
-                    <FontLinks />
-                    <Amplitude />
-                    <ConnectionGuard>
-                        <ErrorBoundary>{children}</ErrorBoundary>
-                    </ConnectionGuard>
-                </AppProviders>
+                <ErrorBoundary>
+                    <AppProviders>
+                        <FontLinks />
+                        <Amplitude />
+                        <ConnectionGuard>{children}</ConnectionGuard>
+                    </AppProviders>
+                </ErrorBoundary>
             </body>
         </html>
     );

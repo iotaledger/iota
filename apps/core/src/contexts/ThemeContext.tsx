@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { createContext } from 'react';
-import { Theme, ThemePreference } from '../enums';
+import { Theme, ThemePreference } from '../enums/theme.enums';
 
 export interface ThemeContextType {
     theme: Theme;

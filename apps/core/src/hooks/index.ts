@@ -66,7 +66,6 @@ export * from './useNFTMediaHeaders';
 export * from './useGetIotaNameRecord';
 export * from './useGetDefaultIotaName';
 export * from './useNetwork';
-export * from './useLegacyBrowser';
 
 export * from './stake';
 export * from './ui';

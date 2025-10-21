@@ -3,7 +3,7 @@
 
 'use client';
 
-import { growthbook } from '@/lib/utils';
+import { growthbook } from '@/lib/utils/growthbook';
 import { createIotaClient } from '@/lib/utils/defaultRpcClient';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import {
@@ -14,7 +14,6 @@ import {
     StardustIndexerClientProvider,
     ThemeProvider,
     Toaster,
-    useLegacyBrowser,
     useLocalStorage,
 } from '@iota/core';
 import { darkTheme, IotaClientProvider, lightTheme, WalletProvider } from '@iota/dapp-kit';
@@ -35,7 +34,6 @@ export function AppProviders({ children }: React.PropsWithChildren) {
         queryClient.resetQueries();
         queryClient.clear();
     }
-    useLegacyBrowser();
     return (
         <GrowthBookProvider growthbook={growthbook}>
             <QueryClientProvider client={queryClient}>
