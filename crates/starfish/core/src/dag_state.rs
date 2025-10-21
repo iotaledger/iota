@@ -14,10 +14,9 @@ use std::{
 
 use bytes::Bytes;
 use itertools::Itertools as _;
-use tokio::sync::mpsc::UnboundedSender;
 use starfish_config::AuthorityIndex;
-use tokio::time::Instant;
-use tracing::{debug, error, info, warn};
+use tokio::{sync::mpsc::UnboundedSender, time::Instant};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     block_header::{
