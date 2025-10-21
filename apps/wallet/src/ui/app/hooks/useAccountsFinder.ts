@@ -92,6 +92,12 @@ export function useAccountsFinder({
         let sourceStrategyToPersist: SourceStrategyToPersist | undefined = undefined;
 
         if (sourceStrategy.type == 'ledger') {
+            const client = ledgerIotaClient.iotaLedgerClient!;
+            console.log(client)
+            const mainPublicKeyResult = await client.getPublicKey(`m/44'/4218'/0'/0'/0'`);
+            console.log(mainPublicKeyResult)
+            const mainPublicKey = new Ed25519PublicKey(mainPublicKeyResult.publicKey);
+            
             const addresses = await Promise.all(
                 foundAddresses.map(async (address) => {
                     const derivationPath = makeDerivationPath(address.bipPath);
@@ -107,6 +113,7 @@ export function useAccountsFinder({
             sourceStrategyToPersist = {
                 ...sourceStrategy,
                 addresses,
+                mainPublicKey: mainPublicKey.toBase64()
             };
         } else {
             const bipPaths = foundAddresses.map((address) => address.bipPath);

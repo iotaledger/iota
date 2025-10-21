@@ -62,6 +62,7 @@ enum SearchPhase {
 }
 
 export function AccountsFinderView(): JSX.Element {
+    console.log("111111111111")
     const navigate = useNavigate();
     const { accountSourceId } = useParams();
     const { data: accountSources } = useAccountSources();
@@ -193,6 +194,7 @@ export function AccountsFinderView(): JSX.Element {
         stardustShared?.pages?.some((p) =>
             p.some((d) => d.nftOutputs.length > 0 || d.basicOutputs.length > 0),
         );
+    console.log(groupedAccounts);
     return (
         <>
             <div className="flex h-full flex-col justify-between">

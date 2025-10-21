@@ -62,7 +62,7 @@ async function deriveAccountsFromLedger(
     }
 
     return {
-        mainPublicKey: mainPublicKey.toIotaAddress(),
+        mainPublicKey: mainPublicKey.toBase64(),
         accounts,
     };
 }
