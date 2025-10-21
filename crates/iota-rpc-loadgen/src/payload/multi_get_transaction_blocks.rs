@@ -20,7 +20,7 @@ impl<'a> ProcessPayload<'a, &'a MultiGetTransactionBlocks> for RpcCommandProcess
         let digests = &op.digests;
 
         if op.digests.is_empty() {
-            panic!("No digests provided, skipping query");
+            panic!("no digests provided, skipping query");
         }
 
         let chunks = chunk_entities(digests, None);

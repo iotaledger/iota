@@ -196,7 +196,7 @@ impl Core {
             .scope_processing_time
             .with_label_values(&["Core::recover"])
             .start_timer();
-        // Ensure local time is after max ancestor timestamp.
+        // Check ancestor timestamps
         let ancestor_block_headers = self
             .dag_state
             .read()
@@ -205,12 +205,13 @@ impl Core {
             .iter()
             .fold(0, |ts, (b, _)| ts.max(b.timestamp_ms()));
         let wait_ms = max_ancestor_timestamp.saturating_sub(self.context.clock.timestamp_utc_ms());
+
+        // NEW mode: no waiting on timestamp drift
         if wait_ms > 0 {
-            warn!(
-                "Waiting for {} ms while recovering ancestors from storage",
+            info!(
+                "Median based timestamp is enabled. Will not wait for {} ms while recovering ancestors from storage",
                 wait_ms
             );
-            std::thread::sleep(Duration::from_millis(wait_ms));
         }
 
         // Try to commit and propose, since they may not have run after the last write
@@ -221,7 +222,7 @@ impl Core {
         let last_proposed_block = match self.try_propose(true).unwrap() {
             (Some(block), _) => Some(block),
             (None, _) => {
-                let last_proposed_block = self.dag_state.read().get_last_proposed_block();
+                let last_proposed_block = self.dag_state.read().recover_last_own_block();
                 if self.should_propose() {
                     assert!(
                         last_proposed_block.round() != GENESIS_ROUND,
@@ -246,7 +247,7 @@ impl Core {
 
         info!(
             "Core recovery completed with last proposed block {:?}",
-            last_proposed_block
+            last_proposed_block.map(|b| b.verified_block_header)
         );
 
         self
@@ -636,15 +637,19 @@ impl Core {
                 .observe(clock_round.saturating_sub(ancestor.round()).into());
         }
 
-        // Ensure ancestor timestamps are not more advanced than the current time.
-        // Also catch the issue if system's clock go backwards.
+        // Record timestamp drift but don't enforce ancestor timestamp checks.
         let now = self.context.clock.timestamp_utc_ms();
         ancestors.iter().for_each(|block| {
-            assert!(
-                block.timestamp_ms() <= now,
-                "Violation: ancestor block {:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {}.",
-                block, block.timestamp_ms(), clock_round
-            );
+            if block.timestamp_ms() > now {
+                trace!("Ancestor block {block:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {clock_round}.",  block.timestamp_ms());
+                let authority = &self.context.committee.authority(block.author()).hostname;
+                self.context
+                    .metrics
+                    .node_metrics
+                    .proposed_block_ancestors_timestamp_drift_ms
+                    .with_label_values(&[authority])
+                    .inc_by(block.timestamp_ms().saturating_sub(now));
+            }
         });
 
         // Consume the next transactions to be included. Do not drop the guards yet as
@@ -1135,11 +1140,6 @@ impl Core {
         self.last_proposed_block_header().round()
     }
 
-    #[expect(dead_code)]
-    fn last_proposed_block(&self) -> VerifiedBlock {
-        self.dag_state.read().get_last_proposed_block()
-    }
-
     fn last_proposed_block_header(&self) -> VerifiedBlockHeader {
         self.dag_state.read().get_last_proposed_block_header()
     }
@@ -1471,7 +1471,7 @@ mod test {
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
 
         // Create test blocks for all authorities except our's (index = 0).
-        let mut last_round_blocks = genesis_blocks(context.clone());
+        let mut last_round_blocks = genesis_blocks(&context);
         let mut all_blocks = last_round_blocks.clone();
         for round in 1..=4 {
             let mut this_round_blocks = Vec::new();
@@ -1720,7 +1720,7 @@ mod test {
         assert_eq!(verified_block.acknowledgments().len(), num_acks);
 
         // genesis blocks should be referenced
-        let all_genesis = genesis_block_headers(context);
+        let all_genesis = genesis_block_headers(&context);
 
         for ancestor in verified_block.ancestors() {
             all_genesis

@@ -34,20 +34,18 @@ pub mod backfill;
 pub mod config;
 pub mod db;
 pub mod errors;
-pub mod extract;
-pub mod handlers;
 pub mod indexer;
+pub mod ingestion;
 pub mod metrics;
 pub mod models;
 pub mod optimistic_indexing;
-pub mod persist;
 pub mod processors;
+pub mod pruning;
 pub mod read;
 pub mod schema;
 pub mod store;
 pub mod system_package_task;
 pub mod test_utils;
-pub mod transform;
 pub mod types;
 
 pub async fn build_json_rpc_server(
@@ -98,9 +96,9 @@ fn get_http_client(rpc_client_url: &str) -> Result<HttpClient, IndexerError> {
         .set_headers(headers.clone())
         .build(rpc_client_url)
         .map_err(|e| {
-            warn!("Failed to get new Http client with error: {:?}", e);
+            warn!("failed to get new Http client with error: {:?}", e);
             IndexerError::HttpClientInit(format!(
-                "Failed to initialize fullnode RPC client with error: {e:?}"
+                "failed to initialize fullnode RPC client with error: {e:?}"
             ))
         })
 }

@@ -2,10 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use futures::{Stream, StreamExt};
-use iota_grpc_types::{CertifiedCheckpointSummary, CheckpointData};
+use iota_grpc_types::{
+    checkpoints::{CertifiedCheckpointSummary, CheckpointData},
+    v0::checkpoints as grpc_checkpoints,
+};
 use tonic::transport::Channel;
-
-use crate::checkpoint::checkpoint_service_client::CheckpointServiceClient;
 
 /// Enum representing the content of a checkpoint, either full data or summary.
 #[derive(Debug, Clone)]
@@ -20,14 +21,16 @@ pub enum CheckpointContent {
 /// checkpoints and querying epoch information.
 #[derive(Clone)]
 pub struct CheckpointClient {
-    client: CheckpointServiceClient<Channel>,
+    client: grpc_checkpoints::checkpoint_service_client::CheckpointServiceClient<Channel>,
 }
 
 impl CheckpointClient {
     /// Create a new CheckpointClient from a shared gRPC channel.
     pub(super) fn new(channel: Channel) -> Self {
         Self {
-            client: CheckpointServiceClient::new(channel),
+            client: grpc_checkpoints::checkpoint_service_client::CheckpointServiceClient::new(
+                channel,
+            ),
         }
     }
 
@@ -46,7 +49,7 @@ impl CheckpointClient {
         end_sequence_number: Option<u64>,
         full: bool,
     ) -> Result<impl Stream<Item = Result<CheckpointContent, tonic::Status>>, tonic::Status> {
-        let request = crate::checkpoint::CheckpointStreamRequest {
+        let request = grpc_checkpoints::CheckpointStreamRequest {
             start_sequence_number,
             end_sequence_number,
             full,
@@ -67,7 +70,7 @@ impl CheckpointClient {
         &mut self,
         epoch: u64,
     ) -> Result<u64, tonic::Status> {
-        let request = crate::checkpoint::EpochRequest { epoch };
+        let request = grpc_checkpoints::EpochRequest { epoch };
         let response = self
             .client
             .get_epoch_first_checkpoint_sequence_number(request)
@@ -83,7 +86,7 @@ impl CheckpointClient {
     /// summary). Returns either checkpoint data or summary depending on the
     /// checkpoint type.
     fn deserialize_checkpoint(
-        checkpoint: &crate::checkpoint::Checkpoint,
+        checkpoint: &grpc_checkpoints::Checkpoint,
     ) -> anyhow::Result<CheckpointContent> {
         let bcs_data = checkpoint
             .bcs_data

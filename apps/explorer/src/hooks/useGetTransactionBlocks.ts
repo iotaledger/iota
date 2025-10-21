@@ -33,6 +33,7 @@ export function useGetTransactionBlocks(
                 options: {
                     showEffects: true,
                     showInput: true,
+                    showBalanceChanges: true,
                 },
             }),
         initialPageParam: null,

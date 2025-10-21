@@ -20,8 +20,8 @@ use iota_json_rpc_types::{
     IotaTransactionBlockResponseQuery, IotaTypeTag, MoveCallParams, MoveFunctionArgType,
     ObjectChange,
     ObjectValueKind::{ByImmutableReference, ByMutableReference, ByValue},
-    ObjectsPage, OwnedObjectRef, ProtocolConfigResponse, RPCTransactionRequestParams, Stake,
-    StakeStatus, TransactionBlockBytes, TransactionBlocksPage, TransactionFilter,
+    ObjectsPage, OwnedObjectRef, ProtocolConfigResponse, PtbInput, RPCTransactionRequestParams,
+    Stake, StakeStatus, TransactionBlockBytes, TransactionBlocksPage, TransactionFilter,
     TransferObjectParams, ValidatorApy, ValidatorApys,
 };
 use iota_open_rpc::ExamplePairing;
@@ -152,7 +152,10 @@ impl RpcExampleProvider {
                 arguments: vec![
                     IotaJsonValue::new(json!(coin_ref.0)).unwrap(),
                     IotaJsonValue::new(json!(random_amount)).unwrap(),
-                ],
+                ]
+                .into_iter()
+                .map(PtbInput::CallArg)
+                .collect(),
             }),
             RPCTransactionRequestParams::TransferObjectRequestParams(TransferObjectParams {
                 recipient,

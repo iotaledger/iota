@@ -224,7 +224,7 @@ pub async fn wait_for_graphql_checkpoint_pruned(
         }
     })
     .await
-    .expect("Timeout waiting for checkpoint to be pruned");
+    .expect("timeout waiting for checkpoint to be pruned");
 }
 
 pub async fn start_graphql_server(
@@ -289,7 +289,7 @@ async fn wait_for_graphql_server(client: &SimpleClient) {
         }
     })
     .await
-    .expect("Timeout waiting for graphql server to start");
+    .expect("timeout waiting for graphql server to start");
 }
 
 /// Ping the GraphQL server until its background task has updated the checkpoint
@@ -341,7 +341,7 @@ async fn wait_for_graphql_checkpoint_catchup(
         }
     })
     .await
-    .expect("Timeout waiting for graphql to catchup to checkpoint");
+    .expect("timeout waiting for graphql to catchup to checkpoint");
 }
 
 impl Cluster {
@@ -423,7 +423,7 @@ impl ExecutorCluster {
             }
         })
         .await
-        .unwrap_or_else(|_| panic!("Timeout waiting for indexer to update objects snapshot - latest_cp: {latest_cp}, latest_snapshot_cp: {latest_snapshot_cp}"));
+        .unwrap_or_else(|_| panic!("timeout waiting for indexer to update objects snapshot - latest_cp: {latest_cp}, latest_snapshot_cp: {latest_snapshot_cp}"));
     }
 
     /// Sends a cancellation signal to the graphql and indexer services, waits
