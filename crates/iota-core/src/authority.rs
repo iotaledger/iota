@@ -912,7 +912,7 @@ impl AuthorityState {
             epoch,
         )?;
 
-        if let Some(move_authenticator) = transaction.move_authenticator() {
+        if let Some(move_authenticator) = transaction.sender_move_authenticator() {
             // It is supposed that `Move authentication` availability is checked in
             // `SenderSignedData::validity_check`.
 
@@ -1348,7 +1348,7 @@ impl AuthorityState {
             .execution_load_input_objects_latency
             .start_timer();
 
-        let objects = if let Some(move_authenticator) = certificate.move_authenticator() {
+        let objects = if let Some(move_authenticator) = certificate.sender_move_authenticator() {
             // It is supposed that `Move authentication` availability is checked in
             // `SenderSignedData::validity_check`.
 
@@ -1779,7 +1779,7 @@ impl AuthorityState {
         let (kind, signer, gas) = tx_data.execution_parts();
 
         let authenticator_computation_cost = if let Some(move_authenticator) =
-            certificate.move_authenticator()
+            certificate.sender_move_authenticator()
         {
             // It is supposed that `Move authentication` availability is checked in
             // `SenderSignedData::validity_check`.
