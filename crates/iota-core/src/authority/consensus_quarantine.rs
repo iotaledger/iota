@@ -972,7 +972,7 @@ impl ConsensusOutputQuarantine {
                 // they were accumulated. Application of budget from future rounds to
                 // the debt is handled here.
                 assert!(current_round > round);
-                let num_rounds = (current_round - round - 1) as u64;
+                let num_rounds = current_round - round - 1;
                 let debt = debt.saturating_sub(per_commit_limit * num_rounds);
                 (object_id, debt)
             }))

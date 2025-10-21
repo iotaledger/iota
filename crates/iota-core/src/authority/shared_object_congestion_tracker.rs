@@ -1005,73 +1005,82 @@ mod object_cost_tests {
         let shared_obj_0 = ObjectID::random();
         let shared_obj_1 = ObjectID::random();
 
-        let tx_gas_budget = 5;
-
-        // Set max_execution_duration_per_commit to only allow 1 transaction
-        // to go through.
         let (max_execution_duration_per_commit, max_overshoot_per_commit) = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => (12, 0),
             PerObjectCongestionControlMode::TotalTxCount => (3, 0),
         };
 
-        let mut shared_object_congestion_tracker = match mode {
+        let (intial_debt_obj_0, intial_debt_obj_1) = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
-                // Construct object execution slots as follows
+                // Initial debts for TotalGasBudget mode are set such that
+                // the object execution slots are constructed as follows:
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
                 // 1| xxxxxxxx     |
                 // ::::::::::::::::::::::::::
                 // 8| xxxxxxxx     |
                 // 9|              |
-                new_congestion_tracker_with_initial_value_for_test(
-                    &[(shared_obj_0, 9), (shared_obj_1, 1)],
-                    mode,
-                    assign_min_free_execution_slot,
-                )
+                (9, 1)
             }
             PerObjectCongestionControlMode::TotalTxCount => {
-                // Construct object execution slots as follows
+                // Initial debts for TotalTxCount mode are set such that
+                // the object execution slots are constructed as follows:
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
                 // 1| xxxxxxxx     |
                 // 2|              |
-                new_congestion_tracker_with_initial_value_for_test(
-                    &[(shared_obj_0, 2), (shared_obj_1, 1)],
-                    mode,
-                    assign_min_free_execution_slot,
-                )
+                (2, 1)
             }
         };
-        // add a transaction that writes to object 0 and 1.
+        let mut shared_object_congestion_tracker =
+            new_congestion_tracker_with_initial_value_for_test(
+                &[
+                    (shared_obj_0, intial_debt_obj_0),
+                    (shared_obj_1, intial_debt_obj_1),
+                ],
+                mode,
+                assign_min_free_execution_slot,
+            );
+        // add a transaction with gas budget 1 that writes to object 0 and 1.
+        // We don't test the scheduling result here, we just want to update the
+        // tracker's object execution slots.
+        let tx_gas_budget = 1;
         let tx = build_transaction(
             &[(shared_obj_0, true), (shared_obj_1, true)],
-            1,
+            tx_gas_budget,
             TEST_ONLY_GAS_PRICE,
         );
         shared_object_congestion_tracker.bump_object_execution_slots(
             &tx,
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
-                // in gas budget mode, the object execution slots becomes:
+                // in TotalGasBudget mode, the object execution slots becomes:
                 //    object 0       object 1
-                // 0| xxxxxxxx     | xxxxxxxx
-                // 1| xxxxxxxx     |
-                // ::::::::::::::::::::::::::
-                // 8| xxxxxxxx     |
-                // 9| xxxxxxxx     | xxxxxxxx
+                //  0| xxxxxxxx     | xxxxxxxx
+                //  1| xxxxxxxx     |
+                //  ::::::::::::::::::::::::::
+                //  8| xxxxxxxx     |
+                //  9| xxxxxxxx     | xxxxxxxx
+                // 10|              |
+                // 11|______________|____________ max_execution_duration_per_commit = 12
+                // 12|              |
+                // 13|              |
                 PerObjectCongestionControlMode::TotalGasBudget => 9,
-                // in tx count mode, the object execution slots becomes:
+                // in TotalTxCount mode, the object execution slots becomes:
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
                 // 1| xxxxxxxx     |
-                // 2| xxxxxxxx     | xxxxxxxx
+                // 2| xxxxxxxx_____|_xxxxxxxx____ max_execution_duration_per_commit = 3
+                // 3|              |
+                // 4|              |
                 PerObjectCongestionControlMode::TotalTxCount => 2,
             },
         );
 
         // Read/write to object 0 should be deferred.
+        let tx_gas_budget = 5;
         for mutable in [true, false].iter() {
             let tx = build_transaction(
                 &[(shared_obj_0, *mutable)],
@@ -1790,8 +1799,7 @@ mod object_cost_tests {
         mode: PerObjectCongestionControlMode,
         #[values(true, false)] assign_min_free_execution_slot: bool,
     ) {
-        // Creates two shared objects and three transactions that operate on these
-        // objects.
+        // Creates two shared objects to operate on them in transactions.
         let shared_obj_0 = ObjectID::random();
         let shared_obj_1 = ObjectID::random();
 
@@ -1807,7 +1815,7 @@ mod object_cost_tests {
 
         let initial_object_debt = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget => 80,
+            PerObjectCongestionControlMode::TotalGasBudget => 70,
             PerObjectCongestionControlMode::TotalTxCount => 2,
         };
 
@@ -1826,7 +1834,10 @@ mod object_cost_tests {
             .accumulated_debts(max_execution_duration_per_commit);
         assert!(accumulated_debts.is_empty());
 
-        // Simulate a tx on object 0 that exceeds the per-commit limit.
+        // Simulate transactions on object 0 that exceed the per-commit limit,
+        // taking into account the initial debt.
+        // We simulate both read and write access, but the read transaction should not
+        // result in any change to the tracker state.
         for mutable in [true, false].iter() {
             let tx = build_transaction(
                 &[(shared_obj_0, *mutable)],
@@ -1843,7 +1854,7 @@ mod object_cost_tests {
         match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
-                assert_eq!(accumulated_debts[0], (shared_obj_0, 90)); // overshoot = initial_debt (80) + tx_duration (100) - max_execution_duration_per_commit (90) = 90
+                assert_eq!(accumulated_debts[0], (shared_obj_0, 80)); // overshoot = initial_debt (70) + tx_duration (100) - max_execution_duration_per_commit (90) = 80
             }
             PerObjectCongestionControlMode::TotalTxCount => {
                 assert_eq!(accumulated_debts[0], (shared_obj_0, 1)); // overshoot = initial_debt (2) + tx_duration (1) - max_execution_duration_per_commit (2) = 1
