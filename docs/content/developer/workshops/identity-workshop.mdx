@@ -1392,39 +1392,213 @@ Output after a successful validation of the student’s Verifiable Presentation.
 
 This completes the guided workshop, demonstrating the seamless and robust interaction between the React frontend and the Rust Axum backend across all four phases of the IOTA Identity flow.
 
-## Part 3: Running the Application
+## Run and Test the Project
 
-1. Start the Backend:
+Now that you’ve set up the prerequisites (Rust, Node.js, VS Code) and copied the scaffold code Scaffold Code, it’s time to run the Rust backend and React frontend, then test the IOTA Identity workflow. This section guides you through launching both applications and verifying the University Degree Verification system, which creates a Decentralized Identifier (DID), issues a Verifiable Credential (VC), creates a Verifiable Presentation (VP), and verifies it.
 
-```Bash
-cd iota-identity-backend
-cargo run
-```
+<Tabs groupId="os-install" defaultValue="macos">
+  <TabItem value="macos" label="macOS/Linux">
+    ### Run the Backend (Rust)
 
-This starts the Rust Axum server (e.g., at http://localhost:3000).
+    1. **Navigate to the Backend Directory**:
+       - Open a terminal and go to the backend folder:
+         ```bash
+         cd iota-identity-backend
+         ```
 
-2. Start the Frontend:
+    2. **Install Dependencies**:
+       - Build the Rust project to ensure all dependencies are installed:
+         ```bash
+         cargo build
+         ```
 
-```bash
-cd iota-identity-frontend
-npm run dev
-```
+    3. **Set the Environment Variable**:
+       - Set the `IOTA_IDENTITY_PKG_ID` to a unique identifier (e.g., `workshop-123`) for your workshop session:
+         ```bash
+         export IOTA_IDENTITY_PKG_ID="workshop-123"
+         ```
 
-This starts the React app (e.g., at http://localhost:5173).
+    4. **Start the Backend Server**:
+       - Run the Axum server:
+         ```bash
+         cargo run
+         ```
+       - The server starts at `http://localhost:3001`. You should see:
+         ```
+         IOTA Identity Axum API Server running on http://0.0.0.0:3001
+         ```
+       - Keep this terminal open.
 
-3. Interact with the UI:
+    ### Run the Frontend (React)
 
-- Click  Create the Student's Decentralized Identifier.
-- Click  University the Verifiable Credential.
-- Click  Create the Verifiable Presentation.
-- Click  Verify the Verifiable Presentation.
+    1. **Open a New Terminal**:
+       - Open a second terminal window (e.g., press `Cmd + T` in your terminal).
 
-## Troubleshooting
+    2. **Navigate to the Frontend Directory**:
+       - Go to the frontend folder:
+         ```bash
+         cd iota-identity-frontend
+         ```
 
-- Network Errors: Ensure the IOTA test network is running and `API_ENDPOINT` is set.
-- Dependency Issues: Run `cargo update` or `npm install` to resolve missing dependencies.
-- File Not Found: Verify that `holder_doc.json` exists after Step 1.
-- HTTP Errors: Check the backend logs for issues like invalid `packageId`.
+    3. **Install Dependencies**:
+       - Install Node.js dependencies:
+         ```bash
+         npm install
+         ```
+
+    4. **Start the Frontend**:
+       - Launch the React app:
+         ```bash
+         npm run dev
+         ```
+       - The app starts at `http://localhost:5173` (or another port if 5173 is in use). The terminal will display the URL.
+       - Open `http://localhost:5173` in your browser.
+
+    ### Test the Project
+
+    1. **Access the Workshop UI**:
+       - In your browser, go to `http://localhost:5173`.
+       - Verify the workshop interface loads, showing the “University Degree Verification dApp
+” title and four steps (Student Creates Identity (Decentralized Identifier)
+, University Issues Degree to Student (Verifiable Credential)
+, Student Shows Degree To Employer (Verifiable Presentation)
+, Employer Confirms Validity of Degree
+).
+
+    2. **Configure Settings**:
+       - In the “Connection Settings” section:
+         - Set **IOTA Package ID** to `workshop-123` (same as the backend).
+         - Set **API Base URL** to `http://localhost:3001/api`.
+       - Click outside the input fields to save.
+
+    3. **Run the Workflow**:
+       - **Step 1: Student Creates Identity (Decentralized Identifier)**:
+         - Click “Create Student Identity”.
+         - Verify a DID appears (e.g., `did:iota:abc123...`) in the “Student DID (did:iota:...)” field.
+       - **Step 2: University Issues Degree to Student (Verifiable Credential)**:
+         - Click “Issue Degree”.
+         - Check for a JWT in the “Verifiable Credential (VC JWT)” field.
+       - **Step 3: Student Shows Degree To Employer (Verifiable Presentation)**:
+         - Click “Show Degree To Employer”.
+         - Confirm a JWT appears in the “Verifiable Presentation (VP JWT)” field.
+       - **Step 4: Employer Confirms Validity of Degree**:
+         - Click “Validate Degree”.
+         - Ensure the “Validation Output” field shows a success message (e.g., “Verification Complete! The Degree is Authentic.”).
+
+    4. **Check for Errors**:
+       - If an error appears (e.g., red error box in the UI), check the backend terminal for logs (e.g., `cargo run` output).
+       - Ensure the backend is running and `IOTA_IDENTITY_PKG_ID` matches in both frontend and backend.
+       - Open your browser’s Developer Tools (F12, Console tab) for frontend errors.
+
+    5. **Verify End-to-End Flow**:
+       - Confirm all four steps complete without errors, and the final step shows a green checkmark with the success message.
+       - This indicates the degree was issued, presented, and verified successfully using IOTA Identity.
+
+    Once these steps are complete, you’ve successfully run and tested the workshop! You can reset the flow using the “Reset Flow” button to try again.
+
+  </TabItem>
+
+  <TabItem value="windows" label="Windows">
+    Run the Backend (Rust)
+
+    1. **Navigate to the Backend Directory**:
+       - Open Command Prompt or PowerShell and go to the backend folder:
+         ```cmd
+         cd iota-identity-backend
+         ```
+
+    2. **Install Dependencies**:
+       - Build the Rust project to ensure all dependencies are installed:
+         ```cmd
+         cargo build
+         ```
+
+    3. **Set the Environment Variable**:
+       - Set the `IOTA_IDENTITY_PKG_ID` to a unique identifier (e.g., `workshop-123`):
+         - **Command Prompt**:
+           ```cmd
+           set IOTA_IDENTITY_PKG_ID=workshop-123
+           ```
+         - **PowerShell**:
+           ```powershell
+           $env:IOTA_IDENTITY_PKG_ID="workshop-123"
+           ```
+
+    4. **Start the Backend Server**:
+       - Run the Axum server:
+         ```cmd
+         cargo run
+         ```
+       - The server starts at `http://localhost:3001`. You should see:
+         ```
+         IOTA Identity Axum API Server running on http://0.0.0.0:3001
+         ```
+       - Keep this terminal open.
+
+    <h3>Run the Frontend (React)</h3>
+
+    1. **Open a New Terminal**:
+       - Open a second Command Prompt or PowerShell window (e.g., `Start > cmd` or `Start > PowerShell`).
+
+    2. **Navigate to the Frontend Directory**:
+       - Go to the frontend folder:
+         ```cmd
+         cd iota-identity-frontend
+         ```
+
+    3. **Install Dependencies**:
+       - Install Node.js dependencies:
+         ```cmd
+         npm install
+         ```
+
+    4. **Start the Frontend**:
+       - Launch the React app:
+         ```cmd
+         npm run dev
+         ```
+       - The app starts at `http://localhost:5173` (or another port if 5173 is in use). The terminal will display the URL.
+       - Open `http://localhost:5173` in your browser.
+
+    <h3>Test the Project</h3>
+
+    1. **Access the Workshop UI**:
+       - In your browser, go to `http://localhost:5173`.
+       - Verify the workshop interface loads, showing the “IOTA DID Verification Workshop” title and four steps (Holder Creates DID, Issuer Issues VC, Holder Creates VP, Verifier Validates).
+
+    2. **Configure Settings**:
+       - In the “Connection Settings” section:
+         - Set **IOTA Package ID** to `workshop-123` (same as the backend).
+         - Set **API Base URL** to `http://localhost:3001/api`.
+       - Click outside the input fields to save.
+
+    3. **Run the Workflow**:
+       - **Step 1: Student Creates Identity (Decentralized Identifier)**:
+         - Click “Create Student Identity”.
+         - Verify a DID appears (e.g., `did:iota:abc123...`) in the “Student DID (did:iota:...)” field.
+       - **Step 2: University Issues Degree to Student (Verifiable Credential)**:
+         - Click “Issue Degree”.
+         - Check for a JWT in the “Verifiable Credential (VC JWT)” field.
+       - **Step 3: Student Shows Degree To Employer (Verifiable Presentation)**:
+         - Click “Show Degree To Employer”.
+         - Confirm a JWT appears in the “Verifiable Presentation (VP JWT)” field.
+       - **Step 4: Employer Confirms Validity of Degree**:
+         - Click “Validate Degree”.
+         - Ensure the “Validation Output” field shows a success message (e.g., “Verification Complete! The Degree is Authentic.”).
+
+    4. **Check for Errors**:
+       - If an error appears (e.g., red error box in the UI), check the backend terminal for logs (e.g., `cargo run` output).
+       - Ensure the backend is running and `IOTA_IDENTITY_PKG_ID` matches in both frontend and backend.
+       - Open your browser’s Developer Tools (F12, Console tab) for frontend errors.
+
+    5. **Verify End-to-End Flow**:
+       - Confirm all four steps complete without errors, and the final step shows a green checkmark with the success message.
+       - This indicates the degree was issued, presented, and verified successfully using IOTA Identity.
+
+    Once these steps are complete, you’ve successfully run and tested the workshop! You can reset the flow using the “Reset Flow” button to try again.
+
+  </TabItem>
+</Tabs>
 
 ## What You’ve Accomplished
 
