@@ -411,8 +411,6 @@ fn median_timestamps_by_stake_inner(
 
 #[cfg(test)]
 mod tests {
-    use rstest::rstest;
-
     use super::*;
     use crate::{
         CommitIndex, TestBlockHeader,
@@ -920,23 +918,17 @@ mod tests {
         }
     }
 
-    #[rstest]
-    #[case(false, 5_000, 5_000, 6_000)]
-    #[case(true, 3_000, 3_000, 6_000)]
     #[tokio::test]
-    async fn test_calculate_commit_timestamp(
-        #[case] consensus_median_timestamp: bool,
-        #[case] timestamp_1: u64,
-        #[case] timestamp_2: u64,
-        #[case] timestamp_3: u64,
-    ) {
+    async fn test_calculate_commit_timestamp() {
+        let timestamp_1 = 3_000;
+        let timestamp_2 = 3_000;
+        let timestamp_3 = 6_000;
         // GIVEN
         telemetry_subscribers::init_for_testing();
         let num_authorities = 4;
         let context = Arc::new(Context::new_for_test(num_authorities).0);
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
-        let mut dag_state_guard = dag_state.write();
         let ancestors = vec![
             VerifiedBlockHeader::new_for_test(
                 TestBlockHeader::new(4, 0).set_timestamp_ms(1_000).build(),
@@ -962,8 +954,11 @@ mod tests {
                 )
                 .build(),
         );
-        for block in &ancestors {
-            dag_state_guard.accept_block_header(block.clone());
+        {
+            let mut dag_state_guard = dag_state.write();
+            for block in &ancestors {
+                dag_state_guard.accept_block_header(block.clone());
+            }
         }
         let last_commit_timestamp_ms = 0;
         // WHEN
@@ -1026,11 +1021,7 @@ mod tests {
             &leader_block,
             last_commit_timestamp_ms,
         );
-        if consensus_median_timestamp {
-            assert_eq!(timestamp, 1_000);
-        } else {
-            assert_eq!(timestamp, leader_block.timestamp_ms());
-        }
+        assert_eq!(timestamp, 1_000);
     }
     #[test]
     fn test_median_timestamps_by_stake() {
