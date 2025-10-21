@@ -6246,6 +6246,15 @@ export type Paginate_Transaction_ListsFragment = { __typename?: 'TransactionBloc
 
 export type Rpc_Transaction_FieldsFragment = { __typename?: 'TransactionBlock', digest?: string | null, signatures?: Array<any> | null, rawTransaction?: any | null, sender?: { __typename?: 'Address', address: any } | null, effects?: { __typename?: 'TransactionBlockEffects', bcs?: any, timestamp?: any | null, events?: { __typename?: 'EventConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Event', json: any, bcs: any, timestamp?: any | null, sendingModule?: { __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } } | null, sender?: { __typename?: 'Address', address: any } | null, type: { __typename?: 'MoveType', repr: string } }> }, checkpoint?: { __typename?: 'Checkpoint', sequenceNumber: any } | null, balanceChanges?: { __typename?: 'BalanceChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'BalanceChange', amount?: any | null, coinType?: { __typename?: 'MoveType', repr: string } | null, owner?: { __typename?: 'Owner', asObject?: { __typename?: 'Object', address: any } | null, asAddress?: { __typename?: 'Address', address: any } | null } | null }> }, objectChanges?: { __typename?: 'ObjectChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'ObjectChange', address: any, inputState?: { __typename?: 'Object', version: any, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null } | null, outputState?: { __typename?: 'Object', asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null, asMovePackage?: { __typename?: 'MovePackage', modules?: { __typename?: 'MoveModuleConnection', nodes: Array<{ __typename?: 'MoveModule', name: string }> } | null } | null } | null }> } } | null };
 
+export type ViewQueryVariables = Exact<{
+  functionName: Scalars['String']['input'];
+  typeArgs?: InputMaybe<Array<Scalars['String']['input']> | Scalars['String']['input']>;
+  arguments?: InputMaybe<Array<Scalars['JSON']['input']> | Scalars['JSON']['input']>;
+}>;
+
+
+export type ViewQuery = { __typename?: 'Query', moveViewCall: { __typename?: 'MoveViewResult', error?: string | null, results?: Array<any> | null } };
+
 export class TypedDocumentString<TResult, TVariables>
   extends String
   implements DocumentTypeDecoration<TResult, TVariables>
@@ -9117,3 +9126,15 @@ fragment PAGINATE_TRANSACTION_LISTS on TransactionBlock {
     }
   }
 }`) as unknown as TypedDocumentString<PaginateTransactionBlockListsQuery, PaginateTransactionBlockListsQueryVariables>;
+export const ViewDocument = new TypedDocumentString(`
+    query View($functionName: String!, $typeArgs: [String!], $arguments: [JSON!]) {
+  moveViewCall(
+    functionName: $functionName
+    typeArgs: $typeArgs
+    arguments: $arguments
+  ) {
+    error
+    results
+  }
+}
+    `) as unknown as TypedDocumentString<ViewQuery, ViewQueryVariables>;
