@@ -1327,7 +1327,7 @@ mod tests {
         context::Context,
         core::{Core, CoreSignals},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
-        dag_state::DagState,
+        dag_state::{DagState, TransactionSource},
         encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
         leader_schedule::LeaderSchedule,
@@ -2062,7 +2062,7 @@ mod tests {
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
-            _source: &'static str,
+            _source: TransactionSource,
         ) -> Result<(), CoreError> {
             unimplemented!("Unimplemented")
         }

@@ -33,6 +33,51 @@ use crate::{
     threshold_clock::ThresholdClock,
 };
 
+/// Represents the source from which transactions were received and added to the
+/// DAG state. This is used for metrics tracking and debugging.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum TransactionSource {
+    /// Transactions received via the transaction synchronizer component.
+    /// This synchronizer periodically fetches missing transactions to ensure
+    /// nodes stay up-to-date.
+    TransactionSynchronizer,
+
+    /// Data received via block streaming from peers in the network.
+    /// This is the primary method for receiving real-time blocks and
+    /// transactions as they're created.
+    BlockStreaming,
+
+    /// Transactions reconstructed from erasure-coded shards.
+    /// Used when full transaction data isn't available, but enough shards
+    /// have been collected to reconstruct it.
+    ShardReconstructor,
+
+    /// Data added during testing.
+    /// Only used in test code.
+    #[cfg(test)]
+    Test,
+}
+
+impl TransactionSource {
+    /// Returns the string label used for metrics reporting.
+    /// This ensures consistency with existing metrics that may be monitored.
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            TransactionSource::TransactionSynchronizer => "Transactions synchronizer",
+            TransactionSource::BlockStreaming => "Block streaming",
+            TransactionSource::ShardReconstructor => "Shard reconstructor",
+            #[cfg(test)]
+            TransactionSource::Test => "test",
+        }
+    }
+}
+
+impl std::fmt::Display for TransactionSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
 /// If a shard from a block created by authority v1 is useful to authority v2 at
 /// round r, then shards from v1 will be sent to v2 up to round r +
 /// MAX_ROUND_GAP_FOR_USEFUL_SHARDS.
@@ -334,7 +379,11 @@ impl DagState {
             .inc();
     }
 
-    pub(crate) fn add_transactions(&mut self, transactions: VerifiedTransactions, source: &str) {
+    pub(crate) fn add_transactions(
+        &mut self,
+        transactions: VerifiedTransactions,
+        source: TransactionSource,
+    ) {
         let block_ref = transactions.block_ref();
         if self
             .recent_transactions
@@ -345,7 +394,7 @@ impl DagState {
                 .metrics
                 .node_metrics
                 .accepted_transactions
-                .with_label_values(&[source])
+                .with_label_values(&[source.as_str()])
                 .inc();
             tracing::debug!("Adding transactions for block ref: {block_ref}");
             let has_transactions = transactions.has_transactions();
@@ -2483,7 +2532,7 @@ mod test {
         let later_commits = commits.split_off(5);
         dag_state.accept_block_headers(dag_builder.block_headers(1..=5));
         for verified_transactions in dag_builder.transactions(1..=5).into_iter() {
-            dag_state.add_transactions(verified_transactions, "test");
+            dag_state.add_transactions(verified_transactions, TransactionSource::Test);
         }
 
         for commit in commits.clone() {
@@ -2504,7 +2553,7 @@ mod test {
         // Add the rest of the block headers, transaction, and commits to the dag state
         dag_state.accept_block_headers(dag_builder.block_headers(6..=num_rounds));
         for verified_transactions in dag_builder.transactions(6..=num_rounds).into_iter() {
-            dag_state.add_transactions(verified_transactions, "test");
+            dag_state.add_transactions(verified_transactions, TransactionSource::Test);
         }
         for commit in later_commits.clone() {
             dag_state.add_commit(commit);
@@ -3098,7 +3147,8 @@ mod test {
                     )
                     .unwrap();
             } else {
-                dag_state.add_transactions(block.verified_transactions.clone(), "test");
+                dag_state
+                    .add_transactions(block.verified_transactions.clone(), TransactionSource::Test);
             }
         });
 
@@ -3196,7 +3246,7 @@ mod test {
 
         dag_state.accept_block_headers(dag_builder.block_headers(1..=num_rounds));
         for verified_transactions in dag_builder.transactions(1..=num_rounds).into_iter() {
-            dag_state.add_transactions(verified_transactions, "test");
+            dag_state.add_transactions(verified_transactions, TransactionSource::Test);
         }
 
         for commit in commits.clone() {
@@ -3368,7 +3418,7 @@ mod test {
 
         // add transactions for all blocks
         blocks.into_iter().for_each(|block| {
-            dag_state.add_transactions(block.verified_transactions, "test");
+            dag_state.add_transactions(block.verified_transactions, TransactionSource::Test);
         });
 
         assert!(dag_state.pending_acknowledgments.is_empty());
@@ -3410,7 +3460,7 @@ mod test {
                     transaction_commitment,
                     serialized,
                 );
-                dag_state.add_transactions(verified_transaction, "test");
+                dag_state.add_transactions(verified_transaction, TransactionSource::Test);
             }
         }
         assert_eq!(
@@ -3420,5 +3470,34 @@ mod test {
         for block_ref in block_refs_with_transactions.iter() {
             assert!(dag_state.pending_acknowledgments.contains(block_ref));
         }
+    }
+
+    #[test]
+    fn test_transaction_source_labels() {
+        assert_eq!(
+            TransactionSource::TransactionSynchronizer.as_str(),
+            "Transactions synchronizer"
+        );
+        assert_eq!(
+            TransactionSource::BlockStreaming.as_str(),
+            "Block streaming"
+        );
+        assert_eq!(
+            TransactionSource::ShardReconstructor.as_str(),
+            "Shard reconstructor"
+        );
+        assert_eq!(TransactionSource::Test.as_str(), "test");
+    }
+
+    #[test]
+    fn test_transaction_source_display() {
+        assert_eq!(
+            format!("{}", TransactionSource::TransactionSynchronizer),
+            "Transactions synchronizer"
+        );
+        assert_eq!(
+            format!("{}", TransactionSource::BlockStreaming),
+            "Block streaming"
+        );
     }
 }
