@@ -70,4 +70,11 @@ test.describe.serial('Wallet Connection', () => {
 
         await expect(page.getByRole('button', { name: 'Connect' })).toBeVisible();
     });
+    test.afterAll(async () => {
+        if (shared.context && shared.context.browser()?.isConnected()) {
+            await shared.context
+                .close()
+                .catch((e) => console.error('Error closing persistent context:', e));
+        }
+    });
 });

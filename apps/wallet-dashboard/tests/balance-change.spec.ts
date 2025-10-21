@@ -86,4 +86,11 @@ test.describe.serial('Balance changes', () => {
         expect(txAmountValue).toBeCloseTo(balanceChange, 2);
         await dashboardPage.close();
     });
+    test.afterAll(async () => {
+        if (shared.context && shared.context.browser()?.isConnected()) {
+            await shared.context
+                .close()
+                .catch((e) => console.error('Error closing persistent context:', e));
+        }
+    });
 });

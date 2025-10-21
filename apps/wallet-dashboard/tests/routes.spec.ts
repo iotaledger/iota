@@ -2,13 +2,14 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, test } from './utils/fixtures';
-import { Page } from '@playwright/test';
+import { BrowserContext, Page } from '@playwright/test';
 import { connectWallet } from './utils/wallet';
 import { SHORT_TIMEOUT } from './constants/timeout.constants';
 
 interface TestContext {
     page: Page;
     pageWithFreshWalletPersistent: Page;
+    context: BrowserContext;
 }
 
 test.describe.serial('Protected Routes', () => {
@@ -17,6 +18,7 @@ test.describe.serial('Protected Routes', () => {
 
     test.beforeAll(async ({ pageWithFreshWalletPersistent, persistentContext, sharedState }) => {
         shared.pageWithFreshWalletPersistent = pageWithFreshWalletPersistent;
+        shared.context = persistentContext;
         const dashboardPage = await persistentContext.newPage();
         await dashboardPage.goto('/');
 
@@ -63,5 +65,12 @@ test.describe.serial('Protected Routes', () => {
         await expect(page.getByRole('heading', { name: 'Vesting' })).toBeVisible({
             timeout: SHORT_TIMEOUT,
         });
+    });
+    test.afterAll(async () => {
+        if (shared.context && shared.context.browser()?.isConnected()) {
+            await shared.context
+                .close()
+                .catch((e) => console.error('Error closing persistent context:', e));
+        }
     });
 });
