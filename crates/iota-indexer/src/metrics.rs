@@ -180,6 +180,19 @@ pub struct IndexerMetrics {
     pub epoch_pruning_latency: Histogram, // not used
     pub optimistic_pruner_total_rows_pruned: IntCounter,
     pub optimistic_pruner_batch_duration: Histogram,
+    // Optimistic indexing metrics
+    pub optimistic_tx_total_execution_and_indexing_time: Histogram,
+    pub optimistic_tx_node_response_wait_time: Histogram,
+    pub optimistic_tx_dependencies_wait_time: Histogram,
+    pub optimistic_tx_db_write_time: Histogram,
+    pub optimistic_tx_db_wait_and_read_time: Histogram,
+    pub optimistic_tx_count: IntCounter,
+    pub optimistic_tx_successful_db_writes_count: IntCounter,
+    pub optimistic_tx_failed_node_requests_count: IntCounter,
+    pub optimistic_tx_unique_global_order_violations_count: IntCounter,
+    pub optimistic_tx_with_missing_dependencies_count: IntCounter,
+    pub optimistic_tx_with_missing_objects_counts: IntCounter,
+    pub optimistic_tx_failed_db_writes_count: IntCounter,
 }
 
 impl IndexerMetrics {
@@ -823,7 +836,85 @@ impl IndexerMetrics {
                 "Time spent in pruning one epoch",
                 DB_UPDATE_QUERY_LATENCY_SEC_BUCKETS.to_vec(),
                 registry
-            ).unwrap(),
+            )
+            .unwrap(),
+            optimistic_tx_total_execution_and_indexing_time: register_histogram_with_registry!(
+                "optimistic_tx_total_execution_and_indexing_time",
+                "Total execution and indexing time for optimistic transaction",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_node_response_wait_time: register_histogram_with_registry!(
+                "optimistic_tx_node_response_wait_time",
+                "Time waiting for node response during optimistic indexing",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_dependencies_wait_time: register_histogram_with_registry!(
+                "optimistic_tx_dependencies_wait_time",
+                "Time spent waiting for transaction dependencies",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_db_write_time: register_histogram_with_registry!(
+                "optimistic_tx_db_write_time",
+                "Time spent writing optimistic transaction to database",
+                DB_UPDATE_QUERY_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_db_wait_and_read_time: register_histogram_with_registry!(
+                "optimistic_tx_db_wait_and_read_time",
+                "Time spent waiting and reading optimistic transaction from database before returning response",
+                DB_UPDATE_QUERY_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_count: register_int_counter_with_registry!(
+                "optimistic_tx_count",
+                "Total number of optimistic transactions executed through indexer",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_successful_db_writes_count: register_int_counter_with_registry!(
+                "optimistic_tx_successful_db_writes_count",
+                "Number optimistic transactions successfully written to the database",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_failed_node_requests_count: register_int_counter_with_registry!(
+                "optimistic_tx_failed_node_requests_count",
+                "Number of failed fullnode requests during optimistic indexing",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_unique_global_order_violations_count: register_int_counter_with_registry!(
+                "optimistic_tx_unique_global_order_violations_count",
+                "Number of unique global order violations encountered during optimistic indexing",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_with_missing_dependencies_count: register_int_counter_with_registry!(
+                "optimistic_tx_with_missing_dependencies_count",
+                "Number of transactions with missing dependencies that skipped optimistic indexing",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_with_missing_objects_counts: register_int_counter_with_registry!(
+                "optimistic_tx_with_missing_objects_counts",
+                "Number of transactions with missing input/output objects that skipped optimistic indexing",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_failed_db_writes_count: register_int_counter_with_registry!(
+                "optimistic_tx_failed_db_writes_count",
+                "Number of failed database writes during optimistic indexing",
+                registry,
+            )
+            .unwrap(),
         }
     }
 }

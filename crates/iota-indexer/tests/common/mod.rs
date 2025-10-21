@@ -174,7 +174,7 @@ pub async fn indexer_wait_for_checkpoint(
         }
     })
     .await
-    .expect("Timeout waiting for indexer to catchup to checkpoint");
+    .expect("timeout waiting for indexer to catchup to checkpoint");
 }
 
 /// Wait for the indexer to catch up to the latest node checkpoint sequence
@@ -214,7 +214,7 @@ pub async fn indexer_wait_for_object(
         }
     })
     .await
-    .expect("Timeout waiting for indexer to catchup to given object's sequence number");
+    .expect("timeout waiting for indexer to catchup to given object's sequence number");
 }
 
 pub async fn get_optimistic_transactions_count(pg_store: &PgIndexerStore) -> u64 {
@@ -245,7 +245,7 @@ pub async fn indexer_wait_for_optimistic_transactions_count(
         }
     })
     .await
-    .expect("Timeout waiting for indexer to prune optimistic transactions");
+    .expect("timeout waiting for indexer to prune optimistic transactions");
 
     tokio::time::sleep(Duration::from_millis(100)).await;
 
@@ -264,7 +264,7 @@ pub async fn indexer_wait_for_checkpoint_pruned(
             let (min, _max) = pg_store
                 .get_available_checkpoint_range()
                 .await
-                .expect("Failed to get available checkpoint range");
+                .expect("failed to get available checkpoint range");
 
             if min > checkpoint_sequence_number {
                 break;
@@ -274,7 +274,7 @@ pub async fn indexer_wait_for_checkpoint_pruned(
         }
     })
     .await
-    .expect("Timeout waiting for indexer to prune checkpoint");
+    .expect("timeout waiting for indexer to prune checkpoint");
 }
 
 pub async fn indexer_wait_for_transaction(
@@ -297,7 +297,7 @@ pub async fn indexer_wait_for_transaction(
         }
     })
     .await
-    .expect("Timeout waiting for indexer to catchup to given transaction");
+    .expect("timeout waiting for indexer to catchup to given transaction");
 }
 
 pub async fn execute_tx_and_wait_for_indexer(
@@ -330,7 +330,7 @@ pub async fn execute_tx_must_succeed(
     assert_eq!(
         indexer_tx_response.status_ok(),
         Some(true),
-        "Transaction failed: {indexer_tx_response:?}"
+        "transaction failed: {indexer_tx_response:?}"
     );
     *txn.digest()
 }
@@ -353,7 +353,7 @@ fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Opti
             ..Default::default()
         },
     )
-    .expect("Creating new connection pool should succeed");
+    .expect("creating new connection pool should succeed");
 
     let registry = prometheus::Registry::default();
     init_metrics(&registry);
@@ -471,6 +471,6 @@ pub async fn wait_for_objects_snapshot(
         }
     })
     .await
-    .expect("Timeout waiting for indexer to catchup to checkpoint for objects snapshot");
+    .expect("timeout waiting for indexer to catchup to checkpoint for objects snapshot");
     Ok(())
 }

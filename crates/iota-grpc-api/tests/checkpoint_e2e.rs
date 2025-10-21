@@ -51,7 +51,9 @@ async fn e2e_stream_checkpoints() {
             match res {
                 Ok(checkpoint_content) => match checkpoint_content {
                     iota_grpc_api::client::CheckpointContent::Summary(summary) => match summary {
-                        iota_grpc_types::CertifiedCheckpointSummary::V1(v1_summary) => {
+                        iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(
+                            v1_summary,
+                        ) => {
                             indices.push(v1_summary.data().sequence_number);
                             count += 1;
                             if count >= 20 {
@@ -108,7 +110,9 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
             match res {
                 Ok(checkpoint_content) => match checkpoint_content {
                     iota_grpc_api::client::CheckpointContent::Summary(summary) => match summary {
-                        iota_grpc_types::CertifiedCheckpointSummary::V1(v1_summary) => {
+                        iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(
+                            v1_summary,
+                        ) => {
                             let epoch = v1_summary.data().epoch;
                             all_indices.push(v1_summary.data().sequence_number);
                             all_epochs.push(epoch);
@@ -163,7 +167,7 @@ async fn test_stream_full_checkpoint_data() {
                 Ok(checkpoint_content) => match checkpoint_content {
                     iota_grpc_api::client::CheckpointContent::Data(checkpoint_data) => {
                         match checkpoint_data {
-                            iota_grpc_types::CheckpointData::V1(v1_data) => {
+                            iota_grpc_types::checkpoints::CheckpointData::V1(v1_data) => {
                                 assert_eq!(v1_data.checkpoint_summary.sequence_number, 2);
                             }
                         }

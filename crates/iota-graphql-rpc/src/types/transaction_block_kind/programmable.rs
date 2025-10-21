@@ -226,16 +226,16 @@ impl ProgrammableTransactionBlock {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(self.native.inputs.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let input = TransactionInput::from(self.native.inputs[c.ix].clone(), c.c);
             connection.edges.push(Edge::new(c.encode_cursor(), input));
         }
@@ -255,16 +255,16 @@ impl ProgrammableTransactionBlock {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) = page
+        let Some(consistent_page) = page
             .paginate_consistent_indices(self.native.commands.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let txn = ProgrammableTransaction::from(self.native.commands[c.ix].clone(), c.c);
             connection.edges.push(Edge::new(c.encode_cursor(), txn));
         }

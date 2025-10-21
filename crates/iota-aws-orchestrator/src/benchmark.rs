@@ -43,6 +43,13 @@ pub struct BenchmarkParameters<T> {
     pub load: usize,
     /// The duration of the benchmark.
     pub duration: Duration,
+    /// Flag indicating whether nodes should advertise their internal or public
+    /// IP address for inter-node communication. When running the simulation
+    /// in multiple regions, nodes need to use their public IPs to correctly
+    /// communicate, however when a simulation is running in a single VPC,
+    /// they should use their internal IPs to avoid paying for data sent between
+    /// the nodes.
+    pub use_internal_ip_address: bool,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -53,6 +60,7 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             faults: FaultsType::default(),
             load: 500,
             duration: Duration::from_secs(60),
+            use_internal_ip_address: true,
         }
     }
 }
@@ -61,8 +69,8 @@ impl<T: BenchmarkType> Debug for BenchmarkParameters<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{:?}-{:?}-{}-{}",
-            self.benchmark_type, self.faults, self.nodes, self.load
+            "{:?}-{:?}-{}-{}-{}",
+            self.benchmark_type, self.faults, self.nodes, self.load, self.use_internal_ip_address,
         )
     }
 }
@@ -71,8 +79,8 @@ impl<T> Display for BenchmarkParameters<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} nodes ({}) - {} tx/s",
-            self.nodes, self.faults, self.load
+            "{} nodes ({}) - {} tx/s (use internal IPs: {})",
+            self.nodes, self.faults, self.load, self.use_internal_ip_address
         )
     }
 }
@@ -85,6 +93,7 @@ impl<T> BenchmarkParameters<T> {
         faults: FaultsType,
         load: usize,
         duration: Duration,
+        use_internal_ip_address: bool,
     ) -> Self {
         Self {
             benchmark_type,
@@ -92,6 +101,7 @@ impl<T> BenchmarkParameters<T> {
             faults,
             load,
             duration,
+            use_internal_ip_address,
         }
     }
 }
@@ -133,6 +143,9 @@ pub struct BenchmarkParametersGenerator<T> {
     upper_bound_result: Option<MeasurementsCollection<T>>,
     /// The current number of iterations.
     iterations: usize,
+    /// Flag indicating whether nodes should advertise their internal or public
+    /// IP address for inter-node communication.
+    use_internal_ip_address: bool,
 }
 
 impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
@@ -147,6 +160,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.faults.clone(),
                 load,
                 self.duration,
+                self.use_internal_ip_address,
             )
         })
     }
@@ -157,7 +171,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
     const DEFAULT_DURATION: Duration = Duration::from_secs(180);
 
     /// make a new generator.
-    pub fn new(nodes: usize, mut load_type: LoadType) -> Self {
+    pub fn new(nodes: usize, mut load_type: LoadType, use_internal_ip_address: bool) -> Self {
         let next_load = match &mut load_type {
             LoadType::Fixed(loads) => {
                 if loads.is_empty() {
@@ -178,6 +192,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             lower_bound_result: None,
             upper_bound_result: None,
             iterations: 0,
+            use_internal_ip_address,
         }
     }
 
@@ -312,7 +327,8 @@ pub mod test {
             starting_load: 100,
             max_iterations: 10,
         };
-        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load);
+        let mut generator =
+            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
         let parameters = generator.next().unwrap();
 
         let collection = MeasurementsCollection::new(&settings, parameters);
@@ -338,7 +354,8 @@ pub mod test {
             starting_load: 100,
             max_iterations: 10,
         };
-        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load);
+        let mut generator =
+            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
         let first_parameters = generator.next().unwrap();
 
         // Register a first result (zero latency). This sets the lower bound.
@@ -377,7 +394,8 @@ pub mod test {
             starting_load: 100,
             max_iterations: 0,
         };
-        let mut generator = BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load);
+        let mut generator =
+            BenchmarkParametersGenerator::<TestBenchmarkType>::new(nodes, load, true);
         let parameters = generator.next().unwrap();
 
         let collection = MeasurementsCollection::new(&settings, parameters);

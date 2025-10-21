@@ -24,8 +24,8 @@ use crate::{
         ReadApi, TransactionBuilderApi, WriteApi,
     },
     config::JsonRpcConfig,
-    indexer_reader::IndexerReader,
     optimistic_indexing::OptimisticTransactionExecutor,
+    read::IndexerReader,
     store::PgIndexerStore,
 };
 
@@ -34,14 +34,14 @@ pub mod backfill;
 pub mod config;
 pub mod db;
 pub mod errors;
-pub mod handlers;
 pub mod indexer;
-pub mod indexer_reader;
+pub mod ingestion;
 pub mod metrics;
 pub mod models;
 pub mod optimistic_indexing;
 pub mod processors;
-pub mod rolling;
+pub mod pruning;
+pub mod read;
 pub mod schema;
 pub mod store;
 pub mod system_package_task;
@@ -96,9 +96,9 @@ fn get_http_client(rpc_client_url: &str) -> Result<HttpClient, IndexerError> {
         .set_headers(headers.clone())
         .build(rpc_client_url)
         .map_err(|e| {
-            warn!("Failed to get new Http client with error: {:?}", e);
+            warn!("failed to get new Http client with error: {:?}", e);
             IndexerError::HttpClientInit(format!(
-                "Failed to initialize fullnode RPC client with error: {e:?}"
+                "failed to initialize fullnode RPC client with error: {e:?}"
             ))
         })
 }

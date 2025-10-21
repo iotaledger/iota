@@ -322,12 +322,7 @@ pub fn read_size_from_env(var_name: &str) -> Option<usize> {
     std::env::var(var_name)
         .ok()?
         .parse::<usize>()
-        .tap_err(|e| {
-            warn!(
-                "Env var {} does not contain valid usize integer: {}",
-                var_name, e
-            )
-        })
+        .tap_err(|e| warn!("env var {var_name} does not contain valid usize integer: {e}",))
         .ok()
 }
 

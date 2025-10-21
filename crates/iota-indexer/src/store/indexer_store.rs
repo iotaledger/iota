@@ -9,25 +9,19 @@ use diesel::PgConnection;
 
 use crate::{
     errors::IndexerError,
-    handlers::{EpochToCommit, TransactionObjectChangesToCommit},
+    ingestion::{
+        common::prepare::CheckpointObjectChanges,
+        primary::persist::{EpochToCommit, TransactionObjectChangesToCommit},
+    },
     models::{
         display::StoredDisplay,
         obj_indices::StoredObjectVersion,
-        objects::{StoredDeletedObject, StoredObject},
         transactions::{CheckpointTxGlobalOrder, OptimisticTransaction},
     },
-    rolling::transform::CheckpointObjectChanges,
     types::{
         EventIndex, IndexedCheckpoint, IndexedEvent, IndexedPackage, IndexedTransaction, TxIndex,
-        TxIndexV2,
     },
 };
-
-#[expect(clippy::large_enum_variant)]
-pub enum ObjectsToCommit {
-    MutatedObject(StoredObject),
-    DeletedObject(StoredDeletedObject),
-}
 
 #[async_trait]
 pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
@@ -46,11 +40,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
     fn persist_protocol_configs_and_feature_flags(
         &self,
         chain_id: Vec<u8>,
-    ) -> Result<(), IndexerError>;
-
-    async fn persist_objects(
-        &self,
-        object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
 
     async fn persist_object_history(
@@ -83,8 +72,6 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         conn: &mut PgConnection,
         transaction: OptimisticTransaction,
     ) -> Result<(), IndexerError>;
-
-    async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 
     async fn persist_events(&self, events: Vec<IndexedEvent>) -> Result<(), IndexerError>;
 
@@ -126,10 +113,7 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         conn: &mut PgConnection,
         object_changes: Vec<TransactionObjectChangesToCommit>,
     ) -> Result<(), IndexerError>;
-}
 
-#[async_trait]
-pub trait IndexerStoreExt: IndexerStore {
     async fn persist_checkpoint_objects(
         &self,
         objects: Vec<CheckpointObjectChanges>,
@@ -145,5 +129,5 @@ pub trait IndexerStoreExt: IndexerStore {
         tx_order: Vec<CheckpointTxGlobalOrder>,
     ) -> Result<(), IndexerError>;
 
-    async fn persist_tx_indices_v2(&self, indices: Vec<TxIndexV2>) -> Result<(), IndexerError>;
+    async fn persist_tx_indices(&self, indices: Vec<TxIndex>) -> Result<(), IndexerError>;
 }

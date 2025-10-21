@@ -9,7 +9,7 @@ use std::{
 use parking_lot::RwLock;
 use tracing::debug;
 
-use crate::{BlockRef, CommittedSubDag, commit::PendingSubDag, dag_state::DagState};
+use crate::{BlockRef, CommitIndex, CommittedSubDag, commit::PendingSubDag, dag_state::DagState};
 
 /// The `DataManager` is responsible for managing and handling
 /// the commit process for newly committed sub-dags. It ensures that sub-dags
@@ -32,7 +32,7 @@ pub(crate) struct DataManager {
     // Buffer for pending subdags, keyed by commit_ref.index for order
     pending_subdags: BTreeMap<u32, PendingSubDag>,
     // The highest committed commit_ref.index
-    last_committed_index: u32,
+    last_committed_index: CommitIndex,
 }
 
 impl DataManager {
@@ -54,7 +54,7 @@ impl DataManager {
         }
     }
 
-    pub(crate) fn set_last_committed_index(&mut self, index: u32) {
+    pub(crate) fn set_last_committed_index(&mut self, index: CommitIndex) {
         self.last_committed_index = index;
     }
 

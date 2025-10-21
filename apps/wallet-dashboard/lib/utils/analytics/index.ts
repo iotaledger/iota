@@ -3,3 +3,4 @@
 
 export * from './ampli';
 export * from './amplitude';
+export * from './stakeSource';

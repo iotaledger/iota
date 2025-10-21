@@ -7,7 +7,7 @@ use std::{sync::Arc, time::Duration};
 use iota_metrics::monitored_mpsc::UnboundedSender;
 use parking_lot::RwLock;
 use tokio::time::Instant;
-use tracing::{debug, info};
+use tracing::{debug, info, instrument};
 
 use crate::{
     CommitConsumer, CommittedSubDag,
@@ -72,6 +72,7 @@ impl CommitObserver {
         observer
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn handle_commit(
         &mut self,
         committed_leaders: Vec<VerifiedBlock>,

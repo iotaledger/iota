@@ -43,8 +43,6 @@ jobs:
         run: |
           export artifact_name="iota-wallet-${{ steps.package-version.outputs.current-version }}"
           echo "artifact_name=${artifact_name}" >> $GITHUB_ENV
-      - name: Build Wallet
-        run: pnpm wallet build
       - name: Get Previous Tag
         id: prev_tag
         run: |
@@ -85,10 +83,19 @@ jobs:
           draft: true
           prerelease: false
           body_path: CHANGELOG.md
-
-      - name: Upload artifacts
+      - name: Build Chrome Wallet
+        run: pnpm wallet build
+      - name: Upload Chrome artifacts
         uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
         with:
-          name: ${{ env.artifact_name }}
+          name: chrome-${{ env.artifact_name }}
+          path: |
+            ./apps/wallet/dist
+      - name: Build Firefox Wallet
+        run: pnpm wallet build:firefox
+      - name: Upload Firefox artifacts
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: firefox-${{ env.artifact_name }}
           path: |
             ./apps/wallet/dist
