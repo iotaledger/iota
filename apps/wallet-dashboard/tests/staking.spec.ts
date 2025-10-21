@@ -21,13 +21,13 @@ test.describe('Wallet staking', () => {
     test('should allow to stake and unstake funds', async ({
         pageWithFreshWallet,
         context,
-        extensionName,
+        sharedState,
     }) => {
         test.setTimeout(LONG_TIMEOUT);
         const dashboardPage = await setupWalletWithFunds(
             pageWithFreshWallet,
             context,
-            extensionName,
+            sharedState.extension.name,
         );
         await navigateToDashboardStakePage(dashboardPage);
 
@@ -46,13 +46,13 @@ test.describe('Wallet staking', () => {
         test('should stake using Max button and then unstake', async ({
             pageWithFreshWallet,
             context,
-            extensionName,
+            sharedState,
         }) => {
             test.setTimeout(LONG_TIMEOUT);
             const dashboardPage = await setupWalletWithFunds(
                 pageWithFreshWallet,
                 context,
-                extensionName,
+                sharedState.extension.name,
             );
 
             await navigateToDashboardStakePage(dashboardPage);
@@ -75,14 +75,13 @@ test.describe('Wallet staking', () => {
         test('should stake using Recommended amount button and then unstake', async ({
             pageWithFreshWallet,
             context,
-            extensionName,
+            sharedState,
         }) => {
-            test.setTimeout(LONG_TIMEOUT);
             test.setTimeout(LONG_TIMEOUT);
             const dashboardPage = await setupWalletWithFunds(
                 pageWithFreshWallet,
                 context,
-                extensionName,
+                sharedState.extension.name,
             );
 
             await navigateToDashboardStakePage(dashboardPage);
@@ -109,13 +108,13 @@ test.describe('Wallet staking', () => {
         test('should stake minimum allowed amount and then unstake', async ({
             pageWithFreshWallet,
             context,
-            extensionName,
+            sharedState,
         }) => {
             test.setTimeout(LONG_TIMEOUT);
             const dashboardPage = await setupWalletWithFunds(
                 pageWithFreshWallet,
                 context,
-                extensionName,
+                sharedState.extension.name,
             );
             await navigateToDashboardStakePage(dashboardPage);
             await dashboardPage.getByLabel('Amount').fill(MIN_NUMBER_IOTA_TO_STAKE.toString());
@@ -131,13 +130,13 @@ test.describe('Wallet staking', () => {
         test('should stake max amount minus 1 nano and then unstake', async ({
             pageWithFreshWallet,
             context,
-            extensionName,
+            sharedState,
         }) => {
             test.setTimeout(LONG_TIMEOUT);
             const dashboardPage = await setupWalletWithFunds(
                 pageWithFreshWallet,
                 context,
-                extensionName,
+                sharedState.extension.name,
             );
             await navigateToDashboardStakePage(dashboardPage);
 
@@ -162,14 +161,13 @@ test.describe('Wallet staking', () => {
         test('should stake using multiple small objects and then unstake', async ({
             pageWithFreshWallet,
             context,
-            extensionName,
             sharedState,
         }) => {
             test.setTimeout(LONG_TIMEOUT);
             const dashboardPage = await setupWalletWithFunds(
                 pageWithFreshWallet,
                 context,
-                extensionName,
+                sharedState.extension.name,
             );
             if (!sharedState.wallet.mnemonic) {
                 throw new Error('Wallet mnemonic is undefined');
@@ -191,14 +189,13 @@ test.describe('Wallet staking', () => {
         test('should show error message when using over 50 small objects', async ({
             pageWithFreshWallet,
             context,
-            extensionName,
             sharedState,
         }) => {
             test.setTimeout(LONG_TIMEOUT);
             const dashboardPage = await setupWalletWithFunds(
                 pageWithFreshWallet,
                 context,
-                extensionName,
+                sharedState.extension.name,
             );
             if (!sharedState.wallet.mnemonic) {
                 throw new Error('Wallet mnemonic is undefined');
