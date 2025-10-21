@@ -120,10 +120,10 @@ where
                 .await
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
-                .tap_err(|e| error!("Error joining network persist tasks: {:?}", e))?
+                .tap_err(|e| error!("error joining network persist tasks: {e:?}"))?
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
-                .tap_err(|e| error!("Error persisting tx count metrics: {:?}", e))?;
+                .tap_err(|e| error!("error persisting tx count metrics: {e:?}"))?;
 
             last_processed_cp_seq += batch_size;
 
@@ -137,7 +137,7 @@ where
                 .await?
                 .first()
                 .ok_or(IndexerError::PostgresRead(
-                    "Cannot read checkpoint from PG for epoch peak TPS".to_string(),
+                    "cannot read checkpoint from PG for epoch peak TPS".to_string(),
                 ))?
                 .clone();
             for epoch in last_processed_peak_tps_epoch + 1..end_cp.epoch {

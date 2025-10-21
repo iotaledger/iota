@@ -17,10 +17,7 @@ use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::{
-    sync::{Mutex, broadcast, mpsc::Sender},
-    time::sleep,
-};
+use tokio::sync::{Mutex, broadcast, mpsc::Sender};
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
@@ -281,50 +278,16 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let block_ref = verified_block.reference();
         debug!("Received block {} via stream block bundle.", block_ref);
 
-        // 2. Reject a block with a timestamp too far in the future.
+        // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
         let now = self.context.clock.timestamp_utc_ms();
         let forward_time_drift =
             Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
-        if forward_time_drift > self.context.parameters.max_forward_time_drift {
-            self.context
-                .metrics
-                .node_metrics
-                .rejected_future_blocks
-                .with_label_values(&[peer_hostname])
-                .inc();
-            debug!(
-                "Block {:?} timestamp ({} > {}) is too far in the future, rejected.",
-                block_ref,
-                verified_block.timestamp_ms(),
-                now,
-            );
-            return Err(ConsensusError::BlockRejected {
-                block_ref,
-                reason: format!(
-                    "Block timestamp is too far in the future: {} > {}",
-                    verified_block.timestamp_ms(),
-                    now
-                ),
-            });
-        }
-
-        // 3. Wait until the block's timestamp is current.
-        if forward_time_drift > Duration::ZERO {
-            self.context
-                .metrics
-                .node_metrics
-                .block_timestamp_drift_wait_ms
-                .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
-                .inc_by(forward_time_drift.as_millis() as u64);
-            debug!(
-                "Block {:?} timestamp ({} > {}) is in the future, waiting for {}ms",
-                block_ref,
-                verified_block.timestamp_ms(),
-                now,
-                forward_time_drift.as_millis(),
-            );
-            sleep(forward_time_drift).await;
-        }
+        self.context
+            .metrics
+            .node_metrics
+            .block_timestamp_drift_ms
+            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .inc_by(forward_time_drift.as_millis() as u64);
 
         // 4. Create block headers from bytes from a bundle
         // 4.a. Truncate headers in bundle to max_headers_per_bundle
@@ -1479,7 +1442,7 @@ mod tests {
         ));
         let mut encoder = create_encoder(&context);
 
-        // Test rejecting block with time drift.
+        // Test that block with timestamp drift to the future is not rejected.
         let now = context.clock.timestamp_utc_ms();
         let max_drift = context.parameters.max_forward_time_drift;
         let input_block = VerifiedBlock::new_for_test(
@@ -1490,24 +1453,6 @@ mod tests {
 
         let serialized_block_bundle = SerializedBlockBundle::try_from(input_block.clone()).unwrap();
 
-        let result = authority_service
-            .handle_subscribed_block_bundle(
-                context.committee.to_authority_index(0).unwrap(),
-                serialized_block_bundle.clone(),
-                &mut encoder,
-            )
-            .await;
-
-        match result {
-            Err(ConsensusError::BlockRejected { reason, .. }) => {
-                assert!(reason.contains("timestamp is too far in the future"));
-            }
-            _ => panic!("Expected BlockRejected error, got {result:?}"),
-        }
-
-        // After this sleep time drift is within the limit, so we would not reject the
-        // block but wait
-        sleep(max_drift / 2).await;
         tokio::spawn(async move {
             authority_service
                 .handle_subscribed_block_bundle(
@@ -1518,10 +1463,10 @@ mod tests {
                 .await
                 .unwrap();
         });
-        assert!(core_dispatcher.get_blocks().is_empty());
 
-        // wait for the max_drift time to pass, so that the block can be processed
-        sleep(max_drift).await;
+        // Give it some time to process
+        sleep(max_drift / 2).await;
+
         let blocks = core_dispatcher.get_blocks();
         assert_eq!(blocks.len(), 1);
         assert_eq!(blocks[0], input_block);

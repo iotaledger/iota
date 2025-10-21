@@ -58,7 +58,7 @@ impl Indexer {
         let primary_watermark = store
             .get_latest_checkpoint_sequence_number()
             .await
-            .expect("Failed to get latest tx checkpoint sequence number from DB")
+            .expect("failed to get latest tx checkpoint sequence number from DB")
             .map(|seq| seq + 1)
             .unwrap_or_default();
         let extra_reader_options = ReaderOptions {
@@ -200,10 +200,10 @@ impl Indexer {
         let read = IndexerReader::new(connection_pool);
         let handle = build_json_rpc_server(store, registry, read, config, metrics)
             .await
-            .expect("Json rpc server should not run into errors upon start.");
+            .expect("json rpc server should not run into errors upon start.");
         tokio::spawn(async move { handle.stopped().await })
             .await
-            .expect("Rpc server task failed");
+            .expect("rpc server task failed");
 
         Ok(())
     }
