@@ -9,6 +9,8 @@ import "common.proto";
 
 service ReadService {
   rpc GetObject (GetObjectRequest) returns (GetObjectResponse);
+  rpc GetTransaction (GetTransactionRequest) returns (iota.grpc.v0.common.TransactionResponse);
+  rpc ContainsTransaction (ContainsTransactionRequest) returns (ContainsTransactionResponse);
 }
 
 // GetObject
@@ -52,4 +54,23 @@ message Exists {
 
 message Deleted {
   iota.grpc.v0.common.ObjectRef object_ref = 1;
+}
+
+// GetTransaction
+message GetTransactionRequest {
+  // The digest of the queried transaction
+  iota.grpc.v0.common.Digest digest = 1;
+  // Options for specifying the content to be returned
+  optional iota.grpc.v0.common.TransactionResponseOptions options = 2;
+}
+
+// ContainsTransaction
+message ContainsTransactionRequest {
+  // The digest of the transaction to check
+  iota.grpc.v0.common.Digest digest = 1;
+}
+
+message ContainsTransactionResponse {
+  // True if the transaction exists, false otherwise
+  bool exists = 1;
 }

@@ -8,27 +8,11 @@ package iota.grpc.v0.events;
 import "common.proto";
 
 service EventService {
-  rpc StreamEvents (EventStreamRequest) returns (stream Event);
+  rpc StreamEvents (EventStreamRequest) returns (stream iota.grpc.v0.common.Event);
 }
 
 message EventStreamRequest {
   EventFilter filter = 1;
-}
-
-message Event {
-  EventID event_id = 1;
-  iota.grpc.v0.common.Address package_id = 2;
-  string transaction_module = 3;
-  iota.grpc.v0.common.Address sender = 4;
-  string type_name = 5;
-  string parsed_json = 6;
-  optional uint64 timestamp_ms = 7;
-  iota.grpc.v0.common.BcsData event_data = 8;
-}
-
-message EventID {
-  uint64 event_seq = 1;
-  iota.grpc.v0.common.Digest tx_digest = 2;
 }
 
 // Rich event filter that supports gRPC event filtering

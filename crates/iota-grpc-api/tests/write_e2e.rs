@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use iota_grpc_api::client::WriteClient;
-use iota_grpc_types::v0::write as grpc_write;
+use iota_grpc_types::v0::{common as grpc_common, write as grpc_write};
 use iota_types::transaction::{TransactionData, TransactionDataAPI};
 use test_cluster::TestCluster;
 
@@ -51,9 +51,12 @@ async fn test_write_service_execute_transaction() {
     // Test execute_transaction via WriteService with real transaction data
     let tx_result = tokio::time::timeout(Duration::from_secs(30), async {
         let request = grpc_write::ExecuteTransactionRequest {
-            tx_bytes,
-            signatures,
-            options: Some(grpc_write::TransactionResponseOptions {
+            tx_bytes: Some(grpc_common::BcsData { data: tx_bytes }),
+            signatures: signatures
+                .into_iter()
+                .map(|data| grpc_common::BcsData { data })
+                .collect(),
+            options: Some(grpc_common::TransactionResponseOptions {
                 show_input: false,
                 show_raw_input: false,
                 show_effects: true,
@@ -130,9 +133,12 @@ async fn test_write_service_invalid_transaction() {
     // Test execute_transaction with invalid data via WriteService
     let tx_result = tokio::time::timeout(Duration::from_secs(30), async {
         let request = grpc_write::ExecuteTransactionRequest {
-            tx_bytes,
-            signatures,
-            options: Some(grpc_write::TransactionResponseOptions {
+            tx_bytes: Some(grpc_common::BcsData { data: tx_bytes }),
+            signatures: signatures
+                .into_iter()
+                .map(|data| grpc_common::BcsData { data })
+                .collect(),
+            options: Some(grpc_common::TransactionResponseOptions {
                 show_input: false,
                 show_raw_input: false,
                 show_effects: true,
@@ -183,9 +189,12 @@ async fn test_transaction_data_bcs_deserialization() {
 
     // Execute transaction
     let request = grpc_write::ExecuteTransactionRequest {
-        tx_bytes,
-        signatures,
-        options: Some(grpc_write::TransactionResponseOptions {
+        tx_bytes: Some(grpc_common::BcsData { data: tx_bytes }),
+        signatures: signatures
+            .into_iter()
+            .map(|data| grpc_common::BcsData { data })
+            .collect(),
+        options: Some(grpc_common::TransactionResponseOptions {
             show_input: true,
             show_raw_input: true,
             show_effects: false,

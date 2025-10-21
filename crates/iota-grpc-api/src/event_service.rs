@@ -38,7 +38,7 @@ impl EventGrpcService {
 // any gRPC event service must implement.
 #[tonic::async_trait]
 impl grpc_events::event_service_server::EventService for EventGrpcService {
-    type StreamEventsStream = BoxStream<'static, Result<grpc_events::Event, Status>>;
+    type StreamEventsStream = BoxStream<'static, Result<grpc_common::Event, Status>>;
 
     async fn stream_events(
         &self,
@@ -76,7 +76,7 @@ impl grpc_events::event_service_server::EventService for EventGrpcService {
                         );
 
                         // Convert to protobuf Event
-                        let proto_event = grpc_events::Event::from(&event);
+                        let proto_event = grpc_common::Event::from(&event);
 
                         yield proto_event;
                     }

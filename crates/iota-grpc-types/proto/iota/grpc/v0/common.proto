@@ -91,3 +91,183 @@ message MoveFunctionFilter {
   optional string module = 2;     // Module name (optional)
   optional string function = 3;   // Function name (optional)
 }
+
+// Container for the BcsData and the name of the type
+message Bcs {
+  // Name that identifies the type of the serialized value.
+  string name = 1;
+
+  // The BCS-serialized data.
+  BcsData value = 2;
+}
+
+// Transaction response options
+message TransactionResponseOptions {
+  // Whether to show transaction input data
+  bool show_input = 1;
+  // Whether to show bcs-encoded transaction input data
+  bool show_raw_input = 2;
+  // Whether to show transaction effects
+  bool show_effects = 3;
+  // Whether to show transaction events
+  bool show_events = 4;
+  // Whether to show object changes
+  bool show_object_changes = 5;
+  // Whether to show balance changes
+  bool show_balance_changes = 6;
+  // Whether to show raw transaction effects
+  bool show_raw_effects = 7;
+}
+
+// Transaction response used by GetTransaction and ExecuteTransaction
+message TransactionResponse {
+  // Transaction digest (32-byte)
+  Digest digest = 1;
+
+  // Transaction input data (optional, based on show_input option)
+  // BCS-encoded TransactionData (core type from iota-types)
+  optional BcsData transaction = 2;
+
+  // BCS-encoded SenderSignedData (optional, based on show_raw_input option)
+  optional BcsData raw_transaction = 3;
+
+  // Transaction effects (optional, based on show_effects option)
+  // BCS-encoded TransactionEffects (core type from iota-types)
+  optional BcsData effects = 4;
+
+  // Transaction events (optional, based on show_events option)
+  // BCS-encoded TransactionEvents (core type from iota-types)
+  optional BcsData events = 5;
+
+  // Object changes (optional, based on show_object_changes option)
+  repeated ObjectChange object_changes = 6;
+
+  // Balance changes (optional, based on show_balance_changes option)
+  repeated BalanceChange balance_changes = 7;
+
+  // Timestamp in milliseconds
+  optional uint64 timestamp_ms = 8;
+
+  // Whether local execution was confirmed
+  optional bool confirmed_local_execution = 9;
+
+  // Checkpoint sequence number
+  optional uint64 checkpoint = 10;
+
+  // Error messages
+  repeated string errors = 11;
+
+  // BCS-encoded raw effects (optional, based on show_raw_effects option)
+  // BCS-encoded TransactionEffects (core type from iota-types)
+  optional BcsData raw_effects = 12;
+}
+
+// ObjectChange represents changes to objects during transaction execution
+message ObjectChange {
+  oneof change {
+    ObjectPublished published = 1;
+    ObjectTransferred transferred = 2;
+    ObjectMutated mutated = 3;
+    ObjectDeleted deleted = 4;
+    ObjectWrapped wrapped = 5;
+    ObjectCreated created = 6;
+  }
+}
+
+message ObjectPublished {
+  Address package_id = 1;
+  uint64 version = 2;
+  Digest digest = 3;
+  repeated string modules = 4;
+}
+
+message ObjectTransferred {
+  Address sender = 1;
+  Owner recipient = 2;
+  string object_type = 3;  // StructTag as string
+  Address object_id = 4;
+  uint64 version = 5;
+  Digest digest = 6;
+}
+
+message ObjectMutated {
+  Address sender = 1;
+  Owner owner = 2;
+  string object_type = 3;  // StructTag as string
+  Address object_id = 4;
+  uint64 version = 5;
+  uint64 previous_version = 6;
+  Digest digest = 7;
+}
+
+message ObjectDeleted {
+  Address sender = 1;
+  string object_type = 2;  // StructTag as string
+  Address object_id = 3;
+  uint64 version = 4;
+}
+
+message ObjectWrapped {
+  Address sender = 1;
+  string object_type = 2;  // StructTag as string
+  Address object_id = 3;
+  uint64 version = 4;
+}
+
+message ObjectCreated {
+  Address sender = 1;
+  Owner owner = 2;
+  string object_type = 3;  // StructTag as string
+  Address object_id = 4;
+  uint64 version = 5;
+  Digest digest = 6;
+}
+
+// BalanceChange represents balance changes during transaction execution
+message BalanceChange {
+  Owner owner = 1;
+  string coin_type = 2;  // TypeTag as string
+  // Amount as string to support i128 (can be negative)
+  // Format: decimal string representation of i128
+  string amount = 3;
+}
+
+// Event represents a transaction event
+message Event {
+  EventID event_id = 1;
+  Address package_id = 2;
+  string transaction_module = 3;
+  Address sender = 4;
+  string type_name = 5;
+  string parsed_json = 6;
+  optional uint64 timestamp_ms = 7;
+  BcsData event_data = 8;
+}
+
+// Event identifier
+message EventID {
+  uint64 event_seq = 1;
+  Digest tx_digest = 2;
+}
+
+// Transaction data (corresponds to IotaTransactionBlockData)
+message TransactionData {
+  // TransactionKind of the iota-types (BCS-encoded)
+  BcsData transaction = 1;
+  // Sender address
+  Address sender = 2;
+  // Gas data
+  GasData gas_data = 3;
+}
+
+// Gas data for transactions
+message GasData {
+  // Payment objects
+  repeated ObjectRef payment = 1;
+  // Gas owner
+  Address owner = 2;
+  // Gas price
+  uint64 price = 3;
+  // Gas budget
+  uint64 budget = 4;
+}

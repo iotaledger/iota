@@ -3,13 +3,13 @@
 
 use iota_json_rpc_types::IotaEvent;
 
-use crate::v0::{common as grpc_common, events as grpc_events};
+use crate::v0::common as grpc_common;
 
-// Convert IotaEvent to protobuf Event
-impl From<&IotaEvent> for grpc_events::Event {
+// Convert IotaEvent to protobuf Event (now in common module)
+impl From<&IotaEvent> for grpc_common::Event {
     fn from(event: &IotaEvent) -> Self {
-        grpc_events::Event {
-            event_id: Some(grpc_events::EventId {
+        grpc_common::Event {
+            event_id: Some(grpc_common::EventId {
                 event_seq: event.id.event_seq,
                 tx_digest: Some(grpc_common::Digest {
                     digest: event.id.tx_digest.into_inner().to_vec(),
