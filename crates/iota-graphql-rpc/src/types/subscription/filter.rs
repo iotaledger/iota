@@ -61,7 +61,7 @@ impl Filter<StoredTransaction> for SubscriptionTransactionFilter {
                 .map(|data| data.transaction_data().sender() == (*address).into())
                 .unwrap_or_default(),
             Function(name) => {
-                let (package, module) = name.into();
+                let move_call = MoveCall::from(name);
 
                 transaction
                     .try_into_sender_signed_data()
@@ -69,17 +69,7 @@ impl Filter<StoredTransaction> for SubscriptionTransactionFilter {
                         data.transaction_data()
                             .move_calls()
                             .iter()
-                            .any(|(p, m, f)| match module.as_ref() {
-                                Some(module_function) => {
-                                    let Some(ref function) = module_function.function_name else {
-                                        return **p == package && *m == module_function.module_name;
-                                    };
-                                    **p == package
-                                        && *m == module_function.module_name
-                                        && f == function
-                                }
-                                None => **p == package,
-                            })
+                            .any(|(p, m, f)| move_call.matches_transaction_move_call(p, m, f))
                     })
                     .unwrap_or_default()
             }
@@ -109,29 +99,70 @@ impl From<&TransactionBlockKindInput> for IotaTransactionKind {
     }
 }
 
+/// Represents a module information of the move call.
 struct ModuleFunction<'a> {
+    /// Name of the module.
     module_name: &'a str,
+    /// Name of the function within the module.
     function_name: Option<&'a str>,
 }
 
-impl<'a> From<&'a FqNameFilter> for (ObjectID, Option<ModuleFunction<'a>>) {
+/// A data type that converts [`FqNameFilter`] into a representation of move
+/// calls in transactions, enabling easy filtering by fully qualified names as
+/// returned by the [`move_calls`](TransactionDataAPI::move_calls) method on
+/// types implementing [`TransactionDataAPI`].
+struct MoveCall<'a> {
+    /// Package ID of the move call.
+    package: ObjectID,
+    /// Module information of the move call.
+    module_function: Option<ModuleFunction<'a>>,
+}
+
+impl<'a> MoveCall<'a> {
+    fn new(package: ObjectID, module_function: impl Into<Option<ModuleFunction<'a>>>) -> Self {
+        MoveCall {
+            package,
+            module_function: module_function.into(),
+        }
+    }
+
+    /// Matches a transaction move call against the fully qualified name filter.
+    ///
+    /// The filter is applied in the following order:
+    /// 1. package ID must match
+    /// 2. if a module name is specified, it must match
+    /// 3. if a function name is specified, it must match
+    fn matches_transaction_move_call(
+        &self,
+        package: &ObjectID,
+        module: &str,
+        function: &str,
+    ) -> bool {
+        self.package == *package
+            && self.module_function.as_ref().is_none_or(|mf| {
+                mf.module_name == module && mf.function_name.is_none_or(|f| f == function)
+            })
+    }
+}
+
+impl<'a> From<&'a FqNameFilter> for MoveCall<'a> {
     fn from(value: &'a FqNameFilter) -> Self {
         use FqNameFilter::*;
         match value {
-            ByModule(ModuleFilter::ByPackage(package)) => ((*package).into(), None),
-            ByModule(ModuleFilter::ByModule(package, module_name)) => (
+            ByModule(ModuleFilter::ByPackage(package)) => Self::new((*package).into(), None),
+            ByModule(ModuleFilter::ByModule(package, module_name)) => Self::new(
                 (*package).into(),
-                Some(ModuleFunction {
+                ModuleFunction {
                     module_name,
                     function_name: None,
-                }),
+                },
             ),
-            ByFqName(package, module_name, function_name) => (
+            ByFqName(package, module_name, function_name) => Self::new(
                 (*package).into(),
-                Some(ModuleFunction {
+                ModuleFunction {
                     module_name,
                     function_name: Some(function_name),
-                }),
+                },
             ),
         }
     }

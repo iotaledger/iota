@@ -363,7 +363,7 @@ impl InMemory {
     /// [`CheckpointCommitNotification`] from PostgreSQL messages.
     fn filter_checkpoint_notifications(
         messages: Vec<Result<AsyncMessage, tokio_postgres::Error>>,
-    ) -> impl Iterator<Item = Result<CheckpointCommitNotification, IndexerStreamingError>> {
+    ) -> impl Iterator<Item = IndexerStreamingResult<CheckpointCommitNotification>> {
         messages.into_iter().filter_map(|msg_result| {
             match msg_result {
                 Ok(AsyncMessage::Notification(n)) => {
