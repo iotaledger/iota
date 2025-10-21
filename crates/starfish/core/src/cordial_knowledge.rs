@@ -744,7 +744,7 @@ impl ConnectionKnowledge {
                     }
                 }
             }
-            current_round = current_round + 1;
+            current_round += 1;
         }
 
         // Remove the taken blocks from the corresponding authorities
@@ -1267,9 +1267,7 @@ mod tests {
                 assert_eq!(
                     headers.len(),
                     1,
-                    "In round {}, unexpected headers found: {:?}",
-                    round,
-                    headers
+                    "In round {round}, unexpected headers found: {headers:?}",
                 );
                 assert_eq!(
                     headers[0].digest(),
@@ -1278,9 +1276,7 @@ mod tests {
                 assert_eq!(
                     shards.len(),
                     1,
-                    "In round {}, unexpected shards found: {:?}",
-                    round,
-                    shards
+                    "In round {round}, unexpected shards found: {shards:?}",
                 );
             } else {
                 // In round 6, A should know about D's blocks and send them all to B
@@ -1294,9 +1290,7 @@ mod tests {
                 assert_eq!(
                     headers.len(),
                     final_round as usize,
-                    "In round {}, unexpected headers found: {:?}",
-                    round,
-                    headers
+                    "In round {round}, unexpected headers found: {headers:?}",
                 );
                 assert_eq!(shards.len(), final_round as usize);
             }
