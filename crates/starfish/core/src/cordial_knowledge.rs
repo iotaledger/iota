@@ -31,8 +31,8 @@ use crate::{
 };
 
 /// Maximum round gap to consider a peer's useful shards/headers as still
-/// relevant. 20 rounds correspond to around 1 second
-const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 20;
+/// relevant. 40 rounds correspond to around 2 seconds
+const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 40;
 
 /// Represents a subset of authorities using a bitmask.
 /// Each bit in the `low` and `high` fields corresponds to an authority index.
