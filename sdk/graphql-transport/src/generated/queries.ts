@@ -3196,6 +3196,23 @@ export type MoveValue = {
 };
 
 /**
+ * The result of a move-view function call.
+ *
+ * Execution errors are captured in the `error` field, in which
+ * case the `results` field will be `None`.
+ *
+ * On success, the `results` field will contain the return values of the
+ * move view function, and the `error` field will be `None`.
+ */
+export type MoveViewResult = {
+  __typename?: 'MoveViewResult';
+  /** Execution error from executing the move view call. */
+  error?: Maybe<Scalars['String']['output']>;
+  /** The return values of the move view function. */
+  results?: Maybe<Array<Scalars['JSON']['output']>>;
+};
+
+/**
  * The visibility modifier describes which modules can access this module
  * member. By default, a module member can be called only within the same
  * module.
@@ -4361,6 +4378,7 @@ export type Query = {
    * its original ID with the package at `address`.
    */
   latestPackage?: Maybe<MovePackage>;
+  moveViewCall: MoveViewResult;
   /**
    * The object corresponding to the given address at the (optionally) given
    * version. When no version is given, the latest version is returned.
@@ -4550,6 +4568,13 @@ export type QueryIsTransactionIndexedOnNodeArgs = {
 
 export type QueryLatestPackageArgs = {
   address: Scalars['IotaAddress']['input'];
+};
+
+
+export type QueryMoveViewCallArgs = {
+  arguments?: InputMaybe<Array<Scalars['JSON']['input']>>;
+  functionName: Scalars['String']['input'];
+  typeArgs?: InputMaybe<Array<Scalars['String']['input']>>;
 };
 
 
