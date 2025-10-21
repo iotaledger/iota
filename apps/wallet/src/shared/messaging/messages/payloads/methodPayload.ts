@@ -55,6 +55,7 @@ type MethodPayloads = {
         | { type: AccountType.PrivateKeyDerived; keyPair: string; password: string }
         | {
               type: AccountType.LedgerDerived;
+              mainPublicKey: string;
               accounts: { publicKey: string; derivationPath: string; address: string }[];
               password: string;
           }

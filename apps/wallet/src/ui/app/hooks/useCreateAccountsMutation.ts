@@ -139,6 +139,7 @@ export function useCreateAccountsMutation() {
                     type: AccountType.LedgerDerived,
                     accounts: accountsFormValues.accounts,
                     password: password!,
+                    mainPublicKey: accountsFormValues.mainPublicKey,
                 });
             } else if (
                 type === AccountsFormType.ImportKeystone &&
