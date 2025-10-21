@@ -18,7 +18,7 @@ use crate::{
     committee::EpochId,
     crypto::{SignatureScheme, default_hash},
     digests::{MoveAuthenticatorDigest, ObjectDigest, ZKLoginInputsDigest},
-    error::{IotaResult, UserInputError},
+    error::{IotaError, IotaResult, UserInputError},
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
     transaction::{CallArg, InputObjectKind, ObjectArg, SharedInputObject},
@@ -157,13 +157,19 @@ impl AuthenticatorTrait for MoveAuthenticator {
     fn verify_claims<T>(
         &self,
         _value: &IntentMessage<T>,
-        _author: IotaAddress,
+        author: IotaAddress,
         _aux_verify_data: &VerifyParams,
         _zklogin_inputs_cache: Arc<VerifiedDigestCache<ZKLoginInputsDigest>>,
     ) -> IotaResult
     where
         T: Serialize,
     {
+        if author != self.address()? {
+            return Err(IotaError::InvalidSignature {
+                error: "Invalid author".to_string(),
+            });
+        };
+
         Ok(())
     }
 }
