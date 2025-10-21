@@ -283,14 +283,6 @@ impl CordialKnowledge {
                         .node_metrics
                         .cordial_knowledge_buffer_size
                         .set(buffer_size as i64);
-
-                    // Drain the rest of the buffer without awaiting
-                    while let Ok(msg) = self.cordial_knowledge_receiver.try_recv() {
-                        self.process_message(msg).await;
-                    }
-
-                    // Yield to give other tasks a chance before looping again
-                    tokio::task::yield_now().await;
                 }
                 None => {
                     debug!("Cordial Knowledge channel closed; exiting loop");
