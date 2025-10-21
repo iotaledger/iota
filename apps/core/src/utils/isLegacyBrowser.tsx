@@ -15,7 +15,7 @@ export function getBrowserCompatibilityMessage(): string | null {
         const version = (re: RegExp) => Number(ua.match(re)?.[1] || 999);
 
         const isLegacy =
-            version(/Chrome\/(\d+)/) < 200 ||
+            version(/Chrome\/(\d+)/) < 98 ||
             version(/Firefox\/(\d+)/) < 94 ||
             (/Safari/.test(ua) &&
                 !/Chrome/.test(ua) &&
