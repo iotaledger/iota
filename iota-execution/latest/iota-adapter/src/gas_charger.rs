@@ -13,13 +13,12 @@ pub mod checked {
         base_types::{ObjectID, ObjectRef},
         deny_list_v1::CONFIG_SETTING_DYNAMIC_FIELD_SIZE_FOR_GAS,
         digests::TransactionDigest,
-        error::{ExecutionError, ExecutionErrorKind},
+        error::ExecutionError,
         gas::{GasCostSummary, IotaGasStatus, deduct_gas},
         gas_model::tables::GasStatus,
         is_system_package,
         object::Data,
     };
-    use move_core_types::vm_status::StatusCode;
     use tracing::trace;
 
     use crate::{iota_types::gas::IotaGasStatusAPI, temporary_store::TemporaryStore};
@@ -267,17 +266,6 @@ pub mod checked {
             let cost_per_owner = bytes_read_per_owner * cost_per_byte;
             let owner_cost = cost_per_owner * (num_non_gas_coin_owners as usize);
             self.gas_status.charge_storage_read(owner_cost)
-        }
-
-        pub fn charge_authentication(&mut self, gas: u64) -> Result<(), ExecutionError> {
-            // TODO: do we need a dedicated function for this?
-            self.gas_status
-                .move_gas_status_mut()
-                .charge_bytes(gas as usize, 1)
-                .map_err(|e| {
-                    debug_assert_eq!(e.major_status(), StatusCode::OUT_OF_GAS);
-                    ExecutionErrorKind::InsufficientGas.into()
-                })
         }
 
         /// Resets any mutations, deletions, and events recorded in the store,

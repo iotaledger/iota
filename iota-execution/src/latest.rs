@@ -185,8 +185,7 @@ impl executor::Executor for Executor {
         epoch_id: &EpochId,
         epoch_timestamp_ms: u64,
         // Gas related
-        authenticator_gas_status: IotaGasStatus,
-        authenticated_transaction_gas_status: IotaGasStatus,
+        gas_status: IotaGasStatus,
         gas_coins: Vec<ObjectRef>,
         // Authenticator
         authenticator: MoveAuthenticator,
@@ -213,8 +212,7 @@ impl executor::Executor for Executor {
             certificate_deny_set,
             epoch_id,
             epoch_timestamp_ms,
-            authenticator_gas_status,
-            authenticated_transaction_gas_status,
+            gas_status,
             gas_coins,
             authenticator,
             authenticator_info,
@@ -249,7 +247,7 @@ impl executor::Executor for Executor {
         authenticated_transaction_digest: TransactionDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> (u64, Result<(), ExecutionError>) {
+    ) -> (IotaGasStatus, Result<(), ExecutionError>) {
         validate_transaction(
             store,
             protocol_config,

@@ -53,6 +53,7 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         transaction: &TransactionData,
+        authentication_gas_budget: u64,
     ) -> IotaResult<IotaGasStatus> {
         if transaction.is_system_tx() {
             Ok(IotaGasStatus::new_unmetered())
@@ -61,16 +62,14 @@ mod checked {
 
             // To be sure that we can cover the Move authenticator + transaction execution
             // gas cost.
-            let gas_budget_to_check = transaction_gas_budget;
-            let gas_budget_to_use = transaction_gas_budget;
+            let gas_budget = transaction_gas_budget + authentication_gas_budget;
 
             check_gas(
                 objects,
                 protocol_config,
                 reference_gas_price,
                 gas,
-                gas_budget_to_check,
-                gas_budget_to_use,
+                gas_budget,
                 transaction.gas_price(),
             )
         }
@@ -92,6 +91,7 @@ mod checked {
             transaction,
             &input_objects,
             &[],
+            0, // authentication_gas_budget
         )?;
         check_receiving_objects(&input_objects, receiving_objects)?;
         // Runs verifier, which could be expensive.
@@ -124,6 +124,7 @@ mod checked {
             transaction,
             &input_objects,
             &[gas_object_ref],
+            0, // authentication_gas_budget
         )?;
         check_receiving_objects(&input_objects, &receiving_objects)?;
         // Runs verifier, which could be expensive.
@@ -149,17 +150,13 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        let transaction = cert.data().transaction_data();
-        let gas_status = check_transaction_input_inner(
+        let gas_status = check_certificate_input_inner(
+            cert,
+            &input_objects,
             protocol_config,
             reference_gas_price,
-            transaction,
-            &input_objects,
-            &[],
+            0, // authentication_gas_budget
         )?;
-        // NB: We do not check receiving objects when executing. Only at signing time do
-        // we check. NB: move verifier is only checked at signing time, not at
-        // execution.
 
         Ok((gas_status, input_objects.into_checked()))
     }
@@ -201,8 +198,7 @@ mod checked {
         Ok(input_objects.into_checked())
     }
 
-    /// A common function to check the `MoveAuthenticator` inputs for signing
-    /// and execution.
+    /// A common function to check the `MoveAuthenticator` inputs for signing.
     ///
     /// Checks that there is enough gas to pay for the authenticator and
     /// transaction execution in the transaction inputs. And that the
@@ -220,8 +216,7 @@ mod checked {
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         // To be sure that we can cover the Move authenticator + transaction execution
         // gas cost.
-        let gas_budget_to_check = authenticator_gas_budget + transaction_gas_budget;
-        let gas_budget_to_use = authenticator_gas_budget;
+        let gas_budget = authenticator_gas_budget + transaction_gas_budget;
 
         let gas_status = check_gas(
             // Only the transaction input objects are used for gas checks.
@@ -229,14 +224,70 @@ mod checked {
             protocol_config,
             reference_gas_price,
             gas,
-            gas_budget_to_check,
-            gas_budget_to_use,
+            gas_budget,
             gas_price,
         )?;
 
         check_move_authenticator_objects(&authenticator_input_objects)?;
 
         Ok((gas_status, authenticator_input_objects.into_checked()))
+    }
+
+    /// A function to check the `MoveAuthenticator` inputs for execution and
+    /// then for certificate execution.
+    /// To be used instead of check_certificate_input when there is a Move
+    /// authenticator present.
+    ///
+    /// Checks that there is enough gas to pay for the authenticator and
+    /// transaction execution in the transaction inputs. And that the
+    /// authenticator inputs meet the requirements.
+    #[instrument(level = "trace", skip_all)]
+    pub fn check_certificate_and_move_authenticator_input(
+        cert: &VerifiedExecutableTransaction,
+        tx_input_objects: InputObjects,
+        authenticator_input_objects: InputObjects,
+        authenticator_gas_budget: u64,
+        protocol_config: &ProtocolConfig,
+        reference_gas_price: u64,
+    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects, CheckedInputObjects)> {
+        // Check Move authenticator inputs first
+        check_move_authenticator_objects(&authenticator_input_objects)?;
+
+        // Check certificate inputs next
+        let gas_status = check_certificate_input_inner(
+            cert,
+            &tx_input_objects,
+            protocol_config,
+            reference_gas_price,
+            authenticator_gas_budget,
+        )?;
+
+        Ok((
+            gas_status,
+            authenticator_input_objects.into_checked(),
+            tx_input_objects.into_checked(),
+        ))
+    }
+
+    fn check_certificate_input_inner(
+        cert: &VerifiedExecutableTransaction,
+        input_objects: &InputObjects,
+        protocol_config: &ProtocolConfig,
+        reference_gas_price: u64,
+        authentication_gas_budget: u64,
+    ) -> IotaResult<IotaGasStatus> {
+        let transaction = cert.data().transaction_data();
+        Ok(check_transaction_input_inner(
+            protocol_config,
+            reference_gas_price,
+            transaction,
+            input_objects,
+            &[],
+            authentication_gas_budget,
+        )?)
+        // NB: We do not check receiving objects when executing. Only at signing
+        // time do we check. NB: move verifier is only checked at
+        // signing time, not at execution.
     }
 
     // Common checks performed for transactions and certificates.
@@ -247,6 +298,7 @@ mod checked {
         input_objects: &InputObjects,
         // Overrides the gas objects in the transaction.
         gas_override: &[ObjectRef],
+        authentication_gas_budget: u64,
     ) -> IotaResult<IotaGasStatus> {
         // Cheap validity checks that is ok to run multiple times during processing.
         let gas = if gas_override.is_empty() {
@@ -261,6 +313,7 @@ mod checked {
             protocol_config,
             reference_gas_price,
             transaction,
+            authentication_gas_budget,
         )?;
         check_objects(transaction, input_objects)?;
 
@@ -393,23 +446,14 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         gas: &[ObjectRef],
-        gas_budget_to_check: u64,
-        gas_budget_to_use: u64,
+        gas_budget: u64,
         gas_price: u64,
     ) -> IotaResult<IotaGasStatus> {
-        debug_assert!(
-            gas_budget_to_use <= gas_budget_to_check,
-            "It is expected that the gas budget {gas_budget_to_use:?} is used for execution less or equal to the gas budget {gas_budget_to_check:?} is used to check the gas coins balance"
-        );
+        let gas_status =
+            IotaGasStatus::new(gas_budget, gas_price, reference_gas_price, protocol_config)?;
 
-        let gas_status = IotaGasStatus::new(
-            gas_budget_to_use,
-            gas_price,
-            reference_gas_price,
-            protocol_config,
-        )?;
-
-        // Check the balance and coins consistency; Load all the gas coins.
+        // check balance and coins consistency
+        // load all gas coins
         let objects: BTreeMap<_, _> = objects.iter().map(|o| (o.id(), o)).collect();
         let mut gas_objects = vec![];
         for obj_ref in gas {
@@ -420,8 +464,7 @@ mod checked {
             })?;
             gas_objects.push(obj);
         }
-        gas_status.check_gas_balance(&gas_objects, gas_budget_to_check)?;
-
+        gas_status.check_gas_balance(&gas_objects, gas_budget)?;
         Ok(gas_status)
     }
 
