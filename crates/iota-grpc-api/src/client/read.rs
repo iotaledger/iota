@@ -97,8 +97,8 @@ fn convert_flattened_proto_to_object(exists: &grpc_read::Exists) -> Result<Objec
     let data = bcs::from_bytes::<Data>(&data_bcs.data)
         .map_err(|e| Status::internal(format!("Failed to deserialize data from BCS: {e}")))?;
 
-    // Parse owner from oneof
-    let owner = convert_flattened_owner(&exists.owner)?;
+    // Parse owner from Owner message
+    let owner = convert_proto_owner_to_core(&exists.owner)?;
 
     // Parse previous_transaction
     let previous_transaction =
@@ -112,27 +112,30 @@ fn convert_flattened_proto_to_object(exists: &grpc_read::Exists) -> Result<Objec
     }))
 }
 
-/// Convert flattened proto owner oneof to core Owner
-fn convert_flattened_owner(
-    proto_owner: &Option<grpc_read::exists::Owner>,
-) -> Result<Owner, Status> {
-    let owner_oneof = proto_owner
+/// Convert proto Owner message to core Owner
+fn convert_proto_owner_to_core(proto_owner: &Option<grpc_common::Owner>) -> Result<Owner, Status> {
+    let owner_msg = proto_owner
         .as_ref()
         .ok_or_else(|| Status::internal("Missing owner in response"))?;
 
+    let owner_oneof = owner_msg
+        .owner
+        .as_ref()
+        .ok_or_else(|| Status::internal("Missing owner oneof in Owner message"))?;
+
     match owner_oneof {
-        grpc_read::exists::Owner::AddressOwner(addr) => {
+        grpc_common::owner::Owner::AddressOwner(addr) => {
             let address = parse_iota_address(&Some(addr.clone()), "address_owner")?;
             Ok(Owner::AddressOwner(address))
         }
-        grpc_read::exists::Owner::ObjectOwner(addr) => {
+        grpc_common::owner::Owner::ObjectOwner(addr) => {
             let address = parse_iota_address(&Some(addr.clone()), "object_owner")?;
             Ok(Owner::ObjectOwner(address))
         }
-        grpc_read::exists::Owner::Shared(shared) => Ok(Owner::Shared {
+        grpc_common::owner::Owner::Shared(shared) => Ok(Owner::Shared {
             initial_shared_version: SequenceNumber::from_u64(shared.initial_shared_version),
         }),
-        grpc_read::exists::Owner::Immutable(_) => Ok(Owner::Immutable),
+        grpc_common::owner::Owner::Immutable(_) => Ok(Owner::Immutable),
     }
 }
 

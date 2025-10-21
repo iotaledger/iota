@@ -6,7 +6,7 @@ use std::sync::Arc;
 use iota_grpc_types::v0::{common as grpc_common, read as grpc_read};
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
-    base_types::ObjectID,
+    base_types::{ObjectID, ObjectType},
     object::{ObjectRead, Owner},
 };
 use tonic::{Request, Response, Status};
@@ -73,14 +73,23 @@ fn convert_object_read_to_proto(
         ObjectRead::Exists(object_ref, object, layout) => {
             let obj_inner = object.into_inner();
 
+            // Get the object type
+            let object_type = obj_inner
+                .data
+                .type_()
+                .map(|t| ObjectType::Struct(t.clone()))
+                .unwrap_or(ObjectType::Package);
+
             // BCS-encode the entire object data
             let data_bcs = bcs::to_bytes(&obj_inner.data)
                 .map_err(|e| Status::internal(format!("Failed to serialize object data: {e}")))?;
 
-            // Convert owner to oneof
-            let owner = convert_owner_to_oneof(&obj_inner.owner)?;
+            // Convert owner to proto Owner message
+            let owner = Some(convert_owner_to_proto(&obj_inner.owner)?);
 
             grpc_read::get_object_response::Result::Exists(grpc_read::Exists {
+                // Object type
+                object_type: object_type.to_string(),
                 // Object reference
                 object_ref: Some(grpc_common::ObjectRef {
                     object_id: Some(grpc_common::Address {
@@ -93,7 +102,7 @@ fn convert_object_read_to_proto(
                 }),
                 // Object data (BCS-encoded)
                 data: Some(grpc_common::BcsData { data: data_bcs }),
-                // Owner (oneof) - set via the helper function
+                // Owner
                 owner,
                 // Object metadata
                 previous_transaction: Some(grpc_common::Digest {
@@ -132,24 +141,28 @@ fn convert_object_read_to_proto(
     })
 }
 
-/// Convert Owner to proto oneof for flattened Exists message
-fn convert_owner_to_oneof(owner: &Owner) -> Result<Option<grpc_read::exists::Owner>, Status> {
+/// Convert Owner to proto Owner message
+fn convert_owner_to_proto(owner: &Owner) -> Result<grpc_common::Owner, Status> {
     let owner_oneof = match owner {
-        Owner::AddressOwner(addr) => grpc_read::exists::Owner::AddressOwner(grpc_common::Address {
-            address: addr.to_vec(),
-        }),
-        Owner::ObjectOwner(addr) => grpc_read::exists::Owner::ObjectOwner(grpc_common::Address {
+        Owner::AddressOwner(addr) => {
+            grpc_common::owner::Owner::AddressOwner(grpc_common::Address {
+                address: addr.to_vec(),
+            })
+        }
+        Owner::ObjectOwner(addr) => grpc_common::owner::Owner::ObjectOwner(grpc_common::Address {
             address: addr.to_vec(),
         }),
         Owner::Shared {
             initial_shared_version,
-        } => grpc_read::exists::Owner::Shared(grpc_read::SharedOwner {
+        } => grpc_common::owner::Owner::Shared(grpc_common::SharedOwner {
             initial_shared_version: initial_shared_version.value(),
         }),
-        Owner::Immutable => grpc_read::exists::Owner::Immutable(grpc_read::ImmutableOwner {}),
+        Owner::Immutable => grpc_common::owner::Owner::Immutable(grpc_common::ImmutableOwner {}),
     };
 
-    Ok(Some(owner_oneof))
+    Ok(grpc_common::Owner {
+        owner: Some(owner_oneof),
+    })
 }
 
 /// Parse object ID from protobuf Address

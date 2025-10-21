@@ -60,6 +60,16 @@ async fn test_read_service_get_object() {
                 object.owner(),
                 &iota_types::object::Owner::AddressOwner(sender)
             );
+
+            // Verify object type is present
+            let obj_data = object
+                .data
+                .try_as_move()
+                .expect("Gas object should be a Move object");
+            assert!(
+                obj_data.type_().is_coin(),
+                "Gas object should be a coin type"
+            );
         }
         _ => panic!("Expected ObjectRead::Exists, got {object_read:?}"),
     }

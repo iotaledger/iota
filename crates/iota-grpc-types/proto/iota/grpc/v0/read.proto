@@ -30,33 +30,25 @@ message NotExists {
 }
 
 message Exists {
+  // Object type (Package or Struct)
+  string object_type = 1;
+
   // Object reference
-  iota.grpc.v0.common.ObjectRef object_ref = 1;
+  iota.grpc.v0.common.ObjectRef object_ref = 2;
 
   // Object data (BCS-encoded)
-  iota.grpc.v0.common.BcsData data = 2;
+  iota.grpc.v0.common.BcsData data = 3;
 
-  // Owner (oneof)
-  oneof owner {
-    iota.grpc.v0.common.Address address_owner = 3;
-    iota.grpc.v0.common.Address object_owner = 4;
-    SharedOwner shared = 5;
-    ImmutableOwner immutable = 6;
-  }
+  // Owner
+  iota.grpc.v0.common.Owner owner = 4;
 
   // Object metadata
-  iota.grpc.v0.common.Digest previous_transaction = 7;
-  uint64 storage_rebate = 8;
+  iota.grpc.v0.common.Digest previous_transaction = 5;
+  uint64 storage_rebate = 6;
 
   // Optional MoveStructLayout (BCS-encoded)
-  optional iota.grpc.v0.common.BcsData move_structure_layout = 9;
+  optional iota.grpc.v0.common.BcsData move_structure_layout = 7;
 }
-
-message SharedOwner {
-  uint64 initial_shared_version = 1;
-}
-
-message ImmutableOwner {}
 
 message Deleted {
   iota.grpc.v0.common.ObjectRef object_ref = 1;
