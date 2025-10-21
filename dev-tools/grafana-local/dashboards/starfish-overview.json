@@ -1810,8 +1810,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -1907,8 +1906,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -2004,8 +2002,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -2101,8 +2098,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -2202,8 +2198,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -2303,8 +2298,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -2376,7 +2370,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Measures the number of commands processed by Cordial Knowledge component",
+          "description": "Measures the average number of commands processed by Cordial Knowledge component by type",
           "fieldConfig": {
             "defaults": {
               "color": {
@@ -2459,7 +2453,7 @@
               "disableTextWrap": false,
               "editorMode": "code",
               "exemplar": false,
-              "expr": "rate(consensus_cordial_knowledge_processed_messages[1m])",
+              "expr": "avg by (type) (\n  rate(consensus_cordial_knowledge_processed_messages[1m])\n)",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -3423,8 +3417,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -3517,8 +3510,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -3616,8 +3608,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -4403,7 +4394,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -4418,7 +4410,7 @@
             "h": 8,
             "w": 11,
             "x": 0,
-            "y": 80
+            "y": 54
           },
           "id": 201,
           "options": {
@@ -4497,7 +4489,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -4512,7 +4505,7 @@
             "h": 8,
             "w": 11,
             "x": 11,
-            "y": 80
+            "y": 54
           },
           "id": 202,
           "options": {
@@ -4591,7 +4584,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -4606,7 +4600,7 @@
             "h": 8,
             "w": 11,
             "x": 0,
-            "y": 88
+            "y": 62
           },
           "id": 203,
           "options": {
@@ -4685,7 +4679,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -4700,7 +4695,7 @@
             "h": 8,
             "w": 11,
             "x": 11,
-            "y": 88
+            "y": 62
           },
           "id": 204,
           "options": {
@@ -4783,7 +4778,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -4798,7 +4794,7 @@
             "h": 8,
             "w": 11,
             "x": 0,
-            "y": 96
+            "y": 70
           },
           "id": 205,
           "options": {
@@ -4881,7 +4877,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -4896,7 +4893,7 @@
             "h": 8,
             "w": 11,
             "x": 11,
-            "y": 96
+            "y": 70
           },
           "id": 206,
           "options": {
@@ -10454,8 +10451,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -10471,7 +10467,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 61
+            "y": 55
           },
           "id": 18,
           "options": {
@@ -10549,8 +10545,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -10566,7 +10561,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 61
+            "y": 55
           },
           "id": 13,
           "options": {
@@ -10649,8 +10644,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -10666,7 +10660,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 61
+            "y": 55
           },
           "id": 16,
           "options": {
@@ -10749,8 +10743,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -10766,7 +10759,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 69
+            "y": 63
           },
           "id": 19,
           "options": {
@@ -10844,8 +10837,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -10861,7 +10853,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 69
+            "y": 63
           },
           "id": 14,
           "options": {
@@ -10944,8 +10936,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -10961,7 +10952,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 69
+            "y": 63
           },
           "id": 17,
           "options": {
@@ -11044,8 +11035,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -11061,7 +11051,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 77
+            "y": 71
           },
           "id": 42,
           "options": {
@@ -11139,8 +11129,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -11156,7 +11145,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 77
+            "y": 71
           },
           "id": 59,
           "options": {
@@ -11234,8 +11223,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -11251,7 +11239,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 77
+            "y": 71
           },
           "id": 50,
           "options": {
@@ -11691,13 +11679,13 @@
     ]
   },
   "time": {
-    "from": "now-15m",
+    "from": "now-5m",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "Europe/Berlin",
   "title": "IOTA Starfish Overview - update",
   "uid": "StarfishOverviewsad",
-  "version": 8,
+  "version": 10,
   "weekStart": ""
 }
