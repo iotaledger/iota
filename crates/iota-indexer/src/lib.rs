@@ -96,9 +96,9 @@ fn get_http_client(rpc_client_url: &str) -> Result<HttpClient, IndexerError> {
         .set_headers(headers.clone())
         .build(rpc_client_url)
         .map_err(|e| {
-            warn!("Failed to get new Http client with error: {:?}", e);
+            warn!("failed to get new Http client with error: {:?}", e);
             IndexerError::HttpClientInit(format!(
-                "Failed to initialize fullnode RPC client with error: {e:?}"
+                "failed to initialize fullnode RPC client with error: {e:?}"
             ))
         })
 }

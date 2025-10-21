@@ -129,7 +129,7 @@ impl OptimisticTransactionExecutor {
         let tx_digest = transaction.digest();
         let (Some(input_objects), Some(output_objects)) = (input_objects, output_objects) else {
             tracing::warn!(
-                "Cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
+                "cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
             );
             self.metrics.optimistic_tx_with_missing_objects_counts.inc();
             return Ok(());
@@ -137,7 +137,7 @@ impl OptimisticTransactionExecutor {
 
         if input_objects.is_empty() || output_objects.is_empty() {
             tracing::warn!(
-                "Cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
+                "cannot optimistically index because of missing in/out objs for tx: {tx_digest}"
             );
             self.metrics.optimistic_tx_with_missing_objects_counts.inc();
             return Ok(());
@@ -156,7 +156,7 @@ impl OptimisticTransactionExecutor {
             else => {
                 deps_timer.stop_and_discard();
                 tracing::warn!(
-                    "Transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
+                    "transaction {tx_digest} dependencies are not indexed, skipping optimistic indexing",
                 );
                 self.metrics.optimistic_tx_with_missing_dependencies_count.inc();
                 return Ok(());
@@ -306,7 +306,7 @@ impl OptimisticTransactionExecutor {
         })
         .await
         .map_err(|e| {
-            tracing::error!("Failed to join optimistic index_transaction: {e}");
+            tracing::error!("failed to join optimistic index_transaction: {e}");
             IndexerError::from(e)
         })? {
             Ok(_) => {
@@ -349,7 +349,7 @@ impl OptimisticTransactionExecutor {
                     full_tx_data,
                     assigned_global_order
                         .optimistic_sequence_number
-                        .expect("Optimistic sequence number is always set for data read from DB")
+                        .expect("optimistic sequence number is always set for data read from DB")
                         .try_into()
                         .map_err(|e| {
                             IndexerError::PersistentStorageDataCorruption(format!(

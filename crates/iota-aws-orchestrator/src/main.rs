@@ -125,6 +125,15 @@ pub enum Operation {
         /// The load to submit to the system.
         #[command(subcommand)]
         load_type: Load,
+
+        /// Flag indicating whether nodes should advertise their internal or
+        /// public IP address for inter-node communication. When running
+        /// the simulation in multiple regions, nodes need to use their public
+        /// IPs to correctly communicate, however when a simulation is
+        /// running in a single VPC, they should use their internal IPs to avoid
+        /// paying for data sent between the nodes.
+        #[clap(long, action, default_value_t = false, global = true)]
+        use_internal_ip_addresses: bool,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -269,6 +278,7 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             timeout,
             retries,
             load_type,
+            use_internal_ip_addresses,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -310,10 +320,11 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 }
             };
 
-            let generator = BenchmarkParametersGenerator::new(committee, load)
-                .with_benchmark_type(benchmark_type)
-                .with_custom_duration(duration)
-                .with_faults(fault_type);
+            let generator =
+                BenchmarkParametersGenerator::new(committee, load, use_internal_ip_addresses)
+                    .with_benchmark_type(benchmark_type)
+                    .with_custom_duration(duration)
+                    .with_faults(fault_type);
 
             Orchestrator::new(
                 settings,
