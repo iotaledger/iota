@@ -30,7 +30,7 @@ impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
 
         if checkpoint_contents.size() != transactions.len() {
             return Err(IndexerError::FullNodeReading(format!(
-                "Checkpoint content size mismatch at checkpoint {checkpoint_seq}: expected {}, found {}",
+                "checkpoint content size mismatch at checkpoint {checkpoint_seq}: expected {}, found {}",
                 checkpoint_contents.size(),
                 transactions.len()
             )));
@@ -47,7 +47,7 @@ impl IngestionBackfill for TxWrappedOrDeletedObjectsBackfill {
 
             if expected_digest != *actual_digest {
                 return Err(IndexerError::FullNodeReading(format!(
-                    "Digest mismatch at checkpoint {checkpoint_seq}: expected {expected_digest}, found {actual_digest}",
+                    "digest mismatch at checkpoint {checkpoint_seq}: expected {expected_digest}, found {actual_digest}",
                 )));
             }
 

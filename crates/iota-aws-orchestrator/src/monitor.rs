@@ -115,7 +115,7 @@ impl Prometheus {
         let mut config = vec![Self::global_configuration()];
 
         // Add configurations to scrape the clients.
-        let clients_metrics_path = protocol.clients_metrics_path(clients);
+        let clients_metrics_path = protocol.clients_metrics_path(clients, parameters);
         for (i, (_, clients_metrics_path)) in clients_metrics_path.into_iter().enumerate() {
             let id = format!("client-{i}");
             let scrape_config = Self::scrape_configuration(&id, &clients_metrics_path);

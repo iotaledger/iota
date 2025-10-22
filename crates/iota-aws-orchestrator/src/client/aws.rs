@@ -13,7 +13,7 @@ use aws_sdk_ec2::{
     primitives::Blob,
     types::{
         BlockDeviceMapping, EbsBlockDevice, EphemeralNvmeSupport, Filter, ResourceType, Tag,
-        TagSpecification, VolumeType,
+        TagSpecification, VolumeType, builders::FilterBuilder,
     },
 };
 use aws_smithy_runtime_api::client::{behavior_version::BehaviorVersion, result::SdkError};
@@ -51,8 +51,9 @@ impl Display for AwsClient {
 }
 
 impl AwsClient {
-    const OS_IMAGE: &'static str =
-        "Canonical, Ubuntu, 22.04 LTS, amd64 jammy image build on 2023-02-16";
+    const UBUNTU_NAME_PATTERN: &'static str =
+        "ubuntu/images/hvm-ssd-gp3/ubuntu-noble-24.04-amd64-server-*";
+    const CANONICAL_OWNER_ID: &'static str = "099720109477";
 
     /// Make a new AWS client.
     pub async fn new(settings: Settings) -> Self {
@@ -139,27 +140,46 @@ impl AwsClient {
     /// Query the image id determining the os of the instances.
     /// NOTE: The image id changes depending on the region.
     async fn find_image_id(&self, client: &aws_sdk_ec2::Client) -> CloudProviderResult<String> {
-        // Query all images that match the description.
-        let request = client.describe_images().filters(
-            Filter::builder()
-                .name("description")
-                .values(Self::OS_IMAGE)
+        // Use a more general filter that doesn't depend on specific build dates
+        let filters = [
+            // Filter for Ubuntu 24.04 LTS
+            FilterBuilder::default()
+                .name("name")
+                .values(Self::UBUNTU_NAME_PATTERN)
                 .build(),
-        );
+            // Only look at images from Canonical
+            FilterBuilder::default()
+                .name("owner-id")
+                .values(Self::CANONICAL_OWNER_ID)
+                .build(),
+            // Only want available images
+            FilterBuilder::default()
+                .name("state")
+                .values("available")
+                .build(),
+        ];
+
+        // Query images with these filters
+        let request = client.describe_images().set_filters(Some(filters.to_vec()));
         let response = request.send().await?;
 
-        // Parse the response to select the first returned image id.
-        response
-            .images()
+        // Sort images by creation date (newest first)
+        let mut images = response.images().to_vec();
+        images.sort_by(|a, b| {
+            let a_date = a.creation_date().unwrap_or("");
+            let b_date = b.creation_date().unwrap_or("");
+            b_date.cmp(a_date) // Reverse order to get newest first
+        });
+
+        // Select the newest image
+        let image = images
             .first()
-            .ok_or_else(|| CloudProviderError::Request("Cannot find image id".into()))?
+            .ok_or_else(|| CloudProviderError::Request("Cannot find Ubuntu 24.04 image".into()))?;
+
+        image
             .image_id
             .clone()
-            .ok_or_else(|| {
-                CloudProviderError::UnexpectedResponse(
-                    "Received image description without id".into(),
-                )
-            })
+            .ok_or_else(|| CloudProviderError::UnexpectedResponse("Image without ID".into()))
     }
 
     /// Create a new security group for the instance (if it doesn't already
