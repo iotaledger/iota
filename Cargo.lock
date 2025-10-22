@@ -9519,9 +9519,11 @@ name = "move-package-alt"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "codespan-reporting",
  "derive-where",
  "serde",
  "serde_spanned",
+ "thiserror 1.0.64",
  "toml 0.5.11",
  "toml_edit 0.22.27",
 ]
