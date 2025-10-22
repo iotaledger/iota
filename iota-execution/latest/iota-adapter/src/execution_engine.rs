@@ -292,6 +292,11 @@ mod checked {
         TransactionEffects,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
+        // Authenticate the transaction first. This means having read only inputs passed
+        // to an authenticate function. It charges gas for reading the input objects and
+        // then for the function instructions.
+        // It does not alter the state and produces no effects other than possible
+        // errors.
         let (gas_status_post_authentication, authentication_result) = authenticate_transaction(
             store,
             protocol_config,
@@ -309,14 +314,15 @@ mod checked {
             move_vm,
         );
 
-        // Merge input objects coming from the transaction together with
-        // those coming from the authenticator execution.
-        let mut input_objects = authenticated_transaction_input_objects;
-        input_objects.extend_no_duplicates(authenticator_input_objects);
+        // At this stage we have the gas status, with gas charged for reading the
+        // authenticator inputs and for the computation, and a result wich is either
+        // empty or an error.
 
+        // We can now start the creation of the transaction effects, either for an
+        // authentication failure or for a normal execution of the transaction.
         execute_transaction_to_effects::<Mode>(
             store,
-            input_objects,
+            authenticated_transaction_input_objects,
             gas_coins,
             gas_status_post_authentication,
             authenticated_transaction_kind,
@@ -342,7 +348,7 @@ mod checked {
     /// the authentication function found in `AuthenticatorInfo`, that is
     /// retrieved from the abstracted IOTA account.
     ///
-    /// Returns an error if it happens or and the gas status that can be later
+    /// Returns an error if it happens and the gas status that can be later
     /// used to check the computation cost.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn authenticate_transaction(
@@ -536,31 +542,31 @@ mod checked {
             "At this point no gas charges must be applied yet"
         );
 
-        // Do NOT charge gas for reading the Move authenticator input objects from the
-        // storage. It will be charged later during the main transaction
-        // execution.
-        let result = run_inputs_checks(
-            protocol_config,
-            deny_cert,
-            contains_deleted_input,
-            cancelled_objects,
-        )
-        .and_then(|()| {
-            programmable_transactions::execution::execute::<execution_mode::Validation>(
-                protocol_config,
-                metrics.clone(),
-                move_vm,
-                temporary_store,
-                tx_ctx,
-                &mut gas_charger,
-                authenticator_move_call,
-                trace_builder_opt,
-            )
-            .and_then(|ok_result| {
-                temporary_store.check_move_authenticator_results_consistency()?;
-                Ok(ok_result)
-            })
-        });
+        // Charge gas for reading the Move authenticator input objects from the storage.
+        let result = gas_charger
+            .charge_input_objects(temporary_store)
+            .and_then(|()| {
+                run_inputs_checks(
+                    protocol_config,
+                    deny_cert,
+                    contains_deleted_input,
+                    cancelled_objects,
+                )?;
+                programmable_transactions::execution::execute::<execution_mode::Validation>(
+                    protocol_config,
+                    metrics.clone(),
+                    move_vm,
+                    temporary_store,
+                    tx_ctx,
+                    &mut gas_charger,
+                    authenticator_move_call,
+                    trace_builder_opt,
+                )
+                .and_then(|ok_result| {
+                    temporary_store.check_move_authenticator_results_consistency()?;
+                    Ok(ok_result)
+                })
+            });
 
         (gas_charger.into_gas_status(), result)
     }
@@ -637,7 +643,7 @@ mod checked {
 
         // At this point no charges have been applied yet
         debug_assert!(
-            move_authentication_result_opt.is_some() || gas_charger.no_charges_for_execution(),
+            move_authentication_result_opt.is_some() || gas_charger.no_charges(),
             "No gas charges must be applied yet"
         );
 
