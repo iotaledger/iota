@@ -8,7 +8,6 @@
 import { fromHex } from '@iota/bcs';
 import { hmac } from '@noble/hashes/hmac';
 import { sha512 } from '@noble/hashes/sha512';
-import nacl from 'tweetnacl';
 
 type Hex = string;
 type Path = string;
@@ -55,16 +54,7 @@ const CKDPriv = ({ key, chainCode }: Keys, index: number): Keys => {
     };
 };
 
-export const getPublicKey = (privateKey: Uint8Array, withZeroByte = true): Uint8Array => {
-    const keyPair = nacl.sign.keyPair.fromSeed(privateKey);
-    const signPk = keyPair.secretKey.subarray(32);
-    const newArr = new Uint8Array(signPk.length + 1);
-    newArr.set([0]);
-    newArr.set(signPk, 1);
-    return withZeroByte ? newArr : signPk;
-};
-
-export const isValidPath = (path: string): boolean => {
+const isValidPath = (path: string): boolean => {
     if (!pathRegex.test(path)) {
         return false;
     }
@@ -72,7 +62,6 @@ export const isValidPath = (path: string): boolean => {
         .split('/')
         .slice(1)
         .map(replaceDerive)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         .some(isNaN as any /* ts T_T*/);
 };
 
