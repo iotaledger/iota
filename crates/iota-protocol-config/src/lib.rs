@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 13;
+pub const MAX_PROTOCOL_VERSION: u64 = 14;
 
 // Record history of protocol version allocations here:
 //
@@ -77,6 +77,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 13;
 //             of eligible active validators.
 //             Enable processing and tracking AuthorityCapabilitiesV1 from
 //             non-committee validators in the devnet.
+// Version 14: Switches the consensus protocol to Starfish in devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -397,11 +398,15 @@ impl PerObjectCongestionControlMode {
 pub enum ConsensusChoice {
     #[default]
     Mysticeti,
+    Starfish,
 }
 
 impl ConsensusChoice {
     pub fn is_mysticeti(&self) -> bool {
         matches!(self, ConsensusChoice::Mysticeti)
+    }
+    pub fn is_starfish(&self) -> bool {
+        matches!(self, ConsensusChoice::Starfish)
     }
 }
 
@@ -2225,6 +2230,12 @@ impl ProtocolConfig {
                         // version and issued valid AuthorityCapabilities notification in devnet.
                         cfg.feature_flags
                             .select_committee_supporting_next_epoch_version = true;
+                    }
+                }
+                14 => {
+                    // Switch consensus protocol to Starfish in devnet
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
                     }
                 }
                 // Use this template when making changes:

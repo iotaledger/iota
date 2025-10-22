@@ -271,7 +271,7 @@ impl<const HAS_SOURCE: SourceKind> Model<HAS_SOURCE> {
         let package = self.maybe_package(&addr)?;
         package.maybe_module(name)
     }
-    pub fn module(&self, module: impl TModuleId) -> Module<HAS_SOURCE> {
+    pub fn module(&self, module: impl TModuleId) -> Module<'_, HAS_SOURCE> {
         self.maybe_module(module).unwrap()
     }
 

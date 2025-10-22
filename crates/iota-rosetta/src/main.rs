@@ -92,7 +92,7 @@ impl RosettaServerCommand {
 
                 // Set network.
                 let network = config.pointer_mut("/network").ok_or_else(|| {
-                    anyhow!("Cannot find construction config in default config file.")
+                    anyhow!("cannot find construction config in default config file.")
                 })?;
                 network
                     .as_object_mut()
@@ -101,7 +101,7 @@ impl RosettaServerCommand {
 
                 // Add prefunded accounts.
                 let construction = config.pointer_mut("/construction").ok_or_else(|| {
-                    anyhow!("Cannot find construction config in default config file.")
+                    anyhow!("cannot find construction config in default config file.")
                 })?;
 
                 let construction = construction.as_object_mut().unwrap();
@@ -187,7 +187,7 @@ async fn wait_for_iota_client(rpc_address: String) -> IotaClient {
             Ok(client) => return client,
             Err(e) => {
                 warn!(
-                    "Error connecting to IOTA RPC server [{rpc_address}]: {e}, retrying in 5 seconds."
+                    "error connecting to IOTA RPC server [{rpc_address}]: {e}, retrying in 5 seconds."
                 );
                 tokio::time::sleep(Duration::from_millis(5000)).await;
             }

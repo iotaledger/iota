@@ -47,6 +47,7 @@ export function EnterAmountView({
     const decimals = metadata?.decimals ?? 0;
 
     const amount = parseAmount(values.amount, decimals);
+    const [stakedAmountFormatted] = useFormatCoin({ balance: amount });
 
     const {
         data: newStakeData,
@@ -94,7 +95,7 @@ export function EnterAmountView({
                     onSuccess(tx.digest);
                     toast.success('Stake transaction has been sent');
                     ampli.stakedIota({
-                        stakedAmount: Number(values.amount),
+                        stakedAmount: Number(stakedAmountFormatted),
                         validatorAddress: selectedValidator,
                     });
                     resetForm();

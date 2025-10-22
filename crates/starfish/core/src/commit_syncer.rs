@@ -678,8 +678,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             }
         }
 
-        // 8. Make sure fetched block headers (and votes) timestamps are lower than
-        //    current time.
+        // 8. Record timestamp drift metric
         for block_header in voting_block_headers
             .iter()
             .chain(fetched_block_headers.values())
@@ -694,18 +693,9 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 .context
                 .metrics
                 .node_metrics
-                .block_timestamp_drift_wait_ms
+                .block_timestamp_drift_ms
                 .with_label_values(&[peer_hostname.as_str(), "commit_syncer"])
                 .inc_by(forward_drift);
-            let forward_drift = Duration::from_millis(forward_drift);
-            if forward_drift >= inner.context.parameters.max_forward_time_drift {
-                warn!(
-                    "Local clock is behind a quorum of peers: local ts {}, certified block header ts {}",
-                    now_ms,
-                    block_header.timestamp_ms()
-                );
-            }
-            sleep(forward_drift).await;
         }
 
         // 9. Now create the Certified commits by assigning the block headers to each

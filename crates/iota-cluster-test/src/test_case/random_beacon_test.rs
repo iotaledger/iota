@@ -36,7 +36,7 @@ impl TestCaseImpl for RandomBeaconTest {
         assert_eq!(
             *response.effects.as_ref().unwrap().status(),
             IotaExecutionStatus::Success,
-            "Generate new random value txn failed: {:?}",
+            "generate new random value txn failed: {:?}",
             *response.effects.as_ref().unwrap().status()
         );
 
@@ -45,7 +45,7 @@ impl TestCaseImpl for RandomBeaconTest {
         assert_eq!(
             1,
             events.data.len(),
-            "Expected 1 event, got {:?}",
+            "expected 1 event, got {:?}",
             events.data.len()
         );
         assert_eq!(

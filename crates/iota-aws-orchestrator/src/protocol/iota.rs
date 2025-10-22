@@ -16,6 +16,7 @@ use super::{ProtocolCommands, ProtocolMetrics};
 use crate::{
     benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
+    display,
     settings::Settings,
 };
 
@@ -75,13 +76,23 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         vec![authorities_db, consensus_db]
     }
 
-    fn genesis_command<'a, I>(&self, instances: I) -> String
+    fn genesis_command<'a, I>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<IotaBenchmarkType>,
+    ) -> String
     where
         I: Iterator<Item = &'a Instance>,
     {
         let working_dir = self.working_dir.display();
         let ips = instances
-            .map(|x| x.main_ip.to_string())
+            .map(|x| {
+                match parameters.use_internal_ip_address {
+                    true => x.private_ip,
+                    false => x.main_ip,
+                }
+                .to_string()
+            })
             .collect::<Vec<_>>()
             .join(" ");
         let genesis = [
@@ -118,13 +129,13 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
     fn node_command<I>(
         &self,
         instances: I,
-        _parameters: &BenchmarkParameters<IotaBenchmarkType>,
+        parameters: &BenchmarkParameters<IotaBenchmarkType>,
     ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
     {
         let working_dir = self.working_dir.clone();
-        let network_addresses = Self::resolve_network_addresses(instances);
+        let network_addresses = Self::resolve_network_addresses(instances, parameters);
 
         network_addresses
             .into_iter()
@@ -144,6 +155,8 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 ]
                 .join(" ");
                 let command = ["source $HOME/.cargo/env", &run].join(" && ");
+
+                display::action(format!("\n Command ({i}): {command}"));
 
                 (instance, command)
             })
@@ -227,9 +240,16 @@ impl IotaProtocol {
     /// It returns the Instance and the corresponding address.
     pub fn resolve_network_addresses(
         instances: impl IntoIterator<Item = Instance>,
+        parameters: &BenchmarkParameters<IotaBenchmarkType>,
     ) -> Vec<(Instance, Multiaddr)> {
         let instances: Vec<Instance> = instances.into_iter().collect();
-        let ips: Vec<_> = instances.iter().map(|x| x.main_ip.to_string()).collect();
+        let ips: Vec<_> = instances
+            .iter()
+            .map(|x| match parameters.use_internal_ip_address {
+                true => x.private_ip.to_string(),
+                false => x.main_ip.to_string(),
+            })
+            .collect();
         let genesis_config = GenesisConfig::new_for_benchmarks(&ips);
         let mut addresses = Vec::new();
         if let Some(validator_configs) = genesis_config.validator_config_info.as_ref() {
@@ -249,13 +269,27 @@ impl ProtocolMetrics for IotaProtocol {
     const LATENCY_SUM: &'static str = "latency_s_sum";
     const LATENCY_SQUARED_SUM: &'static str = "latency_squared_s";
 
-    fn nodes_metrics_path<I>(&self, instances: I) -> Vec<(Instance, String)>
+    fn nodes_metrics_path<I, T>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<T>,
+    ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
+        T: BenchmarkType,
     {
         let (ips, instances): (Vec<_>, Vec<_>) = instances
             .into_iter()
-            .map(|x| (x.main_ip.to_string(), x))
+            .map(|x| {
+                (
+                    match parameters.use_internal_ip_address {
+                        true => x.private_ip,
+                        false => x.main_ip,
+                    }
+                    .to_string(),
+                    x,
+                )
+            })
             .unzip();
 
         GenesisConfig::new_for_benchmarks(&ips)
@@ -266,7 +300,10 @@ impl ProtocolMetrics for IotaProtocol {
             .map(|(config, instance)| {
                 let path = format!(
                     "{}:{}{}",
-                    instance.main_ip,
+                    match parameters.use_internal_ip_address {
+                        true => instance.private_ip,
+                        false => instance.main_ip,
+                    },
                     config.metrics_address.port(),
                     iota_metrics::METRICS_ROUTE
                 );
@@ -275,16 +312,24 @@ impl ProtocolMetrics for IotaProtocol {
             .collect()
     }
 
-    fn clients_metrics_path<I>(&self, instances: I) -> Vec<(Instance, String)>
+    fn clients_metrics_path<I, T>(
+        &self,
+        instances: I,
+        parameters: &BenchmarkParameters<T>,
+    ) -> Vec<(Instance, String)>
     where
         I: IntoIterator<Item = Instance>,
+        T: BenchmarkType,
     {
         instances
             .into_iter()
             .map(|instance| {
                 let path = format!(
                     "{}:{}{}",
-                    instance.main_ip,
+                    match parameters.use_internal_ip_address {
+                        true => instance.private_ip,
+                        false => instance.main_ip,
+                    },
                     Self::CLIENT_METRICS_PORT,
                     iota_metrics::METRICS_ROUTE
                 );

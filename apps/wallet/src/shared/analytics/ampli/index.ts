@@ -372,6 +372,12 @@ export interface UnstakedIotaProperties {
     /**
      * | Rule | Value |
      * |---|---|
+     * | Type | number |
+     */
+    stakedAmount?: number;
+    /**
+     * | Rule | Value |
+     * |---|---|
      * | Regex |  |
      */
     validatorAddress?: string;

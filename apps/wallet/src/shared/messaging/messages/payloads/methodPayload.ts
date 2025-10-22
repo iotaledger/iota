@@ -75,7 +75,6 @@ type MethodPayloads = {
                   derivationPath: string;
                   address: string;
               }[];
-              password: string;
           };
     accountsCreatedResponse: { accounts: SerializedUIAccount[] };
     signData: { data: string; id: string };

@@ -15,6 +15,10 @@ env:
   IOTA_NETWORKS: ${{ secrets.CHANGESETS_IOTA_NETWORKS }}
   DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   snapshot:
     runs-on: self-hosted-x64
@@ -30,6 +34,9 @@ jobs:
         with:
           node-version: "20"
           cache: "pnpm"
+
+      - name: Update npm
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -49,10 +56,6 @@ jobs:
       - name: Build packages
         if: steps.check-changes.outputs.has-changes == 'true'
         run: pnpm turbo run build --filter=./sdk/*
-
-      - name: NPM login
-        if: steps.check-changes.outputs.has-changes == 'true'
-        run: npm set "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}"
 
       - name: Create snapshot versions
         if: steps.check-changes.outputs.has-changes == 'true'

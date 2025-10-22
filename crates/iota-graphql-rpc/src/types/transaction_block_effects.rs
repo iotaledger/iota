@@ -228,13 +228,13 @@ impl TransactionBlockEffects {
 
         let dependencies = self.native().dependencies();
 
-        let Some((prev, next, _, cs)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(dependencies.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        let indices: Vec<CDependencies> = cs.collect();
+        let indices: Vec<CDependencies> = consistent_page.cursors.collect();
 
         let (Some(fst), Some(lst)) = (indices.first(), indices.last()) else {
             return Ok(connection);
@@ -255,8 +255,8 @@ impl TransactionBlockEffects {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
         for c in indices {
             let digest: Digest = dependencies[c.ix].into();
@@ -289,16 +289,16 @@ impl TransactionBlockEffects {
 
         let input_shared_objects = self.native().input_shared_objects();
 
-        let Some((prev, next, _, cs)) = page
+        let Some(consistent_page) = page
             .paginate_consistent_indices(input_shared_objects.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let result = UnchangedSharedObject::try_from(input_shared_objects[c.ix].clone(), c.c);
             match result {
                 Ok(unchanged_shared_object) => {
@@ -328,14 +328,14 @@ impl TransactionBlockEffects {
 
         let object_changes = self.native().object_changes();
 
-        let Some((prev, next, _, cs)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(object_changes.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
         // Determine the source based on the transaction block effects kind
         let source = match &self.kind {
@@ -344,7 +344,7 @@ impl TransactionBlockEffects {
             TransactionBlockEffectsKind::DryRun { .. } => ObjectChangeSource::DryRun,
         };
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let object_change = ObjectChange {
                 native: object_changes[c.ix].clone(),
                 checkpoint_viewed_at: c.c,
@@ -383,16 +383,16 @@ impl TransactionBlockEffects {
             _ => return Ok(connection),
         };
 
-        let Some((prev, next, _, cs)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(balance_len, self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let serialized = match &self.kind {
                 TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
                     stored_tx.get_balance_at_idx(c.ix)
@@ -436,16 +436,16 @@ impl TransactionBlockEffects {
             }
             TransactionBlockEffectsKind::DryRun { events, .. } => events.len(),
         };
-        let Some((prev, next, _, cs)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(len, self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let event = match &self.kind {
                 TransactionBlockEffectsKind::Checkpointed { stored_tx, .. } => {
                     Event::try_from_stored_transaction(stored_tx, c.ix, c.c).extend()?
@@ -637,12 +637,24 @@ impl TryFrom<OptimisticTransaction> for TransactionBlockEffectsKind {
     }
 }
 
-impl TryFrom<TransactionBlock> for TransactionBlockEffects {
+impl TryFrom<OptimisticTransaction> for TransactionBlockEffects {
+    type Error = Error;
+
+    fn try_from(tx: OptimisticTransaction) -> Result<Self, Error> {
+        // set to u64::MAX, as the executed transaction has not been indexed yet
+        let checkpoint_viewed_at = u64::MAX;
+        Ok(Self {
+            kind: tx.try_into()?,
+            checkpoint_viewed_at,
+        })
+    }
+}
+
+impl TryFrom<TransactionBlock> for TransactionBlockEffectsKind {
     type Error = Error;
 
     fn try_from(block: TransactionBlock) -> Result<Self, Error> {
-        let checkpoint_viewed_at = block.checkpoint_viewed_at;
-        let kind = match block.inner {
+        match block.inner {
             TransactionBlockInner::Checkpointed { stored_tx, .. } => {
                 bcs::from_bytes(&stored_tx.raw_effects)
                     .map(|native| TransactionBlockEffectsKind::Checkpointed {
@@ -666,10 +678,17 @@ impl TryFrom<TransactionBlock> for TransactionBlockEffects {
                 native: effects,
                 events,
             }),
-        }?;
+        }
+    }
+}
 
+impl TryFrom<TransactionBlock> for TransactionBlockEffects {
+    type Error = Error;
+
+    fn try_from(block: TransactionBlock) -> Result<Self, Error> {
+        let checkpoint_viewed_at = block.checkpoint_viewed_at;
         Ok(Self {
-            kind,
+            kind: block.try_into()?,
             checkpoint_viewed_at,
         })
     }

@@ -38,7 +38,7 @@ impl SignedBlockVerifier {
         context: Arc<Context>,
         transaction_verifier: Arc<dyn TransactionVerifier>,
     ) -> Self {
-        let genesis = genesis_block_headers(context.clone())
+        let genesis = genesis_block_headers(&context)
             .into_iter()
             .map(|b| b.reference())
             .collect();

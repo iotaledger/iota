@@ -33,12 +33,15 @@ mod tests {
     async fn mutation_execute_transaction(
         client: &SimpleClient,
         signed_tx: &Transaction,
+        response_fields: &str,
     ) -> GraphqlResponse {
         let (tx_bytes, sigs) = signed_tx.to_tx_bytes_and_signatures();
         let tx_bytes = tx_bytes.encoded();
         let sigs = sigs.iter().map(|sig| sig.encoded()).collect::<Vec<_>>();
 
-        let mutation = r#"{ executeTransactionBlock(txBytes: $tx,  signatures: $sigs) { effects { transactionBlock { digest } } errors}}"#;
+        let mutation = format!(
+            "{{ executeTransactionBlock(txBytes: $tx, signatures: $sigs) {{ {response_fields} }} }}"
+        );
 
         let variables = vec![
             GraphqlQueryVariable {
@@ -53,7 +56,7 @@ mod tests {
             },
         ];
         client
-            .execute_mutation_to_graphql(mutation.to_string(), variables)
+            .execute_mutation_to_graphql(mutation, variables)
             .await
             .unwrap()
     }
@@ -366,9 +369,11 @@ mod tests {
 
         let tx = cluster.build_transfer_iota_for_test().await;
         let signed_tx = cluster.sign_transaction(&tx);
-        let raw_response = mutation_execute_transaction(&cluster.graphql_client, &signed_tx)
-            .await
-            .response_body_json();
+        let response_fields = "effects { transactionBlock { digest } } errors";
+        let raw_response =
+            mutation_execute_transaction(&cluster.graphql_client, &signed_tx, response_fields)
+                .await
+                .response_body_json();
         let response = &raw_response["data"]["executeTransactionBlock"];
 
         let digest = response["effects"]["transactionBlock"]["digest"]
@@ -412,52 +417,112 @@ mod tests {
             iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
                 .await;
 
+        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
+        let sender = addresses[0];
+
+        let tx_block_gql_fields = r#"
+            digest
+            sender {
+              address
+            }
+            effects {
+              status
+              errors
+              objectChanges {
+                edges {
+                  node {
+                    inputState {
+                        version
+                        status
+                        bcs
+                    }
+                    outputState {
+                        version
+                        status
+                        bcs
+                    }
+                    idCreated
+                    idDeleted
+                  }
+                }
+              }
+              balanceChanges {
+                edges {
+                  node {
+                    coinType {
+                      repr
+                    }
+                    amount
+                  }
+                }
+              }
+            }
+            "#;
+
+        let response_fields =
+            format!("effects {{ transactionBlock {{ {tx_block_gql_fields} }} }} errors");
+
         let tx = cluster.build_transfer_iota_for_test().await;
         let signed_tx = cluster.sign_transaction(&tx);
         let original_digest = signed_tx.digest();
-        let raw_response = mutation_execute_transaction(&cluster.graphql_client, &signed_tx)
-            .await
-            .response_body_json();
-        let response = &raw_response["data"]["executeTransactionBlock"];
-
-        let digest = response["effects"]["transactionBlock"]["digest"]
-            .as_str()
-            .unwrap();
-        assert!(raw_response["errors"].is_null());
+        let raw_response =
+            mutation_execute_transaction(&cluster.graphql_client, &signed_tx, &response_fields)
+                .await
+                .response_body_json();
+        let execute_transaction_block_res = &raw_response["data"]["executeTransactionBlock"];
+        let mutation_tx_data = &execute_transaction_block_res["effects"]["transactionBlock"];
+        let sender_read = mutation_tx_data["sender"]["address"].as_str().unwrap();
+        let digest = mutation_tx_data["digest"].as_str().unwrap();
+        assert!(execute_transaction_block_res["errors"].is_null());
         assert_eq!(digest, original_digest.to_string());
+        assert_eq!(sender_read, sender.to_string());
 
-        // Wait for the transaction to be committed and indexed
-        sleep(Duration::from_secs(10)).await;
-        // Query the transaction
-        let query = r#"
-            {
-                transactionBlock(digest: $dig){
-                    indexedOnNode
-                    sender {
-                        address
-                    }
-                }
-            }
-        "#;
-
+        // Query the transaction immediately after execution (optimistic indexing)
+        // Use the same fields as in the mutation
+        let query = format!(
+            r#"
+                {{
+                    transactionBlock(digest: $dig){{
+                        {tx_block_gql_fields}
+                    }}
+                }}
+            "#,
+        );
         let variables = vec![GraphqlQueryVariable {
             name: "dig".to_string(),
             ty: "String!".to_string(),
             value: json!(digest),
         }];
-        let raw_response = cluster
+
+        let immediate_res = cluster
             .graphql_client
-            .execute_to_graphql(query.to_string(), true, variables, vec![])
+            .execute_to_graphql(query.to_string(), true, variables.clone(), vec![])
             .await
             .unwrap()
-            .response_body_json();
+            .response_body()
+            .data
+            .clone()
+            .into_json()
+            .unwrap();
+        let immediate_tx_data = &immediate_res["transactionBlock"];
 
-        let tx = &raw_response["data"]["transactionBlock"];
+        // Wait 10 seconds for transaction to be checkpointed
+        sleep(Duration::from_secs(10)).await;
+        let checkpointed_res = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, variables.clone(), vec![])
+            .await
+            .unwrap()
+            .response_body()
+            .data
+            .clone()
+            .into_json()
+            .unwrap();
+        let checkpointed_tx_data = &checkpointed_res["transactionBlock"];
 
-        let sender_read = tx["sender"]["address"].as_str().unwrap();
-        assert_eq!(sender_read, signed_tx.sender_address().to_string());
-        let indexed_on_node = tx.get("indexedOnNode").unwrap().as_bool().unwrap();
-        assert!(indexed_on_node);
+        // All 3 responses should be identical: mutation, optimistic and checkpointed
+        assert_eq!(mutation_tx_data, immediate_tx_data);
+        assert_eq!(immediate_tx_data, checkpointed_tx_data);
 
         // Check that optimistic indexing happened
         let digest_bytes = Base58::decode(digest).unwrap();

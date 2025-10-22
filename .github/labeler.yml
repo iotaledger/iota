@@ -15,10 +15,15 @@ ts-sdk:
       - any-glob-to-any-file: sdk/**/*
 apps-ui-kit:
   - changed-files:
-      - any-glob-to-any-file: apps/ui-kit/**/*
+      - any-glob-to-any-file: |
+          - apps/ui-kit/**/*
+          - apps/ui-icons/**/*
 apps-backend:
   - changed-files:
       - any-glob-to-any-file: apps/apps-backend/**/*
+evm-bridge:
+  - changed-files:
+      - any-glob-to-any-file: apps/evm-bridge/**/*
 tooling:
   - changed-files:
       - any-glob-to-any-file: |
@@ -34,6 +39,7 @@ tooling:
           .prettierignore
           graphql.config.ts
           package.json
+          pnpm-lock.yaml
           pnpm-workspace.yaml
           prettier.config.js
           turbo.json

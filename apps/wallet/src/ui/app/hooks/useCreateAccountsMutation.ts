@@ -188,7 +188,6 @@ export function useCreateAccountsMutation() {
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.KeystoneDerived,
                     accounts: accountsFormValues.accounts,
-                    password: password!,
                     sourceID,
                 });
             } else {
