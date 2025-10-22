@@ -64,7 +64,7 @@ fi
 export IOTA_CONFIG_DIR="$WORKING_DIR/config"
 rm -rf "$IOTA_CONFIG_DIR"
 
-"$WORKING_DIR/iota-release" genesis --epoch-duration-ms 20000
+"$WORKING_DIR/iota-release" genesis --epoch-duration-ms 20000 --committee-size 4
 
 LOG_DIR="$WORKING_DIR/logs"
 
