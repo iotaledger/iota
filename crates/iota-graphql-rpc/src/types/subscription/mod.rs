@@ -5,10 +5,8 @@ use std::sync::Arc;
 
 use async_graphql::{Context, OutputType, SimpleObject, Subscription, Union};
 use futures::{Stream, StreamExt, TryStreamExt, future};
-use iota_indexer::{
-    indexer_reader::IndexerReader,
-    stream::{IndexerStreamer, StreamEventFilter, StreamTransactionFilter},
-};
+use iota_indexer::read::IndexerReader;
+use iota_indexer_streaming::memory::InMemory;
 use iota_json_rpc_types::Filter;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tracing::warn;
@@ -62,7 +60,7 @@ impl Subscription {
         filter: Option<SubscriptionTransactionFilter>,
     ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> {
         let streams = ctx.data_unchecked::<GraphQLStream>().clone();
-        streams.subscribe_transactions(filter.map(Into::<StreamTransactionFilter>::into))
+        streams.subscribe_transactions(filter)
     }
 
     /// Subscribe to incoming events from the IOTA network.
@@ -74,13 +72,13 @@ impl Subscription {
         filter: Option<SubscriptionEventFilter>,
     ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> {
         let streams = ctx.data_unchecked::<GraphQLStream>().clone();
-        streams.subscribe_events(filter.map(Into::<StreamEventFilter>::into))
+        streams.subscribe_events(filter)
     }
 }
 
 /// Provides real-time data streams for the GraphQL subscription feature.
 ///
-/// It wraps the low-level [`IndexerStreamer`] and handles necessary
+/// It wraps the low-level [`InMemory`] streamer and handles the necessary
 /// data processing, filtering, and subscription-specific error handling before
 /// yielding items to GraphQL.
 ///
@@ -88,12 +86,12 @@ impl Subscription {
 /// the resulting stream is gracefully terminated by the server.
 #[derive(Clone)]
 pub(crate) struct GraphQLStream {
-    streamer: Arc<IndexerStreamer>,
+    streamer: Arc<InMemory>,
 }
 
 impl GraphQLStream {
     pub(crate) async fn new(db_url: &str, indexer_reader: IndexerReader) -> Result<Self, Error> {
-        let streamer = IndexerStreamer::new(db_url, indexer_reader)
+        let streamer = InMemory::new(db_url, Default::default(), indexer_reader)
             .await
             .map_err(|e| Error::Internal(format!("failed to connect to postgres: {e}")))?;
         Ok(Self {
@@ -115,7 +113,7 @@ impl GraphQLStream {
     /// Subscribe to transactions from IOTA Network.
     pub(crate) fn subscribe_transactions(
         &self,
-        filter: Option<StreamTransactionFilter>,
+        filter: Option<SubscriptionTransactionFilter>,
     ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> {
         self.streamer
             .subscribe_transactions()
@@ -152,7 +150,7 @@ impl GraphQLStream {
     /// Subscribe to events from IOTA Network.
     pub(crate) fn subscribe_events(
         &self,
-        filter: Option<StreamEventFilter>,
+        filter: Option<SubscriptionEventFilter>,
     ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> {
         self.streamer
             .subscribe_events()
