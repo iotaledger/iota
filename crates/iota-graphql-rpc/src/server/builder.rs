@@ -490,7 +490,8 @@ impl ServerBuilder {
             None
         };
 
-        let graphql_streams = GraphQLStream::new(&config.connection.db_url, reader).await?;
+        let graphql_streams =
+            GraphQLStream::new(&config.connection.db_url, reader, &registry).await?;
 
         builder = builder
             .context_data(config.service.clone())

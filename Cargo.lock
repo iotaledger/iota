@@ -6502,6 +6502,7 @@ dependencies = [
  "futures",
  "iota-indexer",
  "iota-types",
+ "prometheus",
  "serde",
  "serde_json",
  "thiserror 1.0.64",
