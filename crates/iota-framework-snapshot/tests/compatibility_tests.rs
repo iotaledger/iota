@@ -76,39 +76,33 @@ mod compatibility_tests {
     }
 
     /// This test checks that the `SinglePackage` entries in `manifest.json`
-    /// match the metadata in the `Move.toml` files in the repo.
-    ///
-    /// Note that this test currently assumes that no framework packages will be
-    /// removed or moved within the repo; we check the historical metadata
-    /// against the current repository. If needed, we could be more precise
-    /// by first checking out the revision of the package listed
-    /// in the manifest (this should actually be fairly cheap since the git
-    /// history is present).
-    /// This test checks that the `SinglePackage` entries in `manifest.json`
     /// match the metadata in the `Move.toml` files in the repo for each
     /// revision.
     #[test]
     fn check_manifest_against_tomls() {
-        let manifest = load_bytecode_snapshot_manifest();
+        // Only execute the test when the manifest is modified
+        if check_if_manifest_was_modified() {
+            let manifest = load_bytecode_snapshot_manifest();
 
-        // Clone the current repo into a temp directory
-        let (_temp_dir, clone_repo_path) = clone_repo_to_temp();
+            // Clone the current repo into a temp directory
+            let (_temp_dir, clone_repo_path) = clone_repo_to_temp();
 
-        for entry in manifest.values() {
-            // Checkout each specified revision in the cloned repo
-            checkout_revision(&clone_repo_path, &entry.git_revision);
+            for entry in manifest.values() {
+                // Checkout each specified revision in the cloned repo
+                checkout_revision(&clone_repo_path, &entry.git_revision);
 
-            for package in entry.packages.iter() {
-                // parse package.path/Move.toml
-                let toml_path = clone_repo_path.join(&package.path);
-                let package_toml: SourceManifest =
-                    parse_move_manifest_from_file(&toml_path).expect("Move.toml exists");
-                // check manifest name field is package.name
-                assert_eq!(package_toml.package.name.to_string(), package.name);
-                // check manifest published-at field is package.id
-                let published_at_field = published_at_property(&package_toml)
-                    .expect("Move.toml file has published-at field");
-                assert_eq!(published_at_field, package.id);
+                for package in entry.packages.iter() {
+                    // parse package.path/Move.toml
+                    let toml_path = clone_repo_path.join(&package.path);
+                    let package_toml: SourceManifest =
+                        parse_move_manifest_from_file(&toml_path).expect("Move.toml exists");
+                    // check manifest name field is package.name
+                    assert_eq!(package_toml.package.name.to_string(), package.name);
+                    // check manifest published-at field is package.id
+                    let published_at_field = published_at_property(&package_toml)
+                        .expect("Move.toml file has published-at field");
+                    assert_eq!(published_at_field, package.id);
+                }
             }
         }
     }
@@ -132,9 +126,21 @@ mod compatibility_tests {
         (temp_dir, clone_path)
     }
 
+    fn check_if_manifest_was_modified() -> bool {
+        // Run `git diff --name-only HEAD`
+        let output = std::process::Command::new("git")
+            .args(["diff", "--name-only", "HEAD"])
+            .output()
+            .expect("failed to run git diff");
+
+        let changed_files = String::from_utf8_lossy(&output.stdout);
+
+        changed_files.contains("iota-framework-snapshot/manifest.json")
+    }
+
     fn checkout_revision(repo_path: &Path, rev: &str) {
         let fetch_status = std::process::Command::new("git")
-            .args(["fetch", "origin", rev])
+            .args(["fetch", "--depth=2147483647", "origin", rev])
             .current_dir(repo_path)
             .status()
             .expect("Failed to execute git fetch");

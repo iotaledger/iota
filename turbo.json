@@ -18,6 +18,10 @@
 			"cache": false,
 			"persistent": true
 		},
+		"codegen": {
+			"cache": false,
+			"persistent": true
+		},
 		"build": {
 			"dependsOn": ["^build"],
 			"outputs": [

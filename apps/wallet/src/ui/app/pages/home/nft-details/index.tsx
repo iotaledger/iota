@@ -9,6 +9,7 @@ import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
+import { ampli } from '_src/shared/analytics/ampli';
 
 export function NFTDetailsPage() {
     const navigate = useNavigate();
@@ -32,20 +33,16 @@ export function NFTDetailsPage() {
     const isPending = isLoading || isGuardLoading;
 
     function handleMoreAboutKiosk() {
-        window.open(
-            'https://docs.iota.org/developer/ts-sdk/kiosk/',
-            '_blank',
-            'noopener noreferrer',
-        );
+        const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
+        ampli.openedLink({ url });
+        window.open(url, '_blank', 'noopener noreferrer');
     }
 
     function handleMarketplace() {
         // TODO: https://github.com/iotaledger/iota/issues/4024
-        window.open(
-            'https://docs.iota.org/developer/ts-sdk/kiosk/',
-            '_blank',
-            'noopener noreferrer',
-        );
+        const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
+        ampli.openedLink({ url });
+        window.open(url, '_blank', 'noopener noreferrer');
     }
 
     function handleSend() {

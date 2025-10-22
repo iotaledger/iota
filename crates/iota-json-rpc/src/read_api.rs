@@ -728,6 +728,31 @@ impl ReadApiServer for ReadApi {
     }
 
     #[instrument(skip(self))]
+    async fn is_transaction_indexed_on_node(&self, digest: TransactionDigest) -> RpcResult<bool> {
+        let transaction = async move {
+            let transaction_kv_store = self.transaction_kv_store.clone();
+            let mut transactions = spawn_monitored_task!(async move {
+                let ret = transaction_kv_store
+                    .multi_get_tx(&[digest])
+                    .await
+                    .map_err(|err| {
+                        debug!(tx_digest=?digest, "Failed to get transaction: {:?}", err);
+                        Error::from(err)
+                    });
+                add_server_timing("tx_kv_lookup");
+                ret
+            })
+            .await??;
+            Ok(transactions
+                .pop()
+                .expect("there should be one tx lookup response"))
+        }
+        .trace()
+        .await?;
+        Ok(transaction.map(|tx| *tx.digest()) == Some(digest))
+    }
+
+    #[instrument(skip(self))]
     async fn get_transaction_block(
         &self,
         digest: TransactionDigest,

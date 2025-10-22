@@ -242,6 +242,8 @@ pub struct PruningOptions {
     /// Path to TOML file containing configuration for retention policies.
     #[arg(long)]
     pub pruning_config_path: Option<PathBuf>,
+    #[arg(long, env = "OPTIMISTIC_PRUNER_BATCH_SIZE")]
+    pub optimistic_pruner_batch_size: Option<u64>,
 }
 
 /// Represents the default retention policy and overrides for prunable tables.
@@ -622,6 +624,9 @@ pub mod deprecated {
                         epochs_to_keep: std::env::var("EPOCHS_TO_KEEP")
                             .map(|s| s.parse::<u64>().ok())
                             .unwrap_or_else(|_e| None),
+                        optimistic_pruner_batch_size: std::env::var("OPTIMISTIC_PRUNER_BATCH_SIZE")
+                            .map(|s| s.parse::<u64>().ok())
+                            .unwrap_or_default(),
                         pruning_config_path: None,
                     },
                     reset_db: old_conf.reset_db,
@@ -738,6 +743,7 @@ mod test {
         let pruning_options = PruningOptions {
             epochs_to_keep: None,
             pruning_config_path: Some(temp_path.clone()),
+            optimistic_pruner_batch_size: None,
         };
         let retention_config = pruning_options.load_from_file().unwrap().unwrap();
 
@@ -788,6 +794,7 @@ mod test {
         let pruning_options = PruningOptions {
             epochs_to_keep: None,
             pruning_config_path: Some(temp_path.clone()),
+            optimistic_pruner_batch_size: None,
         };
         let retention_config = pruning_options.load_from_file().unwrap().unwrap();
 

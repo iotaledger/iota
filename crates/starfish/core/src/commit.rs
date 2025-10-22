@@ -858,6 +858,7 @@ mod tests {
     use crate::{
         block_header::{TestBlockHeader, VerifiedBlock},
         context::Context,
+        encoder::create_encoder,
         storage::{WriteBatch, mem_store::MemStore},
     };
 
@@ -865,6 +866,7 @@ mod tests {
     async fn test_new_committed_subdag_from_commit() {
         let store = Arc::new(MemStore::new());
         let context = Arc::new(Context::new_for_test(4).0);
+        let mut encoder = create_encoder(&context);
 
         // Populate fully connected test blocks for round 0 ~ 3, authorities 0 ~ 3.
         let first_wave_rounds: u32 = WAVE_LENGTH;
@@ -877,7 +879,14 @@ mod tests {
             .map(|index| {
                 let author_idx = index.0.value() as u8;
                 let tx = index.0.value() as u8;
-                let block = TestBlockHeader::new_with_transaction(0, author_idx, tx).build();
+                let block = TestBlockHeader::new_with_transaction(
+                    0,
+                    author_idx,
+                    tx,
+                    &context,
+                    &mut encoder,
+                )
+                .build();
                 VerifiedBlock::new_with_transaction_for_test(block, tx)
             })
             .map(|block| {
@@ -906,7 +915,7 @@ mod tests {
             for author in 0..num_authorities {
                 let base_ts = round as BlockTimestampMs * 1000;
                 let block = VerifiedBlock::new_for_test(
-                    TestBlockHeader::new(round, author)
+                    TestBlockHeader::new_with_commitment(round, author, &context, &mut encoder)
                         .set_timestamp_ms(base_ts + (author as u32 + round) as u64)
                         .set_ancestors(ancestors.clone())
                         .set_acknowledgments(ancestors.clone())

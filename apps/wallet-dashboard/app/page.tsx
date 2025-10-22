@@ -5,11 +5,25 @@
 
 import { ConnectButton } from '@iota/dapp-kit';
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
-import { Theme, ThemeSwitcher, ToS_LINK, useTheme } from '@iota/core';
+import {
+    Feature,
+    Theme,
+    ThemeSwitcher,
+    ToS_LINK,
+    useFeatureEnabledByNetwork,
+    useTheme,
+} from '@iota/core';
 import Link from 'next/link';
+import { Network } from '@iota/iota-sdk/client';
+import { usePersistedNetwork } from '@/hooks';
 
 function HomeDashboardPage(): JSX.Element {
     const { theme } = useTheme();
+    const { persistedNetwork } = usePersistedNetwork();
+    const iotaNamesEnabled = useFeatureEnabledByNetwork(
+        Feature.IotaNames,
+        persistedNetwork as Network,
+    );
 
     const CURRENT_YEAR = new Date().getFullYear();
     const videoSrc =
@@ -46,7 +60,7 @@ function HomeDashboardPage(): JSX.Element {
                         </span>
                     </div>
                     <div className="[&_button]:!bg-iota-neutral-90 [&_button]:dark:!bg-iota-neutral-20">
-                        <ConnectButton connectText="Connect" />
+                        <ConnectButton connectText="Connect" iotaNamesEnabled={iotaNamesEnabled} />
                     </div>
                 </div>
                 <div className="flex flex-col items-center gap-y-1 text-center text-body-lg text-iota-neutral-60">

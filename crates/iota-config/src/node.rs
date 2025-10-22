@@ -266,7 +266,47 @@ pub struct NodeConfig {
         default = "default_grpc_api_config",
         skip_serializing_if = "Option::is_none"
     )]
-    pub grpc_api_config: Option<iota_grpc_api::Config>,
+    pub grpc_api_config: Option<GrpcApiConfig>,
+}
+
+/// Configuration for the gRPC API service
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct GrpcApiConfig {
+    /// The address to bind the gRPC server to
+    #[serde(default = "default_grpc_api_address")]
+    pub address: std::net::SocketAddr,
+
+    /// Buffer size for broadcast channels used for checkpoint streaming
+    #[serde(default = "default_checkpoint_broadcast_buffer_size")]
+    pub checkpoint_broadcast_buffer_size: usize,
+
+    /// Buffer size for broadcast channels used for event streaming
+    #[serde(default = "default_event_broadcast_buffer_size")]
+    pub event_broadcast_buffer_size: usize,
+}
+
+impl Default for GrpcApiConfig {
+    fn default() -> Self {
+        Self {
+            address: default_grpc_api_address(),
+            checkpoint_broadcast_buffer_size: default_checkpoint_broadcast_buffer_size(),
+            event_broadcast_buffer_size: default_event_broadcast_buffer_size(),
+        }
+    }
+}
+
+fn default_grpc_api_address() -> std::net::SocketAddr {
+    use std::net::{IpAddr, Ipv4Addr};
+    std::net::SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 50051)
+}
+
+fn default_checkpoint_broadcast_buffer_size() -> usize {
+    100
+}
+
+fn default_event_broadcast_buffer_size() -> usize {
+    1000
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
@@ -576,7 +616,7 @@ pub fn default_json_rpc_address() -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9000)
 }
 
-pub fn default_grpc_api_config() -> Option<iota_grpc_api::Config> {
+pub fn default_grpc_api_config() -> Option<GrpcApiConfig> {
     None
 }
 
