@@ -38,7 +38,12 @@ use crate::{
 };
 
 type CollectedInfos = UniqueMap<FunctionName, CollectedInfo>;
-type CollectedInfo = (Vec<(Mutability, Var, H::SingleType)>, Attributes);
+
+type CollectedInfo = (
+    Vec<(Mutability, Var, H::SingleType)>,
+    Attributes,
+    Option<u8>,
+);
 
 fn extract_decls(
     compilation_env: &CompilationEnv,
@@ -322,14 +327,16 @@ fn function_info_map(
         .into_iter()
         .map(|(n, v)| (Symbol::from(n.as_str()), v))
         .collect();
-    let (params, attributes) = collected_function_infos.get_(&name).unwrap();
+    let (params, attributes, authenticator_version) = collected_function_infos.get_(&name).unwrap();
     let parameters = params
         .iter()
         .map(|(_mut, v, ty)| var_info(&local_map, *v, ty.clone()))
         .collect();
+
     let function_info = FunctionInfo {
         parameters,
         attributes: attributes.clone(),
+        authenticator_version: authenticator_version.clone(),
     };
 
     let name_loc = *collected_function_infos.get_loc_(&name).unwrap();
@@ -618,11 +625,13 @@ fn function(
         loc,
         visibility: v,
         is_entry: entry.is_some(),
-        authenticator_version,
         signature,
         body,
     };
-    ((name, sp(name_loc, ir_function)), (parameters, attributes))
+    (
+        (name, sp(name_loc, ir_function)),
+        (parameters, attributes, authenticator_version),
+    )
 }
 
 fn visibility(_context: &mut Context, v: Visibility) -> IR::FunctionVisibility {

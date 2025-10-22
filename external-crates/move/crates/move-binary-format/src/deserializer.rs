@@ -1556,14 +1556,10 @@ fn load_function_def(cursor: &mut VersionedCursor) -> BinaryLoaderResult<Functio
         return Err(PartialVMError::new(StatusCode::INVALID_FLAG_BITS));
     }
 
-    // TODO fix this
-    let authenticator_version = None;
-
     Ok(FunctionDefinition {
         function,
         visibility,
         is_entry,
-        authenticator_version,
         acquires_global_resources,
         code: code_unit,
     })
@@ -2150,8 +2146,7 @@ impl<'a, 'b> VersionedBinary<'a, 'b> {
             return Err(PartialVMError::new(StatusCode::UNKNOWN_VERSION));
         }
 
-        // Bad flavor to the version: for version 7 and above, only IOTA_FLAVOR is
-        // supported
+         // Bad flavor to the version: for version 7 and above, only IOTA_FLAVOR is supported
         if version >= VERSION_7 && flavor != Some(BinaryFlavor::IOTA_FLAVOR) {
             return Err(PartialVMError::new(StatusCode::UNKNOWN_VERSION));
         }

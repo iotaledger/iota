@@ -73,6 +73,9 @@ pub struct FnInfo {
     /// If true, it's a function involved in testing (`[test]`, `[test_only]`,
     /// `[expected_failure]`)
     pub is_test: bool,
+    /// If set, function was marked to represent authenticator function of
+    /// given version.
+    pub authenticator_version: Option<u8>,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
@@ -655,7 +658,10 @@ pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInf
     let mod_addr = *module.address_identifier_at(mod_handle.address);
     let fn_info_key = FnInfoKey { fn_name, mod_addr };
     match fn_info_map.get(&fn_info_key) {
-        Some(fn_info) => fn_info.is_test,
+        Some(fn_info) => {
+            println!("{:?} authenticator version: {:?}", fn_info_key.fn_name ,fn_info.authenticator_version);
+            fn_info.is_test
+        }
         None => false,
     }
 }

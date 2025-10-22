@@ -563,11 +563,6 @@ pub struct FunctionDefinition {
     pub visibility: Visibility,
     /// Marker if the function is intended as an entry function. That is
     pub is_entry: bool,
-    /// In case the function has been marked by "authenticator(version = x)"
-    /// attribute, this field will contain the specified version.
-    /// A value of None indicates that the function was not marked as an
-    /// authenticator.
-    pub authenticator_version: Option<u8>,
     /// List of locally defined types (declared in this module) with the `Key`
     /// ability that the procedure might access, either through:
     /// BorrowGlobal, MoveFrom, or transitively through another procedure
@@ -2942,7 +2937,6 @@ pub fn basic_test_module() -> CompiledModule {
         function: FunctionHandleIndex(0),
         visibility: Visibility::Private,
         is_entry: false,
-        authenticator_version: None,
         acquires_global_resources: vec![],
         code: Some(CodeUnit {
             locals: SignatureIndex(0),

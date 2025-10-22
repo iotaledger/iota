@@ -437,7 +437,6 @@ fn make_module(
                 function: FunctionHandleIndex(0),
                 visibility: move_binary_format::file_format::Visibility::Public,
                 is_entry: true,
-                authenticator_version: None,
                 acquires_global_resources: vec![],
                 code: Some(CodeUnit {
                     locals: SignatureIndex(locals_idx as u16),
@@ -449,7 +448,6 @@ fn make_module(
                 function: FunctionHandleIndex(1),
                 visibility: move_binary_format::file_format::Visibility::Public,
                 is_entry: false,
-                authenticator_version: None,
                 acquires_global_resources: vec![],
                 code: Some(CodeUnit {
                     locals: SignatureIndex(locals_idx as u16),
@@ -473,7 +471,6 @@ fn make_module(
                 function: FunctionHandleIndex(2),
                 visibility: move_binary_format::file_format::Visibility::Public,
                 is_entry: false,
-                authenticator_version: None,
                 acquires_global_resources: vec![],
                 code: Some(CodeUnit {
                     locals: SignatureIndex(locals_idx as u16),

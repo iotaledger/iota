@@ -34,6 +34,7 @@ pub struct VarInfo {
 pub struct FunctionInfo {
     pub parameters: Vec<(H::Var, VarInfo)>,
     pub attributes: Attributes,
+    pub authenticator_version: Option<u8>,
 }
 
 #[derive(Debug, Clone)]
