@@ -26,9 +26,9 @@ use crate::{
 const CHECKPOINT_QUEUE_SIZE: usize = 100;
 
 pub(crate) struct PrimaryPipeline {
-    pub primary_executor: IndexerExecutor<ShimIndexerProgressStore>,
-    pub primary_writer: PrimaryWriter,
-    pub primary_watermark: CheckpointSequenceNumber,
+    pub executor: IndexerExecutor<ShimIndexerProgressStore>,
+    pub writer: PrimaryWriter,
+    pub watermark: CheckpointSequenceNumber,
 }
 
 impl PrimaryPipeline {
@@ -38,16 +38,16 @@ impl PrimaryPipeline {
         checkpoint_download_queue_size: usize,
         cancel: CancellationToken,
     ) -> IndexerResult<PrimaryPipeline> {
-        let primary_watermark = state
+        let watermark = state
             .get_latest_checkpoint_sequence_number()
             .await
             .expect("failed to get latest tx checkpoint sequence number from DB")
             .map(|seq| seq + 1)
             .unwrap_or_default();
-        let primary_progress_store =
-            ShimIndexerProgressStore::new(vec![("primary".to_string(), primary_watermark)]);
-        let mut primary_executor = IndexerExecutor::new(
-            primary_progress_store,
+        let progress_store =
+            ShimIndexerProgressStore::new(vec![("primary".to_string(), watermark)]);
+        let mut executor = IndexerExecutor::new(
+            progress_store,
             1,
             DataIngestionMetrics::new(&Registry::new()),
             cancel.child_token(),
@@ -64,18 +64,18 @@ impl PrimaryPipeline {
                     .channel_inflight
                     .with_label_values(&["checkpoint_indexing"]),
             );
-        let primary_worker_pool = WorkerPool::new(
+        let worker_pool = WorkerPool::new(
             PrimaryWorker::new(metrics.clone(), indexed_checkpoint_sender),
             "primary".to_string(),
             checkpoint_download_queue_size,
             Default::default(),
         );
-        let primary_writer = PrimaryWriter::new(state, metrics, indexed_checkpoint_receiver);
-        primary_executor.register(primary_worker_pool).await?;
+        let writer = PrimaryWriter::new(state, metrics, indexed_checkpoint_receiver);
+        executor.register(worker_pool).await?;
         Ok(PrimaryPipeline {
-            primary_executor,
-            primary_writer,
-            primary_watermark,
+            executor,
+            writer,
+            watermark,
         })
     }
 
@@ -90,26 +90,26 @@ impl PrimaryPipeline {
         JoinHandle<IndexerResult<()>>,
     )> {
         info!("Starting primary writer...");
-        let primary_writer_task_handle = spawn_monitored_task!(start_primary_writer_task(
-            self.primary_writer,
-            self.primary_watermark,
+        let writer_task_handle = spawn_monitored_task!(start_writer_task(
+            self.writer,
+            self.watermark,
             cancel.clone()
         ));
 
         info!("Starting primary executor...");
-        let primary_executor_handle = tokio::spawn(self.primary_executor.run(
+        let executor_handle = tokio::spawn(self.executor.run(
             data_ingestion_path,
             remote_store_url,
             vec![],
             reader_options,
         ));
 
-        Ok((primary_executor_handle, primary_writer_task_handle))
+        Ok((executor_handle, writer_task_handle))
     }
 }
 
-async fn start_primary_writer_task(
-    mut primary_writer: PrimaryWriter,
+async fn start_writer_task(
+    mut writer: PrimaryWriter,
     mut next_checkpoint_sequence_number: CheckpointSequenceNumber,
     cancel: CancellationToken,
 ) -> IndexerResult<()> {
@@ -119,7 +119,7 @@ async fn start_primary_writer_task(
     let mut unprocessed = HashMap::new();
     let mut batch = vec![];
 
-    while let Some(indexed_checkpoint_batch) = primary_writer.stream.next().await {
+    while let Some(indexed_checkpoint_batch) = writer.stream.next().await {
         if cancel.is_cancelled() {
             break;
         }
@@ -132,13 +132,13 @@ async fn start_primary_writer_task(
             let epoch = checkpoint.epoch.clone();
             batch.push(checkpoint);
             next_checkpoint_sequence_number += 1;
-            if batch.len() == primary_writer.checkpoint_commit_batch_size || epoch.is_some() {
-                primary_writer.commit_checkpoints(batch, epoch).await;
+            if batch.len() == writer.checkpoint_commit_batch_size || epoch.is_some() {
+                writer.commit_checkpoints(batch, epoch).await;
                 batch = vec![];
             }
         }
         if !batch.is_empty() {
-            primary_writer.commit_checkpoints(batch, None).await;
+            writer.commit_checkpoints(batch, None).await;
             batch = vec![];
         }
     }

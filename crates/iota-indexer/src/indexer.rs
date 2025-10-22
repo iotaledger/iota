@@ -120,7 +120,7 @@ impl Indexer {
                 metrics.clone(),
                 snapshot_config,
                 config.checkpoint_download_queue_size,
-                &mut primary_pipeline.primary_executor,
+                &mut primary_pipeline.executor,
             )
             .await?
         };
