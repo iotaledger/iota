@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_spanned::Spanned;
 
 use crate::{
-    errors::{PackageError, PackageResult},
+    errors::{self, Located, ManifestError, ManifestErrorKind, PackageError, PackageResult},
     flavor::MoveFlavor,
 };
 

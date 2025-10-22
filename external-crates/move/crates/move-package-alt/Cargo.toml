@@ -8,6 +8,7 @@ publish = false
 
 [dependencies]
 anyhow.workspace = true
+append-only-vec.workspace = true
 codespan-reporting.workspace = true
 derive-where.workspace = true
 serde.workspace = true
