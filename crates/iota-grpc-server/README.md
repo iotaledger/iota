@@ -23,7 +23,7 @@ Event filters allow precise control over which events are streamed to clients, i
 
 ## Usage
 
-The `iota-grpc-api` crate defines the gRPC service and its messages. The `iota-node` crate integrates and starts this gRPC server if `enable-grpc-api` is set to `true` and `grpc-api-config` is configured.
+The `iota-grpc-server` crate defines the gRPC service and its messages. The `iota-node` crate integrates and starts this gRPC server if `enable-grpc-api` is set to `true` and `grpc-api-config` is configured.
 
 Shared gRPC clients are provided by this crate:
 
