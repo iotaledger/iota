@@ -869,7 +869,7 @@ impl IndexerReader {
         run_query!(&self.pool, |conn| query.load::<StoredTransaction>(conn))
     }
 
-    pub(crate) fn multi_get_transactions_by_sequence_numbers_range(
+    pub fn multi_get_transactions_by_sequence_numbers_range(
         &self,
         min_seq: i64,
         max_seq: i64,
