@@ -66,6 +66,8 @@ iota-indexer:
   - "crates/iota-indexer/**"
 iota-indexer-builder:
   - "crates/iota-indexer-builder/**"
+iota-indexer-streaming:
+  - "crates/iota-indexer-streaming/**"
 iota-json:
   - "crates/iota-json/**"
 iota-json-rpc:

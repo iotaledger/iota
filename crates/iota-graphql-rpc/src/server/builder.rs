@@ -10,7 +10,7 @@ use std::{
 };
 
 use async_graphql::{
-    Data,Context, Schema, SchemaBuilder,
+    Context, Data, Schema, SchemaBuilder,
     extensions::{ApolloTracing, ExtensionFactory, Tracing},
     http::ALL_WEBSOCKET_PROTOCOLS,
 };
@@ -483,9 +483,9 @@ impl ServerBuilder {
                 "No fullnode url found in config".to_string(),
             ));
         };
-        let write_api = build_write_api(fullnode_url, reader, indexer_metrics)?;
+        let graphql_streams = GraphQLStream::new(&config.connection.db_url, reader.clone()).await?;
 
-        let graphql_streams = GraphQLStream::new(&config.connection.db_url, reader).await?;
+        let write_api = build_write_api(fullnode_url, reader, indexer_metrics)?;
 
         builder = builder
             .context_data(config.service.clone())
@@ -498,7 +498,7 @@ impl ServerBuilder {
             .context_data(zklogin_config)
             .context_data(metrics.clone())
             .context_data(config.clone())
-            .context_data(graphql_streams);
+            .context_data(graphql_streams)
             .context_data(ChainIdentifierCache::default());
 
         if config.internal_features.feature_gate {

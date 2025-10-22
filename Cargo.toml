@@ -99,6 +99,7 @@ members = [
   "crates/iota-http",
   "crates/iota-indexer",
   "crates/iota-indexer-builder",
+  "crates/iota-indexer-streaming",
   "crates/iota-json",
   "crates/iota-json-rpc",
   "crates/iota-json-rpc-api",
@@ -419,6 +420,7 @@ iota-grpc-types = { path = "crates/iota-grpc-types" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
 iota-indexer-builder = { path = "crates/iota-indexer-builder" }
+iota-indexer-streaming = { path = "crates/iota-indexer-streaming" }
 iota-json = { path = "crates/iota-json" }
 iota-json-rpc = { path = "crates/iota-json-rpc" }
 iota-json-rpc-api = { path = "crates/iota-json-rpc-api" }
