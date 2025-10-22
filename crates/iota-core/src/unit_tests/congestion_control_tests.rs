@@ -569,7 +569,7 @@ async fn test_congestion_control_debt_tracking() {
     // Commit 4: a transaction with gas budget 2*default_tx_gas_budget that
     // touches shared_object_1, shared_object_2 and an owned object.
     // There should be no debt from Commit 3 as the transaction was cancelled
-    // and the exisiting debt of 0.5*default_tx_gas_budget from that commit does
+    // and the existing debt of 0.5*default_tx_gas_budget from that commit does
     // not overshoot the congestion limit. Therefore, this transaction
     // should be executed successfully.
     let (_, effects) = update_objects(
