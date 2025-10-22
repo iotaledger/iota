@@ -6394,18 +6394,32 @@ dependencies = [
  "futures",
  "iota-config",
  "iota-core",
+ "iota-grpc-client",
  "iota-grpc-types",
  "iota-json-rpc-types",
  "iota-types",
  "move-core-types",
  "serde",
- "serde_json",
  "test-cluster",
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.12",
  "tonic 0.13.1",
  "tracing",
+]
+
+[[package]]
+name = "iota-grpc-client"
+version = "1.10.0-alpha"
+dependencies = [
+ "anyhow",
+ "futures",
+ "iota-grpc-types",
+ "iota-json-rpc-types",
+ "iota-types",
+ "move-core-types",
+ "serde_json",
+ "tonic 0.13.1",
 ]
 
 [[package]]

@@ -10,10 +10,9 @@ use std::{
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
 use iota_grpc_api::{
     CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, EventSubscriber, GrpcReader,
-    GrpcServerHandle,
-    client::{CheckpointClient, CheckpointContent, NodeClient},
-    start_grpc_server,
+    GrpcServerHandle, start_grpc_server,
 };
+use iota_grpc_client::{CheckpointClient, CheckpointContent, NodeClient};
 use iota_types::{
     base_types::ObjectID,
     committee::EpochId,

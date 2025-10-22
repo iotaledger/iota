@@ -47,7 +47,7 @@ grpc-api-config:
 **Client Examples:**
 
 ```rust
-use iota_grpc_api::client::NodeClient;
+use iota_grpc_client::NodeClient;
 
 // Connect to gRPC node
 let node_client = NodeClient::connect("http://localhost:50051").await?;
@@ -60,7 +60,7 @@ while let Some(Ok(checkpoint_content)) = checkpoint_stream.next().await {
 }
 
 // Event streaming example
-use iota_grpc_api::events::{EventFilter, AllFilter, event_filter::Filter};
+use iota_grpc_types::v0::events::{EventFilter, AllFilter, event_filter::Filter};
 
 let mut event_client = node_client.event_client().expect("Event client available");
 let all_events_filter = EventFilter {
