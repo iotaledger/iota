@@ -143,3 +143,103 @@ fun multiple_authentications_within_limit() {
     test_utils::destroy(id);
     test_scenario::end(scenario_val);
 }
+
+#[test]
+#[expected_failure(abort_code = spending_limit::EInvalidLimit)]
+fun attach_with_zero_limit_fails() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+
+    let mut id = scenario.new_object();
+
+    spending_limit::attach(&mut id, 0);
+
+    test_utils::destroy(id);
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = spending_limit::EInvalidLimit)]
+fun rotate_to_zero_limit_fails() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+
+    let mut id = scenario.new_object();
+
+    spending_limit::attach(&mut id, 1000);
+
+    spending_limit::rotate(&mut id, 0);
+
+    test_utils::destroy(id);
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+fun rotate_spending_limit() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+
+    let mut id = scenario.new_object();
+
+    spending_limit::attach(&mut id, 1000);
+    assert_eq!(*spending_limit::borrow(&id), 1000);
+
+    // Rotate to new limit
+    let old_limit = spending_limit::rotate(&mut id, 2000);
+    assert_eq!(old_limit, 1000);
+    assert_eq!(*spending_limit::borrow(&id), 2000);
+
+    // Rotate back
+    let old_limit = spending_limit::rotate(&mut id, 500);
+    assert_eq!(old_limit, 2000);
+    assert_eq!(*spending_limit::borrow(&id), 500);
+
+    test_utils::destroy(id);
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+fun detach_spending_limit() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+
+    let mut id = scenario.new_object();
+
+    spending_limit::attach(&mut id, 1000);
+    assert_eq!(spending_limit::has(&id), true);
+
+    let detached_value = spending_limit::detach(&mut id);
+    assert_eq!(detached_value, 1000);
+    assert_eq!(spending_limit::has(&id), false);
+
+    test_utils::destroy(id);
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = spending_limit::ESpendingLimitMissing)]
+fun detach_nonexistent_limit_fails() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+
+    let mut id = scenario.new_object();
+
+    spending_limit::detach(&mut id);
+
+    test_utils::destroy(id);
+    test_scenario::end(scenario_val);
+}
+
+#[test]
+#[expected_failure(abort_code = spending_limit::ESpendingLimitMissing)]
+fun rotate_nonexistent_limit_fails() {
+    let mut scenario_val = test_scenario::begin(@0x0);
+    let scenario = &mut scenario_val;
+
+    let mut id = scenario.new_object();
+
+    spending_limit::rotate(&mut id, 1000);
+
+    test_utils::destroy(id);
+    test_scenario::end(scenario_val);
+}

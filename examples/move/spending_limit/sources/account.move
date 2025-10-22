@@ -6,6 +6,7 @@ module spending_limit::account;
 use generic_keyed_authentication::owner_public_key;
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
+use iota::coin::{Self, Coin};
 use iotaccount::iotaccount;
 use spending_limit::spending_limit;
 
@@ -48,9 +49,9 @@ public fun create(
     iota::transfer::share_object(spend_limit_account);
 }
 
-public fun authenticate(
+public fun authenticate<T>(
     account: &SpendLimit,
-    amount: u64,
+    coins: &vector<Coin<T>>,
     signature: vector<u8>,
     _auth_ctx: &AuthContext,
     ctx: &TxContext,
@@ -59,7 +60,10 @@ public fun authenticate(
 
     owner_public_key::authenticate_ed25519(&account.id, signature, ctx.digest());
 
-    spending_limit::authenticate_with_amount(&account.id, amount);
+    // Calculate actual amount from coin objects - can't be faked
+    let actual_amount = calculate_coin_sum(coins);
+
+    spending_limit::authenticate_with_amount(&account.id, actual_amount);
 }
 
 // === View Functions ===
@@ -82,6 +86,21 @@ public fun public_key(account: &SpendLimit): &vector<u8> {
 // Get the authenticator info.
 public fun authenticator_info(account: &SpendLimit): &AuthenticatorInfoV1 {
     account::borrow_auth_info_v1(&account.id)
+}
+
+// Calculate the sum of coin values.
+public fun calculate_coin_sum<T>(coins: &vector<Coin<T>>): u64 {
+    let mut total = 0;
+    let mut i = 0;
+    let len = vector::length(coins);
+
+    while (i < len) {
+        let coin = vector::borrow(coins, i);
+        total = total + coin::value(coin);
+        i = i + 1;
+    };
+
+    total
 }
 
 // === Admin Functions ===
