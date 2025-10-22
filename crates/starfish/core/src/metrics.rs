@@ -98,6 +98,7 @@ pub(crate) fn test_metrics() -> Arc<Metrics> {
 }
 
 pub(crate) struct NodeMetrics {
+    pub(crate) delay_in_sending_blocks: Histogram,
     pub(crate) block_commit_latency: Histogram,
     pub(crate) proposed_blocks: IntCounterVec,
     pub(crate) proposed_block_size: Histogram,
@@ -227,6 +228,12 @@ pub(crate) struct NodeMetrics {
 impl NodeMetrics {
     pub(crate) fn new(registry: &Registry) -> Self {
         Self {
+            delay_in_sending_blocks: register_histogram_with_registry!(
+                "delay_in_sending_blocks",
+                "The time taken between block creation and block sending.",
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
             block_commit_latency: register_histogram_with_registry!(
                 "block_commit_latency",
                 "The time taken between block creation and block commit.",

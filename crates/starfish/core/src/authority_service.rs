@@ -628,6 +628,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.rx_block_broadcaster.resubscribe(),
             self.subscription_counter.clone(),
         );
+        let context = self.context.clone();
 
         // Return a stream of blocks that first yields missed blocks as requested, then
         // new blocks.
@@ -635,6 +636,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             let connection_knowledge_sender = self.connection_knowledge_senders[peer].clone();
             broadcasted_blocks.filter_map(move |block| {
                 let connection_knowledge_sender = connection_knowledge_sender.clone();
+                let context = context.clone();
+                let ts = block.timestamp_ms();
                 async move {
                     let (tx, rx) = oneshot::channel();
 
@@ -670,7 +673,9 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                         }
                     };
 
-                    debug!("Block bundle {block_bundle:?}");
+
+                    let now = context.clock.timestamp_utc_ms();
+                    context.metrics.node_metrics.delay_in_sending_blocks.observe((now - ts) as f64);
 
                     match SerializedBlockBundle::try_from(block_bundle) {
                         Ok(serialized_block_bundle) => Some(serialized_block_bundle),
