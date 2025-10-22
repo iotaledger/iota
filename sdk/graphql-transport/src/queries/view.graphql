@@ -1,0 +1,9 @@
+# Copyright (c) 2025 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+query View($functionName: String!, $typeArgs: [String!], $arguments: [JSON!]) {
+    moveViewCall(functionName: $functionName, typeArgs: $typeArgs, arguments: $arguments) {
+        error
+        results
+    }
+}
