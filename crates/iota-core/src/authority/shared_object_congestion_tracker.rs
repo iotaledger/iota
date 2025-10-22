@@ -1011,7 +1011,7 @@ mod object_cost_tests {
             PerObjectCongestionControlMode::TotalTxCount => (3, 0),
         };
 
-        let (intial_debt_obj_0, intial_debt_obj_1) = match mode {
+        let (initial_debt_obj_0, initial_debt_obj_1) = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
                 // Initial debts for TotalGasBudget mode are set such that
@@ -1037,8 +1037,8 @@ mod object_cost_tests {
         let mut shared_object_congestion_tracker =
             new_congestion_tracker_with_initial_value_for_test(
                 &[
-                    (shared_obj_0, intial_debt_obj_0),
-                    (shared_obj_1, intial_debt_obj_1),
+                    (shared_obj_0, initial_debt_obj_0),
+                    (shared_obj_1, initial_debt_obj_1),
                 ],
                 mode,
                 assign_min_free_execution_slot,

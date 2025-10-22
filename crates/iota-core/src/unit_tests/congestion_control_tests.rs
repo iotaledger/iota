@@ -52,7 +52,10 @@ struct TestSetup {
 }
 
 impl TestSetup {
-    async fn new() -> Self {
+    async fn new(
+        max_execution_duration_per_commit: u64,
+        max_congestion_limit_overshoot_per_commit: u64,
+    ) -> Self {
         let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
 
         let mut protocol_config =
@@ -61,11 +64,11 @@ impl TestSetup {
             PerObjectCongestionControlMode::TotalGasBudget,
         );
 
-        // Set shared object congestion control such that it only allows 1 transaction
-        // to go through.
-        let max_execution_duration_per_commit = TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT;
         protocol_config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
             max_execution_duration_per_commit,
+        );
+        protocol_config.set_max_congestion_limit_overshoot_per_commit_for_testing(
+            max_congestion_limit_overshoot_per_commit,
         );
 
         // Set max deferral rounds to 0 to testr cancellation. All deferred transactions
@@ -212,6 +215,7 @@ async fn update_objects(
     shared_object_1: &(ObjectID, SequenceNumber),
     shared_object_2: &(ObjectID, SequenceNumber),
     owned_object: &ObjectRef,
+    gas_units: u64,
 ) -> (Transaction, TransactionEffects) {
     let mut txn_builder = ProgrammableTransactionBuilder::new();
     let arg1 = txn_builder
@@ -242,7 +246,7 @@ async fn update_objects(
         sender,
         sender_key,
         pt,
-        TEST_ONLY_GAS_UNIT,
+        gas_units,
     )
     .await
     .unwrap();
@@ -265,11 +269,13 @@ async fn update_objects(
 async fn test_congestion_control_execution_cancellation() {
     telemetry_subscribers::init_for_testing();
 
-    // Creates a authority state with 2 shared object and 1 owned object. We use
-    // this setup to initialize two more authority states: one tests
-    // cancellation execution, and one tests executing cancelled transaction
-    // from effect.
-    let test_setup = TestSetup::new().await;
+    // Creates a test setup with a protocol config such that the the congestion
+    // limit is equal to one default transaction's gas budget, and the overshoot
+    // allowed is also equal to one default transaction's gas budget.
+    let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
+    let test_setup = TestSetup::new(default_tx_gas_budget, default_tx_gas_budget).await;
+
+    // Creates 2 shared objects and 1 owned object.
     let shared_object_1 = test_setup.create_shared_object().await;
     let shared_object_2 = test_setup.create_shared_object().await;
     let owned_object = test_setup.create_owned_object().await;
@@ -284,7 +290,8 @@ async fn test_congestion_control_execution_cancellation() {
         .await;
 
     // Creates two authority states with the same genesis objects for the actual
-    // test.
+    // test. One tests cancellation execution, and one tests executing cancelled
+    // transaction from effect.
     let authority_state = TestAuthorityBuilder::new()
         .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
         .with_protocol_config(test_setup.protocol_config.clone())
@@ -302,23 +309,29 @@ async fn test_congestion_control_execution_cancellation() {
         .insert_genesis_objects(&genesis_objects)
         .await;
 
-    // Initialize shared object queue so that any transaction touches
-    // shared_object_1 should result in congestion and cancellation.
+    // The congestion limit, taking overshoot into account is
+    // 2 * TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT. We set the initial debt to be
+    // TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT + 1, so that the next transaction
+    // touching shared_object_1 will be cancelled.
+    let initial_debt = TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT + 1;
+
+    // Initialize shared object queue in the tracker and gas price calculator so
+    // that any transaction touches shared_object_1 should result in congestion
+    // and cancellation.
     let congestion_control_min_free_execution_slot = test_setup
         .protocol_config
         .congestion_control_min_free_execution_slot();
     register_fail_point_arg("initial_congestion_tracker", move || {
         Some(new_congestion_tracker_with_initial_value_for_test(
-            &[(shared_object_1.0, 10)],
+            &[(shared_object_1.0, initial_debt)],
             PerObjectCongestionControlMode::TotalGasBudget,
             congestion_control_min_free_execution_slot,
         ))
     });
-
     register_fail_point_arg("initial_suggested_gas_price_calculator", move || {
         Some(
             new_suggested_gas_price_calculator_with_initial_values_for_test(
-                &[(shared_object_1.0, 10, TEST_ONLY_GAS_PRICE)],
+                &[(shared_object_1.0, initial_debt, TEST_ONLY_GAS_PRICE)],
                 PerObjectCongestionControlMode::TotalGasBudget,
                 test_setup
                     .protocol_config
@@ -347,6 +360,7 @@ async fn test_congestion_control_execution_cancellation() {
             .await
             .unwrap()
             .compute_object_reference(),
+        TEST_ONLY_GAS_UNIT,
     )
     .await;
 
@@ -405,4 +419,176 @@ async fn test_congestion_control_execution_cancellation() {
         }
     );
     assert_eq!(&effects, effects_2.data())
+}
+
+// Tests that congestion control and debt tracking work as expected when there
+// is a burst of traffic and overshoot is allowed.
+//
+// Specifically, we test
+#[sim_test]
+async fn test_congestion_control_debt_tracking() {
+    telemetry_subscribers::init_for_testing();
+
+    // Creates a test setup with a protocol config such that the the congestion
+    // limit is equal to one default transaction's gas budget, and the overshoot
+    // allowed is also equal to one default transaction's gas budget.
+    let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
+    let test_setup = TestSetup::new(default_tx_gas_budget, default_tx_gas_budget).await;
+
+    // Creates 2 shared objects and 1 owned object.
+    let shared_object_1 = test_setup.create_shared_object().await;
+    let shared_object_2 = test_setup.create_shared_object().await;
+    let owned_object = test_setup.create_owned_object().await;
+
+    // Gets objects that can be used as genesis objects for new authority states.
+    let genesis_objects = test_setup
+        .create_genesis_objects_for_new_authority_state(&[
+            shared_object_1.0,
+            shared_object_2.0,
+            owned_object.0,
+        ])
+        .await;
+
+    // Creates an authority state with the genesis objects.
+    let authority_state = TestAuthorityBuilder::new()
+        .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
+        .with_protocol_config(test_setup.protocol_config.clone())
+        .build()
+        .await;
+    authority_state
+        .insert_genesis_objects(&genesis_objects)
+        .await;
+
+    // Commit 1: a transaction with gas budget 2*default_tx_gas_budget that touches
+    // shared_object_1, shared_object_2 and an owned object.
+    // This will result in an overshoot of default_tx_gas_budget, but should be
+    // executed successfully.
+    let (_, effects) = update_objects(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &(shared_object_1.0, shared_object_1.1),
+        &(shared_object_2.0, shared_object_2.1),
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        TEST_ONLY_GAS_UNIT * 2,
+    )
+    .await;
+
+    // Transaction should be a success as overshoot of default_tx_gas_budget is
+    // allowed.
+    assert!(effects.status().is_ok());
+
+    // Commit 2: a transaction with gas budget 0.5*default_tx_gas_budget that
+    // touches shared_object_1, shared_object_2 and an owned object.
+    // Due to the debt of default_tx_gas_budget from Commit 1, this will result in
+    // an overshoot of 0.5*default_tx_gas_budget, and should be executed
+    // successfully.
+    let (_, effects) = update_objects(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &(shared_object_1.0, shared_object_1.1),
+        &(shared_object_2.0, shared_object_2.1),
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        TEST_ONLY_GAS_UNIT / 2,
+    )
+    .await;
+
+    // Transaction should be a success as overshoot of default_tx_gas_budget is
+    // allowed.
+    assert!(effects.status().is_ok());
+
+    // Commit 3: a transaction with gas budget 2*default_tx_gas_budget that
+    // touches shared_object_1, shared_object_2 and an owned object.
+    // Due to the debt of 0.5*default_tx_gas_budget from Commit 2, this will result
+    // in an overshoot of 1.5*default_tx_gas_budget, which exceeds the allowed
+    // overshoot, and should be cancelled.
+    let (_, effects) = update_objects(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &(shared_object_1.0, shared_object_1.1),
+        &(shared_object_2.0, shared_object_2.1),
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        TEST_ONLY_GAS_UNIT * 2,
+    )
+    .await;
+    let expected_suggested_gas_price = TEST_ONLY_GAS_PRICE;
+
+    // Transaction should be cancelled with `shared_object_1` and `shared_object_2`
+    // as the congested objects, and the suggested gas price should be
+    // `TEST_ONLY_GAS_PRICE`.
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
+                suggested_gas_price: expected_suggested_gas_price,
+            },
+            command: None
+        }
+    );
+
+    // Tests shared object versions in effects are set correctly.
+    assert_eq!(
+        effects.input_shared_objects(),
+        vec![
+            InputSharedObject::Cancelled(
+                shared_object_1.0,
+                SequenceNumber::new_congested_with_suggested_gas_price(
+                    expected_suggested_gas_price
+                )
+            ),
+            InputSharedObject::Cancelled(
+                shared_object_2.0,
+                SequenceNumber::new_congested_with_suggested_gas_price(
+                    expected_suggested_gas_price
+                )
+            )
+        ]
+    );
+
+    // Commit 4: a transaction with gas budget 2*default_tx_gas_budget that
+    // touches shared_object_1, shared_object_2 and an owned object.
+    // There should be no debt from Commit 3 as the transaction was cancelled
+    // and the exisiting debt of 0.5*default_tx_gas_budget from that commit does
+    // not overshoot the congestion limit. Therefore, this transaction
+    // should be executed successfully.
+    let (_, effects) = update_objects(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &(shared_object_1.0, shared_object_1.1),
+        &(shared_object_2.0, shared_object_2.1),
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        TEST_ONLY_GAS_UNIT * 2,
+    )
+    .await;
+    // Transaction should be a success as overshoot of default_tx_gas_budget is
+    // allowed.
+    assert!(effects.status().is_ok());
 }
