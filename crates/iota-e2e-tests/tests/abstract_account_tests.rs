@@ -27,7 +27,6 @@ use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{PublicKey, SignatureScheme},
-    effects::TransactionEffectsAPI,
     execution_status::{ExecutionFailureStatus, MoveLocation},
     messages_grpc::HandleCertificateRequestV1,
     move_authenticator::MoveAuthenticator,
@@ -240,12 +239,22 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
         )
         .await
         .unwrap();
-    let status = effects_cert.status().clone();
+    let summary = effects_cert.summary_for_debug();
 
-    assert!(status.is_err(), "Expected the TX execution to fail");
+    assert!(summary.status.is_err(), "Expected the TX execution to fail");
+    assert!(
+        summary.gas_used.gas_used() > 0
+            && summary.mutated_object_count == 2
+            && summary.created_object_count == 0
+            && summary.unwrapped_object_count == 0
+            && summary.deleted_object_count == 0
+            && summary.wrapped_object_count == 0,
+        "Expected gas to be used in the failed transaction and that only the gas object was mutated and the TX input object was bumped in version",
+    );
+
     assert!(
         matches!(
-            status.unwrap_err().0,
+            summary.status.unwrap_err().0,
             ExecutionFailureStatus::MoveAbort(MoveLocation { module, function_name, .. }, _)
             if module.name() == ident_str!("basic_keyed_aa") && function_name == Some("authenticate_ed25519".to_string())
         ),
