@@ -1,7 +1,4 @@
-// model_updater.rs
-// Extracted model posting / training logic for congestion tracking.
-// This file intentionally does not modify any existing code paths yet.
-// It defines a trait-based API and HTTP implementation to be wired in later.
+// model posting / training logic for congestion tracking.
 
 use serde::Serialize;
 use std::{
