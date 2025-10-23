@@ -116,7 +116,7 @@ pub(crate) enum IMoveObject {
 }
 
 /// The representation of an object as a Move Object, which exposes additional
-/// information (content, module that governs it, version, is transferrable,
+/// information (content, module that governs it, version, is transferable,
 /// etc.) about this object.
 #[Object]
 impl MoveObject {

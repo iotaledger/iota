@@ -492,7 +492,7 @@ mod tests {
     fn test_type_intersection() {
         let iota = TypeFilter::from_str("0x2").unwrap();
         let coin_mod = TypeFilter::from_str("0x2::coin").unwrap();
-        let coin_typ = TypeFilter::from_str("0x2::coin::Coin").unwrap();
+        let coin_type = TypeFilter::from_str("0x2::coin::Coin").unwrap();
         let coin_iota = TypeFilter::from_str("0x2::coin::Coin<0x2::iota::IOTA>").unwrap();
         let coin_usd = TypeFilter::from_str("0x2::coin::Coin<0x3::usd::USD>").unwrap();
         let std_utf8 = TypeFilter::from_str("0x1::string::String").unwrap();
@@ -503,18 +503,18 @@ mod tests {
         );
 
         assert_eq!(
-            coin_typ.clone().intersect(coin_mod.clone()),
-            Some(coin_typ.clone())
+            coin_type.clone().intersect(coin_mod.clone()),
+            Some(coin_type.clone())
         );
 
         assert_eq!(
-            coin_iota.clone().intersect(coin_typ.clone()),
+            coin_iota.clone().intersect(coin_type.clone()),
             Some(coin_iota.clone())
         );
 
         assert_eq!(iota.clone().intersect(std_utf8.clone()), None);
         assert_eq!(coin_iota.clone().intersect(coin_usd.clone()), None);
-        assert_eq!(coin_typ.clone().intersect(std_utf8.clone()), None);
+        assert_eq!(coin_type.clone().intersect(std_utf8.clone()), None);
         assert_eq!(coin_iota.clone().intersect(std_utf8.clone()), None);
     }
 }
