@@ -4379,6 +4379,8 @@ export type Query = {
    */
   latestPackage?: Maybe<MovePackage>;
   moveViewCall: MoveViewResult;
+  /** Fetch multiple transaction blocks by their digests. */
+  multiTransactionBlocks: Array<TransactionBlock>;
   /**
    * The object corresponding to the given address at the (optionally) given
    * version. When no version is given, the latest version is returned.
@@ -4575,6 +4577,11 @@ export type QueryMoveViewCallArgs = {
   arguments?: InputMaybe<Array<Scalars['JSON']['input']>>;
   functionName: Scalars['String']['input'];
   typeArgs?: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+
+export type QueryMultiTransactionBlocksArgs = {
+  digests: Array<Scalars['String']['input']>;
 };
 
 
