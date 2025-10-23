@@ -16,7 +16,7 @@ use bytes::Bytes;
 use itertools::Itertools as _;
 use starfish_config::AuthorityIndex;
 use tokio::time::Instant;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::{
     block_header::{
@@ -157,7 +157,7 @@ impl DagState {
         let cached_rounds = context.parameters.dag_state_cached_rounds as Round;
         let num_authorities = context.committee.size();
 
-        let genesis = genesis_blocks(context.clone())
+        let genesis = genesis_blocks(&context)
             .into_iter()
             .map(|block| (block.reference(), block))
             .collect();
@@ -289,13 +289,20 @@ impl DagState {
 
         let now = self.context.clock.timestamp_utc_ms();
         if block_header.timestamp_ms() > now {
-            panic!(
-                "Block header {:?} cannot be accepted! Block header timestamp {} is greater than local timestamp {}.",
-                block_header,
+            // blocks can have timestamps in the future, just log it
+            trace!(
+                "Block header {block_header:?} with timestamp {} is greater than local timestamp {now}.",
                 block_header.timestamp_ms(),
-                now,
             );
         }
+        // Record the time drift metric
+        let hostname = &self.context.committee.authority(block_ref.author).hostname;
+        self.context
+            .metrics
+            .node_metrics
+            .accepted_block_time_drift_ms
+            .with_label_values(&[hostname])
+            .inc_by(block_header.timestamp_ms().saturating_sub(now));
 
         // TODO: Move this check to core
         // Ensure we don't write multiple blocks per slot for our own index
@@ -1173,7 +1180,7 @@ impl DagState {
     // Buffers a new commit in memory and updates last committed rounds.
     // REQUIRED: must not skip over any commit index.
     pub(crate) fn add_commit(&mut self, commit: TrustedCommit) {
-        if let Some(last_commit) = &self.last_commit {
+        let time_diff = if let Some(last_commit) = &self.last_commit {
             if commit.index() <= last_commit.index() {
                 error!(
                     "New commit index {} <= last commit index {}!",
@@ -1189,9 +1196,19 @@ impl DagState {
                     "Commit timestamps do not monotonically increment, prev commit {last_commit:?}, new commit {commit:?}"
                 );
             }
+            commit
+                .timestamp_ms()
+                .saturating_sub(last_commit.timestamp_ms())
         } else {
             assert_eq!(commit.index(), 1);
-        }
+            0
+        };
+
+        self.context
+            .metrics
+            .node_metrics
+            .last_commit_time_diff
+            .observe(time_diff as f64);
 
         // Ensure that commit rounds are strictly increasing
         assert!(
@@ -1470,7 +1487,12 @@ impl DagState {
     ) -> BTreeSet<AuthorityIndex> {
         let mut useful_shard_authors = BTreeSet::new();
         for (i, round) in last_useful_round.iter().enumerate() {
-            if block_round - round <= MAX_ROUND_GAP_FOR_USEFUL_SHARDS as u32 {
+            // Check that block_round >= round to avoid underflow. This can happen if we've
+            // received a block from a more recent round than the block we are about to
+            // send, especially during startup when we're sending older blocks.
+            if block_round >= *round
+                && block_round - round <= MAX_ROUND_GAP_FOR_USEFUL_SHARDS as u32
+            {
                 useful_shard_authors.insert(AuthorityIndex::from(i as u8));
             }
         }
@@ -2943,7 +2965,7 @@ mod test {
 
         // WHEN no block headers exist, then genesis should be returned
         {
-            let genesis = genesis_block_headers(context.clone());
+            let genesis = genesis_block_headers(&context);
 
             assert_eq!(dag_state.read().last_quorum(), genesis);
         }
@@ -2998,7 +3020,7 @@ mod test {
 
         // WHEN no block headers exist, then genesis should be returned
         {
-            let genesis_headers = genesis_block_headers(context.clone());
+            let genesis_headers = genesis_block_headers(&context);
             let my_genesis_header = genesis_headers
                 .into_iter()
                 .find(|block| block.author() == context.own_index)
@@ -3008,7 +3030,7 @@ mod test {
                 dag_state.read().get_last_proposed_block_header(),
                 my_genesis_header
             );
-            let genesis_blocks = genesis_blocks(context.clone());
+            let genesis_blocks = genesis_blocks(&context);
             let my_genesis_block = genesis_blocks
                 .into_iter()
                 .find(|block| block.author() == context.own_index)
@@ -3128,8 +3150,7 @@ mod test {
     }
 
     #[tokio::test]
-    #[should_panic(expected = "cannot be accepted! Block header timestamp")]
-    async fn test_panic_on_future_timestamp() {
+    async fn test_no_panic_on_future_timestamp() {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
 
@@ -3143,7 +3164,14 @@ mod test {
                 .set_timestamp_ms(future_timestamp)
                 .build(),
         );
-        dag_state.accept_block_header(block_header);
+        dag_state.accept_block_header(block_header.clone());
+
+        let accepted_header = dag_state
+            .recent_block_headers
+            .get(&block_header.reference())
+            .unwrap();
+
+        assert_eq!(accepted_header, &block_header);
     }
 
     #[tokio::test]
@@ -3299,6 +3327,23 @@ mod test {
                 block_ref.round
             );
         }
+    }
+
+    #[tokio::test]
+    async fn test_accept_block_not_panics_when_timestamp_is_ahead() {
+        // GIVEN
+        let context = Arc::new(Context::new_for_test(4).0);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+        // Set a timestamp for the block that is ahead of the current time
+        let block_timestamp = context.clock.timestamp_utc_ms() + 5_000;
+        let block = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(10, 0)
+                .set_timestamp_ms(block_timestamp)
+                .build(),
+        );
+        // Try to accept the block - it should not panic
+        dag_state.accept_block_header(block);
     }
 
     #[tokio::test]

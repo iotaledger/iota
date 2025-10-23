@@ -71,13 +71,13 @@ impl IndexerApi {
         let mut objects = futures::future::try_join_all(object_futures)
             .await
             .map_err(|e| {
-                tracing::error!("Error joining object read futures.");
+                tracing::error!("error joining object read futures.");
                 RpcClientError::Custom(format!("Error joining object read futures. {e}"))
             })
             .map_err(error_object_from_rpc)?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Error converting object to object read: {e}"))?;
+            .tap_err(|e| tracing::error!("error converting object to object read: {e}"))?;
         let has_next_page = objects.len() > limit;
         objects.truncate(limit);
 

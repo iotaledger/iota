@@ -107,7 +107,7 @@ impl Worker for PrimaryWorker {
             .await
             .map_err(|_| {
                 IndexerError::MpscChannel(
-                    "Failed to send checkpoint data, receiver half closed".into(),
+                    "failed to send checkpoint data, receiver half closed".into(),
                 )
             })?;
         Ok(())
@@ -179,12 +179,12 @@ impl PrimaryWorker {
         let system_state = get_iota_system_state(&checkpoint_object_store)?;
         if event.is_none() {
             warn!(
-                "No SystemEpochInfoEvent found at end of epoch {}, some epoch data will be set to default.",
+                "no SystemEpochInfoEvent found at end of epoch {}, some epoch data will be set to default.",
                 checkpoint_summary.epoch,
             );
             assert!(
                 system_state.safe_mode(),
-                "IOTA is not in safe mode but no SystemEpochInfoEvent found at end of epoch {}",
+                "iota is not in safe mode but no SystemEpochInfoEvent found at end of epoch {}",
                 checkpoint_summary.epoch
             );
         }
@@ -315,10 +315,9 @@ impl PrimaryWorker {
 
         if checkpoint_contents.size() != transactions.len() {
             return Err(IndexerError::FullNodeReading(format!(
-                "CheckpointContents has different size {} compared to Transactions {} for checkpoint {}",
+                "checkpointContents has different size {} compared to Transactions {} for checkpoint {checkpoint_seq}",
                 checkpoint_contents.size(),
-                transactions.len(),
-                checkpoint_seq
+                transactions.len()
             )));
         }
 
@@ -334,7 +333,7 @@ impl PrimaryWorker {
             let actual_tx_digest = tx.transaction.digest();
             if tx_digest != *actual_tx_digest {
                 return Err(IndexerError::FullNodeReading(format!(
-                    "Transactions has different ordering from CheckpointContents, for checkpoint {checkpoint_seq}, Mismatch found at {tx_digest} v.s. {actual_tx_digest}",
+                    "transactions has different ordering from CheckpointContents, for checkpoint {checkpoint_seq}, Mismatch found at {tx_digest} v.s. {actual_tx_digest}",
                 )));
             }
 
@@ -624,7 +623,7 @@ impl PrimaryWorker {
             return Ok(pg_state.blocking_cp());
         }
         Err(IndexerError::Uncategorized(anyhow::anyhow!(
-            "Failed to downcast state to PgIndexerStore"
+            "failed to downcast state to PgIndexerStore"
         )))
     }
 }
@@ -710,7 +709,7 @@ impl InMemTxChanges {
             self,
             effects,
             tx.input_objects().unwrap_or_else(|e| {
-                panic!("Checkpointed tx {tx_digest:?} has invalid input objects: {e}",)
+                panic!("checkpointed tx {tx_digest:?} has invalid input objects: {e}")
             }),
             None,
         )
@@ -739,8 +738,7 @@ impl ObjectProvider for InMemTxChanges {
         }
 
         panic!(
-            "Object {} is not found in TxChangesProcessor as an ObjectProvider (fn get_object)",
-            id
+            "object {id} is not found in TxChangesProcessor as an ObjectProvider (fn get_object)"
         );
     }
 
@@ -771,10 +769,8 @@ impl ObjectProvider for InMemTxChanges {
         if let Some(o) = object {
             if o.version() > *version {
                 panic!(
-                    "Found a higher version {} for object {}, expected lt_or_eq {}",
+                    "found a higher version {} for object {id}, expected lt_or_eq {version}",
                     o.version(),
-                    id,
-                    *version
                 );
             }
             if o.version() <= *version {
@@ -784,8 +780,7 @@ impl ObjectProvider for InMemTxChanges {
         }
 
         panic!(
-            "Object {} is not found in TxChangesProcessor as an ObjectProvider (fn find_object_lt_or_eq_version)",
-            id
+            "object {id} is not found in TxChangesProcessor as an ObjectProvider (fn find_object_lt_or_eq_version)"
         );
     }
 }

@@ -2705,6 +2705,26 @@ type MoveValue {
 }
 
 """
+The result of a move-view function call.
+
+Execution errors are captured in the `error` field, in which
+case the `results` field will be `None`.
+
+On success, the `results` field will contain the return values of the
+move view function, and the `error` field will be `None`.
+"""
+type MoveViewResult {
+	"""
+	Execution error from executing the move view call.
+	"""
+	error: String
+	"""
+	The return values of the move view function.
+	"""
+	results: [JSON!]
+}
+
+"""
 The visibility modifier describes which modules can access this module
 member. By default, a module member can be called only within the same
 module.
@@ -3563,6 +3583,7 @@ type Query {
 	Configuration for this RPC service
 	"""
 	serviceConfig: ServiceConfig!
+	moveViewCall(functionName: String!, typeArgs: [String!], arguments: [JSON!]): MoveViewResult!
 	"""
 	Simulate running a transaction to inspect its effects without
 	committing to them on-chain.

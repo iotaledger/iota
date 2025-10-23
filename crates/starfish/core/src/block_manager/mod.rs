@@ -25,13 +25,11 @@ pub(crate) mod block_suspender;
 use crate::{
     Round,
     block_header::{
-        BlockHeaderAPI, BlockRef, BlockTimestampMs, VerifiedBlock, VerifiedBlockHeader,
-        VerifiedTransactions,
+        BlockHeaderAPI, BlockRef, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions,
     },
     block_manager::block_suspender::BlockSuspender,
     context::Context,
     dag_state::DagState,
-    error::{ConsensusError, ConsensusResult},
 };
 
 /// Block manager suspends incoming blocks until they are connected to the
@@ -133,13 +131,8 @@ impl BlockManager {
         }
         // Find missing ancestors for the provided block headers in the DAG state.
         let missing_ancestors = self.find_missing_ancestors(block_headers);
-        let (processed_block_headers, ancestors_to_fetch) = self
-            .block_suspender
-            .accept_or_suspend_received_headers(missing_ancestors);
-        // Verify block timestamps
-        let accepted_block_headers =
-            self.verify_block_timestamps_and_accept(processed_block_headers);
-        (accepted_block_headers, ancestors_to_fetch)
+        self.block_suspender
+            .accept_or_suspend_received_headers(missing_ancestors)
     }
 
     fn write_block_headers_and_transactions_to_dag_state(
@@ -255,100 +248,7 @@ impl BlockManager {
 
         blocks_to_fetch
     }
-    /// Verifies a block w.r.t. ancestor blocks.
-    /// This is called after a block has complete causal history locally,
-    /// and is ready to be accepted into the DAG.
-    ///
-    /// Caller must make sure ancestors correspond to block.ancestors() 1-to-1,
-    /// in the same order.
-    fn check_ancestors(
-        &self,
-        block: &VerifiedBlockHeader,
-        ancestors: &[VerifiedBlockHeader],
-    ) -> ConsensusResult<()> {
-        assert_eq!(block.ancestors().len(), ancestors.len());
-        // This checks the invariant that block timestamp >= max ancestor timestamp.
-        let mut max_timestamp_ms = BlockTimestampMs::MIN;
-        for (ancestor_ref, ancestor_block) in block.ancestors().iter().zip(ancestors.iter()) {
-            assert_eq!(ancestor_ref, &ancestor_block.reference());
-            max_timestamp_ms = max_timestamp_ms.max(ancestor_block.timestamp_ms());
-        }
-        if max_timestamp_ms > block.timestamp_ms() {
-            return Err(ConsensusError::InvalidBlockTimestamp {
-                max_timestamp_ms,
-                block_timestamp_ms: block.timestamp_ms(),
-            });
-        }
-        Ok(())
-    }
-    // TODO: remove once timestamping is refactored to the new approach.
-    // Verifies each block's timestamp based on its ancestors, and persists in store
-    // all the valid blocks that should be accepted. Method returns the accepted
-    // and persisted blocks.
-    fn verify_block_timestamps_and_accept(
-        &mut self,
-        unsuspended_blocks: impl IntoIterator<Item = VerifiedBlockHeader>,
-    ) -> Vec<VerifiedBlockHeader> {
-        // Try to verify the block and its children for timestamp, with ancestor blocks.
-        let mut blocks_to_accept: BTreeMap<BlockRef, VerifiedBlockHeader> = BTreeMap::new();
-        let mut blocks_to_reject: BTreeMap<BlockRef, VerifiedBlockHeader> = BTreeMap::new();
-        {
-            'block: for b in unsuspended_blocks {
-                let ancestors = self.dag_state.read().get_block_headers(b.ancestors());
-                assert_eq!(b.ancestors().len(), ancestors.len());
-                let mut ancestor_blocks = vec![];
-                'ancestor: for (ancestor_ref, found) in
-                    b.ancestors().iter().zip(ancestors.into_iter())
-                {
-                    if let Some(found_block) = found {
-                        // This invariant should be guaranteed by DagState.
-                        assert_eq!(ancestor_ref, &found_block.reference());
-                        ancestor_blocks.push(found_block);
-                        continue 'ancestor;
-                    }
-                    // blocks_to_accept have not been added to DagState yet, but they
-                    // can appear in ancestors.
-                    if blocks_to_accept.contains_key(ancestor_ref) {
-                        ancestor_blocks.push(blocks_to_accept[ancestor_ref].clone());
-                        continue 'ancestor;
-                    }
-                    // If an ancestor is already rejected, reject this block as well.
-                    if blocks_to_reject.contains_key(ancestor_ref) {
-                        blocks_to_reject.insert(b.reference(), b);
-                        continue 'block;
-                    }
-                    {
-                        panic!(
-                            "Unsuspended block {b:?} has a missing ancestor! Ancestor not found in DagState: {ancestor_ref:?}",
-                        );
-                    }
-                }
-                if let Err(e) = self.check_ancestors(&b, &ancestor_blocks) {
-                    warn!("Block {:?} failed to verify ancestors: {}", b, e);
-                    blocks_to_reject.insert(b.reference(), b);
-                } else {
-                    blocks_to_accept.insert(b.reference(), b);
-                }
-            }
-        }
 
-        // TODO: report blocks_to_reject to peers.
-        for (block_ref, block) in &blocks_to_reject {
-            self.context
-                .metrics
-                .node_metrics
-                .invalid_block_headers
-                .with_label_values(&[
-                    self.context.authority_hostname(block_ref.author),
-                    "accept_block",
-                    "InvalidAncestors",
-                ])
-                .inc();
-            warn!("Invalid block {:?} is rejected", block);
-        }
-
-        blocks_to_accept.values().cloned().collect::<Vec<_>>()
-    }
     fn update_block_received_metrics(&mut self, block: &VerifiedBlockHeader) {
         let (min_round, max_round) =
             if let Some((curr_min, curr_max)) = self.received_block_rounds[block.author()] {
@@ -467,12 +367,10 @@ mod tests {
     use starfish_config::AuthorityIndex;
 
     use crate::{
-        TestBlockHeader,
-        block_header::{BlockHeaderAPI, BlockRef, BlockTimestampMs, VerifiedBlockHeader},
+        block_header::{BlockHeaderAPI, BlockRef, VerifiedBlockHeader},
         block_manager::BlockManager,
         context::Context,
         dag_state::DagState,
-        error::ConsensusError,
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
     };
@@ -767,15 +665,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn reject_blocks_failing_verifications() {
+    async fn accept_blocks_with_timestamp_variations() {
         let (context, _key_pairs) = Context::new_for_test(4);
         let context = Arc::new(context);
 
         // create a DAG of rounds 1 ~ 5.
         let mut dag_builder = DagBuilder::new(context.clone());
         dag_builder.layer(1).build();
-        // trigger failed verification by setting a timestamp delay
-        // on layer 2 which are ancestors to round 3.
+        // Set a timestamp delay on layer 2. With median-based timestamp,
+        // blocks are no longer rejected for timestamp violations.
         dag_builder
             .layer(2)
             .configure_timestamp_delay_ms(5000)
@@ -816,15 +714,10 @@ mod tests {
                 .cloned()
                 .collect(),
         );
-        // Only round 1 and round 2 blocks should be accepted.
-        assert_eq!(accepted_block_headers.len(), 8);
-        accepted_block_headers.iter().for_each(|block_header| {
-            assert!(block_header.round() <= 2);
-        });
+        // With median-based timestamp, all blocks should be accepted regardless of
+        // timestamp violations.
+        assert_eq!(accepted_block_headers.len(), 20); // 4 blocks * 5 rounds
         assert!(missing_refs.is_empty());
-
-        // Other blocks should be rejected and there should be no suspended block
-        // remaining.
         assert!(block_manager.suspended_blocks_refs().is_empty());
     }
 
@@ -922,58 +815,5 @@ mod tests {
                 .chain(missing_block_refs_from_find.into_iter())
                 .collect()
         );
-    }
-
-    #[tokio::test]
-    async fn test_check_ancestors() {
-        let num_authorities = 4;
-        let (context, _keypairs) = Context::new_for_test(num_authorities);
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
-
-        let block_manager = BlockManager::new(context.clone(), dag_state);
-
-        let mut ancestor_blocks = vec![];
-        for i in 0..num_authorities {
-            let test_block = TestBlockHeader::new(10, i as u8)
-                .set_timestamp_ms(1000 + 100 * i as BlockTimestampMs)
-                .build();
-            ancestor_blocks.push(VerifiedBlockHeader::new_for_test(test_block));
-        }
-        let ancestor_refs = ancestor_blocks
-            .iter()
-            .map(|block| block.reference())
-            .collect::<Vec<_>>();
-
-        // Block respecting timestamp invariant.
-        {
-            let block = TestBlockHeader::new(11, 0)
-                .set_ancestors(ancestor_refs.clone())
-                .set_timestamp_ms(1500)
-                .build();
-            let verified_block = VerifiedBlockHeader::new_for_test(block);
-            assert!(
-                block_manager
-                    .check_ancestors(&verified_block, &ancestor_blocks)
-                    .is_ok()
-            );
-        }
-
-        // Block not respecting timestamp invariant.
-        {
-            let block = TestBlockHeader::new(11, 0)
-                .set_ancestors(ancestor_refs.clone())
-                .set_timestamp_ms(1000)
-                .build();
-            let verified_block = VerifiedBlockHeader::new_for_test(block);
-            assert!(matches!(
-                block_manager.check_ancestors(&verified_block, &ancestor_blocks,),
-                Err(ConsensusError::InvalidBlockTimestamp {
-                    max_timestamp_ms: _,
-                    block_timestamp_ms: _
-                })
-            ));
-        }
     }
 }

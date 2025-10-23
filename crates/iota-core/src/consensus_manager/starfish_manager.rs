@@ -15,7 +15,9 @@ use iota_types::{
 };
 use prometheus::Registry;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
-use starfish_core::{CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority};
+use starfish_core::{
+    Clock, CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority,
+};
 use tokio::sync::Mutex;
 use tracing::info;
 
@@ -170,12 +172,14 @@ impl ConsensusManagerTrait for StarfishManager {
         }
 
         let authority = ConsensusAuthority::start(
+            epoch_store.epoch_start_config().epoch_start_timestamp_ms(),
             own_index,
             committee.clone(),
             parameters.clone(),
             protocol_config.clone(),
             self.protocol_keypair.clone(),
             self.network_keypair.clone(),
+            Arc::new(Clock::default()),
             Arc::new(tx_validator.clone()),
             consumer,
             registry.clone(),
