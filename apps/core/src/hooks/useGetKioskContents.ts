@@ -10,7 +10,6 @@ import { useKioskClient } from './useKioskClient';
 
 export enum KioskTypes {
     IOTA = 'iota',
-    ORIGINBYTE = 'originByte',
 }
 
 export type Kiosk = {
@@ -44,18 +43,12 @@ async function getIotaKioskContents(address: string, kioskClient: KioskClient) {
     return contents;
 }
 
-export function useGetKioskContents(address?: string | null, disableOriginByteKiosk?: boolean) {
+export function useGetKioskContents(address?: string | null) {
     const { network } = useIotaClientContext();
     const kioskClient = useKioskClient();
     return useQuery({
         // eslint-disable-next-line @tanstack/query/exhaustive-deps
-        queryKey: [
-            'get-kiosk-contents',
-            address,
-            disableOriginByteKiosk,
-            network,
-            kioskClient.network,
-        ],
+        queryKey: ['get-kiosk-contents', address, network, kioskClient.network],
         queryFn: async () => {
             const iotaKiosks = await getIotaKioskContents(address!, kioskClient);
             return iotaKiosks;
