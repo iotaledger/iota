@@ -447,8 +447,7 @@ impl CordialKnowledge {
                 .map(|_| Vec::new())
                 .collect();
 
-        // === 1) Ensure we have a round map for this author and insert the block if new
-        // ===
+        // 1) Ensure we have a round map for this author and insert the block if new
         let btree_map = &mut self.cordial_knowledge[block_author];
         let round_map = btree_map.entry(block_round).or_default();
 
@@ -462,8 +461,8 @@ impl CordialKnowledge {
         let who_knows_this_block = SubsetAuthorities::new_with(block_author, own_index);
         round_map.insert(block_digest, (ancestors.clone(), who_knows_this_block));
 
-        // === 2) Notify all *other* authorities (except self and block_author) about
-        // new header ===
+        // 2) Notify all *other* authorities (except self and block_author) about new
+        //    header
         for (authority, msgs) in vec_knowledge_msgs.iter_mut().enumerate() {
             // don't send shard to self nor to the author of the block
             if authority == block_author || authority == own_index {
@@ -472,15 +471,14 @@ impl CordialKnowledge {
             msgs.push(ConnectionKnowledgeMessage::NewHeader { block_ref });
         }
 
-        // === 3) The block_author now acknowledges previously known transactions ===
+        // 3) The block_author now acknowledges previously known transactions
         for acknowledgment in header.acknowledgments() {
             vec_knowledge_msgs[block_author].push(ConnectionKnowledgeMessage::RemoveShard {
                 block_ref: *acknowledgment,
             });
         }
 
-        // === 4) Traversing back and marking the causal past as known by block_author
-        // ===
+        // 4) Traversing back and marking the causal past as known by block_author
         let mut stack = vec![block_ref];
         while let Some(current_ref) = stack.pop() {
             let current_author = current_ref.author.value();
@@ -523,7 +521,7 @@ impl CordialKnowledge {
             }
         }
 
-        // === 5) Send all accumulated knowledge messages ===
+        // 5) Send all accumulated knowledge messages
         self.send_connection_knowledge_messages(vec_knowledge_msgs)
             .await;
     }
