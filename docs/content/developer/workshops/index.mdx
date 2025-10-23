@@ -13,3 +13,152 @@ Welcome, developers! These workshops introduce the IOTA tech stack end‑to‑en
 Start with the core fundamentals, then layer in trust and identity to move from prototypes to production‑ready dApps.
 
 <DocCardList />
+<div className="filter-container">
+  <style jsx>{`
+    .filter-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin-bottom: 4rem;  /* Increased spacing */
+      padding: 1rem 0;
+    }
+    .filter-tab {
+      background: #1a1a1a;
+      color: #a1a1aa;
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      border: 1px solid #333;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .filter-tab.active {
+      background: #f97316;
+      color: white;
+      border-color: #f97316;
+    }
+    .cards-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+      gap: 2.5rem 2.5rem;
+      row-gap: 4rem;        /* Extra space between rows */
+      margin-top: 2rem;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: #000000;
+      border: 1px solid #333;
+      border-radius: 1rem;
+      padding: 1.5rem;
+      height: 240px;        /* FIXED HEIGHT - ALL SAME */
+      display: flex;        /* FLEX LAYOUT */
+      flex-direction: column; /* VERTICAL STACK */
+      transition: all 0.3s ease;
+      box-shadow: 0 1px 3px rgba(255,255,255,0.05);
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 25px -5px rgba(235, 228, 223, 0.86);
+      border-color: white;
+    }
+    .card-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #ffffff;
+      margin-bottom: 0.5rem;
+    }
+    .card-subtitle {
+      color: white;
+      font-weight: 600;
+      font-size: 0.875rem;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+    }
+    .card-desc {
+      color: #d1d5db;
+      line-height: 1.6;
+      margin-bottom: 1rem;
+      flex-grow: 1;         /* FILL REMAINING SPACE */
+      overflow: hidden;     /* HIDE OVERFLOW */
+      display: -webkit-box;
+      -webkit-line-clamp: 3; /* MAX 3 LINES */
+      -webkit-box-orient: vertical;
+    }
+    .card-link {
+      margin-top: auto;     /* PUSH TO BOTTOM */
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: darkgreen;  /* Fixed orange color */
+      color: white;
+      justify-content: center;
+      padding: 0.75rem 1.5rem;
+      border-radius: 0.5rem;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    .card-link:hover {
+      background: #ea580c;
+      transform: translateY(-1px);
+    }
+  `}</style>
+
+  <div className="cards-grid">
+    <div className="card">
+      <div className="card-subtitle">Workshop</div>
+      <h3 className="card-title">IOTA Move Foundations</h3>
+      <p className="card-desc">Build your first IOTA Move smart contract: mint ScholarFlow grant objects with admin capabilities and events.</p>
+      <a href="/developer/workshops/core/I-introduction-to-smart-contracts/" className="card-link">Start the Workshop →</a>
+    </div>
+
+    <div className="card">
+      <div className="card-subtitle">Workshop</div>
+      <h3 className="card-title">Shared objects, indexing & atomic PTBs</h3>
+      <p className="card-desc">Add shared state indexing & PTBs to IOTA Move: build atomic mint+index workflows with registries and events.</p>
+      <a href="/developer/workshops/core/II-shared-objects-dynamic-fields-ptbs/" className="card-link">Start the Workshop →</a>
+    </div>
+  </div>
+
+  <div className="cards-grid">
+    <div className="card">
+      <div className="card-subtitle">Workshop</div>
+      <h3 className="card-title">Capabilities, lifecycle & tests</h3>
+      <p className="card-desc">Secure IOTA Move contracts: implement role capabilities, type-state lifecycle, abilities & unit tests.</p>
+      <a href="/developer/workshops/core/III-capabilities-state-tests" className="card-link">Start the Workshop →</a>
+    </div>
+
+    <div className="card">
+      <div className="card-subtitle">Workshop</div>
+      <h3 className="card-title">Build React dApp with dApp Kit</h3>
+      <p className="card-desc">Build a React dApp with IOTA dApp Kit: connect wallets, read owned objects, and trigger Move contract calls.</p>
+      <a href="/developer/workshops/core/IV-capstone-dapp-kit/" className="card-link">Start the Workshop →</a>
+    </div>
+  </div>
+
+  <div className="cards-grid">
+    <div className="card">
+      <div className="card-subtitle">Workshop</div>
+      <h3 className="card-title">Minting and Managing Tokens</h3>
+      <p className="card-desc">Build a complete token + NFT system on IOTA using Move smart contracts. Create daily claims, coupon redemptions, P2P payments with auto-badge minting, and admin controls.</p>
+      <a href="/developer/workshops/minting-managing-tokens" className="card-link">Start the Workshop →</a>
+    </div>
+
+    <div className="card">
+      <div className="card-subtitle">Workshop</div>
+      <h3 className="card-title">IOTA Identity Workshop</h3>
+      <p className="card-desc">Build decentralized degree verification with IOTA Identity: create DIDs, issue VCs, present VPs, and verify authenticity using Rust & React.</p>
+      <a href="/developer/workshops/identity-workshop/" className="card-link">Start the Workshop →</a>
+    </div>
+  </div>
+
+  <div className="cards-grid">
+    <div className="card">
+      <div className="card-subtitle">Workshop</div>
+      <h3 className="card-title">IOTA Notarization Workshop</h3>
+      <p className="card-desc">Build blockchain document notarization with IOTA: create mutable/locked records, audit trails, and cryptographic integrity proofs.</p>
+      <a href="/developer/workshops/iota-notarization-truedoc/" className="card-link">Start the Workshop →</a>
+    </div>
+  </div>
+</div>
