@@ -264,16 +264,20 @@ services:
     networks:
       iota-network:
         ipv4_address: 10.0.0.35
+    working_dir: /opt/iota/logs
     volumes:
       - ./data/fullnode-1:/opt/iota/db:rw
       - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
       - ./results:/iota/crates/iota-core/src/results
+      - ./logs/fullnode-1:/opt/iota/logs:rw
     expose:
       - "9000"
     ports:
       - "127.0.0.1:9000:9000/tcp"
       - "127.0.0.1:9184:9184/tcp"
+    depends_on:
+      - predictor
 
   fullnode-2:
     <<: *common-fullnode
@@ -282,13 +286,17 @@ services:
     networks:
       iota-network:
         ipv4_address: 10.0.0.36
+    working_dir: /opt/iota/logs
     volumes:
       - ./data/fullnode-2:/opt/iota/db:rw
       - ./configs/fullnodes/backup.yaml:/opt/iota/config/fullnode.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./logs/fullnode-2:/opt/iota/logs:rw
     ports:
       - "127.0.0.1:9001:9000/tcp"
       - "127.0.0.1:9185:9184/tcp"
+    depends_on:
+      - predictor
 
   fullnode-3:
     <<: *common-fullnode
@@ -297,13 +305,17 @@ services:
     networks:
       iota-network:
         ipv4_address: 10.0.0.37
+    working_dir: /opt/iota/logs
     volumes:
       - ./data/fullnode-3:/opt/iota/db:rw
       - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./logs/fullnode-3:/opt/iota/logs:rw
     ports:
       - "127.0.0.1:9002:9000/tcp"
       - "127.0.0.1:9186:9184/tcp"
+    depends_on:
+      - predictor
 
   fullnode-4:
     <<: *common-fullnode
@@ -312,13 +324,33 @@ services:
     networks:
       iota-network:
         ipv4_address: 10.0.0.38
+    working_dir: /opt/iota/logs
     volumes:
       - ./data/fullnode-4:/opt/iota/db:rw
       - ./configs/fullnodes/fullnode.yaml:/opt/iota/config/fullnode.yaml:ro
       - ./configs/genesis/genesis.blob:/opt/iota/config/genesis.blob:ro
+      - ./logs/fullnode-4:/opt/iota/logs:rw
     ports:
       - "127.0.0.1:9003:9000/tcp"
       - "127.0.0.1:9187:9184/tcp"
+    depends_on:
+      - predictor
+
+  predictor:
+    image: iota-predictor:latest
+    container_name: predictor
+    hostname: predictor
+    networks:
+      iota-network:
+        ipv4_address: 10.0.0.44
+    ports:
+      - "127.0.0.1:9666:9666/tcp"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9666/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
 
   indexer-1:
     image: iotaledger/iota-indexer
