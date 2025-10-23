@@ -27,6 +27,7 @@ use crate::{
 };
 
 const OBJECT_SNAPSHOT_CHANNEL_CAPACITY: usize = 600;
+const WAIT_FOR_SNAPSHOTTABLE_DATA_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 pub(crate) struct SnapshotPipelineBuilder {
     writer: ObjectSnapshotWriter,
@@ -200,11 +201,11 @@ async fn wait_for_snapshottable_data(
                 info!(
                     "Max committable checkpoint is {max_committable}, waiting for snapshottable data",
                 );
-                sleep(Duration::from_secs(1)).await;
+                sleep(WAIT_FOR_SNAPSHOTTABLE_DATA_POLL_INTERVAL).await;
             }
             Err(e) => {
                 info!("Error getting max committable checkpoint: {e}, waiting",);
-                sleep(Duration::from_secs(1)).await;
+                sleep(WAIT_FOR_SNAPSHOTTABLE_DATA_POLL_INTERVAL).await;
             }
         }
 
