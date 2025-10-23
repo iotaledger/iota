@@ -5,17 +5,16 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
-use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, WorkerPool};
+use iota_data_ingestion_core::{IndexerExecutor, WorkerPool};
 use iota_metrics::get_metrics;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
-use prometheus::Registry;
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{
     ingestion::{
-        common::orchestration::ShimIndexerProgressStore,
+        common::orchestration::{ShimIndexerProgressStore, new_executor},
         primary::{persist::PrimaryWriter, prepare::PrimaryWorker},
     },
     metrics::IndexerMetrics,
@@ -46,14 +45,7 @@ impl PrimaryPipeline {
             .expect("failed to get latest tx checkpoint sequence number from DB")
             .map(|seq| seq + 1)
             .unwrap_or_default();
-        let progress_store =
-            ShimIndexerProgressStore::new(vec![("primary".to_string(), watermark)]);
-        let mut executor = IndexerExecutor::new(
-            progress_store,
-            1,
-            DataIngestionMetrics::new(&Registry::new()),
-            cancel.child_token(),
-        );
+        let mut executor = new_executor("primary".to_string(), watermark, cancel.clone());
         let checkpoint_queue_size = std::env::var("CHECKPOINT_QUEUE_SIZE")
             .unwrap_or(CHECKPOINT_QUEUE_SIZE.to_string())
             .parse::<usize>()

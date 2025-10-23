@@ -4,9 +4,8 @@
 use std::collections::HashMap;
 
 use anyhow::Context;
-use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
+use iota_data_ingestion_core::{IndexerExecutor, ReaderOptions, WorkerPool};
 use iota_metrics::get_metrics;
-use prometheus::Registry;
 use tokio::{
     task::JoinHandle,
     time::{Duration, sleep},
@@ -17,7 +16,10 @@ use crate::{
     CancellationToken, PgIndexerStore,
     config::SnapshotLagConfig,
     ingestion::{
-        common::{orchestration::ShimIndexerProgressStore, persist::Writer},
+        common::{
+            orchestration::{ShimIndexerProgressStore, new_executor},
+            persist::Writer,
+        },
         primary::persist::TransactionObjectChangesToCommit,
         snapshot::{persist::ObjectSnapshotWriter, prepare::ObjectsSnapshotWorker},
     },
@@ -57,11 +59,10 @@ impl SnapshotPipelineBuilder {
     }
 
     pub async fn finalize_with_dedicated_executor(self) -> IndexerResult<SnapshotPipeline> {
-        let mut executor = IndexerExecutor::new(
-            ShimIndexerProgressStore::new(Default::default()),
-            1,
-            DataIngestionMetrics::new(&Registry::new()),
-            self.cancel.child_token(),
+        let mut executor = new_executor(
+            "object_snapshot".to_string(),
+            self.watermark,
+            self.cancel.clone(),
         );
         let receiver = self.register_on_executor(&mut executor).await?;
         Ok(SnapshotPipeline {
@@ -76,6 +77,9 @@ impl SnapshotPipelineBuilder {
         self,
         executor: &mut IndexerExecutor<ShimIndexerProgressStore>,
     ) -> IndexerResult<SnapshotPipeline> {
+        executor
+            .update_watermark("object_snapshot".to_string(), self.watermark)
+            .await?;
         let receiver = self.register_on_executor(executor).await?;
         Ok(SnapshotPipeline {
             executor: None,
@@ -105,9 +109,6 @@ impl SnapshotPipelineBuilder {
             self.checkpoint_download_queue_size,
             Default::default(),
         );
-        executor
-            .update_watermark("object_snapshot".to_string(), self.watermark)
-            .await?;
         executor.register(worker_pool).await?;
         Ok(receiver)
     }

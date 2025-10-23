@@ -4,8 +4,10 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use iota_data_ingestion_core::ProgressStore;
+use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ProgressStore};
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
+use prometheus::Registry;
+use tokio_util::sync::CancellationToken;
 
 use crate::IndexerError;
 
@@ -38,4 +40,18 @@ impl ProgressStore for ShimIndexerProgressStore {
         self.watermarks.insert(task_name, checkpoint);
         Ok(())
     }
+}
+
+pub(crate) fn new_executor(
+    task_name: String,
+    watermark: CheckpointSequenceNumber,
+    cancel: CancellationToken,
+) -> IndexerExecutor<ShimIndexerProgressStore> {
+    let progress_store = ShimIndexerProgressStore::new(vec![(task_name, watermark)]);
+    IndexerExecutor::new(
+        progress_store,
+        1,
+        DataIngestionMetrics::new(&Registry::new()),
+        cancel.child_token(),
+    )
 }
