@@ -128,11 +128,6 @@ export function PasskeyAccountPage() {
                             icon={<Exclamation />}
                             style={InfoBoxStyle.Elevated}
                         />
-                        // <div className="flex flex-col gap-md text-start">
-                        //     <p className="pt-xxs text-label-md text-iota-neutral-30 dark:text-iota-neutral-80">
-                        //         You are restoring an account. Passkey storage options are not applicable.
-                        //     </p>
-                        // </div>
                     )}
                 </div>
 
