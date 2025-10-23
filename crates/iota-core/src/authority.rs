@@ -1975,6 +1975,7 @@ impl AuthorityState {
     }
 
     /// The object ID for gas can be any object ID, even for an uncreated object
+    #[instrument("dev_inspect_tx_block", level = "trace", skip_all)]
     pub async fn dev_inspect_transaction_block(
         &self,
         sender: IotaAddress,
