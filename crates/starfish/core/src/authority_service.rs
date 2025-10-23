@@ -16,11 +16,7 @@ use futures::{Stream, StreamExt, ready, stream, task};
 use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
-use tokio::sync::{
-    Mutex, broadcast,
-    mpsc::{Sender},
-    oneshot,
-};
+use tokio::sync::{Mutex, broadcast, mpsc::Sender, oneshot};
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
@@ -36,8 +32,7 @@ use crate::{
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     cordial_knowledge::{
-        AdditionalPartsForBundle,
-        ConnectionKnowledgeMessage::TakeAdditionalPartForBundle,
+        AdditionalPartsForBundle, ConnectionKnowledgeMessage::TakeAdditionalPartForBundle,
         CordialKnowledgeHandle,
     },
     core_thread::CoreThreadDispatcher,

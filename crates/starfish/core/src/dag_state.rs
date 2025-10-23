@@ -28,12 +28,11 @@ use crate::{
         GENESIS_COMMIT_INDEX, SubDagBase, TrustedCommit, load_pending_subdag_from_store,
     },
     context::Context,
-    cordial_knowledge::CordialKnowledgeMessage,
+    cordial_knowledge::{CordialKnowledgeMessage},
     leader_scoring::{ReputationScores, ScoringSubdag},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
 };
-use crate::cordial_knowledge::{CordialKnowledge, CordialKnowledgeMessage};
 
 /// Represents the source from which transactions were received and added to the
 /// DAG state. This is used for metrics tracking and debugging.
@@ -79,11 +78,6 @@ impl std::fmt::Display for TransactionSource {
         write!(f, "{}", self.as_str())
     }
 }
-
-/// If a shard from a block created by authority v1 is useful to authority v2 at
-/// round r, then shards from v1 will be sent to v2 up to round r +
-/// MAX_ROUND_GAP_FOR_USEFUL_SHARDS.
-const MAX_ROUND_GAP_FOR_USEFUL_SHARDS: usize = 5;
 
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
