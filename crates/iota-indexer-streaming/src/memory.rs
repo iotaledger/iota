@@ -483,7 +483,7 @@ impl InMemory {
 ///
 /// Also the provides a way to track the lagging status of
 /// the subscriber.
-pub struct SubscriberStream<T> {
+struct SubscriberStream<T> {
     /// The inner stream implementation we want to wrap.
     inner: BroadcastStream<T>,
     /// The prometheus label we want to record metrics.
