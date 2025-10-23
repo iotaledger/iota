@@ -79,7 +79,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 //             non-committee validators in the devnet.
 // Version 14: Switches the consensus protocol to Starfish in devnet.
 //             Enable median-based commit timestamp calculation in consensus,
-//             and enforce checkpoint timestamp monotonicity for devnet.
+//             and enforce checkpoint timestamp monotonicity for testnet.
 //             Enable batched block sync for mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -2256,7 +2256,7 @@ impl ProtocolConfig {
                     cfg.feature_flags.consensus_batched_block_sync = true;
                     if chain != Chain::Mainnet {
                         // Enable median-based commit timestamp calculation in consensus and
-                        // enforce checkpoint timestamp monotonicity for devnet.
+                        // enforce checkpoint timestamp monotonicity for testnet.
                         cfg.feature_flags
                             .consensus_median_timestamp_with_checkpoint_enforcement = true;
                     }
