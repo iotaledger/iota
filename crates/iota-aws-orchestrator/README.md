@@ -57,8 +57,8 @@ Create a file called `settings.json` that contains all the configuration paramet
     "url": "https://github.com/iotaledger/iota.git",
     "commit": "main"
   },
-  "results_directory": "./results",
-  "logs_directory": "./logs"
+  "results_dir": "./results",
+  "logs_dir": "./logs"
 }
 ```
 
