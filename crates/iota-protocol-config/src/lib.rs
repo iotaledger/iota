@@ -78,9 +78,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 //             Enable processing and tracking AuthorityCapabilitiesV1 from
 //             non-committee validators in the devnet.
 // Version 14: Switches the consensus protocol to Starfish in devnet.
-//             Enable median-based commit timestamp calculation in consensus in
-//             devnet.
-//             Enforce checkpoint timestamps are non-decreasing for devnet.
+//             Enable median-based commit timestamp calculation in consensus,
+//             and enforce checkpoint timestamp monotonicity for testnet.
+//             Enable batched block sync for mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2252,13 +2252,17 @@ impl ProtocolConfig {
                     }
                 }
                 14 => {
+                    // Enable batched block sync for mainnet.
+                    cfg.feature_flags.consensus_batched_block_sync = true;
+                    if chain != Chain::Mainnet {
+                        // Enable median-based commit timestamp calculation in consensus and
+                        // enforce checkpoint timestamp monotonicity for testnet.
+                        cfg.feature_flags
+                            .consensus_median_timestamp_with_checkpoint_enforcement = true;
+                    }
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         // Switch consensus protocol to Starfish in devnet
                         cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
-                        // Enable median-based commit timestamp calculation in consensus and
-                        // enforce checkpoint timestamp monotonicity for devnet.
-                        cfg.feature_flags
-                            .consensus_median_timestamp_with_checkpoint_enforcement = true;
                     }
                 }
                 // Use this template when making changes:
