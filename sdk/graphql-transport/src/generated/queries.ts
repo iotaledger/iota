@@ -6079,6 +6079,13 @@ export type IsTransactionIndexedOnNodeQueryVariables = Exact<{
 
 export type IsTransactionIndexedOnNodeQuery = { __typename?: 'Query', isTransactionIndexedOnNode: boolean };
 
+export type MultiTransactionBlocksQueryVariables = Exact<{
+  digests: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+
+export type MultiTransactionBlocksQuery = { __typename?: 'Query', multiTransactionBlocks: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> };
+
 export type GetOwnedObjectsQueryVariables = Exact<{
   owner: Scalars['IotaAddress']['input'];
   limit?: InputMaybe<Scalars['Int']['input']>;
@@ -8304,6 +8311,13 @@ export const IsTransactionIndexedOnNodeDocument = new TypedDocumentString(`
   isTransactionIndexedOnNode(digest: $digest)
 }
     `) as unknown as TypedDocumentString<IsTransactionIndexedOnNodeQuery, IsTransactionIndexedOnNodeQueryVariables>;
+export const MultiTransactionBlocksDocument = new TypedDocumentString(`
+    query MultiTransactionBlocks($digests: [String!]!) {
+  multiTransactionBlocks(digests: $digests) {
+    digest
+  }
+}
+    `) as unknown as TypedDocumentString<MultiTransactionBlocksQuery, MultiTransactionBlocksQueryVariables>;
 export const GetOwnedObjectsDocument = new TypedDocumentString(`
     query getOwnedObjects($owner: IotaAddress!, $limit: Int, $cursor: String, $showBcs: Boolean = false, $showContent: Boolean = false, $showDisplay: Boolean = false, $showType: Boolean = false, $showOwner: Boolean = false, $showPreviousTransaction: Boolean = false, $showStorageRebate: Boolean = false, $filter: ObjectFilter) {
   address(address: $owner) {
