@@ -218,6 +218,45 @@ impl Multiaddr {
 
         new
     }
+
+    /// Checks if the multiaddr contains a private/unroutable IP address.
+    /// Returns true if the address should is private or unroutable.
+    pub fn is_private_or_unroutable(&self) -> bool {
+        let Some(protocol) = self.0.iter().next() else {
+            return true; // Empty address is not routable
+        };
+
+        match protocol {
+            multiaddr::Protocol::Ip4(addr) => is_ipv4_private_or_unroutable(addr),
+            multiaddr::Protocol::Ip6(addr) => is_ipv6_private_or_unroutable(addr),
+            multiaddr::Protocol::Dns(_) => false,
+            multiaddr::Protocol::Dns4(_) => false,
+            multiaddr::Protocol::Dns6(_) => false,
+            _ => true, // Other protocol types are not supported
+        }
+    }
+
+    /// Checks if the multiaddr is suitable for public announcement for anemo.
+    /// This includes checking for private/unroutable addresses and valid
+    /// format.
+    pub fn is_valid_public_anemo_address(&self) -> bool {
+        // Check if address is empty
+        if self.is_empty() {
+            return false;
+        }
+
+        // Check if it can be converted to anemo address (format validation)
+        if self.to_anemo_address().is_err() {
+            return false;
+        }
+
+        // Check if it's a private or unroutable address
+        if self.is_private_or_unroutable() {
+            return false;
+        }
+
+        true
+    }
 }
 
 impl std::fmt::Display for Multiaddr {
@@ -385,6 +424,71 @@ pub(crate) fn parse_ip6(address: &Multiaddr) -> Result<(SocketAddr, &'static str
     Ok((socket_addr, http_or_https))
 }
 
+/// Checks if an IPv4 address is private, reserved, or otherwise unroutable on
+/// the public internet.
+fn is_ipv4_private_or_unroutable(addr: Ipv4Addr) -> bool {
+    // RFC 1122 - "This" Network (0.0.0.0/8) and Unspecified (0.0.0.0/32)
+    addr.is_unspecified() ||
+    // RFC 1918 - Private Networks (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+    addr.is_private() ||
+    // RFC 1122 - Loopback (127.0.0.0/8)
+    addr.is_loopback() ||
+    // RFC 3927 - Link-Local (169.254.0.0/16)
+    addr.is_link_local() ||
+    // RFC 1112 / RFC 3171 - Multicast (224.0.0.0/4)
+    addr.is_multicast() ||
+    // RFC 6598 - Shared Address Space / Carrier-Grade NAT (100.64.0.0/10)
+    (addr.octets()[0] == 100 && (addr.octets()[1] & 0b11000000) == 64) ||
+    // RFC 6890 - IETF Protocol Assignments (192.0.0.0/24)
+    (addr.octets()[0] == 192 && addr.octets()[1] == 0 && addr.octets()[2] == 0) ||
+    // RFC 5737 - Documentation/TEST-NET addresses (192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24)
+    (addr.octets()[0] == 192 && addr.octets()[1] == 0 && addr.octets()[2] == 2) ||
+    (addr.octets()[0] == 198 && addr.octets()[1] == 51 && addr.octets()[2] == 100) ||
+    (addr.octets()[0] == 203 && addr.octets()[1] == 0 && addr.octets()[2] == 113) ||
+    // RFC 7535 - AS112-v4 (192.31.196.0/24)
+    (addr.octets()[0] == 192 && addr.octets()[1] == 31 && addr.octets()[2] == 196) ||
+    // RFC 7450 - Automatic Multicast Tunneling (192.52.193.0/24)
+    (addr.octets()[0] == 192 && addr.octets()[1] == 52 && addr.octets()[2] == 193) ||
+    // RFC 3068 - 6to4 Relay Anycast (192.88.99.0/24)
+    (addr.octets()[0] == 192 && addr.octets()[1] == 88 && addr.octets()[2] == 99) ||
+    // RFC 2544 - Network Interconnect Device Benchmark Testing (198.18.0.0/15)
+    (addr.octets()[0] == 198 && (addr.octets()[1] & 0b11111110) == 18) ||
+    // RFC 1112 - Reserved for Future Use (240.0.0.0/4)
+    (addr.octets()[0] >= 240)
+}
+
+/// Checks if an IPv6 address is private, reserved, or otherwise unroutable on
+/// the public internet.
+fn is_ipv6_private_or_unroutable(addr: Ipv6Addr) -> bool {
+    // RFC 4291 - Unspecified Address (::/128)
+    addr.is_unspecified() ||
+    // RFC 4291 - Loopback Address (::1/128)
+    addr.is_loopback() ||
+    // RFC 4291 - Multicast (ff00::/8)
+    addr.is_multicast() ||
+    // RFC 6666 - Discard-Only Address Block (100::/64)
+    (addr.segments()[0] == 0x0100 && addr.segments()[1] == 0 &&
+     addr.segments()[2] == 0 && addr.segments()[3] == 0) ||
+    // RFC 4380 - Teredo (2001::/32)
+    (addr.segments()[0] == 0x2001 && addr.segments()[1] == 0x0000) ||
+    // RFC 5180 - Benchmarking (2001:2::/48)
+    (addr.segments()[0] == 0x2001 && addr.segments()[1] == 0x0002) ||
+    // RFC 4843 - ORCHID (2001:10::/28)
+    (addr.segments()[0] == 0x2001 && (addr.segments()[1] & 0xfff0) == 0x0010) ||
+    // RFC 3849 - Documentation (2001:db8::/32)
+    (addr.segments()[0] == 0x2001 && addr.segments()[1] == 0x0db8) ||
+    // RFC 3056 - 6to4 (2002::/16)
+    addr.segments()[0] == 0x2002 ||
+    // RFC 4193 - Unique Local Addresses (fc00::/7)
+    (addr.segments()[0] & 0xfe00) == 0xfc00 ||
+    // RFC 3513 - Site-Local (deprecated, fec0::/10)
+    (addr.segments()[0] & 0xffc0) == 0xfec0 ||
+    // RFC 4862 - Link-Local (fe80::/10)
+    (addr.segments()[0] & 0xffc0) == 0xfe80 ||
+    // RFC 4291 - IPv4-mapped IPv6 addresses (::ffff:0:0/96) - check embedded IPv4
+    addr.to_ipv4_mapped().is_some_and(is_ipv4_private_or_unroutable)
+}
+
 #[cfg(test)]
 mod test {
     use multiaddr::multiaddr;
@@ -509,5 +613,278 @@ mod test {
             Multiaddr(multiaddr!(Dns("iota.iota"), Tcp(10501u16))).with_localhost_ip();
         assert_eq!(Some("127.0.0.1".to_string()), multi_addr_dns.hostname());
         assert_eq!(Some(10501u16), multi_addr_dns.port());
+    }
+
+    #[test]
+    fn test_is_private_or_unroutable_ipv4() {
+        // Test cases: (multiaddr, description, should_be_filtered)
+        let test_cases = vec![
+            // Private addresses (RFC 1918)
+            (
+                multiaddr!(Ip4([10, 0, 0, 1]), Udp(10500u16)),
+                "RFC 1918 private - 10.0.0.0/8",
+                true,
+            ),
+            (
+                multiaddr!(Ip4([172, 16, 0, 1]), Udp(10500u16)),
+                "RFC 1918 private - 172.16.0.0/12",
+                true,
+            ),
+            (
+                multiaddr!(Ip4([192, 168, 1, 1]), Udp(10500u16)),
+                "RFC 1918 private - 192.168.0.0/16",
+                true,
+            ),
+            // Loopback (RFC 1122)
+            (
+                multiaddr!(Ip4([127, 0, 0, 1]), Udp(10500u16)),
+                "RFC 1122 loopback",
+                true,
+            ),
+            // Link-local (RFC 3927)
+            (
+                multiaddr!(Ip4([169, 254, 1, 1]), Udp(10500u16)),
+                "RFC 3927 link-local",
+                true,
+            ),
+            // Unspecified (RFC 1122)
+            (
+                multiaddr!(Ip4([0, 0, 0, 0]), Udp(10500u16)),
+                "RFC 1122 unspecified",
+                true,
+            ),
+            // Multicast (RFC 3171)
+            (
+                multiaddr!(Ip4([224, 0, 0, 1]), Udp(10500u16)),
+                "RFC 3171 multicast",
+                true,
+            ),
+            // Carrier-grade NAT (RFC 6598)
+            (
+                multiaddr!(Ip4([100, 64, 0, 1]), Udp(10500u16)),
+                "RFC 6598 carrier-grade NAT",
+                true,
+            ),
+            // IETF Protocol Assignments (RFC 6890)
+            (
+                multiaddr!(Ip4([192, 0, 0, 1]), Udp(10500u16)),
+                "RFC 6890 IETF Protocol Assignments - 192.0.0.0/24",
+                true,
+            ),
+            // AS112-v4 (RFC 7535)
+            (
+                multiaddr!(Ip4([192, 31, 196, 1]), Udp(10500u16)),
+                "RFC 7535 AS112-v4 - 192.31.196.0/24",
+                true,
+            ),
+            // Automatic Multicast Tunneling (RFC 7450)
+            (
+                multiaddr!(Ip4([192, 52, 193, 1]), Udp(10500u16)),
+                "RFC 7450 Automatic Multicast Tunneling - 192.52.193.0/24",
+                true,
+            ),
+            // Documentation addresses (RFC 5737)
+            (
+                multiaddr!(Ip4([192, 0, 2, 1]), Udp(10500u16)),
+                "RFC 5737 documentation - 192.0.2.0/24",
+                true,
+            ),
+            (
+                multiaddr!(Ip4([198, 51, 100, 1]), Udp(10500u16)),
+                "RFC 5737 documentation - 198.51.100.0/24",
+                true,
+            ),
+            (
+                multiaddr!(Ip4([203, 0, 113, 1]), Udp(10500u16)),
+                "RFC 5737 documentation - 203.0.113.0/24",
+                true,
+            ),
+            // Benchmarking (RFC 2544)
+            (
+                multiaddr!(Ip4([198, 18, 0, 1]), Udp(10500u16)),
+                "RFC 2544 benchmarking - 198.18.0.0/15",
+                true,
+            ),
+            // Public addresses should not be filtered
+            (
+                multiaddr!(Ip4([8, 8, 8, 8]), Udp(10500u16)),
+                "Google DNS - should not be filtered",
+                false,
+            ),
+            (
+                multiaddr!(Ip4([1, 1, 1, 1]), Udp(10500u16)),
+                "Cloudflare DNS - should not be filtered",
+                false,
+            ),
+            (
+                multiaddr!(Ip4([208, 67, 222, 222]), Udp(10500u16)),
+                "OpenDNS - should not be filtered",
+                false,
+            ),
+        ];
+
+        for (multiaddr, description, should_be_filtered) in test_cases {
+            let addr = Multiaddr(multiaddr);
+            let is_filtered = addr.is_private_or_unroutable();
+            assert_eq!(
+                is_filtered, should_be_filtered,
+                "Failed for {description}: expected {should_be_filtered} but got {is_filtered}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_is_private_or_unroutable_ipv6() {
+        // Test cases: (multiaddr, description, should_be_filtered)
+        let test_cases = vec![
+            // Loopback (RFC 4291)
+            (
+                multiaddr!(Ip6([0, 0, 0, 0, 0, 0, 0, 1]), Udp(10500u16)),
+                "RFC 4291 loopback",
+                true,
+            ),
+            // Unspecified (RFC 4291)
+            (
+                multiaddr!(Ip6([0, 0, 0, 0, 0, 0, 0, 0]), Udp(10500u16)),
+                "RFC 4291 unspecified",
+                true,
+            ),
+            // Discard-Only Address Block (RFC 6666)
+            (
+                multiaddr!(Ip6([0x0100, 0, 0, 0, 0, 0, 0, 1]), Udp(10500u16)),
+                "RFC 6666 discard-only - 100::/64",
+                true,
+            ),
+            // Unique local addresses (RFC 4193) - fc00::/7
+            (
+                multiaddr!(Ip6([0xfc00, 0, 0, 0, 0, 0, 0, 1]), Udp(10500u16)),
+                "RFC 4193 unique local - fc00::/7",
+                true,
+            ),
+            (
+                multiaddr!(Ip6([0xfd00, 0, 0, 0, 0, 0, 0, 1]), Udp(10500u16)),
+                "RFC 4193 unique local - fd00::/7",
+                true,
+            ),
+            // Link-local addresses (RFC 4862) - fe80::/10
+            (
+                multiaddr!(Ip6([0xfe80, 0, 0, 0, 0, 0, 0, 1]), Udp(10500u16)),
+                "RFC 4862 link-local",
+                true,
+            ),
+            // Benchmarking (RFC 5180) - 2001:2::/48
+            (
+                multiaddr!(Ip6([0x2001, 0x0002, 0, 0, 0, 0, 0, 1]), Udp(10500u16)),
+                "RFC 5180 benchmarking - 2001:2::/48",
+                true,
+            ),
+            // Documentation addresses (RFC 3849) - 2001:db8::/32
+            (
+                multiaddr!(Ip6([0x2001, 0x0db8, 0, 0, 0, 0, 0, 1]), Udp(10500u16)),
+                "RFC 3849 documentation",
+                true,
+            ),
+            // Multicast addresses
+            (
+                multiaddr!(Ip6([0xff02, 0, 0, 0, 0, 0, 0, 1]), Udp(10500u16)),
+                "IPv6 multicast",
+                true,
+            ),
+            // Public addresses should not be filtered
+            (
+                multiaddr!(
+                    Ip6([0x2001, 0x4860, 0x4860, 0, 0, 0, 0, 0x68]),
+                    Udp(10500u16)
+                ),
+                "Google DNS IPv6 - should not be filtered",
+                false,
+            ),
+            (
+                multiaddr!(Ip6([0x2606, 0x4700, 0x10, 0, 0, 0, 0, 0x68]), Udp(10500u16)),
+                "Cloudflare DNS IPv6 - should not be filtered",
+                false,
+            ),
+        ];
+
+        for (multiaddr, description, should_be_filtered) in test_cases {
+            let addr = Multiaddr(multiaddr);
+            let is_filtered = addr.is_private_or_unroutable();
+            assert_eq!(
+                is_filtered, should_be_filtered,
+                "Failed for {description}: expected {should_be_filtered} but got {is_filtered}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_is_private_or_unroutable_dns() {
+        // Test cases: (multiaddr, description, should_be_private)
+        let test_cases = vec![
+            (
+                multiaddr!(Dns("iota.org"), Udp(10500u16)),
+                "DNS addresses should be allowed for public discovery",
+                false,
+            ),
+            (
+                multiaddr!(Dns4("iota.org"), Udp(10500u16)),
+                "DNS4 addresses should be allowed for public discovery",
+                false,
+            ),
+            (
+                multiaddr!(Dns6("iota.org"), Udp(10500u16)),
+                "DNS6 addresses should be allowed for public discovery",
+                false,
+            ),
+        ];
+
+        for (multiaddr, description, should_be_private) in test_cases {
+            let addr = Multiaddr(multiaddr);
+            let is_private = addr.is_private_or_unroutable();
+            assert_eq!(
+                is_private, should_be_private,
+                "Failed for {description}: expected {should_be_private} but got {is_private}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_is_valid_for_public_announcement() {
+        // Test cases: (multiaddr, description, should_be_valid)
+        let test_cases = vec![
+            (
+                multiaddr!(Ip4([192, 168, 1, 1]), Udp(10500u16)),
+                "Private IPv4 address should be invalid",
+                false,
+            ),
+            (
+                multiaddr!(Ip4([127, 0, 0, 1]), Udp(10500u16)),
+                "Loopback IPv4 address should be invalid",
+                false,
+            ),
+            (
+                multiaddr!(Ip4([8, 8, 8, 8]), Udp(10500u16)),
+                "Valid public IPv4 address should be valid",
+                true,
+            ),
+            (
+                multiaddr!(Dns("example.com"), Udp(10500u16)),
+                "Valid DNS address should be valid",
+                true,
+            ),
+            (
+                multiaddr!(Ip4([8, 8, 8, 8]), Tcp(10500u16)),
+                "TCP instead of UDP should be invalid for anemo",
+                false,
+            ),
+        ];
+
+        for (multiaddr, description, should_be_valid) in test_cases {
+            let addr = Multiaddr(multiaddr);
+            let is_valid = addr.is_valid_public_anemo_address();
+            assert_eq!(
+                is_valid, should_be_valid,
+                "Failed for {description}: expected {should_be_valid} but got {is_valid}",
+            );
+        }
     }
 }
