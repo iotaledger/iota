@@ -96,10 +96,6 @@ impl Indexer {
         )
         .await?;
 
-        // data_ingestion_path can only feed data to one executor,
-        // but if we have remote_store_url we can use many executors
-        let use_separate_executors = remote_store_url.is_some();
-
         let snapshot_pipeline_builder = SnapshotPipelineBuilder::new(
             store.clone(),
             metrics.clone(),
@@ -109,6 +105,9 @@ impl Indexer {
         )
         .await?;
 
+        // data_ingestion_path can only feed data to one executor,
+        // but if we have remote_store_url we can use many executors
+        let use_separate_executors = remote_store_url.is_some();
         let snapshot_pipeline = if use_separate_executors {
             snapshot_pipeline_builder
                 .finalize_with_dedicated_executor()
@@ -125,60 +124,32 @@ impl Indexer {
         };
 
         info!("Starting data ingestion executor...");
-        let (mut primary_executor_handle, mut primary_writer_handle) = primary_pipeline
+        let mut primary_pipeline_handle = primary_pipeline
             .run(
                 data_ingestion_path.clone(),
                 remote_store_url.clone(),
                 extra_reader_options.clone(),
-                cancel.clone(),
             )
+            .await;
+
+        let mut snapshot_pipeline_handle = snapshot_pipeline
+            .run(remote_store_url, extra_reader_options)
             .await?;
 
-        // Wait for max committable checkpoint > 0 before starting snapshot executor
-        // Also monitor primary_executor_handle - if it finishes, no point in waiting
-        let (mut snapshot_executor_handle, mut snapshot_persist_task_handle) = tokio::select! {
-            snapshot_pipeline_with_snapshottable_data = snapshot_pipeline.wait_for_snapshottable_data() => {
-                snapshot_pipeline_with_snapshottable_data?.run(
-                    remote_store_url,
-                    extra_reader_options,
-                ).await?
-            },
-            result = &mut primary_executor_handle => {
-                result.context("failed to join primary executor")?.context("primary executor failed")?;
-                return Ok(());
-            }
-        };
-
-        let mut primary_executor_done = false;
-        let mut primary_writer_done = false;
-        let mut snapshot_executor_done = false;
-        let mut snapshot_persist_task_done = false;
-        while !primary_executor_done
-            || !primary_writer_done
-            || !snapshot_executor_done
-            || !snapshot_persist_task_done
-        {
+        let mut primary_pipeline_done = false;
+        let mut snapshot_pipeline_done = false;
+        while !primary_pipeline_done || !snapshot_pipeline_done {
             tokio::select! {
-                result = &mut primary_executor_handle, if !primary_executor_done => {
-                    result.context("failed to join primary executor")?.context("primary executor failed")?;
-                    info!("Primary executor finished successfully");
-                    primary_executor_done = true;
+                result = &mut primary_pipeline_handle, if !primary_pipeline_done => {
+                    result.context("failed to join primary pipeline")?.context("primary pipeline failed")?;
+                    info!("Primary pipeline finished successfully");
+                    primary_pipeline_done = true;
                 },
-                result = &mut primary_writer_handle, if !primary_writer_done => {
-                    result.context("failed to join primary writer")?.context("primary writer failed")?;
-                    info!("Primary writer finished successfully");
-                    primary_writer_done = true;
+                result = &mut snapshot_pipeline_handle, if !snapshot_pipeline_done => {
+                    result.context("failed to join snapshot pipeline")?.context("snapshot pipeline failed")?;
+                    info!("Snapshot pipeline finished successfully");
+                    snapshot_pipeline_done = true;
                 },
-                result = &mut snapshot_executor_handle, if !snapshot_executor_done => {
-                    result.context("failed to join snapshot executor")?.context("snapshot executor failed")?;
-                    info!("Snapshot executor finished successfully");
-                    snapshot_executor_done = true;
-                },
-                result = &mut snapshot_persist_task_handle, if !snapshot_persist_task_done => {
-                    result.context("failed to join snapshot persist task")?.context("snapshot persist task failed")?;
-                    info!("Snapshot persist task finished successfully");
-                    snapshot_persist_task_done = true;
-                }
             }
             cancel.cancel();
         }

@@ -4,6 +4,7 @@
 
 use std::collections::HashMap;
 
+use anyhow::Context;
 use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, WorkerPool};
 use iota_metrics::get_metrics;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
@@ -27,8 +28,9 @@ const CHECKPOINT_QUEUE_SIZE: usize = 100;
 
 pub(crate) struct PrimaryPipeline {
     pub executor: IndexerExecutor<ShimIndexerProgressStore>,
-    pub writer: PrimaryWriter,
-    pub watermark: CheckpointSequenceNumber,
+    writer: PrimaryWriter,
+    watermark: CheckpointSequenceNumber,
+    cancel: CancellationToken,
 }
 
 impl PrimaryPipeline {
@@ -76,6 +78,7 @@ impl PrimaryPipeline {
             executor,
             writer,
             watermark,
+            cancel,
         })
     }
 
@@ -84,29 +87,48 @@ impl PrimaryPipeline {
         data_ingestion_path: std::path::PathBuf,
         remote_store_url: Option<String>,
         reader_options: iota_data_ingestion_core::ReaderOptions,
-        cancel: CancellationToken,
-    ) -> IndexerResult<(
-        JoinHandle<
-            iota_data_ingestion_core::IngestionResult<HashMap<String, CheckpointSequenceNumber>>,
-        >,
-        JoinHandle<IndexerResult<()>>,
-    )> {
-        info!("Starting primary writer...");
-        let writer_task_handle = spawn_monitored_task!(start_writer_task(
-            self.writer,
-            self.watermark,
-            cancel.clone()
-        ));
+    ) -> JoinHandle<IndexerResult<()>> {
+        let writer_cancel = self.cancel.clone();
+        let cancel = self.cancel.clone();
 
-        info!("Starting primary executor...");
-        let executor_handle = tokio::spawn(self.executor.run(
-            data_ingestion_path,
-            remote_store_url,
-            vec![],
-            reader_options,
-        ));
+        let handle = tokio::spawn(async move {
+            info!("Starting primary writer...");
+            let mut writer_handle = spawn_monitored_task!(start_writer_task(
+                self.writer,
+                self.watermark,
+                writer_cancel
+            ));
 
-        Ok((executor_handle, writer_task_handle))
+            info!("Starting primary executor...");
+            let mut executor_handle = tokio::spawn(self.executor.run(
+                data_ingestion_path,
+                remote_store_url,
+                vec![],
+                reader_options,
+            ));
+
+            let mut executor_done = false;
+            let mut writer_done = false;
+            while !executor_done || !writer_done {
+                tokio::select! {
+                    result = &mut executor_handle, if !executor_done => {
+                        result.context("failed to join primary executor")?.context("primary executor failed")?;
+                        info!("Primary executor finished successfully");
+                        executor_done = true;
+                    },
+                    result = &mut writer_handle, if !writer_done => {
+                        result.context("failed to join primary writer")?.context("primary writer failed")?;
+                        info!("Primary writer finished successfully");
+                        writer_done = true;
+                    }
+                }
+                cancel.cancel();
+            }
+
+            Ok(())
+        });
+
+        handle
     }
 }
 

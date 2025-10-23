@@ -3,11 +3,9 @@
 
 use std::collections::HashMap;
 
-use iota_data_ingestion_core::{
-    DataIngestionMetrics, IndexerExecutor, IngestionResult, ReaderOptions, WorkerPool,
-};
+use anyhow::Context;
+use iota_data_ingestion_core::{DataIngestionMetrics, IndexerExecutor, ReaderOptions, WorkerPool};
 use iota_metrics::get_metrics;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio::{
     task::JoinHandle,
@@ -130,66 +128,91 @@ impl SnapshotPipeline {
         spawn_monitored_task!(writer.persist_sequentially(receiver, cancel))
     }
 
-    pub async fn wait_for_snapshottable_data(self) -> IndexerResult<Self> {
-        info!("Waiting for data for the Snapshot Pipeline");
-        loop {
-            match self.writer.get_max_committable_checkpoint().await {
-                Ok(max_committable) if max_committable > 0 => {
-                    info!(
-                        "Max committable checkpoint is {max_committable}, snapshottable data present",
-                    );
-                    break;
-                }
-                Ok(max_committable) => {
-                    info!(
-                        "Max committable checkpoint is {max_committable}, waiting for snapshottable data",
-                    );
-                    sleep(Duration::from_secs(1)).await;
-                }
-                Err(e) => {
-                    info!("Error getting max committable checkpoint: {e}, waiting",);
-                    sleep(Duration::from_secs(1)).await;
-                }
-            }
-
-            if self.cancel.is_cancelled() {
-                return Err(crate::errors::IndexerError::Generic(
-                    "cancelled while waiting for snapshottable data".to_string(),
-                ));
-            }
-        }
-        Ok(self)
-    }
-
     pub async fn run(
         self,
         remote_store_url: Option<String>,
         reader_options: ReaderOptions,
-    ) -> IndexerResult<(
-        JoinHandle<IngestionResult<HashMap<String, CheckpointSequenceNumber>>>,
-        JoinHandle<IndexerResult<()>>,
-    )> {
-        info!("Starting snapshot writer");
-        let persist_task_handle =
-            Self::spawn_writer_task(self.writer.clone(), self.receiver, self.cancel.clone());
-        let dummy_ingestion_path = tempfile::tempdir().unwrap().keep();
-        let executor_handle = if let Some(executor) = self.executor {
-            info!("Starting snapshot executor");
-            tokio::spawn(executor.run(
-                dummy_ingestion_path,
-                remote_store_url,
-                vec![],
-                reader_options,
-            ))
-        } else {
-            info!("Using shared executor - skipping creation of snapshot executor");
-            // Create a dummy executor handle that only completes when cancelled
-            tokio::spawn(async move {
-                self.cancel.cancelled().await;
-                Ok(HashMap::new())
-            })
-        };
+    ) -> IndexerResult<JoinHandle<IndexerResult<()>>> {
+        let handle = tokio::spawn(async move {
+            wait_for_snapshottable_data(&self.writer, &self.cancel).await?;
+            let cancel_clone = self.cancel.clone();
 
-        Ok((executor_handle, persist_task_handle))
+            info!("Starting snapshot writer");
+            let mut persist_task_handle =
+                Self::spawn_writer_task(self.writer.clone(), self.receiver, self.cancel.clone());
+            let dummy_ingestion_path = tempfile::tempdir().unwrap().keep();
+            let mut executor_handle = if let Some(executor) = self.executor {
+                info!("Starting snapshot executor");
+                tokio::spawn(executor.run(
+                    dummy_ingestion_path,
+                    remote_store_url,
+                    vec![],
+                    reader_options,
+                ))
+            } else {
+                info!("Using shared executor - skipping creation of snapshot executor");
+                // Create a dummy executor handle that only completes when cancelled
+                tokio::spawn(async move {
+                    self.cancel.cancelled().await;
+                    Ok(HashMap::new())
+                })
+            };
+
+            let mut executor_done = false;
+            let mut persist_done = false;
+            while !executor_done || !persist_done {
+                tokio::select! {
+                    result = &mut executor_handle, if !executor_done => {
+                        result.context("failed to join snapshot executor")?.context("snapshot executor failed")?;
+                        info!("Snapshot executor finished successfully");
+                        executor_done = true;
+                    },
+                    result = &mut persist_task_handle, if !persist_done => {
+                        result.context("failed to join snapshot persist task")?.context("snapshot persist task failed")?;
+                        info!("Snapshot persist task finished successfully");
+                        persist_done = true;
+                    }
+                }
+                cancel_clone.cancel();
+            }
+
+            Ok(())
+        });
+
+        Ok(handle)
     }
+}
+
+async fn wait_for_snapshottable_data(
+    writer: &ObjectSnapshotWriter,
+    cancel: &CancellationToken,
+) -> IndexerResult<()> {
+    info!("Waiting for data for the Snapshot Pipeline");
+    loop {
+        match writer.get_max_committable_checkpoint().await {
+            Ok(max_committable) if max_committable > 0 => {
+                info!(
+                    "Max committable checkpoint is {max_committable}, snapshottable data present",
+                );
+                break;
+            }
+            Ok(max_committable) => {
+                info!(
+                    "Max committable checkpoint is {max_committable}, waiting for snapshottable data",
+                );
+                sleep(Duration::from_secs(1)).await;
+            }
+            Err(e) => {
+                info!("Error getting max committable checkpoint: {e}, waiting",);
+                sleep(Duration::from_secs(1)).await;
+            }
+        }
+
+        if cancel.is_cancelled() {
+            return Err(crate::errors::IndexerError::Generic(
+                "cancelled while waiting for snapshottable data".to_string(),
+            ));
+        }
+    }
+    Ok(())
 }
