@@ -9,6 +9,7 @@ use std::{
 };
 
 use anyhow::{Result, anyhow};
+use async_trait::async_trait;
 use cached::{Cached, SizedCache};
 use diesel::{
     BoolExpressionMethods, ExpressionMethods, JoinOnDsl, NullableExpressionMethods,
@@ -23,14 +24,16 @@ use fastcrypto::encoding::{Encoding, Hex};
 use iota_json_rpc_types::{
     AddressMetrics, Balance, CheckpointId, Coin as IotaCoin, DisplayFieldsResponse, EpochInfo,
     EventFilter, IotaCoinMetadata, IotaEvent, IotaMoveValue, IotaObjectDataFilter,
-    IotaTransactionBlockResponse, IotaTransactionKind, MoveCallMetrics, MoveFunctionName,
-    NetworkMetrics, ParticipationMetrics, TransactionFilter, TransactionFilterV2,
+    IotaObjectDataOptions, IotaObjectResponse, IotaTransactionBlockResponse, IotaTransactionKind,
+    MoveCallMetrics, MoveFunctionName, NetworkMetrics, ParticipationMetrics, TransactionFilter,
+    TransactionFilterV2,
 };
 use iota_package_resolver::{Package, PackageStore, PackageStoreWithLruCache, Resolver};
+use iota_transaction_builder::DataReader;
 use iota_types::{
     TypeTag,
     balance::Supply,
-    base_types::{IotaAddress, ObjectID, SequenceNumber, VersionNumber},
+    base_types::{IotaAddress, ObjectID, ObjectInfo, SequenceNumber, VersionNumber},
     coin::{CoinMetadata, TreasuryCap},
     coin_manager::CoinManager,
     committee::EpochId,
@@ -51,6 +54,7 @@ use move_core_types::{annotated_value::MoveStructLayout, language_storage::Struc
 use tap::TapFallible;
 
 use crate::{
+    apis::GovernanceReadApi,
     db::{ConnectionConfig, ConnectionPool, ConnectionPoolConfig},
     errors::IndexerError,
     models::{
@@ -128,7 +132,7 @@ impl IndexerReader {
             .connection_timeout(config.connection_timeout)
             .connection_customizer(Box::new(connection_config))
             .build(manager)
-            .map_err(|e| anyhow!("Failed to initialize connection pool. Error: {:?}. If Error is None, please check whether the configured pool size (currently {}) exceeds the maximum number of connections allowed by the database.", e, config.pool_size))?;
+            .map_err(|e| anyhow!("failed to initialize connection pool. Error: {:?}. If Error is None, please check whether the configured pool size (currently {}) exceeds the maximum number of connections allowed by the database.", e, config.pool_size))?;
 
         Ok(Self::new(pool))
     }
@@ -838,10 +842,10 @@ impl IndexerReader {
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to join all tx block futures: {}", e))?
+            .tap_err(|e| tracing::error!("failed to join all tx block futures: {e}"))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to collect tx block futures: {}", e))?;
+            .tap_err(|e| tracing::error!("failed to collect tx block futures: {e}"))?;
         Ok(tx_blocks)
     }
 
@@ -1373,7 +1377,7 @@ impl IndexerReader {
                 self.stored_transaction_to_transaction_block(vec![stored_tx], options)
                     .await?
                     .pop()
-                    .expect("There should be exactly one response"),
+                    .expect("there should be exactly one response"),
             ))
         } else {
             Ok(None)
@@ -1426,7 +1430,7 @@ impl IndexerReader {
             order_map
                 .get(&tx.digest)
                 .copied()
-                .expect("All digests should have some order")
+                .expect("all digests should have some order")
         });
         Ok(transactions)
     }
@@ -1523,10 +1527,10 @@ impl IndexerReader {
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to join iota event futures: {}", e))?
+            .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to collect iota event futures: {}", e))?;
+            .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
         Ok(iota_events)
     }
 
@@ -1733,10 +1737,10 @@ impl IndexerReader {
             .await
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to join iota event futures: {}", e))?
+            .tap_err(|e| tracing::error!("failed to join iota event futures: {e}"))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Failed to collect iota event futures: {}", e))?;
+            .tap_err(|e| tracing::error!("failed to collect iota event futures: {e}"))?;
         Ok(iota_events)
     }
 
@@ -1764,14 +1768,11 @@ impl IndexerReader {
         }
         let df_infos = futures::future::try_join_all(df_futures)
             .await
-            .tap_err(|e| tracing::error!("Error joining DF futures: {:?}", e))?
+            .tap_err(|e| tracing::error!("error joining DF futures: {e:?}"))?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| {
-                tracing::error!(
-                    "Error calling DF try_create_dynamic_field_info function: {:?}",
-                    e
-                )
+                tracing::error!("error calling DF try_create_dynamic_field_info function: {e:?}")
             })?
             .into_iter()
             .flatten()
@@ -2287,7 +2288,7 @@ impl IndexerReader {
         let mut cache = self
             .obj_type_cache
             .lock()
-            .inspect_err(|e| tracing::error!("cache poisoned: {:?}", e))
+            .inspect_err(|e| tracing::error!("cache poisoned: {e:?}"))
             .map_err(|_| IndexerError::Generic("failed to lock cache".into()))?;
 
         let maybe_obj = match cache.cache_get(&cache_key) {
@@ -2368,6 +2369,52 @@ impl iota_types::storage::ObjectStore for IndexerReader {
     ) -> Result<Option<iota_types::object::Object>, iota_types::storage::error::Error> {
         self.get_object(object_id, Some(version))
             .map_err(iota_types::storage::error::Error::custom)
+    }
+}
+
+#[async_trait]
+impl DataReader for IndexerReader {
+    async fn get_owned_objects(
+        &self,
+        address: IotaAddress,
+        object_type: StructTag,
+    ) -> Result<Vec<ObjectInfo>, anyhow::Error> {
+        let stored_objects = self
+            .get_owned_objects_in_blocking_task(
+                address,
+                Some(IotaObjectDataFilter::StructType(object_type)),
+                None,
+                50, // Limit the number of objects returned to 50
+            )
+            .await?;
+
+        stored_objects
+            .into_iter()
+            .map(|object| {
+                let object = Object::try_from(object)?;
+                let object_ref = object.compute_object_reference();
+                let info = ObjectInfo::new(&object_ref, &object);
+                Ok(info)
+            })
+            .collect::<Result<Vec<_>, _>>()
+    }
+
+    async fn get_object_with_options(
+        &self,
+        object_id: ObjectID,
+        options: IotaObjectDataOptions,
+    ) -> Result<IotaObjectResponse, anyhow::Error> {
+        let result = self.get_object_read_in_blocking_task(object_id).await?;
+        Ok((result, options).try_into()?)
+    }
+
+    async fn get_reference_gas_price(&self) -> Result<u64, anyhow::Error> {
+        let epoch_info = GovernanceReadApi::new(self.clone())
+            .get_epoch_info(None)
+            .await?;
+        Ok(epoch_info
+            .reference_gas_price
+            .ok_or_else(|| anyhow::anyhow!("missing latest reference_gas_price"))?)
     }
 }
 

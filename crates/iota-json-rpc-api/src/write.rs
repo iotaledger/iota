@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::encoding::Base64;
+use iota_json::IotaJsonValue;
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, IotaTypeTag,
 };
 use iota_open_rpc_macros::open_rpc;
 use iota_types::{
@@ -42,6 +43,17 @@ pub trait WriteApi {
         /// The request type, derived from `IotaTransactionBlockResponseOptions` if None
         request_type: Option<ExecuteTransactionRequestType>,
     ) -> RpcResult<IotaTransactionBlockResponse>;
+
+    /// Calls a move view function.
+    #[rustfmt::skip]
+    #[method(name = "view")]
+     async fn view_function_call(
+        &self,
+        /// The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.
+        function_name: String,
+        type_args: Option<Vec<IotaTypeTag>>,
+        call_args: Vec<IotaJsonValue>,
+    ) -> RpcResult<IotaMoveViewCallResults>;
 
     /// Runs the transaction in dev-inspect mode. Which allows for nearly any
     /// transaction (or Move call) with any arguments. Detailed results are

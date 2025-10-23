@@ -436,7 +436,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .await?;
 
         // Wait until all load generators are reachable.
-        let commands = self.protocol_commands.clients_metrics_command(clients);
+        let commands = self
+            .protocol_commands
+            .clients_metrics_command(clients, parameters);
         self.ssh_manager.wait_for_success(commands).await;
 
         display::done();
@@ -457,7 +459,9 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let (clients, nodes, _) = self.select_instances(parameters)?;
 
         // Regularly scrape the client
-        let mut metrics_commands = self.protocol_commands.clients_metrics_command(clients);
+        let mut metrics_commands = self
+            .protocol_commands
+            .clients_metrics_command(clients, parameters);
 
         // TODO: Remove this when consensus client latency metrics are available.
         // We will be getting latency metrics directly from consensus nodes instead from

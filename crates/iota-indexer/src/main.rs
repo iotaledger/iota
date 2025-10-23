@@ -49,7 +49,7 @@ async fn main() -> Result<(), IndexerError> {
 
     if let Command::HelpDeprecated = opts.command {
         OldIndexerConfig::command().print_help().map_err(|e| {
-            IndexerError::Generic(format!("Failed printing deprecated CLI help: {e}"))
+            IndexerError::Generic(format!("failed printing deprecated CLI help: {e}"))
         })?;
         return Ok(());
     }
@@ -119,7 +119,7 @@ async fn main() -> Result<(), IndexerError> {
             let store = PgIndexerAnalyticalStore::new(connection_pool);
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
-        Command::HelpDeprecated => unreachable!("This case is handled earlier"),
+        Command::HelpDeprecated => unreachable!("this case is handled earlier"),
         Command::RunBackfill {
             start,
             end,

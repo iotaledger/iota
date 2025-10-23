@@ -152,6 +152,7 @@ vercel.json @iotaledger/tooling
 /scripts/generate_files/ @muXxer
 /scripts/tooling/ @iotaledger/tooling
 /scripts/utils/ @muXxer
+/scripts/release_notes/ @dev-tools
 
 # Other
 /kiosk/ @iotaledger/vm-language
