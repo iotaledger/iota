@@ -60,7 +60,6 @@ export function getIotaApplicationErrorMessage(error: unknown) {
     if (error instanceof LockedDeviceError) {
         return 'Your device is locked. Unlock it and try again.';
     } else if (isLedgerTransportStatusError(error)) {
-        console.log(error);
         if (error.statusCode === StatusCodes.INS_NOT_SUPPORTED) {
             return "Something went wrong. We're working on it!";
         } else {
