@@ -319,6 +319,16 @@ impl ConsensusAuthority {
             );
         }
 
+        if let Err(e) = self.cordial_knowledge.stop().await {
+            if e.is_panic() {
+                std::panic::resume_unwind(e.into_panic());
+            }
+            warn!(
+                "Failed to stop cordial knowledge manager when shutting down consensus: {:?}",
+                e
+            );
+        }
+
         self.commit_syncer_handle.stop().await;
         self.leader_timeout_handle.stop().await;
         // Shutdown Core to stop block productions and broadcast.

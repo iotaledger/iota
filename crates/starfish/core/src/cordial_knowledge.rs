@@ -13,20 +13,19 @@ use starfish_config::AuthorityIndex;
 use tokio::{
     sync::{
         Mutex,
-        mpsc::{Receiver, Sender, UnboundedReceiver, UnboundedSender, channel, unbounded_channel},
-        oneshot,
+        mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel},
     },
     task::JoinError,
 };
-use tracing::{debug, warn};
+use tracing::debug;
 
 use crate::{
     BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader,
-    block_header::{BlockHeaderDigest, GENESIS_ROUND},
+    block_header::{BlockHeaderDigest, GENESIS_ROUND, VerifiedBlock},
     context::Context,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
-    network::SerializedBlockBundleParts,
+    network::{BlockBundle, SerializedBlockBundleParts},
 };
 
 /// Maximum round gap to consider a peer's useful shards/headers as still
@@ -71,6 +70,15 @@ impl SubsetAuthorities {
     }
 }
 
+/// Dissemination workers allows to reduce contention from a single runner of
+/// CordialKnowledge. Otherwise, acquiring write locks for each update in
+/// CordialKnowledge could take a significant time. For instance, for 150
+/// validators and 20 blocks per second, we could expect almost 10000 updates in
+/// CordialKnowledge, each of which requires 150 write locks for
+/// CordialKnowledge. One write lock could take 500ns, which results in
+/// 750ms spent only for locks.
+const NUMBER_OF_DISSEMINATION_WORKER: usize = 5;
+
 /// Manages the global cordial knowledge state.
 /// Receives high-level updates from DAG state and Authority service and
 /// notifies per-connection tasks.
@@ -95,9 +103,16 @@ pub(crate) struct CordialKnowledge {
     /// tuple of (ancestors, who knows the block header).
     cordial_knowledge:
         Vec<BTreeMap<Round, AHashMap<BlockHeaderDigest, (Ancestors, SubsetAuthorities)>>>,
-    /// Per-connection message channels. They are used to notify each
-    /// connection task about updates from cordial knowledge.
-    connections: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
+    /// Each Connection Knowledge corresponds to one peer. Using special
+    /// dissemination workers, CordialKnowledge disseminate information to
+    /// these components using dissemination workers.
+    connection_knowledges: Vec<Arc<RwLock<ConnectionKnowledge>>>,
+    /// Sender of updates to ConnectionKnowledges. Updates are produced by
+    /// CordialKnowledge
+    dissemination_sender: UnboundedSender<Vec<Vec<ConnectionKnowledgeMessage>>>,
+    /// Receiver for updates to ConnectionKnowledges. Used Mutex for multiple
+    /// workers
+    dissemination_receiver: Arc<Mutex<UnboundedReceiver<Vec<Vec<ConnectionKnowledgeMessage>>>>>,
 }
 
 /// High-level messages sent to the CordialKnowledge task.
@@ -117,6 +132,7 @@ pub enum CordialKnowledgeMessage {
 }
 
 impl CordialKnowledgeMessage {
+    /// Outputs the type of CordialKnowledgeMessage in a string slice format
     fn type_label(&self) -> &'static str {
         match self {
             CordialKnowledgeMessage::NewHeader(_) => "New header",
@@ -131,20 +147,20 @@ impl CordialKnowledgeMessage {
 /// shutdown.
 pub struct CordialKnowledgeHandle {
     cordial_knowledge_sender: UnboundedSender<CordialKnowledgeMessage>,
-    connection_knowledge_senders: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
-    connection_handles: Mutex<Vec<Option<tokio::task::JoinHandle<()>>>>,
+    connection_knowledges: Vec<Arc<RwLock<ConnectionKnowledge>>>,
     join_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 impl CordialKnowledgeHandle {
-    /// Get a specific sender to send messages to the respected
-    /// ConnectionKnowledge task.
-    pub fn connection_knowledge_sender(
+    /// Outputs specific ConnectionKnowledge corresponding to a given
+    /// AuthorityIndex.
+    pub fn connection_knowledge(
         &self,
         authority_index: AuthorityIndex,
-    ) -> Sender<Vec<ConnectionKnowledgeMessage>> {
-        self.connection_knowledge_senders[authority_index].clone()
+    ) -> Arc<RwLock<ConnectionKnowledge>> {
+        self.connection_knowledges[authority_index].clone()
     }
+
     /// Gracefully stop the CordialKnowledge background task and all connection
     /// tasks.
     pub async fn stop(&self) -> Result<(), JoinError> {
@@ -160,25 +176,11 @@ impl CordialKnowledgeHandle {
             }
         }
 
-        // --- Stop all per-connection tasks ---
-        let mut conn_guard = self.connection_handles.lock().await;
-        for handle_opt in conn_guard.iter_mut() {
-            if let Some(handle) = handle_opt.take() {
-                handle.abort();
-                match handle.await {
-                    Ok(_) => (),
-                    Err(e) if e.is_cancelled() => (),
-                    Err(e) => return Err(e),
-                }
-            }
-        }
-
         Ok(())
     }
-
-    // Report from Authority Service useful information about headers and
+    /// Report from AuthorityService useful information about headers and
     /// shards to global knowledge and connection knowledge.
-    pub async fn report_useful_authors(
+    pub fn report_useful_authors(
         &self,
         peer: AuthorityIndex,
         serialized_block_bundle_parts: &SerializedBlockBundleParts,
@@ -186,7 +188,6 @@ impl CordialKnowledgeHandle {
         missing_ancestors: &BTreeSet<BlockRef>,
         block_round: Round,
     ) -> ConsensusResult<()> {
-        let connection_knowledge_sender = &self.connection_knowledge_senders[peer];
         let cordial_knowledge_sender = &self.cordial_knowledge_sender;
         // Extract authorities this peer has useful headers from
         let useful_headers_authors_from_peer = additional_block_headers
@@ -235,17 +236,18 @@ impl CordialKnowledgeHandle {
             useful_headers_from_peer,
             useful_shards_from_peers: vec![],
         };
-        connection_knowledge_sender
-            .send(vec![connection_knowledge_message])
-            .await
-            .map_err(|_err| ConsensusError::Shutdown)?;
-
+        {
+            let mut connection_knowledge_guard = self.connection_knowledges[peer].write();
+            connection_knowledge_guard.process_one_message(connection_knowledge_message);
+        }
         // Notify global cordial knowledge about useful shards from this peer
-        let cordial_knowledge_message =
-            CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shard_authors);
-        cordial_knowledge_sender
-            .send(cordial_knowledge_message)
-            .map_err(|_err| ConsensusError::Shutdown)?;
+        if !useful_shard_authors.is_empty() {
+            let cordial_knowledge_message =
+                CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shard_authors);
+            cordial_knowledge_sender
+                .send(cordial_knowledge_message)
+                .map_err(|_err| ConsensusError::Shutdown)?;
+        }
 
         Ok(())
     }
@@ -254,13 +256,10 @@ impl CordialKnowledgeHandle {
 impl CordialKnowledge {
     /// Create a new CordialKnowledge instance along with its associated
     /// channels.
-    pub fn new(
+    fn new(
         context: Arc<Context>,
-    ) -> (
-        Self,
-        UnboundedSender<CordialKnowledgeMessage>,
-        Vec<Receiver<Vec<ConnectionKnowledgeMessage>>>,
-    ) {
+        dag_state: Arc<RwLock<DagState>>,
+    ) -> (Self, UnboundedSender<CordialKnowledgeMessage>) {
         let num_authorities = context.committee.size();
 
         // Main unbounded channel for high-level DAG updates
@@ -269,31 +268,67 @@ impl CordialKnowledge {
             UnboundedReceiver<CordialKnowledgeMessage>,
         ) = unbounded_channel();
 
-        // Bounded per-connection channels for controlled flow
-        let mut connections = Vec::new();
-        let mut receivers = Vec::new();
+        let (dissemination_sender, dissemination_receiver) = unbounded_channel();
+        let dissemination_receiver = Arc::new(Mutex::new(dissemination_receiver));
 
-        for _ in 0..num_authorities {
-            let (connection_sender, connection_receiver): (
-                Sender<Vec<ConnectionKnowledgeMessage>>,
-                Receiver<Vec<ConnectionKnowledgeMessage>>,
-            ) = channel(512);
+        let mut connection_knowledges = Vec::with_capacity(num_authorities);
 
-            connections.push(connection_sender);
-            receivers.push(connection_receiver);
+        for _index in 0..num_authorities {
+            let connection_knowledge = ConnectionKnowledge::new(context.clone(), dag_state.clone());
+
+            let connection_knowledge = Arc::new(RwLock::new(connection_knowledge));
+
+            connection_knowledges.push(connection_knowledge);
         }
 
         (
             Self {
                 context,
-                connections,
                 cordial_knowledge_receiver,
+                connection_knowledges,
+                dissemination_sender,
+                dissemination_receiver,
                 cordial_knowledge: vec![BTreeMap::new(); num_authorities],
                 last_useful_shards_from_peer_round: vec![None; num_authorities],
             },
             cordial_knowledge_sender,
-            receivers,
         )
+    }
+
+    fn start_dissemination_workers(&self) {
+        for _ in 0..NUMBER_OF_DISSEMINATION_WORKER {
+            let dissemination_receiver = Arc::clone(&self.dissemination_receiver);
+            let connection_knowledges = self.connection_knowledges.clone();
+            tokio::spawn(async move {
+                loop {
+                    // Receive a job from the dissemination channel
+                    let job = {
+                        let mut rx = dissemination_receiver.lock().await;
+                        rx.recv().await
+                    };
+
+                    match job {
+                        Some(vec_msgs) => {
+                            for (connection_knowledge, msgs) in
+                                connection_knowledges.iter().zip(vec_msgs.into_iter())
+                            {
+                                if !msgs.is_empty() {
+                                    let mut connection_knowledge_guard =
+                                        connection_knowledge.write();
+                                    connection_knowledge_guard.process_vec_messages(msgs)
+                                }
+                            }
+                        }
+                        None => {
+                            debug!(
+                                "Dissemination to Connection Knowledge channel closed, workers exiting"
+                            );
+                            break;
+                        }
+                    }
+                }
+            });
+        }
     }
 
     /// Start the CordialKnowledge task and all ConnectionKnowledge tasks.
@@ -304,30 +339,8 @@ impl CordialKnowledge {
         dag_state: Arc<RwLock<DagState>>,
     ) -> Arc<CordialKnowledgeHandle> {
         // Build main CordialKnowledge and associated channels
-        let (cordial_knowledge, sender, receivers) = CordialKnowledge::new(context.clone());
-        let num_authorities = context.committee.size();
-
-        let connection_knowledge_sender = cordial_knowledge.connections.clone();
-
-        // Spawn one ConnectionKnowledge task per authority
-        let mut connection_handles = Vec::with_capacity(num_authorities);
-
-        for (authority_index, receiver) in receivers.into_iter().enumerate() {
-            let connection_knowledge = ConnectionKnowledge::new(
-                context.clone(),
-                dag_state.clone(),
-                authority_index,
-                receiver,
-            );
-
-            // Spawn async run() for each peer connection
-            let task_handle = tokio::spawn(async move {
-                connection_knowledge.run().await;
-            });
-
-            connection_handles.push(Some(task_handle));
-        }
-
+        let (cordial_knowledge, sender) = CordialKnowledge::new(context.clone(), dag_state.clone());
+        let connection_knowledges = cordial_knowledge.connection_knowledges.clone();
         // Spawn the main CordialKnowledge loop
         let join_handle = tokio::spawn(async move {
             cordial_knowledge.run().await;
@@ -340,8 +353,7 @@ impl CordialKnowledge {
         // Return handle with all pieces assembled
         Arc::new(CordialKnowledgeHandle {
             cordial_knowledge_sender: sender,
-            connection_knowledge_senders: connection_knowledge_sender,
-            connection_handles: Mutex::new(connection_handles),
+            connection_knowledges,
             join_handle: Mutex::new(Some(join_handle)),
         })
     }
@@ -349,14 +361,15 @@ impl CordialKnowledge {
     /// Main async loop: receives high-level updates (headers, shards,
     /// evictions) from DAG state and updates global knowledge + notifies
     /// per-connection tasks.
-    pub async fn run(mut self) {
+    async fn run(mut self) {
+        debug!("Dissemination to ConnectionKnowledge workers started");
+        self.start_dissemination_workers();
         debug!("Cordial Knowledge main loop started");
 
         loop {
             match self.cordial_knowledge_receiver.recv().await {
                 Some(msg) => {
-                    // Handle the first received message
-                    self.process_message(msg).await;
+                    self.process_message(msg);
 
                     // Report the buffer size after processing the first message
                     let buffer_size = self.cordial_knowledge_receiver.len() + 1;
@@ -377,7 +390,7 @@ impl CordialKnowledge {
     }
 
     /// Processes a single high-level cordial knowledge message.
-    async fn process_message(&mut self, cordial_knowledge_message: CordialKnowledgeMessage) {
+    fn process_message(&mut self, cordial_knowledge_message: CordialKnowledgeMessage) {
         // Report the type of message
         self.context
             .metrics
@@ -387,80 +400,101 @@ impl CordialKnowledge {
             .inc();
 
         // Handle the cordial knowledge message depending on its type
-        match cordial_knowledge_message {
-            CordialKnowledgeMessage::NewHeader(header) => {
-                self.update_cordial_knowledge(&header).await;
-            }
-            CordialKnowledgeMessage::NewShard(block_ref) => {
-                self.handle_new_shard(block_ref).await;
-            }
-            CordialKnowledgeMessage::EvictBelow(round) => {
-                self.handle_evict_below(round).await;
-            }
+        let vec_connection_knowledge_msgs = match cordial_knowledge_message {
+            CordialKnowledgeMessage::NewHeader(header) => self.update_cordial_knowledge(&header),
+            CordialKnowledgeMessage::NewShard(block_ref) => self.prepare_new_shard_msgs(block_ref),
+            CordialKnowledgeMessage::EvictBelow(round) => self.handle_evict_below(round),
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
                 self.handle_useful_shards_from(useful_shards_from_peer)
-                    .await;
             }
         };
+        if let Some(vec_msgs) = vec_connection_knowledge_msgs {
+            let _ = self.dissemination_sender.send(vec_msgs);
+        }
     }
 
     // Helper function to update authority rounds if the new round is greater
     fn update_authority_rounds_if_greater(
         target: &mut [Option<Round>],
         updates: BTreeMap<AuthorityIndex, Round>,
-    ) {
+    ) -> bool {
+        let mut changed = false;
         for (authority, new_round) in updates {
             if let Some(existing_round) = &mut target[authority.value()] {
                 if new_round > *existing_round {
                     *existing_round = new_round;
+                    changed = true;
                 }
             } else {
                 target[authority.value()] = Some(new_round);
+                changed = true;
             }
         }
+        changed
     }
 
     /// Update global knowledge about shards from which authors will be useful
     /// for us
-    async fn handle_useful_shards_from(
+    fn handle_useful_shards_from(
         &mut self,
         useful_shards_from_peer: BTreeMap<AuthorityIndex, Round>,
-    ) {
-        Self::update_authority_rounds_if_greater(
+    ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
+        if Self::update_authority_rounds_if_greater(
             &mut self.last_useful_shards_from_peer_round,
             useful_shards_from_peer,
-        );
-        self.disseminate_useful_info_to_connection_tasks().await;
+        ) {
+            self.prepare_useful_shards_from_peers_msgs()
+        } else {
+            None
+        }
     }
 
-    /// Disseminate updated useful info to all connection tasks.
-    async fn disseminate_useful_info_to_connection_tasks(&mut self) {
-        for connection_sender in &self.connections {
+    /// Prepare useful authors message for each connection knowledge.
+    fn prepare_useful_shards_from_peers_msgs(
+        &mut self,
+    ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
+        let mut vec_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
+            Vec::with_capacity(self.connection_knowledges.len());
+        for index in 0..self.connection_knowledges.len() {
+            if index == self.context.own_index.value() {
+                vec_msgs.push(vec![]);
+                continue;
+            }
             let msg = ConnectionKnowledgeMessage::UsefulAuthors {
                 useful_shards_from_peers: self.last_useful_shards_from_peer_round.clone(),
                 useful_headers_from_peer: BTreeMap::new(),
                 useful_headers_to_peer: BTreeMap::new(),
                 useful_shards_to_peer: BTreeMap::new(),
             };
-            if let Err(e) = connection_sender.send(vec![msg]).await {
-                warn!("Failed to send useful info to connection task: {}", e);
-            }
+            vec_msgs.push(vec![msg]);
         }
+        Some(vec_msgs)
     }
 
     /// Called when a new own shard (created locally) is added to dag state.
-    async fn handle_new_shard(&mut self, block_ref: BlockRef) {
-        for (index, tx) in self.connections.iter().enumerate() {
+    fn prepare_new_shard_msgs(
+        &mut self,
+        block_ref: BlockRef,
+    ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
+        let mut vec_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
+            Vec::with_capacity(self.connection_knowledges.len());
+        for index in 0..self.connection_knowledges.len() {
+            // Don't send own shard to the author of the block and local node
             if index == block_ref.author.value() || index == self.context.own_index.value() {
+                vec_msgs.push(vec![]);
                 continue;
             }
             let msg = ConnectionKnowledgeMessage::NewShard { block_ref };
-            let _ = tx.send(vec![msg]).await;
+            vec_msgs.push(vec![msg]);
         }
+        Some(vec_msgs)
     }
 
     /// Called when older rounds should be pruned globally.
-    async fn handle_evict_below(&mut self, rounds: Vec<Round>) {
+    fn handle_evict_below(
+        &mut self,
+        rounds: Vec<Round>,
+    ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         // Evict locally
         for (index, btree_map) in &mut self.cordial_knowledge.iter_mut().enumerate() {
             let split_round = rounds[index];
@@ -489,15 +523,21 @@ impl CordialKnowledge {
             .cordial_knowledge_useful_shards
             .set(useful_shards_from_peer_count as i64);
 
-        // Notify per-connection tasks about eviction
-        self.notify_connection_tasks_for_eviction(rounds).await;
+        // Prepare message for per-connection knowledge about eviction
+        self.prepare_evict_msgs(rounds)
     }
     #[inline]
-    async fn notify_connection_tasks_for_eviction(&self, rounds: Vec<Round>) {
-        for tx in &self.connections {
+    fn prepare_evict_msgs(
+        &self,
+        rounds: Vec<Round>,
+    ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
+        let mut vec_msgs: Vec<Vec<ConnectionKnowledgeMessage>> =
+            Vec::with_capacity(self.connection_knowledges.len());
+        for _ in 0..self.connection_knowledges.len() {
             let msg = ConnectionKnowledgeMessage::EvictBelow(rounds.clone());
-            let _ = tx.send(vec![msg]).await;
+            vec_msgs.push(vec![msg]);
         }
+        Some(vec_msgs)
     }
 
     /// Update cordial knowledge for exactly one new header.
@@ -508,7 +548,10 @@ impl CordialKnowledge {
     /// marked as known by the block author as well.
     /// At the end, we notify all connections about new
     /// knowledge changes.
-    async fn update_cordial_knowledge(&mut self, header: &VerifiedBlockHeader) {
+    fn update_cordial_knowledge(
+        &mut self,
+        header: &VerifiedBlockHeader,
+    ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         let block_ref = header.reference();
         let block_author = block_ref.author.value();
         let block_round = block_ref.round;
@@ -527,7 +570,7 @@ impl CordialKnowledge {
 
         // Already recorded — nothing else to do.
         if round_map.contains_key(&block_digest) {
-            return;
+            return None;
         }
 
         // Insert block into cordial knowledge
@@ -594,19 +637,7 @@ impl CordialKnowledge {
                 }
             }
         }
-
-        // 5) Send all accumulated knowledge messages
-        self.send_connection_knowledge_messages(vec_knowledge_msgs)
-            .await;
-    }
-
-    /// Send accumulated connection knowledge messages to all connection tasks.
-    async fn send_connection_knowledge_messages(&self, msgs: Vec<Vec<ConnectionKnowledgeMessage>>) {
-        for (index, msg) in msgs.into_iter().enumerate() {
-            if !msg.is_empty() {
-                let _ = self.connections[index].send(msg).await;
-            }
-        }
+        Some(vec_knowledge_msgs)
     }
 }
 
@@ -628,12 +659,6 @@ pub enum ConnectionKnowledgeMessage {
         useful_headers_from_peer: BTreeMap<AuthorityIndex, Round>,
         useful_shards_from_peers: Vec<Option<Round>>,
     },
-    /// Take useful headers and shards for authorities, up to the given round
-    /// (exclusive).
-    TakeAdditionalPartForBundle {
-        round_upper_bound_exclusive: Round,
-        respond_to: oneshot::Sender<AdditionalPartsForBundle>,
-    },
     /// Global eviction (prune below round)
     EvictBelow(Vec<Round>),
 }
@@ -643,8 +668,6 @@ pub enum ConnectionKnowledgeMessage {
 pub struct ConnectionKnowledge {
     context: Arc<Context>,
     dag_state: Arc<RwLock<DagState>>,
-    /// Index of the peer authority this connection knowledge is for
-    peer_index: usize,
     /// Keeps track of which headers are not known by the peer yet.
     headers_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
     /// Keeps track of which shards are not known by the peer yet.
@@ -661,27 +684,10 @@ pub struct ConnectionKnowledge {
     /// Last rounds for (potentially) useful headers that could be received from
     /// this peer
     last_useful_headers_from_peer_round: Vec<Option<Round>>,
-    /// Receives updates from the global cordial knowledge
-    receiver: Receiver<Vec<ConnectionKnowledgeMessage>>,
-}
-
-/// Additional parts (headers, shards, useful_headers_authors,
-/// useful_shards_authors) to include in a block bundle for a peer.
-#[derive(Debug)]
-pub(crate) struct AdditionalPartsForBundle {
-    pub headers: Vec<VerifiedBlockHeader>,
-    pub shards: Vec<Bytes>,
-    pub useful_headers_authors_from_peer: BTreeSet<AuthorityIndex>,
-    pub useful_shards_authors_from_peer: BTreeSet<AuthorityIndex>,
 }
 
 impl ConnectionKnowledge {
-    pub fn new(
-        context: Arc<Context>,
-        dag_state: Arc<RwLock<DagState>>,
-        peer_index: usize,
-        receiver: Receiver<Vec<ConnectionKnowledgeMessage>>,
-    ) -> Self {
+    pub fn new(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
         let num_authorities = context.committee.size();
 
         Self {
@@ -691,10 +697,14 @@ impl ConnectionKnowledge {
             last_useful_headers_from_peer_round: vec![None; num_authorities],
             last_useful_shards_from_peer_round: vec![None; num_authorities],
             context,
-            peer_index,
             headers_not_known: vec![BTreeMap::new(); num_authorities],
             shards_not_known: vec![BTreeMap::new(); num_authorities],
-            receiver,
+        }
+    }
+
+    fn process_vec_messages(&mut self, msgs: Vec<ConnectionKnowledgeMessage>) {
+        for msg in msgs {
+            self.process_one_message(msg);
         }
     }
     /// Take useful block refs (headers or shards) for the given authorities
@@ -800,27 +810,10 @@ impl ConnectionKnowledge {
         }
     }
 
-    /// Async task loop —  receives messages and dispatches to processing
-    /// logic.
-    pub async fn run(mut self) {
-        debug!("Connection Knowledge started for peer {}", self.peer_index);
-
-        while let Some(knowledge_msgs) = self.receiver.recv().await {
-            for knowledge_msg in knowledge_msgs {
-                self.process_message(knowledge_msg).await;
-            }
-        }
-
-        debug!(
-            "Connection Knowledge loop ended for peer {}",
-            self.peer_index
-        );
-    }
-
     /// Processes a batch of knowledge updates for this connection.
     /// The only async message is `TakeAdditionalPartForBundle`, which awaits
     /// and provides the additional parts for the bundle
-    async fn process_message(&mut self, message: ConnectionKnowledgeMessage) {
+    pub fn process_one_message(&mut self, message: ConnectionKnowledgeMessage) {
         match message {
             ConnectionKnowledgeMessage::NewHeader { block_ref } => {
                 self.handle_new_header(block_ref);
@@ -849,16 +842,6 @@ impl ConnectionKnowledge {
                     useful_headers_from_peer,
                     useful_shards_from_peer,
                 );
-            }
-            ConnectionKnowledgeMessage::TakeAdditionalPartForBundle {
-                round_upper_bound_exclusive,
-                respond_to,
-            } => {
-                self.handle_take_additional_parts_for_bundle(
-                    round_upper_bound_exclusive,
-                    respond_to,
-                )
-                .await;
             }
         }
     }
@@ -923,11 +906,8 @@ impl ConnectionKnowledge {
     /// the peer can send additional headers and shards to the peer.
     /// This is an async function because it reads from the DAG state and
     /// sends the response back via oneshot channel.
-    async fn handle_take_additional_parts_for_bundle(
-        &mut self,
-        round_upper_bound_exclusive: Round,
-        respond_to: oneshot::Sender<AdditionalPartsForBundle>,
-    ) {
+    pub fn create_bundle(&mut self, block: VerifiedBlock) -> BlockBundle {
+        let round_upper_bound_exclusive = block.round();
         // 1. Own headers and shards for round up to round_upper_bound_exclusive should
         //    be marked as known
         let own_index = self.context.own_index;
@@ -985,7 +965,7 @@ impl ConnectionKnowledge {
             round_upper_bound_exclusive,
             &useful_shards_authors_to_peer,
         );
-        let useful_shards: Vec<Bytes> = {
+        let useful_shards_to_peer: Vec<Bytes> = {
             let dag_state_read = self.dag_state.read();
             dag_state_read
                 .get_cached_shards(&useful_shards_block_refs_to_peer)
@@ -1027,15 +1007,13 @@ impl ConnectionKnowledge {
             })
             .collect::<BTreeSet<AuthorityIndex>>();
 
-        // 6. Build a response message and send it back
-        let message = AdditionalPartsForBundle {
-            headers: useful_headers_to_peer,
-            shards: useful_shards,
-            useful_headers_authors_from_peer,
-            useful_shards_authors_from_peer,
-        };
-
-        respond_to.send(message).ok();
+        BlockBundle {
+            verified_block: block,
+            verified_headers: useful_headers_to_peer,
+            serialized_shards: useful_shards_to_peer,
+            useful_headers_authors: useful_headers_authors_from_peer,
+            useful_shards_authors: useful_shards_authors_from_peer,
+        }
     }
 
     /// Handles adding a new header to the set of potentially unknown headers
@@ -1098,6 +1076,7 @@ mod tests {
 
     use super::*;
     use crate::{
+        TestBlockHeader,
         block_header::{VerifiedBlock, VerifiedOwnShard},
         context::Context,
         dag_state::DagState,
@@ -1173,8 +1152,7 @@ mod tests {
         }
 
         // Report useful info to connection knowledge corresponding to to_whom_index
-        let connection_knowledge_sender =
-            cordial_knowledge.connection_knowledge_senders[to_whom_index].clone();
+        let connection_knowledge = cordial_knowledge.connection_knowledges[to_whom_index].clone();
         // Inject useful info for connection knowledge of peer 1 (B)
         // A says that C and D are useful for headers and shards when receiving from B
         // B says that A and C are useful for headers and shards when sending from A
@@ -1193,7 +1171,9 @@ mod tests {
             ]),
             useful_shards_from_peers: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
         };
-        let _ = connection_knowledge_sender.send(vec![msg]).await;
+        {
+            connection_knowledge.write().process_one_message(msg);
+        }
 
         // get all blocks of D. They will be injected to dag state at final_round
         let d_blocks = all_blocks
@@ -1239,16 +1219,16 @@ mod tests {
             sleep(std::time::Duration::from_millis(1)).await; // give some time for cordial knowledge to update
             // By default, for MAX_ROUND_GAP_FOR_USEFUL_PARTS rounds, all unknown
             // shards/headers are useful
-            let (tx, rx) = oneshot::channel();
-            let msg = ConnectionKnowledgeMessage::TakeAdditionalPartForBundle {
-                round_upper_bound_exclusive: round + 1,
-                respond_to: tx,
+            let block_bundle = {
+                connection_knowledge
+                    .write()
+                    .create_bundle(all_blocks[round as usize + 1][our_index].clone())
             };
-            let _ = connection_knowledge_sender.send(vec![msg]).await;
-            let additional_parts = rx.await.unwrap();
-            let AdditionalPartsForBundle {
-                headers, shards, ..
-            } = additional_parts;
+            let BlockBundle {
+                verified_headers: headers,
+                serialized_shards: shards,
+                ..
+            } = block_bundle;
             // In rounds 1..final_round, A should not know any of D's blocks, so no headers
             // or shards should be sent to B.
             if round < final_round - 1 {
@@ -1298,13 +1278,12 @@ mod tests {
         let (context, key_pairs) = Context::new_for_test(validators);
         let protocol_keypairs = key_pairs.iter().map(|kp| kp.1.clone()).collect();
         let context = Arc::new(context);
-        let final_round: Round = 6;
+        let final_round: Round = MAX_ROUND_GAP_FOR_USEFUL_PARTS / 2;
         let store = Arc::new(MemStore::new());
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
         let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
         // Report useful info to connection knowledge corresponding to to_whom_index
-        let connection_knowledge_sender =
-            cordial_knowledge.connection_knowledge_senders[to_whom_index].clone();
+        let connection_knowledge = cordial_knowledge.connection_knowledges[to_whom_index].clone();
         // Inject useful info
         let msg = ConnectionKnowledgeMessage::UsefulAuthors {
             useful_headers_to_peer: BTreeMap::from([
@@ -1321,7 +1300,9 @@ mod tests {
             ]),
             useful_shards_from_peers: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
         };
-        let _ = connection_knowledge_sender.send(vec![msg]).await;
+        {
+            connection_knowledge.write().process_one_message(msg);
+        }
         // Build DAG with blocks from all validators up to final_round and add to
         // dag_state
         let mut dag_builder =
@@ -1331,20 +1312,21 @@ mod tests {
             .build()
             .persist_layers(dag_state.clone());
         sleep(std::time::Duration::from_millis(1)).await;
-
-        let (tx, rx) = oneshot::channel();
-        let msg = ConnectionKnowledgeMessage::TakeAdditionalPartForBundle {
-            round_upper_bound_exclusive: final_round + 1,
-            respond_to: tx,
+        // create dummy own verified block for next round to create a bundle
+        let verified_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(final_round + 1, our_index.value() as u8).build(),
+        );
+        let bundle = {
+            connection_knowledge
+                .write()
+                .create_bundle(verified_block.clone())
         };
-        let _ = connection_knowledge_sender.send(vec![msg]).await;
-        let additional_parts = rx.await.unwrap();
-        let AdditionalPartsForBundle {
-            headers,
-            shards: _,
-            useful_headers_authors_from_peer,
-            useful_shards_authors_from_peer,
-        } = additional_parts;
+        let BlockBundle {
+            verified_headers: headers,
+            useful_shards_authors: useful_headers_authors_from_peer,
+            useful_headers_authors: useful_shards_authors_from_peer,
+            ..
+        } = bundle;
         // Only headers and shards from authorities 2 and 3 should be included
         assert_eq!(headers.len(), 2);
         assert!(
@@ -1361,14 +1343,19 @@ mod tests {
             BTreeSet::from([1, 3].map(AuthorityIndex::new_for_test))
         );
         // Repeat the request, should get no headers this time
-        let (tx, rx) = oneshot::channel();
-        let msg = ConnectionKnowledgeMessage::TakeAdditionalPartForBundle {
-            round_upper_bound_exclusive: final_round + 1,
-            respond_to: tx,
+        // create dummy own verified block for next round to create a bundle
+        let verified_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(final_round + 1, our_index.value() as u8).build(),
+        );
+        let bundle = {
+            connection_knowledge
+                .write()
+                .create_bundle(verified_block.clone())
         };
-        let _ = connection_knowledge_sender.send(vec![msg]).await;
-        let additional_parts = rx.await.unwrap();
-        let AdditionalPartsForBundle { headers, .. } = additional_parts;
+        let BlockBundle {
+            verified_headers: headers,
+            ..
+        } = bundle;
         assert_eq!(headers.len(), 0);
 
         // Add more rounds to DAG
@@ -1382,19 +1369,22 @@ mod tests {
         // Make a request for a last round, should get no headers, no shards and no
         // useful authorities as the last useful rounds are beyond
         // MAX_ROUND_GAP_FOR_USEFUL_PARTS from last_round
-        let (tx, rx) = oneshot::channel();
-        let msg = ConnectionKnowledgeMessage::TakeAdditionalPartForBundle {
-            round_upper_bound_exclusive: last_round + 1,
-            respond_to: tx,
+        // create dummy own verified block for next round to create a bundle
+        let verified_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new(last_round + 1, our_index.value() as u8).build(),
+        );
+        let bundle = {
+            connection_knowledge
+                .write()
+                .create_bundle(verified_block.clone())
         };
-        let _ = connection_knowledge_sender.send(vec![msg]).await;
-        let additional_parts = rx.await.unwrap();
-        let AdditionalPartsForBundle {
-            headers,
-            shards,
-            useful_headers_authors_from_peer,
-            useful_shards_authors_from_peer,
-        } = additional_parts;
+        let BlockBundle {
+            verified_headers: headers,
+            serialized_shards: shards,
+            useful_shards_authors: useful_headers_authors_from_peer,
+            useful_headers_authors: useful_shards_authors_from_peer,
+            ..
+        } = bundle;
         assert!(headers.is_empty());
         assert!(shards.is_empty());
         assert!(useful_headers_authors_from_peer.is_empty());
