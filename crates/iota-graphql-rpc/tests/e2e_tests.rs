@@ -604,7 +604,7 @@ mod tests {
         assert_eq!(
             transactions.len(),
             2,
-            "2 real transactions should be present in the reponse, fake transaction should be skipped"
+            "2 real transactions should be present in the response, fake transaction should be skipped"
         );
         let returned_digests: Vec<String> = transactions
             .iter()
