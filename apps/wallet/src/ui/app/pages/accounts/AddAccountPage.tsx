@@ -26,7 +26,7 @@ import {
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
 import { useAppSelector, useCheckCameraPermissionStatus, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
-import { Create, ImportPass, Key, Seed, Ledger, Keystone } from '@iota/apps-ui-icons';
+import { Create, ImportPass, Key, Seed, Ledger, Keystone, Passkey } from '@iota/apps-ui-icons';
 import Browser from 'webextension-polyfill';
 import { openInNewTab } from '_src/shared/utils';
 import clsx from 'clsx';
@@ -82,7 +82,7 @@ export function AddAccountPage() {
                 },
                 {
                     title: 'New Passkey Profile',
-                    icon: Key,
+                    icon: Passkey,
                     actionType: AccountsFormType.Passkey,
                     isDisabled: createAccountsMutation.isPending,
                 },
@@ -105,7 +105,7 @@ export function AddAccountPage() {
                 },
                 {
                     title: 'Passkey',
-                    icon: Key,
+                    icon: Passkey,
                     actionType: AccountsFormType.ImportPasskey,
                     isDisabled: createAccountsMutation.isPending,
                 },
