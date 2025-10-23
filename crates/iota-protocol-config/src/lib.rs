@@ -78,6 +78,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 //             Enable processing and tracking AuthorityCapabilitiesV1 from
 //             non-committee validators in the devnet.
 // Version 14: Switches the consensus protocol to Starfish in devnet.
+//             Enable batched consensus synchronization on Mainnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -2237,6 +2238,8 @@ impl ProtocolConfig {
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
                         cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
                     }
+                    // Enable batched block sync in all networks
+                    cfg.feature_flags.consensus_batched_block_sync = true;
                 }
                 // Use this template when making changes:
                 //
