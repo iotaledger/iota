@@ -79,7 +79,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 //             non-committee validators in the devnet.
 // Version 14: Switches the consensus protocol to Starfish in devnet.
 //             Enable median-based commit timestamp calculation in consensus,
-//             and checkpoint timestamps are non-decreasing for devnet.
+//             and enforce checkpoint timestamp monotonicity for devnet.
 //             Enable batched block sync for mainnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
