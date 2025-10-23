@@ -33,7 +33,7 @@ pub type DeletedSharedObjectInfo = (ObjectID, SequenceNumber, bool, TransactionD
 /// inputs.
 pub type DeletedSharedObjects = Vec<DeletedSharedObjectInfo>;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum SharedInput {
     Existing(ObjectRef),
     Deleted(DeletedSharedObjectInfo),

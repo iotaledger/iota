@@ -3193,6 +3193,17 @@ impl InputObjects {
         owned_objects
     }
 
+    pub fn shared_objects_set(&self) -> HashSet<SharedInput> {
+        self.objects
+            .iter()
+            .filter(|obj| obj.is_shared_object())
+            .map(|obj| {
+                obj.to_shared_input()
+                    .expect("already filtered for shared objects")
+            })
+            .collect()
+    }
+
     pub fn filter_shared_objects(&self) -> Vec<SharedInput> {
         self.objects
             .iter()

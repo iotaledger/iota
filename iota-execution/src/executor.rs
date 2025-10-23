@@ -134,7 +134,7 @@ pub trait Executor {
         authenticated_transaction_digest: TransactionDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> (IotaGasStatus, Result<(), ExecutionError>);
+    ) -> Result<(), ExecutionError>;
 
     fn update_genesis_state(
         &self,

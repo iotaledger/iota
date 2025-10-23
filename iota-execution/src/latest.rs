@@ -106,7 +106,6 @@ impl executor::Executor for Executor {
             enable_expensive_checks,
             certificate_deny_set,
             trace_builder_opt,
-            None,
         )
     }
 
@@ -149,7 +148,6 @@ impl executor::Executor for Executor {
                 enable_expensive_checks,
                 certificate_deny_set,
                 &mut None,
-                None,
             )
         } else {
             execute_transaction_to_effects::<execution_mode::DevInspect<false>>(
@@ -168,7 +166,6 @@ impl executor::Executor for Executor {
                 enable_expensive_checks,
                 certificate_deny_set,
                 &mut None,
-                None,
             )
         }
     }
@@ -247,7 +244,7 @@ impl executor::Executor for Executor {
         authenticated_transaction_digest: TransactionDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> (IotaGasStatus, Result<(), ExecutionError>) {
+    ) -> Result<(), ExecutionError> {
         authenticate_transaction(
             store,
             protocol_config,
