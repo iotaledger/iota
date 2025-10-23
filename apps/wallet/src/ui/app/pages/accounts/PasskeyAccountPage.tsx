@@ -8,6 +8,9 @@ import {
     Button,
     ButtonHtmlType,
     ButtonType,
+    InfoBox,
+    InfoBoxStyle,
+    InfoBoxType,
     Input,
     InputType,
     RadioButton,
@@ -16,11 +19,15 @@ import { useZodForm } from '@iota/core';
 import { z } from 'zod';
 import { Form } from '../../shared/forms/Form';
 import React, { useState } from 'react';
+import { Exclamation } from '@iota/apps-ui-icons';
 
 const formSchema = z.object({
     username: z.string().min(1, 'Username is required').max(50, 'Username is too long'),
 });
 type ImportPasskeyFormValues = z.infer<typeof formSchema>;
+
+const PIN_PROMPT_MESSAGE =
+    'To import your passkey profile, you will be prompted to authenticate twice, this is expected as part of the import process.';
 
 export function PasskeyAccountPage() {
     const navigate = useNavigate();
@@ -102,7 +109,7 @@ export function PasskeyAccountPage() {
                         data-testid="username-input"
                     />
 
-                    {isCreateFlow && (
+                    {isCreateFlow ? (
                         <div className="flex flex-col gap-md text-start">
                             <p className="pt-xxs text-label-md text-iota-neutral-30 dark:text-iota-neutral-80">
                                 Passkey Storage and Access
@@ -114,6 +121,18 @@ export function PasskeyAccountPage() {
                                 </div>
                             ))}
                         </div>
+                    ) : (
+                        <InfoBox
+                            type={InfoBoxType.Default}
+                            supportingText={PIN_PROMPT_MESSAGE}
+                            icon={<Exclamation />}
+                            style={InfoBoxStyle.Elevated}
+                        />
+                        // <div className="flex flex-col gap-md text-start">
+                        //     <p className="pt-xxs text-label-md text-iota-neutral-30 dark:text-iota-neutral-80">
+                        //         You are restoring an account. Passkey storage options are not applicable.
+                        //     </p>
+                        // </div>
                     )}
                 </div>
 
