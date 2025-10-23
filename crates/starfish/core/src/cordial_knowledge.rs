@@ -117,6 +117,17 @@ pub enum CordialKnowledgeMessage {
     UsefulShardsFromPeers(BTreeMap<AuthorityIndex, Round>),
 }
 
+impl CordialKnowledgeMessage {
+    fn display_type(&self) -> &'static str {
+        match self {
+            CordialKnowledgeMessage::NewHeader(_) => "New Header",
+            CordialKnowledgeMessage::NewShard(_) => "New Shard",
+            CordialKnowledgeMessage::EvictBelow(_) => "Eviction",
+            CordialKnowledgeMessage::UsefulShardsFromPeers(_) => "Useful Authors for Shards",
+        }
+    }
+}
+
 /// Handle to the CordialKnowledge task, allowing interaction and graceful
 /// shutdown.
 pub struct CordialKnowledgeHandle {
@@ -266,8 +277,6 @@ impl CordialKnowledge {
     /// evictions) from DAG state and updates global knowledge + notifies
     /// per-connection tasks.
     pub async fn run(mut self) {
-        fail_point_async!("consensus-rpc-response");
-
         debug!("Cordial Knowledge main loop started");
 
         loop {
@@ -302,7 +311,7 @@ impl CordialKnowledge {
         );
         let message_type: &'static str = match cordial_knowledge_message {
             CordialKnowledgeMessage::NewHeader(header) => {
-                self.handle_new_header(header).await;
+                self.update_cordial_knowledge(&header).await;
                 "header"
             }
             CordialKnowledgeMessage::NewShard(block_ref) => {
@@ -372,10 +381,6 @@ impl CordialKnowledge {
         }
     }
 
-    /// Called when a new verified block header is received.
-    async fn handle_new_header(&mut self, header: VerifiedBlockHeader) {
-        self.update_cordial_knowledge(&header).await;
-    }
 
     /// Called when a new own shard (created locally) is added to dag state.
     async fn handle_new_shard(&mut self, block_ref: BlockRef) {
@@ -468,6 +473,7 @@ impl CordialKnowledge {
         // === 2) Notify all *other* authorities (except self and block_author) about
         // new header ===
         for (authority, msgs) in vec_knowledge_msgs.iter_mut().enumerate() {
+            // don't send shard to self nor to the author of the block
             if authority == block_author || authority == own_index {
                 continue;
             }
