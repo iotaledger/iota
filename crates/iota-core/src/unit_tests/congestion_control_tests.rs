@@ -203,42 +203,58 @@ impl TestSetup {
     }
 }
 
-// Creates a transaction that touches the shared objects `shared_object_1` and
-// `shared_object_2`, and `owned_object`, and executes the transaction in
-// `authority_state`. Returns the transaction and the effects of the execution.
-async fn update_objects(
+// Creates a transaction that touches the shared objects provided and the owned
+// object provided. The transaction is passed through a fake consensus and then
+// the congestion control before being executed.
+async fn commit_and_execute_transaction(
     authority_state: &AuthorityState,
     package: &ObjectRef,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectID,
-    shared_object_1: &(ObjectID, SequenceNumber),
-    shared_object_2: &(ObjectID, SequenceNumber),
+    shared_objects: &[(ObjectID, SequenceNumber)],
     owned_object: &ObjectRef,
     gas_units: u64,
 ) -> (Transaction, TransactionEffects) {
     let mut txn_builder = ProgrammableTransactionBuilder::new();
-    let arg1 = txn_builder
-        .obj(ObjectArg::SharedObject {
-            id: shared_object_1.0,
-            initial_shared_version: shared_object_1.1,
-            mutable: true,
-        })
-        .unwrap();
-    let arg2 = txn_builder
-        .obj(ObjectArg::SharedObject {
-            id: shared_object_2.0,
-            initial_shared_version: shared_object_2.1,
-            mutable: true,
-        })
-        .unwrap();
-    let arg3 = txn_builder
-        .obj(ObjectArg::ImmOrOwnedObject(*owned_object))
-        .unwrap();
-    move_call! {
-        txn_builder,
-        (package.0)::congestion_control::increment(arg1, arg2, arg3)
-    };
+    let mut args = vec![];
+    for shared_object in shared_objects {
+        args.push(
+            txn_builder
+                .obj(ObjectArg::SharedObject {
+                    id: shared_object.0,
+                    initial_shared_version: shared_object.1,
+                    mutable: true,
+                })
+                .unwrap(),
+        )
+    }
+    args.push(
+        txn_builder
+            .obj(ObjectArg::ImmOrOwnedObject(*owned_object))
+            .unwrap(),
+    );
+    match args.len() {
+        1 => {
+            move_call! {
+                txn_builder,
+                (package.0)::congestion_control::increment_one(args.pop().unwrap())
+            };
+        }
+        2 => {
+            move_call! {
+                txn_builder,
+                (package.0)::congestion_control::increment_two(args.pop().unwrap(), args.pop().unwrap())
+            };
+        }
+        3 => {
+            move_call! {
+                txn_builder,
+                (package.0)::congestion_control::increment_three(args.pop().unwrap(), args.pop().unwrap(), args.pop().unwrap())
+            };
+        }
+        _ => panic!("Unsupported number of shared objects. Maximum supported is 2."),
+    }
     let pt = txn_builder.finish();
     let transaction = build_programmable_transaction(
         authority_state,
@@ -347,14 +363,13 @@ async fn test_congestion_control_execution_cancellation() {
 
     // Runs a transaction that touches shared_object_1, shared_object_2 and a owned
     // object.
-    let (congested_tx, effects) = update_objects(
+    let (congested_tx, effects) = commit_and_execute_transaction(
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
         &test_setup.sender_key,
         &test_setup.gas_object_id,
-        &(shared_object_1.0, shared_object_1.1),
-        &(shared_object_2.0, shared_object_2.1),
+        &[(shared_object_1.0, shared_object_1.1)],
         &authority_state
             .get_object(&owned_object.0)
             .await
@@ -431,9 +446,9 @@ async fn test_congestion_control_debt_tracking() {
 
     // Creates a test setup with a protocol config such that the the congestion
     // limit is equal to one default transaction's gas budget, and the overshoot
-    // allowed is also equal to one default transaction's gas budget.
+    // allowed is twice the default transaction's gas budget.
     let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
-    let test_setup = TestSetup::new(default_tx_gas_budget, default_tx_gas_budget).await;
+    let test_setup = TestSetup::new(default_tx_gas_budget, 2 * default_tx_gas_budget).await;
 
     // Creates 2 shared objects and 1 owned object.
     let shared_object_1 = test_setup.create_shared_object().await;
@@ -459,44 +474,46 @@ async fn test_congestion_control_debt_tracking() {
         .insert_genesis_objects(&genesis_objects)
         .await;
 
-    // Commit 1: a transaction with gas budget 2*default_tx_gas_budget that touches
-    // shared_object_1, shared_object_2 and an owned object.
-    // This will result in an overshoot of default_tx_gas_budget, but should be
+    // Commit 1: a transaction with gas budget 3*default_tx_gas_budget that touches
+    // shared_object_1 and an owned object.
+    // This will result in an overshoot of 2*default_tx_gas_budget, but should be
     // executed successfully.
-    let (_, effects) = update_objects(
+    let (_, effects) = commit_and_execute_transaction(
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
         &test_setup.sender_key,
         &test_setup.gas_object_id,
-        &(shared_object_1.0, shared_object_1.1),
-        &(shared_object_2.0, shared_object_2.1),
+        &[(shared_object_1.0, shared_object_1.1)],
         &authority_state
             .get_object(&owned_object.0)
             .await
             .unwrap()
             .compute_object_reference(),
-        TEST_ONLY_GAS_UNIT * 2,
+        3 * TEST_ONLY_GAS_UNIT,
     )
     .await;
 
-    // Transaction should be a success as overshoot of default_tx_gas_budget is
+    // Transaction should be a success as overshoot of 2*default_tx_gas_budget is
     // allowed.
     assert!(effects.status().is_ok());
 
     // Commit 2: a transaction with gas budget 0.5*default_tx_gas_budget that
     // touches shared_object_1, shared_object_2 and an owned object.
-    // Due to the debt of default_tx_gas_budget from Commit 1, this will result in
-    // an overshoot of 0.5*default_tx_gas_budget, and should be executed
-    // successfully.
-    let (_, effects) = update_objects(
+    // Due to the debt of 2*default_tx_gas_budget from Commit 1, this will result in
+    // a total overshoot of 1.5*default_tx_gas_budget (overshoot of
+    // default_gas_budget from existing debt, and an extra 0.5*default_gas_budget
+    // from this tx), and should be executed successfully.
+    let (_, effects) = commit_and_execute_transaction(
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
         &test_setup.sender_key,
         &test_setup.gas_object_id,
-        &(shared_object_1.0, shared_object_1.1),
-        &(shared_object_2.0, shared_object_2.1),
+        &[
+            (shared_object_1.0, shared_object_1.1),
+            (shared_object_2.0, shared_object_2.1),
+        ],
         &authority_state
             .get_object(&owned_object.0)
             .await
@@ -506,41 +523,46 @@ async fn test_congestion_control_debt_tracking() {
     )
     .await;
 
-    // Transaction should be a success as overshoot of default_tx_gas_budget is
+    // Transaction should be a success as overshoot of 1.5*default_tx_gas_budget is
     // allowed.
     assert!(effects.status().is_ok());
 
     // Commit 3: a transaction with gas budget 2*default_tx_gas_budget that
-    // touches shared_object_1, shared_object_2 and an owned object.
-    // Due to the debt of 0.5*default_tx_gas_budget from Commit 2, this will result
-    // in an overshoot of 1.5*default_tx_gas_budget, which exceeds the allowed
+    // touches shared_object_2 and an owned object.
+    // Due to the debt of 1.5*default_tx_gas_budget for shared_object_2 from Commit
+    // 2, this should result in an overshoot of 2.5*default_tx_gas_budget on
+    // shared_object_2 (0.5*default_gas budget overshoot from existing debt and
+    // 2*default_gas_budget from this transaction), which exceeds the allowed
     // overshoot, and should be cancelled.
-    let (_, effects) = update_objects(
+    let (_, effects) = commit_and_execute_transaction(
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
         &test_setup.sender_key,
         &test_setup.gas_object_id,
-        &(shared_object_1.0, shared_object_1.1),
-        &(shared_object_2.0, shared_object_2.1),
+        &[(shared_object_2.0, shared_object_2.1)],
         &authority_state
             .get_object(&owned_object.0)
             .await
             .unwrap()
             .compute_object_reference(),
-        TEST_ONLY_GAS_UNIT * 2,
+        2 * TEST_ONLY_GAS_UNIT,
     )
     .await;
+
+    // The expected suggested gas price should be the reference gas price because
+    // there is no transaction responsible for the debt, only the overshoot from
+    // previous commits, and their gas price is irrelevant.
     let expected_suggested_gas_price = TEST_ONLY_GAS_PRICE;
 
-    // Transaction should be cancelled with `shared_object_1` and `shared_object_2`
+    // Transaction should be cancelled with `shared_object_2`
     // as the congested objects, and the suggested gas price should be
     // `TEST_ONLY_GAS_PRICE`.
     assert_eq!(
         effects.status(),
         &ExecutionStatus::Failure {
             error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
-                congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
+                congested_objects: CongestedObjects(vec![shared_object_2.0]),
                 suggested_gas_price: expected_suggested_gas_price,
             },
             command: None
@@ -550,42 +572,126 @@ async fn test_congestion_control_debt_tracking() {
     // Tests shared object versions in effects are set correctly.
     assert_eq!(
         effects.input_shared_objects(),
-        vec![
-            InputSharedObject::Cancelled(
-                shared_object_1.0,
-                SequenceNumber::new_congested_with_suggested_gas_price(
-                    expected_suggested_gas_price
-                )
-            ),
-            InputSharedObject::Cancelled(
-                shared_object_2.0,
-                SequenceNumber::new_congested_with_suggested_gas_price(
-                    expected_suggested_gas_price
-                )
-            )
-        ]
+        vec![InputSharedObject::Cancelled(
+            shared_object_2.0,
+            SequenceNumber::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+        ),]
     );
 
-    // Commit 4: a transaction with gas budget 2*default_tx_gas_budget that
-    // touches shared_object_1, shared_object_2 and an owned object.
-    // There should be no debt from Commit 3 as the transaction was cancelled
-    // and the existing debt of 0.5*default_tx_gas_budget from that commit does
-    // not overshoot the congestion limit. Therefore, this transaction
-    // should be executed successfully.
-    let (_, effects) = update_objects(
+    // Commit 4: a transaction with gas budget 3*default_tx_gas_budget that
+    // touches shared_object_1 and an owned object.
+    // There should be a debt of 0.5*default_gas_budget carried over from commit 2
+    // on both shared objects. Therefore, this transaction should be
+    // cancelled due to total overshoot of 2.5*default_tx_gas_budget on
+    // shared_object_1 (0.5*default_gas budget overshoot from existing debt and
+    // 3*default_gas_budget from this transaction), which exceeds the allowed
+    // overshoot.
+    let (_, effects) = commit_and_execute_transaction(
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
         &test_setup.sender_key,
         &test_setup.gas_object_id,
-        &(shared_object_1.0, shared_object_1.1),
-        &(shared_object_2.0, shared_object_2.1),
+        &[(shared_object_1.0, shared_object_1.1)],
         &authority_state
             .get_object(&owned_object.0)
             .await
             .unwrap()
             .compute_object_reference(),
-        TEST_ONLY_GAS_UNIT * 2,
+        3 * TEST_ONLY_GAS_UNIT,
+    )
+    .await;
+    // The expected suggested gas price should be the reference gas price because
+    // there is no transaction responsible for the debt, only the overshoot from
+    // previous commits, and their gas price is irrelevant.
+    let expected_suggested_gas_price = TEST_ONLY_GAS_PRICE;
+
+    // Transaction should be cancelled with `shared_object_2`
+    // as the congested objects, and the suggested gas price should be
+    // `TEST_ONLY_GAS_PRICE`.
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects: CongestedObjects(vec![shared_object_1.0]),
+                suggested_gas_price: expected_suggested_gas_price,
+            },
+            command: None
+        }
+    );
+
+    // Tests shared object versions in effects are set correctly.
+    assert_eq!(
+        effects.input_shared_objects(),
+        vec![InputSharedObject::Cancelled(
+            shared_object_1.0,
+            SequenceNumber::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+        ),]
+    );
+
+    // Commit 5: a transaction with gas budget of 3*default_tx_gas_budget that
+    // touches both shared objects and an owned object. The debt on shared objects
+    // should be cleared fully, so this transaction should be executed successfully.
+    let (_, effects) = commit_and_execute_transaction(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[
+            (shared_object_1.0, shared_object_1.1),
+            (shared_object_2.0, shared_object_2.1),
+        ],
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        3 * TEST_ONLY_GAS_UNIT,
+    )
+    .await;
+
+    // Transaction should be a success as there is no shared object involved.
+    assert!(effects.status().is_ok());
+
+    // Commit 6: a transaction with gas budget 3*default_tx_gas_budget that touches
+    // only an owned object. The shared object debt from commit 5 should not have
+    // any impact so this transaction should be executed successfully.
+    let (_, effects) = commit_and_execute_transaction(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[],
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        3 * TEST_ONLY_GAS_UNIT,
+    )
+    .await;
+    // Transaction should be a success as there is no shared object involved.
+    assert!(effects.status().is_ok());
+
+    // Commit 7: a transaction with gas budget 2*default_tx_gas_budget that touches
+    // both shared_object_1 and an owned object. A debt of default_tx_gas_budget on
+    // both shared objects should be carried over from commit 5, so total overshoot
+    // should be 2*default_tx_gas_budget. This should be executed successfully.
+    let (_, effects) = commit_and_execute_transaction(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[(shared_object_1.0, shared_object_1.1)],
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        2 * TEST_ONLY_GAS_UNIT,
     )
     .await;
     // Transaction should be a success as overshoot of default_tx_gas_budget is
