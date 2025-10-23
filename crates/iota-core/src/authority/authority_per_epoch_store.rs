@@ -4415,6 +4415,18 @@ impl AuthorityPerEpochStore {
             }
         }
     }
+
+    // Only for testing purposes. Loads initial object debts from the consensus
+    // quarantine.
+    pub fn load_stored_object_debts_for_testing(
+        &self,
+        for_randomness: bool,
+        object_ids: &[ObjectID],
+    ) -> IotaResult<Vec<Option<CongestionPerObjectDebt>>> {
+        self.consensus_quarantine
+            .read()
+            .load_stored_object_debts_for_testing(for_randomness, object_ids)
+    }
 }
 
 impl ExecutionComponents {

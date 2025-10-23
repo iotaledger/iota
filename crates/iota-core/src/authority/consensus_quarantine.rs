@@ -977,6 +977,23 @@ impl ConsensusOutputQuarantine {
                 (object_id, debt)
             }))
     }
+
+    // Used in testing to load debts.
+    pub(crate) fn load_stored_object_debts_for_testing(
+        &self,
+        for_randomness: bool,
+        object_ids: &[ObjectID],
+    ) -> IotaResult<Vec<Option<CongestionPerObjectDebt>>> {
+        let hash_table = if for_randomness {
+            &self.congestion_control_randomness_object_debts
+        } else {
+            &self.congestion_control_object_debts
+        };
+        Ok(object_ids
+            .iter()
+            .map(|object_id| hash_table.get(object_id).copied())
+            .collect())
+    }
 }
 
 /// A wrapper around `HashMap` that uses ref counts to keep entries alive until
