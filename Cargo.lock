@@ -5425,7 +5425,6 @@ dependencies = [
  "iota-genesis-builder",
  "iota-graphql-rpc",
  "iota-graphql-rpc-client",
- "iota-grpc-api",
  "iota-indexer",
  "iota-json",
  "iota-json-rpc-types",
@@ -5829,8 +5828,6 @@ dependencies = [
  "iota-execution",
  "iota-framework",
  "iota-genesis-builder",
- "iota-grpc-api",
- "iota-grpc-types",
  "iota-json-rpc-types",
  "iota-macros",
  "iota-metrics",
@@ -6329,6 +6326,7 @@ dependencies = [
  "iota-graphql-rpc-client",
  "iota-graphql-rpc-headers",
  "iota-indexer",
+ "iota-json",
  "iota-json-rpc",
  "iota-json-rpc-api",
  "iota-json-rpc-types",
@@ -6337,10 +6335,10 @@ dependencies = [
  "iota-network-stack",
  "iota-package-resolver",
  "iota-rest-api",
- "iota-sdk 1.10.0-alpha",
  "iota-swarm-config",
  "iota-test-transaction-builder",
  "iota-types",
+ "jsonrpsee",
  "move-binary-format",
  "move-core-types",
  "move-disassembler",
@@ -6389,19 +6387,34 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-grpc-api"
+name = "iota-grpc-client"
+version = "1.10.0-alpha"
+dependencies = [
+ "anyhow",
+ "futures",
+ "iota-grpc-types",
+ "iota-json-rpc-types",
+ "iota-types",
+ "move-core-types",
+ "serde_json",
+ "tonic 0.13.1",
+]
+
+[[package]]
+name = "iota-grpc-server"
 version = "1.10.0-alpha"
 dependencies = [
  "anyhow",
  "async-stream",
  "futures",
  "iota-config",
+ "iota-core",
+ "iota-grpc-client",
  "iota-grpc-types",
  "iota-json-rpc-types",
  "iota-types",
  "move-core-types",
  "serde",
- "serde_json",
  "test-cluster",
  "tokio",
  "tokio-stream",
@@ -6572,6 +6585,7 @@ dependencies = [
  "iota-metrics",
  "iota-names",
  "iota-open-rpc",
+ "iota-package-resolver",
  "iota-protocol-config",
  "iota-storage",
  "iota-transaction-builder",
@@ -6665,6 +6679,7 @@ dependencies = [
  "colored",
  "enum_dispatch",
  "fastcrypto",
+ "futures",
  "iota-enum-compat-util",
  "iota-json",
  "iota-macros",
@@ -7060,8 +7075,7 @@ dependencies = [
  "iota-common",
  "iota-config",
  "iota-core",
- "iota-grpc-api",
- "iota-grpc-types",
+ "iota-grpc-server",
  "iota-http",
  "iota-json-rpc",
  "iota-json-rpc-api",
@@ -7761,7 +7775,6 @@ dependencies = [
  "anyhow",
  "futures",
  "iota-config",
- "iota-grpc-api",
  "iota-macros",
  "iota-metrics",
  "iota-names",
@@ -14136,7 +14149,6 @@ dependencies = [
  "iota-core",
  "iota-framework",
  "iota-genesis-builder",
- "iota-grpc-api",
  "iota-json-rpc",
  "iota-json-rpc-api",
  "iota-json-rpc-types",

@@ -86,6 +86,10 @@ name = "checkpoints"
 path = "examples/read_api/checkpoints.rs"
 
 [[example]]
+name = "move_view_function_call"
+path = "examples/read_api/move_view_function_call.rs"
+
+[[example]]
 name = "read_api_objects"
 path = "examples/read_api/read_api_objects.rs"
 

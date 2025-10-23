@@ -92,7 +92,8 @@ members = [
   "crates/iota-graphql-rpc",
   "crates/iota-graphql-rpc-client",
   "crates/iota-graphql-rpc-headers",
-  "crates/iota-grpc-api",
+  "crates/iota-grpc-client",
+  "crates/iota-grpc-server",
   "crates/iota-grpc-types",
   "crates/iota-http",
   "crates/iota-indexer",
@@ -403,7 +404,8 @@ iota-graphql-config = { path = "crates/iota-graphql-config" }
 iota-graphql-rpc = { path = "crates/iota-graphql-rpc" }
 iota-graphql-rpc-client = { path = "crates/iota-graphql-rpc-client" }
 iota-graphql-rpc-headers = { path = "crates/iota-graphql-rpc-headers" }
-iota-grpc-api = { path = "crates/iota-grpc-api" }
+iota-grpc-client = { path = "crates/iota-grpc-client" }
+iota-grpc-server = { path = "crates/iota-grpc-server" }
 iota-grpc-types = { path = "crates/iota-grpc-types" }
 iota-http = { path = "crates/iota-http" }
 iota-indexer = { path = "crates/iota-indexer" }
