@@ -1,6 +1,5 @@
 ---
 source: crates/iota/tests/shell_tests.rs
-description: tests/shell_tests/iota_move_new_tests/new_then_disassemble.sh
 ---
 ----- script -----
 # Copyright (c) Mysten Labs, Inc.
@@ -44,9 +43,9 @@ B0:
 
 ----- stderr -----
 === Build ===
-INCLUDING DEPENDENCY Bridge
 INCLUDING DEPENDENCY IotaSystem
-INCLUDING DEPENDENCY IOTA
+INCLUDING DEPENDENCY Stardust
+INCLUDING DEPENDENCY Iota
 INCLUDING DEPENDENCY MoveStdlib
 BUILDING example
 === Disassemble ===
