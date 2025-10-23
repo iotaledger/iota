@@ -546,6 +546,77 @@ mod tests {
 
     #[tokio::test]
     #[serial]
+    async fn test_multi_transaction_blocks() {
+        let cluster =
+            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
+                .await;
+        let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
+        let sender1 = addresses[0];
+        let sender2 = addresses[1];
+        let recipient = addresses[2];
+
+        let tx1 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender1)
+            .await
+            .transfer_iota(Some(1_000), recipient)
+            .build();
+        let signed_tx1 = cluster.sign_transaction(&tx1);
+        let digest1 = signed_tx1.digest();
+
+        let tx2 = cluster
+            .validator_fullnode_handle
+            .test_transaction_builder_with_sender(sender2)
+            .await
+            .transfer_iota(Some(2_000), recipient)
+            .build();
+        let signed_tx2 = cluster.sign_transaction(&tx2);
+        let digest2 = signed_tx2.digest();
+
+        let response_fields = "effects { transactionBlock { digest } } errors";
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx1, response_fields).await;
+        mutation_execute_transaction(&cluster.graphql_client, &signed_tx2, response_fields).await;
+
+        let fake_digest = TransactionDigest::random().to_string();
+        let query = format!(
+            r#"
+                {{
+                    multiTransactionBlocks(digests: ["{digest1}", "{digest2}", "{fake_digest}"]){{
+                        digest
+                        sender {{
+                            address
+                        }}
+                    }}
+                }}
+            "#,
+        );
+
+        let response_body = cluster
+            .graphql_client
+            .execute_to_graphql(query.to_string(), true, vec![], vec![])
+            .await
+            .unwrap()
+            .response_body_json();
+        let transactions = response_body["data"]["multiTransactionBlocks"]
+            .as_array()
+            .unwrap();
+
+        assert_eq!(
+            transactions.len(),
+            2,
+            "2 real transactions should be present in the reponse, fake transaction should be skipped"
+        );
+        let returned_digests: Vec<String> = transactions
+            .iter()
+            .map(|tx| tx["digest"].as_str().unwrap().to_string())
+            .collect();
+        assert!(returned_digests.contains(&digest1.to_string()));
+        assert!(returned_digests.contains(&digest2.to_string()));
+        cluster.cleanup_resources().await;
+    }
+
+    #[tokio::test]
+    #[serial]
     #[ignore = "https://github.com/iotaledger/iota/issues/1777"]
     async fn test_zklogin_sig_verify() {
         use iota_test_transaction_builder::TestTransactionBuilder;

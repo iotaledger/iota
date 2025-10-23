@@ -3686,6 +3686,10 @@ type Query {
 	"""
 	transactionBlock(digest: String!): TransactionBlock
 	"""
+	Fetch multiple transaction blocks by their digests.
+	"""
+	multiTransactionBlocks(digests: [String!]!): [TransactionBlock!]!
+	"""
 	The coin objects that exist in the network.
 	
 	The type field is a string of the inner type of the coin by which to

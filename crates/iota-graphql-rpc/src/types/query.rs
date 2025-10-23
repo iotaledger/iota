@@ -388,6 +388,21 @@ impl Query {
             .extend()
     }
 
+    /// Fetch multiple transaction blocks by their digests.
+    async fn multi_transaction_blocks(
+        &self,
+        ctx: &Context<'_>,
+        digests: Vec<Digest>,
+    ) -> Result<Vec<TransactionBlock>> {
+        let Watermark { checkpoint, .. } = *ctx.data()?;
+        let result = TransactionBlock::multi_query(ctx, digests, checkpoint)
+            .await
+            .extend()?;
+
+        // Return only found transactions, omit missing ones
+        Ok(result.into_values().collect())
+    }
+
     /// The coin objects that exist in the network.
     ///
     /// The type field is a string of the inner type of the coin by which to
