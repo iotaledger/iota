@@ -39,9 +39,6 @@ export function PageMainLayout({
     const activeAccount = useActiveAccount();
     const isFullScreen = appType === AppType.Fullscreen;
     const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
-    const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
-    const isKeystoneAccount = activeAccount && isKeystoneAccountSerializedUI(activeAccount);
-    const isPasskeyAccount = activeAccount && isPasskeyAccountSerializedUI(activeAccount);
     const isHomePage = window.location.hash === '#/tokens';
 
     return (
@@ -53,17 +50,7 @@ export function PageMainLayout({
         >
             {isHomePage ? (
                 <Header
-                    leftContent={
-                        <LeftContent
-                            account={activeAccount}
-                            isLedgerAccount={isLedgerAccount}
-                            isKeystoneAccount={isKeystoneAccount}
-                            isPasskeyAccount={isPasskeyAccount}
-                            isLocked={activeAccount?.isLocked}
-                            isLegacyAccount={isLegacyAccount(activeAccount)}
-                            isMainAccount={isMainAccount(activeAccount)}
-                        />
-                    }
+                    leftContent={<LeftContent account={activeAccount} />}
                     middleContent={<div ref={setTitlePortalContainer} />}
                     rightContent={topNavMenuEnabled ? <WalletSettingsButton /> : undefined}
                 />
@@ -89,26 +76,15 @@ export function PageMainLayout({
     );
 }
 
-function LeftContent({
-    account,
-    isLedgerAccount,
-    isKeystoneAccount,
-    isPasskeyAccount,
-    isLocked,
-    isLegacyAccount,
-    isMainAccount,
-}: {
-    account: SerializedUIAccount | null;
-    isLedgerAccount: boolean | null;
-    isKeystoneAccount: boolean | null;
-    isPasskeyAccount: boolean | null;
-    isLocked?: boolean;
-    isLegacyAccount?: boolean;
-    isMainAccount?: boolean;
-}) {
+function LeftContent({ account }: { account: SerializedUIAccount | null }) {
     const { data: iotaName } = useGetDefaultIotaName(account?.address);
     const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
-    const backgroundColor = isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
+
+    const isLedgerAccount = account && isLedgerAccountSerializedUI(account);
+    const isKeystoneAccount = account && isKeystoneAccountSerializedUI(account);
+    const isPasskeyAccount = account && isPasskeyAccountSerializedUI(account);
+
+    const backgroundColor = account?.isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
     return (
         <Link
             to="/accounts/manage"
@@ -136,8 +112,8 @@ function LeftContent({
                     {accountName}
                 </span>
             </div>
-            {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}
-            {isMainAccount && <Badge type={BadgeType.PrimarySoft} label="Main" />}
+            {isLegacyAccount(account) && <Badge type={BadgeType.Neutral} label="Legacy" />}
+            {isMainAccount(account) && <Badge type={BadgeType.PrimarySoft} label="Main" />}
         </Link>
     );
 }
