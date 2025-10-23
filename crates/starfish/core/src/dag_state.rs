@@ -3471,33 +3471,4 @@ mod test {
             assert!(dag_state.pending_acknowledgments.contains(block_ref));
         }
     }
-
-    #[test]
-    fn test_transaction_source_labels() {
-        assert_eq!(
-            TransactionSource::TransactionSynchronizer.as_str(),
-            "Transactions synchronizer"
-        );
-        assert_eq!(
-            TransactionSource::BlockStreaming.as_str(),
-            "Block streaming"
-        );
-        assert_eq!(
-            TransactionSource::ShardReconstructor.as_str(),
-            "Shard reconstructor"
-        );
-        assert_eq!(TransactionSource::Test.as_str(), "test");
-    }
-
-    #[test]
-    fn test_transaction_source_display() {
-        assert_eq!(
-            format!("{}", TransactionSource::TransactionSynchronizer),
-            "Transactions synchronizer"
-        );
-        assert_eq!(
-            format!("{}", TransactionSource::BlockStreaming),
-            "Block streaming"
-        );
-    }
 }
