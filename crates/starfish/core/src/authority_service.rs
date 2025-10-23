@@ -18,7 +18,7 @@ use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::sync::{
     Mutex, broadcast,
-    mpsc::{Sender, UnboundedSender},
+    mpsc::{Sender},
     oneshot,
 };
 use tokio_util::sync::ReusableBoxFuture;
@@ -36,9 +36,9 @@ use crate::{
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
     cordial_knowledge::{
-        AdditionalPartsForBundle, ConnectionKnowledgeMessage,
-        ConnectionKnowledgeMessage::TakeAdditionalPartForBundle, CordialKnowledge,
-        CordialKnowledgeHandle, CordialKnowledgeMessage,
+        AdditionalPartsForBundle,
+        ConnectionKnowledgeMessage::TakeAdditionalPartForBundle,
+        CordialKnowledgeHandle,
     },
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
@@ -120,16 +120,11 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     received_block_headers: FilterForHeaders,
     /// Sender to send received transaction messages to the shard reconstructor
     transaction_message_sender: Sender<Vec<TransactionMessage>>,
-    /// Senders to send messages to the respected
-    /// Connection Knowledge. One sender is intended for one peer. These senders
-    /// are used to update useful authors for blocks and shards. In addition,
-    /// one retrieves additional parts for block bundles when streaming own
-    /// blocks.
-    connection_knowledge_senders: Vec<Sender<Vec<ConnectionKnowledgeMessage>>>,
-    /// Sender to send messages to Cordial Knowledge. This sender is used to
-    /// update information shards of which authors should be requested in future
-    /// block bundles from peers.
-    cordial_knowledge_sender: UnboundedSender<CordialKnowledgeMessage>,
+    /// CordialKnowledge allows to update cordial knowledge about the DAG (which
+    /// blocks are know by which peer). In addition, one can retrieve some
+    /// useful information such as which headers and shards are needed to a
+    /// specific peer
+    cordial_knowledge: Arc<CordialKnowledgeHandle>,
 }
 
 impl<C: CoreThreadDispatcher> AuthorityService<C> {
@@ -144,7 +139,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         dag_state: Arc<RwLock<DagState>>,
         store: Arc<dyn Store>,
         transaction_message_sender: Sender<Vec<TransactionMessage>>,
-        cordial_knowledge_handle: Arc<CordialKnowledgeHandle>,
+        cordial_knowledge: Arc<CordialKnowledgeHandle>,
     ) -> Self {
         let subscription_counter = Arc::new(SubscriptionCounter::new(
             context.clone(),
@@ -164,8 +159,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             store,
             received_block_headers: FilterForHeaders::new(),
             transaction_message_sender,
-            connection_knowledge_senders: cordial_knowledge_handle.connection_knowledge_senders(),
-            cordial_knowledge_sender: cordial_knowledge_handle.cordial_knowledge_sender(),
+            cordial_knowledge,
         }
     }
 }
@@ -561,15 +555,15 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // 13. Report useful info for cordial and connection knowledge
-        CordialKnowledge::report_useful_info(
-            &self.connection_knowledge_senders[peer],
-            &self.cordial_knowledge_sender,
-            &serialized_block_bundle_parts,
-            &additional_block_headers,
-            &missing_ancestors,
-            block_round,
-        )
-        .await?;
+        self.cordial_knowledge
+            .report_useful_authors(
+                peer,
+                &serialized_block_bundle_parts,
+                &additional_block_headers,
+                &missing_ancestors,
+                block_round,
+            )
+            .await?;
 
         // 14. schedule the fetching of missing ancestors (if any) from this peer
         if !missing_ancestors.is_empty() {
@@ -629,11 +623,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.subscription_counter.clone(),
         );
         let context = self.context.clone();
-
+        let connection_knowledge_sender = self.cordial_knowledge.connection_knowledge_sender(peer);
         // Return a stream of blocks that first yields missed blocks as requested, then
         // new blocks.
         Ok(Box::pin(missed_blocks.chain({
-            let connection_knowledge_sender = self.connection_knowledge_senders[peer].clone();
             broadcasted_blocks.filter_map(move |block| {
                 let connection_knowledge_sender = connection_knowledge_sender.clone();
                 let context = context.clone();
@@ -2506,7 +2499,7 @@ mod tests {
 
         // Inject useful info
         let connection_knowledge_sender =
-            cordial_knowledge.connection_knowledge_senders()[to_whom_authority].clone();
+            cordial_knowledge.connection_knowledge_sender(to_whom_authority);
         let msg = ConnectionKnowledgeMessage::UsefulAuthors {
             useful_headers_to_peer: BTreeMap::from([
                 (AuthorityIndex::new_for_test(2), GENESIS_ROUND),

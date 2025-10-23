@@ -77,7 +77,7 @@ impl SubsetAuthorities {
 pub(crate) struct CordialKnowledge {
     context: Arc<Context>,
     /// Receives high-level updates from DAG state (new headers, new own shards,
-    /// evictions)
+    /// evictions) and Authority Service
     cordial_knowledge_receiver: UnboundedReceiver<CordialKnowledgeMessage>,
     /// Keeps track of the last round for which each peer's shards were
     /// considered useful to us. This is a global knowledge and is shared with
@@ -137,13 +137,13 @@ pub struct CordialKnowledgeHandle {
 }
 
 impl CordialKnowledgeHandle {
-    /// Get a sender to send messages to the CordialKnowledge task.
-    pub fn cordial_knowledge_sender(&self) -> UnboundedSender<CordialKnowledgeMessage> {
-        self.cordial_knowledge_sender.clone()
-    }
-    /// Get all senders to send messages to all ConnectionKnowledge task.
-    pub fn connection_knowledge_senders(&self) -> Vec<Sender<Vec<ConnectionKnowledgeMessage>>> {
-        self.connection_knowledge_senders.clone()
+    /// Get a specific sender to send messages to the respected
+    /// ConnectionKnowledge task.
+    pub fn connection_knowledge_sender(
+        &self,
+        authority_index: AuthorityIndex,
+    ) -> Sender<Vec<ConnectionKnowledgeMessage>> {
+        self.connection_knowledge_senders[authority_index].clone()
     }
     /// Gracefully stop the CordialKnowledge background task and all connection
     /// tasks.
@@ -172,6 +172,80 @@ impl CordialKnowledgeHandle {
                 }
             }
         }
+
+        Ok(())
+    }
+
+    // Report from Authority Service useful information about headers and
+    /// shards to global knowledge and connection knowledge.
+    pub async fn report_useful_authors(
+        &self,
+        peer: AuthorityIndex,
+        serialized_block_bundle_parts: &SerializedBlockBundleParts,
+        additional_block_headers: &[VerifiedBlockHeader],
+        missing_ancestors: &BTreeSet<BlockRef>,
+        block_round: Round,
+    ) -> ConsensusResult<()> {
+        let connection_knowledge_sender = &self.connection_knowledge_senders[peer];
+        let cordial_knowledge_sender = &self.cordial_knowledge_sender;
+        // Extract authorities this peer has useful headers from
+        let useful_headers_authors_from_peer = additional_block_headers
+            .iter()
+            .map(|block_header| block_header.author())
+            .chain(missing_ancestors.iter().map(|block_ref| block_ref.author))
+            .collect::<BTreeSet<_>>();
+        let useful_headers_from_peer = useful_headers_authors_from_peer
+            .into_iter()
+            .map(|a| (a, block_round))
+            .collect();
+
+        // Extract authorities this peer has useful shards from
+        let mut useful_shard_authors: BTreeMap<AuthorityIndex, Round> = BTreeMap::new();
+        // Since headers showed up in the filter before the corresponding full blocks
+        // we consider all authors of additional headers as useful shard authors too.
+        for header in additional_block_headers {
+            let author = header.author();
+            let round = header.round();
+
+            // Insert or update if newer round
+            useful_shard_authors
+                .entry(author)
+                .and_modify(|was_round| *was_round = (*was_round).max(round))
+                .or_insert(round);
+        }
+
+        // Extract authorities this peer finds useful for cordial dissemination from our
+        // side
+        let useful_headers_to_peer = serialized_block_bundle_parts.useful_headers_authors();
+        let useful_headers_to_peer = useful_headers_to_peer
+            .iter()
+            .map(|&a| (a, block_round))
+            .collect::<BTreeMap<_, _>>();
+        // Extract authorities this peer finds useful shards from our side
+        let useful_shards_to_peer = serialized_block_bundle_parts.useful_shards_authors();
+        let useful_shards_to_peer = useful_shards_to_peer
+            .iter()
+            .map(|&a| (a, block_round))
+            .collect::<BTreeMap<_, _>>();
+
+        // Notify connection knowledge about useful headers and shards to/from this peer
+        let connection_knowledge_message = ConnectionKnowledgeMessage::UsefulAuthors {
+            useful_headers_to_peer,
+            useful_shards_to_peer,
+            useful_headers_from_peer,
+            useful_shards_from_peers: vec![],
+        };
+        connection_knowledge_sender
+            .send(vec![connection_knowledge_message])
+            .await
+            .map_err(|_err| ConsensusError::Shutdown)?;
+
+        // Notify global cordial knowledge about useful shards from this peer
+        let cordial_knowledge_message =
+            CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shard_authors);
+        cordial_knowledge_sender
+            .send(cordial_knowledge_message)
+            .map_err(|_err| ConsensusError::Shutdown)?;
 
         Ok(())
     }
@@ -533,78 +607,6 @@ impl CordialKnowledge {
                 let _ = self.connections[index].send(msg).await;
             }
         }
-    }
-
-    /// Report from Authority Service useful information about headers and
-    /// shards to global knowledge and connection knowledge.
-    pub async fn report_useful_info(
-        connection_knowledge_sender: &Sender<Vec<ConnectionKnowledgeMessage>>,
-        cordial_knowledge_sender: &UnboundedSender<CordialKnowledgeMessage>,
-        serialized_block_bundle_parts: &SerializedBlockBundleParts,
-        additional_block_headers: &[VerifiedBlockHeader],
-        missing_ancestors: &BTreeSet<BlockRef>,
-        block_round: Round,
-    ) -> ConsensusResult<()> {
-        // Extract authorities this peer has useful headers from
-        let useful_headers_authors_from_peer = additional_block_headers
-            .iter()
-            .map(|block_header| block_header.author())
-            .chain(missing_ancestors.iter().map(|block_ref| block_ref.author))
-            .collect::<BTreeSet<_>>();
-        let useful_headers_from_peer = useful_headers_authors_from_peer
-            .into_iter()
-            .map(|a| (a, block_round))
-            .collect();
-
-        // Extract authorities this peer has useful shards from
-        let mut useful_shard_authors: BTreeMap<AuthorityIndex, Round> = BTreeMap::new();
-        // Since headers showed up in the filter before the corresponding full blocks
-        // we consider all authors of additional headers as useful shard authors too.
-        for header in additional_block_headers {
-            let author = header.author();
-            let round = header.round();
-
-            // Insert or update if newer round
-            useful_shard_authors
-                .entry(author)
-                .and_modify(|was_round| *was_round = (*was_round).max(round))
-                .or_insert(round);
-        }
-
-        // Extract authorities this peer finds useful for cordial dissemination from our
-        // side
-        let useful_headers_to_peer = serialized_block_bundle_parts.useful_headers_authors();
-        let useful_headers_to_peer = useful_headers_to_peer
-            .iter()
-            .map(|&a| (a, block_round))
-            .collect::<BTreeMap<_, _>>();
-        // Extract authorities this peer finds useful shards from our side
-        let useful_shards_to_peer = serialized_block_bundle_parts.useful_shards_authors();
-        let useful_shards_to_peer = useful_shards_to_peer
-            .iter()
-            .map(|&a| (a, block_round))
-            .collect::<BTreeMap<_, _>>();
-
-        // Notify connection knowledge about useful headers and shards to/from this peer
-        let connection_knowledge_message = ConnectionKnowledgeMessage::UsefulAuthors {
-            useful_headers_to_peer,
-            useful_shards_to_peer,
-            useful_headers_from_peer,
-            useful_shards_from_peers: vec![],
-        };
-        connection_knowledge_sender
-            .send(vec![connection_knowledge_message])
-            .await
-            .map_err(|_err| ConsensusError::Shutdown)?;
-
-        // Notify global cordial knowledge about useful shards from this peer
-        let cordial_knowledge_message =
-            CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shard_authors);
-        cordial_knowledge_sender
-            .send(cordial_knowledge_message)
-            .map_err(|_err| ConsensusError::Shutdown)?;
-
-        Ok(())
     }
 }
 
