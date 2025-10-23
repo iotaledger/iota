@@ -67,6 +67,7 @@ iota.log.*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+congestion_audit.jsonl
 
 # misc
 *.key
