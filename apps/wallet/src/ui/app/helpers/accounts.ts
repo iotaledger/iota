@@ -16,7 +16,6 @@ export function getKey(account: SerializedUIAccount): string {
     return account.type;
 }
 
-
 export function getSourceId(account: SerializedUIAccount): string {
     if (isMnemonicSerializedUiAccount(account)) return account.sourceID;
     if (isSeedSerializedUiAccount(account)) return account.sourceID;
@@ -38,7 +37,7 @@ export function groupByType(accounts: SerializedUIAccount[]) {
             const byType = acc[account.type] || (acc[account.type] = {});
             const key = getKey(account);
             const sourceId = getSourceId(account);
-            (byType[key] || (byType[key] = { sourceId, accounts: []})).accounts.push(account);
+            (byType[key] || (byType[key] = { sourceId, accounts: [] })).accounts.push(account);
             return acc;
         },
         DEFAULT_SORT_ORDER.reduce(
@@ -46,7 +45,10 @@ export function groupByType(accounts: SerializedUIAccount[]) {
                 acc[type] = {};
                 return acc;
             },
-            {} as Record<AccountType, Record<string, { sourceId: string, accounts: SerializedUIAccount[] }>>,
+            {} as Record<
+                AccountType,
+                Record<string, { sourceId: string; accounts: SerializedUIAccount[] }>
+            >,
         ),
     );
 }
