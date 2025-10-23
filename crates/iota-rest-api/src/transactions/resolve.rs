@@ -197,7 +197,6 @@ pub struct ResolveTransactionQueryParameters {
 }
 
 struct NormalizedPackages {
-    pool: normalized::RcPool,
     packages: HashMap<ObjectId, NormalizedPackage>,
 }
 
@@ -266,7 +265,7 @@ fn called_packages(
         packages.insert(move_call.package, package);
     }
 
-    Ok(NormalizedPackages { pool, packages })
+    Ok(NormalizedPackages { packages })
 }
 
 fn resolve_unresolved_transaction(
