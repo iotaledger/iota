@@ -5,7 +5,8 @@
 use std::path::Path;
 
 use clap::Parser;
-use iota_move_build::{IotaPackageHooks, set_iota_flavor};
+use iota_move_build::{IotaPackageHooks, implicit_deps, set_iota_flavor};
+use iota_package_management::system_package_versions::latest_system_packages;
 use move_cli::base::test::UnitTestResult;
 use move_package::BuildConfig;
 
@@ -43,6 +44,9 @@ pub fn execute_move_command(
     if let Some(err_msg) = set_iota_flavor(&mut build_config) {
         anyhow::bail!(err_msg);
     }
+
+    build_config.implicit_dependencies = implicit_deps(latest_system_packages());
+
     move_package::package_hooks::register_package_hooks(Box::new(IotaPackageHooks));
     match command {
         Command::Build(c) => c.execute(package_path, build_config),
