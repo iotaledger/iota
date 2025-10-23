@@ -329,7 +329,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             &format!("(git checkout -b {commit} {commit} || git checkout -f {commit})"),
             "(git pull -f || true)",
             "source $HOME/.cargo/env",
-            "cargo build --release",
+            "cargo build --release --bin iota --bin iota-node --bin stress",
         ]
         .join(" && ");
 
