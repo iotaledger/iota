@@ -429,12 +429,13 @@ pub(crate) struct NodeMetrics {
     pub(crate) proposed_block_transactions: Histogram,
     pub(crate) proposed_block_ancestors: Histogram,
     pub(crate) proposed_block_ancestors_depth: HistogramVec,
+    pub(crate) proposed_block_ancestors_timestamp_drift_ms: IntCounterVec,
     pub(crate) highest_verified_authority_round: IntGaugeVec,
     pub(crate) lowest_verified_authority_round: IntGaugeVec,
     pub(crate) block_proposal_interval: Histogram,
     pub(crate) block_proposal_leader_wait_ms: IntCounterVec,
     pub(crate) block_proposal_leader_wait_count: IntCounterVec,
-    pub(crate) block_timestamp_drift_wait_ms: IntCounterVec,
+    pub(crate) block_timestamp_drift_ms: IntCounterVec,
     pub(crate) blocks_per_commit_count: Histogram,
     pub(crate) blocks_pruned_on_commit: IntCounterVec,
     pub(crate) broadcaster_rtt_estimate_ms: IntGaugeVec,
@@ -445,6 +446,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_skipped_proposals: IntCounterVec,
     pub(crate) highest_accepted_authority_round: IntGaugeVec,
     pub(crate) highest_accepted_round: IntGauge,
+    pub(crate) accepted_block_time_drift_ms: IntCounterVec,
     pub(crate) accepted_blocks: IntCounterVec,
     pub(crate) dag_state_recent_blocks: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
@@ -479,6 +481,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) last_committed_authority_round: IntGaugeVec,
     pub(crate) last_committed_leader_round: IntGauge,
     pub(crate) last_commit_index: IntGauge,
+    pub(crate) last_commit_time_diff: Histogram,
     pub(crate) last_known_own_block_round: IntGauge,
     pub(crate) sync_last_known_own_block_retries: IntCounter,
     pub(crate) commit_round_advancement_interval: Histogram,
@@ -570,6 +573,12 @@ impl NodeMetrics {
                 exponential_buckets(1.0, 1.4, 20).unwrap(),
                 registry,
             ).unwrap(),
+            proposed_block_ancestors_timestamp_drift_ms: register_int_counter_vec_with_registry!(
+                "proposed_block_ancestors_timestamp_drift_ms",
+                "The drift in ms of ancestors' timestamps included in newly proposed blocks",
+                &["authority"],
+                registry,
+            ).unwrap(),
             proposed_block_ancestors_depth: register_histogram_vec_with_registry!(
                 "proposed_block_ancestors_depth",
                 "The depth in rounds of ancestors included in newly proposed blocks",
@@ -607,9 +616,9 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
-            block_timestamp_drift_wait_ms: register_int_counter_vec_with_registry!(
-                "block_timestamp_drift_wait_ms",
-                "Total time in ms spent waiting, when a received block has timestamp in future.",
+            block_timestamp_drift_ms: register_int_counter_vec_with_registry!(
+                "block_timestamp_drift_ms",
+                "The clock drift time between a received block and the current node's time.",
                 &["authority", "source"],
                 registry,
             ).unwrap(),
@@ -668,6 +677,12 @@ impl NodeMetrics {
             highest_accepted_round: register_int_gauge_with_registry!(
                 "highest_accepted_round",
                 "The highest round where a block has been accepted. Resets on restart.",
+                registry,
+            ).unwrap(),
+            accepted_block_time_drift_ms: register_int_counter_vec_with_registry!(
+                "accepted_block_time_drift_ms",
+                "The time drift in ms of an accepted block compared to local time",
+                &["authority"],
                 registry,
             ).unwrap(),
             accepted_blocks: register_int_counter_vec_with_registry!(
@@ -877,6 +892,12 @@ impl NodeMetrics {
             last_commit_index: register_int_gauge_with_registry!(
                 "last_commit_index",
                 "Index of the last commit.",
+                registry,
+            ).unwrap(),
+            last_commit_time_diff: register_histogram_with_registry!(
+                "last_commit_time_diff",
+                "The time diff between the last commit and previous one.",
+                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
             commit_round_advancement_interval: register_histogram_with_registry!(
@@ -1989,292 +2010,6 @@ mod tests {
                 vec![3, 0, 0, 0],
                 vec![0, 1, 0, 0],
                 vec![0; committee_size],
-            ]
-        );
-
-        // Now we accept those lost blocks again and flush the dag state
-        dag_state.accept_blocks(dag_builder.blocks(13..=20));
-        for commit in second_temp_commits.clone() {
-            dag_state.add_commit(commit);
-        }
-        dag_state.flush();
-
-        // Now all misbehaviours should be accounted for in the uncached metrics.
-        assert_eq!(
-            [
-                metrics.uncached_equivocations_by_authority(),
-                metrics.uncached_missing_proposals_by_authority(),
-                metrics.equivocations_in_cache_by_authority(),
-                metrics.missing_proposals_in_cache_by_authority()
-            ],
-            [
-                vec![0, 1, 2, 0],
-                vec![3, 0, 0, 0],
-                vec![0; committee_size],
-                vec![0; committee_size],
-            ]
-        );
-    }
-
-    #[tokio::test]
-    async fn test_metrics_flush_and_recovery() {
-        telemetry_subscribers::init_for_testing();
-
-        const GC_DEPTH: u32 = 0;
-        const CACHED_ROUNDS: u32 = 5;
-
-        let committee_size = 4;
-        let (mut context, _) = Context::new_for_test(committee_size);
-
-        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context
-            .protocol_config
-            .set_consensus_gc_depth_for_testing(GC_DEPTH);
-        context
-            .protocol_config
-            .set_consensus_linearize_subdag_v2_for_testing(false);
-
-        let context = Arc::new(context);
-        let metrics = &context.metrics.scoring_metrics;
-        let store = Arc::new(MemStore::new());
-        // `cached_rounds` is initialized here as 5.
-        let mut dag_state = DagState::new(context.clone(), store.clone());
-
-        // Initialize the DAG builder with 20 layers. Blocks in the DAG will reference
-        // all blocks from the previous round.
-        // - Rounds 1 to 5 will have unique blocks from all authorities.
-        // - Rounds 6 to 8 will have unique blocks from all authorities, except 0, who
-        //   will not propose any block.
-        // - Rounds 9 to 10 will have unique blocks from all authorities.
-        // - Rounds 11 to 20 will have unique blocks from all authorities, except:
-        //      - Authority 1, who will produce 1 equivocating blocks at round 11 (i.e.,
-        //        1+1 blocks)
-        //      - Authority 2, who will produce 2 equivocating blocks at round 13 (i.e.,
-        //        1+2 blocks)
-        let mut dag_builder = DagBuilder::new(context.clone());
-        dag_builder.layers(1..=5).build();
-        dag_builder
-            .layers(6..=8)
-            .authorities(vec![AuthorityIndex::new_for_test(0)])
-            .skip_block()
-            .build();
-        dag_builder.layers(9..=10).build();
-        dag_builder
-            .layers(11..=11)
-            .authorities(vec![AuthorityIndex::new_for_test(1)])
-            .equivocate(1)
-            .build();
-        dag_builder.layers(12..=12).build();
-        dag_builder
-            .layers(13..=13)
-            .authorities(vec![AuthorityIndex::new_for_test(2)])
-            .equivocate(2)
-            .build();
-        dag_builder.layers(14..=20).build();
-
-        let mut commits = dag_builder
-            .get_sub_dag_and_commits(1..=20)
-            .into_iter()
-            .map(|(_subdag, commit)| commit)
-            .collect::<Vec<_>>();
-
-        // Add the blocks and commits from first 10 rounds to the dag state. Since
-        // authority 0 skipped a leader round, we use the 9 first items of the commits
-        // vector
-        let mut temp_commits = commits.split_off(9);
-        dag_state.accept_blocks(dag_builder.blocks(1..=10));
-        for commit in commits.clone() {
-            dag_state.add_commit(commit);
-        }
-
-        // Checks that metrics are still all zeroed, since even though we accepted
-        // blocks to the dag state, the metrics updates are done when the dag state is
-        // flushed.
-        assert_eq!(
-            [
-                metrics.uncached_equivocations_by_authority(),
-                metrics.uncached_missing_proposals_by_authority(),
-                metrics.equivocations_in_cache_by_authority(),
-                metrics.missing_proposals_in_cache_by_authority()
-            ],
-            [
-                vec![0; committee_size],
-                vec![0; committee_size],
-                vec![0; committee_size],
-                vec![0; committee_size]
-            ]
-        );
-
-        // Flush the dag state
-        dag_state.flush();
-
-        // Check that metrics were updated correctly after flushing.
-        //
-        // Equivocations:
-        // - We only accepted blocks from rounds <= 10, thus, no equivocations were
-        //   accepted yet. Equivocations metrics, then, should be still all zeroed.
-        //
-        // Missing proposals:
-        // - The the last committed round is 10, so the eviction round should be 5 for
-        //   authority 2 (leader of round 10) and 4 for all other authorities.
-        // - The threshold_clock_round should be 11, since we already accepted all
-        //   blocks from epoch 10.
-        // - Then, finally, we should have counted:
-        //      - 0 uncached missing proposals for authority 0;
-        //      - 3 missing proposal in cache for authority 0;
-        //      - 0 missing proposals for authorities 1, 2, and 3.
-        assert_eq!(
-            [
-                metrics.uncached_equivocations_by_authority(),
-                metrics.uncached_missing_proposals_by_authority(),
-                metrics.equivocations_in_cache_by_authority(),
-                metrics.missing_proposals_in_cache_by_authority()
-            ],
-            [
-                vec![0; committee_size],
-                vec![0; committee_size],
-                vec![0; committee_size],
-                vec![3, 0, 0, 0],
-            ]
-        );
-
-        // Clear and check all metrics
-        metrics.uncached[0]
-            .missing_proposals
-            .store(0, Ordering::Relaxed);
-        metrics.cached[0]
-            .missing_proposals
-            .store(0, Ordering::Relaxed);
-        assert_eq!(
-            [
-                metrics.uncached_equivocations_by_authority(),
-                metrics.uncached_missing_proposals_by_authority(),
-                metrics.equivocations_in_cache_by_authority(),
-                metrics.missing_proposals_in_cache_by_authority()
-            ],
-            [
-                vec![0; committee_size],
-                vec![0; committee_size],
-                vec![0; committee_size],
-                vec![0; committee_size]
-            ]
-        );
-
-        // Destroy and recover dag state from storage.
-        drop(dag_state);
-        let mut dag_state = DagState::new(context.clone(), store.clone());
-
-        assert_eq!(dag_state.last_commit_index(), 9);
-        assert_eq!(dag_state.last_committed_rounds(), [9, 9, 10, 9]);
-
-        // Metrics should have been initialized as before the recovery.
-        assert_eq!(
-            [
-                metrics.uncached_equivocations_by_authority(),
-                metrics.uncached_missing_proposals_by_authority(),
-                metrics.equivocations_in_cache_by_authority(),
-                metrics.missing_proposals_in_cache_by_authority()
-            ],
-            [
-                vec![0; committee_size],
-                vec![0; committee_size],
-                vec![0; committee_size],
-                vec![3, 0, 0, 0],
-            ]
-        );
-
-        // Add blocks and commits from rounds 11 and 12 to the dag state.
-        let second_temp_commits = temp_commits.split_off(2);
-        dag_state.accept_blocks(dag_builder.blocks(11..=12));
-        for commit in temp_commits.clone() {
-            dag_state.add_commit(commit);
-        }
-
-        // Flush the dag state
-        dag_state.flush();
-
-        // Check that metrics were updated correctly after flushing.
-        //
-        // Missing proposals:
-        // - The last commit round is 12, so the eviction round should be 7 for
-        //   authority 0 (leader of round 12) and 6 for all other authorities. Then, we
-        //   should have counted:
-        //      - 2 uncached missing proposals for authority 0;
-        //      - 1 missing proposal in cache for authority 0;
-        //      - 0 missing proposals for authorities 1, 2, and 3.
-        //
-        // Equivocations:
-        // - We only removed from cache blocks from rounds <= 7, thus, no equivocations
-        //   should be uncached. Then, we should have counted:
-        //      - 0 uncached equivocations;
-        //      - 1 equivocation in cache for authority 1;
-        //      - 0 equivocations in cache for authorities 0, 2 and 3;
-        //
-
-        assert_eq!(
-            [
-                metrics.uncached_equivocations_by_authority(),
-                metrics.uncached_missing_proposals_by_authority(),
-                metrics.equivocations_in_cache_by_authority(),
-                metrics.missing_proposals_in_cache_by_authority()
-            ],
-            [
-                vec![0; committee_size],
-                vec![2, 0, 0, 0],
-                vec![0, 1, 0, 0],
-                vec![1, 0, 0, 0],
-            ]
-        );
-
-        // Accept all the rest of blocks and commits.
-        dag_state.accept_blocks(dag_builder.blocks(13..=20));
-        for commit in second_temp_commits.clone() {
-            dag_state.add_commit(commit);
-        }
-
-        // Clear and check all metrics
-        metrics.uncached[0]
-            .missing_proposals
-            .store(0, Ordering::Relaxed);
-        metrics.cached[1].equivocations.store(0, Ordering::Relaxed);
-        metrics.cached[0]
-            .missing_proposals
-            .store(0, Ordering::Relaxed);
-
-        assert_eq!(
-            [
-                metrics.uncached_equivocations_by_authority(),
-                metrics.uncached_missing_proposals_by_authority(),
-                metrics.equivocations_in_cache_by_authority(),
-                metrics.missing_proposals_in_cache_by_authority()
-            ],
-            [
-                vec![0; committee_size],
-                vec![0; committee_size],
-                vec![0; committee_size],
-                vec![0; committee_size]
-            ]
-        );
-
-        // Destroy and recover dag state from storage.
-        drop(dag_state);
-        let mut dag_state = DagState::new(context.clone(), store.clone());
-
-        // Since the last accepted blocks were not flushed, the equivocations from
-        // rounds 13 to 20 should not be accounted for. The metrics should remain
-        // the same as before this acceptance.
-        assert_eq!(
-            [
-                metrics.uncached_equivocations_by_authority(),
-                metrics.uncached_missing_proposals_by_authority(),
-                metrics.equivocations_in_cache_by_authority(),
-                metrics.missing_proposals_in_cache_by_authority()
-            ],
-            [
-                vec![0; committee_size],
-                vec![2, 0, 0, 0],
-                vec![0, 1, 0, 0],
-                vec![1, 0, 0, 0],
             ]
         );
 

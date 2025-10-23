@@ -1536,7 +1536,7 @@ the snapshot. If needed the `InstaOptions` struct can be used directly by specif
 After running the test, the `.snap` files can be updated in two ways:
 
 1. By using `cargo insta review`, which will open an interactive UI to review the changes.
-2. Running the tests with the environment variable `INSTA_UPDATE=alawys`
+2. Running the tests with the environment variable `INSTA_UPDATE=always`
 
 ### Structure of the `.move` File.
 

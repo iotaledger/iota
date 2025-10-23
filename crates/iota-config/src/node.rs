@@ -30,6 +30,7 @@ use iota_types::{
 use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
+use starfish_config::Parameters as StarfishParameters;
 use tracing::info;
 
 use crate::{
@@ -775,7 +776,12 @@ pub struct ConsensusConfig {
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
+    /// Parameters for Mysticeti consensus
     pub parameters: Option<ConsensusParameters>,
+
+    /// Parameters for Starfish consensus
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub starfish_parameters: Option<StarfishParameters>,
 }
 
 impl ConsensusConfig {
