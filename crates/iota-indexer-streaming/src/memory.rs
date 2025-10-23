@@ -28,6 +28,7 @@ use iota_indexer::{
     },
 };
 use iota_types::event::Event;
+use prometheus::IntGauge;
 use serde::Deserialize;
 use tokio::sync::broadcast;
 use tokio_postgres::{
@@ -486,10 +487,10 @@ impl InMemory {
 struct SubscriberStream<T> {
     /// The inner stream implementation we want to wrap.
     inner: BroadcastStream<T>,
-    /// The prometheus label we want to record metrics.
-    label: &'static str,
-    /// The collection of available prometheus metrics we want to record.
-    metrics: Arc<InMemoryStreamMetrics>,
+    /// Tracks if the subscriber is active.
+    active_subscriber_number: IntGauge,
+    /// Tracks if the subscriber is lagging.
+    lagging_subscribers: IntGauge,
     /// Tracks if this subscriber is currently lagged.
     is_lagging: bool,
 }
@@ -500,15 +501,15 @@ impl<T> SubscriberStream<T> {
         label: &'static str,
         metrics: Arc<InMemoryStreamMetrics>,
     ) -> Self {
-        metrics
-            .active_subscriber_number
-            .with_label_values(&[label])
-            .inc();
+        let active_subscriber_number = metrics.active_subscriber_number.with_label_values(&[label]);
+        let lagging_subscribers = metrics.lagging_subscribers.with_label_values(&[label]);
+
+        active_subscriber_number.inc();
 
         Self {
             inner,
-            label,
-            metrics,
+            active_subscriber_number,
+            lagging_subscribers,
             is_lagging: false,
         }
     }
@@ -516,10 +517,7 @@ impl<T> SubscriberStream<T> {
 
 impl<T> Drop for SubscriberStream<T> {
     fn drop(&mut self) {
-        self.metrics
-            .active_subscriber_number
-            .with_label_values(&[self.label])
-            .dec();
+        self.active_subscriber_number.dec();
     }
 }
 
@@ -529,27 +527,18 @@ impl<T: Clone + Send + 'static> Stream for SubscriberStream<T> {
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let poll = Pin::new(&mut self.inner).poll_next(cx);
 
-        match poll {
-            Poll::Ready(Some(Ok(_))) => {
-                if self.is_lagging {
-                    self.metrics
-                        .lagging_subscribers
-                        .with_label_values(&[self.label])
-                        .dec();
-                    self.is_lagging = false;
-                }
+        if let Poll::Ready(Some(Ok(_))) = poll {
+            if self.is_lagging {
+                self.lagging_subscribers.dec();
+                self.is_lagging = false;
             }
-            Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(_)))) => {
-                if !self.is_lagging {
-                    self.metrics
-                        .lagging_subscribers
-                        .with_label_values(&[self.label])
-                        .inc();
-                    self.is_lagging = true;
-                }
+        } else if let Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(_)))) = poll {
+            if !self.is_lagging {
+                self.lagging_subscribers.inc();
+                self.is_lagging = true;
             }
-            _ => {}
         }
+
         poll
     }
 }
