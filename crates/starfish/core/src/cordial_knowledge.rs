@@ -811,7 +811,6 @@ impl ConnectionKnowledge {
             for knowledge_msg in knowledge_msgs {
                 self.process_message(knowledge_msg).await;
             }
-            tokio::task::yield_now().await;
         }
 
         debug!(
