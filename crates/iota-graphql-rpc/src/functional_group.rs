@@ -38,7 +38,7 @@ impl FunctionalGroup {
     /// the GraphQL API. Not a suitable `Display` implementation because it
     /// enquotes the representation.
     pub(crate) fn name(&self) -> String {
-        json::ser::to_string(self).expect("Serializing `FunctionalGroup` cannot fail.")
+        json::ser::to_string(self).expect("serializing `FunctionalGroup` cannot fail.")
     }
 
     /// List of all functional groups
@@ -145,7 +145,7 @@ mod tests {
             };
 
             panic!(
-                "Field '{type_}.{field}' is marked as unimplemented in this test, but it's in the \
+                "field '{type_}.{field}' is marked as unimplemented in this test, but it's in the \
                  schema.  Fix this by removing it from the `unimplemented` set."
             );
         }
@@ -156,12 +156,12 @@ mod tests {
             }
 
             let Some(meta_type) = registry.concrete_type_by_name(type_) else {
-                panic!("Type '{type_}' from functional group configs does not appear in schema.");
+                panic!("type '{type_}' from functional group configs does not appear in schema.");
             };
 
             let Some(_) = meta_type.field_by_name(field) else {
                 panic!(
-                    "Field '{type_}.{field}' from functional group configs does not appear in \
+                    "field '{type_}.{field}' from functional group configs does not appear in \
                      schema."
                 );
             };

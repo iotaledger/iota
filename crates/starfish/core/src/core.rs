@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
@@ -52,15 +52,6 @@ use crate::{
 // Maximum number of commit votes to include in a block.
 // TODO: Move to protocol config, and verify in BlockVerifier.
 const MAX_COMMIT_VOTES_PER_BLOCK: usize = 100;
-
-// Maximum number of acknowledgments to be included in a block. It must be
-// reasonably larger than the number of validators because not all validators
-// create their blocks at the same pace. For now we set it as a
-// constant to not make the block header size too large.
-// TODO: https://github.com/iotaledger/iota/issues/8378
-// After testing decide how to compress acknowledgments and move to a
-// protocol config
-const MAX_ACKNOWLEDGMENTS_PER_BLOCK: usize = 400;
 
 pub(crate) struct Core {
     context: Arc<Context>,
@@ -205,7 +196,7 @@ impl Core {
             .scope_processing_time
             .with_label_values(&["Core::recover"])
             .start_timer();
-        // Ensure local time is after max ancestor timestamp.
+        // Check ancestor timestamps
         let ancestor_block_headers = self
             .dag_state
             .read()
@@ -214,12 +205,13 @@ impl Core {
             .iter()
             .fold(0, |ts, (b, _)| ts.max(b.timestamp_ms()));
         let wait_ms = max_ancestor_timestamp.saturating_sub(self.context.clock.timestamp_utc_ms());
+
+        // NEW mode: no waiting on timestamp drift
         if wait_ms > 0 {
-            warn!(
-                "Waiting for {} ms while recovering ancestors from storage",
+            info!(
+                "Median based timestamp is enabled. Will not wait for {} ms while recovering ancestors from storage",
                 wait_ms
             );
-            std::thread::sleep(Duration::from_millis(wait_ms));
         }
 
         // Try to commit and propose, since they may not have run after the last write
@@ -230,7 +222,7 @@ impl Core {
         let last_proposed_block = match self.try_propose(true).unwrap() {
             (Some(block), _) => Some(block),
             (None, _) => {
-                let last_proposed_block = self.dag_state.read().get_last_proposed_block();
+                let last_proposed_block = self.dag_state.read().recover_last_own_block();
                 if self.should_propose() {
                     assert!(
                         last_proposed_block.round() != GENESIS_ROUND,
@@ -255,7 +247,7 @@ impl Core {
 
         info!(
             "Core recovery completed with last proposed block {:?}",
-            last_proposed_block
+            last_proposed_block.map(|b| b.verified_block_header)
         );
 
         self
@@ -266,7 +258,7 @@ impl Core {
     /// this call is known to be about not old blocks. The method returns:
     /// - The references of ancestors missing their block
     /// - The references of committed transactions that are missing
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument("consensus_add_blocks", skip_all)]
     pub(crate) fn add_blocks(
         &mut self,
         blocks: Vec<VerifiedBlock>,
@@ -480,6 +472,7 @@ impl Core {
             return;
         }
         // Then send a signal to set up leader timeout.
+        tracing::trace!(round = ?new_clock_round, "new_consensus_round_sent");
         self.signals.new_round(new_clock_round);
         self.last_signaled_round = new_clock_round;
 
@@ -547,6 +540,7 @@ impl Core {
     /// Attempts to propose a new block for the next round. If a block has
     /// already proposed for latest or earlier round, then no block is
     /// created and None is returned.
+    #[instrument(level = "trace", skip_all)]
     fn try_new_block(&mut self, force: bool) -> Option<VerifiedBlock> {
         let _s = self
             .context
@@ -643,15 +637,19 @@ impl Core {
                 .observe(clock_round.saturating_sub(ancestor.round()).into());
         }
 
-        // Ensure ancestor timestamps are not more advanced than the current time.
-        // Also catch the issue if system's clock go backwards.
+        // Record timestamp drift but don't enforce ancestor timestamp checks.
         let now = self.context.clock.timestamp_utc_ms();
         ancestors.iter().for_each(|block| {
-            assert!(
-                block.timestamp_ms() <= now,
-                "Violation: ancestor block {:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {}.",
-                block, block.timestamp_ms(), clock_round
-            );
+            if block.timestamp_ms() > now {
+                trace!("Ancestor block {block:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {clock_round}.",  block.timestamp_ms());
+                let authority = &self.context.committee.authority(block.author()).hostname;
+                self.context
+                    .metrics
+                    .node_metrics
+                    .proposed_block_ancestors_timestamp_drift_ms
+                    .with_label_values(&[authority])
+                    .inc_by(block.timestamp_ms().saturating_sub(now));
+            }
         });
 
         // Consume the next transactions to be included. Do not drop the guards yet as
@@ -677,10 +675,11 @@ impl Core {
 
         // Consume the acknowledgments about transaction data availability for past
         // blocks to be included.
-        let acknowledgments = self
-            .dag_state
-            .write()
-            .take_acknowledgments(MAX_ACKNOWLEDGMENTS_PER_BLOCK);
+        let acknowledgments = self.dag_state.write().take_acknowledgments(
+            self.context
+                .protocol_config
+                .consensus_max_acknowledgments_per_block_or_default() as usize,
+        );
 
         self.context
             .metrics
@@ -792,6 +791,7 @@ impl Core {
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
     /// any `certified_commits` are provided, then it will attempt to commit
     /// those first before trying to commit any further leaders.
+    #[instrument(level = "trace", skip_all)]
     fn try_commit(
         &mut self,
     ) -> ConsensusResult<(
@@ -1140,11 +1140,6 @@ impl Core {
         self.last_proposed_block_header().round()
     }
 
-    #[expect(dead_code)]
-    fn last_proposed_block(&self) -> VerifiedBlock {
-        self.dag_state.read().get_last_proposed_block()
-    }
-
     fn last_proposed_block_header(&self) -> VerifiedBlockHeader {
         self.dag_state.read().get_last_proposed_block_header()
     }
@@ -1476,7 +1471,7 @@ mod test {
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
 
         // Create test blocks for all authorities except our's (index = 0).
-        let mut last_round_blocks = genesis_blocks(context.clone());
+        let mut last_round_blocks = genesis_blocks(&context);
         let mut all_blocks = last_round_blocks.clone();
         for round in 1..=4 {
             let mut this_round_blocks = Vec::new();
@@ -1725,7 +1720,7 @@ mod test {
         assert_eq!(verified_block.acknowledgments().len(), num_acks);
 
         // genesis blocks should be referenced
-        let all_genesis = genesis_block_headers(context);
+        let all_genesis = genesis_block_headers(&context);
 
         for ancestor in verified_block.ancestors() {
             all_genesis

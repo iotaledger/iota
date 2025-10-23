@@ -52,7 +52,7 @@ impl ParquetWriter {
                 self.checkpoint_range.clone(),
             ),
         )?;
-        create_dir_all(file_path.parent().ok_or(anyhow!("Bad directory path"))?)?;
+        create_dir_all(file_path.parent().ok_or(anyhow!("bad directory path"))?)?;
         if file_path.exists() {
             remove_file(&file_path)?;
         }

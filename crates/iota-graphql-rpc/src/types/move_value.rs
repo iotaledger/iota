@@ -68,7 +68,7 @@ type MoveData =
   }"
 );
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) enum MoveData {
     Address(IotaAddress),
     #[serde(rename = "UID")]
@@ -84,13 +84,13 @@ pub(crate) enum MoveData {
     Variant(MoveVariant),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct MoveVariant {
     name: String,
     fields: Vec<MoveField>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct MoveField {
     name: String,
     value: MoveData,
@@ -499,7 +499,7 @@ mod tests {
     macro_rules! struct_layout {
         ($type:literal { $($name:literal : $layout:expr),* $(,)?}) => {
             A::MoveTypeLayout::Struct(Box::new(S {
-                type_: StructTag::from_str($type).expect("Failed to parse struct"),
+                type_: StructTag::from_str($type).expect("failed to parse struct"),
                 fields: vec![$(MoveFieldLayout {
                     name: ident_str!($name).to_owned(),
                     layout: $layout,

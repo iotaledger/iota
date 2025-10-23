@@ -25,11 +25,11 @@ const HOTNESS_CUTOFF: f64 = 1.0;
 
 /// Controls how quickly congestion tracker updates object hotness.
 /// Values should be > 0.0. Higher values mean faster adjustments.
-const HOTNESS_ADJUSTMENT_FACTOR: f64 = 0.2;
+const HOTNESS_ADJUSTMENT_FACTOR: f64 = 1.0;
 
 /// Controls how quickly hotness decays for objects not seen in congestion.
 /// Values should be >= 1.0: set to > 1.0 for decay, or 1.0 for no decay.
-const HOTNESS_DECAY_FACTOR: f64 = 1.5;
+const MAX_DECAY_FACTOR: f64 = 2.0;
 
 /// Alias for type holding congestion info per checkpoint.
 type CongestionInfoMap = HashMap<ObjectID, CongestionInfo>;
@@ -84,22 +84,17 @@ impl CongestionInfo {
         }
     }
 
-    fn update_hotness(
-        &mut self,
-        new: &CongestionInfo,
-        number_congested_transactions: usize,
-        is_new: bool,
-    ) {
-        if number_congested_transactions > 0 {
+    fn update_hotness(&mut self, new: &CongestionInfo, number_transactions: usize, is_new: bool) {
+        if number_transactions > 0 {
             // Compute hotness adjustment
             let hotness_adjustment =
-                new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_congested_transactions as f64;
+                new.hotness * HOTNESS_ADJUSTMENT_FACTOR / number_transactions as f64;
 
             // Apply hotness change depending on whether the object is new
             let updated_hotness = if is_new {
                 -hotness_adjustment
             } else {
-                (self.hotness - hotness_adjustment).max(self.hotness / HOTNESS_DECAY_FACTOR)
+                (self.hotness - hotness_adjustment).max(self.hotness / MAX_DECAY_FACTOR)
             };
 
             // Ensure hotness is non-negative
@@ -218,16 +213,18 @@ impl CongestionTracker {
         )
     }
 
-    /// For all the mutable shared inputs, sum the hotness of the objects.
-    /// More sophisticated prediction algorithms can be implemented.
+    /// Get the largest hotness value among all mutable input shared objects
+    /// accessed by `transaction`.
     pub fn get_suggested_gas_price_with_ogd(&self, transaction: &TransactionData) -> u64 {
-        let hotness = self.get_total_hotness_for_objects(
-            transaction
-                .shared_input_objects()
-                .into_iter()
-                .filter(|id| id.mutable)
-                .map(|id| id.id),
-        );
+        let (_, hotness) = self
+            .get_max_hotness_per_tx(
+                transaction
+                    .shared_input_objects()
+                    .into_iter()
+                    .filter(|id| id.mutable)
+                    .map(|id| id.id),
+            )
+            .unwrap_or((ObjectID::random(), 0.0));
 
         self.reference_gas_price + hotness as u64
     }
@@ -261,7 +258,10 @@ impl CongestionTracker {
             congestion_txs_data,
             clearing_txs_data,
         );
-        self.update_congestion_info_cache(congestion_info_map, congestion_txs_data.len());
+        self.update_congestion_info_cache(
+            congestion_info_map,
+            congestion_txs_data.len() + clearing_txs_data.len(),
+        );
     }
 
     /// Get the highest minimum clearing price, if any exists, for a list of
@@ -302,11 +302,32 @@ impl CongestionTracker {
         clearing_gas_price
     }
 
-    fn get_total_hotness_for_objects(&self, objects: impl Iterator<Item = ObjectID>) -> f64 {
-        objects
-            .filter_map(|object_id| self.get_congestion_info(object_id))
+    fn get_max_hotness_per_tx(
+        &self,
+        mut objects: impl Iterator<Item = ObjectID>,
+    ) -> Option<(ObjectID, f64)> {
+        // Initialize with the first object (or return None if empty)
+        let first = objects.next()?;
+        let first_hotness = self
+            .get_congestion_info(first)
             .map(|info| info.hotness)
-            .sum()
+            .unwrap_or(0.0);
+
+        let mut best = (first, first_hotness);
+
+        // Iterate through the rest
+        for object_id in objects {
+            let hotness = self
+                .get_congestion_info(object_id)
+                .map(|info| info.hotness)
+                .unwrap_or(0.0);
+
+            if hotness > best.1 {
+                best = (object_id, hotness);
+            }
+        }
+
+        Some(best)
     }
 
     fn compute_per_checkpoint_congestion_info(
@@ -316,6 +337,7 @@ impl CongestionTracker {
         clearing_txs_data: &[TxData],
     ) -> CongestionInfoMap {
         let mut congestion_info_map = CongestionInfoMap::new();
+        let mut objects_with_mutated_hotness: Vec<ObjectID> = Vec::new();
 
         for TxData {
             objects,
@@ -323,9 +345,14 @@ impl CongestionTracker {
             gas_price_feedback,
         } in congestion_txs_data
         {
-            let hotness_per_tx = self.get_total_hotness_for_objects(objects.iter().cloned());
-            objects.iter().for_each(|object_id| {
-                match congestion_info_map.entry(*object_id) {
+            // Get the object with the maximum hotness among all objects in the transaction.
+            let (max_object_id, max_hotness_per_tx) = self
+                .get_max_hotness_per_tx(objects.iter().cloned())
+                .unwrap_or((ObjectID::random(), 0.0));
+
+            objects
+                .iter()
+                .for_each(|object_id| match congestion_info_map.entry(*object_id) {
                     Entry::Occupied(entry) => {
                         entry.into_mut().update_for_congested_tx(time, *gas_price);
                     }
@@ -338,18 +365,19 @@ impl CongestionTracker {
                             hotness: 0.0,
                         });
                     }
-                }
+                });
 
-                // Adjust hotness based on the loss function comparing prediction (sum of
-                // hotness of objects in the transaction + reference gas price) and actual gas
-                // price feedback.
-                let hotness_adjustment = hotness_per_tx + (self.reference_gas_price as f64)
-                    - (gas_price_feedback.unwrap_or(self.reference_gas_price) as f64);
+            // Adjust hotness based on the loss function comparing prediction (maximum
+            // hotness of objects in the transaction + reference gas price) and actual gas
+            // price feedback.
+            let hotness_adjustment = max_hotness_per_tx + (self.reference_gas_price as f64)
+                - (gas_price_feedback.unwrap_or(self.reference_gas_price) as f64);
 
-                congestion_info_map
-                    .entry(*object_id)
-                    .and_modify(|info| info.hotness += hotness_adjustment);
-            });
+            congestion_info_map
+                .entry(max_object_id)
+                .and_modify(|info| info.hotness += hotness_adjustment);
+
+            objects_with_mutated_hotness.push(max_object_id);
         }
 
         for TxData {
@@ -378,16 +406,46 @@ impl CongestionTracker {
             });
         }
 
+        for TxData { objects, .. } in clearing_txs_data {
+            // Get the object with the maximum hotness among all objects in the transaction.
+            let (max_object_id, max_hotness_per_tx) = self
+                .get_max_hotness_per_tx(objects.iter().cloned())
+                .unwrap_or((ObjectID::random(), 0.0));
+
+            if let Some(info) = congestion_info_map.get(&max_object_id) {
+                // Adjust hotness based on the loss function comparing prediction (maximum
+                // hotness of objects in the transaction + reference gas price) and lowest
+                // clearing gas price per object.
+                let hotness_adjustment = max_hotness_per_tx + (self.reference_gas_price as f64)
+                    - info
+                        .lowest_clearing_gas_price
+                        .unwrap_or(self.reference_gas_price) as f64;
+                congestion_info_map
+                    .entry(max_object_id)
+                    .and_modify(|info| info.hotness += hotness_adjustment);
+
+                objects_with_mutated_hotness.push(max_object_id);
+            }
+        }
+
+        // Objects that were not updated in this checkpoint will decay as much as
+        // possible, bounded by `MAX_DECAY_FACTOR` (see `update_hotness` function).
+        for (object_id, info) in congestion_info_map.iter_mut() {
+            if !objects_with_mutated_hotness.contains(object_id) {
+                info.hotness = f64::MAX;
+            }
+        }
+
         congestion_info_map
     }
 
     fn update_congestion_info_cache(
         &self,
         congestion_info_map: CongestionInfoMap,
-        number_congested_transactions: usize,
+        number_transactions: usize,
     ) {
-        // Store the object IDs that are congested in this checkpoint
-        let congested_objects: std::collections::HashSet<_> =
+        // Store the object IDs that are touched in this checkpoint
+        let touched_objects: std::collections::HashSet<_> =
             congestion_info_map.keys().cloned().collect();
 
         for (object_id, info) in congestion_info_map {
@@ -397,25 +455,25 @@ impl CongestionTracker {
                     if let Some(e) = maybe_entry {
                         let mut e = e.into_value();
                         e.update_with_new_congestion_info(&info);
-                        e.update_hotness(&info, number_congested_transactions, false);
+                        e.update_hotness(&info, number_transactions, false);
                         Op::Put(e)
                     } else {
                         let mut new_info = info;
-                        new_info.update_hotness(&info, number_congested_transactions, true);
+                        new_info.update_hotness(&info, number_transactions, true);
                         Op::Put(new_info)
                     }
                 });
         }
 
-        // Decay hotness of unaffected objects, and prune if too cold
+        // Decay hotness of untouched objects, and prune if too cold
         for (object_id, _) in self.object_congestion_info.iter() {
-            if !congested_objects.contains(&object_id) {
+            if !touched_objects.contains(&object_id) {
                 self.object_congestion_info
                     .entry(*object_id)
                     .and_compute_with(|maybe_entry| {
                         if let Some(e) = maybe_entry {
                             let mut e = e.into_value();
-                            e.hotness /= HOTNESS_DECAY_FACTOR;
+                            e.hotness /= MAX_DECAY_FACTOR;
                             if e.hotness < HOTNESS_CUTOFF {
                                 Op::Remove
                             } else {
@@ -637,13 +695,13 @@ mod tests {
 
         let now = 1000;
 
-        // Congestion events: both objects are congested with different gas price
+        // Congestion events: all objects are congested with different gas price
         // feedback
         let congestion_events = vec![
             TxData {
                 objects: vec![obj1],
                 gas_price: 1000,
-                gas_price_feedback: Some(900),
+                gas_price_feedback: Some(1050),
             },
             TxData {
                 objects: vec![obj2],
@@ -661,24 +719,46 @@ mod tests {
                 gas_price_feedback: Some(1600),
             },
         ];
-        let cleared_events = vec![]; // no clearing in this round
+        let cleared_events = vec![
+            TxData {
+                objects: vec![obj1],
+                gas_price: 1080,
+                gas_price_feedback: None,
+            },
+            TxData {
+                objects: vec![obj2],
+                gas_price: 1300,
+                gas_price_feedback: None,
+            },
+            TxData {
+                objects: vec![obj2],
+                gas_price: 1400,
+                gas_price_feedback: None,
+            },
+            TxData {
+                objects: vec![obj2, obj3],
+                gas_price: 1200,
+                gas_price_feedback: None,
+            },
+        ];
 
         tracker.process_congestion_and_clearing_txs_data(now, &congestion_events, &cleared_events);
 
-        // New hotness values should be 0 (obj1), 50 (obj2) and 30 (obj3)
-        // For obj3, this is calculated as:
-        // LEARNING_RATE * [hotness (1600) - gas_price_feedback (1000)] / num_txs (4)
         assert!(
-            tracker.get_hotness_for_object(&obj1).unwrap() == 0.0,
-            "obj1 should have unchanged hotness"
+            tracker.get_hotness_for_object(&obj1).unwrap() == HOTNESS_ADJUSTMENT_FACTOR * 16.25,
+            "obj1 should have positive hotness"
         );
         assert!(
-            tracker.get_hotness_for_object(&obj2).unwrap() == HOTNESS_ADJUSTMENT_FACTOR * 250.0,
-            "obj2 should have increased hotness"
+            tracker.get_hotness_for_object(&obj2).unwrap() == HOTNESS_ADJUSTMENT_FACTOR * 200.0,
+            "obj2 should have positive hotness"
         );
+        // obj3 is included in transactions with obj2, which gets all hotness updates.
+        // Remember that only the object with the largest hotness in a transaction gets
+        // its hotness updated. If hotness is equal, than the first object in the
+        // transaction gets updated.
         assert!(
-            tracker.get_hotness_for_object(&obj3).unwrap() == HOTNESS_ADJUSTMENT_FACTOR * 150.0,
-            "obj3 should have increased hotness"
+            tracker.get_hotness_for_object(&obj3).unwrap() == 0.0,
+            "obj3 should have 0 hotness"
         );
     }
 
@@ -697,7 +777,11 @@ mod tests {
                 gas_price: 100,
                 gas_price_feedback: Some(1500),
             }],
-            &[],
+            &[TxData {
+                objects: vec![obj1],
+                gas_price: 1600,
+                gas_price_feedback: None,
+            }],
         );
 
         // Second checkpoint, touches same object and new one
@@ -708,28 +792,36 @@ mod tests {
                 gas_price: 100,
                 gas_price_feedback: Some(1700),
             }],
-            &[],
+            &[TxData {
+                objects: vec![obj1, obj2],
+                gas_price: 1800,
+                gas_price_feedback: None,
+            }],
         );
 
         let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap_or(0.0);
         let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
-        assert!(hotness1 == 220.0, "hotness for obj1 should be 220.0");
-        assert!(hotness2 == 120.0, "hotness for obj2 should be 120.0");
+        assert!(hotness1 == 750.0, "hotness for obj1 should be 750.0");
+        assert!(hotness2 == 0.0, "hotness for obj2 should be 0.0");
 
         // Additional checkpoints
-        tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
+        tracker.process_congestion_and_clearing_txs_data(1200, &[], &[]);
         tracker.process_congestion_and_clearing_txs_data(
-            1000,
+            1300,
             &[TxData {
                 objects: vec![obj2],
                 gas_price: 100,
                 gas_price_feedback: Some(1050),
             }],
-            &[],
+            &[TxData {
+                objects: vec![obj1],
+                gas_price: 1100,
+                gas_price_feedback: None,
+            }],
         );
-        tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
+        tracker.process_congestion_and_clearing_txs_data(1400, &[], &[]);
         tracker.process_congestion_and_clearing_txs_data(
-            1000,
+            1500,
             &[
                 TxData {
                     objects: vec![obj1, obj2],
@@ -742,19 +834,17 @@ mod tests {
                     gas_price_feedback: Some(1020),
                 },
             ],
-            &[],
+            &[TxData {
+                objects: vec![obj1],
+                gas_price: 1100,
+                gas_price_feedback: None,
+            }],
         );
 
         let hotness1 = tracker.get_hotness_for_object(&obj1).unwrap_or(0.0);
         let hotness2 = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
-        assert!(
-            hotness1.floor() == 64.0,
-            "hotness for obj1 should be positive"
-        );
-        assert!(
-            hotness2.floor() == 52.0,
-            "hotness for obj2 should be positive"
-        );
+        assert!(hotness1 == 90.0, "hotness for obj1 should be approx 90.5");
+        assert!(hotness2 == 6.25, "hotness for obj2 should be approx 25");
     }
 
     #[test]
@@ -770,22 +860,25 @@ mod tests {
             &[TxData {
                 objects: vec![obj1, obj2],
                 gas_price: 100,
-                gas_price_feedback: Some(1010),
+                gas_price_feedback: Some(1004),
             }],
             &[],
         );
 
-        // obj1 is not congested anymore
+        // obj1 is not congested anymore. Its hotness is halved for every checkpoint
+        // where it is not in the congested object set.
         tracker.process_congestion_and_clearing_txs_data(
-            1000,
+            1100,
             &[TxData {
                 objects: vec![obj2],
                 gas_price: 100,
-                gas_price_feedback: Some(1007),
+                gas_price_feedback: Some(1010),
             }],
             &[],
         );
-        tracker.process_congestion_and_clearing_txs_data(1000, &[], &[]);
+        tracker.process_congestion_and_clearing_txs_data(1200, &[], &[]);
+        tracker.process_congestion_and_clearing_txs_data(1300, &[], &[]);
+        tracker.process_congestion_and_clearing_txs_data(1400, &[], &[]);
 
         // hotness for obj1 goes below 1.0 so it should be removed from cache
         assert!(
@@ -793,6 +886,9 @@ mod tests {
             "obj1 should be removed from cache"
         );
         let hotness = tracker.get_hotness_for_object(&obj2).unwrap_or(0.0);
-        assert!(hotness == 2.0, "hotness for obj2 should be 2.0");
+        assert!(
+            hotness == 1.25 * HOTNESS_ADJUSTMENT_FACTOR,
+            "hotness for obj2 should be 1.25"
+        );
     }
 }

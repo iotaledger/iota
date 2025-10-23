@@ -147,3 +147,15 @@ In order to re-generate the GraphQL schema ([schema.graphql](schema.graphql)), r
 ```sh
 cargo run --bin iota-graphql-rpc generate-schema
 ```
+
+If the snapshot tests are failing:
+
+```sh
+cargo nextest run -p iota-graphql-rpc -- test_schema_sdl_export
+```
+
+snapshot changes can be reviewed and accepted by running:
+
+```sh
+cargo insta review
+```

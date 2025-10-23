@@ -15,7 +15,7 @@ use iota_config::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
         ExecutionCacheConfig, ExecutionCacheType, ExpensiveSafetyCheckConfig, Genesis,
-        KeyPairWithPath, RunWithRange, StateArchiveConfig, StateSnapshotConfig,
+        GrpcApiConfig, KeyPairWithPath, RunWithRange, StateArchiveConfig, StateSnapshotConfig,
         default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
         default_zklogin_oauth_providers,
     },
@@ -302,7 +302,7 @@ pub struct FullnodeConfigBuilder {
     data_ingestion_dir: Option<PathBuf>,
     disable_pruning: bool,
     iota_names_config: Option<IotaNamesConfig>,
-    grpc_api_config: Option<iota_grpc_api::Config>,
+    grpc_api_config: Option<GrpcApiConfig>,
     discovery_config: Option<DiscoveryConfig>,
 }
 
@@ -429,7 +429,7 @@ impl FullnodeConfigBuilder {
         self
     }
 
-    pub fn with_grpc_api_config(mut self, config: iota_grpc_api::Config) -> Self {
+    pub fn with_grpc_api_config(mut self, config: GrpcApiConfig) -> Self {
         self.grpc_api_config = Some(config);
         self
     }

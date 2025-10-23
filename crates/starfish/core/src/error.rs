@@ -152,12 +152,6 @@ pub(crate) enum ConsensusError {
     #[error("Invalid transaction: {0}")]
     InvalidTransaction(String),
 
-    #[error("Ancestors max timestamp {max_timestamp_ms} > block timestamp {block_timestamp_ms}")]
-    InvalidBlockTimestamp {
-        max_timestamp_ms: u64,
-        block_timestamp_ms: u64,
-    },
-
     #[error("Received no commit from peer {peer}")]
     NoCommitReceived { peer: AuthorityIndex },
 
@@ -234,9 +228,6 @@ pub(crate) enum ConsensusError {
     #[error("Vector of shards is too small: {0} bytes found, at least {1} bytes needed")]
     ShardsVecIsTooSmall(usize, usize),
 
-    #[error("Block bundle contains too many additional headers: {count} > {limit}")]
-    TooManyHeadersInABundle { count: usize, limit: usize },
-
     #[error(
         "Round of the header in a bundle is greater or equal to the block round: {header_round} >= {block_round}"
     )]
@@ -244,9 +235,6 @@ pub(crate) enum ConsensusError {
         header_round: Round,
         block_round: Round,
     },
-
-    #[error("Block bundle contains too many shards: {count} > {limit}")]
-    TooManyShardsInABundle { count: usize, limit: usize },
 
     #[error("Block bundle from {peer} contains shard from round {round} with incorrect proof")]
     IncorrectShardProof { peer: AuthorityIndex, round: Round },

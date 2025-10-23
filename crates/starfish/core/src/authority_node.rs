@@ -57,6 +57,7 @@ impl ConsensusAuthority {
     /// It ensures that the authority node is fully initialized and
     /// ready to participate in the consensus process.
     pub async fn start(
+        epoch_start_timestamp_ms: u64,
         own_index: AuthorityIndex,
         committee: Committee,
         parameters: Parameters,
@@ -65,6 +66,7 @@ impl ConsensusAuthority {
         // kept in Core.
         protocol_keypair: ProtocolKeyPair,
         network_keypair: NetworkKeyPair,
+        clock: Arc<Clock>,
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
@@ -89,12 +91,13 @@ impl ConsensusAuthority {
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
         let context = Arc::new(Context::new(
+            epoch_start_timestamp_ms,
             own_index,
             committee,
             parameters,
             protocol_config,
             initialise_metrics(registry),
-            Arc::new(Clock::new()),
+            clock,
         ));
         let start_time = Instant::now();
 
@@ -383,12 +386,14 @@ mod tests {
         let commit_consumer = CommitConsumer::new(sender, 0);
 
         let authority = ConsensusAuthority::start(
+            0,
             own_index,
             committee,
             parameters,
             ProtocolConfig::get_for_max_version_UNSAFE(),
             protocol_keypair,
             network_keypair,
+            Arc::new(Clock::default()),
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
@@ -896,12 +901,14 @@ mod tests {
         let consensus_consumer_monitor = commit_consumer.monitor();
 
         let authority = ConsensusAuthority::start(
+            0,
             index,
             committee,
             parameters,
             protocol_config,
             protocol_keypair,
             network_keypair,
+            Arc::new(Clock::default()),
             Arc::new(txn_verifier),
             commit_consumer,
             registry,

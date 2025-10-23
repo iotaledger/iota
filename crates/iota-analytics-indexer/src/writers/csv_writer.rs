@@ -60,7 +60,7 @@ impl CSVWriter {
             root_dir_path,
             &file_type.file_path(FileFormat::CSV, epoch_num, checkpoint_range),
         )?;
-        create_dir_all(file_path.parent().ok_or(anyhow!("Bad directory path"))?)?;
+        create_dir_all(file_path.parent().ok_or(anyhow!("bad directory path"))?)?;
         if file_path.exists() {
             remove_file(&file_path)?;
         }

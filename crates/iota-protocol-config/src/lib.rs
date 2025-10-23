@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 13;
+pub const MAX_PROTOCOL_VERSION: u64 = 14;
 
 // Record history of protocol version allocations here:
 //
@@ -77,6 +77,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 13;
 //             of eligible active validators.
 //             Enable processing and tracking AuthorityCapabilitiesV1 from
 //             non-committee validators in the devnet.
+// Version 14: Switches the consensus protocol to Starfish in devnet.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -397,11 +398,15 @@ impl PerObjectCongestionControlMode {
 pub enum ConsensusChoice {
     #[default]
     Mysticeti,
+    Starfish,
 }
 
 impl ConsensusChoice {
     pub fn is_mysticeti(&self) -> bool {
         matches!(self, ConsensusChoice::Mysticeti)
+    }
+    pub fn is_starfish(&self) -> bool {
+        matches!(self, ConsensusChoice::Starfish)
     }
 }
 
@@ -1135,6 +1140,13 @@ pub struct ProtocolConfig {
     /// Configures the garbage collection depth for consensus. When is unset or
     /// `0` then the garbage collection is disabled.
     consensus_gc_depth: Option<u32>,
+
+    /// Configures the maximum number of acknowledgments to be included in a
+    /// block. It must be reasonably larger than the number of validators
+    /// because not all validators create their blocks at the same pace.
+    /// Default value set to 400. (5 x expected committee size (80)).
+    /// Applicable only to `starfish` consensus.
+    consensus_max_acknowledgments_per_block: Option<u32>,
 }
 
 // feature flags
@@ -1295,6 +1307,10 @@ impl ProtocolConfig {
             "The consensus linearize sub dag V2 requires GC to be enabled"
         );
         res
+    }
+
+    pub fn consensus_max_acknowledgments_per_block_or_default(&self) -> u32 {
+        self.consensus_max_acknowledgments_per_block.unwrap_or(400)
     }
 
     pub fn variant_nodes(&self) -> bool {
@@ -1941,6 +1957,8 @@ impl ProtocolConfig {
             max_committee_members_count: None,
 
             consensus_gc_depth: None,
+
+            consensus_max_acknowledgments_per_block: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2212,6 +2230,12 @@ impl ProtocolConfig {
                         // version and issued valid AuthorityCapabilities notification in devnet.
                         cfg.feature_flags
                             .select_committee_supporting_next_epoch_version = true;
+                    }
+                }
+                14 => {
+                    // Switch consensus protocol to Starfish in devnet
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
                     }
                 }
                 // Use this template when making changes:
