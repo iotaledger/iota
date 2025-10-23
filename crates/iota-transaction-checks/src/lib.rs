@@ -94,7 +94,7 @@ mod checked {
         Ok((gas_status, input_objects.into_checked()))
     }
 
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn check_transaction_input_with_given_gas(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
