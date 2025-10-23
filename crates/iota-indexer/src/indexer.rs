@@ -17,7 +17,7 @@ use crate::{
     db::ConnectionPool,
     errors::IndexerError,
     ingestion::{
-        primary::orchestration::PrimaryPipeline, snapshot::orchestration::SnapshotPipeline,
+        primary::orchestration::PrimaryPipeline, snapshot::orchestration::SnapshotPipelineBuilder,
     },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
@@ -99,30 +99,29 @@ impl Indexer {
         // data_ingestion_path can only feed data to one executor,
         // but if we have remote_store_url we can use many executors
         let use_separate_executors = remote_store_url.is_some();
+
+        let snapshot_pipeline_builder = SnapshotPipelineBuilder::new(
+            store.clone(),
+            metrics.clone(),
+            snapshot_config,
+            config.checkpoint_download_queue_size,
+            cancel.clone(),
+        )
+        .await?;
+
         let snapshot_pipeline = if use_separate_executors {
-            // SnapshotPipeline::setup will create a separate executor
-            SnapshotPipeline::setup(
-                store.clone(),
-                metrics.clone(),
-                snapshot_config,
-                config.checkpoint_download_queue_size,
-                cancel.clone(),
-            )
-            .await?
+            snapshot_pipeline_builder
+                .finalize_with_dedicated_executor()
+                .await?
         } else {
             warn!(
                 "Sharing the same executor between Primary and Snapshot pipelines due to not \
                  provided --remote-store-url argument. Limited possibilities for Snapshot lag \
                  config. This may be deprecated in the future."
             );
-            SnapshotPipeline::setup_with_shared_executor(
-                store.clone(),
-                metrics.clone(),
-                snapshot_config,
-                config.checkpoint_download_queue_size,
-                &mut primary_pipeline.executor,
-            )
-            .await?
+            snapshot_pipeline_builder
+                .finalize_with_shared_executor(&mut primary_pipeline.executor)
+                .await?
         };
 
         info!("Starting data ingestion executor...");
@@ -138,11 +137,10 @@ impl Indexer {
         // Wait for max committable checkpoint > 0 before starting snapshot executor
         // Also monitor primary_executor_handle - if it finishes, no point in waiting
         let (mut snapshot_executor_handle, mut snapshot_persist_task_handle) = tokio::select! {
-            snapshot_pipeline_with_snapshottable_data = snapshot_pipeline.wait_for_snapshottable_data(cancel.clone()) => {
+            snapshot_pipeline_with_snapshottable_data = snapshot_pipeline.wait_for_snapshottable_data() => {
                 snapshot_pipeline_with_snapshottable_data?.run(
                     remote_store_url,
                     extra_reader_options,
-                    cancel.clone(),
                 ).await?
             },
             result = &mut primary_executor_handle => {

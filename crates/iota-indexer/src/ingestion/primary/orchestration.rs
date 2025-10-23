@@ -86,7 +86,9 @@ impl PrimaryPipeline {
         reader_options: iota_data_ingestion_core::ReaderOptions,
         cancel: CancellationToken,
     ) -> IndexerResult<(
-        JoinHandle<iota_data_ingestion_core::IngestionResult<impl std::fmt::Debug>>,
+        JoinHandle<
+            iota_data_ingestion_core::IngestionResult<HashMap<String, CheckpointSequenceNumber>>,
+        >,
         JoinHandle<IndexerResult<()>>,
     )> {
         info!("Starting primary writer...");

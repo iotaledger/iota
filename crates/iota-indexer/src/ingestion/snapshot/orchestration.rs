@@ -30,73 +30,65 @@ use crate::{
 
 const OBJECT_SNAPSHOT_CHANNEL_CAPACITY: usize = 600;
 
-pub(crate) struct SnapshotPipeline {
-    pub executor: Option<IndexerExecutor<ShimIndexerProgressStore>>,
-    pub writer: ObjectSnapshotWriter,
-    pub receiver: iota_metrics::metered_channel::Receiver<(u64, TransactionObjectChangesToCommit)>,
+pub(crate) struct SnapshotPipelineBuilder {
+    writer: ObjectSnapshotWriter,
+    checkpoint_download_queue_size: usize,
+    cancel: CancellationToken,
+    metrics: IndexerMetrics,
+    watermark: u64,
 }
 
-impl SnapshotPipeline {
-    pub async fn setup(
+impl SnapshotPipelineBuilder {
+    pub async fn new(
         state: PgIndexerStore,
         metrics: IndexerMetrics,
         lag_config: SnapshotLagConfig,
         checkpoint_download_queue_size: usize,
         cancel: CancellationToken,
-    ) -> IndexerResult<SnapshotPipeline> {
+    ) -> IndexerResult<SnapshotPipelineBuilder> {
         let writer = ObjectSnapshotWriter::new(state.clone(), metrics.clone(), lag_config);
-
         let watermark = writer.get_watermark_hi().await?.unwrap_or_default();
+        Ok(SnapshotPipelineBuilder {
+            writer,
+            checkpoint_download_queue_size,
+            cancel,
+            metrics,
+            watermark,
+        })
+    }
+
+    pub async fn finalize_with_dedicated_executor(self) -> IndexerResult<SnapshotPipeline> {
         let mut executor = IndexerExecutor::new(
             ShimIndexerProgressStore::new(Default::default()),
             1,
             DataIngestionMetrics::new(&Registry::new()),
-            cancel.child_token(),
+            self.cancel.child_token(),
         );
-        let receiver = Self::register_on_executor(
-            &mut executor,
-            metrics.clone(),
-            checkpoint_download_queue_size,
-            watermark,
-        )
-        .await?;
+        let receiver = self.register_on_executor(&mut executor).await?;
         Ok(SnapshotPipeline {
             executor: Some(executor),
-            writer,
+            writer: self.writer,
             receiver,
+            cancel: self.cancel,
         })
     }
 
-    pub async fn setup_with_shared_executor(
-        state: PgIndexerStore,
-        metrics: IndexerMetrics,
-        lag_config: SnapshotLagConfig,
-        checkpoint_download_queue_size: usize,
+    pub async fn finalize_with_shared_executor(
+        self,
         executor: &mut IndexerExecutor<ShimIndexerProgressStore>,
     ) -> IndexerResult<SnapshotPipeline> {
-        let writer = ObjectSnapshotWriter::new(state.clone(), metrics.clone(), lag_config);
-
-        let watermark = writer.get_watermark_hi().await?.unwrap_or_default();
-        let receiver = Self::register_on_executor(
-            executor,
-            metrics.clone(),
-            checkpoint_download_queue_size,
-            watermark,
-        )
-        .await?;
-
+        let receiver = self.register_on_executor(executor).await?;
         Ok(SnapshotPipeline {
             executor: None,
-            writer,
+            writer: self.writer,
             receiver,
+            cancel: self.cancel,
         })
     }
 
     async fn register_on_executor(
+        &self,
         executor: &mut IndexerExecutor<ShimIndexerProgressStore>,
-        metrics: IndexerMetrics,
-        checkpoint_download_queue_size: usize,
-        watermark: CheckpointSequenceNumber,
     ) -> IndexerResult<
         iota_metrics::metered_channel::Receiver<(u64, TransactionObjectChangesToCommit)>,
     > {
@@ -109,18 +101,27 @@ impl SnapshotPipeline {
         );
 
         let worker_pool = WorkerPool::new(
-            ObjectsSnapshotWorker::new(sender, metrics),
+            ObjectsSnapshotWorker::new(sender, self.metrics.clone()),
             "object_snapshot".to_string(),
-            checkpoint_download_queue_size,
+            self.checkpoint_download_queue_size,
             Default::default(),
         );
         executor
-            .update_watermark("object_snapshot".to_string(), watermark)
+            .update_watermark("object_snapshot".to_string(), self.watermark)
             .await?;
         executor.register(worker_pool).await?;
         Ok(receiver)
     }
+}
 
+pub(crate) struct SnapshotPipeline {
+    executor: Option<IndexerExecutor<ShimIndexerProgressStore>>,
+    writer: ObjectSnapshotWriter,
+    receiver: iota_metrics::metered_channel::Receiver<(u64, TransactionObjectChangesToCommit)>,
+    cancel: CancellationToken,
+}
+
+impl SnapshotPipeline {
     fn spawn_writer_task(
         writer: ObjectSnapshotWriter,
         receiver: iota_metrics::metered_channel::Receiver<(u64, TransactionObjectChangesToCommit)>,
@@ -129,10 +130,7 @@ impl SnapshotPipeline {
         spawn_monitored_task!(writer.persist_sequentially(receiver, cancel))
     }
 
-    pub async fn wait_for_snapshottable_data(
-        self,
-        cancel: CancellationToken,
-    ) -> IndexerResult<Self> {
+    pub async fn wait_for_snapshottable_data(self) -> IndexerResult<Self> {
         info!("Waiting for data for the Snapshot Pipeline");
         loop {
             match self.writer.get_max_committable_checkpoint().await {
@@ -154,7 +152,7 @@ impl SnapshotPipeline {
                 }
             }
 
-            if cancel.is_cancelled() {
+            if self.cancel.is_cancelled() {
                 return Err(crate::errors::IndexerError::Generic(
                     "cancelled while waiting for snapshottable data".to_string(),
                 ));
@@ -167,14 +165,13 @@ impl SnapshotPipeline {
         self,
         remote_store_url: Option<String>,
         reader_options: ReaderOptions,
-        cancel: CancellationToken,
     ) -> IndexerResult<(
-        JoinHandle<IngestionResult<impl std::fmt::Debug>>,
+        JoinHandle<IngestionResult<HashMap<String, CheckpointSequenceNumber>>>,
         JoinHandle<IndexerResult<()>>,
     )> {
         info!("Starting snapshot writer");
         let persist_task_handle =
-            Self::spawn_writer_task(self.writer.clone(), self.receiver, cancel.clone());
+            Self::spawn_writer_task(self.writer.clone(), self.receiver, self.cancel.clone());
         let dummy_ingestion_path = tempfile::tempdir().unwrap().keep();
         let executor_handle = if let Some(executor) = self.executor {
             info!("Starting snapshot executor");
@@ -188,7 +185,7 @@ impl SnapshotPipeline {
             info!("Using shared executor - skipping creation of snapshot executor");
             // Create a dummy executor handle that only completes when cancelled
             tokio::spawn(async move {
-                cancel.cancelled().await;
+                self.cancel.cancelled().await;
                 Ok(HashMap::new())
             })
         };
