@@ -512,6 +512,11 @@ const developer = [
                 id: 'developer/workshops/iota-notarization-truedoc',
                 label: 'IOTA Notarization Workshop',
             },
+            {
+                type: 'doc',
+                id: 'developer/workshops/identity-workshop',
+                label: 'IOTA Identity Workshop',
+            },
         ],
     },
     {

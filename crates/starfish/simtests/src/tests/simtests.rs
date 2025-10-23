@@ -54,20 +54,25 @@ mod test {
         let mut authorities = Vec::with_capacity(committee.size());
         let mut transaction_clients = Vec::with_capacity(committee.size());
         let mut boot_counters = [0; NUM_OF_AUTHORITIES];
+        let mut clock_drifts = [0; NUM_OF_AUTHORITIES];
+        clock_drifts[0] = 50;
+        clock_drifts[1] = 100;
+        clock_drifts[2] = 120;
 
-        for (index, _authority_info) in committee.authorities() {
+        for (authority_index, _authority_info) in committee.authorities() {
             let config = Config {
-                authority_index: index,
+                authority_index,
                 db_dir: Arc::new(TempDir::new().unwrap()),
                 committee: committee.clone(),
                 keypairs: keypairs.clone(),
                 network_type: iota_protocol_config::ConsensusNetwork::Tonic,
-                boot_counter: boot_counters[index],
+                boot_counter: boot_counters[authority_index.value() as usize],
                 protocol_config: protocol_config.clone(),
+                clock_drift: clock_drifts[authority_index.value() as usize],
             };
             let node = AuthorityNode::new(config);
 
-            if index != AuthorityIndex::new_for_test(NUM_OF_AUTHORITIES as u8 - 1) {
+            if authority_index != AuthorityIndex::new_for_test(NUM_OF_AUTHORITIES as u8 - 1) {
                 node.start().await.unwrap();
                 node.spawn_committed_subdag_consumer().unwrap();
 
@@ -75,7 +80,7 @@ mod test {
                 transaction_clients.push(client);
             }
 
-            boot_counters[index] += 1;
+            boot_counters[authority_index] += 1;
             authorities.push(node);
         }
 

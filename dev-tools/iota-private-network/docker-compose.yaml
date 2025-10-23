@@ -391,8 +391,12 @@ services:
       - --port=5003
       - --host-ip=0.0.0.0
       - --write-ahead-log=/wal/faucet.wal
-      - --num-coins=1
-      - --amount=10000000000
+      - --num-coins=10
+      - --amount=200000000000
+      - --max-request-per-second=50
+      - --batch-request-size=1000
+      - --ttl-expiration=150
+      - --batch-enabled=true
     ports:
       - "127.0.0.1:5003:5003/tcp"
       - "127.0.0.1:9188:9184/tcp"

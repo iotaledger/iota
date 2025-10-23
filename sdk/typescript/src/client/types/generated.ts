@@ -660,6 +660,14 @@ export interface IotaMoveStructTypeParameter {
     constraints: IotaMoveAbilitySet;
     isPhantom: boolean;
 }
+export type IotaMoveViewCallResults =
+    /** Execution error from executing the move view call */
+    | {
+          executionError: string;
+      } /** The return values of the move view function */
+    | {
+          functionReturnValues: MoveValue[];
+      };
 export type IotaMoveVisibility = 'Private' | 'Public' | 'Friend';
 /** A single record in the registry. */
 export interface IotaNameRecord {

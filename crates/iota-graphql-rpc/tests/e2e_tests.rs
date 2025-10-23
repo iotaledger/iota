@@ -969,34 +969,13 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_timeout() {
-        let _guard = telemetry_subscribers::TelemetryConfig::new()
-            .with_env()
-            .init();
         let cluster =
             iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
                 .await;
         cluster
             .wait_for_checkpoint_catchup(0, Duration::from_secs(10))
             .await;
-        // timeout test includes mutation timeout, which requires an
-        // [OptimisticTransactionExecutor] to be able to run the test, and a
-        // transaction. [WalletContext] gives access to all other components that are
-        // needed.
-        let wallet = &cluster.validator_fullnode_handle.wallet;
-        let store = &cluster.indexer_store;
-        let fn_rpc_url = &cluster.validator_fullnode_handle.fullnode_handle.rpc_url;
-        let indexer_metrics = store.get_metrics();
-        let indexer_reader = iota_indexer::read::IndexerReader::new(store.blocking_cp());
-
-        let optimistic_tx_executor =
-            iota_indexer::optimistic_indexing::OptimisticTransactionExecutor::new(
-                fn_rpc_url,
-                indexer_reader,
-                store.clone(),
-                indexer_metrics,
-            );
-
-        test_timeout_impl(wallet, &optimistic_tx_executor).await;
+        test_timeout_impl(&cluster).await;
         cluster.cleanup_resources().await
     }
 

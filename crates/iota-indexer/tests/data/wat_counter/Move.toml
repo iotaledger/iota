@@ -1,0 +1,9 @@
+[package]
+name = "wat_counter"
+edition = "legacy"
+
+[dependencies]
+Iota = { local = "../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+wat_counter = "0x0"

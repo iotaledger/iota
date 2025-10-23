@@ -110,8 +110,11 @@ pub async fn start_cluster(
 }
 
 /// Takes in a simulated instantiation of an IOTA blockchain and builds a
-/// cluster around it. This cluster is typically used in e2e tests to emulate
-/// and test behaviors.
+/// cluster around it.
+///
+/// This cluster is typically used in e2e tests to emulate
+/// and test behaviors. It should be noted however that queries
+/// that rely on the fullnode Write API are not supported yet.
 pub async fn serve_executor(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: u16,
@@ -157,9 +160,11 @@ pub async fn serve_executor(
     .await;
 
     // Starts graphql server
-    let graphql_server_handle = start_graphql_server(
+    let graphql_server_handle = start_graphql_server_with_fn_rpc(
         graphql_connection_config.clone(),
-        cancellation_token.clone(),
+        // this does not provide access to the node write api
+        Some(format!("http://{executor_server_url}")),
+        Some(cancellation_token.clone()),
     )
     .await;
 
@@ -225,14 +230,6 @@ pub async fn wait_for_graphql_checkpoint_pruned(
     })
     .await
     .expect("timeout waiting for checkpoint to be pruned");
-}
-
-pub async fn start_graphql_server(
-    graphql_connection_config: ConnectionConfig,
-    cancellation_token: CancellationToken,
-) -> JoinHandle<()> {
-    start_graphql_server_with_fn_rpc(graphql_connection_config, None, Some(cancellation_token))
-        .await
 }
 
 pub async fn start_graphql_server_with_fn_rpc(

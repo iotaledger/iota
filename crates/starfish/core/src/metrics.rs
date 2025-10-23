@@ -104,6 +104,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) proposed_block_transactions: Histogram,
     pub(crate) proposed_block_ancestors: Histogram,
     pub(crate) proposed_block_ancestors_depth: HistogramVec,
+    pub(crate) proposed_block_ancestors_timestamp_drift_ms: IntCounterVec,
     pub(crate) proposed_block_acknowledgments: Histogram,
     pub(crate) proposed_block_acknowledgments_depth: HistogramVec,
     pub(crate) gap_to_available_commit: IntGauge,
@@ -113,7 +114,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_proposal_interval: Histogram,
     pub(crate) block_proposal_leader_wait_ms: IntCounterVec,
     pub(crate) block_proposal_leader_wait_count: IntCounterVec,
-    pub(crate) block_timestamp_drift_wait_ms: IntCounterVec,
+    pub(crate) block_timestamp_drift_ms: IntCounterVec,
     pub(crate) blocks_per_commit_count: Histogram,
     pub(crate) core_add_blocks_batch_size: Histogram,
     pub(crate) core_lock_dequeued: IntCounter,
@@ -128,6 +129,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_skipped_proposals: IntCounterVec,
     pub(crate) highest_accepted_authority_round: IntGaugeVec,
     pub(crate) highest_accepted_round: IntGauge,
+    pub(crate) accepted_block_time_drift_ms: IntCounterVec,
     pub(crate) accepted_block_headers: IntCounterVec,
     pub(crate) dag_state_recent_transactions: IntGauge,
     pub(crate) dag_state_recent_headers: IntGauge,
@@ -155,7 +157,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) invalid_shard_in_bundles: IntCounterVec,
     pub(crate) valid_shards_in_bundles: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
-    pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) skipped_empty_transaction_acknowledgments: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
     pub(crate) verified_blocks: IntCounterVec,
@@ -163,6 +164,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) last_committed_authority_round: IntGaugeVec,
     pub(crate) last_committed_leader_round: IntGauge,
     pub(crate) last_commit_index: IntGauge,
+    pub(crate) last_commit_time_diff: Histogram,
     pub(crate) last_known_own_block_round: IntGauge,
     pub(crate) sync_last_known_own_block_retries: IntCounter,
     pub(crate) commit_round_advancement_interval: Histogram,
@@ -264,6 +266,12 @@ impl NodeMetrics {
                 exponential_buckets(1.0, 2.0, 14).unwrap(),
                 registry,
             ).unwrap(),
+            proposed_block_ancestors_timestamp_drift_ms: register_int_counter_vec_with_registry!(
+                "proposed_block_ancestors_timestamp_drift_ms",
+                "The drift in ms of ancestors' timestamps included in newly proposed blocks",
+                &["authority"],
+                registry,
+            ).unwrap(),
             proposed_block_acknowledgments: register_histogram_with_registry!(
                 "proposed_block_acknowledgments",
                 "Number of acknowledgments in proposed blocks",
@@ -307,9 +315,9 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
-            block_timestamp_drift_wait_ms: register_int_counter_vec_with_registry!(
-                "block_timestamp_drift_wait_ms",
-                "Total time in ms spent waiting, when a received block has timestamp in future.",
+            block_timestamp_drift_ms: register_int_counter_vec_with_registry!(
+                "block_timestamp_drift_ms",
+                "The clock drift time between a received block and the current node's time.",
                 &["authority", "source"],
                 registry,
             ).unwrap(),
@@ -382,6 +390,12 @@ impl NodeMetrics {
             highest_accepted_round: register_int_gauge_with_registry!(
                 "highest_accepted_round",
                 "The highest round where a block has been accepted. Resets on restart.",
+                registry,
+            ).unwrap(),
+            accepted_block_time_drift_ms: register_int_counter_vec_with_registry!(
+                "accepted_block_time_drift_ms",
+                "The time drift in ms of an accepted block compared to local time",
+                &["authority"],
                 registry,
             ).unwrap(),
             accepted_block_headers: register_int_counter_vec_with_registry!(
@@ -566,12 +580,6 @@ impl NodeMetrics {
                 &["reason"],
                 registry,
             ).unwrap(),
-            rejected_future_blocks: register_int_counter_vec_with_registry!(
-                "rejected_future_blocks",
-                "Number of blocks rejected because their timestamp is too far in the future",
-                &["authority"],
-                registry,
-            ).unwrap(),
             skipped_empty_transaction_acknowledgments: register_int_counter_vec_with_registry!(
                 "skipped_empty_transaction_acknowledgments",
                 "Number of transaction acknowledgments skipped due to empty transaction vector in VerifiedTransaction",
@@ -610,6 +618,12 @@ impl NodeMetrics {
             last_commit_index: register_int_gauge_with_registry!(
                 "last_commit_index",
                 "Index of the last commit.",
+                registry,
+            ).unwrap(),
+            last_commit_time_diff: register_histogram_with_registry!(
+                "last_commit_time_diff",
+                "The time diff between the last commit and previous one.",
+                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
             commit_round_advancement_interval: register_histogram_with_registry!(

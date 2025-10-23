@@ -13,6 +13,7 @@ bcs.workspace = true
 colored.workspace = true
 enum_dispatch.workspace = true
 fastcrypto.workspace = true
+futures.workspace = true
 itertools.workspace = true
 json_to_table.workspace = true
 schemars.workspace = true

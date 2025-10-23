@@ -6,18 +6,17 @@ use std::collections::BTreeMap;
 
 use fastcrypto::traits::ToFromBytes;
 use iota_types::{
-    base_types::{AuthorityName, EpochId, ObjectID},
+    base_types::{AuthorityName, EpochId},
     committee::Committee,
     iota_serde::BigInt,
     iota_system_state::iota_system_state_summary::IotaValidatorSummary,
     messages_checkpoint::CheckpointSequenceNumber,
 };
-use move_core_types::identifier::Identifier;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_with::{DisplayFromStr, serde_as};
+use serde_with::serde_as;
 
-use crate::Page;
+use crate::{MoveFunctionName, Page};
 
 pub type EpochPage = Page<EpochInfo, BigInt<u64>>;
 pub type EpochMetricsPage = Page<EpochMetrics, BigInt<u64>>;
@@ -186,23 +185,6 @@ pub struct MoveCallMetrics {
     #[schemars(with = "Vec<(MoveFunctionName, BigInt<usize>)>")]
     #[serde_as(as = "Vec<(_, BigInt<usize>)>")]
     pub rank_30_days: Vec<(MoveFunctionName, usize)>,
-}
-
-/// Identifies a Move function.
-#[serde_as]
-#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct MoveFunctionName {
-    /// The package ID to which the function belongs.
-    pub package: ObjectID,
-    /// The module name to which the function belongs.
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
-    pub module: Identifier,
-    /// The function name.
-    #[schemars(with = "String")]
-    #[serde_as(as = "DisplayFromStr")]
-    pub function: Identifier,
 }
 
 /// Provides metrics about the addresses.

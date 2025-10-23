@@ -10,13 +10,18 @@ use iota_core::{
     authority::AuthorityState, authority_client::NetworkAuthorityClient,
     transaction_orchestrator::TransactionOrchestrator,
 };
+use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaTransactionBlock,
-    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
+    IotaTransactionBlock, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
+use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
+use iota_protocol_config::Chain;
+use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
     crypto::default_hash,
@@ -33,6 +38,7 @@ use iota_types::{
     },
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
+use move_core_types::account_address::AccountAddress;
 use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
 use tracing::{Instrument, instrument};
 
@@ -42,12 +48,15 @@ use crate::{
     error::{Error, IotaRpcInputError},
     get_balance_changes_from_effect, get_object_changes,
     logger::FutureWithTracing,
+    transaction_builder_api::AuthorityStateDataReader,
 };
 
+#[derive(Clone)]
 pub struct TransactionExecutionApi {
     state: Arc<dyn StateRead>,
     transaction_orchestrator: Arc<TransactionOrchestrator<NetworkAuthorityClient>>,
     metrics: Arc<JsonRpcMetrics>,
+    transaction_builder: TransactionBuilder,
 }
 
 impl TransactionExecutionApi {
@@ -56,10 +65,12 @@ impl TransactionExecutionApi {
         transaction_orchestrator: Arc<TransactionOrchestrator<NetworkAuthorityClient>>,
         metrics: Arc<JsonRpcMetrics>,
     ) -> Self {
+        let reader = Arc::new(AuthorityStateDataReader::new(state.clone()));
         Self {
             state,
             transaction_orchestrator,
             metrics,
+            transaction_builder: TransactionBuilder::new(reader),
         }
     }
 
@@ -351,6 +362,54 @@ impl WriteApiServer for TransactionExecutionApi {
             .await
     }
 
+    /// Calls a move view function.
+    #[instrument(skip(self))]
+    async fn view_function_call(
+        &self,
+        function_name: String,
+        type_args: Option<Vec<IotaTypeTag>>,
+        call_args: Vec<IotaJsonValue>,
+    ) -> RpcResult<IotaMoveViewCallResults> {
+        let chain = self
+            .state
+            .get_chain_identifier()
+            .map_err(Error::from)?
+            .chain();
+        if !matches!(chain, Chain::Unknown) {
+            return Err(Error::UnsupportedFeature(format!(
+                "View function calls not supported yet on {}",
+                chain.as_str()
+            ))
+            .into());
+        }
+        let MoveFunctionName {
+            package,
+            module,
+            function,
+        } = function_name.as_str().parse().map_err(Error::from)?;
+        let sender = IotaAddress::ZERO;
+        let tx_kind = self
+            .transaction_builder
+            .move_view_call_tx_kind(
+                package,
+                &module,
+                &function,
+                type_args.unwrap_or_default(),
+                call_args,
+            )
+            .await
+            .map_err(Error::from)?;
+        let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&tx_kind).map_err(Error::from)?);
+        let dev_inspect_results = self
+            .dev_inspect_transaction_block(sender, tx_bytes, None, None, None)
+            .await?;
+        Ok(
+            IotaMoveViewCallResults::from_dev_inspect_results(self.clone(), dev_inspect_results)
+                .await
+                .map_err(Error::from)?,
+        )
+    }
+
     #[instrument(skip(self))]
     async fn dev_inspect_transaction_block(
         &self,
@@ -403,5 +462,20 @@ impl IotaRpcModule for TransactionExecutionApi {
 
     fn rpc_doc_module() -> Module {
         WriteApiOpenRpc::module_doc()
+    }
+}
+
+#[async_trait]
+impl PackageStore for TransactionExecutionApi {
+    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
+        let backing_store = self.state.get_backing_package_store();
+        match backing_store.get_package_object(&(id.into())) {
+            Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
+            Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
+            Err(e) => Err(PackageResolverError::Store {
+                store: "Node",
+                source: Arc::new(e),
+            }),
+        }
     }
 }

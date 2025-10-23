@@ -15,8 +15,9 @@ use parking_lot::Mutex;
 use prometheus::Registry;
 use starfish_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use starfish_core::{
-    CommitConsumer, CommitConsumerMonitor, CommittedSubDag, ConsensusAuthority, TransactionClient,
-    network::tonic_network::to_socket_addr, transaction::NoopTransactionVerifier,
+    BlockTimestampMs, Clock, CommitConsumer, CommitConsumerMonitor, CommittedSubDag,
+    ConsensusAuthority, TransactionClient, network::tonic_network::to_socket_addr,
+    transaction::NoopTransactionVerifier,
 };
 use tempfile::TempDir;
 use tracing::{info, trace};
@@ -30,6 +31,7 @@ pub(crate) struct Config {
     pub keypairs: Vec<(NetworkKeyPair, ProtocolKeyPair)>,
     pub network_type: ConsensusNetwork,
     pub boot_counter: u64,
+    pub clock_drift: BlockTimestampMs,
     pub protocol_config: ProtocolConfig,
 }
 
@@ -247,6 +249,7 @@ pub(crate) async fn make_authority(
         keypairs,
         network_type,
         boot_counter,
+        clock_drift,
         protocol_config,
     } = config;
 
@@ -272,12 +275,14 @@ pub(crate) async fn make_authority(
     let commit_consumer_monitor = commit_consumer.monitor();
 
     let authority = ConsensusAuthority::start(
+        0,
         authority_index,
         committee,
         parameters,
         protocol_config,
         protocol_keypair,
         network_keypair,
+        Arc::new(Clock::new_for_test(clock_drift)),
         Arc::new(txn_verifier),
         commit_consumer,
         registry,
