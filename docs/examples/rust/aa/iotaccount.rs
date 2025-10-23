@@ -97,11 +97,7 @@ async fn main() -> Result<(), anyhow::Error> {
     });
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
     let signatures = vec![GenericSignature::MoveAuthenticator(
-        MoveAuthenticator::new_for_testing(
-            vec![self_call_arg.clone(), signature_call_arg],
-            vec![],
-            self_call_arg,
-        ),
+        MoveAuthenticator::new_for_testing(vec![signature_call_arg], vec![], self_call_arg),
     )];
 
     let transaction_response = iota_client

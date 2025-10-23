@@ -2931,13 +2931,13 @@ impl InputObjectKind {
 /// The result of reading an object for execution. Because shared objects may be
 /// deleted, one possible result of reading a shared object is that
 /// ObjectReadResultKind::Deleted is returned.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ObjectReadResult {
     pub input_object_kind: InputObjectKind,
     pub object: ObjectReadResultKind,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum ObjectReadResultKind {
     Object(Object),
     // The version of the object that the transaction intended to read, and the digest of the tx
@@ -3328,6 +3328,15 @@ impl InputObjects {
 
     pub fn push(&mut self, object: ObjectReadResult) {
         self.objects.push(object);
+    }
+
+    pub fn extend_no_duplicates(&mut self, other: Self) {
+        let new_objects: Vec<_> = other
+            .objects
+            .into_iter()
+            .filter(|x| !self.objects.contains(x))
+            .collect();
+        self.objects.extend(new_objects);
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ObjectReadResult> {

@@ -1353,7 +1353,7 @@ impl AuthorityState {
             // `SenderSignedData::validity_check`.
 
             // Load the account object.
-            let account_object = self.input_loader.read_objects_for_execution(
+            let account_object_inputs = self.input_loader.read_objects_for_execution(
                 epoch_store,
                 // This key is used for resolving transaction shared object versions.
                 // It is supposed that the authenticator shared inputs are also can be
@@ -1365,16 +1365,16 @@ impl AuthorityState {
             )?;
 
             debug_assert!(
-                account_object.len() <= 1,
+                account_object_inputs.len() <= 1,
                 "Only one account object must be loaded or none if the `object_to_authenticate` type is not supported"
             );
 
-            let account_object = account_object.iter().next().cloned();
+            let account_object = account_object_inputs.iter().next().cloned();
 
             // Load the `MoveAuthenticator` input objects.
             let input_object_kinds = move_authenticator.input_objects();
 
-            let input_objects = self.input_loader.read_objects_for_execution(
+            let mut input_objects = self.input_loader.read_objects_for_execution(
                 epoch_store,
                 // This key is used for resolving transaction shared object versions.
                 // It is supposed that the authenticator shared inputs are also can be
@@ -1384,6 +1384,10 @@ impl AuthorityState {
                 &input_object_kinds,
                 epoch_store.epoch(),
             )?;
+
+            // We push the account object to the authenticator input objects
+            // to make it available during execution.
+            input_objects.extend_no_duplicates(account_object_inputs);
 
             (account_object, Some(input_objects))
         } else {
@@ -5511,7 +5515,7 @@ impl AuthorityState {
             move_authenticator.object_to_authenticate_components()?;
 
         // Load the account object.
-        let (account_object, object_to_authenticate_receiving) =
+        let (account_object_inputs, object_to_authenticate_receiving) =
             self.input_loader.read_objects_for_signing(
                 Some(&digest),
                 &move_authenticator.object_to_authenticate().input_objects(),
@@ -5531,13 +5535,13 @@ impl AuthorityState {
         );
 
         debug_assert!(
-            account_object.len() == 1,
+            account_object_inputs.len() == 1,
             "Only one account object must be loaded"
         );
 
         // Since the `object_to_authenticate` components are provided, it is supposed
         // that the account object is loaded.
-        let account_object = account_object
+        let account_object = account_object_inputs
             .iter()
             .next()
             .cloned()
@@ -5567,7 +5571,7 @@ impl AuthorityState {
         // `tx_digest_for_caching` parameter is not used, but we need to be careful
         // with caching because we call `read_objects_for_signing` several times with
         // different inputs but the same transaction digest.
-        let (authenticator_input_objects, authenticator_receiving_objects) =
+        let (mut authenticator_input_objects, authenticator_receiving_objects) =
             self.input_loader.read_objects_for_signing(
                 Some(&digest),
                 &authenticator_input_object_kinds,
@@ -5587,6 +5591,10 @@ impl AuthorityState {
         );
 
         // Check the inputs.
+
+        // We push the account object to the authenticator input objects
+        // to make it available during execution.
+        authenticator_input_objects.extend_no_duplicates(account_object_inputs);
 
         // `max_auth_gas` is used here as a Move authenticator gas budget until it is
         // not a part of the transaction data.

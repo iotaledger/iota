@@ -97,11 +97,7 @@ async fn test_abstract_account_creation_and_issue_tx() -> Result<(), anyhow::Err
             .collect();
     let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
     let signatures = vec![GenericSignature::MoveAuthenticator(
-        MoveAuthenticator::new_for_testing(
-            vec![self_call_arg.clone(), signature_call_arg],
-            vec![],
-            self_call_arg,
-        ),
+        MoveAuthenticator::new_for_testing(vec![signature_call_arg], vec![], self_call_arg),
     )];
 
     // Create the TX envelope and execute it
@@ -158,7 +154,7 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
         mutable: false,
     });
     let aa_signature = GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
-        vec![self_call_arg.clone()],
+        vec![],
         vec![],
         self_call_arg,
     ));
