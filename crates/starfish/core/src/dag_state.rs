@@ -28,7 +28,7 @@ use crate::{
         GENESIS_COMMIT_INDEX, SubDagBase, TrustedCommit, load_pending_subdag_from_store,
     },
     context::Context,
-    cordial_knowledge::{CordialKnowledgeMessage},
+    cordial_knowledge::CordialKnowledgeMessage,
     leader_scoring::{ReputationScores, ScoringSubdag},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
