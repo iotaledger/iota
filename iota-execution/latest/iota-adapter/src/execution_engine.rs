@@ -284,11 +284,11 @@ mod checked {
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfoV1,
         authenticator_input_objects: CheckedInputObjects,
+        authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
-        transaction_input_objects: CheckedInputObjects,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
@@ -305,11 +305,8 @@ mod checked {
         // It does not alter the state and produces no effects other than possible
         // errors.
 
-        // Keep track of the authenticator input objects for later use.
-        let authenticator_input_objects = authenticator_input_objects.into_inner();
-
-        let mut input_objects = transaction_input_objects.into_inner();
-        input_objects.extend_no_duplicates(authenticator_input_objects.clone());
+        // Input object come from both authentication and transaction inputs
+        let input_objects = authenticator_and_transaction_input_objects.into_inner();
         // Receiving objects can only come from the transaction inputs
         let transaction_receiving_objects = transaction_kind.receiving_objects();
 
@@ -344,7 +341,7 @@ mod checked {
             &mut gas_charger,
             authenticator,
             authenticator_info,
-            &authenticator_input_objects,
+            &authenticator_input_objects.into_inner(),
             transaction_kind.clone(),
             transaction_digest,
             &mut tx_ctx,

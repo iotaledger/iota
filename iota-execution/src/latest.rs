@@ -188,11 +188,11 @@ impl executor::Executor for Executor {
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfoV1,
         authenticator_input_objects: CheckedInputObjects,
+        authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
-        authenticated_transaction_kind: TransactionKind,
-        authenticated_transaction_signer: IotaAddress,
-        authenticated_transaction_digest: TransactionDigest,
-        authenticated_transaction_input_objects: CheckedInputObjects,
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (
@@ -214,10 +214,10 @@ impl executor::Executor for Executor {
             authenticator,
             authenticator_info,
             authenticator_input_objects,
-            authenticated_transaction_kind,
-            authenticated_transaction_signer,
-            authenticated_transaction_digest,
-            authenticated_transaction_input_objects,
+            authenticator_and_transaction_input_objects,
+            transaction_kind,
+            transaction_signer,
+            transaction_digest,
             trace_builder_opt,
             &self.0,
         )

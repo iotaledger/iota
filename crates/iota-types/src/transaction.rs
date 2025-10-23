@@ -3110,10 +3110,6 @@ impl CheckedInputObjects {
         Self(input_objects)
     }
 
-    pub fn extend_no_duplicates(&mut self, other: Self) {
-        self.0.extend_no_duplicates(other.0);
-    }
-
     pub fn inner(&self) -> &InputObjects {
         &self.0
     }
@@ -3191,17 +3187,6 @@ impl InputObjects {
         );
 
         owned_objects
-    }
-
-    pub fn shared_objects_set(&self) -> HashSet<SharedInput> {
-        self.objects
-            .iter()
-            .filter(|obj| obj.is_shared_object())
-            .map(|obj| {
-                obj.to_shared_input()
-                    .expect("already filtered for shared objects")
-            })
-            .collect()
     }
 
     pub fn filter_shared_objects(&self) -> Vec<SharedInput> {
@@ -3315,13 +3300,9 @@ impl InputObjects {
         self.objects.push(object);
     }
 
-    pub fn extend_no_duplicates(&mut self, other: Self) {
-        let new_objects: Vec<_> = other
-            .objects
-            .into_iter()
-            .filter(|x| !self.objects.contains(x))
-            .collect();
-        self.objects.extend(new_objects);
+    // If it contains then it returns the ObjectReadResult
+    pub fn find_object_id_mut(&mut self, object_id: ObjectID) -> Option<&mut ObjectReadResult> {
+        self.objects.iter_mut().find(|o| o.id() == object_id)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ObjectReadResult> {

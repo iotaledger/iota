@@ -91,7 +91,7 @@ mod checked {
             transaction,
             &input_objects,
             &[],
-            0, // authentication_gas_budget
+            0,
         )?;
         check_receiving_objects(&input_objects, receiving_objects)?;
         // Runs verifier, which could be expensive.
@@ -124,7 +124,7 @@ mod checked {
             transaction,
             &input_objects,
             &[gas_object_ref],
-            0, // authentication_gas_budget
+            0,
         )?;
         check_receiving_objects(&input_objects, &receiving_objects)?;
         // Runs verifier, which could be expensive.
@@ -150,13 +150,18 @@ mod checked {
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        let gas_status = check_certificate_input_inner(
-            cert,
-            &input_objects,
+        let transaction = cert.data().transaction_data();
+        let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
-            0, // authentication_gas_budget
+            transaction,
+            &input_objects,
+            &[],
+            0,
         )?;
+        // NB: We do not check receiving objects when executing. Only at signing
+        // time do we check. NB: move verifier is only checked at
+        // signing time, not at execution.
 
         Ok((gas_status, input_objects.into_checked()))
     }
@@ -244,7 +249,7 @@ mod checked {
     #[instrument(level = "trace", skip_all)]
     pub fn check_certificate_and_move_authenticator_input(
         cert: &VerifiedExecutableTransaction,
-        tx_input_objects: InputObjects,
+        mut tx_input_objects: InputObjects,
         authenticator_input_objects: InputObjects,
         authenticator_gas_budget: u64,
         protocol_config: &ProtocolConfig,
@@ -254,40 +259,23 @@ mod checked {
         check_move_authenticator_objects(&authenticator_input_objects)?;
 
         // Check certificate inputs next
-        let gas_status = check_certificate_input_inner(
-            cert,
-            &tx_input_objects,
+        let transaction = cert.data().transaction_data();
+        let gas_status = check_transaction_input_inner(
             protocol_config,
             reference_gas_price,
+            transaction,
+            &tx_input_objects,
+            &[],
             authenticator_gas_budget,
         )?;
+
+        check_and_extend_input_objects(&mut tx_input_objects, &authenticator_input_objects)?;
 
         Ok((
             gas_status,
             authenticator_input_objects.into_checked(),
             tx_input_objects.into_checked(),
         ))
-    }
-
-    fn check_certificate_input_inner(
-        cert: &VerifiedExecutableTransaction,
-        input_objects: &InputObjects,
-        protocol_config: &ProtocolConfig,
-        reference_gas_price: u64,
-        authentication_gas_budget: u64,
-    ) -> IotaResult<IotaGasStatus> {
-        let transaction = cert.data().transaction_data();
-        Ok(check_transaction_input_inner(
-            protocol_config,
-            reference_gas_price,
-            transaction,
-            input_objects,
-            &[],
-            authentication_gas_budget,
-        )?)
-        // NB: We do not check receiving objects when executing. Only at signing
-        // time do we check. NB: move verifier is only checked at
-        // signing time, not at execution.
     }
 
     // Common checks performed for transactions and certificates.
@@ -791,6 +779,81 @@ mod checked {
                 }
             }
         };
+        Ok(())
+    }
+
+    fn check_and_extend_input_objects(
+        input_objects: &mut InputObjects,
+        additional_objects: &InputObjects,
+    ) -> IotaResult<()> {
+        for additional_object in additional_objects.iter() {
+            if let Some(existing_object) = input_objects.find_object_id_mut(additional_object.id())
+            {
+                // This is an invariant
+                assert_eq!(
+                    existing_object.object, additional_object.object,
+                    "The object read result for input objects with the same id must be equal"
+                );
+
+                // In the case of an alive object, check that the object kind matches exactly,
+                // or that if it is a shared object only the mutability changes
+                if let ObjectReadResultKind::Object(_) = &additional_object.object {
+                    match existing_object.input_object_kind {
+                        // If immutable or owned object or package, the kinds must match exactly
+                        InputObjectKind::ImmOrOwnedMoveObject(_)
+                        | InputObjectKind::MovePackage(_) => {
+                            // This is an invariant
+                            assert_eq!(
+                                existing_object.input_object_kind,
+                                additional_object.input_object_kind,
+                                "The object kind for input objects with the same id must be equal"
+                            );
+                        }
+                        // else, if shared object, only mutability can differ
+                        InputObjectKind::SharedMoveObject {
+                            id: input_id,
+                            initial_shared_version: input_initial_shared_version,
+                            mutable: input_mutable,
+                            ..
+                        } => {
+                            match additional_object.input_object_kind {
+                                InputObjectKind::ImmOrOwnedMoveObject(_)
+                                | InputObjectKind::MovePackage(_) => {
+                                    // The object owner for input objects with the same id must be
+                                    // equal
+                                    fp_bail!(UserInputError::NotSharedObject.into())
+                                }
+                                InputObjectKind::SharedMoveObject {
+                                    id: additional_id,
+                                    initial_shared_version: additional_initial_shared_version,
+                                    mutable: additional_mutable,
+                                } => {
+                                    fp_ensure!(
+                                        input_id == additional_id
+                                            && input_initial_shared_version
+                                                == additional_initial_shared_version,
+                                        UserInputError::SharedObjectStartingVersionMismatch.into()
+                                    );
+                                    // if additional_mutable is true and
+                                    // input_mutable is false, then swap
+                                    if additional_mutable && !input_mutable {
+                                        existing_object.input_object_kind =
+                                            InputObjectKind::SharedMoveObject {
+                                                id: input_id,
+                                                initial_shared_version:
+                                                    input_initial_shared_version,
+                                                mutable: true,
+                                            };
+                                    }
+                                }
+                            }
+                        }
+                    };
+                }
+            } else {
+                input_objects.push(additional_object.clone());
+            }
+        }
         Ok(())
     }
 

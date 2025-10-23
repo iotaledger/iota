@@ -99,11 +99,11 @@ pub trait Executor {
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfoV1,
         authenticator_input_objects: CheckedInputObjects,
+        authenticator_and_transaction_input_objects: CheckedInputObjects,
         // Transaction
-        authenticated_transaction_kind: TransactionKind,
-        authenticated_transaction_signer: IotaAddress,
-        authenticated_transaction_digest: TransactionDigest,
-        authenticated_transaction_input_objects: CheckedInputObjects,
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> (

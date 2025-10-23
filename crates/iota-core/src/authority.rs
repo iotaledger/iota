@@ -1809,7 +1809,7 @@ impl AuthorityState {
                 // `max_auth_gas` is used here as a Move authenticator gas budget until it is
                 // not a part of the transaction data.
                 let authenticator_gas_budget = protocol_config.max_auth_gas();
-                let (gas_status, authentication_checked_input_objects, tx_checked_input_objects) =
+                let (gas_status, authenticator_checked_input_objects, authenticator_and_tx_checked_input_objects) =
                     iota_transaction_checks::check_certificate_and_move_authenticator_input(
                         certificate,
                         tx_input_objects.clone(), 
@@ -1819,7 +1819,7 @@ impl AuthorityState {
                         reference_gas_price,
                     )?;
 
-                let owned_object_refs = tx_checked_input_objects.inner().filter_owned_objects();
+                let owned_object_refs = authenticator_and_tx_checked_input_objects.inner().filter_owned_objects();
                 self.check_owned_locks(&owned_object_refs)?;
 
                 epoch_store
@@ -1838,11 +1838,11 @@ impl AuthorityState {
                         gas,
                         move_authenticator.to_owned(),
                         authenticator_info,
-                        authentication_checked_input_objects,
+                        authenticator_checked_input_objects,
+                        authenticator_and_tx_checked_input_objects,
                         kind,
                         signer,
                         tx_digest,
-                        tx_checked_input_objects,
                         &mut None,
                     )
             } else {
