@@ -2577,7 +2577,8 @@ impl AuthorityState {
                 .tap_err(|e| error!(?tx_digest, "Post processing - Couldn't index tx: {e}"))
                 .expect("Indexing tx should not fail");
 
-            let effects: IotaTransactionBlockEffects = effects.clone().try_into()?;
+            // Convert effects for JSON-RPC
+            let effects_json: IotaTransactionBlockEffects = effects.clone().try_into()?;
             let events = self.make_transaction_block_events(
                 events.clone(),
                 *tx_digest,
@@ -2585,9 +2586,14 @@ impl AuthorityState {
                 epoch_store,
                 inner_temporary_store,
             )?;
-            // Emit events
+            // Emit events to both JSON-RPC and gRPC streamers
             self.subscription_handler
-                .process_tx(certificate.data().transaction_data(), &effects, &events)
+                .process_tx(
+                    certificate.data().transaction_data(),
+                    &effects_json, // For JSON-RPC
+                    effects,       // For gRPC (core type)
+                    &events,
+                )
                 .tap_ok(|_| {
                     self.metrics
                         .post_processing_total_tx_had_event_processed

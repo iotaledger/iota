@@ -596,6 +596,8 @@ impl<T: Send + Sync, V: store::SimulatorStore + Send + Sync> RestStateReader for
     fn indexes(&self) -> Option<&dyn iota_types::storage::RestIndexes> {
         None
     }
+
+    // authority_state_any() uses default implementation (returns None)
 }
 
 impl Simulacrum {

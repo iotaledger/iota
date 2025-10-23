@@ -11,6 +11,7 @@ service CheckpointService {
   // Checkpoint operations
   rpc StreamCheckpoints (CheckpointStreamRequest) returns (stream Checkpoint);
   rpc GetEpochFirstCheckpointSequenceNumber (EpochRequest) returns (CheckpointSequenceNumberResponse);
+  rpc GetLatestCheckpoint (GetLatestCheckpointRequest) returns (Checkpoint);
 }
 
 message CheckpointStreamRequest {
@@ -28,10 +29,16 @@ message CheckpointSequenceNumberResponse {
   uint64 sequence_number = 1;
 }
 
+// Get the latest checkpoint information
+message GetLatestCheckpointRequest {
+  // If true, get the full CheckpointData (not just the summary).
+  bool full = 1;
+}
+
 message Checkpoint {
   uint64 sequence_number = 1;
   // Indicates whether bcs_data contains full CheckpointData (true) or just CertifiedCheckpointSummary (false)
   bool is_full = 2;
   // BCS-encoded CertifiedCheckpointSummary (default) or CheckpointData (if full=true)
   iota.grpc.v0.common.BcsData bcs_data = 3;
-} 
+}

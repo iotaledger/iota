@@ -78,6 +78,19 @@ impl CheckpointClient {
         Ok(response.into_inner().sequence_number)
     }
 
+    /// Get the latest checkpoint.
+    pub async fn get_latest_checkpoint(
+        &mut self,
+        full: bool,
+    ) -> Result<CheckpointContent, tonic::Status> {
+        let request = grpc_checkpoints::GetLatestCheckpointRequest { full };
+        let response = self.client.get_latest_checkpoint(request).await?;
+        let checkpoint = response.into_inner();
+
+        Self::deserialize_checkpoint(&checkpoint)
+            .map_err(|e| tonic::Status::internal(format!("Failed to deserialize checkpoint: {e}")))
+    }
+
     // ========================================
     // Private Helper Methods
     // ========================================

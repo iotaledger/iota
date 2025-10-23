@@ -3,7 +3,8 @@
 
 use std::{str::FromStr, sync::Arc};
 
-use futures::StreamExt;
+use futures::{StreamExt, stream::BoxStream};
+use iota_core::subscription_handler::SubscriptionHandler;
 use iota_grpc_types::v0::{common as grpc_common, events as grpc_events};
 use iota_json_rpc_types::EventFilter;
 use iota_types::{
@@ -15,16 +16,14 @@ use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
 use tracing::debug;
 
-use crate::types::EventSubscriber;
-
 pub struct EventGrpcService {
-    pub event_subscriber: Arc<dyn EventSubscriber>,
+    pub event_subscriber: Arc<SubscriptionHandler>,
     pub cancellation_token: CancellationToken,
 }
 
 impl EventGrpcService {
     pub fn new(
-        event_subscriber: Arc<dyn EventSubscriber>,
+        event_subscriber: Arc<SubscriptionHandler>,
         cancellation_token: CancellationToken,
     ) -> Self {
         Self {
@@ -39,8 +38,7 @@ impl EventGrpcService {
 // any gRPC event service must implement.
 #[tonic::async_trait]
 impl grpc_events::event_service_server::EventService for EventGrpcService {
-    type StreamEventsStream =
-        std::pin::Pin<Box<dyn futures::Stream<Item = Result<grpc_events::Event, Status>> + Send>>;
+    type StreamEventsStream = BoxStream<'static, Result<grpc_events::Event, Status>>;
 
     async fn stream_events(
         &self,
@@ -55,17 +53,13 @@ impl grpc_events::event_service_server::EventService for EventGrpcService {
         debug!("New gRPC client subscribed with filter: {event_filter:?}");
 
         // Subscribe to events using the EventSubscriber trait
-        let event_stream = self.event_subscriber.subscribe_events(event_filter);
+        let mut event_stream = self.event_subscriber.subscribe_events(event_filter);
         let cancellation_token = self.cancellation_token.clone();
 
         let stream = async_stream::try_stream! {
-            // Pin the stream for use with .next() and tokio::select!
-            // Safe because the stream has Unpin bound
-            let mut pinned_stream = std::pin::Pin::new(event_stream);
-
             loop {
                 let event_result = tokio::select! {
-                    event_option = pinned_stream.next() => event_option,
+                    event_option = event_stream.next() => event_option,
                     _ = cancellation_token.cancelled() => {
                         debug!("Event stream cancelled");
                         None
@@ -106,7 +100,7 @@ fn create_event_filter(proto_filter: &grpc_events::EventFilter) -> Result<EventF
     match &proto_filter.filter {
         Some(Filter::All(_)) => Ok(EventFilter::All(vec![])),
         Some(Filter::Sender(f)) => {
-            let sender = parse_iota_address(&f.sender, "Sender address")?;
+            let sender = parse_iota_address(&f.address, "Sender address")?;
             Ok(EventFilter::Sender(sender))
         }
         Some(Filter::Transaction(f)) => {
@@ -174,7 +168,7 @@ fn parse_iota_address(
 }
 
 fn parse_tx_digest(
-    digest: &Option<grpc_common::TransactionDigest>,
+    digest: &Option<grpc_common::Digest>,
     field_name: &str,
 ) -> Result<TransactionDigest, Status> {
     let digest = digest

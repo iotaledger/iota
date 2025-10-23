@@ -710,6 +710,8 @@ impl RestStateReader for PersistedStoreInnerReadOnlyWrapper {
     ) -> iota_types::storage::error::Result<Option<VerifiedCheckpoint>> {
         todo!()
     }
+
+    // authority_state_any() uses default implementation (returns None)
 }
 
 impl PersistedStoreInnerReadOnlyWrapper {

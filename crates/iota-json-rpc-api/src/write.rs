@@ -47,7 +47,7 @@ pub trait WriteApi {
     /// Calls a move view function.
     #[rustfmt::skip]
     #[method(name = "view")]
-     async fn view_function_call(
+    async fn view_function_call(
         &self,
         /// The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.
         function_name: String,

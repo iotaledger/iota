@@ -6,7 +6,14 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use iota_grpc_types::v0::{checkpoints as grpc_checkpoints, events as grpc_events};
+use iota_core::{
+    authority_client::NetworkAuthorityClient, subscription_handler::SubscriptionHandler,
+    transaction_orchestrator::TransactionOrchestrator,
+};
+use iota_grpc_types::v0::{
+    checkpoints as grpc_checkpoints, events as grpc_events, read as grpc_read,
+    transactions as grpc_transactions, write as grpc_write,
+};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
@@ -14,7 +21,8 @@ use tonic::transport::Server;
 
 use crate::{
     CheckpointGrpcService, EventGrpcService, GrpcCheckpointDataBroadcaster,
-    GrpcCheckpointSummaryBroadcaster, GrpcReader,
+    GrpcCheckpointSummaryBroadcaster, GrpcReader, ReadGrpcService, TransactionGrpcService,
+    WriteGrpcService,
 };
 
 /// Handle to control a running gRPC server
@@ -57,15 +65,11 @@ impl GrpcServerHandle {
     }
 }
 
-/// Start a gRPC server with checkpoint and event services
-///
-/// This function creates and starts a gRPC server that hosts checkpoint-related
-/// and event streaming services. Currently includes the checkpoint streaming
-/// and event streaming services, but can be extended to host additional
-/// services in the future.
+/// Start a gRPC server with services
 pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
-    event_subscriber: Arc<dyn crate::EventSubscriber>,
+    event_subscriber: Arc<SubscriptionHandler>,
+    transaction_orchestrator: Option<Arc<TransactionOrchestrator<NetworkAuthorityClient>>>,
     config: iota_config::node::GrpcApiConfig,
     shutdown_token: CancellationToken,
 ) -> Result<GrpcServerHandle> {
@@ -78,7 +82,7 @@ pub async fn start_grpc_server(
         GrpcCheckpointSummaryBroadcaster::new(checkpoint_summary_tx);
     let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(checkpoint_data_tx);
 
-    // Create the gRPC services - both get the cancellation token directly from
+    // Create the gRPC services - all get the cancellation token directly from
     // server level
     let checkpoint_service = CheckpointGrpcService::new(
         grpc_reader.clone(),
@@ -86,10 +90,21 @@ pub async fn start_grpc_server(
         checkpoint_data_broadcaster.clone(),
         shutdown_token.clone(),
     );
-    let event_service = EventGrpcService::new(event_subscriber, shutdown_token.clone());
+    let event_service = EventGrpcService::new(event_subscriber.clone(), shutdown_token.clone());
+    let transaction_service = TransactionGrpcService::new(event_subscriber, shutdown_token.clone());
+
+    // Create new read and write services
+    let read_service = ReadGrpcService::new(grpc_reader.clone());
+    let write_service = WriteGrpcService::new(transaction_orchestrator, grpc_reader.clone());
 
     // Create the server with proper address binding
     let server_builder = Server::builder()
+        .add_service(grpc_read::read_service_server::ReadServiceServer::new(
+            read_service,
+        ))
+        .add_service(grpc_write::write_service_server::WriteServiceServer::new(
+            write_service,
+        ))
         .add_service(
             grpc_checkpoints::checkpoint_service_server::CheckpointServiceServer::new(
                 checkpoint_service,
@@ -97,7 +112,12 @@ pub async fn start_grpc_server(
         )
         .add_service(grpc_events::event_service_server::EventServiceServer::new(
             event_service,
-        ));
+        ))
+        .add_service(
+            grpc_transactions::transaction_service_server::TransactionServiceServer::new(
+                transaction_service,
+            ),
+        );
 
     // Bind to the address to get the actual local address (especially important for
     // port 0)

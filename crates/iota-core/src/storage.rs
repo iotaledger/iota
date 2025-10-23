@@ -28,7 +28,7 @@ use tap::Pipe;
 use tracing::instrument;
 
 use crate::{
-    authority::AuthorityState,
+    authority::{AuthorityState, authority_per_epoch_store::AuthorityPerEpochStore},
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStore,
     execution_cache::ExecutionCacheTraitPointers,
@@ -380,6 +380,19 @@ impl RestReadStore {
             iota_types::storage::error::Error::custom("rest index store is disabled")
         })
     }
+
+    /// Get access to the underlying AuthorityState
+    pub fn authority_state(&self) -> &Arc<AuthorityState> {
+        &self.state
+    }
+
+    /// Load epoch store for transaction processing
+    /// Note that the epoch store might change during reconfiguration and we
+    /// should use it carefully. See the code comments in
+    /// AuthorityState::load_epoch_store_one_call_per_task for more details.
+    pub fn load_epoch_store_one_call_per_task(&self) -> Arc<AuthorityPerEpochStore> {
+        self.state.load_epoch_store_one_call_per_task().clone()
+    }
 }
 
 impl ObjectStore for RestReadStore {
@@ -533,6 +546,10 @@ impl RestStateReader for RestReadStore {
 
     fn indexes(&self) -> Option<&dyn RestIndexes> {
         self.index().ok().map(|index| index as _)
+    }
+
+    fn authority_state_any(&self) -> Option<&dyn std::any::Any> {
+        Some(&self.state)
     }
 }
 

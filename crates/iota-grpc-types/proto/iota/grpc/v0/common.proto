@@ -15,7 +15,79 @@ message Address {
   bytes address = 1;
 }
 
-// 32-byte Transaction digest
-message TransactionDigest {
+// Generic 32-byte digest (used for transactions, objects, etc.)
+message Digest {
   bytes digest = 1;
+}
+
+// Object reference
+message ObjectRef {
+  Address object_id = 1;
+  uint64 version = 2;
+  Digest digest = 3;
+}
+
+// Object metadata and data
+// Field order matches iota_types::object::ObjectInner
+message Object {
+  BcsData data = 1;  // BCS-encoded object data (Data enum)
+  Owner owner = 2;
+  Digest previous_transaction = 3;
+  uint64 storage_rebate = 4;
+}
+
+// Owner types
+message Owner {
+  oneof owner {
+    Address address_owner = 1;
+    Address object_owner = 2;
+    SharedOwner shared = 3;
+    ImmutableOwner immutable = 4;
+  }
+}
+
+message SharedOwner {
+  uint64 initial_shared_version = 1;
+}
+
+message ImmutableOwner {}
+
+// Match all events (catch-all filter)
+message AllFilter {
+}
+
+// Filter by address (sender, package, etc.)
+message AddressFilter {
+  Address address = 1;
+}
+
+// Filter by transaction digest
+message TransactionDigestFilter {
+  Digest tx_digest = 1;
+}
+
+// Filter by Move module (package + module)
+message MoveModuleFilter {
+  Address package_id = 1;         // Package ID
+  string module = 2;              // Module name
+}
+
+// Filter by Move event type (package + module + event name)
+message MoveEventTypeFilter {
+  Address package_id = 1;         // Package ID
+  string module = 2;              // Module name
+  string name = 3;                // Event name
+}
+
+// Filter by Move event module (package + module)
+message MoveEventModuleFilter {
+  Address package_id = 1;         // Package ID
+  string module = 2;              // Module name
+}
+
+// Filter by Move function (package + module + function)
+message MoveFunctionFilter {
+  Address package_id = 1;         // Package ID
+  optional string module = 2;     // Module name (optional)
+  optional string function = 3;   // Function name (optional)
 }

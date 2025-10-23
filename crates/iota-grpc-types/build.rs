@@ -8,6 +8,9 @@ fn main() {
                 "proto/iota/grpc/v0/common.proto",
                 "proto/iota/grpc/v0/checkpoint.proto",
                 "proto/iota/grpc/v0/event.proto",
+                "proto/iota/grpc/v0/transaction.proto",
+                "proto/iota/grpc/v0/read.proto",
+                "proto/iota/grpc/v0/write.proto",
             ],
             &["proto/iota/grpc/v0/"],
         )

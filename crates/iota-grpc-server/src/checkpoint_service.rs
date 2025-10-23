@@ -1,12 +1,13 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{pin::Pin, sync::Arc};
+use std::sync::Arc;
 
+use futures::stream::BoxStream;
 use iota_grpc_types::v0::checkpoints as grpc_checkpoints;
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
-use tracing::{debug, info};
+use tracing::debug;
 
 use crate::types::*;
 
@@ -69,8 +70,7 @@ impl CheckpointGrpcService {
 // any gRPC checkpoint service must implement.
 #[tonic::async_trait]
 impl grpc_checkpoints::checkpoint_service_server::CheckpointService for CheckpointGrpcService {
-    type StreamCheckpointsStream =
-        Pin<Box<dyn futures::Stream<Item = Result<grpc_checkpoints::Checkpoint, Status>> + Send>>;
+    type StreamCheckpointsStream = BoxStream<'static, Result<grpc_checkpoints::Checkpoint, Status>>;
 
     async fn stream_checkpoints(
         &self,
@@ -125,13 +125,64 @@ impl grpc_checkpoints::checkpoint_service_server::CheckpointService for Checkpoi
             }
         };
 
-        info!(
-            "First checkpoint for epoch {}: seq={}",
-            epoch, sequence_number
-        );
+        debug!("First checkpoint for epoch {epoch}: seq={sequence_number}");
 
         Ok(Response::new(
             grpc_checkpoints::CheckpointSequenceNumberResponse { sequence_number },
         ))
+    }
+
+    async fn get_latest_checkpoint(
+        &self,
+        request: Request<grpc_checkpoints::GetLatestCheckpointRequest>,
+    ) -> Result<Response<grpc_checkpoints::Checkpoint>, Status> {
+        let req = request.into_inner();
+
+        // Get the latest checkpoint sequence number
+        let sequence_number = self
+            .reader
+            .get_latest_checkpoint_sequence_number()
+            .ok_or_else(|| Status::not_found("No checkpoints available"))?;
+
+        // Create checkpoint response using the same structure as checkpoint streaming
+        let checkpoint = if req.full {
+            // Get full checkpoint data
+            if let Some(data) = self.reader.get_full_checkpoint_data(sequence_number) {
+                let grpc_data = iota_grpc_types::checkpoints::CheckpointData::from(data);
+                grpc_checkpoints::Checkpoint {
+                    sequence_number,
+                    is_full: true,
+                    bcs_data: Some(
+                        iota_grpc_types::v0::common::BcsData::serialize_from(&grpc_data).map_err(
+                            |e| Status::internal(format!("BCS serialization failed: {e}")),
+                        )?,
+                    ),
+                }
+            } else {
+                return Err(Status::not_found("Checkpoint data not found"));
+            }
+        } else {
+            // Get checkpoint summary
+            if let Some(summary) = self.reader.get_checkpoint_summary(sequence_number) {
+                let grpc_summary =
+                    iota_grpc_types::checkpoints::CertifiedCheckpointSummary::from(summary);
+                grpc_checkpoints::Checkpoint {
+                    sequence_number,
+                    is_full: false,
+                    bcs_data: Some(
+                        iota_grpc_types::v0::common::BcsData::serialize_from(&grpc_summary)
+                            .map_err(|e| {
+                                Status::internal(format!("BCS serialization failed: {e}"))
+                            })?,
+                    ),
+                }
+            } else {
+                return Err(Status::not_found("Checkpoint summary not found"));
+            }
+        };
+
+        debug!("Latest checkpoint: {sequence_number}");
+
+        Ok(Response::new(checkpoint))
     }
 }

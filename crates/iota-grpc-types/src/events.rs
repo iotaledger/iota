@@ -11,7 +11,7 @@ impl From<&IotaEvent> for grpc_events::Event {
         grpc_events::Event {
             event_id: Some(grpc_events::EventId {
                 event_seq: event.id.event_seq,
-                tx_digest: Some(grpc_common::TransactionDigest {
+                tx_digest: Some(grpc_common::Digest {
                     digest: event.id.tx_digest.into_inner().to_vec(),
                 }),
             }),

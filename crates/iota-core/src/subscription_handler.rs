@@ -4,16 +4,17 @@
 
 use std::sync::Arc;
 
+use futures::stream::BoxStream;
 use iota_json_rpc_types::{
-    EffectsWithInput, EventFilter, IotaEvent, IotaTransactionBlockEffects,
-    IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents, TransactionFilter,
+    EffectsWithInput as EffectsWithInputJson, EventFilter, IotaEvent, IotaTransactionBlockEffects,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockEvents,
+    TransactionFilter as TransactionFilterJson,
 };
-use iota_types::{error::IotaResult, transaction::TransactionData};
+use iota_types::{effects::TransactionEffects, error::IotaResult, transaction::TransactionData};
 use prometheus::{
     IntCounterVec, IntGaugeVec, Registry, register_int_counter_vec_with_registry,
     register_int_gauge_vec_with_registry,
 };
-use tokio_stream::Stream;
 use tracing::{error, instrument, trace};
 
 use crate::streamer::Streamer;
@@ -23,6 +24,24 @@ use crate::streamer::Streamer;
 mod subscription_handler_tests;
 
 pub const EVENT_DISPATCH_BUFFER_SIZE: usize = 1000;
+
+/// Core representation of transaction effects with input, used for streaming
+/// This avoids depending on gRPC or JSON-RPC specific types
+#[derive(Clone, Debug)]
+pub struct EffectsWithInput {
+    pub input: TransactionData,
+    pub effects: TransactionEffects,
+}
+
+/// A filter that accepts all items (no filtering)
+#[derive(Clone, Debug)]
+pub struct NoFilter;
+
+impl iota_json_rpc_types::Filter<EffectsWithInput> for NoFilter {
+    fn matches(&self, _item: &EffectsWithInput) -> bool {
+        true
+    }
+}
 
 pub struct SubscriptionMetrics {
     pub streaming_success: IntCounterVec,
@@ -68,8 +87,13 @@ impl SubscriptionMetrics {
 
 pub struct SubscriptionHandler {
     event_streamer: Streamer<IotaEvent, IotaEvent, EventFilter>,
-    transaction_streamer:
-        Streamer<EffectsWithInput, IotaTransactionBlockEffects, TransactionFilter>,
+    // For JSON-RPC subscriptions - filters at subscription level
+    transaction_streamer_json:
+        Streamer<EffectsWithInputJson, IotaTransactionBlockEffects, TransactionFilterJson>,
+    // For gRPC subscriptions - broadcasts all transactions without filtering
+    // This is efficient: a single stream serves multiple gRPC clients, each applying
+    // their own filters at the service layer
+    transaction_streamer_grpc: Streamer<EffectsWithInput, EffectsWithInput, NoFilter>,
 }
 
 impl SubscriptionHandler {
@@ -77,30 +101,53 @@ impl SubscriptionHandler {
         let metrics = Arc::new(SubscriptionMetrics::new(registry));
         Self {
             event_streamer: Streamer::spawn(EVENT_DISPATCH_BUFFER_SIZE, metrics.clone(), "event"),
-            transaction_streamer: Streamer::spawn(EVENT_DISPATCH_BUFFER_SIZE, metrics, "tx"),
+            transaction_streamer_json: Streamer::spawn(
+                EVENT_DISPATCH_BUFFER_SIZE,
+                metrics.clone(),
+                "tx_json",
+            ),
+            transaction_streamer_grpc: Streamer::spawn(
+                EVENT_DISPATCH_BUFFER_SIZE,
+                metrics,
+                "tx_grpc",
+            ),
         }
     }
 }
 
 impl SubscriptionHandler {
-    #[instrument(level = "trace", skip_all, fields(tx_digest =? effects.transaction_digest()), err)]
+    #[instrument(level = "trace", skip_all, fields(tx_digest =? effects_json.transaction_digest()), err)]
     pub fn process_tx(
         &self,
         input: &TransactionData,
-        effects: &IotaTransactionBlockEffects,
+        effects_json: &IotaTransactionBlockEffects,
+        effects_core: &TransactionEffects,
         events: &IotaTransactionBlockEvents,
     ) -> IotaResult {
         trace!(
             num_events = events.data.len(),
-            tx_digest =? effects.transaction_digest(),
+            tx_digest =? effects_json.transaction_digest(),
             "Processing tx/event subscription"
         );
 
-        if let Err(e) = self.transaction_streamer.try_send(EffectsWithInput {
+        // Send to JSON-RPC streamer
+        if let Err(e) = self
+            .transaction_streamer_json
+            .try_send(EffectsWithInputJson {
+                input: input.clone(),
+                effects: effects_json.clone(),
+            })
+        {
+            error!(error =? e, "Failed to send transaction to JSON-RPC dispatch");
+        }
+
+        // Send to gRPC transaction streamer (broadcasts to all gRPC subscribers)
+        // Each gRPC client will apply its own filter at the service layer
+        if let Err(e) = self.transaction_streamer_grpc.try_send(EffectsWithInput {
             input: input.clone(),
-            effects: effects.clone(),
+            effects: effects_core.clone(),
         }) {
-            error!(error =? e, "Failed to send transaction to dispatch");
+            error!(error =? e, "Failed to send transaction to gRPC dispatch");
         }
 
         // serially dispatch event processing to honor events' orders.
@@ -113,14 +160,25 @@ impl SubscriptionHandler {
         Ok(())
     }
 
-    pub fn subscribe_events(&self, filter: EventFilter) -> impl Stream<Item = IotaEvent> {
-        self.event_streamer.subscribe(filter)
+    pub fn subscribe_events(&self, filter: EventFilter) -> BoxStream<'static, IotaEvent> {
+        Box::pin(self.event_streamer.subscribe(filter))
     }
 
+    /// Subscribe to transactions for JSON-RPC
     pub fn subscribe_transactions(
         &self,
-        filter: TransactionFilter,
-    ) -> impl Stream<Item = IotaTransactionBlockEffects> {
-        self.transaction_streamer.subscribe(filter)
+        filter: TransactionFilterJson,
+    ) -> BoxStream<'static, IotaTransactionBlockEffects> {
+        Box::pin(self.transaction_streamer_json.subscribe(filter))
+    }
+
+    /// Subscribe to transaction effects for gRPC
+    ///
+    /// Returns an unfiltered stream of all transactions for efficiency.
+    /// This design allows a single broadcast stream to serve multiple gRPC
+    /// clients, where each client applies its own filter at the gRPC
+    /// service layer.
+    pub fn subscribe_transactions_grpc(&self) -> BoxStream<'static, EffectsWithInput> {
+        Box::pin(self.transaction_streamer_grpc.subscribe(NoFilter))
     }
 }

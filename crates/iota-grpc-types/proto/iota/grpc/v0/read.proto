@@ -1,0 +1,55 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v0.read;
+
+import "common.proto";
+
+service ReadService {
+  rpc GetObject (GetObjectRequest) returns (GetObjectResponse);
+}
+
+// GetObject
+message GetObjectRequest {
+  // The ID of the queried object
+  iota.grpc.v0.common.Address object_id = 1;
+}
+
+message GetObjectResponse {
+  oneof result {
+    NotExists not_exists = 1;
+    Exists exists = 2;
+    Deleted deleted = 3;
+  }
+}
+
+message NotExists {
+  iota.grpc.v0.common.Address object_id = 1;
+}
+
+message Exists {
+  // Object type (Package or Struct)
+  string object_type = 1;
+
+  // Object reference
+  iota.grpc.v0.common.ObjectRef object_ref = 2;
+
+  // Object data (BCS-encoded)
+  iota.grpc.v0.common.BcsData data = 3;
+
+  // Owner
+  iota.grpc.v0.common.Owner owner = 4;
+
+  // Object metadata
+  iota.grpc.v0.common.Digest previous_transaction = 5;
+  uint64 storage_rebate = 6;
+
+  // Optional MoveStructLayout (BCS-encoded)
+  optional iota.grpc.v0.common.BcsData move_structure_layout = 7;
+}
+
+message Deleted {
+  iota.grpc.v0.common.ObjectRef object_ref = 1;
+}
