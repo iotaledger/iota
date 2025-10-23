@@ -8,7 +8,6 @@ use std::{
 
 use ahash::{AHashMap, AHashSet};
 use bytes::Bytes;
-use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::{
@@ -118,12 +117,12 @@ pub enum CordialKnowledgeMessage {
 }
 
 impl CordialKnowledgeMessage {
-    fn display_type(&self) -> &'static str {
+    fn type_label(&self) -> &'static str {
         match self {
-            CordialKnowledgeMessage::NewHeader(_) => "New Header",
-            CordialKnowledgeMessage::NewShard(_) => "New Shard",
+            CordialKnowledgeMessage::NewHeader(_) => "New header",
+            CordialKnowledgeMessage::NewShard(_) => "New shard",
             CordialKnowledgeMessage::EvictBelow(_) => "Eviction",
-            CordialKnowledgeMessage::UsefulShardsFromPeers(_) => "Useful Authors for Shards",
+            CordialKnowledgeMessage::UsefulShardsFromPeers(_) => "Useful authors for shards",
         }
     }
 }
@@ -305,36 +304,30 @@ impl CordialKnowledge {
 
     /// Processes a single high-level cordial knowledge message.
     async fn process_message(&mut self, cordial_knowledge_message: CordialKnowledgeMessage) {
-        debug!(
-            "Processing Cordial Message: {:?}",
-            cordial_knowledge_message
-        );
-        let message_type: &'static str = match cordial_knowledge_message {
-            CordialKnowledgeMessage::NewHeader(header) => {
-                self.update_cordial_knowledge(&header).await;
-                "header"
-            }
-            CordialKnowledgeMessage::NewShard(block_ref) => {
-                self.handle_new_shard(block_ref).await;
-                "shard"
-            }
-            CordialKnowledgeMessage::EvictBelow(round) => {
-                self.handle_evict_below(round).await;
-                "eviction"
-            }
-            CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
-                self.handle_useful_shards_from(useful_shards_from_peer)
-                    .await;
-                "useful_shards"
-            }
-        };
-
+        // Report the type of message
         self.context
             .metrics
             .node_metrics
             .cordial_knowledge_processed_messages
-            .with_label_values(&[message_type])
+            .with_label_values(&[cordial_knowledge_message.type_label()])
             .inc();
+
+        // Handle the cordial knowledge message depending on its type
+        match cordial_knowledge_message {
+            CordialKnowledgeMessage::NewHeader(header) => {
+                self.update_cordial_knowledge(&header).await;
+            }
+            CordialKnowledgeMessage::NewShard(block_ref) => {
+                self.handle_new_shard(block_ref).await;
+            }
+            CordialKnowledgeMessage::EvictBelow(round) => {
+                self.handle_evict_below(round).await;
+            }
+            CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
+                self.handle_useful_shards_from(useful_shards_from_peer)
+                    .await;
+            }
+        };
     }
 
     // Helper function to update authority rounds if the new round is greater
@@ -380,7 +373,6 @@ impl CordialKnowledge {
             }
         }
     }
-
 
     /// Called when a new own shard (created locally) is added to dag state.
     async fn handle_new_shard(&mut self, block_ref: BlockRef) {
