@@ -441,8 +441,6 @@ async fn test_congestion_control_execution_cancellation() {
 
 // Tests that congestion control and debt tracking work as expected when there
 // is a burst of traffic and overshoot is allowed.
-//
-// Specifically, we test
 #[sim_test]
 async fn test_congestion_control_debt_tracking() {
     telemetry_subscribers::init_for_testing();
@@ -583,8 +581,9 @@ async fn test_congestion_control_debt_tracking() {
     // touches shared_object_2 and an owned object.
     // Due to the debt of 1.5*default_tx_gas_budget for shared_object_2 from Commit
     // 2, this should result in an overshoot of 2.5*default_tx_gas_budget on
-    // shared_object_2 (0.5*default_gas budget overshoot from existing debt and
-    // 2*default_gas_budget from this transaction), which exceeds the allowed
+    // shared_object_2 (inital debt [1.5*default_gas_budget]
+    // + transaction [2*default_gas_budget] - congestion limit
+    // [default_gas_budget]) which exceeds the allowed
     // overshoot, and should be cancelled.
     let (_, effects) = commit_and_execute_transaction(
         &authority_state,
@@ -667,8 +666,9 @@ async fn test_congestion_control_debt_tracking() {
     // reduced to 0.5*default_gas_budget for commit round 4 because round 3 was
     // skipped, reducing it by the congestion limit of default_gas_budget.
     // Therefore, this transaction should be executed successfully as the total
-    // overshoot will be 2*default_gas_budget (0.5*default_gas_budget from
-    // existing debt and 2.5*default_gas_budget from this transaction).
+    // overshoot will be 2*default_gas_budget (inital debt [0.5*default_gas_budget]
+    // + transaction [2.5*default_gas_budget] - congestion limit
+    // [default_gas_budget]).
     let (_, effects) = commit_and_execute_transaction(
         &authority_state,
         &test_setup.package,
@@ -685,7 +685,8 @@ async fn test_congestion_control_debt_tracking() {
     )
     .await;
 
-    // Transaction should be executed successfully.
+    // Transaction should be executed successfully as overshoot of
+    // 2*default_tx_gas_budget is allowed.
     assert!(effects.status().is_ok());
 
     // Check that the debt stored in consensus quarantine is correct. Shared object
@@ -720,8 +721,9 @@ async fn test_congestion_control_debt_tracking() {
 
     // Commit 5: a transaction with gas budget of 1.5*default_tx_gas_budget that
     // touches both shared objects and an owned object. The transaction should be
-    // cancelled because there is a debt of 2*default_tx_gas_budget on shared object
-    // 1, resulting in a total overshoot of 1.5*default_tx_gas_budget.
+    // cancelled because there is an initial debt of 2*default_tx_gas_budget on
+    // shared object 1, resulting in a total overshoot of
+    // 2.5*default_tx_gas_budget.
     let (_, effects) = commit_and_execute_transaction(
         &authority_state,
         &test_setup.package,
@@ -780,8 +782,11 @@ async fn test_congestion_control_debt_tracking() {
 
     // Check that the debt stored in consensus quarantine is correct. Shared object
     // 1 should now have debt reduced from 2*default_tx_gas_budget to
-    // default_tx_gas_budget, and shared object 2 should still have a debt of 0.5*
-    // default_tx_gas_budget from commit 3.
+    // default_tx_gas_budget. The debt of shared object 1 should be updated in
+    // consensus quarantine because there is a positive debt remaining which
+    // triggers an update. Shared object 2 still has no debt, so no update is made
+    // to consensus quarantine. We should still see the debt of
+    // 0.5*default_tx_gas_budget from commit 3.
     let shared_object_1_debt = authority_state
         .epoch_store_for_testing()
         .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
@@ -879,11 +884,12 @@ async fn test_congestion_control_debt_tracking() {
         3 * TEST_ONLY_GAS_UNIT,
     )
     .await;
-    // Transaction should be a success as overshoot of default_tx_gas_budget is
+    // Transaction should be a success as overshoot of 2*default_tx_gas_budget is
     // allowed.
     assert!(effects.status().is_ok());
 
-    // The debt on both shared objects should be back to 2*default_tx_gas_budget.
+    // The debt on both shared objects should should have been updated in storage to
+    // 2*default_tx_gas_budget.
     let shared_object_1_debt = authority_state
         .epoch_store_for_testing()
         .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
