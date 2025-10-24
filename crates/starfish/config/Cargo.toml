@@ -19,6 +19,7 @@ serde.workspace = true
 # internal dependencies
 iota-network-stack.workspace = true
 shared-crypto.workspace = true
+blake3 = "1.8.2"
 
 [dev-dependencies]
 insta.workspace = true
