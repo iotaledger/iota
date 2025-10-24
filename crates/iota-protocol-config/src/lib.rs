@@ -81,9 +81,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 //             Enable median-based commit timestamp calculation in consensus,
 //             and enforce checkpoint timestamp monotonicity for testnet.
 //             Enable batched block sync for mainnet.
-//             Enable selecting committee only from active validators that next
-//             epoch version and issued valid AuthorityCapabilities notification
-//             in testnet.
+//             Enable selecting committee only from active validators that
+//             support the next epoch's version and issued valid
+//             AuthorityCapabilities notification in testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2263,8 +2263,9 @@ impl ProtocolConfig {
                         // enforce checkpoint timestamp monotonicity for testnet.
                         cfg.feature_flags
                             .consensus_median_timestamp_with_checkpoint_enforcement = true;
-                        // Enable selecting committee only from active validators that next epoch
-                        // version and issued valid AuthorityCapabilities notification in testnet.
+                        // Enable selecting committee only from active validators that support the
+                        // next epoch's version and issued valid AuthorityCapabilities notification
+                        // in testnet.
                         cfg.feature_flags
                             .select_committee_supporting_next_epoch_version = true;
                     }
