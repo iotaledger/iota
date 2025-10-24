@@ -11,7 +11,6 @@ use diesel::{
 };
 use iota_json_rpc_types::MoveFunctionName;
 use iota_types::base_types::ObjectID;
-use move_core_types::identifier::Identifier;
 
 use crate::{
     errors::IndexerError,
@@ -69,20 +68,18 @@ pub struct QueriedMoveCallMetrics {
     pub count: i64,
 }
 
-impl TryInto<(MoveFunctionName, usize)> for QueriedMoveCallMetrics {
+impl TryFrom<QueriedMoveCallMetrics> for (MoveFunctionName, usize) {
     type Error = IndexerError;
 
-    fn try_into(self) -> Result<(MoveFunctionName, usize), Self::Error> {
-        let package = ObjectID::from_str(&self.move_package)?;
-        let module = Identifier::from_str(&self.move_module)?;
-        let function = Identifier::from_str(&self.move_function)?;
+    fn try_from(metrics: QueriedMoveCallMetrics) -> Result<(MoveFunctionName, usize), Self::Error> {
+        let package = ObjectID::from_str(&metrics.move_package)?;
         Ok((
             MoveFunctionName {
                 package,
-                module,
-                function,
+                module: metrics.move_module,
+                function: metrics.move_function,
             },
-            self.count as usize,
+            metrics.count as usize,
         ))
     }
 }

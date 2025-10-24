@@ -42,6 +42,16 @@ pub trait EventSubscriber: Send + Sync {
     ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin>;
 }
 
+// Implement EventSubscriber trait for gRPC integration
+impl EventSubscriber for iota_core::subscription_handler::SubscriptionHandler {
+    fn subscribe_events(
+        &self,
+        filter: EventFilter,
+    ) -> Box<dyn futures::Stream<Item = IotaEvent> + Send + Unpin> {
+        Box::new(Box::pin(self.subscribe_events(filter)))
+    }
+}
+
 /// Wrapper that converts native CertifiedCheckpointSummary to gRPC type before
 /// broadcasting
 #[derive(Clone)]

@@ -99,6 +99,8 @@ import type {
     IotaNamesReverseLookupParams,
     IotaNamesFindAllRegistrationNFTsParams,
     IsTransactionIndexedOnNodeParams,
+    IotaMoveViewCallResults,
+    ViewParams,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -1018,6 +1020,16 @@ export class IotaClient {
         return await this.transport.request({
             method: 'iota_isTransactionIndexedOnNode',
             params: [input.digest],
+        });
+    }
+
+    /**
+     * Calls a move view function.
+     */
+    async view(input: ViewParams): Promise<IotaMoveViewCallResults> {
+        return await this.transport.request({
+            method: 'iota_view',
+            params: [input.functionName, input.typeArgs, input.callArgs],
         });
     }
 }

@@ -381,7 +381,7 @@ impl ApiEndpoint<RestService> for GetFullCheckpoint {
     fn stable(&self) -> bool {
         // TODO transactions are serialized with an intent message, do we want to change
         // this format to remove it (and remove user signature duplication)
-        // prior to stabalizing the format?
+        // prior to stabilizing the format?
         false
     }
 
@@ -474,7 +474,7 @@ impl ApiEndpoint<RestService> for ListFullCheckpoints {
     fn stable(&self) -> bool {
         // TODO transactions are serialized with an intent message, do we want to change
         // this format to remove it (and remove user signature duplication)
-        // prior to stabalizing the format?
+        // prior to stabilizing the format?
         false
     }
 
