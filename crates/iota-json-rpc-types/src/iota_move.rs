@@ -59,21 +59,21 @@ pub enum IotaMoveVisibility {
     Friend,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveStructTypeParameter {
     pub constraints: IotaMoveAbilitySet,
     pub is_phantom: bool,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 pub struct IotaMoveNormalizedField {
     pub name: String,
     #[serde(rename = "type")]
     pub type_: IotaMoveNormalizedType,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveNormalizedStruct {
     pub abilities: IotaMoveAbilitySet,
@@ -89,7 +89,7 @@ pub struct IotaMoveNormalizedEnum {
     pub variants: BTreeMap<String, Vec<IotaMoveNormalizedField>>,
 }
 
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 pub enum IotaMoveNormalizedType {
     Bool,
     U8,
@@ -110,7 +110,7 @@ pub enum IotaMoveNormalizedType {
     MutableReference(Box<IotaMoveNormalizedType>),
 }
 
-#[derive(Serialize, Deserialize, Debug, JsonSchema, Clone)]
+#[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveNormalizedStructType {
     pub address: String,
