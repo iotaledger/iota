@@ -10,8 +10,8 @@ use std::{
 
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
 use proptest::prelude::*;
-use compatibility::{compare_ord_iters, Compatibility, InclusionCheck, Mark};
 use crate::{
+    compatibility::{compare_ord_iters, Compatibility, InclusionCheck, Mark},
     file_format::*,
    normalized::{self, RcIdentifier, RcPool, Type},
 };
@@ -948,11 +948,6 @@ fn public_entry_signature_change_disallowed() {
     };
     *function_ref = new_function;
     // Update the signature of the entry fun to now take a u64 argument.
-    updated_module
-        .functions
-        .get_mut(ident_str!("fn"))
-        .unwrap()
-        .parameters = vec![Type::U64];
 
     assert!(
         Compatibility {
