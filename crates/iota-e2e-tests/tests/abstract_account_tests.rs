@@ -40,6 +40,7 @@ use iota_types::{
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
     },
 };
+use move_command_line_common::error_bitset::ErrorBitset;
 use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
 use test_cluster::{TestCluster, TestClusterBuilder};
@@ -243,7 +244,7 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
 
     assert!(summary.status.is_err(), "Expected the TX execution to fail");
     assert!(
-        summary.gas_used.gas_used() > 0
+        summary.gas_used.gas_used() == 3401600
             && summary.mutated_object_count == 2
             && summary.created_object_count == 0
             && summary.unwrapped_object_count == 0
@@ -255,8 +256,10 @@ async fn test_abstract_account_post_consensus_failure() -> Result<(), anyhow::Er
     assert!(
         matches!(
             summary.status.unwrap_err().0,
-            ExecutionFailureStatus::MoveAbort(MoveLocation { module, function_name, .. }, _)
-            if module.name() == ident_str!("basic_keyed_aa") && function_name == Some("authenticate_ed25519".to_string())
+            ExecutionFailureStatus::MoveAbort(MoveLocation { module, function_name, .. }, abort_code)
+            if module.name() == ident_str!("basic_keyed_aa")
+            && function_name == Some("authenticate_ed25519".to_string())
+            && ErrorBitset::from_u64(abort_code).unwrap().error_code() == Some(0)
         ),
         "Expected failure to be a Move abort in basic_keyed_aa::authenticate_ed25519",
     );
