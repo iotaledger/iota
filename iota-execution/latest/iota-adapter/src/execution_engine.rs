@@ -7,7 +7,10 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
 
-    use std::{collections::HashSet, sync::Arc};
+    use std::{
+        collections::{BTreeSet, HashSet},
+        sync::Arc,
+    };
 
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
@@ -34,7 +37,7 @@ mod checked {
         committee::EpochId,
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
-        execution::{ExecutionResults, ExecutionResultsV1, is_certificate_denied},
+        execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
         execution_status::{CongestedObjects, ExecutionStatus},
         gas::{GasCostSummary, IotaGasStatus},
@@ -106,11 +109,20 @@ mod checked {
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
         let input_objects = input_objects.into_inner();
+        let mutable_inputs = if enable_expensive_checks {
+            input_objects.mutable_inputs().keys().copied().collect()
+        } else {
+            HashSet::new()
+        };
+        let shared_object_refs = input_objects.filter_shared_objects();
         let receiving_objects = transaction_kind.receiving_objects();
+        let transaction_dependencies = input_objects.transaction_dependencies();
+        let contains_deleted_input = input_objects.contains_deleted_objects();
+        let cancelled_objects = input_objects.get_cancelled_objects();
 
         let temporary_store = TemporaryStore::new(
             store,
-            input_objects.clone(),
+            input_objects,
             receiving_objects,
             transaction_digest,
             protocol_config,
@@ -131,10 +143,14 @@ mod checked {
             temporary_store,
             gas_charger,
             &mut tx_ctx,
+            &mutable_inputs,
+            shared_object_refs,
+            transaction_dependencies,
+            contains_deleted_input,
+            cancelled_objects,
             transaction_kind,
             transaction_signer,
             transaction_digest,
-            &input_objects,
             move_vm,
             epoch_id,
             protocol_config,
@@ -153,10 +169,14 @@ mod checked {
         mut temporary_store: TemporaryStore,
         mut gas_charger: GasCharger,
         tx_ctx: &mut TxContext,
+        mutable_inputs: &HashSet<ObjectID>,
+        shared_object_refs: Vec<SharedInput>,
+        mut transaction_dependencies: BTreeSet<TransactionDigest>,
+        contains_deleted_input: bool,
+        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
         transaction_kind: TransactionKind,
         transaction_signer: IotaAddress,
         transaction_digest: TransactionDigest,
-        input_objects: &InputObjects,
         move_vm: &Arc<MoveVM>,
         epoch_id: &EpochId,
         protocol_config: &ProtocolConfig,
@@ -165,7 +185,10 @@ mod checked {
         certificate_deny_set: &HashSet<TransactionDigest>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
-            Result<<execution_mode::Validation as ExecutionMode>::ExecutionResults, ExecutionError>,
+            Result<
+                <execution_mode::Authentication as ExecutionMode>::ExecutionResults,
+                ExecutionError,
+            >,
         >,
     ) -> (
         InnerTemporaryStore,
@@ -173,16 +196,6 @@ mod checked {
         TransactionEffects,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
-        let mutable_inputs = if enable_expensive_checks {
-            input_objects.mutable_inputs().keys().copied().collect()
-        } else {
-            HashSet::new()
-        };
-        let shared_object_refs = input_objects.filter_shared_objects();
-        let mut transaction_dependencies = input_objects.transaction_dependencies();
-        let contains_deleted_input = input_objects.contains_deleted_objects();
-        let cancelled_objects = input_objects.get_cancelled_objects();
-
         let is_epoch_change = transaction_kind.is_end_of_epoch_tx();
         let deny_cert = is_certificate_denied(&transaction_digest, certificate_deny_set);
 
@@ -229,7 +242,7 @@ mod checked {
                 .check_ownership_invariants(
                     &transaction_signer,
                     &mut gas_charger,
-                    &mutable_inputs,
+                    mutable_inputs,
                     is_epoch_change,
                 )
                 .unwrap()
@@ -305,15 +318,29 @@ mod checked {
         // It does not alter the state and produces no effects other than possible
         // errors.
 
-        // Input object come from both authentication and transaction inputs
+        // Input objects come from both authentication and transaction inputs
         let input_objects = authenticator_and_transaction_input_objects.into_inner();
+        // Mutable inputs come only from the transaction inputs
+        let mutable_inputs = if enable_expensive_checks {
+            input_objects.mutable_inputs().keys().copied().collect()
+        } else {
+            HashSet::new()
+        };
+        // Shared object refs come from both authentication and transaction inputs
+        let shared_object_refs = input_objects.filter_shared_objects();
         // Receiving objects can only come from the transaction inputs
         let transaction_receiving_objects = transaction_kind.receiving_objects();
+        // Transaction dependencies come from both authentication and transaction inputs
+        let transaction_dependencies = input_objects.transaction_dependencies();
+        // Deleted and cancelled objects come from both authentication and transaction
+        // inputs
+        let contains_deleted_input = input_objects.contains_deleted_objects();
+        let cancelled_objects = input_objects.get_cancelled_objects();
 
         // Prepare the temporary store for the authentication execution.
         let mut temporary_store = TemporaryStore::new(
             store,
-            input_objects.clone(),
+            input_objects,
             transaction_receiving_objects,
             transaction_digest,
             protocol_config,
@@ -360,10 +387,14 @@ mod checked {
             temporary_store,
             gas_charger,
             &mut tx_ctx,
+            &mutable_inputs,
+            shared_object_refs,
+            transaction_dependencies,
+            contains_deleted_input,
+            cancelled_objects,
             transaction_kind,
             transaction_signer,
             transaction_digest,
-            &input_objects,
             move_vm,
             epoch_id,
             protocol_config,
@@ -408,7 +439,7 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
-    ) -> Result<<execution_mode::Validation as ExecutionMode>::ExecutionResults, ExecutionError>
+    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
         let input_objects = authenticator_input_objects.into_inner();
 
@@ -482,7 +513,7 @@ mod checked {
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
-    ) -> Result<<execution_mode::Validation as ExecutionMode>::ExecutionResults, ExecutionError>
+    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
         // Check the preconditions.
         debug_assert!(
@@ -578,7 +609,7 @@ mod checked {
         contains_deleted_input: bool,
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<<execution_mode::Validation as ExecutionMode>::ExecutionResults, ExecutionError>
+    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
     {
         debug_assert!(
             gas_charger.no_charges(),
@@ -597,7 +628,7 @@ mod checked {
         .and_then(|()| {
             let authenticator_move_call =
                 setup_authenticator_move_call(authenticator, authenticator_info)?;
-            programmable_transactions::execution::execute::<execution_mode::Validation>(
+            programmable_transactions::execution::execute::<execution_mode::Authentication>(
                 protocol_config,
                 metrics.clone(),
                 move_vm,
@@ -676,7 +707,10 @@ mod checked {
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         pre_execution_result_opt: Option<
-            Result<<execution_mode::Validation as ExecutionMode>::ExecutionResults, ExecutionError>,
+            Result<
+                <execution_mode::Authentication as ExecutionMode>::ExecutionResults,
+                ExecutionError,
+            >,
         >,
     ) -> (
         GasCostSummary,

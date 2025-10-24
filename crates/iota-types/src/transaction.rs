@@ -3086,7 +3086,6 @@ impl std::fmt::Debug for InputObjects {
 
 // An InputObjects new-type that has been verified by iota-transaction-checks,
 // and can be safely passed to execution.
-#[derive(Clone)]
 pub struct CheckedInputObjects(InputObjects);
 
 // DO NOT CALL outside of iota-transaction-checks, genesis, or replay.
