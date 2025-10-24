@@ -20,6 +20,18 @@ use crate::utils::{
 // Helper functions for common test patterns //
 ///////////////////////////////////////////////
 
+fn default_discovery_config_with_private_addresses_allowed() -> DiscoveryConfig {
+    DiscoveryConfig {
+        allow_private_addresses: Some(true),
+        ..Default::default()
+    }
+}
+
+fn default_p2p_config_with_private_addresses_allowed() -> P2pConfig {
+    P2pConfig::default()
+        .set_discovery_config(default_discovery_config_with_private_addresses_allowed())
+}
+
 fn assert_peers(
     self_name: &str,
     network: &Network,
@@ -269,8 +281,12 @@ async fn update_peers_for_test(
     network: &Network,
     state: Arc<RwLock<State>>,
     peers: Vec<SignedNodeInfo>,
+    allow_private_addresses: bool,
 ) {
-    let config = DiscoveryConfig::default();
+    let config = DiscoveryConfig {
+        allow_private_addresses: Some(allow_private_addresses),
+        ..Default::default()
+    };
     update_known_peers(
         network,
         state,
@@ -288,7 +304,7 @@ async fn update_peers_for_test(
 
 #[tokio::test]
 async fn get_known_peers() -> Result<()> {
-    let config = P2pConfig::default();
+    let config = default_p2p_config_with_private_addresses_allowed();
 
     let (discovery, server, network, key) = set_up_network(config, None);
     let key_for_signing = key.copy();
@@ -357,7 +373,7 @@ async fn get_known_peers() -> Result<()> {
 
 #[tokio::test]
 async fn make_connection_to_seed_peer() -> Result<()> {
-    let mut config = P2pConfig::default();
+    let mut config = default_p2p_config_with_private_addresses_allowed();
 
     let (discovery_1, _server_1, network_1, key_1) = set_up_network(config.clone(), None);
     let (_event_loop_1, _handle_1, _state_1) = start_network(discovery_1, network_1.clone(), key_1);
@@ -390,7 +406,7 @@ async fn make_connection_to_seed_peer() -> Result<()> {
 
 #[tokio::test]
 async fn make_connection_to_seed_peer_with_peer_id() -> Result<()> {
-    let mut config = P2pConfig::default();
+    let mut config = default_p2p_config_with_private_addresses_allowed();
 
     let (discovery_1, _server_1, network_1, key_1) = set_up_network(config.clone(), None);
     let (_event_loop_1, _handle_1, _state_1) = start_network(discovery_1, network_1.clone(), key_1);
@@ -423,7 +439,7 @@ async fn make_connection_to_seed_peer_with_peer_id() -> Result<()> {
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
 async fn three_nodes_can_connect_via_discovery() -> Result<()> {
-    let mut config = P2pConfig::default();
+    let mut config = default_p2p_config_with_private_addresses_allowed();
 
     // Setup the peer that will be the seed for the other two
     let (discovery_1, _server_1, network_1, key_1) = set_up_network(config.clone(), None);
@@ -615,6 +631,7 @@ async fn test_access_types() {
     let default_discovery_config = DiscoveryConfig {
         target_concurrent_connections: Some(100),
         interval_period_ms: Some(1000),
+        allow_private_addresses: Some(true), // Allow localhost for testing
         ..Default::default()
     };
     let default_p2p_config = P2pConfig {
@@ -625,6 +642,7 @@ async fn test_access_types() {
         target_concurrent_connections: Some(100),
         interval_period_ms: Some(1000),
         access_type: Some(AccessType::Private),
+        allow_private_addresses: Some(true), // Allow localhost for testing
         ..Default::default()
     };
 
@@ -645,7 +663,8 @@ async fn test_access_types() {
     let (mut discovery_3, _server_3, network_3, key_3) = set_up_network(config.clone(), None);
 
     // Node 4, private, allowlist: Node 3, 5, and 6
-    let (mut discovery_4, _server_4, network_4, key_4) = set_up_network(P2pConfig::default(), None);
+    let (mut discovery_4, _server_4, network_4, key_4) =
+        set_up_network(default_p2p_config_with_private_addresses_allowed(), None);
 
     // Node 5, private, allowlisted: Node 3 and Node 4
     let (discovery_5, _server_5, network_5, key_5) = {
@@ -961,7 +980,7 @@ async fn test_access_types() {
 #[tokio::test]
 async fn test_handle_trusted_peer_change_event() -> Result<()> {
     fn mock_multiaddr(port: u16) -> Multiaddr {
-        format!("/dns/mockhost/udp/{port}").parse().unwrap()
+        format!("/dns/mock.local/udp/{port}").parse().unwrap()
     }
 
     // Create mock peers, good enough for the test
@@ -993,6 +1012,7 @@ async fn test_handle_trusted_peer_change_event() -> Result<()> {
             peer_id: peers[1].peer_id,
             address: Some(mock_multiaddr(1)),
         }],
+        allow_private_addresses: Some(true), // Allow localhost for testing
         ..Default::default()
     };
     let mut config = P2pConfig::default().set_discovery_config(discovery_config);
@@ -1245,7 +1265,7 @@ async fn test_address_spoofing_prevention() -> Result<()> {
     let mut attack_peers = vec![signed_peer_info_legitimate];
     attack_peers.extend(malicious_peers.clone());
 
-    update_peers_for_test(&network_victim, state_victim.clone(), attack_peers).await;
+    update_peers_for_test(&network_victim, state_victim.clone(), attack_peers, true).await;
 
     // Verify that address deduplication and verification work together correctly
     let known_peers = state_victim.read().unwrap().known_peers.clone();
@@ -1284,7 +1304,7 @@ async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
     // Test that address conflicts between new peers and existing entries are
     // resolved correctly
 
-    let config = P2pConfig::default();
+    let config = default_p2p_config_with_private_addresses_allowed();
 
     let start_timestamp_ms = now_unix();
     let timestamp_peer_1 = start_timestamp_ms + 100;
@@ -1333,6 +1353,7 @@ async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
         &network_victim,
         state_victim.clone(),
         vec![signed_peer_info_1],
+        true,
     )
     .await;
 
@@ -1383,6 +1404,7 @@ async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
         &network_victim,
         state_victim.clone(),
         vec![signed_peer_info_2],
+        true,
     )
     .await;
 
@@ -1441,6 +1463,7 @@ async fn test_address_conflict_resolution_with_existing_peers() -> Result<()> {
         &network_victim,
         state_victim.clone(),
         vec![signed_peer_info_3],
+        true,
     )
     .await;
 
@@ -1507,7 +1530,7 @@ async fn test_address_verification_cooldown_and_cleanup() -> Result<()> {
     };
     let signed_peer_info_other = peer_info_other.sign(&key_other);
 
-    update_peers_for_test(&network, state.clone(), vec![signed_peer_info_other]).await;
+    update_peers_for_test(&network, state.clone(), vec![signed_peer_info_other], true).await;
 
     // Verify peer is in cooldown after failed verification
     assert_peer_in_known_peers(
@@ -1536,6 +1559,7 @@ async fn test_address_verification_cooldown_and_cleanup() -> Result<()> {
         &network,
         state.clone(),
         vec![signed_peer_info_valid_other.clone()],
+        true,
     )
     .await;
 
@@ -1560,7 +1584,13 @@ async fn test_address_verification_cooldown_and_cleanup() -> Result<()> {
     // seconds) Add a bit extra to ensure the cleanup runs
     tokio::time::sleep(Duration::from_secs(500)).await;
 
-    update_peers_for_test(&network, state.clone(), vec![signed_peer_info_valid_other]).await;
+    update_peers_for_test(
+        &network,
+        state.clone(),
+        vec![signed_peer_info_valid_other],
+        true,
+    )
+    .await;
 
     // Verify peer is processed normally after cooldown expires
     assert_peer_in_known_peers(
@@ -1917,7 +1947,7 @@ async fn test_private_address_filtering() -> Result<()> {
     let mut all_peer_infos = filtered_peer_infos;
     all_peer_infos.extend(public_peer_infos);
 
-    update_peers_for_test(&network, state.clone(), all_peer_infos).await;
+    update_peers_for_test(&network, state.clone(), all_peer_infos, false).await;
 
     let state_guard = state.read().unwrap();
 
@@ -2019,6 +2049,22 @@ async fn test_construct_our_info_address_filtering() -> Result<()> {
             "/dns6/iota.org/udp/12345",
             false,
             "DNS6 hostname (unsupported by anemo)",
+        ),
+        // Invalid DNS addresses - should be filtered out
+        (
+            "/dns/localhost/udp/12345",
+            false,
+            "localhost hostname (invalid FQDN)",
+        ),
+        (
+            "/dns/test.local/udp/12345",
+            false,
+            ".local domain (invalid FQDN)",
+        ),
+        (
+            "/dns/hostname/udp/12345",
+            false,
+            "single label hostname (invalid FQDN)",
         ),
         // Valid public addresses - should be included
         ("/ip4/8.8.8.8/udp/12345", true, "Google DNS IPv4"),

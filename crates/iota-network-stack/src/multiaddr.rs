@@ -219,19 +219,28 @@ impl Multiaddr {
         new
     }
 
-    /// Checks if the multiaddr contains a private/unroutable IP address.
-    /// Returns true if the address should is private or unroutable.
-    pub fn is_private_or_unroutable(&self) -> bool {
+    /// Checks if the multiaddr contains a private/unroutable IP address or
+    /// invalid DNS. Returns true if the address should is private or
+    /// unroutable.
+    pub fn is_private_or_unroutable(&self, allow_private_addresses: bool) -> bool {
         let Some(protocol) = self.0.iter().next() else {
             return true; // Empty address is not routable
         };
 
         match protocol {
-            multiaddr::Protocol::Ip4(addr) => is_ipv4_private_or_unroutable(addr),
+            multiaddr::Protocol::Ip4(addr) => {
+                is_ipv4_private_or_unroutable(addr, allow_private_addresses)
+            }
             multiaddr::Protocol::Ip6(addr) => is_ipv6_private_or_unroutable(addr),
-            multiaddr::Protocol::Dns(_) => false,
-            multiaddr::Protocol::Dns4(_) => false,
-            multiaddr::Protocol::Dns6(_) => false,
+            multiaddr::Protocol::Dns(hostname) => {
+                !is_valid_fqdn(hostname.as_ref(), allow_private_addresses)
+            }
+            multiaddr::Protocol::Dns4(hostname) => {
+                !is_valid_fqdn(hostname.as_ref(), allow_private_addresses)
+            }
+            multiaddr::Protocol::Dns6(hostname) => {
+                !is_valid_fqdn(hostname.as_ref(), allow_private_addresses)
+            }
             _ => true, // Other protocol types are not supported
         }
     }
@@ -239,7 +248,7 @@ impl Multiaddr {
     /// Checks if the multiaddr is suitable for public announcement for anemo.
     /// This includes checking for private/unroutable addresses and valid
     /// format.
-    pub fn is_valid_public_anemo_address(&self) -> bool {
+    pub fn is_valid_public_anemo_address(&self, allow_private_addresses: bool) -> bool {
         // Check if address is empty
         if self.is_empty() {
             return false;
@@ -251,7 +260,7 @@ impl Multiaddr {
         }
 
         // Check if it's a private or unroutable address
-        if self.is_private_or_unroutable() {
+        if self.is_private_or_unroutable(allow_private_addresses) {
             return false;
         }
 
@@ -426,11 +435,14 @@ pub(crate) fn parse_ip6(address: &Multiaddr) -> Result<(SocketAddr, &'static str
 
 /// Checks if an IPv4 address is private, reserved, or otherwise unroutable on
 /// the public internet.
-fn is_ipv4_private_or_unroutable(addr: Ipv4Addr) -> bool {
+fn is_ipv4_private_or_unroutable(addr: Ipv4Addr, allow_private_addresses: bool) -> bool {
+    if !allow_private_addresses && addr.is_private() {
+        // RFC 1918 - Private Networks (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
+        return true;
+    }
+
     // RFC 1122 - "This" Network (0.0.0.0/8) and Unspecified (0.0.0.0/32)
     addr.is_unspecified() ||
-    // RFC 1918 - Private Networks (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16)
-    addr.is_private() ||
     // RFC 1122 - Loopback (127.0.0.0/8)
     addr.is_loopback() ||
     // RFC 3927 - Link-Local (169.254.0.0/16)
@@ -486,7 +498,98 @@ fn is_ipv6_private_or_unroutable(addr: Ipv6Addr) -> bool {
     // RFC 4862 - Link-Local (fe80::/10)
     (addr.segments()[0] & 0xffc0) == 0xfe80 ||
     // RFC 4291 - IPv4-mapped IPv6 addresses (::ffff:0:0/96) - check embedded IPv4
-    addr.to_ipv4_mapped().is_some_and(is_ipv4_private_or_unroutable)
+    addr.to_ipv4_mapped().is_some_and(|addr| is_ipv4_private_or_unroutable(addr, false))
+}
+
+/// Checks if a hostname is a valid FQDN (Fully Qualified Domain Name).
+/// Returns true if the hostname is valid for DNS resolution.
+/// This implements RFC-compliant hostname validation with IDNA support for
+/// Unicode domains.
+fn is_valid_fqdn(hostname: &str, allow_localhost_dns: bool) -> bool {
+    if hostname.ends_with('.') {
+        // we do not allow hostnames with dot at the end
+        return false;
+    }
+
+    // Basic length check
+    if hostname.is_empty() || hostname.len() > 253 {
+        return false;
+    }
+
+    let hostname_lower = hostname.to_lowercase();
+    if !allow_localhost_dns {
+        // Reject localhost and local domain variants
+        if hostname_lower == "localhost" || hostname_lower.ends_with(".local") {
+            return false;
+        }
+    } else if hostname_lower == "localhost" {
+        // Skip further checks for exact "localhost"
+        return true;
+    }
+
+    // Try to convert to ASCII using IDNA (handles Unicode domains)
+    let ascii_hostname = match idna::domain_to_ascii(hostname) {
+        Ok(ascii) => ascii,
+        Err(_) => return false, // Invalid Unicode domain
+    };
+
+    // Split into labels
+    let labels: Vec<&str> = ascii_hostname.split('.').collect();
+
+    // Must have at least 2 labels (hostname.tld) for public use
+    if labels.len() < 2 {
+        return false;
+    }
+
+    // Validate each label using ASCII rules (after IDNA conversion)
+    for label in &labels {
+        if !is_valid_dns_label(label) {
+            return false;
+        }
+    }
+
+    // Basic TLD validation: last label should be valid DNS label and >= 2 chars
+    // After IDNA conversion, TLDs can be punycode (xn--...) so we use general DNS
+    // label validation
+    let tld = *labels.last().unwrap();
+    if tld.len() < 2 {
+        return false;
+    }
+
+    // For TLD, we allow punycode (xn--) or pure alphabetic
+    let is_valid_tld = if tld.starts_with("xn--") {
+        // Punycode TLD - already validated as DNS label above
+        true
+    } else {
+        // Regular TLD - should be alphabetic only
+        tld.chars().all(|c| c.is_ascii_alphabetic())
+    };
+
+    if !is_valid_tld {
+        return false;
+    }
+
+    true
+}
+
+/// Validates a single DNS label according to RFC 1035
+fn is_valid_dns_label(label: &str) -> bool {
+    // Label length: 1-63 characters (RFC 1035)
+    if label.is_empty() || label.len() > 63 {
+        return false;
+    }
+
+    let bytes = label.as_bytes();
+
+    // Must start and end with alphanumeric character (no hyphens at boundaries)
+    if !bytes[0].is_ascii_alphanumeric() || !bytes[bytes.len() - 1].is_ascii_alphanumeric() {
+        return false;
+    }
+
+    // Can only contain alphanumeric characters and hyphens
+    bytes
+        .iter()
+        .all(|&b| b.is_ascii_alphanumeric() || b == b'-')
 }
 
 #[cfg(test)]
@@ -725,7 +828,7 @@ mod test {
 
         for (multiaddr, description, should_be_filtered) in test_cases {
             let addr = Multiaddr(multiaddr);
-            let is_filtered = addr.is_private_or_unroutable();
+            let is_filtered = addr.is_private_or_unroutable(false);
             assert_eq!(
                 is_filtered, should_be_filtered,
                 "Failed for {description}: expected {should_be_filtered} but got {is_filtered}",
@@ -808,7 +911,7 @@ mod test {
 
         for (multiaddr, description, should_be_filtered) in test_cases {
             let addr = Multiaddr(multiaddr);
-            let is_filtered = addr.is_private_or_unroutable();
+            let is_filtered = addr.is_private_or_unroutable(false);
             assert_eq!(
                 is_filtered, should_be_filtered,
                 "Failed for {description}: expected {should_be_filtered} but got {is_filtered}",
@@ -839,7 +942,7 @@ mod test {
 
         for (multiaddr, description, should_be_private) in test_cases {
             let addr = Multiaddr(multiaddr);
-            let is_private = addr.is_private_or_unroutable();
+            let is_private = addr.is_private_or_unroutable(false);
             assert_eq!(
                 is_private, should_be_private,
                 "Failed for {description}: expected {should_be_private} but got {is_private}",
@@ -880,10 +983,173 @@ mod test {
 
         for (multiaddr, description, should_be_valid) in test_cases {
             let addr = Multiaddr(multiaddr);
-            let is_valid = addr.is_valid_public_anemo_address();
+            let is_valid = addr.is_valid_public_anemo_address(false);
             assert_eq!(
                 is_valid, should_be_valid,
                 "Failed for {description}: expected {should_be_valid} but got {is_valid}",
+            );
+        }
+    }
+
+    #[test]
+    fn test_is_valid_fqdn() {
+        use super::is_valid_fqdn;
+
+        // Valid FQDNs - domains with proper structure
+        let valid_cases = vec![
+            "example.com",
+            "subdomain.example.com",
+            "iota.org",
+            "api.iota.org",
+            "test123.example-domain.org",
+            "google.com",
+            "github.com",
+            "example.co", // Two-letter TLD
+            "test.example.net",
+            "api-v1.service.io",
+            "very-long-subdomain-name-that-is-still-valid.example.org",
+            // Unicode domains (IDNA)
+            "café.com",         // Unicode characters
+            "москва.рф",        // Cyrillic
+            "τεστ.gr",          // Greek
+            "测试.中国",        // Chinese
+            "xn--nxasmq6b.com", // Already punycode-encoded domain
+        ];
+
+        for fqdn in valid_cases {
+            assert!(
+                is_valid_fqdn(fqdn, false),
+                "Expected '{fqdn}' to be a valid FQDN",
+            );
+        }
+
+        // Invalid FQDNs
+        let long_domain = "a".repeat(254);
+        let long_label = "a".repeat(64);
+        let long_label_domain = format!("{long_label}.com");
+        let invalid_cases = vec![
+            "",                 // Empty string
+            "localhost",        // Localhost should be rejected
+            "test.local",       // .local domain
+            "hostname",         // Single label (no TLD)
+            "a.b",              // Single char TLD
+            "example.1",        // Numeric TLD
+            "example.c1",       // Alphanumeric TLD
+            ".",                // Just a dot
+            ".example.com",     // Leading dot
+            "example.com.",     // Trailing dot (absolute FQDN)
+            "-example.com",     // Label starting with hyphen
+            "example-.com",     // Label ending with hyphen
+            "exam_ple.com",     // Underscore not allowed
+            "exam ple.com",     // Space not allowed
+            &long_domain,       // Domain name too long (254 chars)
+            &long_label_domain, // Label too long (64 chars)
+            "example..com",     // Double dot
+            "192.168.1.1",      // IP address (should use IP protocols)
+            "2001:db8::1",      // IPv6 address (should use IP protocols)
+            "example.com-",     // Trailing hyphen in TLD
+            "example.",         // Empty TLD
+            // Invalid Unicode domains
+            "invalid\u{200D}.com", // Zero-width joiner (invalid in domain)
+            "test\u{0000}.com",    // Null character (invalid)
+        ];
+
+        for fqdn in invalid_cases {
+            assert!(
+                !is_valid_fqdn(fqdn, false),
+                "Expected '{fqdn}' to be an invalid FQDN"
+            );
+        }
+    }
+
+    #[test]
+    fn test_is_valid_dns_label() {
+        use super::is_valid_dns_label;
+
+        // Valid DNS labels
+        let max_length_label = "a".repeat(63);
+        let valid_cases = vec![
+            "a",
+            "ab",
+            "example",
+            "test123",
+            "api-v1",
+            "sub-domain",
+            "a1b2c3",
+            "123",             // All numeric is valid per RFC 1035
+            &max_length_label, // Max length (63 chars)
+        ];
+
+        for label in valid_cases {
+            assert!(
+                is_valid_dns_label(label),
+                "Expected '{label}' to be a valid DNS label"
+            );
+        }
+
+        // Invalid DNS labels
+        let too_long_label = "a".repeat(64);
+        let invalid_cases = vec![
+            "",              // Empty
+            "-example",      // Starts with hyphen
+            "example-",      // Ends with hyphen
+            "ex_ample",      // Contains underscore
+            "ex ample",      // Contains space
+            "ex.ample",      // Contains dot
+            &too_long_label, // Too long (64 chars)
+        ];
+
+        for label in invalid_cases {
+            assert!(
+                !is_valid_dns_label(label),
+                "Expected '{label}' to be an invalid DNS label"
+            );
+        }
+    }
+
+    #[test]
+    fn test_dns_validation_in_multiaddr() {
+        // Test that DNS validation is properly integrated into multiaddr validation
+
+        // Valid DNS addresses should not be filtered
+        let valid_dns_cases = vec![
+            multiaddr!(Dns("example.com"), Udp(10500u16)),
+            multiaddr!(Dns("iota.org"), Udp(10500u16)),
+            multiaddr!(Dns("api.example.com"), Udp(10500u16)),
+            // Unicode domains
+            multiaddr!(Dns("café.com"), Udp(10500u16)),
+            multiaddr!(Dns("москва.рф"), Udp(10500u16)),
+        ];
+
+        for addr in valid_dns_cases {
+            let multiaddr = Multiaddr(addr);
+            assert!(
+                !multiaddr.is_private_or_unroutable(false),
+                "Valid DNS address {multiaddr} should not be filtered as private/unroutable"
+            );
+            assert!(
+                multiaddr.is_valid_public_anemo_address(false),
+                "Valid DNS address {multiaddr} should be valid for public announcement"
+            );
+        }
+
+        // Invalid DNS addresses should be filtered
+        let invalid_dns_cases = vec![
+            multiaddr!(Dns("localhost"), Udp(10500u16)),
+            multiaddr!(Dns("hostname.local"), Udp(10500u16)),
+            multiaddr!(Dns("hostname"), Udp(10500u16)), // Single label
+            multiaddr!(Dns(""), Udp(10500u16)),         // Empty
+        ];
+
+        for addr in invalid_dns_cases {
+            let multiaddr = Multiaddr(addr);
+            assert!(
+                multiaddr.is_private_or_unroutable(false),
+                "Invalid DNS address {multiaddr} should be filtered as private/unroutable"
+            );
+            assert!(
+                !multiaddr.is_valid_public_anemo_address(false),
+                "Invalid DNS address {multiaddr} should not be valid for public announcement"
             );
         }
     }

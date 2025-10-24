@@ -207,7 +207,7 @@ impl DiscoveryEventLoop {
             .clone()
             .and_then(|addr| {
                 // Validate that our external address is suitable for public announcement
-                if addr.is_valid_public_anemo_address() {
+                if addr.is_valid_public_anemo_address(self.discovery_config.allow_private_addresses()) {
                     addr.to_anemo_address().ok().map(|_| addr)
                 } else {
                     info!(
@@ -869,11 +869,10 @@ fn verify_peer_infos(
 
         // Verify that all addresses provided are valid anemo addresses and not
         // private/unroutable
-        if !peer_info
-            .addresses
-            .iter()
-            .all(|addr| addr.len() < MAX_ADDRESS_LENGTH && addr.is_valid_public_anemo_address())
-        {
+        if !peer_info.addresses.iter().all(|addr| {
+            addr.len() < MAX_ADDRESS_LENGTH
+                && addr.is_valid_public_anemo_address(config.allow_private_addresses())
+        }) {
             debug!(
                 "Rejecting peer {} due to invalid, private, or unroutable addresses: {:?}",
                 peer_info.peer_id, peer_info.addresses
