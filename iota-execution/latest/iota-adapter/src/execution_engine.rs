@@ -246,7 +246,7 @@ mod checked {
                     is_epoch_change,
                 )
                 .unwrap()
-        }; // else, in dev inspect mode and anything goes--don't check
+        } // else, in dev inspect mode and anything goes--don't check
 
         let (inner, effects) = temporary_store.into_effects(
             shared_object_refs,
@@ -267,14 +267,18 @@ mod checked {
     }
 
     /// This function produces transaction effects for a transaction that
-    /// requires the Move authentication. It runs the Move authentication:
-    ///   - Then, if it fails it charges gas for the failed execution of the
+    /// requires the Move authentication.
+    /// It creates a temporary store, gas charger, and transaction context for
+    /// the authentication execution and then reuses these for the normal
+    /// transaction execution.
+    /// Running the Move authentication can have two outcomes:
+    ///   - If it fails, then it charges gas for the failed execution of the
     ///     authentication and produces transaction effects with the appropriate
     ///     error status.
     ///   - Else, if the authentication is successful, it continues with the
     ///     normal transaction execution.
-    /// It combines the input objects from both the failed authentication and
-    /// the original transaction and updates their sequence numbers.
+    /// It combines the input objects from both the authentication and
+    /// transaction.
     #[instrument(
         name = "tx_authenticate_then_execute_to_effects",
         level = "debug",
@@ -312,11 +316,9 @@ mod checked {
         TransactionEffects,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
-        // Authenticate the transaction first. This means having read only inputs passed
-        // to an authenticate function. It charges gas for reading the input objects and
-        // then for the function instructions.
-        // It does not alter the state and produces no effects other than possible
-        // errors.
+        // Preparation
+        // It involves setting up the TemporaryStore, GasCharger, and TxContext, that
+        // will be common for both the authentication and transaction execution.
 
         // Input objects come from both authentication and transaction inputs
         let input_objects = authenticator_and_transaction_input_objects.into_inner();
@@ -337,7 +339,7 @@ mod checked {
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
 
-        // Prepare the temporary store for the authentication execution.
+        // Prepare the temporary store.
         let mut temporary_store = TemporaryStore::new(
             store,
             input_objects,
@@ -347,12 +349,11 @@ mod checked {
             *epoch_id,
         );
 
-        // Prepare the gas charger for both authentication and transaction execution.
+        // Prepare the gas charger.
         let mut gas_charger =
             GasCharger::new(transaction_digest, gas_coins, gas_status, protocol_config);
 
-        // Prepare the transaction context for both authentication and transaction
-        // execution.
+        // Prepare the transaction context.
         let mut tx_ctx = TxContext::new_from_components(
             &transaction_signer,
             &transaction_digest,
@@ -360,7 +361,11 @@ mod checked {
             epoch_timestamp_ms,
         );
 
-        // Run the authentication.
+        // Authentication execution.
+        // It does not alter the state, if not for command execution gas charging, and
+        // produces no effects other than possible errors.
+
+        // Run the authentication execution.
         let authentication_execution_result = authenticate_transaction_inner(
             &mut temporary_store,
             protocol_config,
@@ -376,13 +381,13 @@ mod checked {
             move_vm,
         );
 
-        // At this stage we have the gas status, with gas charged for reading the
-        // authenticator inputs and for the computation, and a result which is either
-        // empty or an error.
-
+        // Transaction execution.
+        // At this stage we arrive with gas charged for the execution of the
+        // authenticate function and a result which is either empty or an error.
         // We can now start the creation of the transaction effects, either for an
         // authentication failure or for a normal execution of the transaction.
 
+        // Run the transaction execution and return the effects.
         execute_transaction_to_effects_inner::<Mode>(
             temporary_store,
             gas_charger,
@@ -406,16 +411,10 @@ mod checked {
         )
     }
 
-    /// This function implements an abstracted IOTA account transaction
-    /// validation. This validation checks that the authentication method used
-    /// for the account is valid. It prepares a `MoveAuthenticator` PTB with
-    /// a single move call for execution, then executes it through an inner
-    /// execution method. The `MoveAuthenticator` provides the inputs to use for
-    /// the authentication function found in `AuthenticatorInfo`, that is
-    /// retrieved from the abstracted IOTA account.
-    ///
-    /// Returns an error if it happens and the gas status that can be later
-    /// used to check the computation cost.
+    /// This function checks the authentication of a transaction without
+    /// returning effects. It executes an authenticate function using the
+    /// information of an authenticator. If the execution fails, it returns
+    /// an execution error; otherwise it returns an empty value.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn authenticate_transaction(
         store: &dyn BackingStore,
@@ -483,16 +482,15 @@ mod checked {
         )
     }
 
-    /// This function implements an abstracted IOTA account transaction
-    /// validation. This validation checks that the authentication method used
-    /// for the account is valid. It prepares a `MoveAuthenticator` PTB with
-    /// a single move call for execution, then executes it through an inner
-    /// execution method. The `MoveAuthenticator` provides the inputs to use for
-    /// the authentication function found in `AuthenticatorInfo`, that is
-    /// retrieved from the abstracted IOTA account.
-    ///
-    /// Returns an error if it happens and the gas status that can be later
-    /// used to check the computation cost.
+    // This function implements the authentication execution. It checks that the
+    // authentication method used by the authenticator is valid. It prepares a
+    /// `MoveAuthenticator` PTB with a single move call for execution, then
+    /// executes it through an inner execution method. The
+    /// `MoveAuthenticator` provides the inputs to use for the
+    /// authentication function found in `AuthenticatorInfo`,
+    /// that is retrieved from an account.
+    /// If the execution fails, it returns an execution error; otherwise it
+    /// returns an empty value.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
     pub fn authenticate_transaction_inner(
         temporary_store: &mut TemporaryStore<'_>,
@@ -591,10 +589,9 @@ mod checked {
     /// consistency checks.
     ///
     /// Gas costs are managed through the `GasCharger` argument and charged only
-    /// for the authenticator move call execution.
+    /// for authentication move function execution.
     ///
-    /// Returns the move authenticator computation gas cost without bucketing
-    /// and the execution result.
+    /// Returns only the execution results.
     #[instrument(name = "auth_execute", level = "debug", skip_all)]
     fn execute_authenticator_move_call(
         temporary_store: &mut TemporaryStore<'_>,
@@ -718,7 +715,8 @@ mod checked {
     ) {
         gas_charger.smash_gas(temporary_store);
 
-        // At this point no charges have been applied yet
+        // At this point, either no charges have been applied yet or we have
+        // already a pre execution result to handle.
         debug_assert!(
             pre_execution_result_opt.is_some() || gas_charger.no_charges(),
             "No gas charges must be applied yet"
@@ -741,8 +739,8 @@ mod checked {
                 cancelled_objects,
             )?;
 
-            // If the authentication succeeded, proceed with the main execution loop
-            // else propagate the authentication error
+            // If the pre-execution succeeded, proceed with the main execution loop
+            // else propagate the pre-execution error
             let mut execution_result = pre_execution_result_opt.unwrap_or(Ok(())).and_then(|_| {
                 execution_loop::<Mode>(
                     temporary_store,

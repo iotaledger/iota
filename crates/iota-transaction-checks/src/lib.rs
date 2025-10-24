@@ -208,6 +208,7 @@ mod checked {
     /// Checks that there is enough gas to pay for the authenticator and
     /// transaction execution in the transaction inputs. And that the
     /// authenticator inputs meet the requirements.
+    /// It returns the gas status and the checked authenticator input objects.
     #[instrument(level = "trace", skip_all)]
     pub fn check_move_authenticator_input(
         protocol_config: &ProtocolConfig,
@@ -246,6 +247,9 @@ mod checked {
     /// Checks that there is enough gas to pay for the authenticator and
     /// transaction execution in the transaction inputs. And that the
     /// authenticator inputs meet the requirements.
+    /// It returns the gas status, the checked authenticator input objects, and
+    /// the union of the checked authenticator input objects and transaction
+    /// input objects.
     #[instrument(level = "trace", skip_all)]
     pub fn check_certificate_and_move_authenticator_input(
         cert: &VerifiedExecutableTransaction,
