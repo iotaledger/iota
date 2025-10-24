@@ -783,6 +783,12 @@ mod checked {
         Ok(())
     }
 
+    /// Create a union of two CheckedInputObjects, ensuring consistency
+    /// for objects that appear in both sets. The base_set is consumed and
+    /// returned with the union. The other_set is borrowed.
+    /// In the case of shared objects, the mutability can differ, but the
+    /// initial shared version must match. For other object kinds, they must
+    /// match exactly.
     fn checked_input_objects_union(
         base_set: CheckedInputObjects,
         other_set: &CheckedInputObjects,
