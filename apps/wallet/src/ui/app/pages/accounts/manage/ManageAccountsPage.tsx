@@ -23,7 +23,7 @@ export function ManageAccountsPage() {
         <Overlay
             showModal
             title="Manage Accounts"
-            closeOverlay={() => navigate('/home')}
+            closeOverlay={() => navigate('/tokens')}
             titleCentered={false}
         >
             <div className="flex h-full w-full flex-col">

@@ -41,7 +41,7 @@ tasks:
   # - transaction effects
   # - transaction events
   # - checkpoint summary
-  # - checkpoint constents
+  # - checkpoint contents
   #
   # Primerely is used to provide historical data for Archival IOTA Node
   # which trough HttpKVStore fetches data trough a REST API which reads

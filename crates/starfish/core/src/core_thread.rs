@@ -29,7 +29,7 @@ use crate::{
     context::Context,
     core::Core,
     core_thread::CoreError::Shutdown,
-    dag_state::DagState,
+    dag_state::{DagState, TransactionSource},
     error::{ConsensusError, ConsensusResult},
 };
 
@@ -74,7 +74,11 @@ enum CoreThreadCommand {
     /// that have these blocks.
     GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
     /// Add transactions to be processed and accepted
-    AddTransactions(Vec<VerifiedTransactions>, oneshot::Sender<()>, &'static str),
+    AddTransactions(
+        Vec<VerifiedTransactions>,
+        oneshot::Sender<()>,
+        TransactionSource,
+    ),
     /// Add shards to the dag_state
     AddShards(Vec<VerifiedOwnShard>, oneshot::Sender<()>),
     /// Get missing transaction data that need to be synced
@@ -116,7 +120,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn add_transactions(
         &self,
         transactions: Vec<VerifiedTransactions>,
-        source: &'static str,
+        source: TransactionSource,
     ) -> Result<(), CoreError>;
 
     async fn add_shards(&self, shards: Vec<VerifiedOwnShard>) -> Result<(), CoreError>;
@@ -382,7 +386,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn add_transactions(
         &self,
         transactions: Vec<VerifiedTransactions>,
-        source: &'static str,
+        source: TransactionSource,
     ) -> Result<(), CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::AddTransactions(
@@ -581,7 +585,7 @@ pub(crate) mod tests {
         async fn add_transactions(
             &self,
             _transactions: Vec<VerifiedTransactions>,
-            _source: &'static str,
+            _source: TransactionSource,
         ) -> Result<(), CoreError> {
             unimplemented!()
         }

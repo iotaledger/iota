@@ -81,7 +81,7 @@ export function AccountsFinderIntroPage() {
                         <Button
                             type={ButtonType.Secondary}
                             text={skipActionAllowed ? `Skip (${skipSeconds}s)` : 'Skip'}
-                            onClick={() => navigate('/')}
+                            onClick={() => navigate('/tokens')}
                             fullWidth
                             disabled={skipActionAllowed}
                         />
