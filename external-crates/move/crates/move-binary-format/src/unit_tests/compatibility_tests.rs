@@ -8,13 +8,13 @@ use std::{
     rc::Rc,
 };
 
+use crate::{
+    compatibility::{Compatibility, InclusionCheck, Mark, compare_ord_iters},
+    file_format::*,
+    normalized::{self, RcIdentifier, RcPool, Type},
+};
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
 use proptest::prelude::*;
-use crate::{
-    compatibility::{compare_ord_iters, Compatibility, InclusionCheck, Mark},
-    file_format::*,
-   normalized::{self, RcIdentifier, RcPool, Type},
-};
 
 type NormalizedModule = normalized::Module<RcIdentifier>;
 
@@ -984,8 +984,8 @@ fn public_entry_signature_change_disallowed() {
 fn friend_entry_signature_change_allowed() {
     let pool = &mut RcPool::new();
     let module = max_version(mk_module_entry(pool, Visibility::Friend as u8, true));
-     let mut updated_module = module.clone();
-     // Update the signature of the entry fun to now take a u64 argument.
+    let mut updated_module = module.clone();
+    // Update the signature of the entry fun to now take a u64 argument.
     let function_ref = updated_module.functions.get_mut(ident_str!("fn")).unwrap();
     let new_function = {
         let mut f: normalized::Function<_> = (**function_ref).clone();
