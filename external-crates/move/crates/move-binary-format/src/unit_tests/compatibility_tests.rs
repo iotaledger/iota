@@ -10,7 +10,7 @@ use std::{
 
 use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
 use proptest::prelude::*;
-use compatibility::{compare_ord_iters, Compatibility, InclusionCheck, Mark},
+use compatibility::{compare_ord_iters, Compatibility, InclusionCheck, Mark};
 use crate::{
     file_format::*,
    normalized::{self, RcIdentifier, RcPool, Type},
