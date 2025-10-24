@@ -21,7 +21,7 @@ use crate::{
     },
     commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, TransactionSource},
     encoder::{ShardEncoder, create_encoder},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::{BlockStoreAPI, Linearizer},
@@ -419,7 +419,7 @@ impl DagBuilder {
         for block_transactions in self.transactions.values() {
             dag_state
                 .write()
-                .add_transactions(block_transactions.clone(), "test");
+                .add_transactions(block_transactions.clone(), TransactionSource::Test);
         }
     }
 
@@ -895,7 +895,7 @@ impl<'a> LayerBuilder<'a> {
         let mut dag_state = dag_state.write();
         dag_state.accept_block_headers(self.block_headers.clone());
         for transactions in self.transactions.clone() {
-            dag_state.add_transactions(transactions, "test");
+            dag_state.add_transactions(transactions, TransactionSource::Test);
         }
     }
 

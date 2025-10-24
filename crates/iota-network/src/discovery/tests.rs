@@ -641,7 +641,7 @@ async fn test_access_types() {
     let (discovery_5, _server_5, network_5, key_5) = {
         let mut private_discovery_config = default_private_discovery_config.clone();
         private_discovery_config.allowlisted_peers = vec![
-            // Intitially 5 does not know how to contact 3 or 4.
+            // Initially 5 does not know how to contact 3 or 4.
             local_allowlisted_peer(network_3.peer_id(), None),
             local_allowlisted_peer(network_4.peer_id(), Some(network_4.local_addr().port())),
         ];
