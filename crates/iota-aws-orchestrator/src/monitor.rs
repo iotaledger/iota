@@ -121,15 +121,20 @@ impl Prometheus {
             let scrape_config = Self::scrape_configuration(&id, &clients_metrics_path);
             config.push(scrape_config);
         }
-
         // Add configurations to scrape the nodes.
+        let mut node_ips = vec![];
         let nodes_metrics_path = protocol.nodes_metrics_path(nodes, parameters);
         for (i, (_, nodes_metrics_path)) in nodes_metrics_path.into_iter().enumerate() {
             let id = format!("node-{i}");
+            let node_ip = nodes_metrics_path.split(":").next().unwrap().to_string();
+            node_ips.push(node_ip);
             let scrape_config = Self::scrape_configuration(&id, &nodes_metrics_path);
             config.push(scrape_config);
         }
-
+        // Add configuration to scrape prometheus exporter metrics
+        let prometheus_exporter_config =
+            Self::node_exporter_configuration("prometheus_exporter", node_ips, 9100);
+        config.push(prometheus_exporter_config);
         // Make the command to configure and restart prometheus.
         [
             &format!(
@@ -171,6 +176,24 @@ impl Prometheus {
             &format!("        - {ip}:{port}"),
         ]
         .join("\n")
+    }
+
+    fn node_exporter_configuration(
+        id: &str,
+        node_ips: Vec<String>,
+        prometheus_exporter_port: u16,
+    ) -> String {
+        let mut configuration = vec![
+            format!("  - job_name: {id}"),
+            "    static_configs:".to_string(),
+            "      - targets:".to_string(),
+        ];
+        let targets = node_ips
+            .into_iter()
+            .map(|path| format!("        - {path}:{prometheus_exporter_port}"))
+            .collect::<Vec<_>>();
+        configuration.extend(targets);
+        configuration.join("\n")
     }
 }
 
