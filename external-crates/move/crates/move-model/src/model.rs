@@ -46,12 +46,13 @@ use move_binary_format::{
         StructFieldInformation, VariantJumpTable, Visibility,
     },
 };
-
-use move_core_types::{language_storage::StructTag, parsing::address::NumericalAddress};
 use move_bytecode_source_map::{mapping::SourceMapping, source_map::SourceMap};
 use move_command_line_common::files::FileHash;
 use move_core_types::{
     account_address::AccountAddress,
+    language_storage,
+    language_storage::StructTag,
+    parsing::address::NumericalAddress,
     identifier::{IdentStr, Identifier},
     runtime_value::MoveValue,
 };
