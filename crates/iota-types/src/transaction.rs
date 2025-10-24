@@ -2900,7 +2900,7 @@ impl InputObjectKind {
 /// The result of reading an object for execution. Because shared objects may be
 /// deleted, one possible result of reading a shared object is that
 /// ObjectReadResultKind::Deleted is returned.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct ObjectReadResult {
     pub input_object_kind: InputObjectKind,
     pub object: ObjectReadResultKind,

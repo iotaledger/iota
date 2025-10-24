@@ -1812,7 +1812,7 @@ impl AuthorityState {
                 let (gas_status, authenticator_checked_input_objects, authenticator_and_tx_checked_input_objects) =
                     iota_transaction_checks::check_certificate_and_move_authenticator_input(
                         certificate,
-                        tx_input_objects.clone(), 
+                        tx_input_objects, 
                         move_authenticator_input_objects,
                         authenticator_gas_budget,
                         protocol_config,
