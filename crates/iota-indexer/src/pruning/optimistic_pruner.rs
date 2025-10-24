@@ -63,7 +63,7 @@ impl OptimisticPruner {
             let current_epoch = match self.get_current_epoch().await {
                 Ok(epoch) => epoch,
                 Err(err) => {
-                    warn!("Failed to get current epoch: {err}");
+                    warn!("failed to get current epoch: {err}");
                     continue;
                 }
             };
@@ -72,7 +72,7 @@ impl OptimisticPruner {
                 info!("Epoch change detected: {last_processed_epoch:?} -> {current_epoch}");
 
                 if let Err(err) = self.prune_up_to_epoch(current_epoch).await {
-                    warn!("Failed to prune up to epoch {current_epoch}: {err}");
+                    warn!("failed to prune up to epoch {current_epoch}: {err}");
                     continue;
                 }
 

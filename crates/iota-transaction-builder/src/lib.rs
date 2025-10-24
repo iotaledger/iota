@@ -383,6 +383,32 @@ impl TransactionBuilder {
         Ok(TransactionKind::programmable(pt))
     }
 
+    /// Build a [`TransactionKind::ProgrammableTransaction`] that contains a
+    /// [`Command::MoveCall`] to a Move View Function.
+    /// The method verifies that the signature of the function passed as input
+    /// complies with the Move View Function definition.
+    pub async fn move_view_call_tx_kind(
+        &self,
+        package_object_id: ObjectID,
+        module: &str,
+        function: &str,
+        type_args: Vec<IotaTypeTag>,
+        call_args: Vec<IotaJsonValue>,
+    ) -> Result<TransactionKind, anyhow::Error> {
+        let mut builder = ProgrammableTransactionBuilder::new();
+        self.single_move_view_call(
+            &mut builder,
+            package_object_id,
+            module,
+            function,
+            type_args,
+            call_args,
+        )
+        .await?;
+        let pt = builder.finish();
+        Ok(TransactionKind::programmable(pt))
+    }
+
     /// Call a move function from a published package.
     pub async fn move_call(
         &self,
@@ -490,6 +516,38 @@ impl TransactionBuilder {
 
         let call_args = self
             .resolve_and_check_call_args(
+                builder, package, &module, &function, &type_args, call_args,
+            )
+            .await?;
+
+        builder.command(Command::move_call(
+            package, module, function, type_args, call_args,
+        ));
+        Ok(())
+    }
+
+    /// Add a single move call to the provided
+    /// [`ProgrammableTransactionBuilder`]. Check that the passed function is
+    /// compliant to the Move View Function specification.
+    pub async fn single_move_view_call(
+        &self,
+        builder: &mut ProgrammableTransactionBuilder,
+        package: ObjectID,
+        module: &str,
+        function: &str,
+        type_args: Vec<IotaTypeTag>,
+        call_args: Vec<IotaJsonValue>,
+    ) -> anyhow::Result<()> {
+        let module = Identifier::from_str(module)?;
+        let function = Identifier::from_str(function)?;
+
+        let type_args = type_args
+            .into_iter()
+            .map(|ty| ty.try_into())
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let call_args = self
+            .resolve_and_checks_json_view_args(
                 builder, package, &module, &function, &type_args, call_args,
             )
             .await?;

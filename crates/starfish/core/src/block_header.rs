@@ -203,12 +203,12 @@ impl BlockHeaderV1 {
         )
     }
 
-    fn genesis_block_header(epoch: Epoch, author: AuthorityIndex) -> Self {
+    fn genesis_block_header(context: &Context, author: AuthorityIndex) -> Self {
         Self {
-            epoch,
+            epoch: context.committee.epoch(),
             round: GENESIS_ROUND,
             author,
-            timestamp_ms: 0,
+            timestamp_ms: context.epoch_start_timestamp_ms,
             references: vec![],
             overlap_start_index: 0,
             overlap_end_index: 0,
@@ -1033,13 +1033,13 @@ impl Deref for VerifiedBlock {
 
 /// Generates the genesis blocks for the current Committee.
 /// The blocks are returned in authority index order.
-pub(crate) fn genesis_blocks(context: Arc<Context>) -> Vec<VerifiedBlock> {
+pub(crate) fn genesis_blocks(context: &Context) -> Vec<VerifiedBlock> {
     context
         .committee
         .authorities()
         .map(|(authority_index, _)| {
             let signed_block = SignedBlockHeader::new_genesis(BlockHeader::V1(
-                BlockHeaderV1::genesis_block_header(context.committee.epoch(), authority_index),
+                BlockHeaderV1::genesis_block_header(context, authority_index),
             ));
             let serialized = signed_block
                 .serialize()
@@ -1059,13 +1059,13 @@ pub(crate) fn genesis_blocks(context: Arc<Context>) -> Vec<VerifiedBlock> {
         .collect::<Vec<VerifiedBlock>>()
 }
 
-pub(crate) fn genesis_block_headers(context: Arc<Context>) -> Vec<VerifiedBlockHeader> {
+pub(crate) fn genesis_block_headers(context: &Context) -> Vec<VerifiedBlockHeader> {
     context
         .committee
         .authorities()
         .map(|(authority_index, _)| {
             let signed_block = SignedBlockHeader::new_genesis(BlockHeader::V1(
-                BlockHeaderV1::genesis_block_header(context.committee.epoch(), authority_index),
+                BlockHeaderV1::genesis_block_header(context, authority_index),
             ));
             let serialized = signed_block
                 .serialize()
@@ -1219,7 +1219,10 @@ mod tests {
     use fastcrypto::error::FastCryptoError;
 
     use crate::{
-        block_header::{BlockHeaderDigest, SignedBlockHeader, TestBlockHeader},
+        BlockHeaderAPI,
+        block_header::{
+            BlockHeaderDigest, SignedBlockHeader, TestBlockHeader, genesis_block_headers,
+        },
         context::Context,
         error::ConsensusError,
     };
@@ -1256,6 +1259,20 @@ mod tests {
             err => panic!("Unexpected error: {err:?}"),
         }
     }
+
+    #[tokio::test]
+    async fn test_genesis_block_headers() {
+        let (context, _) = Context::new_for_test(4);
+        const TIMESTAMP_MS: u64 = 1000;
+        let context = Arc::new(context.with_epoch_start_timestamp_ms(TIMESTAMP_MS));
+        let block_headers = genesis_block_headers(&context);
+        for (i, header) in block_headers.into_iter().enumerate() {
+            assert_eq!(header.author().value(), i);
+            assert_eq!(header.round(), 0);
+            assert_eq!(header.timestamp_ms(), TIMESTAMP_MS);
+        }
+    }
+
     #[tokio::test]
     async fn test_compress_references() {
         use crate::block_header::BlockRef;

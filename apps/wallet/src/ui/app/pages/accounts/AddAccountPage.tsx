@@ -159,7 +159,7 @@ export function AddAccountPage() {
         <PageTemplate
             title="Add Profile"
             isTitleCentered
-            onClose={() => navigate('/')}
+            onClose={() => navigate('/tokens')}
             showBackButton
         >
             <div className="flex h-full w-full flex-col gap-4 ">

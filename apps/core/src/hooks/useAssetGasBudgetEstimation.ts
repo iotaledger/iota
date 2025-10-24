@@ -3,13 +3,10 @@
 
 import { useIotaClient } from '@iota/dapp-kit';
 import { useQuery } from '@tanstack/react-query';
-import { getGasSummary, getKioskIdFromOwnerCap, ORIGINBYTE_KIOSK_OWNER_TOKEN } from '../utils';
+import { getGasSummary } from '../utils';
 import { KioskTypes, useGetKioskContents } from './useGetKioskContents';
-import { ORIGINBYTE_PACKAGE_ID } from './useTransferKioskItem';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { KioskTransaction } from '@iota/kiosk';
-import { useFeatureValue } from '@growthbook/growthbook-react';
-import { Feature } from '../enums';
 import { useKioskClient } from './useKioskClient';
 import { useGetObject } from './useGetObject';
 
@@ -27,7 +24,6 @@ export function useAssetGasBudgetEstimation({
     to,
 }: UseAssetGasBudgetEstimationOptions) {
     const client = useIotaClient();
-    const obPackageId = useFeatureValue(Feature.KioskOriginbytePackageId, ORIGINBYTE_PACKAGE_ID);
     const { data: kioskData } = useGetKioskContents(activeAddress); // show personal kiosks too
     const objectData = useGetObject(objectId);
     const kioskClient = useKioskClient();
@@ -59,37 +55,6 @@ export function useAssetGasBudgetEstimation({
                 })
                 .finalize();
 
-            tx.setSender(activeAddress);
-            return await calculateGasFee(tx);
-        }
-
-        if (kiosk.type === KioskTypes.ORIGINBYTE && objectData?.data?.data?.type) {
-            const tx = new Transaction();
-            const recipientKiosks = await client.getOwnedObjects({
-                owner: to,
-                options: { showContent: true },
-                filter: { StructType: ORIGINBYTE_KIOSK_OWNER_TOKEN },
-            });
-            const recipientKiosk = recipientKiosks.data[0];
-            const recipientKioskId = recipientKiosk ? getKioskIdFromOwnerCap(recipientKiosk) : null;
-
-            if (recipientKioskId) {
-                tx.moveCall({
-                    target: `${obPackageId}::ob_kiosk::p2p_transfer`,
-                    typeArguments: [objectType],
-                    arguments: [
-                        tx.object(kioskId),
-                        tx.object(recipientKioskId),
-                        tx.pure.id(objectId),
-                    ],
-                });
-            } else {
-                tx.moveCall({
-                    target: `${obPackageId}::ob_kiosk::p2p_transfer_and_create_target_kiosk`,
-                    typeArguments: [objectType],
-                    arguments: [tx.object(kioskId), tx.pure.address(to), tx.pure.id(objectId)],
-                });
-            }
             tx.setSender(activeAddress);
             return await calculateGasFee(tx);
         }

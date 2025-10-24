@@ -469,12 +469,26 @@ mod tests {
         for (idx, subdag) in commits.iter().enumerate() {
             info!("{subdag:?}");
             assert_eq!(subdag.leader, leaders[idx].reference());
+
+            // Calculate expected timestamp using median of parents (NEW mode)
+            let block_refs = leaders[idx]
+                .ancestors()
+                .iter()
+                .filter(|block_ref| block_ref.round == leaders[idx].round() - 1)
+                .cloned()
+                .collect::<Vec<_>>();
+            let blocks = dag_state
+                .read()
+                .get_block_headers(&block_refs)
+                .into_iter()
+                .map(|block_opt| block_opt.expect("We should have all blocks in dag state."));
+            let calculated_ts =
+                crate::linearizer::median_timestamp_by_stake(&context, blocks).unwrap();
+
             let expected_ts = if idx == 0 {
-                leaders[idx].timestamp_ms()
+                calculated_ts
             } else {
-                leaders[idx]
-                    .timestamp_ms()
-                    .max(commits[idx - 1].timestamp_ms)
+                calculated_ts.max(commits[idx - 1].timestamp_ms)
             };
             assert_eq!(expected_ts, subdag.timestamp_ms);
             if idx == 0 {

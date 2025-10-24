@@ -175,12 +175,12 @@ impl PrimaryWriter {
                 .into_iter()
                 .map(|res| {
                     if res.is_err() {
-                        error!("Failed to persist data with error: {:?}", res);
+                        error!("failed to persist data with error: {:?}", res);
                     }
                     res
                 })
                 .collect::<IndexerResult<Vec<_>>>()
-                .expect("Persisting data into DB should not fail.");
+                .expect("persisting data into DB should not fail.");
         }
 
         self.state
@@ -199,9 +199,9 @@ impl PrimaryWriter {
                 .advance_epoch(epoch_data)
                 .await
                 .tap_err(|e| {
-                    error!("Failed to advance epoch with error: {}", e.to_string());
+                    error!("failed to advance epoch with error: {}", e.to_string());
                 })
-                .expect("Advancing epochs in DB should not fail.");
+                .expect("advancing epochs in DB should not fail.");
             self.metrics.total_epoch_committed.inc();
 
             // Refresh participation metrics after advancing epoch
@@ -209,9 +209,9 @@ impl PrimaryWriter {
                 .refresh_participation_metrics()
                 .await
                 .tap_err(|e| {
-                    error!("Failed to update participation metrics: {e}");
+                    error!("failed to update participation metrics: {e}");
                 })
-                .expect("Updating participation metrics should not fail.");
+                .expect("updating participation metrics should not fail.");
         }
 
         self.state
@@ -219,19 +219,19 @@ impl PrimaryWriter {
             .await
             .tap_err(|e| {
                 error!(
-                    "Failed to persist checkpoint data with error: {}",
+                    "failed to persist checkpoint data with error: {}",
                     e.to_string()
                 );
             })
-            .expect("Persisting data into DB should not fail.");
+            .expect("persisting data into DB should not fail.");
 
         if is_epoch_end {
             // The epoch has advanced so we update the configs for the new protocol version,
             // if it has changed.
             let chain_id = <PgIndexerStore as IndexerStore>::get_chain_identifier(&self.state)
                 .await
-                .expect("Failed to get chain identifier")
-                .expect("Chain identifier should have been indexed at this point");
+                .expect("failed to get chain identifier")
+                .expect("chain identifier should have been indexed at this point");
             let _ = self
                 .state
                 .persist_protocol_configs_and_feature_flags(chain_id);
