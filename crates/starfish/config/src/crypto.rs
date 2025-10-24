@@ -17,10 +17,9 @@
 use fastcrypto::{
     bls12381, ed25519,
     error::FastCryptoError,
-    hash::{HashFunction},
+    hash::{Digest, HashFunction},
     traits::{KeyPair as _, Signer as _, ToFromBytes as _, VerifyingKey as _},
 };
-use fastcrypto::hash::Digest;
 use rs_merkle::Hasher;
 use serde::{Deserialize, Serialize};
 use shared_crypto::intent::INTENT_PREFIX_LENGTH;
@@ -170,9 +169,6 @@ impl AuthorityKeyPair {
     }
 }
 
-
-
-
 #[derive(Default)]
 pub struct Blake3Hasher {
     hasher: blake3::Hasher,
@@ -191,8 +187,9 @@ impl HashFunction<32> for Blake3Hasher {
 }
 
 /// Fast hash function (Blake3) for consensus-related operations.
-/// Since transactions are encoded, their serializations are increased by approximately
-/// three times, making Blake3’s higher throughput beneficial for overall performance.
+/// Since transactions are encoded, their serializations are increased by
+/// approximately three times, making Blake3’s higher throughput beneficial for
+/// overall performance.
 pub type DefaultHashFunction = Blake3Hasher;
 
 #[derive(Clone)]
