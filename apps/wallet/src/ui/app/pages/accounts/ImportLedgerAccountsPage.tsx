@@ -126,12 +126,21 @@ export function ImportLedgerAccountsPage() {
             <div className="flex h-full w-full flex-col">
                 {importLedgerAccountsBody}
                 <div className="flex flex-1 items-end">
-                    <Button
-                        text="Next"
-                        disabled={isUnlockButtonDisabled}
-                        onClick={handleNextClick}
-                        fullWidth
-                    />
+                    {areAllAccountsImported ? (
+                        <Button
+                            text="Finish"
+                            onClick={() => navigate('/accounts/manage')}
+                            fullWidth
+                        />
+                    ) : (
+                        <Button
+                            text="Next"
+                            disabled={isUnlockButtonDisabled}
+                            onClick={handleNextClick}
+                            fullWidth
+                        />
+                    )}
+                    ;
                 </div>
             </div>
         </Overlay>

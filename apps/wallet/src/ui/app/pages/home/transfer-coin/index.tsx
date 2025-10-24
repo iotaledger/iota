@@ -180,7 +180,7 @@ export function TransferCoinPage() {
         <Overlay
             showModal={true}
             title={showTransactionPreview ? 'Review & Send' : 'Send'}
-            closeOverlay={() => navigate('/')}
+            closeOverlay={() => navigate('/tokens')}
             showBackButton
             onBack={showTransactionPreview ? () => setShowTransactionPreview(false) : undefined}
         >
