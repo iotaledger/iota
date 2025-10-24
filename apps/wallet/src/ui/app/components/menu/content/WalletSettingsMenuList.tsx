@@ -147,7 +147,7 @@ export function MenuList() {
     ];
 
     return (
-        <Overlay showModal title="Settings" closeOverlay={() => navigate('/')}>
+        <Overlay showModal title="Settings" closeOverlay={() => navigate('/tokens')}>
             <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">
                     {MENU_ITEMS.filter((item) => !item.hidden).map((item, index) => (
