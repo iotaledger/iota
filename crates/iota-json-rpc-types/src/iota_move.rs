@@ -118,7 +118,7 @@ pub struct IotaMoveNormalizedStructType {
     pub name: String,
     pub type_arguments: Vec<IotaMoveNormalizedType>,
 }
-#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveNormalizedFunction {
     pub visibility: IotaMoveVisibility,
