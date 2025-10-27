@@ -17,7 +17,7 @@ async fn graphiql(
     path: Option<Path<String>>,
 ) -> impl axum::response::IntoResponse {
     let endpoint = if let Some(Path(path)) = path {
-        format!("/graphql/{}", path)
+        format!("/graphql/{path}")
     } else {
         "/graphql".to_string()
     };

@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::errors::*;
@@ -37,7 +37,7 @@ fn locals() -> PartialVMResult<()> {
 
 #[test]
 fn struct_pack_and_unpack() -> PartialVMResult<()> {
-    let vals = vec![
+    let vals = [
         Value::u8(10),
         Value::u16(12),
         Value::u32(15),
@@ -45,7 +45,7 @@ fn struct_pack_and_unpack() -> PartialVMResult<()> {
         Value::u128(30),
         Value::u256(U256::max_value()),
     ];
-    let s = Struct::pack(vec![
+    let s = Struct::pack([
         Value::u8(10),
         Value::u16(12),
         Value::u32(15),
@@ -227,4 +227,9 @@ fn test_vm_value_vector_u64_casting() {
         vec![1, 2, 3],
         Value::vector_u64([1, 2, 3]).value_as::<Vec<u64>>().unwrap()
     );
+}
+
+#[test]
+fn assert_sizes() {
+    assert_eq!(size_of::<Value>(), 16);
 }

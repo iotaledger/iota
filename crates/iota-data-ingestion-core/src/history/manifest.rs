@@ -42,8 +42,8 @@ use crate::{
     IngestionError,
     errors::IngestionResult as Result,
     history::{
-        CHECKPOINT_FILE_SUFFIX, HISTORICAL_DIR_NAME, INGESTION_DIR_NAME, MAGIC_BYTES,
-        MANIFEST_FILE_MAGIC, MANIFEST_FILENAME, reader::HistoricalReader,
+        CHECKPOINT_FILE_SUFFIX, MAGIC_BYTES, MANIFEST_FILE_MAGIC, MANIFEST_FILENAME,
+        reader::HistoricalReader,
     },
 };
 
@@ -55,12 +55,10 @@ pub struct FileMetadata {
 
 impl FileMetadata {
     pub fn file_path(&self) -> Path {
-        Path::from(INGESTION_DIR_NAME)
-            .child(HISTORICAL_DIR_NAME)
-            .child(format!(
-                "{}.{CHECKPOINT_FILE_SUFFIX}",
-                self.checkpoint_seq_range.start
-            ))
+        Path::from(format!(
+            "{}.{CHECKPOINT_FILE_SUFFIX}",
+            self.checkpoint_seq_range.start
+        ))
     }
 }
 
@@ -108,9 +106,7 @@ impl Manifest {
     }
 
     pub fn file_path() -> Path {
-        Path::from(INGESTION_DIR_NAME)
-            .child(HISTORICAL_DIR_NAME)
-            .child(MANIFEST_FILENAME)
+        Path::from(MANIFEST_FILENAME)
     }
 }
 

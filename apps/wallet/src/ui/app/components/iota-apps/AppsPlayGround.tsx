@@ -69,7 +69,7 @@ export function AppsPlayGround() {
                         }}
                     >
                         <CardImage shape={ImageShape.SquareRounded} type={ImageType.BgWhite}>
-                            <Vest className="h-4 w-4 text-neutral-10 dark:text-white" />
+                            <Vest className="h-4 w-4 text-iota-neutral-10 dark:text-white" />
                         </CardImage>
                         <CardBody
                             isTextTruncated

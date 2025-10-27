@@ -2,15 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    collections::BTreeMap,
-    fs,
-    fs::File,
-    io::BufReader,
-    net::SocketAddr,
-    path::{Path, PathBuf},
-    time::Duration,
-};
+use std::{fs, net::SocketAddr, path::PathBuf, time::Duration};
 
 use anyhow::anyhow;
 use clap::Parser;
@@ -18,18 +10,16 @@ use fastcrypto::encoding::{Encoding, Hex};
 use iota_config::{
     Config, IOTA_FULLNODE_CONFIG, IOTA_KEYSTORE_FILENAME, NodeConfig, iota_config_dir,
 };
+use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_node::IotaNode;
 use iota_rosetta::{
     IOTA, RosettaOfflineServer, RosettaOnlineServer,
     types::{CurveType, IotaEnv, PrefundedAccount},
 };
 use iota_sdk::{IotaClient, IotaClientBuilder};
-use iota_types::{
-    base_types::IotaAddress,
-    crypto::{IotaKeyPair, KeypairTraits, ToFromBytes},
-};
+use iota_types::crypto::{IotaKeyPair, KeypairTraits, ToFromBytes};
 use serde_json::{Value, json};
-use tracing::{info, log::warn};
+use tracing::{info, warn};
 
 #[derive(Parser)]
 #[command(name = "iota-rosetta", author, version)]
@@ -102,7 +92,7 @@ impl RosettaServerCommand {
 
                 // Set network.
                 let network = config.pointer_mut("/network").ok_or_else(|| {
-                    anyhow!("Cannot find construction config in default config file.")
+                    anyhow!("cannot find construction config in default config file.")
                 })?;
                 network
                     .as_object_mut()
@@ -111,7 +101,7 @@ impl RosettaServerCommand {
 
                 // Add prefunded accounts.
                 let construction = config.pointer_mut("/construction").ok_or_else(|| {
-                    anyhow!("Cannot find construction config in default config file.")
+                    anyhow!("cannot find construction config in default config file.")
                 })?;
 
                 let construction = construction.as_object_mut().unwrap();
@@ -197,7 +187,7 @@ async fn wait_for_iota_client(rpc_address: String) -> IotaClient {
             Ok(client) => return client,
             Err(e) => {
                 warn!(
-                    "Error connecting to IOTA RPC server [{rpc_address}]: {e}, retrying in 5 seconds."
+                    "error connecting to IOTA RPC server [{rpc_address}]: {e}, retrying in 5 seconds."
                 );
                 tokio::time::sleep(Duration::from_millis(5000)).await;
             }
@@ -208,22 +198,16 @@ async fn wait_for_iota_client(rpc_address: String) -> IotaClient {
 /// This method reads the keypairs from the IOTA keystore to create the
 /// PrefundedAccount objects, PrefundedAccount will be written to the
 /// rosetta-cli config file for testing.
-fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::Error> {
-    let reader = BufReader::new(File::open(path).unwrap());
-    let kp_strings: Vec<String> = serde_json::from_reader(reader).unwrap();
-    let keys = kp_strings
-        .iter()
-        .map(|kpstr| {
-            let key = IotaKeyPair::decode(kpstr);
-            key.map(|k| (IotaAddress::from(&k.public()), k))
-        })
-        .collect::<Result<BTreeMap<_, _>, _>>()
-        .unwrap();
+fn read_prefunded_account(path: &PathBuf) -> Result<Vec<PrefundedAccount>, anyhow::Error> {
+    let key_store =
+        FileBasedKeystore::new(path).map_err(|e| anyhow!("Failed to open keystore file: {e}"))?;
 
-    Ok(keys
+    Ok(key_store
+        .addresses_with_alias()
         .into_iter()
-        .map(|(address, key)| {
-            let (privkey, curve_type) = match key {
+        .filter_map(|(address, _)| {
+            let keypair = key_store.get_key(address).ok()?.as_keypair().ok()?;
+            let (privkey, curve_type) = match keypair.clone() {
                 IotaKeyPair::Ed25519(k) => {
                     (Hex::encode(k.private().as_bytes()), CurveType::Edwards25519)
                 }
@@ -234,12 +218,12 @@ fn read_prefunded_account(path: &Path) -> Result<Vec<PrefundedAccount>, anyhow::
                     (Hex::encode(k.private().as_bytes()), CurveType::Secp256r1)
                 }
             };
-            PrefundedAccount {
+            Some(PrefundedAccount {
                 privkey,
-                account_identifier: address.into(),
+                account_identifier: (*address).into(),
                 curve_type,
                 currency: IOTA.clone(),
-            }
+            })
         })
         .collect())
 }
@@ -263,7 +247,7 @@ fn test_read_keystore() {
     let acc_map = accounts
         .into_iter()
         .map(|acc| (acc.account_identifier.address, acc))
-        .collect::<BTreeMap<_, _>>();
+        .collect::<std::collections::BTreeMap<_, _>>();
 
     assert_eq!(2, acc_map.len());
     assert!(acc_map.contains_key(&key1.0));

@@ -9,7 +9,7 @@ use openapiv3::v3_1::Operation;
 use tap::Pipe;
 
 use crate::{
-    Page, RestService, Result,
+    Page, RestError, RestService, Result,
     openapi::{ApiEndpoint, OperationBuilder, ResponseBuilder, RouteHandler},
     reader::StateReader,
     response::ResponseContent,
@@ -52,11 +52,11 @@ async fn list_account_objects(
     Query(parameters): Query<ListAccountOwnedObjectsQueryParameters>,
     State(state): State<StateReader>,
 ) -> Result<Page<AccountOwnedObjectInfo, ObjectId>> {
+    let indexes = state.inner().indexes().ok_or_else(RestError::not_found)?;
     let limit = parameters.limit();
     let start = parameters.start();
 
-    let mut object_info = state
-        .inner()
+    let mut object_info = indexes
         .account_owned_objects_info_iter(address.into(), start)?
         .take(limit + 1)
         .map(|info| {

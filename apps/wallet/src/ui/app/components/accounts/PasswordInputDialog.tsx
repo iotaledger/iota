@@ -156,7 +156,7 @@ export function PasswordModalDialog({
                                             <Link
                                                 to="/accounts/forgot-password"
                                                 onClick={onClose}
-                                                className="absolute top-0 text-body-sm text-neutral-40 no-underline dark:text-neutral-60"
+                                                className="absolute top-0 text-body-sm text-iota-neutral-40 no-underline dark:text-iota-neutral-60"
                                             >
                                                 Forgot Password?
                                             </Link>

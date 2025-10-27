@@ -79,8 +79,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
         Ok(match normalized.get(&module_name) {
             Some(module) => Ok(module.clone()),
             None => Err(IotaRpcInputError::GenericNotFound(format!(
-                "No module found with module name {}",
-                module_name
+                "No module found with module name {module_name}"
             ))),
         }?)
     }
@@ -90,7 +89,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
         package: ObjectID,
     ) -> Result<BTreeMap<String, NormalizedModule>, Error> {
         let object_read = self.get_state().get_object_read(&package).tap_err(|_| {
-            warn!("Failed to call get_move_modules_by_package for package: {package:?}");
+            warn!("failed to call get_move_modules_by_package for package: {package:?}");
         })?;
 
         match object_read {
@@ -105,19 +104,17 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
                             &binary_config,
                         )
                         .map_err(|e| {
-                            error!("Failed to call get_move_modules_by_package for package: {package:?}");
+                            error!("failed to call get_move_modules_by_package for package: {package:?}");
                             Error::from(e)
                         })
                     }
                     _ => Err(IotaRpcInputError::GenericInvalid(format!(
-                        "Object is not a package with ID {}",
-                        package
+                        "Object is not a package with ID {package}"
                     )))?,
                 }
             }
             _ => Err(IotaRpcInputError::GenericNotFound(format!(
-                "Package object does not exist with ID {}",
-                package
+                "Package object does not exist with ID {package}"
             )))?,
         }
     }
@@ -197,8 +194,7 @@ impl MoveUtilsServer for MoveUtils {
             match structs.get(&identifier) {
                 Some(struct_) => Ok(struct_.clone().into()),
                 None => Err(IotaRpcInputError::GenericNotFound(format!(
-                    "No struct was found with struct name {}",
-                    struct_name
+                    "No struct was found with struct name {struct_name}"
                 )))?,
             }
         }

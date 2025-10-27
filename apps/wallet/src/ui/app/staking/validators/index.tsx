@@ -37,7 +37,7 @@ export function Validators() {
             showModal
             showBackButton
             title={isPending ? 'Loading' : pageTitle}
-            closeOverlay={() => navigate('/')}
+            closeOverlay={() => navigate('/tokens')}
         >
             <Loading loading={isPending}>
                 <div className="flex min-h-full flex-1 flex-col">

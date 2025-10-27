@@ -23,9 +23,7 @@ use crate::{
         display::DisplayEntry,
         dynamic_field::{DynamicField, DynamicFieldName},
         iota_address::IotaAddress,
-        iota_names_registration::{
-            DomainFormat, IotaNamesRegistration, IotaNamesRegistrationDowncastError,
-        },
+        iota_names_registration::{NameFormat, NameRegistration, NameRegistrationDowncastError},
         move_type::MoveType,
         move_value::MoveValue,
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectLookup, ObjectOwner, ObjectStatus},
@@ -114,11 +112,11 @@ pub(crate) enum IMoveObject {
     Coin(Coin),
     CoinMetadata(CoinMetadata),
     StakedIota(StakedIota),
-    IotaNamesRegistration(IotaNamesRegistration),
+    NameRegistration(NameRegistration),
 }
 
 /// The representation of an object as a Move Object, which exposes additional
-/// information (content, module that governs it, version, is transferrable,
+/// information (content, module that governs it, version, is transferable,
 /// etc.) about this object.
 #[Object]
 impl MoveObject {
@@ -197,20 +195,20 @@ impl MoveObject {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this
+    /// The name explicitly configured as the default name pointing to this
     /// object.
     pub(crate) async fn iota_names_default_name(
         &self,
         ctx: &Context<'_>,
-        format: Option<DomainFormat>,
+        format: Option<NameFormat>,
     ) -> Result<Option<String>> {
         OwnerImpl::from(&self.super_)
             .iota_names_default_name(ctx, format)
             .await
     }
 
-    /// The IotaNamesRegistration NFTs owned by this object. These grant the
-    /// owner the capability to manage the associated domain.
+    /// The NameRegistration NFTs owned by this object. These grant the
+    /// owner the capability to manage the associated name.
     pub(crate) async fn iota_names_registrations(
         &self,
         ctx: &Context<'_>,
@@ -218,7 +216,7 @@ impl MoveObject {
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNamesRegistration>> {
+    ) -> Result<Connection<String, NameRegistration>> {
         OwnerImpl::from(&self.super_)
             .iota_names_registrations(ctx, first, after, last, before)
             .await
@@ -229,14 +227,13 @@ impl MoveObject {
     }
 
     /// The current status of the object as read from the off-chain store. The
-    /// possible states are: NOT_INDEXED, the object is loaded from
-    /// serialized data, such as the contents of a genesis or system package
-    /// upgrade transaction. LIVE, the version returned is the most recent for
-    /// the object, and it is not deleted or wrapped at that version.
-    /// HISTORICAL, the object was referenced at a specific version or
-    /// checkpoint, so is fetched from historical tables and may not be the
-    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-    /// or wrapped and only partial information can be loaded."
+    /// possible states are:
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
+    ///   contents of a genesis or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and
+    ///   represents the most recent or historical state of the object.
+    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }
@@ -415,20 +412,20 @@ impl MoveObject {
         }
     }
 
-    // Attempts to convert the Move object into a `IotaNamesRegistration` object.
+    // Attempts to convert the Move object into a `NameRegistration` object.
     async fn as_iota_names_registration(
         &self,
         ctx: &Context<'_>,
-    ) -> Result<Option<IotaNamesRegistration>> {
+    ) -> Result<Option<NameRegistration>> {
         let cfg: &IotaNamesConfig = ctx.data_unchecked();
-        let tag = IotaNamesRegistration::type_(cfg.package_address.into());
+        let tag = NameRegistration::type_(cfg.package_address.into());
 
-        match IotaNamesRegistration::try_from(self, &tag) {
+        match NameRegistration::try_from(self, &tag) {
             Ok(registration) => Ok(Some(registration)),
-            Err(IotaNamesRegistrationDowncastError::NotAnIotaNamesRegistration) => Ok(None),
-            Err(IotaNamesRegistrationDowncastError::Bcs(e)) => Err(Error::Internal(format!(
+            Err(NameRegistrationDowncastError::NotAnNameRegistration) => Ok(None),
+            Err(NameRegistrationDowncastError::Bcs(e)) => Err(Error::Internal(format!(
                 "Failed to deserialize
-     IotaNamesRegistration: {e}",
+     NameRegistration: {e}",
             )))
             .extend(),
         }
@@ -443,7 +440,7 @@ impl MoveObjectImpl<'_> {
     pub(crate) async fn has_public_transfer(&self, ctx: &Context<'_>) -> Result<bool> {
         let type_: MoveType = self.0.native.type_().clone().into();
         let set = type_.abilities_impl(ctx.data_unchecked()).await.extend()?;
-        Ok(set.has_key() && set.has_store())
+        Ok(set.is_some_and(|s| s.has_key() && s.has_store()))
     }
 }
 

@@ -211,7 +211,7 @@ where
     /// Create a `TimeLock` from BCS bytes.
     pub fn from_bcs_bytes(content: &'de [u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
-            error: format!("Unable to deserialize TimeLock object: {:?}", err),
+            error: format!("Unable to deserialize TimeLock object: {err:?}"),
         })
     }
 
@@ -277,7 +277,7 @@ where
         }
 
         Err(IotaError::Type {
-            error: format!("Object type is not a TimeLock: {:?}", object),
+            error: format!("Object type is not a TimeLock: {object:?}"),
         })
     }
 }

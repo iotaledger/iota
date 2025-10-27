@@ -40,14 +40,12 @@ struct Args {
 }
 
 fn main() {
+    move_vm_profiler::ensure_move_vm_profiler_disabled();
+
     // Ensure that a validator never calls
     // get_for_min_version/get_for_max_version_UNSAFE. TODO: re-enable after we
     // figure out how to eliminate crashes in prod because of this.
     // ProtocolConfig::poison_get_for_min_version();
-
-    if move_vm_profiler::is_tracing_feature_enabled() {
-        panic!("Cannot run the iota-node binary with tracing feature enabled");
-    }
 
     let args = Args::parse();
     let mut config = NodeConfig::load(&args.config_path).unwrap();

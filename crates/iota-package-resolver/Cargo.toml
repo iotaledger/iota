@@ -10,9 +10,7 @@ publish = false
 # external dependencies
 async-trait.workspace = true
 bcs.workspace = true
-eyre.workspace = true
 lru.workspace = true
-serde.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 

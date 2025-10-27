@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64, toB64 } from '@iota/bcs';
+import { fromBase64, toBase64 } from '@iota/bcs';
 import { blake2b } from '@noble/hashes/blake2b';
 import { bytesToHex } from '@noble/hashes/utils';
 
@@ -74,7 +74,7 @@ export class MultiSigPublicKey extends PublicKey {
         super();
 
         if (typeof value === 'string') {
-            this.rawBytes = fromB64(value);
+            this.rawBytes = fromBase64(value);
 
             this.multisigPublicKey = bcs.MultiSigPublicKey.parse(this.rawBytes);
         } else if (value instanceof Uint8Array) {
@@ -292,7 +292,7 @@ export class MultiSigPublicKey extends PublicKey {
         const tmp = new Uint8Array(bytes.length + 1);
         tmp.set([SIGNATURE_SCHEME_TO_FLAG['MultiSig']]);
         tmp.set(bytes, 1);
-        return toB64(tmp);
+        return toBase64(tmp);
     }
 }
 

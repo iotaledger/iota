@@ -10,6 +10,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import '@iota/dapp-kit/dist/index.css';
 
+import { ContextProviders } from '@site/src/components/ContextProviders';
+import Disclaimer from '@site/src/components/Disclaimer';
+
 const NETWORKS = {
     [getDefaultNetwork()]: { url: getFullnodeUrl('testnet') },
 };
@@ -22,7 +25,10 @@ export default function Root({ children }) {
         <QueryClientProvider client={queryClient}>
             <IotaClientProvider networks={NETWORKS}>
                 <WalletProvider theme={darkTheme}>
-                    {children}
+                    <ContextProviders>
+						{children}
+						<Disclaimer />
+					</ContextProviders>
                 </WalletProvider>
             </IotaClientProvider>
         </QueryClientProvider>

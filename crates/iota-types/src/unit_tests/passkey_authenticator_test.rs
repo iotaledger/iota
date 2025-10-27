@@ -2,9 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
 use fastcrypto::{
+    encoding::{Base64, Encoding},
     hash::HashFunction,
     rsa::{Base64UrlUnpadded, Encoding as _},
     traits::ToFromBytes,
@@ -350,4 +351,22 @@ async fn test_passkey_fails_wrong_client_data_type() {
             error: "Invalid client data type".to_string()
         }
     );
+}
+
+#[tokio::test]
+async fn test_real_passkey_output() {
+    // response from a real passkey authenticator created in iCloud, from typescript client: https://passkey-example.vercel.app/ (repo: https://github.com/MystenLabs/passkey-example)
+    let address =
+        IotaAddress::from_str("0x9c0c00e929f08431583dad0e9409b5afb20cdbae0043fa5577f2577dbe88a0db")
+            .unwrap();
+    let sig = GenericSignature::from_bytes(&Base64::decode("BiUL6eJ3+l0jTWmL4buH5lE8Vxe1+ge6xSU0oczBPpmt+h0AAAAAkwF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJ5TzEtb3VBczFBRUsyOWd0X1dJTGM4ZndDdlFjMkhEQmEwX2dTU3RpU1FzIiwib3JpZ2luIjoiaHR0cHM6Ly9wYXNza2V5LWV4YW1wbGUudmVyY2VsLmFwcCIsImNyb3NzT3JpZ2luIjpmYWxzZX1iAu0JsgVDVgBZQJhsl9MUZmUfUkNTh1qCg0zNWFrXfTx3NKuakm8Wqaa3qnfo+s9K2KvfYp8jT8BazhK7bi9YSmsCATpOyeWH387SdhY7+172wODmilJnXx5QcaUnR+3QlEM=").unwrap()).unwrap();
+    let tx_data: TransactionData = bcs::from_bytes(&Base64::decode("AAAAAJwMAOkp8IQxWD2tDpQJta+yDNuuAEP6VXfyV32+iKDbARrKzR59iiRcEIbBEBlB283cnWUBeUeKCiMa3UKM6NURNRHQFAAAAAAgVLos3IwH9g4OHDSWiKyUZCvixybPtnDQIeML1f+ErGOcDADpKfCEMVg9rQ6UCbWvsgzbrgBD+lV38ld9voig2+gDAAAAAAAAgIQeAAAAAAAA").unwrap()).unwrap();
+    let res = sig.verify_authenticator(
+        &IntentMessage::new(Intent::iota_transaction(), tx_data),
+        address,
+        0,
+        &Default::default(),
+        Arc::new(VerifiedDigestCache::new_empty()),
+    );
+    assert!(res.is_ok());
 }

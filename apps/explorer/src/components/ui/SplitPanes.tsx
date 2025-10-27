@@ -96,7 +96,7 @@ function ResizeHandle({
             <div
                 data-is-dragging={isDragging}
                 className={clsx(
-                    'relative bg-shader-neutral-light-8 group-hover/container:bg-neutral-70 dark:bg-shader-neutral-dark-8 dark:group-hover/container:bg-primary-80/40',
+                    'relative bg-shader-neutral-light-8 group-hover/container:bg-iota-neutral-70 dark:bg-shader-neutral-dark-8 dark:group-hover/container:bg-iota-primary-80/40',
                     isHorizontal ? 'h-full w-px' : 'h-px',
                 )}
             >

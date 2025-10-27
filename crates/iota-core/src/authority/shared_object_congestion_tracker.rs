@@ -6,12 +6,15 @@ use std::{cmp::Ordering, collections::HashMap};
 
 use iota_protocol_config::PerObjectCongestionControlMode;
 use iota_types::{
-    base_types::{CommitRound, ObjectID, TransactionDigest},
+    base_types::{CommitRound, ObjectID},
     executable_transaction::VerifiedExecutableTransaction,
     transaction::{SharedInputObject, TransactionDataAPI},
 };
+use tracing::instrument;
 
-use super::transaction_deferral::DeferralKey;
+use super::{
+    authority_per_epoch_store::PreviouslyDeferredTransactions, transaction_deferral::DeferralKey,
+};
 
 /// Represents execution slot boundaries
 pub(crate) type ExecutionTime = u64;
@@ -246,7 +249,8 @@ impl SharedObjectCongestionTracker {
     ///
     /// Before calling this function, the caller should ensure that the tracker
     /// is initialized for all objects in the transaction by first calling
-    /// `initialize_for_shared_objects`.
+    /// `initialize_object_execution_slots`.
+    #[instrument(level = "trace", skip_all)]
     pub fn compute_tx_start_time(
         &self,
         shared_input_objects: &[SharedInputObject],
@@ -257,6 +261,7 @@ impl SharedObjectCongestionTracker {
             // time based on the lowest free execution slot that can accommodate the
             // transaction. We start the search from the full range of the slots
             // available with no constraints from previous objects.
+            let _span = tracing::trace_span!("compute_min_free_execution_slot").entered();
             let initial_free_slot = ExecutionSlot::max_duration_slot();
             self.compute_min_free_execution_slot(
                 shared_input_objects,
@@ -267,6 +272,8 @@ impl SharedObjectCongestionTracker {
             // If `assign_min_free_execution_slot` is false, we assign the transaction start
             // time based on the maximum start time of free execution slots for the
             // transaction over all its shared objects.
+            let _span =
+                tracing::trace_span!("get_max_start_time_of_free_execution_slots").entered();
             let object_start_times: Vec<_> = shared_input_objects
                 .iter()
                 .map(|obj| {
@@ -370,11 +377,12 @@ impl SharedObjectCongestionTracker {
     /// be scheduled, this returns a `start_time`, and if it should be deferred,
     /// this returns the deferral key and the congested objects responsible for
     /// the deferral.
+    #[instrument(level = "trace", skip_all, fields(cert_digest = ?cert.digest()))]
     pub fn try_schedule(
         &self,
         cert: &VerifiedExecutableTransaction,
         max_execution_duration_per_commit: u64,
-        previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
+        previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
         let tx_duration = self.get_estimated_execution_duration(cert);
@@ -426,21 +434,25 @@ impl SharedObjectCongestionTracker {
                 .map(|obj| obj.id)
                 .collect()
         };
+
         assert!(!congested_objects.is_empty());
 
-        let deferral_key =
-            if let Some(previous_key) = previously_deferred_tx_digests.get(cert.digest()) {
-                // This transaction has been deferred in previous consensus commit. Use its
-                // previous deferred_from_round.
-                DeferralKey::new_for_consensus_round(
-                    commit_round + 1,
-                    previous_key.deferred_from_round(),
-                )
-            } else {
-                // This transaction has not been deferred before. Use the current commit round
-                // as the deferred_from_round.
-                DeferralKey::new_for_consensus_round(commit_round + 1, commit_round)
-            };
+        let deferral_key = if let Some(previous_key_suggested_gas_price_pair) =
+            previously_deferred_tx_digests.get(cert.digest())
+        {
+            // This transaction has been deferred in previous consensus commit. Use its
+            // previous deferred_from_round.
+            DeferralKey::new_for_consensus_round(
+                commit_round + 1,
+                previous_key_suggested_gas_price_pair
+                    .0
+                    .deferred_from_round(),
+            )
+        } else {
+            // This transaction has not been deferred before. Use the current commit round
+            // as the deferred_from_round.
+            DeferralKey::new_for_consensus_round(commit_round + 1, commit_round)
+        };
         SequencingResult::Defer(deferral_key, congested_objects)
     }
 
@@ -618,19 +630,22 @@ pub mod shared_object_test_utils {
 
     use super::*;
 
+    pub const TEST_ONLY_GAS_PRICE: u64 = 1_000;
+
     // Builds a certificate with a list of shared objects and their mutability. The
     // certificate is only used to test the SharedObjectCongestionTracker
-    // functions, therefore the content other than shared inputs and gas budget
-    // are not important.
+    // functions, therefore the content other than shared inputs, gas budget
+    // and gas price are not important.
     pub fn build_transaction(
         objects: &[(ObjectID, bool)],
         gas_budget: u64,
+        gas_price: u64,
     ) -> VerifiedExecutableTransaction {
         let (sender, keypair): (_, AccountKeyPair) = get_key_pair();
         let gas_object = random_object_ref();
         VerifiedExecutableTransaction::new_system(
             VerifiedTransaction::new_unchecked(
-                TestTransactionBuilder::new(sender, gas_object, 1000)
+                TestTransactionBuilder::new(sender, gas_object, gas_price)
                     .with_gas_budget(gas_budget)
                     .move_call(
                         ObjectID::random(),
@@ -666,7 +681,7 @@ pub mod shared_object_test_utils {
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         cert: &VerifiedExecutableTransaction,
         max_execution_duration_per_commit: u64,
-        previously_deferred_tx_digests: &HashMap<TransactionDigest, DeferralKey>,
+        previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
         shared_object_congestion_tracker.initialize_object_execution_slots(
@@ -697,15 +712,43 @@ pub mod shared_object_test_utils {
             match mode {
                 PerObjectCongestionControlMode::None => {}
                 PerObjectCongestionControlMode::TotalGasBudget => {
-                    let transaction = build_transaction(&[(*object_id, true)], *duration);
-                    let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &transaction.data().inner().intent_message().value.shared_input_objects(), *duration).expect("initial value should be fit within the available range of slots in the tracker");
+                    let transaction =
+                        build_transaction(&[(*object_id, true)], *duration, TEST_ONLY_GAS_PRICE);
+                    let start_time = initialize_tracker_and_compute_tx_start_time(
+                        &mut shared_object_congestion_tracker,
+                        &transaction
+                            .data()
+                            .inner()
+                            .intent_message()
+                            .value
+                            .shared_input_objects(),
+                        *duration,
+                    )
+                    .expect(
+                        "initial value should be fit within the available range of slots \
+                                in the tracker",
+                    );
                     shared_object_congestion_tracker
                         .bump_object_execution_slots(&transaction, start_time);
                 }
                 PerObjectCongestionControlMode::TotalTxCount => {
                     for _ in 0..*duration {
-                        let transaction = build_transaction(&[(*object_id, true)], 1);
-                        let start_time = initialize_tracker_and_compute_tx_start_time(&mut shared_object_congestion_tracker, &transaction.data().inner().intent_message().value.shared_input_objects(), 1).expect("initial value should be fit within the available range of slots in the tracker");
+                        let transaction =
+                            build_transaction(&[(*object_id, true)], 1, TEST_ONLY_GAS_PRICE);
+                        let start_time = initialize_tracker_and_compute_tx_start_time(
+                            &mut shared_object_congestion_tracker,
+                            &transaction
+                                .data()
+                                .inner()
+                                .intent_message()
+                                .value
+                                .shared_input_objects(),
+                            1,
+                        )
+                        .expect(
+                            "initial value should be fit within the available range of \
+                                    slots in the tracker",
+                        );
                         shared_object_congestion_tracker
                             .bump_object_execution_slots(&transaction, start_time);
                     }
@@ -729,6 +772,7 @@ pub mod shared_object_test_utils {
 
 #[cfg(test)]
 mod object_cost_tests {
+    use iota_types::digests::TransactionDigest;
     use rstest::rstest;
 
     use super::{shared_object_test_utils::*, *};
@@ -778,7 +822,7 @@ mod object_cost_tests {
             Some(9)
         );
         // now add this transaction to the tracker.
-        let tx = build_transaction(objects, 1);
+        let tx = build_transaction(objects, 1, TEST_ONLY_GAS_PRICE);
         shared_object_congestion_tracker.bump_object_execution_slots(&tx, 9);
 
         // That tracker now has the following object execution slots:
@@ -963,7 +1007,11 @@ mod object_cost_tests {
             }
         };
         // add a transaction that writes to object 0 and 1.
-        let tx = build_transaction(&[(shared_obj_0, true), (shared_obj_1, true)], 1);
+        let tx = build_transaction(
+            &[(shared_obj_0, true), (shared_obj_1, true)],
+            1,
+            TEST_ONLY_GAS_PRICE,
+        );
         shared_object_congestion_tracker.bump_object_execution_slots(
             &tx,
             match mode {
@@ -987,7 +1035,11 @@ mod object_cost_tests {
 
         // Read/write to object 0 should be deferred.
         for mutable in [true, false].iter() {
-            let tx = build_transaction(&[(shared_obj_0, *mutable)], tx_gas_budget);
+            let tx = build_transaction(
+                &[(shared_obj_0, *mutable)],
+                tx_gas_budget,
+                TEST_ONLY_GAS_PRICE,
+            );
             if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
                 .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
             {
@@ -1001,7 +1053,11 @@ mod object_cost_tests {
         // Read/write to object 1 should be scheduled with start_time 1 with
         // `assign_min_free_execution_slot` and deferred otherwise.
         for mutable in [true, false].iter() {
-            let tx = build_transaction(&[(shared_obj_1, *mutable)], tx_gas_budget);
+            let tx = build_transaction(
+                &[(shared_obj_1, *mutable)],
+                tx_gas_budget,
+                TEST_ONLY_GAS_PRICE,
+            );
             let sequencing_result = initialize_tracker_and_try_schedule(
                 &mut shared_object_congestion_tracker,
                 &tx,
@@ -1026,6 +1082,7 @@ mod object_cost_tests {
                 let tx = build_transaction(
                     &[(shared_obj_0, *mutable_0), (shared_obj_1, *mutable_1)],
                     tx_gas_budget,
+                    TEST_ONLY_GAS_PRICE,
                 );
                 if let SequencingResult::Defer(_, congested_objects) =
                     initialize_tracker_and_try_schedule(
@@ -1056,19 +1113,22 @@ mod object_cost_tests {
         mode: PerObjectCongestionControlMode,
     ) {
         let shared_obj_0 = ObjectID::random();
-        let tx = build_transaction(&[(shared_obj_0, true)], 100);
+        let tx = build_transaction(&[(shared_obj_0, true)], 100, TEST_ONLY_GAS_PRICE);
         // Make try_schedule always defers transactions.
         let max_execution_duration_per_commit = 0;
         let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode, false);
 
         // Insert a random pre-existing transaction.
-        let mut previously_deferred_tx_digests = HashMap::new();
+        let mut previously_deferred_tx_digests = PreviouslyDeferredTransactions::new();
         previously_deferred_tx_digests.insert(
             TransactionDigest::random(),
-            DeferralKey::ConsensusRound {
-                future_round: 10,
-                deferred_from_round: 5,
-            },
+            (
+                DeferralKey::ConsensusRound {
+                    future_round: 10,
+                    deferred_from_round: 5,
+                },
+                Some(1_000),
+            ),
         );
 
         // Test deferral key for a transaction that has not been deferred before.
@@ -1094,9 +1154,12 @@ mod object_cost_tests {
         // Insert `tx`` as previously deferred transaction due to randomness.
         previously_deferred_tx_digests.insert(
             *tx.digest(),
-            DeferralKey::Randomness {
-                deferred_from_round: 4,
-            },
+            (
+                DeferralKey::Randomness {
+                    deferred_from_round: 4,
+                },
+                None,
+            ),
         );
 
         // New deferral key should have deferred_from_round equal to the deferred
@@ -1123,10 +1186,13 @@ mod object_cost_tests {
         // Insert `tx`` as previously deferred consensus transaction.
         previously_deferred_tx_digests.insert(
             *tx.digest(),
-            DeferralKey::ConsensusRound {
-                future_round: 10,
-                deferred_from_round: 5,
-            },
+            (
+                DeferralKey::ConsensusRound {
+                    future_round: 10,
+                    deferred_from_round: 5,
+                },
+                Some(1_000),
+            ),
         );
 
         // New deferral key should have deferred_from_round equal to the one in the old
@@ -1176,7 +1242,11 @@ mod object_cost_tests {
         );
 
         // Read two objects should not change the object execution slots.
-        let cert = build_transaction(&[(object_id_0, false), (object_id_1, false)], 10);
+        let cert = build_transaction(
+            &[(object_id_0, false), (object_id_1, false)],
+            10,
+            TEST_ONLY_GAS_PRICE,
+        );
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
@@ -1207,7 +1277,11 @@ mod object_cost_tests {
 
         // Write to object 0 should only bump object 0's execution slots. The start time
         // should be object 1's duration.
-        let cert = build_transaction(&[(object_id_0, true), (object_id_1, false)], 10);
+        let cert = build_transaction(
+            &[(object_id_0, true), (object_id_1, false)],
+            10,
+            TEST_ONLY_GAS_PRICE,
+        );
         let cert_duration =
             shared_object_congestion_tracker.get_estimated_execution_duration(&cert);
         let start_time = initialize_tracker_and_compute_tx_start_time(
@@ -1257,6 +1331,7 @@ mod object_cost_tests {
                 (object_id_2, true),
             ],
             10,
+            TEST_ONLY_GAS_PRICE,
         );
         let expected_object_duration = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
@@ -1331,7 +1406,7 @@ mod object_cost_tests {
                 assign_min_free_execution_slot,
             );
 
-        let tx = build_transaction(&[(object_id_0, true)], 1);
+        let tx = build_transaction(&[(object_id_0, true)], 1, TEST_ONLY_GAS_PRICE);
         if let SequencingResult::Schedule(start_time) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
@@ -1368,7 +1443,11 @@ mod object_cost_tests {
             panic!("transaction is not congesting, should not defer");
         }
 
-        let tx = build_transaction(&[(object_id_0, true), (object_id_1, true)], 1);
+        let tx = build_transaction(
+            &[(object_id_0, true), (object_id_1, true)],
+            1,
+            TEST_ONLY_GAS_PRICE,
+        );
         if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,
@@ -1387,6 +1466,7 @@ mod object_cost_tests {
         } else {
             panic!("transaction is congesting, should defer");
         }
+
         let cert_duration = shared_object_congestion_tracker.get_estimated_execution_duration(&tx);
         assert!(
             initialize_tracker_and_compute_tx_start_time(
@@ -1421,6 +1501,7 @@ mod object_cost_tests {
                 (object_id_2, true),
             ],
             MAX_EXECUTION_TIME - 1,
+            TEST_ONLY_GAS_PRICE,
         );
         if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
@@ -1472,7 +1553,7 @@ mod object_cost_tests {
                 assign_min_free_execution_slot,
             );
 
-        let tx = build_transaction(&[(object_id_0, true)], u64::MAX);
+        let tx = build_transaction(&[(object_id_0, true)], u64::MAX, TEST_ONLY_GAS_PRICE);
         if let SequencingResult::Defer(_, congested_objects) = initialize_tracker_and_try_schedule(
             &mut shared_object_congestion_tracker,
             &tx,

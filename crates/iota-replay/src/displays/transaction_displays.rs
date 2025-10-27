@@ -95,7 +95,7 @@ impl Display for Pretty<'_, FullPTB> {
                 1,
                 TableStyle::modern().get_horizontal(),
             )]));
-            write!(f, "\n{}\n", table)?;
+            write!(f, "\n{table}\n")?;
         } else {
             write!(f, "\n  No input objects for this transaction")?;
         }
@@ -137,7 +137,7 @@ impl Display for Pretty<'_, FullPTB> {
                 1,
                 TableStyle::modern().get_horizontal(),
             )]));
-            write!(f, "\n{}\n", table)?;
+            write!(f, "\n{table}\n")?;
         } else {
             write!(f, "\n  No commands for this transaction")?;
         }
@@ -214,8 +214,7 @@ impl Display for Pretty<'_, ProgrammableMoveCall> {
 
         write!(
             f,
-            "MoveCall:\n ┌\n │ Function:  {} \n │ Module:    {}\n │ Package:   {}",
-            function, module, package
+            "MoveCall:\n ┌\n │ Function:  {function} \n │ Module:    {module}\n │ Package:   {package}"
         )?;
 
         if !type_arguments.is_empty() {
@@ -237,11 +236,11 @@ impl Display for Pretty<'_, Argument> {
 
         let output = match argument {
             Argument::GasCoin => "GasCoin".to_string(),
-            Argument::Input(i) => format!("Input  {}", i),
-            Argument::Result(i) => format!("Result {}", i),
-            Argument::NestedResult(j, k) => format!("Result {}: {}", j, k),
+            Argument::Input(i) => format!("Input  {i}"),
+            Argument::Result(i) => format!("Result {i}"),
+            Argument::NestedResult(j, k) => format!("Result {j}: {k}"),
         };
-        write!(f, "{}", output)
+        write!(f, "{output}")
     }
 }
 impl Display for Pretty<'_, ResolvedResults> {
@@ -260,7 +259,7 @@ impl Display for Pretty<'_, ResolvedResults> {
 
         for (i, value) in return_values.iter().enumerate() {
             write!(f, "\n • Result {i:<2} ")?;
-            write!(f, "\n{:#}\n", value)?;
+            write!(f, "\n{value:#}\n")?;
         }
 
         if len_m_ref > 0 {
@@ -271,8 +270,8 @@ impl Display for Pretty<'_, ResolvedResults> {
         }
 
         for (arg, value) in mutable_reference_outputs {
-            write!(f, "\n • {} ", arg)?;
-            write!(f, "\n{:#}\n", value)?;
+            write!(f, "\n • {arg} ")?;
+            write!(f, "\n{value:#}\n")?;
         }
 
         if len_ret_vals == 0 && len_m_ref == 0 {
@@ -294,7 +293,7 @@ impl Display for Pretty<'_, TypeTag> {
                 write!(f, "{}::{}", s.module, s.name)
             }
             _ => {
-                write!(f, "{}", type_tag)
+                write!(f, "{type_tag}")
             }
         }
     }

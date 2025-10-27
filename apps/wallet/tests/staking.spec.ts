@@ -22,6 +22,8 @@ test('staking', async ({ page, extensionUrl }) => {
         .first()
         .click();
     await page.getByText(/Next/).click();
+
+    await expect(page.getByText(/IOTA Available/)).toBeVisible({ timeout: SHORT_TIMEOUT });
     await page.getByPlaceholder('0 IOTA').fill(STAKE_AMOUNT.toString());
     await page.getByRole('button', { name: 'Stake' }).click();
 

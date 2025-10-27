@@ -7,7 +7,7 @@ use std::{fs, path::PathBuf, time::Duration};
 use iota_config::node::AuthorityStorePruningConfig;
 use itertools::Itertools;
 use tokio::sync::oneshot;
-use tracing::log::{error, info};
+use tracing::{error, info};
 use typed_store::rocks::safe_drop_db;
 
 use crate::authority::authority_per_epoch_store::EPOCH_DB_PREFIX;
@@ -94,7 +94,7 @@ mod tests {
 
     #[test]
     fn test_basic_epoch_pruner() {
-        let parent_directory = tempfile::tempdir().unwrap().into_path();
+        let parent_directory = tempfile::tempdir().unwrap().keep();
         let directories: Vec<_> = vec!["epoch_0", "epoch_1", "epoch_3", "epoch_4"]
             .into_iter()
             .map(|name| parent_directory.join(name))

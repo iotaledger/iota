@@ -1,5 +1,6 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
 import { SVGProps } from 'react';
 export default function SvgRewardsOff(props: SVGProps<SVGSVGElement>) {
     return (

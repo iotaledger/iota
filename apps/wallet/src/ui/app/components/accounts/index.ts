@@ -21,3 +21,4 @@ export * from './UnlockAccountButton';
 export * from './UnlockAccountContext';
 export * from './UnlockAccountModal';
 export * from './VerifyPasswordModal';
+export * from './OffBalanceAddressesInfo';

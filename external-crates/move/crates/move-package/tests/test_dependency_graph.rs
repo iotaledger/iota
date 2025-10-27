@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -17,7 +17,7 @@ use move_package::{
     },
     source_package::{
         layout::SourcePackageLayout,
-        parsed_manifest::{Dependency, DependencyKind, InternalDependency},
+        parsed_manifest::{Dependencies, Dependency, DependencyKind, InternalDependency},
     },
 };
 use move_symbol_pool::Symbol;
@@ -45,6 +45,7 @@ fn no_dep_graph() {
         true,
         std::io::sink(),
         tempfile::tempdir().unwrap().path().to_path_buf(),
+        Dependencies::default(), /* implicit deps */
     );
     let (graph, _) = dep_graph_builder
         .get_graph(
@@ -171,6 +172,7 @@ fn always_deps() {
         true,
         std::io::sink(),
         tempfile::tempdir().unwrap().path().to_path_buf(),
+        /* implicit_deps */ Dependencies::default(),
     );
     let (graph, _) = dep_graph_builder
         .get_graph(
@@ -589,6 +591,7 @@ fn immediate_dependencies() {
         true,
         std::io::sink(),
         tempfile::tempdir().unwrap().path().to_path_buf(),
+        /* implicit_deps */ Dependencies::default(),
     );
     let (graph, _) = dep_graph_builder
         .get_graph(

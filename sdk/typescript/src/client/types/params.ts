@@ -139,6 +139,11 @@ export interface GetTransactionBlockParams {
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaTransactionBlockResponseOptions | null | undefined;
 }
+/** Return if the transaction has been indexed on the fullnode. */
+export interface IsTransactionIndexedOnNodeParams {
+    /** the digest of the queried transaction */
+    digest: string;
+}
 /** Return the object data for a list of objects */
 export interface MultiGetObjectsParams {
     /** the IDs of the queried objects */
@@ -179,6 +184,16 @@ export interface TryMultiGetPastObjectsParams {
     pastObjects: RpcTypes.GetPastObjectRequest[];
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaObjectDataOptions | null | undefined;
+}
+/** Calls a move view function. */
+export interface ViewParams {
+    /**
+     * The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.
+     * `0x3::iota_system::get_total_iota_supply`.
+     */
+    functionName: string;
+    typeArgs?: string[] | null | undefined;
+    callArgs: unknown[];
 }
 /** Return the total coin balance for all coin type, owned by the address owner. */
 export interface GetAllBalancesParams {
@@ -460,7 +475,7 @@ export interface UnsafeMoveCallParams {
     typeArguments: string[];
     /**
      * the arguments to be passed into the Move function, in
-     * [IotaJson](https://docs.iota.org/references/iota-api) format
+     * [IotaJson](https://docs.iota.org/developer/references/iota-api) format
      */
     arguments: unknown[];
     /**

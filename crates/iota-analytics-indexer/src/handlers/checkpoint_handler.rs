@@ -7,9 +7,9 @@ use std::sync::Arc;
 use anyhow::Result;
 use fastcrypto::traits::EncodeDecodeBase64;
 use iota_data_ingestion_core::Worker;
-use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
     effects::TransactionEffectsAPI,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     messages_checkpoint::{CertifiedCheckpointSummary, CheckpointSummary},
     transaction::TransactionDataAPI,
 };

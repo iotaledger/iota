@@ -10,7 +10,7 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::Domain;
+use crate::Name;
 
 #[derive(Clone, Debug, Serialize, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "kebab-case")]
@@ -30,8 +30,7 @@ pub struct IotaNamesConfig {
 impl Default for IotaNamesConfig {
     fn default() -> Self {
         // TODO change to mainnet https://github.com/iotaledger/iota/issues/6532
-        // TODO change to testnet https://github.com/iotaledger/iota/issues/6531
-        Self::devnet()
+        Self::testnet()
     }
 }
 
@@ -65,19 +64,19 @@ impl IotaNamesConfig {
     pub fn from_chain(chain: &Chain) -> Self {
         match chain {
             Chain::Mainnet => todo!("https://github.com/iotaledger/iota/issues/6532"),
-            Chain::Testnet => todo!("https://github.com/iotaledger/iota/issues/6531"),
+            Chain::Testnet => IotaNamesConfig::testnet(),
             Chain::Unknown => IotaNamesConfig::devnet(),
         }
     }
 
-    pub fn record_field_id(&self, domain: &Domain) -> ObjectID {
-        let domain_type_tag = Domain::type_(self.package_address);
-        let domain_bytes = bcs::to_bytes(domain).unwrap();
+    pub fn record_field_id(&self, name: &Name) -> ObjectID {
+        let name_type_tag = Name::type_(self.package_address);
+        let name_bytes = bcs::to_bytes(name).unwrap();
 
         iota_types::dynamic_field::derive_dynamic_field_id(
             self.registry_id,
-            &TypeTag::Struct(Box::new(domain_type_tag)),
-            &domain_bytes,
+            &TypeTag::Struct(Box::new(name_type_tag)),
+            &name_bytes,
         )
         .unwrap()
     }
@@ -93,20 +92,46 @@ impl IotaNamesConfig {
 
     // TODO add mainnet https://github.com/iotaledger/iota/issues/6532
 
-    // TODO add testnet https://github.com/iotaledger/iota/issues/6531
+    // Create a config based on the package and object ids published on testnet.
+    pub fn testnet() -> Self {
+        const PACKAGE_ADDRESS: &str =
+            "0x7fff6e95f385349bec98d17121ab2bfa3e134f2f0b1ccefc270313415f7835ea";
+        const OBJECT_ID: &str =
+            "0x7cab491740d51e0d75b26bf9984e49ba2e32a2d0694cabcee605543ed13c7dec";
+        const PAYMENTS_PACKAGE_ADDRESS: &str =
+            "0x6b1b01f4c72786a893191d5c6e73d3012f7529f86fdee3bc8c163323cee08441";
+        const REGISTRY_ID: &str =
+            "0x2dfc6f6d46ba55217425643a59dc85fe4d8ed273a9f74077bd0ee280dbb4f590";
+        const REVERSE_REGISTRY_ID: &str =
+            "0x3550bcacb793ef8b776264665e7c99fa3d897695ed664656aac693cf9cf9b76b";
+
+        let package_address = IotaAddress::from_str(PACKAGE_ADDRESS).unwrap();
+        let object_id = ObjectID::from_str(OBJECT_ID).unwrap();
+        let payments_package_address = IotaAddress::from_str(PAYMENTS_PACKAGE_ADDRESS).unwrap();
+        let registry_id = ObjectID::from_str(REGISTRY_ID).unwrap();
+        let reverse_registry_id = ObjectID::from_str(REVERSE_REGISTRY_ID).unwrap();
+
+        Self::new(
+            package_address,
+            object_id,
+            payments_package_address,
+            registry_id,
+            reverse_registry_id,
+        )
+    }
 
     // Create a config based on the package and object ids published on devnet.
     pub fn devnet() -> Self {
         const PACKAGE_ADDRESS: &str =
-            "0x3ec4826f1d6e0d9f00680b2e9a7a41f03788ee610b3d11c24f41ab0ae71da39f";
+            "0xb9d617f24c84826bf660a2f4031951678cc80c264aebc4413459fb2a95ada9ba";
         const OBJECT_ID: &str =
-            "0x54a8a67fad7aa279429e08824e03481dd8b268779353d299d7f8edaa8b8c13b7";
+            "0x07c59b37bd7d036bf78fa30561a2ab9f7a970837487656ec29466e817f879342";
         const PAYMENTS_PACKAGE_ADDRESS: &str =
-            "0x882f88d252a650649f490e96e32e53979758fdda645863ca856d83c72d5e0e72";
+            "0x98b9b33b7c2347a8f4e8b8716fb4c7e6e1af846ec2ea063a47bba81ffe03b440";
         const REGISTRY_ID: &str =
-            "0xef24c78e8c085e29760d37b287fc16647f0f578e8d22f18dd65f655285afad3e";
+            "0xe00b2f2400c33b4dbd3081c4dcf2e289d0544caba23a3d130b264bd756403c07";
         const REVERSE_REGISTRY_ID: &str =
-            "0x566dc13eafceaf8c3487ee2c41464553839ef4d50937c63741e359c98080c7b6";
+            "0x1c1da17843cc453ad4079b05ce55e103b7a8cdd4db6ab42dc367b47ed6d8994d";
 
         let package_address = IotaAddress::from_str(PACKAGE_ADDRESS).unwrap();
         let object_id = ObjectID::from_str(OBJECT_ID).unwrap();

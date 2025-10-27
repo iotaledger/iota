@@ -21,7 +21,7 @@ export function CloseButton({ onClick }: CloseButtonProps): JSX.Element {
         <button
             onClick={onClick}
             type="button"
-            className="text-steel absolute right-0 top-0 p-4 hover:text-neutral-60"
+            className="text-steel absolute right-0 top-0 p-4 hover:text-iota-neutral-60"
         >
             <Close className="h-3 w-3" />
         </button>
@@ -41,7 +41,7 @@ export function ModalContent({ children }: ModalChildrenProps): JSX.Element {
 }
 
 export function ModalHeading({ children }: ModalChildrenProps): JSX.Element {
-    return <div className="text-headline-md text-neutral-100">{children}</div>;
+    return <div className="text-headline-md text-iota-neutral-100">{children}</div>;
 }
 
 export function Modal({ open, onClose, children }: ModalProps): JSX.Element {

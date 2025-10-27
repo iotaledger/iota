@@ -25,10 +25,12 @@ const SUPPORTED_IMAGE_MIMETYPES = [
     'image/webp',
     'image/x-icon',
     'image/tiff',
+    'image/svg+xml',
 ];
 
 interface ResolveNFTMediaTypeReturn {
     type: VisualAssetType;
+    resolvedSrc?: string;
     shouldAutoPlayVideo?: boolean;
     isMediaSupported: boolean;
 }
@@ -40,12 +42,15 @@ export function resolveNFTMedia(
     const { contentType, contentLength } = nftMediaHeaders || {};
     const urlExtension = getFileExtensionByUrl(src);
 
+    const resolvedSrc = src ? transformURL(src) : undefined;
+
     if (
         SUPPORTED_VIDEO_MIMETYPES.includes(contentType || '') ||
         SUPPORTED_VIDEO_MIMETYPES.some((mimeType) => mimeType.split('/')[1] === urlExtension)
     ) {
         return {
             type: VisualAssetType.Video,
+            resolvedSrc,
             shouldAutoPlayVideo: contentLength ? isVideoInSizeLimit(contentLength) : false,
             isMediaSupported: true,
         };
@@ -57,11 +62,12 @@ export function resolveNFTMedia(
     ) {
         return {
             type: VisualAssetType.Image,
+            resolvedSrc,
             isMediaSupported: true,
         };
     }
 
-    return { type: VisualAssetType.Image, isMediaSupported: false };
+    return { type: VisualAssetType.Image, resolvedSrc, isMediaSupported: false };
 }
 
 export function getFileExtensionByUrl(src: string | null | undefined): string | undefined {

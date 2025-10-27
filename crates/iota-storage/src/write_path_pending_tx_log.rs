@@ -18,6 +18,7 @@ use iota_types::{
     message_envelope::TrustedEnvelope,
     transaction::{SenderSignedData, VerifiedTransaction},
 };
+use tracing::instrument;
 use typed_store::{
     DBMapUtils,
     rocks::{DBMap, MetricConf},
@@ -53,6 +54,7 @@ impl WritePathPendingTransactionLog {
     // Because the record will be cleaned up when the transaction finishes,
     // even when it returns true, the callsite of this function should check
     // the transaction status before doing anything, to avoid duplicates.
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?tx.digest()))]
     pub async fn write_pending_transaction_maybe(
         &self,
         tx: &VerifiedTransaction,

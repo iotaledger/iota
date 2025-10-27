@@ -25,15 +25,16 @@ mod checked {
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         execution_config_utils::to_binary_config,
         execution_status::{CommandArgumentError, PackageUpgradeError},
-        id::{RESOLVED_IOTA_ID, UID},
+        id::RESOLVED_IOTA_ID,
         metrics::LimitsMetrics,
         move_package::{
             MovePackage, UpgradeCap, UpgradePolicy, UpgradeReceipt, UpgradeTicket,
             normalize_deserialized_modules,
         },
         storage::{PackageObject, get_package_objects},
-        transaction::{Argument, Command, ProgrammableMoveCall, ProgrammableTransaction},
+        transaction::{Command, ProgrammableMoveCall, ProgrammableTransaction},
         transfer::RESOLVED_RECEIVING_STRUCT,
+        type_input::TypeInput,
     };
     use iota_verifier::{
         INIT_FN_NAME,
@@ -49,7 +50,7 @@ mod checked {
     };
     use move_core_types::{
         account_address::AccountAddress,
-        identifier::IdentStr,
+        identifier::{IdentStr, Identifier},
         language_storage::{ModuleId, TypeTag},
         u256::U256,
     };
@@ -106,7 +107,7 @@ mod checked {
             if let Err(err) =
                 execute_command::<Mode>(&mut context, &mut mode_results, command, trace_builder_opt)
             {
-                let object_runtime: &ObjectRuntime = context.object_runtime();
+                let object_runtime: &ObjectRuntime = context.object_runtime()?;
                 // We still need to record the loaded child objects for replay
                 let loaded_runtime_objects = object_runtime.loaded_runtime_objects();
                 // we do not save the wrapped objects since on error, they should not be
@@ -118,7 +119,7 @@ mod checked {
         }
 
         // Save loaded objects table in case we fail in post execution
-        let object_runtime: &ObjectRuntime = context.object_runtime();
+        let object_runtime: &ObjectRuntime = context.object_runtime()?;
         // We still need to record the loaded child objects for replay
         // Record the objects loaded at runtime (dynamic fields + received) for
         // storage rebate calculation.
@@ -152,6 +153,8 @@ mod checked {
                         "input checker ensures if args are empty, there is a type specified"
                     );
                 };
+                let tag = to_type_tag(context, tag)?;
+
                 let elem_ty = context.load_type(&tag).map_err(|e| {
                     if context.protocol_config.convert_type_argument_error() {
                         context.convert_type_argument_error(0, e)
@@ -177,11 +180,13 @@ mod checked {
                 )]
             }
             Command::MakeMoveVec(tag_opt, args) => {
+                let args = context.splat_args(0, args)?;
                 let mut res = vec![];
                 leb128::write::unsigned(&mut res, args.len() as u64).unwrap();
                 let mut arg_iter = args.into_iter().enumerate();
                 let (mut used_in_non_entry_move_call, elem_ty) = match tag_opt {
                     Some(tag) => {
+                        let tag = to_type_tag(context, tag)?;
                         let elem_ty = context.load_type(&tag).map_err(|e| {
                             if context.protocol_config.convert_type_argument_error() {
                                 context.convert_type_argument_error(0, e)
@@ -230,6 +235,9 @@ mod checked {
                 )]
             }
             Command::TransferObjects(objs, addr_arg) => {
+                let unsplat_objs_len = objs.len();
+                let objs = context.splat_args(0, objs)?;
+                let addr_arg = context.one_arg(unsplat_objs_len, addr_arg)?;
                 let objs: Vec<ObjectValue> = objs
                     .into_iter()
                     .enumerate()
@@ -244,6 +252,8 @@ mod checked {
                 vec![]
             }
             Command::SplitCoins(coin_arg, amount_args) => {
+                let coin_arg = context.one_arg(0, coin_arg)?;
+                let amount_args = context.splat_args(1, amount_args)?;
                 let mut obj: ObjectValue = context.borrow_arg_mut(0, coin_arg)?;
                 let ObjectContents::Coin(coin) = &mut obj.contents else {
                     let e = ExecutionErrorKind::command_argument_error(
@@ -259,7 +269,7 @@ mod checked {
                         let amount: u64 =
                             context.by_value_arg(CommandKind::SplitCoins, 1, amount_arg)?;
                         let new_coin_id = context.fresh_id()?;
-                        let new_coin = coin.split(amount, UID::new(new_coin_id))?;
+                        let new_coin = coin.split(amount, new_coin_id)?;
                         let coin_type = obj.type_.clone();
                         // safe because we are propagating the coin type, and relying on the
                         // internal invariant that coin values have a coin
@@ -272,6 +282,8 @@ mod checked {
                 split_coins
             }
             Command::MergeCoins(target_arg, coin_args) => {
+                let target_arg = context.one_arg(0, target_arg)?;
+                let coin_args = context.splat_args(1, coin_args)?;
                 let mut target: ObjectValue = context.borrow_arg_mut(0, target_arg)?;
                 let ObjectContents::Coin(target_coin) = &mut target.contents else {
                     let e = ExecutionErrorKind::command_argument_error(
@@ -319,10 +331,15 @@ mod checked {
                     type_arguments,
                     arguments,
                 } = *move_call;
+                let arguments = context.splat_args(0, arguments)?;
+
+                let module = to_identifier(context, module)?;
+                let function = to_identifier(context, function)?;
 
                 // Convert type arguments to `Type`s
                 let mut loaded_type_arguments = Vec::with_capacity(type_arguments.len());
                 for (ix, type_arg) in type_arguments.into_iter().enumerate() {
+                    let type_arg = to_type_tag(context, type_arg)?;
                     let ty = context
                         .load_type(&type_arg)
                         .map_err(|e| context.convert_type_argument_error(ix, e))?;
@@ -356,6 +373,7 @@ mod checked {
                 trace_builder_opt,
             )?,
             Command::Upgrade(modules, dep_ids, current_package_id, upgrade_ticket) => {
+                let upgrade_ticket = context.one_arg(0, upgrade_ticket)?;
                 execute_move_upgrade::<Mode>(
                     context,
                     modules,
@@ -379,7 +397,7 @@ mod checked {
         runtime_id: &ModuleId,
         function: &IdentStr,
         type_arguments: Vec<Type>,
-        arguments: Vec<Argument>,
+        arguments: Vec<Arg>,
         is_init: bool,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
     ) -> Result<Vec<Value>, ExecutionError> {
@@ -457,7 +475,7 @@ mod checked {
     fn write_back_results<Mode: ExecutionMode>(
         context: &mut ExecutionContext<'_, '_, '_>,
         argument_updates: &mut Mode::ArgumentUpdates,
-        arguments: &[Argument],
+        arguments: &[Arg],
         non_entry_move_call: bool,
         mut_ref_values: impl IntoIterator<Item = (u8, Vec<u8>)>,
         mut_ref_kinds: impl IntoIterator<Item = (u8, ValueKind)>,
@@ -589,7 +607,7 @@ mod checked {
         module_bytes: Vec<Vec<u8>>,
         dep_ids: Vec<ObjectID>,
         current_package_id: ObjectID,
-        upgrade_ticket_arg: Argument,
+        upgrade_ticket_arg: Arg,
     ) -> Result<Vec<Value>, ExecutionError> {
         assert_invariant!(
             !module_bytes.is_empty(),
@@ -824,7 +842,7 @@ mod checked {
                     "Missing dependencies: {}",
                     missing_deps
                         .into_iter()
-                        .map(|dep| format!("{}", dep))
+                        .map(|dep| format!("{dep}"))
                         .collect::<Vec<_>>()
                         .join(", ")
                 );
@@ -1254,7 +1272,7 @@ mod checked {
         if module_ident == (&IOTA_FRAMEWORK_ADDRESS, EVENT_MODULE) {
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
-                format!("Cannot directly call functions in iota::{}", EVENT_MODULE),
+                format!("Cannot directly call functions in iota::{EVENT_MODULE}"),
             ));
         }
 
@@ -1262,10 +1280,8 @@ mod checked {
             && PRIVATE_TRANSFER_FUNCTIONS.contains(&function)
         {
             let msg = format!(
-                "Cannot directly call iota::{m}::{f}. \
-                Use the public variant instead, iota::{m}::public_{f}",
-                m = TRANSFER_MODULE,
-                f = function
+                "Cannot directly call iota::{TRANSFER_MODULE}::{function}. \
+                Use the public variant instead, iota::{TRANSFER_MODULE}::public_{function}"
             );
             return Err(ExecutionError::new_with_source(
                 ExecutionErrorKind::NonEntryFunctionInvoked,
@@ -1291,7 +1307,7 @@ mod checked {
         function: &IdentStr,
         function_kind: FunctionKind,
         signature: &LoadedFunctionInstantiation,
-        args: &[Argument],
+        args: &[Arg],
     ) -> Result<ArgInfo, ExecutionError> {
         // check the arity
         let parameters = &signature.parameters;
@@ -1413,9 +1429,8 @@ mod checked {
             Value::Raw(RawValueType::Any, bytes) => {
                 let Some(layout) = primitive_serialization_layout(context, param_ty)? else {
                     let msg = format!(
-                        "Non-primitive argument at index {}. If it is an object, it must be \
+                        "Non-primitive argument at index {idx}. If it is an object, it must be \
                         populated by an object",
-                        idx,
                     );
                     return Err(ExecutionError::new_with_source(
                         ExecutionErrorKind::command_argument_error(
@@ -1483,6 +1498,41 @@ mod checked {
             }
         }
         Ok(())
+    }
+
+    fn to_identifier(
+        context: &mut ExecutionContext<'_, '_, '_>,
+        ident: String,
+    ) -> Result<Identifier, ExecutionError> {
+        if context.protocol_config.validate_identifier_inputs() {
+            Identifier::new(ident).map_err(|e| {
+                ExecutionError::new_with_source(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    e.to_string(),
+                )
+            })
+        } else {
+            // SAFETY: Preserving existing behaviour for identifier deserialization.
+            Ok(unsafe { Identifier::new_unchecked(ident) })
+        }
+    }
+
+    fn to_type_tag(
+        context: &mut ExecutionContext<'_, '_, '_>,
+        type_input: TypeInput,
+    ) -> Result<TypeTag, ExecutionError> {
+        if context.protocol_config.validate_identifier_inputs() {
+            type_input.into_type_tag().map_err(|e| {
+                ExecutionError::new_with_source(
+                    ExecutionErrorKind::VMInvariantViolation,
+                    e.to_string(),
+                )
+            })
+        } else {
+            // SAFETY: Preserving existing behaviour for identifier deserialization within
+            // type tags and inputs.
+            Ok(unsafe { type_input.into_type_tag_unchecked() })
+        }
     }
 
     fn get_datatype_ident(s: &CachedDatatype) -> (&AccountAddress, &IdentStr, &IdentStr) {

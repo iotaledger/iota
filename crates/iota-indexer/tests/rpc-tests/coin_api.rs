@@ -1,8 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, str::FromStr, sync::Arc};
+use std::str::FromStr;
 
+use fastcrypto::traits::Signer;
 use iota_indexer::store::PgIndexerStore;
 use iota_json::{IotaJsonValue, call_args, type_args};
 use iota_json_rpc_api::{
@@ -11,16 +12,15 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     Balance, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter, IotaObjectRef,
     IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTypeTag, ObjectChange, TransactionBlockBytes,
+    IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
-use iota_move_build::BuildConfig;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, TypeTag,
     balance::Supply,
     base_types::{IotaAddress, ObjectID},
     coin::{COIN_MODULE_NAME, CoinMetadata, TreasuryCap},
-    crypto::{AccountKeyPair, IotaKeyPair, get_key_pair},
+    crypto::{AccountKeyPair, IotaKeyPair, Signature, get_key_pair},
     parse_iota_struct_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
@@ -29,16 +29,16 @@ use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
 use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use test_cluster::TestCluster;
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::OnceCell;
 
 use crate::common::{
     ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_object,
-    indexer_wait_for_transaction, start_test_cluster_with_read_write_indexer,
+    indexer_wait_for_transaction, publish_test_move_package,
+    start_test_cluster_with_read_write_indexer,
 };
 
 static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(IotaAddress, IotaKeyPair, String)> =
     OnceCell::const_new();
-static PACKAGE_PUBLISH_LOCK: OnceCell<Arc<Mutex<i64>>> = OnceCell::const_new();
 
 async fn get_or_init_addr_and_custom_coins(
     cluster: &TestCluster,
@@ -418,10 +418,15 @@ fn indexer_get_coin_metadata_with_migrated_coin_manager_coins() {
             .keystore()
             .get_key(&address)
             .unwrap();
-        let (coin_name, immutable_metadata_coin_name) =
-            create_migrated_coin_manager_coins(cluster, client, store, address, address_kp)
-                .await
-                .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_migrated_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
 
         let (_, result_indexer) =
             get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
@@ -474,10 +479,15 @@ fn get_coin_metadata_with_native_coin_manager_coins() {
             .keystore()
             .get_key(&address)
             .unwrap();
-        let (coin_name, immutable_metadata_coin_name) =
-            create_native_coin_manager_coins(cluster, client, store, address, address_kp)
-                .await
-                .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_native_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
 
         let (result_fullnode, result_indexer) =
             get_coin_metadata_fullnode_indexer(cluster, client, coin_name.to_string()).await;
@@ -533,7 +543,114 @@ fn get_total_supply() {
         let (result_fullnode, result_indexer) =
             get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
 
+        assert!(result_indexer.is_some());
         assert_eq!(result_fullnode, result_indexer);
+    });
+}
+
+#[test]
+fn indexer_get_total_supply_with_migrated_coin_manager_coins() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("indexer_get_total_supply_with_migrated_coin_manager_coins"),
+            None,
+            None,
+        )
+        .await;
+
+        let address = cluster.wallet.active_address().unwrap();
+        let address_kp = cluster
+            .wallet
+            .config()
+            .keystore()
+            .get_key(&address)
+            .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_migrated_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
+
+        let (_, result_indexer) =
+            get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        assert_eq!(result_indexer, Some(Supply { value: 100_000 }));
+
+        let (_, result_indexer) = get_total_supply_fullnode_indexer(
+            cluster,
+            client,
+            immutable_metadata_coin_name.to_string(),
+        )
+        .await;
+        assert_eq!(result_indexer, Some(Supply { value: 0 }));
+    });
+}
+
+#[test]
+fn get_total_supply_with_native_coin_manager_coins() {
+    let ApiTestSetup { runtime, .. } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
+            Some("get_total_supply_with_native_coin_manager_coins"),
+            None,
+            None,
+        )
+        .await;
+
+        let address = cluster.wallet.active_address().unwrap();
+        let address_kp = cluster
+            .wallet
+            .config()
+            .keystore()
+            .get_key(&address)
+            .unwrap();
+        let (coin_name, immutable_metadata_coin_name) = create_native_coin_manager_coins(
+            cluster,
+            client,
+            store,
+            address,
+            address_kp.as_keypair().unwrap(),
+        )
+        .await
+        .unwrap();
+
+        let (result_fullnode, result_indexer) =
+            get_total_supply_fullnode_indexer(cluster, client, coin_name.to_string()).await;
+        assert_eq!(result_indexer, Some(Supply { value: 0 }));
+        assert_eq!(result_fullnode, result_indexer);
+
+        let (result_fullnode, result_indexer) = get_total_supply_fullnode_indexer(
+            cluster,
+            client,
+            immutable_metadata_coin_name.to_string(),
+        )
+        .await;
+        assert_eq!(result_indexer, Some(Supply { value: 0 }));
+        assert_eq!(result_fullnode, result_indexer);
+    });
+}
+
+#[test]
+fn get_total_supply_with_nonexistent_coin() {
+    let ApiTestSetup {
+        runtime,
+        client,
+        cluster,
+        ..
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        let (_, _, coin_name) = get_or_init_addr_and_custom_coins(cluster, client).await;
+        let nonexistent_coin = format!("{coin_name}_some_suffix");
+
+        let (result_fullnode, result_indexer) =
+            get_total_supply_fullnode_indexer(cluster, client, nonexistent_coin).await;
+
+        assert!(result_fullnode.is_none());
+        assert!(result_indexer.is_none());
     });
 }
 
@@ -616,13 +733,13 @@ async fn get_total_supply_fullnode_indexer(
     cluster: &TestCluster,
     client: &HttpClient,
     coin_type: String,
-) -> (Supply, Supply) {
+) -> (Option<Supply>, Option<Supply>) {
     let result_fullnode = cluster
         .rpc_client()
         .get_total_supply(coin_type.clone())
         .await
-        .unwrap();
-    let result_indexer = client.get_total_supply(coin_type).await.unwrap();
+        .ok();
+    let result_indexer = client.get_total_supply(coin_type).await.ok();
     (result_fullnode, result_indexer)
 }
 
@@ -633,7 +750,7 @@ async fn create_trusted_coins(
 ) -> Result<(String, String), anyhow::Error> {
     let http_client = cluster.rpc_client();
 
-    let (package_id, _) = publish_test_move_package(
+    let ((package_id, _, _), _) = publish_test_move_package(
         http_client,
         address,
         account_keypair,
@@ -648,23 +765,17 @@ async fn create_trusted_coins(
     Ok((coin_name, imm_coin_name))
 }
 
-async fn execute_move_call(
+pub async fn execute_move_call(
     client: &HttpClient,
     address: IotaAddress,
-    account_keypair: &IotaKeyPair,
+    account_keypair: &dyn Signer<Signature>,
     package_object_id: ObjectID,
     module: String,
     function: String,
     type_arguments: Vec<IotaTypeTag>,
     arguments: Vec<IotaJsonValue>,
+    gas: Option<ObjectID>,
 ) -> Result<IotaTransactionBlockResponse, anyhow::Error> {
-    let coins = client
-        .get_coins(address, None, None, Some(1))
-        .await
-        .unwrap()
-        .data;
-    let gas = &coins[0];
-
     let transaction_bytes: TransactionBlockBytes = client
         .move_call(
             address,
@@ -673,7 +784,7 @@ async fn execute_move_call(
             function,
             type_arguments,
             arguments,
-            Some(gas.coin_object_id),
+            gas,
             10_000_000.into(),
             None,
         )
@@ -688,7 +799,11 @@ async fn execute_move_call(
         .execute_transaction_block(
             tx_bytes,
             signatures,
-            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_effects()
+                    .with_events(),
+            ),
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
@@ -725,6 +840,7 @@ async fn mint_trusted_coin(
         "mint_and_transfer".into(),
         type_args![coin_name.clone()].unwrap(),
         call_args![treasury_cap, amount, address].unwrap(),
+        None,
     )
     .await?;
     assert_eq!(tx_response.status_ok(), Some(true));
@@ -754,7 +870,7 @@ async fn create_migrated_coin_manager_coins(
     .unwrap();
 
     let http_client = cluster.rpc_client();
-    let (package_id, _) = publish_test_move_package(
+    let ((package_id, _, _), _) = publish_test_move_package(
         http_client,
         address,
         account_keypair,
@@ -800,6 +916,7 @@ async fn create_migrated_coin_manager_coins(
             "migrate_to_manager".into(),
             type_args![coin_name, coin_manager_coin_name].unwrap(),
             call_args![guardian, treasury_cap, coin_metadata].unwrap(),
+            None,
         )
         .await?;
         assert_eq!(tx_response.status_ok(), Some(true));
@@ -852,6 +969,7 @@ async fn create_migrated_coin_manager_coins(
             ]
             .unwrap(),
             call_args![guardian, treasury_cap, coin_metadata].unwrap(),
+            None,
         )
         .await?;
         assert_eq!(tx_response.status_ok(), Some(true));
@@ -867,6 +985,7 @@ async fn create_migrated_coin_manager_coins(
             "hide_metadata".into(),
             type_args![immutable_metadata_coin_name].unwrap(),
             call_args![coin_metadata].unwrap(),
+            None,
         )
         .await?;
         assert_eq!(tx_response.status_ok(), Some(true));
@@ -874,74 +993,6 @@ async fn create_migrated_coin_manager_coins(
     }
 
     Ok((coin_name, immutable_metadata_coin_name))
-}
-
-async fn publish_test_move_package(
-    client: &HttpClient,
-    address: IotaAddress,
-    account_keypair: &IotaKeyPair,
-    test_package_name: &str,
-) -> Result<(ObjectID, IotaTransactionBlockResponse), anyhow::Error> {
-    let _lock = PACKAGE_PUBLISH_LOCK
-        .get_or_init(async || Arc::new(tokio::sync::Mutex::new(0)))
-        .await
-        .lock()
-        .await;
-
-    let coins = client
-        .get_coins(address, None, None, Some(1))
-        .await
-        .unwrap()
-        .data;
-    let gas = &coins[0];
-
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.extend(["tests", "data", test_package_name]);
-
-    let compiled_package = BuildConfig::default().build(&path).unwrap();
-    let with_unpublished_deps = false;
-    let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
-    let dependencies = compiled_package.get_dependency_storage_package_ids();
-
-    let transaction_bytes: TransactionBlockBytes = client
-        .publish(
-            address,
-            compiled_modules_bytes,
-            dependencies,
-            Some(gas.coin_object_id),
-            100_000_000.into(),
-        )
-        .await
-        .unwrap();
-
-    let signed_transaction =
-        to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), account_keypair);
-    let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
-
-    let tx_response: IotaTransactionBlockResponse = client
-        .execute_transaction_block(
-            tx_bytes,
-            signatures,
-            Some(
-                IotaTransactionBlockResponseOptions::new()
-                    .with_object_changes()
-                    .with_events(),
-            ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await
-        .unwrap();
-
-    let object_changes = tx_response.object_changes.as_ref().unwrap();
-    let package_id = object_changes
-        .iter()
-        .find_map(|change| match change {
-            ObjectChange::Published { package_id, .. } => Some(package_id),
-            _ => None,
-        })
-        .unwrap();
-
-    Ok((*package_id, tx_response))
 }
 
 async fn create_native_coin_manager_coins(
@@ -953,7 +1004,7 @@ async fn create_native_coin_manager_coins(
 ) -> Result<(String, String), anyhow::Error> {
     let http_client = cluster.rpc_client();
 
-    let (package_id, tx_response) =
+    let ((package_id, _, _), tx_response) =
         publish_test_move_package(http_client, address, account_keypair, "coin_manager_coins")
             .await?;
     indexer_wait_for_transaction(tx_response.digest, pg_store, indexer_client).await;
@@ -1011,5 +1062,5 @@ async fn transfer_all_coins(
         .await
         .unwrap();
 
-    execute_tx_and_wait_for_indexer(indexer_client, cluster, store, tx_bytes, keypair).await;
+    execute_tx_and_wait_for_indexer(indexer_client, store, tx_bytes, keypair).await;
 }

@@ -8,7 +8,7 @@ import {
     type MethodPayload,
 } from '_src/shared/messaging/messages/payloads/methodPayload';
 import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads/wallet-status-change';
-import { fromB64 } from '@iota/iota-sdk/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 import Dexie from 'dexie';
 import { getAccountSourceByID } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
@@ -35,6 +35,8 @@ import {
     WALLET_LOCK_DURATION_IN_MS,
 } from '@iota/core';
 import { AccountTooManyAttemptsError } from '_src/shared/accounts';
+import { KeystoneAccount } from './keystoneAccount';
+import { KeystoneAccountSource } from '../account-sources/keystoneAccountSource';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -48,6 +50,9 @@ function toAccount(account: SerializedAccount) {
     }
     if (LedgerAccount.isOfType(account)) {
         return new LedgerAccount({ id: account.id, cachedData: account });
+    }
+    if (KeystoneAccount.isOfType(account)) {
+        return new KeystoneAccount({ id: account.id, cachedData: account });
     }
     throw new Error(`Unknown account of type ${account.type}`);
 }
@@ -237,7 +242,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 {
                     type: 'method-payload',
                     method: 'signDataResponse',
-                    args: { signature: await account.signData(fromB64(data)) },
+                    args: { signature: await account.signData(fromBase64(data)) },
                 },
                 msg.id,
             ),
@@ -274,6 +279,20 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             for (const aLedgerAccount of accounts) {
                 newSerializedAccounts.push(
                     await LedgerAccount.createNew({ ...aLedgerAccount, password }),
+                );
+            }
+        } else if (type === AccountType.KeystoneDerived) {
+            const { sourceID, accounts } = payload.args;
+            const accountSource = await getAccountSourceByID(sourceID);
+            if (!accountSource) {
+                throw new Error(`Account source ${sourceID} not found`);
+            }
+            if (!(accountSource instanceof KeystoneAccountSource)) {
+                throw new Error(`Invalid account source type`);
+            }
+            for (const account of accounts) {
+                newSerializedAccounts.push(
+                    await KeystoneAccount.createNew({ ...account, sourceID }),
                 );
             }
         } else {

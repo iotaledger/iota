@@ -255,18 +255,18 @@ export function TokenDetails() {
                                     ) : null}
                                     {hasSupplyIncreaseVestingObjects || needsMigration ? (
                                         <div className="flex w-full flex-row gap-x-xs">
-                                            {hasSupplyIncreaseVestingObjects ? (
-                                                <OverviewHint
-                                                    onClick={() => setDialogVestingOpen(true)}
-                                                    title="Vested Staking"
-                                                    icon={Vesting}
-                                                />
-                                            ) : null}
                                             {needsMigration ? (
                                                 <OverviewHint
                                                     onClick={() => setDialogMigrationOpen(true)}
                                                     title="Migration"
                                                     icon={Migration}
+                                                />
+                                            ) : null}
+                                            {hasSupplyIncreaseVestingObjects ? (
+                                                <OverviewHint
+                                                    onClick={() => setDialogVestingOpen(true)}
+                                                    title="Vesting"
+                                                    icon={Vesting}
                                                 />
                                             ) : null}
                                         </div>
@@ -275,7 +275,7 @@ export function TokenDetails() {
                                 {!accountHasIota ? (
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
-                                            <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                                            <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                                 {isMainnet
                                                     ? 'Start by buying IOTA'
                                                     : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}

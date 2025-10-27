@@ -144,7 +144,7 @@ pub async fn copy_files<S: ObjectStoreGetExt, D: ObjectStorePutExt>(
         .try_for_each(|(path, ret)| {
             if let Some(progress_bar_clone) = &progress_bar_clone {
                 progress_bar_clone.inc(1);
-                progress_bar_clone.set_message(format!("file: {}", path));
+                progress_bar_clone.set_message(format!("file: {path}"));
                 instant = Instant::now();
             }
             futures::future::ready(ret)
@@ -416,7 +416,7 @@ pub async fn write_snapshot_manifest<S: ObjectStoreListExt + ObjectStorePutExt>(
     let bytes = Bytes::from(epoch_manifest.serialize_as_newline_delimited());
     put(
         store,
-        &Path::from(format!("{}/{}", dir, MANIFEST_FILENAME)),
+        &Path::from(format!("{dir}/{MANIFEST_FILENAME}")),
         bytes,
     )
     .await?;

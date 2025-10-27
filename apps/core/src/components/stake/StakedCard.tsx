@@ -71,9 +71,9 @@ export function StakedCard({
                 subtitle={`${principalStaked} ${symbol}`}
                 icon={
                     activeButNotInTheCommittee ? (
-                        <RewardsOff className="text-warning-60" />
+                        <RewardsOff className="text-iota-warning-60" />
                     ) : inactiveValidator ? (
-                        <Warning className="text-error-30" />
+                        <Warning className="text-iota-error-30" />
                     ) : null
                 }
                 tooltipText={

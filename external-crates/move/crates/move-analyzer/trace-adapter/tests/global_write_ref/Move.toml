@@ -1,6 +1,6 @@
 [package]
 name = "global_write_ref"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 Iota = { git = "https://github.com/iotaledger/iota.git", subdir = "crates/iota-framework/packages/iota-framework", rev = "framework/mainnet" }

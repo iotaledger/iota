@@ -74,7 +74,7 @@ export function InputWrapper({
                 <div
                     className={cx(
                         'flex flex-row items-center',
-                        caption || errorMessage ? 'justify-between' : 'justify-end',
+                        caption || errorMessage ? 'justify-between gap-md' : 'justify-end',
                     )}
                 >
                     {(errorMessage || caption) && (

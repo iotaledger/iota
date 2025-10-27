@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -327,7 +327,7 @@ impl CompilationEnv {
         &self.mapped_files
     }
 
-    pub fn diagnostic_reporter_at_top_level(&self) -> DiagnosticReporter {
+    pub fn diagnostic_reporter_at_top_level(&self) -> DiagnosticReporter<'_> {
         DiagnosticReporter::new(
             &self.flags,
             &self.known_filter_names,
@@ -1057,9 +1057,8 @@ impl SaveHook {
 ///   of the macro and how it disassembles and pushes values across its
 ///   computation.
 ///
-/// Examples of usage can be found in `expansion/`, `naming/`, `typing/`, and
-/// `hlir/`, in their respective `translation.rs` implementations.
-
+/// Examples of usage can be found in `expansion/`, `naming/`, `typing/`, and `hlir/`, in their
+/// respective `translation.rs` implementations.
 macro_rules! process_binops {
     ($optype:ty,
      $valtype:ty,

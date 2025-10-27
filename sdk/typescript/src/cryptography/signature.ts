@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64, toB64 } from '@iota/bcs';
+import { fromBase64, toBase64 } from '@iota/bcs';
 
 import { bcs } from '../bcs/index.js';
 import type { MultiSigStruct } from '../multisig/publickey.js';
@@ -13,6 +13,7 @@ import {
     SIGNATURE_SCHEME_TO_FLAG,
     SIGNATURE_SCHEME_TO_SIZE,
 } from './signature-scheme.js';
+import { parseSerializedPasskeySignature } from '../keypairs/passkey/publickey.js';
 
 /**
  * Pair of signature and corresponding public key
@@ -42,19 +43,21 @@ export function toSerializedSignature({
     serializedSignature.set([SIGNATURE_SCHEME_TO_FLAG[signatureScheme]]);
     serializedSignature.set(signature, 1);
     serializedSignature.set(pubKeyBytes, 1 + signature.length);
-    return toB64(serializedSignature);
+    return toBase64(serializedSignature);
 }
 
 /**
  * Decodes a serialized signature into its constituent components: the signature scheme, the actual signature, and the public key
  */
 export function parseSerializedSignature(serializedSignature: string) {
-    const bytes = fromB64(serializedSignature);
+    const bytes = fromBase64(serializedSignature);
 
     const signatureScheme =
         SIGNATURE_FLAG_TO_SCHEME[bytes[0] as keyof typeof SIGNATURE_FLAG_TO_SCHEME];
 
     switch (signatureScheme) {
+        case 'Passkey':
+            return parseSerializedPasskeySignature(serializedSignature);
         case 'MultiSig':
             const multisig: MultiSigStruct = bcs.MultiSig.parse(bytes.slice(1));
             return {
@@ -78,6 +81,7 @@ export function parseSerializedSignature(serializedSignature: string) {
                 publicKey,
                 bytes,
             };
+
         default:
             throw new Error('Unsupported signature scheme');
     }

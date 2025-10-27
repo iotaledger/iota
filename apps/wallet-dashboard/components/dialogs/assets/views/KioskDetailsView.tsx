@@ -45,7 +45,7 @@ export function KioskDetailsView({ onClose, asset, onItemClick }: DetailsViewPro
             <DialogLayoutBody>
                 <div className="flex flex-col gap-md">
                     <div className="flex flex-row gap-x-sm">
-                        <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+                        <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                             Kiosk items
                         </span>
                         <Badge type={BadgeType.Neutral} label={items?.length.toString() ?? '0'} />

@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{convert::TryFrom, fmt, str::FromStr};
@@ -80,7 +80,7 @@ impl AccountAddress {
             with_prefix: bool,
         }
 
-        impl<'a> fmt::Display for HexDisplay<'a> {
+        impl fmt::Display for HexDisplay<'_> {
             fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
                 if self.with_prefix {
                     write!(f, "0x{}", hex::encode(self.data))

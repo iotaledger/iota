@@ -225,7 +225,6 @@ async fn test_zklogin_create_authenticator_state_object() {
                 node.state()
                     .get_object_cache_reader()
                     .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
-                    .unwrap()
                     .is_none()
             );
         });
@@ -242,7 +241,6 @@ async fn test_zklogin_create_authenticator_state_object() {
             node.state()
                 .get_object_cache_reader()
                 .get_latest_object_ref_or_tombstone(IOTA_AUTHENTICATOR_STATE_OBJECT_ID)
-                .unwrap()
                 .expect("auth state object should exist");
         });
     }
@@ -288,7 +286,6 @@ async fn test_zklogin_conflicting_jwks() {
                 let tx = state
                     .get_transaction_cache_reader()
                     .get_transaction_block(&digest)
-                    .unwrap()
                     .unwrap();
                 match &tx.data().intent_message().value.kind() {
                     TransactionKind::EndOfEpochTransaction(_) => (),

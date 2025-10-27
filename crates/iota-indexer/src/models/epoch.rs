@@ -2,16 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use diesel::{Insertable, Queryable, Selectable};
+use diesel::{
+    Insertable, Queryable, Selectable,
+    prelude::{AsChangeset, Identifiable},
+};
 use iota_json_rpc_types::{EndOfEpochInfo, EpochInfo};
-use iota_types::iota_system_state::iota_system_state_summary::{
-    IotaSystemStateSummary, IotaSystemStateSummaryV1,
+use iota_types::{
+    iota_system_state::iota_system_state_summary::{
+        IotaSystemStateSummary, IotaSystemStateSummaryV1,
+    },
+    messages_checkpoint::CertifiedCheckpointSummary,
 };
 
 use crate::{
     errors::IndexerError,
     schema::{epochs, feature_flags, protocol_configs},
-    types::{IndexedEpochInfo, IotaSystemStateSummaryView},
+    types::{IndexedEpochInfoEvent, IotaSystemStateSummaryView},
 };
 
 #[derive(Queryable, Insertable, Debug, Clone, Default)]
@@ -26,7 +32,8 @@ pub struct StoredEpochInfo {
     pub total_stake: i64,
     pub storage_fund_balance: i64,
     pub system_state: Vec<u8>,
-    pub epoch_total_transactions: Option<i64>,
+    /// Total number of network transactions at the end of the epoch.
+    pub network_total_transactions: Option<i64>,
     pub last_checkpoint_id: Option<i64>,
     pub epoch_end_timestamp: Option<i64>,
     pub storage_charge: Option<i64>,
@@ -36,6 +43,15 @@ pub struct StoredEpochInfo {
     pub epoch_commitments: Option<Vec<u8>>,
     pub burnt_tokens_amount: Option<i64>,
     pub minted_tokens_amount: Option<i64>,
+    /// First transaction sequence number of this epoch.
+    pub first_tx_sequence_number: i64,
+}
+
+impl StoredEpochInfo {
+    pub fn epoch_total_transactions(&self) -> Option<i64> {
+        self.network_total_transactions
+            .map(|total_tx| total_tx - self.first_tx_sequence_number)
+    }
 }
 
 #[derive(Queryable, Insertable, Debug, Clone, Default)]
@@ -65,7 +81,7 @@ pub struct QueryableEpochInfo {
     pub protocol_version: i64,
     pub total_stake: i64,
     pub storage_fund_balance: i64,
-    pub epoch_total_transactions: Option<i64>,
+    pub network_total_transactions: Option<i64>,
     pub last_checkpoint_id: Option<i64>,
     pub epoch_end_timestamp: Option<i64>,
     pub storage_charge: Option<i64>,
@@ -75,6 +91,14 @@ pub struct QueryableEpochInfo {
     pub epoch_commitments: Option<Vec<u8>>,
     pub burnt_tokens_amount: Option<i64>,
     pub minted_tokens_amount: Option<i64>,
+    pub first_tx_sequence_number: i64,
+}
+
+impl QueryableEpochInfo {
+    pub fn epoch_total_transactions(&self) -> Option<i64> {
+        self.network_total_transactions
+            .map(|total_tx| total_tx - self.first_tx_sequence_number)
+    }
 }
 
 #[derive(Queryable)]
@@ -83,49 +107,90 @@ pub struct QueryableEpochSystemState {
     pub system_state: Vec<u8>,
 }
 
-impl StoredEpochInfo {
-    pub fn from_epoch_beginning_info(e: &IndexedEpochInfo) -> Self {
+#[derive(Insertable, Identifiable, AsChangeset, Clone, Debug)]
+#[diesel(primary_key(epoch))]
+#[diesel(table_name = epochs)]
+pub(crate) struct StartOfEpochUpdate {
+    pub epoch: i64,
+    pub first_checkpoint_id: i64,
+    pub first_tx_sequence_number: i64,
+    pub epoch_start_timestamp: i64,
+    pub reference_gas_price: i64,
+    pub protocol_version: i64,
+    pub total_stake: i64,
+    pub storage_fund_balance: i64,
+    pub system_state: Vec<u8>,
+}
+
+#[derive(Identifiable, AsChangeset, Clone, Debug)]
+#[diesel(primary_key(epoch))]
+#[diesel(table_name = epochs)]
+pub(crate) struct EndOfEpochUpdate {
+    pub epoch: i64,
+    pub network_total_transactions: i64,
+    pub last_checkpoint_id: i64,
+    pub epoch_end_timestamp: i64,
+    pub storage_charge: i64,
+    pub storage_rebate: i64,
+    pub total_gas_fees: i64,
+    pub total_stake_rewards_distributed: i64,
+    pub epoch_commitments: Vec<u8>,
+    pub burnt_tokens_amount: i64,
+    pub minted_tokens_amount: i64,
+}
+
+impl StartOfEpochUpdate {
+    pub fn new(
+        new_system_state_summary: &IotaSystemStateSummary,
+        first_checkpoint_id: u64,
+        first_tx_sequence_number: u64,
+        event: Option<&IndexedEpochInfoEvent>,
+    ) -> Self {
+        // NOTE: total_stake and storage_fund_balance are about new epoch,
+        // although the event is generated at the end of the previous epoch,
+        // the event is optional b/c no such event for the first epoch.
+        let (total_stake, storage_fund_balance) = match event {
+            Some(event) => (event.total_stake, event.storage_fund_balance),
+            None => (0, 0),
+        };
         Self {
-            epoch: e.epoch as i64,
-            first_checkpoint_id: e.first_checkpoint_id as i64,
-            epoch_start_timestamp: e.epoch_start_timestamp as i64,
-            reference_gas_price: e.reference_gas_price as i64,
-            protocol_version: e.protocol_version as i64,
-            total_stake: e.total_stake as i64,
-            storage_fund_balance: e.storage_fund_balance as i64,
-            system_state: e.system_state.clone(),
-            ..Default::default()
+            epoch: new_system_state_summary.epoch() as i64,
+            first_checkpoint_id: first_checkpoint_id as i64,
+            first_tx_sequence_number: first_tx_sequence_number as i64,
+            epoch_start_timestamp: new_system_state_summary.epoch_start_timestamp_ms() as i64,
+            reference_gas_price: new_system_state_summary.reference_gas_price() as i64,
+            protocol_version: new_system_state_summary.protocol_version() as i64,
+            total_stake: total_stake as i64,
+            storage_fund_balance: storage_fund_balance as i64,
+            system_state: bcs::to_bytes(new_system_state_summary).unwrap(),
         }
     }
+}
 
-    pub fn from_epoch_end_info(e: &IndexedEpochInfo) -> Self {
+impl EndOfEpochUpdate {
+    pub fn new(
+        last_checkpoint_summary: &CertifiedCheckpointSummary,
+        event: &IndexedEpochInfoEvent,
+    ) -> Self {
         Self {
-            epoch: e.epoch as i64,
-            system_state: e.system_state.clone(),
-            epoch_total_transactions: e.epoch_total_transactions.map(|v| v as i64),
-            last_checkpoint_id: e.last_checkpoint_id.map(|v| v as i64),
-            epoch_end_timestamp: e.epoch_end_timestamp.map(|v| v as i64),
-            storage_charge: e.storage_charge.map(|v| v as i64),
-            storage_rebate: e.storage_rebate.map(|v| v as i64),
-            total_gas_fees: e.total_gas_fees.map(|v| v as i64),
-            total_stake_rewards_distributed: e.total_stake_rewards_distributed.map(|v| v as i64),
-            epoch_commitments: e
-                .epoch_commitments
-                .as_ref()
-                .map(|v| bcs::to_bytes(&v).unwrap()),
-
-            // For the following fields:
-            // we don't update these columns when persisting EndOfEpoch data.
-            // However if the data is partial, diesel would interpret them
-            // as Null and hence cause errors.
-            first_checkpoint_id: 0,
-            epoch_start_timestamp: 0,
-            reference_gas_price: 0,
-            protocol_version: 0,
-            total_stake: 0,
-            storage_fund_balance: 0,
-            burnt_tokens_amount: e.burnt_tokens_amount.map(|v| v as i64),
-            minted_tokens_amount: e.minted_tokens_amount.map(|v| v as i64),
+            epoch: last_checkpoint_summary.epoch as i64,
+            network_total_transactions: last_checkpoint_summary.network_total_transactions as i64,
+            last_checkpoint_id: *last_checkpoint_summary.sequence_number() as i64,
+            epoch_end_timestamp: last_checkpoint_summary.timestamp_ms as i64,
+            storage_charge: event.storage_charge as i64,
+            storage_rebate: event.storage_rebate as i64,
+            total_gas_fees: event.total_gas_fees as i64,
+            total_stake_rewards_distributed: event.total_stake_rewards_distributed as i64,
+            epoch_commitments: bcs::to_bytes(
+                &last_checkpoint_summary
+                    .end_of_epoch_data
+                    .clone()
+                    .unwrap()
+                    .epoch_commitments,
+            )
+            .unwrap(),
+            burnt_tokens_amount: event.burnt_tokens_amount as i64,
+            minted_tokens_amount: event.minted_tokens_amount as i64,
         }
     }
 }
@@ -193,7 +258,7 @@ impl TryFrom<StoredEpochInfo> for EpochInfo {
         Ok(EpochInfo {
             epoch: value.epoch as u64,
             validators: system_state.active_validators().to_vec(),
-            epoch_total_transactions: value.epoch_total_transactions.unwrap_or(0) as u64,
+            epoch_total_transactions: value.epoch_total_transactions().unwrap_or(0) as u64,
             first_checkpoint_id: value.first_checkpoint_id as u64,
             epoch_start_timestamp: value.epoch_start_timestamp as u64,
             end_of_epoch_info,

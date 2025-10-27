@@ -100,7 +100,7 @@ async fn test_publish_empty_package() {
     let gas = ObjectID::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let gas_object = authority.get_object(&gas).await.unwrap();
+    let gas_object = authority.get_object(&gas).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
 
     // empty package
@@ -152,7 +152,7 @@ async fn test_publish_duplicate_modules() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas = ObjectID::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
-    let gas_object = authority.get_object(&gas).await.unwrap();
+    let gas_object = authority.get_object(&gas).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
@@ -215,7 +215,7 @@ async fn test_generate_lock_file() {
 
         [move]
         version = 3
-        manifest_digest = "78ED00C216B5A73463BD935B7AD1AB6CAF8ECA9ACD7FFCC19F3462EBD1D83EC3"
+        manifest_digest = "37689E9F9E5809521FA06520D55141982F5B8F26F5C55DE4E88FA63D73E1FEFF"
         deps_digest = "3C4103934B1E040BB6B23F1D610B4EF9F2F1166A50A104EADCF77467C004C600"
         dependencies = [
           { id = "Examples", name = "Examples" },
@@ -244,7 +244,7 @@ async fn test_generate_lock_file() {
 
         [move.toolchain-version]
         compiler-version = "0.0.1"
-        edition = "2024.beta"
+        edition = "2024"
         flavor = "iota"
     "##]];
     expected.assert_eq(lock_file_contents.as_str());
@@ -317,7 +317,7 @@ async fn test_publish_extraneous_bytes_modules() {
     let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
     let gas = ObjectID::random();
     let authority = init_state_with_ids(vec![(sender, gas)]).await;
-    let gas_object = authority.get_object(&gas).await.unwrap();
+    let gas_object = authority.get_object(&gas).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let rgp = authority.reference_gas_price_for_testing().unwrap();
 
@@ -341,7 +341,7 @@ async fn test_publish_extraneous_bytes_modules() {
     assert_eq!(result.status(), &ExecutionStatus::Success);
 
     // make the bytes invalid
-    let gas_object = authority.get_object(&gas).await.unwrap();
+    let gas_object = authority.get_object(&gas).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let mut modules = correct_modules.clone();
     modules[0].push(0);
@@ -368,7 +368,7 @@ async fn test_publish_extraneous_bytes_modules() {
     );
 
     // make the bytes invalid, in a different way
-    let gas_object = authority.get_object(&gas).await.unwrap();
+    let gas_object = authority.get_object(&gas).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let mut modules = correct_modules.clone();
     let first_module = modules[0].clone();
@@ -396,7 +396,7 @@ async fn test_publish_extraneous_bytes_modules() {
     );
 
     // make the bytes invalid by adding metadata
-    let gas_object = authority.get_object(&gas).await.unwrap();
+    let gas_object = authority.get_object(&gas).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let mut modules = correct_modules.clone();
     let new_bytes = {

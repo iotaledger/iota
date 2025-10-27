@@ -47,12 +47,14 @@ impl ConsensusAuthority {
     /// Starts the `ConsensusAuthority` for the specified network type.
     pub async fn start(
         network_type: ConsensusNetwork,
+        epoch_start_timestamp_ms: u64,
         own_index: AuthorityIndex,
         committee: Committee,
         parameters: Parameters,
         protocol_config: ProtocolConfig,
         protocol_keypair: ProtocolKeyPair,
         network_keypair: NetworkKeyPair,
+        clock: Arc<Clock>,
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
@@ -66,12 +68,14 @@ impl ConsensusAuthority {
         match network_type {
             ConsensusNetwork::Tonic => {
                 let authority = AuthorityNode::start(
+                    epoch_start_timestamp_ms,
                     own_index,
                     committee,
                     parameters,
                     protocol_config,
                     protocol_keypair,
                     network_keypair,
+                    clock,
                     transaction_verifier,
                     commit_consumer,
                     registry,
@@ -147,6 +151,7 @@ where
     /// It ensures that the authority node is fully initialized and
     /// ready to participate in the consensus process.
     pub(crate) async fn start(
+        epoch_start_timestamp_ms: u64,
         own_index: AuthorityIndex,
         committee: Committee,
         parameters: Parameters,
@@ -155,6 +160,7 @@ where
         // kept in Core.
         protocol_keypair: ProtocolKeyPair,
         network_keypair: NetworkKeyPair,
+        clock: Arc<Clock>,
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
@@ -162,13 +168,12 @@ where
     ) -> Self {
         assert!(
             committee.is_valid_index(own_index),
-            "Invalid own index {}",
-            own_index
+            "Invalid own index {own_index}"
         );
         let own_hostname = &committee.authority(own_index).hostname;
         info!(
-            "Starting consensus authority {} {}, {:?}, boot counter {}",
-            own_index, own_hostname, protocol_config.version, boot_counter
+            "Starting consensus authority {own_index} {own_hostname}, {0:?}, epoch start timestamp {epoch_start_timestamp_ms}, boot counter {boot_counter}",
+            protocol_config.version
         );
         info!(
             "Consensus authorities: {}",
@@ -179,13 +184,15 @@ where
         );
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
+        let committee_size = committee.size();
         let context = Arc::new(Context::new(
+            epoch_start_timestamp_ms,
             own_index,
             committee,
             parameters,
             protocol_config,
-            initialise_metrics(registry),
-            Arc::new(Clock::new()),
+            initialise_metrics(registry, committee_size),
+            clock,
         ));
         let start_time = Instant::now();
 
@@ -215,8 +222,11 @@ where
 
         let highest_known_commit_at_startup = dag_state.read().last_commit_index();
 
+        // Sync last known own block is enabled when:
+        // 1. This is the first boot of the authority node (e.g. disable if the
+        //    validator was active in the previous epoch) and
+        // 2. The timeout for syncing last known own block is not set to zero.
         let sync_last_known_own_block = boot_counter == 0
-            && dag_state.read().highest_accepted_round() == 0
             && !context
                 .parameters
                 .sync_last_known_own_block_timeout
@@ -444,7 +454,7 @@ mod tests {
 
         let temp_dir = TempDir::new().unwrap();
         let parameters = Parameters {
-            db_path: temp_dir.into_path(),
+            db_path: temp_dir.keep(),
             ..Default::default()
         };
         let txn_verifier = NoopTransactionVerifier {};
@@ -458,12 +468,14 @@ mod tests {
 
         let authority = ConsensusAuthority::start(
             network_type,
+            0,
             own_index,
             committee,
             parameters,
             ProtocolConfig::get_for_max_version_UNSAFE(),
             protocol_keypair,
             network_keypair,
+            Arc::new(Clock::default()),
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
@@ -495,6 +507,8 @@ mod tests {
 
         if gc_depth == 0 {
             protocol_config.set_consensus_linearize_subdag_v2_for_testing(false);
+            protocol_config
+                .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(false);
         }
 
         let temp_dirs = (0..NUM_OF_AUTHORITIES)
@@ -545,8 +559,7 @@ mod tests {
                     for txn in b.transactions().iter().map(|t| t.data().to_vec()) {
                         assert!(
                             expected_transactions.remove(&txn),
-                            "Transaction not submitted or already seen: {:?}",
-                            txn
+                            "Transaction not submitted or already seen: {txn:?}"
                         );
                     }
                 }
@@ -644,8 +657,7 @@ mod tests {
                     for txn in b.transactions().iter().map(|t| t.data().to_vec()) {
                         assert!(
                             expected_transactions.remove(&txn),
-                            "Transaction not submitted or already seen: {:?}",
-                            txn
+                            "Transaction not submitted or already seen: {txn:?}"
                         );
                     }
                 }
@@ -705,6 +717,8 @@ mod tests {
 
         if gc_depth == 0 {
             protocol_config.set_consensus_linearize_subdag_v2_for_testing(false);
+            protocol_config
+                .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(false);
         }
 
         for (index, _authority_info) in committee.authorities() {
@@ -854,12 +868,14 @@ mod tests {
 
         let authority = ConsensusAuthority::start(
             network_type,
+            0,
             index,
             committee,
             parameters,
             protocol_config,
             protocol_keypair,
             network_keypair,
+            Arc::new(Clock::default()),
             Arc::new(txn_verifier),
             commit_consumer,
             registry,

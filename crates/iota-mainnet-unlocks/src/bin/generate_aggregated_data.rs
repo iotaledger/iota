@@ -56,7 +56,7 @@ fn aggregate_unlocks(repo_path: &Path) -> Result<BTreeMap<String, u64>> {
 
     for folder in FOLDERS {
         let csv_path = repo_path.join(folder).join("summary.csv");
-        println!("Processing file: {:?}", csv_path);
+        println!("Processing file: {csv_path:?}");
 
         let mut rdr = Reader::from_path(&csv_path)
             .with_context(|| format!("failed to open CSV file: {csv_path:?}"))?;

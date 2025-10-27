@@ -1,35 +1,49 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs::File, path::Path, str::FromStr, sync::Arc};
+use std::{fs::File, path::Path, str::FromStr, sync::Arc, time::Duration};
 
 use hex::FromHex;
 use iota_indexer::{
-    models::transactions::StoredTransaction, store::package_resolver::IndexerStorePackageResolver,
-    test_utils::TestDatabase,
+    config::PruningOptions,
+    models::transactions::StoredTransaction,
+    store::package_resolver::IndexerStorePackageResolver,
+    test_utils::{TestDatabase, db_url},
 };
+use iota_json::{call_args, type_args};
 use iota_json_rpc_api::{IndexerApiClient, ReadApiClient, TransactionBuilderClient};
 use iota_json_rpc_types::{
     CheckpointId, IotaGetPastObjectRequest, IotaObjectDataOptions, IotaObjectRef,
     IotaObjectResponse, IotaObjectResponseQuery, IotaPastObjectResponse,
-    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQueryV2, TransactionFilterV2,
 };
 use iota_package_resolver::Resolver;
 use iota_protocol_config::ProtocolVersion;
-use iota_test_transaction_builder::{create_nft, delete_nft, publish_nfts_package};
+use iota_test_transaction_builder::{
+    TestTransactionBuilder, create_nft, delete_nft, publish_nfts_package,
+    publish_simple_warrior_package,
+};
 use iota_types::{
     base_types::{ObjectID, SequenceNumber},
     crypto::{AccountKeyPair, get_key_pair},
     digests::{ChainIdentifier, ObjectDigest, TransactionDigest},
     error::IotaObjectResponseError,
+    programmable_transaction_builder::ProgrammableTransactionBuilder,
+    transaction::{CallArg, ObjectArg},
+    utils::to_sender_signed_transaction,
 };
+use itertools::Itertools;
+use move_core_types::identifier::Identifier;
 use serde_json::Value;
 
-use crate::common::{
-    ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer, get_indexer_db_url,
-    indexer_wait_for_checkpoint, indexer_wait_for_checkpoint_pruned, indexer_wait_for_object,
-    indexer_wait_for_transaction, rpc_call_error_msg_matches,
-    start_test_cluster_with_read_write_indexer,
+use crate::{
+    common::{
+        ApiTestSetup, FIXTURES_DIR, execute_tx_and_wait_for_indexer, indexer_wait_for_checkpoint,
+        indexer_wait_for_checkpoint_pruned, indexer_wait_for_object, indexer_wait_for_transaction,
+        rpc_call_error_msg_matches, start_test_cluster_with_read_write_indexer,
+    },
+    write_api::{create_basic_object, deploy_basics_pkg},
 };
 
 /// Utility function to convert hex strings in JSON values to byte arrays.
@@ -190,6 +204,10 @@ fn get_transaction_block_with_options(options: IotaTransactionBlockResponseOptio
         // match
         assert_eq!(fullnode_tx, tx);
 
+        // Those fields should be present for checkpoint indexed transactions
+        assert!(tx.checkpoint.is_some());
+        assert!(tx.timestamp_ms.is_some());
+
         assert!(
             match_transaction_block_resp_options(&options, &[fullnode_tx]),
             "fullnode transaction block assertion failed"
@@ -248,6 +266,12 @@ fn multi_get_transaction_blocks_with_options(options: IotaTransactionBlockRespon
             "indexer multi transaction blocks assertion failed"
         );
     });
+}
+
+async fn wait_for_objects_history() {
+    // Objects history is not filled by optimistic indexing, this method waits a few
+    // seconds so that checkpoint indexing has a chance to kick in
+    tokio::time::sleep(Duration::from_secs(3)).await;
 }
 
 #[test]
@@ -548,7 +572,6 @@ fn get_checkpoints_by_cursor_and_limit_descending() {
             .unwrap();
 
         assert_eq!(
-            // vec![2, 1, 5],
             vec![2, 1, 0],
             indexer_checkpoint
                 .data
@@ -897,6 +920,184 @@ fn get_events() {
 
         assert!(!events.is_empty());
     });
+}
+
+#[test]
+fn get_newly_indexed_optimistic_transaction() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+
+        // Update the object to generate new event
+        let res = crate::coin_api::execute_move_call(
+            client,
+            sender,
+            &sender_kp,
+            package_id,
+            "object_basics".to_string(),
+            "update".to_string(),
+            type_args![].unwrap(),
+            call_args!(basic_obj_1, basic_obj_2).unwrap(),
+            None,
+        )
+        .await?;
+        assert_eq!(res.status_ok(), Some(true));
+
+        // despite the naming, there is no 100% guarantee that the result here comes
+        // from optimistic indexing, but it's very likely
+        let result_optimistic = client
+            .get_transaction_block(
+                res.digest,
+                Some(IotaTransactionBlockResponseOptions::full_content()),
+            )
+            .await
+            .unwrap();
+        let tx_data_to_compare_opt = (
+            &result_optimistic.digest,
+            &result_optimistic.transaction,
+            &result_optimistic.raw_transaction,
+            &result_optimistic.effects,
+            &result_optimistic.object_changes,
+            &result_optimistic.balance_changes,
+            &result_optimistic.errors,
+            &result_optimistic.raw_effects,
+        );
+
+        indexer_wait_for_transaction(res.digest, store, client).await;
+
+        let result_checkpointed = client
+            .get_transaction_block(
+                res.digest,
+                Some(IotaTransactionBlockResponseOptions::full_content()),
+            )
+            .await
+            .unwrap();
+        let tx_data_to_compare_ckpt = (
+            &result_checkpointed.digest,
+            &result_checkpointed.transaction,
+            &result_checkpointed.raw_transaction,
+            &result_checkpointed.effects,
+            &result_checkpointed.object_changes,
+            &result_checkpointed.balance_changes,
+            &result_checkpointed.errors,
+            &result_checkpointed.raw_effects,
+        );
+        assert_eq!(tx_data_to_compare_opt, tx_data_to_compare_ckpt);
+        // comparing only selected fields, because timestamp_ms/checkpoint changes from
+        // None to Some after checkpoint indexing kicks in
+
+        assert!(result_checkpointed.checkpoint.is_some());
+        assert!(result_checkpointed.timestamp_ms.is_some());
+
+        Ok(())
+    })
+}
+
+#[test]
+fn get_newly_created_optimistically_indexed_event() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+    runtime.block_on(async move {
+        indexer_wait_for_checkpoint(store, 1).await;
+        let (sender, sender_kp): (_, AccountKeyPair) = get_key_pair();
+
+        let gas_ref = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(10_000_000_000),
+                sender,
+            )
+            .await;
+        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+
+        let (_, package_id) = deploy_basics_pkg(sender, &sender_kp, client).await;
+        let basic_obj_1 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+        let basic_obj_2 = create_basic_object(sender, &sender_kp, client, &package_id).await?;
+
+        // Update the object to generate new event
+        let res = crate::coin_api::execute_move_call(
+            client,
+            sender,
+            &sender_kp,
+            package_id,
+            "object_basics".to_string(),
+            "update".to_string(),
+            type_args![].unwrap(),
+            call_args!(basic_obj_1, basic_obj_2).unwrap(),
+            None,
+        )
+        .await?;
+        assert_eq!(res.status_ok(), Some(true));
+
+        let event_id = res
+            .events
+            .as_ref()
+            .unwrap()
+            .data
+            .iter()
+            .exactly_one()
+            .unwrap()
+            .id;
+
+        // despite the naming, there is no 100% guarantee that the result here comes
+        // from optimistic indexing, but it's very likely
+        let result_optimistic = client.get_events(res.digest).await.unwrap();
+        assert_eq!(result_optimistic.len(), 1);
+        assert_eq!(result_optimistic[0].id, event_id);
+        let event_data_to_compare_opt = (
+            &result_optimistic[0].id,
+            &result_optimistic[0].package_id,
+            &result_optimistic[0].transaction_module,
+            &result_optimistic[0].sender,
+            &result_optimistic[0].type_,
+            &result_optimistic[0].parsed_json,
+            &result_optimistic[0].bcs,
+        );
+
+        indexer_wait_for_transaction(res.digest, store, client).await;
+
+        let result_checkpointed = client.get_events(res.digest).await.unwrap();
+        assert_eq!(result_checkpointed.len(), 1);
+        assert_eq!(result_checkpointed[0].id, event_id);
+        let event_data_to_compare_ckpt = (
+            &result_checkpointed[0].id,
+            &result_checkpointed[0].package_id,
+            &result_checkpointed[0].transaction_module,
+            &result_checkpointed[0].sender,
+            &result_checkpointed[0].type_,
+            &result_checkpointed[0].parsed_json,
+            &result_checkpointed[0].bcs,
+        );
+
+        assert_eq!(event_data_to_compare_opt, event_data_to_compare_ckpt);
+        // comparing only selected fields, because timestamp_ms changes from None to
+        // Some after checkpoint indexing kicks in
+
+        Ok(())
+    })
 }
 
 #[test]
@@ -1283,12 +1484,12 @@ fn try_get_past_object_object_not_exists() {
         let result = client
             .try_get_past_object(object_id, version, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         assert_eq!(
             result,
             IotaPastObjectResponse::ObjectNotExists(object_id),
-            "Mismatch in ObjectNotExists response"
+            "mismatch in ObjectNotExists response"
         );
     });
 }
@@ -1315,22 +1516,22 @@ fn try_get_past_object_version_found() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        wait_for_objects_history().await;
 
         let result = client
             .try_get_past_object(gas_ref.0, gas_ref.1, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
                     data.version, gas_ref.1,
-                    "Expected object version {:?} but got {:?}",
+                    "expected object version {:?} but got {:?}",
                     gas_ref.1, data.version
                 );
             }
-            _ => panic!("Expected VersionFound response, got: {:?}", result),
+            _ => panic!("expected VersionFound response, got: {result:?}"),
         }
     });
 }
@@ -1357,19 +1558,19 @@ fn try_get_past_object_version_not_found() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        wait_for_objects_history().await;
 
-        let missing_version = gas_ref.1.one_before().expect("Version should be > 0");
+        let missing_version = gas_ref.1.one_before().expect("version should be > 0");
 
         let result = client
             .try_get_past_object(gas_ref.0, missing_version, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         assert_eq!(
             result,
             IotaPastObjectResponse::VersionNotFound(gas_ref.0, missing_version),
-            "Mismatch in VersionNotFound response"
+            "mismatch in VersionNotFound response"
         );
     });
 }
@@ -1396,7 +1597,7 @@ fn try_get_past_object_version_too_high() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
+        wait_for_objects_history().await;
 
         let latest_version = gas_ref.1;
         let asked_version = latest_version.next();
@@ -1404,7 +1605,7 @@ fn try_get_past_object_version_too_high() {
         let result = client
             .try_get_past_object(gas_ref.0, asked_version, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         assert_eq!(
             result,
@@ -1413,7 +1614,7 @@ fn try_get_past_object_version_too_high() {
                 asked_version,
                 latest_version,
             },
-            "Mismatch in VersionTooHigh response"
+            "mismatch in VersionTooHigh response"
         );
     });
 }
@@ -1434,23 +1635,21 @@ fn try_get_past_object_object_deleted() {
         let context = &cluster.wallet;
         let (package_id, _, _) = publish_nfts_package(context).await;
 
-        let (sender, nft_object_id, tx_digest) = create_nft(context, package_id).await;
-
-        indexer_wait_for_transaction(tx_digest, store, client).await;
+        let (sender, nft_object_id, _) = create_nft(context, package_id).await;
 
         // Retrieve the latest object reference (which includes version) for deletion.
         let nft_object_ref = cluster.get_latest_object_ref(&nft_object_id).await;
 
         // Delete the NFT
-        let delete_tx = delete_nft(context, sender, package_id, nft_object_ref).await;
-        indexer_wait_for_transaction(delete_tx.digest, store, client).await;
+        delete_nft(context, sender, package_id, nft_object_ref).await;
+        wait_for_objects_history().await;
 
         let deleted_version = nft_object_ref.1.next();
 
         let result = client
-            .try_get_object_before_version(nft_object_id, SequenceNumber::MAX)
+            .try_get_object_before_version(nft_object_id, SequenceNumber::MAX_VALID_EXCL)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         assert_eq!(
             result,
@@ -1459,14 +1658,14 @@ fn try_get_past_object_object_deleted() {
                 version: deleted_version,
                 digest: ObjectDigest::OBJECT_DIGEST_DELETED,
             }),
-            "Mismatch in ObjectDeleted response"
+            "mismatch in ObjectDeleted response"
         );
 
         // Retrieve the deleted object at that version
         let result = client
             .try_get_past_object(nft_object_id, deleted_version, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         assert_eq!(
             result,
@@ -1475,24 +1674,24 @@ fn try_get_past_object_object_deleted() {
                 version: deleted_version,
                 digest: ObjectDigest::OBJECT_DIGEST_DELETED,
             }),
-            "Mismatch in ObjectDeleted response"
+            "mismatch in ObjectDeleted response"
         );
 
         // Try fetching the object before the deleted version.
         let result = client
             .try_get_past_object(nft_object_id, deleted_version.one_before().unwrap(), None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
                     data.version, nft_object_ref.1,
-                    "Expected object version {:?} but got {:?}",
+                    "expected object version {:?} but got {:?}",
                     nft_object_ref.1, data.version
                 );
             }
-            _ => panic!("Expected VersionFound response, got: {:?}", result),
+            _ => panic!("expected VersionFound response, got: {result:?}"),
         }
     });
 }
@@ -1534,9 +1733,9 @@ fn try_multi_get_past_objects() {
         let results = client
             .try_multi_get_past_objects(requests, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
-        assert_eq!(results.len(), 3, "Expected results for all objects");
+        assert_eq!(results.len(), 3, "expected results for all objects");
 
         let expected_responses = vec![
             IotaPastObjectResponse::ObjectNotExists(object_1),
@@ -1546,7 +1745,7 @@ fn try_multi_get_past_objects() {
 
         assert_eq!(
             results, expected_responses,
-            "Mismatch in multi-get response results"
+            "mismatch in multi-get response results"
         );
 
         // Create valid objects
@@ -1567,8 +1766,7 @@ fn try_multi_get_past_objects() {
             )
             .await;
 
-        indexer_wait_for_object(client, gas_ref_1.0, gas_ref_1.1).await;
-        indexer_wait_for_object(client, gas_ref_2.0, gas_ref_2.1).await;
+        wait_for_objects_history().await;
 
         let requests = vec![
             IotaGetPastObjectRequest {
@@ -1588,44 +1786,38 @@ fn try_multi_get_past_objects() {
         let results = client
             .try_multi_get_past_objects(requests, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         let past_object_response_1 = client
             .try_get_past_object(gas_ref_1.0, gas_ref_1.1, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         let past_object_response_2 = client
             .try_get_past_object(gas_ref_2.0, gas_ref_2.1, None)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         match past_object_response_1 {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
                     data.version, gas_ref_1.1,
-                    "Expected object version {:?} but got {:?}",
+                    "expected object version {:?} but got {:?}",
                     gas_ref_1.1, data.version
                 );
             }
-            _ => panic!(
-                "Expected VersionFound response, got: {:?}",
-                past_object_response_1
-            ),
+            _ => panic!("expected VersionFound response, got: {past_object_response_1:?}"),
         }
 
         match past_object_response_2 {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
                     data.version, gas_ref_2.1,
-                    "Expected object version {:?} but got {:?}",
+                    "expected object version {:?} but got {:?}",
                     gas_ref_2.1, data.version
                 );
             }
-            _ => panic!(
-                "Expected VersionFound response, got: {:?}",
-                past_object_response_2
-            ),
+            _ => panic!("expected VersionFound response, got: {past_object_response_2:?}"),
         }
 
         let expected_responses = vec![
@@ -1636,7 +1828,7 @@ fn try_multi_get_past_objects() {
 
         assert_eq!(
             results, expected_responses,
-            "Mismatch in multi-get response results after creating objects"
+            "mismatch in multi-get response results after creating objects"
         );
     });
 }
@@ -1663,62 +1855,62 @@ fn try_get_object_before_version() {
                 sender,
             )
             .await;
-        let object_to_send = cluster
+        let (object_id, object_version, _) = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(10_000_000_000),
                 sender,
             )
             .await;
-
-        indexer_wait_for_object(client, gas_ref.0, gas_ref.1).await;
-        indexer_wait_for_object(client, object_to_send.0, object_to_send.1).await;
+        // we need the object to be indexed before we can
+        // create a transaction that uses it as an input
+        indexer_wait_for_object(client, object_id, object_version).await;
 
         let tx_bytes = client
             .transfer_object(
                 sender,
-                object_to_send.0,
+                object_id,
                 Some(gas_ref.0),
                 100_000_000.into(),
                 receiver,
             )
             .await
-            .expect("Transfer should succeed");
-        execute_tx_and_wait_for_indexer(client, cluster, store, tx_bytes, &keypair).await;
+            .expect("transfer should succeed");
+        execute_tx_and_wait_for_indexer(client, store, tx_bytes, &keypair).await;
+        wait_for_objects_history().await;
 
         let (latest_object, latest_version, _) = cluster.get_latest_object_ref(&gas_ref.0).await;
 
         assert_eq!(
             latest_object, gas_ref.0,
-            "Latest object should match gas_ref.0"
+            "latest object should match gas_ref.0"
         );
         assert!(
             latest_version > gas_ref.1,
-            "Latest version should be greater than initial version"
+            "latest version should be greater than initial version"
         );
 
         let result = client
             .try_get_object_before_version(gas_ref.0, latest_version)
             .await
-            .expect("RPC call should succeed");
+            .expect("rpc call should succeed");
 
         match result {
             IotaPastObjectResponse::VersionFound(ref data) => {
                 assert_eq!(
                     data.version, gas_ref.1,
-                    "Expected object version {:?} but got {:?}",
+                    "expected object version {:?} but got {:?}",
                     gas_ref.1, data.version
                 );
             }
-            _ => panic!("Expected VersionFound response, got: {:?}", result),
+            _ => panic!("expected VersionFound response, got: {result:?}"),
         }
     });
 }
 
 #[tokio::test]
 async fn failed_stored_tx_into_transaction_block() {
-    let db_url = get_indexer_db_url(Some("test_failed_stored_tx_into_transaction_block"));
-    let mut test_db = TestDatabase::new(db_url);
+    let mut test_db = TestDatabase::new(db_url("test_failed_stored_tx_into_transaction_block"));
     test_db.recreate();
     test_db.reset_db();
     let pool = test_db.to_connection_pool();
@@ -1767,7 +1959,10 @@ fn get_chain_identifier_with_pruning_enabled() {
         let (cluster, store, client) = &start_test_cluster_with_read_write_indexer(
             Some("test_get_chain_identifier_with_pruning_enabled"),
             None,
-            Some(1),
+            Some(PruningOptions {
+                epochs_to_keep: Some(1),
+                ..Default::default()
+            }),
         )
         .await;
 
@@ -1807,4 +2002,511 @@ fn get_chain_identifier_with_pruning_enabled() {
                 .is_err()
         )
     });
+}
+
+#[test]
+fn find_transaction_for_wrapped_or_deleted_object() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        // 1) Set up wallet and fund it
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                address,
+            )
+            .await;
+        let gas_object_id = gas.0;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        // 2) Publish the `Warrior` package
+        let (package_id, tx_digest) =
+            publish_simple_warrior_package(&cluster.wallet, &keypair, address, gas).await;
+        indexer_wait_for_transaction(tx_digest, store, client).await;
+
+        // 3) Mint a `Sword`
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let strength = builder.pure(0u8).expect("valid pure");
+
+            let sword = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("new_sword")?,
+                vec![],
+                vec![strength],
+            );
+
+            builder.transfer_arg(address, sword);
+
+            builder.finish()
+        };
+
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(res.digest, store, client).await;
+
+        let sword_object_ref = res
+            .effects
+            .unwrap()
+            .created()
+            .iter()
+            .map(|sword| sword.reference.clone())
+            .collect::<Vec<IotaObjectRef>>();
+
+        let sword_object_ref = sword_object_ref
+            .first()
+            .expect("expected at least one created object");
+
+        // 3) Wrap the `Sword` object
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let sword_object_ref_arg = builder
+                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                    sword_object_ref.to_object_ref(),
+                )))
+                .expect("valid pure");
+
+            let warrior = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("new_warrior")?,
+                vec![],
+                vec![],
+            );
+
+            let _ = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("equip")?,
+                vec![],
+                vec![warrior, sword_object_ref_arg],
+            );
+
+            builder.transfer_arg(address, warrior);
+
+            builder.finish()
+        };
+
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let wrap_transaction_res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(wrap_transaction_res.digest, store, client).await;
+
+        // 6) Test transaction filter for wrapped object
+        let wrapped_objects = wrap_transaction_res
+            .effects
+            .as_ref()
+            .unwrap()
+            .wrapped()
+            .iter()
+            .map(|wrapped| wrapped.object_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            wrapped_objects.len(),
+            1,
+            "expected exactly one wrapped object"
+        );
+
+        let query_res = client
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
+                        wrapped_objects[0],
+                    )),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
+                },
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            query_res.data.len(),
+            1,
+            "expected exactly one transaction for the wrap"
+        );
+
+        // 7) Unwrap then delete the `Sword`
+        let warrior_object_ref = wrap_transaction_res
+            .effects
+            .unwrap()
+            .created()
+            .iter()
+            .map(|warrior| warrior.reference.clone())
+            .collect::<Vec<IotaObjectRef>>();
+
+        let warrior_object_ref = warrior_object_ref
+            .first()
+            .expect("expected at least one created object for warrior");
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let warrior_object_ref_arg = builder
+                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                    warrior_object_ref.to_object_ref(),
+                )))
+                .unwrap();
+
+            let sword = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("unequip")?,
+                vec![],
+                vec![warrior_object_ref_arg],
+            );
+
+            let _ = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("destroy_sword")?,
+                vec![],
+                vec![sword],
+            );
+
+            builder.finish()
+        };
+
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let unwrap_then_delete_transaction_res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(unwrap_then_delete_transaction_res.digest, store, client)
+            .await;
+
+        // 8) Test transaction filter for unwrapped and deleted object. It should return
+        //    two transactions:
+        // one for the performed `wrap` and one for more recent `unwrap then delete`.
+        let unwrapped_then_deleted_objects = unwrap_then_delete_transaction_res
+            .effects
+            .unwrap()
+            .unwrapped_then_deleted()
+            .iter()
+            .map(|sword| sword.object_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            unwrapped_then_deleted_objects.len(),
+            1,
+            "expected exactly one deleted object after unwrap"
+        );
+
+        let query_res = client
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
+                        unwrapped_then_deleted_objects[0],
+                    )),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
+                },
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            query_res.data.len(),
+            2,
+            "expected one transaction for the prior `wrap` and one for the `unwrap then delete`"
+        );
+
+        // Check if both transactions are present
+        let found_wrap = query_res
+            .data
+            .iter()
+            .any(|tx| tx.digest == wrap_transaction_res.digest);
+        let found_unwrap_delete = query_res
+            .data
+            .iter()
+            .any(|tx| tx.digest == unwrap_then_delete_transaction_res.digest);
+
+        assert!(found_wrap, "expected wrap transaction to be found");
+        assert!(
+            found_unwrap_delete,
+            "expected unwrap then delete transaction to be found"
+        );
+
+        // Delete the `Warrior` object
+        let warrior_object_ref = cluster
+            .get_latest_object_ref(&warrior_object_ref.object_id)
+            .await;
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            let warrior_object_ref_arg = builder
+                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                    warrior_object_ref,
+                )))
+                .unwrap();
+
+            let _ = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("destroy_warrior")?,
+                vec![],
+                vec![warrior_object_ref_arg],
+            );
+
+            builder.finish()
+        };
+
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let delete_warrior_transaction_res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(delete_warrior_transaction_res.digest, store, client).await;
+
+        // 9) Test transaction filter for deleted `Warrior` object
+        let deleted_objects = delete_warrior_transaction_res
+            .effects
+            .unwrap()
+            .deleted()
+            .iter()
+            .map(|deleted| deleted.object_id)
+            .collect::<Vec<_>>();
+
+        assert_eq!(
+            deleted_objects.len(),
+            1,
+            "expected exactly one deletion for the warrior"
+        );
+
+        let query_res = client
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
+                        deleted_objects[0],
+                    )),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
+                },
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            query_res.data.len(),
+            1,
+            "expected exactly one transaction for the warrior deletion"
+        );
+
+        // Check if the delete transaction is present
+        assert_eq!(
+            query_res.data.first().unwrap().digest,
+            delete_warrior_transaction_res.digest,
+            "expected delete transaction to be found"
+        );
+
+        Ok(())
+    })
+}
+
+#[test]
+fn find_transaction_for_create_and_wrap_same_ptb() -> Result<(), anyhow::Error> {
+    let ApiTestSetup {
+        runtime,
+        store,
+        cluster,
+        client,
+    } = ApiTestSetup::get_or_init();
+
+    runtime.block_on(async move {
+        // 1) Set up the wallet and fund it with gas
+        let (address, keypair): (_, AccountKeyPair) = get_key_pair();
+        let gas = cluster
+            .fund_address_and_return_gas(
+                cluster.get_reference_gas_price().await,
+                Some(500_000_000_000),
+                address,
+            )
+            .await;
+        let gas_object_id = gas.0;
+        indexer_wait_for_object(client, gas.0, gas.1).await;
+
+        // 2) Publish the `Warrior` package
+        let (package_id, tx_digest) =
+            publish_simple_warrior_package(&cluster.wallet, &keypair, address, gas).await;
+        indexer_wait_for_transaction(tx_digest, store, client).await;
+
+        // 3) In a single PTB: create and wrap Sword
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            // Strength for the Sword
+            let strength = builder.pure(0u8).expect("valid pure");
+
+            // Create the Sword
+            let sword = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("new_sword")?,
+                vec![],
+                vec![strength],
+            );
+
+            // Create the Warrior
+            let warrior = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("new_warrior")?,
+                vec![],
+                vec![],
+            );
+
+            // Equip the Sword
+            let _ = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("equip")?,
+                vec![],
+                vec![warrior, sword],
+            );
+
+            // Transfer the Warrior to the sender
+            builder.transfer_arg(address, warrior);
+
+            builder.finish()
+        };
+
+        // 4) Send the transaction
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let create_and_wrap_tx_res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(create_and_wrap_tx_res.digest, store, client).await;
+
+        // Find warrior object
+        let created_objects = create_and_wrap_tx_res.effects.as_ref().unwrap().created();
+        assert_eq!(
+            created_objects.len(),
+            1,
+            "expected exactly one created object"
+        );
+
+        let warrior_object_id = created_objects[0].reference.object_id;
+
+        // 5) Unwrap the Sword to find out it's object ID
+        let warrior_object_ref = cluster.get_latest_object_ref(&warrior_object_id).await;
+
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+
+            // Reference to the Warrior object
+            let warrior_object_ref_arg = builder
+                .input(CallArg::Object(ObjectArg::ImmOrOwnedObject(
+                    warrior_object_ref,
+                )))
+                .expect("valid pure");
+
+            // Unwrap the Sword
+            let sword = builder.programmable_move_call(
+                package_id,
+                Identifier::from_str("example")?,
+                Identifier::from_str("unequip")?,
+                vec![],
+                vec![warrior_object_ref_arg],
+            );
+
+            // Transfer the Sword to the sender
+            builder.transfer_arg(address, sword);
+
+            builder.finish()
+        };
+
+        let gas = cluster.get_latest_object_ref(&gas_object_id).await;
+        let tx_builder = TestTransactionBuilder::new(address, gas, 1000);
+        let tx_data = tx_builder.programmable(pt).build();
+        let signed_transaction = to_sender_signed_transaction(tx_data, &keypair);
+        let unwrap_transaction_res = cluster
+            .wallet
+            .execute_transaction_must_succeed(signed_transaction)
+            .await;
+        indexer_wait_for_transaction(unwrap_transaction_res.digest, store, client).await;
+
+        // 6) Test transaction filter for create and wrap operation
+        let sword_object_ref = unwrap_transaction_res
+            .effects
+            .unwrap()
+            .unwrapped()
+            .iter()
+            .map(|sword| sword.reference.clone())
+            .collect::<Vec<IotaObjectRef>>();
+
+        assert_eq!(
+            sword_object_ref.len(),
+            1,
+            "expected exactly one unwrapped object"
+        );
+
+        let query_res = client
+            .query_transaction_blocks_v2(
+                IotaTransactionBlockResponseQueryV2 {
+                    filter: Some(TransactionFilterV2::WrappedOrDeletedObject(
+                        sword_object_ref[0].object_id,
+                    )),
+                    options: Some(IotaTransactionBlockResponseOptions::full_content()),
+                },
+                None,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            query_res.data.len(),
+            1,
+            "expected exactly one transaction for the create and wrap operation"
+        );
+
+        // Check if the correct transaction is present
+        assert_eq!(
+            query_res.data.first().unwrap().digest,
+            create_and_wrap_tx_res.digest,
+            "expected create and wrap transaction to be found"
+        );
+
+        Ok(())
+    })
 }

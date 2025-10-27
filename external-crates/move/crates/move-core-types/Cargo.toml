@@ -25,6 +25,7 @@ rand.workspace = true
 ref-cast.workspace = true
 serde.workspace = true
 serde_bytes.workspace = true
+serde_with.workspace = true
 thiserror.workspace = true
 uint.workspace = true
 

@@ -7,9 +7,14 @@ import { ThemeContext } from '../../contexts';
 
 interface ThemeProviderProps {
     appId: string;
+    staticTheme?: Theme;
 }
 
-export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProviderProps>) {
+export function ThemeProvider({
+    children,
+    appId,
+    staticTheme,
+}: PropsWithChildren<ThemeProviderProps>) {
     const storageKey = `theme_${appId}`;
 
     const getSystemTheme = () => {
@@ -21,7 +26,7 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
         return storedTheme ? storedTheme : ThemePreference.System;
     };
 
-    const [systemTheme, setSystemTheme] = useState<Theme>(Theme.Light);
+    const [systemTheme, setSystemTheme] = useState<Theme>(staticTheme ?? Theme.Light);
     const [themePreference, setThemePreference] = useState<ThemePreference>(ThemePreference.System);
     const [isLoadingPreference, setIsLoadingPreference] = useState(true);
 
@@ -44,20 +49,25 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
         // Update localStorage with the new preference
         localStorage.setItem(storageKey, themePreference);
 
-        // In case of SystemPreference, listen for system theme changes
-        if (themePreference === ThemePreference.System) {
-            const handleSystemThemeChange = () => {
-                const systemTheme = getSystemTheme();
-                setSystemTheme(systemTheme);
-            };
-            const systemThemeMatcher = window.matchMedia('(prefers-color-scheme: dark)');
-            systemThemeMatcher.addEventListener('change', handleSystemThemeChange);
-            return () => systemThemeMatcher.removeEventListener('change', handleSystemThemeChange);
+        if (!staticTheme) {
+            // In case of SystemPreference, listen for system theme changes
+            if (themePreference === ThemePreference.System) {
+                const handleSystemThemeChange = () => {
+                    const systemTheme = getSystemTheme();
+                    setSystemTheme(systemTheme);
+                };
+                const systemThemeMatcher = window.matchMedia('(prefers-color-scheme: dark)');
+                systemThemeMatcher.addEventListener('change', handleSystemThemeChange);
+                return () =>
+                    systemThemeMatcher.removeEventListener('change', handleSystemThemeChange);
+            }
         }
-    }, [themePreference, storageKey, isLoadingPreference]);
+    }, [themePreference, storageKey, isLoadingPreference, staticTheme]);
 
     // Derive the active theme from the preference
     const theme = (() => {
+        if (staticTheme) return staticTheme;
+
         switch (themePreference) {
             case ThemePreference.Dark:
                 return Theme.Dark;
@@ -65,6 +75,8 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
                 return Theme.Light;
             case ThemePreference.System:
                 return systemTheme;
+            case ThemePreference.Names:
+                return Theme.Names;
         }
     })();
 
@@ -73,6 +85,7 @@ export function ThemeProvider({ children, appId }: PropsWithChildren<ThemeProvid
         const documentElement = document.documentElement.classList;
         documentElement.toggle(Theme.Dark, theme === Theme.Dark);
         documentElement.toggle(Theme.Light, theme === Theme.Light);
+        documentElement.toggle(Theme.Names, theme === Theme.Names);
     }, [theme]);
 
     return (

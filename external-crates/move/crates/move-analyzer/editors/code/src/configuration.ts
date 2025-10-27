@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import * as os from 'os';
@@ -9,6 +9,7 @@ import * as path from 'path';
 
 export const MOVE_CONF_NAME = 'iota-move';
 export const LINT_OPT = 'lint';
+export const FORCE_BUNDLED = 'force-bundled';
 export const TYPE_HINTS_OPT = 'inlay-hints.type';
 export const PARAM_HINTS_OPT = 'inlay-hints.param';
 export const IOTA_PATH_OPT = 'iota.path';
@@ -73,6 +74,10 @@ export class Configuration {
 
     get lint(): string {
         return this.configuration.get(LINT_OPT) ?? 'default';
+    }
+
+    get forceBundled(): boolean {
+        return this.configuration.get(FORCE_BUNDLED) ?? false;
     }
 
     get inlayHintsForType(): boolean {

@@ -9,7 +9,6 @@ publish = false
 [dependencies]
 # external dependencies
 fastcrypto-zkp.workspace = true
-once_cell.workspace = true
 tracing.workspace = true
 
 # internal dependencies

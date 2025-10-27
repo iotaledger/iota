@@ -5,7 +5,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use anyhow::{Result, bail};
-use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
+use iota_keys::keystore::{AccountKeystore, FileBasedKeystore, StoredKey};
 use iota_test_transaction_builder::TestTransactionBuilder;
 use iota_types::{
     base_types::{IotaAddress, ObjectRef},
@@ -28,7 +28,7 @@ pub fn get_ed25519_keypair_from_keystore(
 ) -> Result<AccountKeyPair> {
     let keystore = FileBasedKeystore::new(&keystore_path)?;
     match keystore.get_key(requested_address) {
-        Ok(IotaKeyPair::Ed25519(kp)) => Ok(kp.copy()),
+        Ok(StoredKey::KeyPair(IotaKeyPair::Ed25519(kp))) => Ok(kp.copy()),
         other => bail!("Invalid key type: {:?}", other),
     }
 }

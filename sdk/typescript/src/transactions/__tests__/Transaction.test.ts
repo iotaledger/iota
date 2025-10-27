@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB58 } from '@iota/bcs';
+import { toBase58 } from '@iota/bcs';
 import { describe, expect, it } from 'vitest';
 
 import { bcs } from '../../bcs/index.js';
@@ -169,7 +169,7 @@ function ref(): { objectId: string; version: string; digest: string } {
     return {
         objectId: (Math.random() * 100000).toFixed(0).padEnd(64, '0'),
         version: String((Math.random() * 10000).toFixed(0)),
-        digest: toB58(
+        digest: toBase58(
             new Uint8Array([
                 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7,
                 8, 9, 1, 2,

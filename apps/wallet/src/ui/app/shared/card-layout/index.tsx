@@ -18,15 +18,15 @@ export function CardLayout({ children, title, subtitle, headerCaption, icon }: C
     return (
         <div className="flex max-h-popup-height w-full max-w-popup-width flex-grow flex-col flex-nowrap items-center overflow-auto p-lg">
             {icon === 'success' ? (
-                <CheckmarkFilled className="mb-lg h-8 w-8 text-primary-30" />
+                <CheckmarkFilled className="mb-lg h-8 w-8 text-iota-primary-30" />
             ) : null}
             {icon === 'iota' ? (
-                <div className="mb-lg flex h-10 w-10 flex-col flex-nowrap items-center justify-center rounded-full bg-primary-30">
-                    <IotaLogoMark className="h-6 w-6 text-neutral-100" />
+                <div className="mb-lg flex h-10 w-10 flex-col flex-nowrap items-center justify-center rounded-full bg-iota-primary-30">
+                    <IotaLogoMark className="h-6 w-6 text-iota-neutral-100" />
                 </div>
             ) : null}
             {headerCaption ? (
-                <span className="text-label-sm text-neutral-40">{headerCaption}</span>
+                <span className="text-label-sm text-iota-neutral-40">{headerCaption}</span>
             ) : null}
             {title ? (
                 <div className="mt-1.25">
@@ -35,7 +35,7 @@ export function CardLayout({ children, title, subtitle, headerCaption, icon }: C
             ) : null}
             {subtitle ? (
                 <div className="mb-md text-center">
-                    <span className="text-label-md text-neutral-10 dark:text-neutral-92">
+                    <span className="text-label-md text-iota-neutral-10 dark:text-iota-neutral-92">
                         {subtitle}
                     </span>
                 </div>

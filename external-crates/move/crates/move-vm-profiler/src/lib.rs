@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -380,6 +380,7 @@ macro_rules! tracing_feature_disabled {
     ( $( $tt:tt )* ) => {};
 }
 
+
 pub const fn is_tracing_feature_enabled() -> bool {
     #[cfg(feature = "tracing")]
     {
@@ -388,5 +389,14 @@ pub const fn is_tracing_feature_enabled() -> bool {
     #[cfg(not(feature = "tracing"))]
     {
         false
+    }
+}
+
+/// Call this function to ensure Move VM tracing is disabled.
+/// Note: calling panic in the tracing_feature_enabled macro elsewhere
+/// may result in complaints of unreachable code.
+pub fn ensure_move_vm_profiler_disabled() {
+    tracing_feature_enabled! {
+        panic!("Cannot run with Move VM tracing feature enabled");
     }
 }

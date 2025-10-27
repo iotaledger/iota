@@ -7,7 +7,7 @@
 //! simtest.
 
 use core::panic;
-use std::{fs::File, time::Duration};
+use std::{fs::File, num::NonZeroUsize, time::Duration};
 
 use fastcrypto::encoding::Base64;
 use iota_core::{
@@ -23,7 +23,9 @@ use iota_network::default_iota_network_config;
 use iota_swarm_config::network_config_builder::ConfigBuilder;
 use iota_test_transaction_builder::batch_make_transfer_transactions;
 use iota_types::{
+    crypto::Ed25519IotaSignature,
     quorum_driver_types::ExecuteTransactionRequestType,
+    signature::GenericSignature,
     traffic_control::{
         FreqThresholdConfig, PolicyConfig, PolicyType, RemoteFirewallConfig, Weight,
     },
@@ -33,6 +35,7 @@ use test_cluster::{TestCluster, TestClusterBuilder};
 
 #[tokio::test]
 async fn test_validator_traffic_control_noop() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
@@ -44,6 +47,7 @@ async fn test_validator_traffic_control_noop() -> Result<(), anyhow::Error> {
         ..Default::default()
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(4).unwrap())
         .with_policy_config(Some(policy_config))
         .build();
     let test_cluster = TestClusterBuilder::new()
@@ -56,6 +60,7 @@ async fn test_validator_traffic_control_noop() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_noop() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
@@ -75,6 +80,7 @@ async fn test_fullnode_traffic_control_noop() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
@@ -94,6 +100,7 @@ async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
         ..Default::default()
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(4).unwrap())
         .with_policy_config(Some(policy_config))
         .build();
     let test_cluster = TestClusterBuilder::new()
@@ -106,6 +113,7 @@ async fn test_validator_traffic_control_ok() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_ok() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 5,
@@ -132,6 +140,7 @@ async fn test_fullnode_traffic_control_ok() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_validator_traffic_control_dry_run() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
@@ -145,6 +154,7 @@ async fn test_validator_traffic_control_dry_run() -> Result<(), anyhow::Error> {
         ..Default::default()
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(4).unwrap())
         .with_policy_config(Some(policy_config))
         .build();
     let test_cluster = TestClusterBuilder::new()
@@ -157,6 +167,7 @@ async fn test_validator_traffic_control_dry_run() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let txn_count = 15;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
@@ -179,8 +190,7 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
     let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
     assert!(
         txns.len() >= txn_count as usize,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);
@@ -220,6 +230,7 @@ async fn test_fullnode_traffic_control_dry_run() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let n = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
@@ -231,10 +242,11 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
         ..Default::default()
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(4).unwrap())
         .with_policy_config(Some(policy_config))
         .build();
     let committee = network_config.committee_with_network();
-    let _test_cluster = TestClusterBuilder::new()
+    let test_cluster = TestClusterBuilder::new()
         .set_network_config(network_config)
         .build()
         .await;
@@ -244,12 +256,13 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
     );
     let (_, auth_client) = local_clients.first_key_value().unwrap();
 
-    // transaction signed using user wallet from a different chain/genesis,
-    // therefore we should fail with UserInputError
-    let other_cluster = TestClusterBuilder::new().build().await;
-
-    let mut txns = batch_make_transfer_transactions(&other_cluster.wallet, n as usize).await;
-    let tx = txns.swap_remove(0);
+    let mut txns = batch_make_transfer_transactions(&test_cluster.wallet, n as usize).await;
+    let mut tx = txns.swap_remove(0);
+    let signatures = tx.tx_signatures_mut_for_testing();
+    signatures.pop();
+    signatures.push(GenericSignature::Signature(
+        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+    ));
 
     // it should take no more than 4 requests to be added to the blocklist
     for _ in 0..n {
@@ -260,11 +273,12 @@ async fn test_validator_traffic_control_error_blocked() -> Result<(), anyhow::Er
             }
         }
     }
-    panic!("Expected spam policy to trigger within {n} requests");
+    panic!("Expected error policy to trigger within {n} requests");
 }
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let txn_count = 15;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 3,
@@ -288,8 +302,7 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
     let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
     assert!(
         txns.len() >= txn_count as usize,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);
@@ -336,6 +349,7 @@ async fn test_fullnode_traffic_control_spam_blocked() -> Result<(), anyhow::Erro
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let txn_count = 5;
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 3,
@@ -354,8 +368,7 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
     let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
     assert!(
         txns.len() >= txn_count as usize,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     // it should take no more than 4 requests to be added to the blocklist
@@ -393,6 +406,7 @@ async fn test_fullnode_traffic_control_error_blocked() -> Result<(), anyhow::Err
 
 #[tokio::test]
 async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let n = 5;
     let port = 65000;
     let policy_config = PolicyConfig {
@@ -405,19 +419,20 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     };
     // enable remote firewall delegation
     let firewall_config = RemoteFirewallConfig {
-        remote_fw_url: format!("http://127.0.0.1:{}", port),
+        remote_fw_url: format!("http://127.0.0.1:{port}"),
         delegate_spam_blocking: true,
         delegate_error_blocking: false,
         destination_port: 8080,
-        drain_path: tempfile::tempdir().unwrap().into_path().join("drain"),
+        drain_path: tempfile::tempdir().unwrap().keep().join("drain"),
         drain_timeout_secs: 10,
     };
     let network_config = ConfigBuilder::new_with_temp_dir()
+        .committee_size(NonZeroUsize::new(4).unwrap())
         .with_policy_config(Some(policy_config))
         .with_firewall_config(Some(firewall_config))
         .build();
     let committee = network_config.committee_with_network();
-    let _test_cluster = TestClusterBuilder::new()
+    let test_cluster = TestClusterBuilder::new()
         .set_network_config(network_config)
         .build()
         .await;
@@ -427,12 +442,13 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
     );
     let (_, auth_client) = local_clients.first_key_value().unwrap();
 
-    // transaction signed using user wallet from a different chain/genesis,
-    // therefore we should fail with UserInputError
-    let other_cluster = TestClusterBuilder::new().build().await;
-
-    let mut txns = batch_make_transfer_transactions(&other_cluster.wallet, n as usize).await;
-    let tx = txns.swap_remove(0);
+    let mut txns = batch_make_transfer_transactions(&test_cluster.wallet, n as usize).await;
+    let mut tx = txns.swap_remove(0);
+    let signatures = tx.tx_signatures_mut_for_testing();
+    signatures.pop();
+    signatures.push(GenericSignature::Signature(
+        iota_types::crypto::Signature::Ed25519IotaSignature(Ed25519IotaSignature::default()),
+    ));
 
     // start test firewall server
     let mut server = NodeFwTestServer::new();
@@ -460,6 +476,7 @@ async fn test_validator_traffic_control_error_delegated() -> Result<(), anyhow::
 
 #[tokio::test]
 async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let txn_count = 10;
     let port = 65001;
     let policy_config = PolicyConfig {
@@ -473,11 +490,11 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
     };
     // enable remote firewall delegation
     let firewall_config = RemoteFirewallConfig {
-        remote_fw_url: format!("http://127.0.0.1:{}", port),
+        remote_fw_url: format!("http://127.0.0.1:{port}"),
         delegate_spam_blocking: true,
         delegate_error_blocking: false,
         destination_port: 9000,
-        drain_path: tempfile::tempdir().unwrap().into_path().join("drain"),
+        drain_path: tempfile::tempdir().unwrap().keep().join("drain"),
         drain_timeout_secs: 10,
     };
     let test_cluster = TestClusterBuilder::new()
@@ -496,8 +513,7 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
     let mut txns = batch_make_transfer_transactions(&context, txn_count as usize).await;
     assert!(
         txns.len() >= txn_count as usize,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);
@@ -540,6 +556,7 @@ async fn test_fullnode_traffic_control_spam_delegated() -> Result<(), anyhow::Er
 
 #[tokio::test]
 async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 3,
         spam_policy_type: PolicyType::TestNConnIP(10),
@@ -549,7 +566,7 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
     };
 
     // sink all traffic to trigger dead mans switch
-    let drain_path = tempfile::tempdir().unwrap().into_path().join("drain");
+    let drain_path = tempfile::tempdir().unwrap().keep().join("drain");
     assert!(!drain_path.exists(), "Expected drain file to not yet exist",);
 
     let firewall_config = RemoteFirewallConfig {
@@ -597,7 +614,8 @@ async fn test_traffic_control_dead_mans_switch() -> Result<(), anyhow::Error> {
 
 #[tokio::test]
 async fn test_traffic_control_manual_set_dead_mans_switch() -> Result<(), anyhow::Error> {
-    let drain_path = tempfile::tempdir().unwrap().into_path().join("drain");
+    telemetry_subscribers::init_for_testing();
+    let drain_path = tempfile::tempdir().unwrap().keep().join("drain");
     assert!(!drain_path.exists(), "Expected drain file to not yet exist",);
     File::create(&drain_path).expect("Failed to touch nodefw drain file");
     assert!(drain_path.exists(), "Expected drain file to exist",);
@@ -608,6 +626,7 @@ async fn test_traffic_control_manual_set_dead_mans_switch() -> Result<(), anyhow
 
 #[sim_test]
 async fn test_traffic_sketch_no_blocks() {
+    telemetry_subscribers::init_for_testing();
     let sketch_config = FreqThresholdConfig {
         client_threshold: 5_050,
         proxied_client_threshold: 5_050,
@@ -651,6 +670,7 @@ async fn test_traffic_sketch_no_blocks() {
 #[ignore]
 #[sim_test]
 async fn test_traffic_sketch_with_slow_blocks() {
+    telemetry_subscribers::init_for_testing();
     let sketch_config = FreqThresholdConfig {
         client_threshold: 9_900,
         proxied_client_threshold: 9_900,
@@ -690,6 +710,7 @@ async fn test_traffic_sketch_with_slow_blocks() {
 
 #[sim_test]
 async fn test_traffic_sketch_with_sampled_spam() {
+    telemetry_subscribers::init_for_testing();
     let sketch_config = FreqThresholdConfig {
         client_threshold: 450,
         proxied_client_threshold: 450,
@@ -731,6 +752,7 @@ async fn test_traffic_sketch_with_sampled_spam() {
 
 #[sim_test]
 async fn test_traffic_sketch_allowlist_mode() {
+    telemetry_subscribers::init_for_testing();
     let policy_config = PolicyConfig {
         connection_blocklist_ttl_sec: 1,
         proxy_blocklist_ttl_sec: 1,
@@ -756,6 +778,7 @@ async fn test_traffic_sketch_allowlist_mode() {
 }
 
 async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
     let context = &mut test_cluster.wallet;
     let jsonrpc_client = &test_cluster.fullnode_handle.rpc_client;
 
@@ -763,8 +786,7 @@ async fn assert_traffic_control_ok(mut test_cluster: TestCluster) -> Result<(), 
     let mut txns = batch_make_transfer_transactions(context, txn_count).await;
     assert!(
         txns.len() >= txn_count,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);
@@ -832,8 +854,7 @@ async fn assert_validator_traffic_control_dry_run(
     let mut txns = batch_make_transfer_transactions(context, txn_count).await;
     assert!(
         txns.len() >= txn_count,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     let txn = txns.swap_remove(0);

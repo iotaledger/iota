@@ -1,6 +1,6 @@
 # Get the checkpoint's information at a particular digest
 {
-  checkpoint(id: { digest: "GaDeWEfbSQCQ8FBQHUHVdm4KjrnbgMqEZPuhStoq5njU" }) {
+  checkpoint(id: { digest: "C7gxntU7eUyfTUPNgiuN4rwSdw2ddHojrtL14MezE1ou" }) {
     digest
     sequenceNumber
     validatorSignatures

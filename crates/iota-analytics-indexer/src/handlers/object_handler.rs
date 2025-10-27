@@ -9,8 +9,12 @@ use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_json_rpc_types::IotaMoveStruct;
 use iota_package_resolver::Resolver;
-use iota_rest_api::{CheckpointData, CheckpointTransaction};
-use iota_types::{SYSTEM_PACKAGE_ADDRESSES, effects::TransactionEffects, object::Object};
+use iota_types::{
+    SYSTEM_PACKAGE_ADDRESSES,
+    effects::TransactionEffects,
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
+    object::Object,
+};
 use tokio::sync::Mutex;
 
 use crate::{
@@ -193,7 +197,7 @@ impl ObjectHandler {
             owner_address: get_owner_address(object),
             object_status: object_status_tracker
                 .get_object_status(&object_id)
-                .expect("Object must be in output objects"),
+                .expect("object must be in output objects"),
             initial_shared_version: initial_shared_version(object),
             previous_transaction: object.previous_transaction.base58_encode(),
             storage_rebate: Some(object.storage_rebate),

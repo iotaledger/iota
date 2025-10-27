@@ -13,6 +13,7 @@ use iota_types::{
     digests::{TransactionDigest, TransactionEffectsDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEvents},
     error::{IotaError, IotaResult},
+    executable_transaction::VerifiedExecutableTransaction,
     iota_system_state::{IotaSystemState, get_iota_system_state},
     message_envelope::Message,
     messages_checkpoint::CheckpointSequenceNumber,
@@ -90,7 +91,8 @@ impl PassthroughCache {
 }
 
 impl ObjectCacheRead for PassthroughCache {
-    fn get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
+    #[instrument(level = "trace", skip_all, fields(package_id))]
+    fn try_get_package_object(&self, package_id: &ObjectID) -> IotaResult<Option<PackageObject>> {
         self.package_cache
             .get_package_object(package_id, &*self.store)
     }
@@ -100,26 +102,30 @@ impl ObjectCacheRead for PassthroughCache {
             .force_reload_system_packages(system_package_ids.iter().cloned(), self);
     }
 
-    fn get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
-        self.store.get_object(id).map_err(Into::into)
+    #[instrument(level = "trace", skip_all, fields(object_id = ?id))]
+    fn try_get_object(&self, id: &ObjectID) -> IotaResult<Option<Object>> {
+        self.store.try_get_object(id).map_err(Into::into)
     }
 
-    fn get_object_by_key(
+    #[instrument(level = "trace", skip_all, fields(object_id, version))]
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
-        Ok(self.store.get_object_by_key(object_id, version)?)
+        Ok(self.store.try_get_object_by_key(object_id, version)?)
     }
 
-    fn multi_get_objects_by_key(
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_objects_by_key(
         &self,
         object_keys: &[ObjectKey],
     ) -> Result<Vec<Option<Object>>, IotaError> {
-        Ok(self.store.multi_get_objects_by_key(object_keys)?)
+        Ok(self.store.try_multi_get_objects_by_key(object_keys)?)
     }
 
-    fn object_exists_by_key(
+    #[instrument(level = "trace", skip_all, fields(object_id, version))]
+    fn try_object_exists_by_key(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
@@ -127,25 +133,29 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.object_exists_by_key(object_id, version)
     }
 
-    fn multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_object_exists_by_key(&self, object_keys: &[ObjectKey]) -> IotaResult<Vec<bool>> {
         self.store.multi_object_exists_by_key(object_keys)
     }
 
-    fn get_latest_object_ref_or_tombstone(
+    #[instrument(level = "trace", skip_all, fields(object_id))]
+    fn try_get_latest_object_ref_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> IotaResult<Option<ObjectRef>> {
         self.store.get_latest_object_ref_or_tombstone(object_id)
     }
 
-    fn get_latest_object_or_tombstone(
+    #[instrument(level = "trace", skip_all, fields(object_id))]
+    fn try_get_latest_object_or_tombstone(
         &self,
         object_id: ObjectID,
     ) -> Result<Option<(ObjectKey, ObjectOrTombstone)>, IotaError> {
         self.store.get_latest_object_or_tombstone(object_id)
     }
 
-    fn find_object_lt_or_eq_version(
+    #[instrument(level = "trace", skip_all, fields(object_id, version_bound))]
+    fn try_find_object_lt_or_eq_version(
         &self,
         object_id: ObjectID,
         version: SequenceNumber,
@@ -153,23 +163,27 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.find_object_lt_or_eq_version(object_id, version)
     }
 
-    fn get_lock(&self, obj_ref: ObjectRef, epoch_store: &AuthorityPerEpochStore) -> IotaLockResult {
+    fn try_get_lock(
+        &self,
+        obj_ref: ObjectRef,
+        epoch_store: &AuthorityPerEpochStore,
+    ) -> IotaLockResult {
         self.store.get_lock(obj_ref, epoch_store)
     }
 
-    fn _get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
+    fn _try_get_live_objref(&self, object_id: ObjectID) -> IotaResult<ObjectRef> {
         self.store.get_latest_live_version_for_object_id(object_id)
     }
 
-    fn check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
+    fn try_check_owned_objects_are_live(&self, owned_object_refs: &[ObjectRef]) -> IotaResult {
         self.store.check_owned_objects_are_live(owned_object_refs)
     }
 
-    fn get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
+    fn try_get_iota_system_state_object_unsafe(&self) -> IotaResult<IotaSystemState> {
         get_iota_system_state(self)
     }
 
-    fn get_marker_value(
+    fn try_get_marker_value(
         &self,
         object_id: &ObjectID,
         version: SequenceNumber,
@@ -178,7 +192,7 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.get_marker_value(object_id, &version, epoch_id)
     }
 
-    fn get_latest_marker(
+    fn try_get_latest_marker(
         &self,
         object_id: &ObjectID,
         epoch_id: EpochId,
@@ -186,13 +200,14 @@ impl ObjectCacheRead for PassthroughCache {
         self.store.get_latest_marker(object_id, epoch_id)
     }
 
-    fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
+    fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
         self.store.perpetual_tables.get_highest_pruned_checkpoint()
     }
 }
 
 impl TransactionCacheRead for PassthroughCache {
-    fn multi_get_transaction_blocks(
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_transaction_blocks(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<Arc<VerifiedTransaction>>>> {
@@ -204,32 +219,36 @@ impl TransactionCacheRead for PassthroughCache {
             .collect())
     }
 
-    fn multi_get_executed_effects_digests(
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_executed_effects_digests(
         &self,
         digests: &[TransactionDigest],
     ) -> IotaResult<Vec<Option<TransactionEffectsDigest>>> {
         self.store.multi_get_executed_effects_digests(digests)
     }
 
-    fn multi_get_effects(
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_effects(
         &self,
         digests: &[TransactionEffectsDigest],
     ) -> IotaResult<Vec<Option<TransactionEffects>>> {
         Ok(self.store.perpetual_tables.effects.multi_get(digests)?)
     }
 
-    fn notify_read_executed_effects_digests<'a>(
+    #[instrument(level = "trace", skip_all)]
+    fn try_notify_read_executed_effects_digests<'a>(
         &'a self,
         digests: &'a [TransactionDigest],
     ) -> BoxFuture<'a, IotaResult<Vec<TransactionEffectsDigest>>> {
         self.executed_effects_digests_notify_read
             .read(digests, |digests| {
-                self.multi_get_executed_effects_digests(digests)
+                self.try_multi_get_executed_effects_digests(digests)
             })
             .boxed()
     }
 
-    fn multi_get_events(
+    #[instrument(level = "trace", skip_all)]
+    fn try_multi_get_events(
         &self,
         event_digests: &[TransactionEventsDigest],
     ) -> IotaResult<Vec<Option<TransactionEvents>>> {
@@ -239,55 +258,50 @@ impl TransactionCacheRead for PassthroughCache {
 
 impl ExecutionCacheWrite for PassthroughCache {
     #[instrument(level = "debug", skip_all)]
-    fn write_transaction_outputs<'a>(
+    fn try_write_transaction_outputs<'a>(
         &'a self,
         epoch_id: EpochId,
         tx_outputs: Arc<TransactionOutputs>,
-    ) -> BoxFuture<'a, IotaResult> {
-        async move {
-            let tx_digest = *tx_outputs.transaction.digest();
-            let effects_digest = tx_outputs.effects.digest();
+    ) -> IotaResult {
+        let tx_digest = *tx_outputs.transaction.digest();
+        let effects_digest = tx_outputs.effects.digest();
 
-            // NOTE: We just check here that live markers exist, not that they are locked to
-            // a specific TX. Why?
-            // 1. Live markers existence prevents re-execution of old certs when objects
-            //    have been upgraded
-            // 2. Not all validators lock, just 2f+1, so transaction should proceed
-            //    regardless (But the live markers should exist which means previous
-            //    transactions finished)
-            // 3. Equivocation possible (different TX) but as long as 2f+1 approves current
-            //    TX its fine
-            // 4. Live markers may have existed when we started processing this tx, but
-            //    could have since been deleted by a concurrent tx that finished first. In
-            //    that case, check if the tx effects exist.
-            self.store
-                .check_owned_objects_are_live(&tx_outputs.live_object_markers_to_delete)?;
+        // NOTE: We just check here that live markers exist, not that they are locked to
+        // a specific TX. Why?
+        // 1. Live markers existence prevents re-execution of old certs when objects
+        //    have been upgraded
+        // 2. Not all validators lock, just 2f+1, so transaction should proceed
+        //    regardless (But the live markers should exist which means previous
+        //    transactions finished)
+        // 3. Equivocation possible (different TX) but as long as 2f+1 approves current
+        //    TX its fine
+        // 4. Live markers may have existed when we started processing this tx, but
+        //    could have since been deleted by a concurrent tx that finished first. In
+        //    that case, check if the tx effects exist.
+        self.store
+            .check_owned_objects_are_live(&tx_outputs.live_object_markers_to_delete)?;
 
-            self.store
-                .write_transaction_outputs(epoch_id, &[tx_outputs])
-                .await?;
+        self.store
+            .write_transaction_outputs(epoch_id, &[tx_outputs])?;
 
-            self.executed_effects_digests_notify_read
-                .notify(&tx_digest, &effects_digest);
+        self.executed_effects_digests_notify_read
+            .notify(&tx_digest, &effects_digest);
 
-            self.metrics
-                .pending_notify_read
-                .set(self.executed_effects_digests_notify_read.num_pending() as i64);
+        self.metrics
+            .pending_notify_read
+            .set(self.executed_effects_digests_notify_read.num_pending() as i64);
 
-            Ok(())
-        }
-        .boxed()
+        Ok(())
     }
 
-    fn acquire_transaction_locks<'a>(
+    fn try_acquire_transaction_locks<'a>(
         &'a self,
         epoch_store: &'a AuthorityPerEpochStore,
         owned_input_objects: &'a [ObjectRef],
         transaction: VerifiedSignedTransaction,
-    ) -> BoxFuture<'a, IotaResult> {
+    ) -> IotaResult {
         self.store
             .acquire_transaction_locks(epoch_store, owned_input_objects, transaction)
-            .boxed()
     }
 }
 
@@ -323,20 +337,45 @@ impl AccumulatorStore for PassthroughCache {
 }
 
 impl ExecutionCacheCommit for PassthroughCache {
-    fn commit_transaction_outputs<'a>(
-        &'a self,
+    fn try_commit_transaction_outputs(
+        &self,
         _epoch: EpochId,
-        _digests: &'a [TransactionDigest],
-    ) -> BoxFuture<'a, IotaResult> {
+        _digests: &[TransactionDigest],
+    ) -> IotaResult {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
-        async { Ok(()) }.boxed()
+        Ok(())
     }
 
-    fn persist_transactions(&self, _digests: &[TransactionDigest]) -> BoxFuture<'_, IotaResult> {
+    fn try_persist_transaction(&self, _tx: &VerifiedExecutableTransaction) -> IotaResult {
         // Nothing needs to be done since they were already committed in
         // write_transaction_outputs
-        async { Ok(()) }.boxed()
+        Ok(())
+    }
+
+    fn approximate_pending_transaction_count(&self) -> u64 {
+        0
+    }
+}
+
+impl StateSyncAPI for PassthroughCache {
+    fn try_insert_transaction_and_effects(
+        &self,
+        transaction: &VerifiedTransaction,
+        transaction_effects: &TransactionEffects,
+    ) -> IotaResult {
+        self.store
+            .insert_transaction_and_effects(transaction, transaction_effects)
+            .map_err(IotaError::from)
+    }
+
+    fn try_multi_insert_transaction_and_effects(
+        &self,
+        transactions_and_effects: &[VerifiedExecutionData],
+    ) -> IotaResult {
+        self.store
+            .multi_insert_transaction_and_effects(transactions_and_effects.iter())
+            .map_err(IotaError::from)
     }
 }
 

@@ -1,0 +1,276 @@
+:root {
+    /* FONTS */
+    --font-family-heading: theme('fontFamily.alliance-no2');
+    --font-family-text: theme('fontFamily.inter');
+    --display-lg-font-weight: 500;
+    --display-lg-line-height: 120%;
+    --display-md-font-weight: 500;
+    --display-md-line-height: 120%;
+    --display-sm-font-weight: 500;
+    --display-sm-line-height: 120%;
+    --headline-lg-font-weight: 500;
+    --headline-md-font-weight: 500;
+    --headline-sm-font-weight: 500;
+
+    /* COLORS */
+    --warning-surface: theme('colors.iota-warning.90');
+    --on-warning: theme('colors.iota-warning.20');
+    --error-surface: theme('colors.iota-error.90');
+    --on-error: theme('colors.iota-error.20');
+    --success-surface: theme('colors.iota-tertiary.90');
+    --on-success: theme('colors.iota-tertiary.20');
+    --default-surface: theme('colors.iota-primary.90');
+    --on-default: theme('colors.iota-primary.20');
+
+    /* STATE LAYER */
+    --state-layer-bg-color: theme('colors.iota-primary.60');
+    --state-layer-secondary-bg-color: theme('colors.shader-primary-light.100');
+    --state-layer-inverted-bg-color: theme('colors.iota-primary.80');
+
+    /* ---------------- ATOMS ---------------- */
+
+    /* BADGE */
+    --badge-bg-color-neutral: theme('colors.iota-neutral.92');
+    --badge-text-color-neutral: theme('colors.iota-neutral.10');
+    --badge-border-color-neutral: theme('colors.iota-neutral.92');
+    --badge-bg-color-primary: theme('colors.iota-primary.30');
+    --badge-border-color-primary: theme('colors.iota-primary.30');
+    --badge-text-color-primary: theme('colors.iota-primary.100');
+    --badge-bg-color-primary-soft: theme('colors.iota-primary.90');
+    --badge-text-color-primary-soft: theme('colors.iota-primary.20');
+    --badge-border-color-soft: theme('colors.iota-primary.90');
+
+    /* INFOBOX */
+    --infobox-text-title: theme('colors.iota-neutral.10');
+    --infobox-supporting-text: theme('colors.iota-neutral.40');
+
+    /* BUTTON */
+    --button-bg-color-primary: theme('colors.iota-primary.30');
+    --button-bg-color-disabled-primary: theme('colors.iota-neutral.80');
+    --button-bg-color-secondary: theme('colors.iota-neutral.90');
+    --button-bg-color-error: theme('colors.iota-error.90');
+    --button-border-color-outline: theme('colors.iota-neutral.50');
+    --button-text-color-primary: theme('colors.iota-primary.100');
+    --button-text-color-neutral: theme('colors.iota-neutral.10');
+    --button-text-color-error: theme('colors.iota-error.20');
+
+    /* BUTTON PILL */
+    --button-pill-border-color: theme('colors.iota-neutral.70');
+    --button-pill-text-color: theme('colors.iota-neutral.40');
+
+    /* HEADER */
+    --header-bg-color: theme('colors.iota-neutral.100');
+    --header-text-color: theme('colors.iota-neutral.10');
+
+    /* LABEL */
+    --label-text-primary-neutral: theme('colors.iota-neutral.10');
+    --label-text-secondary-neutral: theme('colors.iota-neutral.60');
+
+    /* KEY VALUE */
+    --key-supporting-text-color: theme('colors.iota-neutral.60');
+    --key-value-hover-text-color: theme('colors.iota-neutral.10');
+    --key-value-key-text-color: theme('colors.iota-neutral.40');
+
+    /* CHECKBOX */
+    --checkbox-border-color-default: theme('colors.iota-neutral.80');
+    --checkbox-border-color-checked: theme('colors.iota-primary.30');
+    --checkbox-border-color-disabled: theme('colors.iota-neutral.70');
+    --checkbox-border-color-disabled-checked: theme('colors.iota-neutral.60');
+    --checkbox-bg-color-checked: theme('colors.iota-primary.30');
+    --checkbox-bg-color-disabled-checked: theme('colors.iota-neutral.60');
+    --checkbox-text-color: theme('colors.iota-neutral.40');
+    --checkbox-text-color-checked: theme('colors.white');
+    --checkbox-label-text-color: theme('colors.iota-neutral.40');
+
+    /* DIVIDER */
+    --divider-bg-color: theme('colors.shader-neutral-light.8');
+
+    /* BUTTON SEGMENT */
+    --button-segment-text-color-default: theme('colors.iota-neutral.60');
+    --button-segment-text-color-hover: theme('colors.iota-neutral.40');
+    --button-segment-text-color-focused: theme('colors.iota-neutral.40');
+    --button-segment-text-color-selected: theme('colors.iota-neutral.10');
+    --button-segment-underline-default-color: theme('colors.shader-neutral-light.8');
+    --button-segment-underline-hover-color: theme('colors.iota-neutral.70');
+    --button-segment-underline-selected-color: theme('colors.iota-primary.30');
+    --button-segment-bg-color-selected: theme('colors.iota-primary.100');
+
+    /* LOADING INDICATOR */
+    --loading-indicator-color: theme('colors.iota-primary.30');
+
+    /* LIST ITEM */
+    --list-item-color: theme('colors.iota-neutral.10');
+    --list-item-border-color: theme('colors.shader-neutral-light.8');
+    --list-item-highlight-bg: theme('colors.shader-primary-dark.16');
+
+    /* PANEL */
+    --panel-bg: theme('colors.iota-neutral.100');
+    --panel-border-color: theme('colors.shader-neutral-light.8');
+
+    /* RADIO BUTTON */
+    --radio-icon-color: theme('colors.iota-neutral.40');
+    --radio-icon-checked-color: theme('colors.iota-primary.30');
+    --radio-icon-checked-disabled-color: theme('colors.iota-neutral.40');
+    --radio-label-color: theme('colors.iota-neutral.40');
+
+    /* SECONDARY TEXT */
+    --secondary-text-color: theme('colors.iota-neutral.40');
+    --secondary-text-error-color: theme('colors.iota-error.20');
+
+    /* SKELETON */
+    --skeleton-bg: theme('colors.iota-neutral.90');
+    --skeleton-secondary-bg: theme('colors.iota-neutral.80');
+
+    /* TOGGLE */
+    --toggle-bg-active: theme('colors.iota-primary.30');
+    --toggle-border-active: theme('colors.iota-primary.30');
+    --toggle-bg-inactive: theme('colors.iota-primary.100');
+    --toggle-border-inactive: theme('colors.iota-neutral.70');
+    --toggle-bg-disabled-active: theme('colors.iota-neutral.70');
+    --toggle-border-disabled-active: theme('colors.iota-neutral.70');
+    --toggle-thumb-color: theme('colors.iota-neutral.60');
+    --toggle-thumb-color-checked: theme('colors.iota-neutral.100');
+    --toggle-label-color: theme('colors.iota-neutral.40');
+
+    /* TOOLTIP */
+    --tooltip-bg: theme('colors.iota-neutral.80');
+    --tooltip-text-color: theme('colors.iota-neutral.10');
+
+    /* VISUAL ASSET CARD */
+    --visual-asset-placeholder-bg: theme('colors.iota-neutral.96');
+    --visual-asset-placeholder-icon: theme('colors.iota-neutral.40');
+    --visual-asset-title-color: theme('colors.iota-neutral.100');
+    --visual-asset-icon-color: theme('colors.iota-neutral.100');
+
+    /* ---------------- MOLECULES ---------------- */
+
+    /* ACCOUNT */
+    --account-title-color: theme('colors.iota-neutral.10');
+    --account-icon-color: theme('colors.iota-neutral.40');
+    --account-check-active-color: theme('colors.iota-primary.30');
+    --account-check-inactive-color: theme('colors.iota-neutral.40');
+
+    /* ADDRESS */
+    --address-text-color: theme('colors.iota-neutral.40');
+
+    /* CARD */
+    --card-filled-bg: theme('colors.iota-neutral.96');
+    --card-image-bg-solid: theme('colors.iota-neutral.96');
+    --card-image-bg-white: theme('colors.iota-neutral.100');
+    --card-action-link-color: theme('colors.iota-neutral.10');
+    --card-action-title-color: theme('colors.iota-neutral.10');
+    --card-action-subtitle-color: theme('colors.iota-neutral.60');
+    --card-body-title-color: theme('colors.iota-neutral.10');
+    --card-body-subtitle-color: theme('colors.iota-neutral.40');
+
+    /* CHIP */
+    --chip-bg-selected-outline: theme('colors.iota-primary.90');
+    --chip-bg-elevated: theme('colors.iota-primary.90');
+    --chip-bg-brand: theme('colors.iota-primary.30');
+    --chip-border-default: theme('colors.iota-neutral.70');
+    --chip-text-default: theme('colors.iota-neutral.40');
+    --chip-text-secondary: theme('colors.iota-neutral.10');
+    --chip-focus-ring: theme('colors.iota-primary.30');
+    --chip-border-color-brand: theme('colors.iota-primary.30');
+    --chip-text-brand: theme('colors.iota-primary.100');
+    --chip-bg-selected-overlay: theme('colors.shader-primary-light.16');
+    --chip-close-icon-opacity: 100;
+
+    --chip-outline-color: theme('colors.shader-primary-light.16');
+    --chip-outline-color-hover: theme('colors.shader-primary-light.8');
+    --chip-outline-color-active: theme('colors.shader-primary-light.12');
+
+    --chip-bg-color-hover: theme('colors.shader-primary-light.8');
+    --chip-bg-color-active: theme('colors.shader-primary-light.12');
+    --chip-bg-color-focus: theme('colors.shader-primary-light.12');
+
+    /* DISPLAY STATS */
+    --display-stats-bg-default: theme('colors.iota-neutral.96');
+    --display-stats-bg-highlight: theme('colors.iota-primary.30');
+    --display-stats-bg-secondary: theme('colors.iota-secondary.90');
+
+    --display-stats-text-default: theme('colors.iota-neutral.10');
+    --display-stats-text-highlight: theme('colors.iota-neutral.100');
+    --display-stats-text-secondary: theme('colors.iota-neutral.10');
+
+    --display-stats-icon-color: theme('colors.iota-neutral.10');
+    --display-stats-copy-icon-color: theme('colors.iota-neutral.60');
+
+    /* DROPDOWN */
+    --dropdown-bg: theme('colors.iota-neutral.100');
+    --dropdown-border-color: theme('colors.iota-neutral.80');
+
+    /* INPUT */
+    --input-text-color: theme('colors.iota-neutral.10');
+    --input-placeholder-color: rgba(84, 94, 110, 0.4); /* neutral.40 with 40% opacity */
+    --input-label-color: theme('colors.iota-neutral.40');
+    --input-border-color: theme('colors.iota-neutral.80');
+    --input-border-hover-color: theme('colors.iota-neutral.50');
+    --input-border-error-color: theme('colors.iota-error.30');
+    --input-border-focus-color: theme('colors.iota-primary.30');
+    --input-caret-color: theme('colors.iota-primary.30');
+    --input-icon-color: theme('colors.iota-neutral.10');
+    --input-copy-icon-color: theme('colors.iota-neutral.60');
+    --input-visibility-bar-color: rgba(227, 234, 246, 0.6); /* neutral.92 with 60% opacity */
+
+    /* NAVBAR ITEM */
+    --navbar-item-icon-color: theme('colors.iota-neutral.40');
+    --navbar-item-icon-selected-color: theme('colors.iota-neutral.10');
+    --navbar-item-label-color: theme('colors.iota-neutral.60');
+    --navbar-item-label-selected-color: theme('colors.iota-neutral.10');
+
+    /* SEARCH */
+    --search-text-color: theme('colors.iota-neutral.10');
+    --search-placeholder-color: theme('colors.iota-neutral.40');
+    --search-border-color: theme('colors.iota-neutral.70');
+    --search-bg-color-filled: theme('colors.iota-neutral.92');
+    --search-suggestion-bg-color: theme('colors.iota-neutral.100');
+    --search-selected-index-bg-color: theme('colors.shader-primary-dark.16');
+
+    /* SEGMENTED BUTTON */
+    --segmented-filled-bg-color: theme('colors.iota-neutral.96');
+    --segmented-outlined-border-color: theme('colors.iota-neutral.70');
+
+    /* SELECT */
+    --select-border-color: theme('colors.iota-neutral.80');
+    --select-border-hover-color: theme('colors.iota-neutral.50');
+    --select-border-focus-color: theme('colors.iota-primary.30');
+    --select-border-error-color: theme('colors.iota-error.30');
+    --select-icon-color: theme('colors.iota-neutral.10');
+    --select-label-color: theme('colors.iota-neutral.10');
+
+    /* TABLE CELL */
+    --table-cell-supporting-label-color: theme('colors.iota-neutral.60');
+    --table-cell-border-color: theme('colors.shader-neutral-light.8');
+
+    /* TABLE HEADER CELL */
+    --table-header-text-color: theme('colors.iota-neutral.10');
+
+    /* TITLE */
+    --title-main-color: theme('colors.iota-neutral.10');
+    --title-subtitle-color: theme('colors.iota-neutral.60');
+    --title-icon-color: theme('colors.iota-neutral.60');
+
+    /* ---------------- ORGANISMS ---------------- */
+
+    /* ACCORDION */
+    --accordion-bg: theme('colors.iota-neutral.100');
+    --accordion-icon-color: theme('colors.iota-neutral.10');
+    --accordion-border-color: theme('colors.shader-neutral-light.8');
+
+    /* DIALOG */
+    --dialog-content-bg: theme('colors.iota-primary.100');
+    --dialog-title-color: theme('colors.iota-neutral.10');
+    --dialog-body-color: theme('colors.iota-neutral.40');
+
+    /* NAVBAR */
+    --navbar-icon-color: theme('colors.iota-neutral.10');
+    --navbar-slideout-bg: theme('colors.iota-neutral.100');
+
+    /* TABLE */
+    --table-text-color: theme('colors.iota-neutral.40');
+
+    /* DIALOG */
+    --dialog-outline: none;
+    --dialog-overlay-bg: theme('colors.shader-neutral-light.48');
+}

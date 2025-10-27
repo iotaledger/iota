@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::VecDeque, sync::Arc};
@@ -551,7 +551,7 @@ mod testing {
                         .map_err(fmt_error_to_partial_vm_error)?;
                 } else {
                     let is_complex_inner_type =
-                        vec.last().map_or(false, is_vector_or_data_move_value);
+                        vec.last().is_some_and(is_vector_or_data_move_value);
                     print_non_u8_vector(
                         out,
                         move_std_addr,

@@ -14,7 +14,7 @@ function Asset({ object }: { object: IotaObjectResponse }) {
     const name = displayMeta?.name ?? displayMeta?.description ?? '';
     const type = trimStdLibPrefix(parseObjectType(object));
     return (
-        <div className="flex items-center gap-x-2.5 text-neutral-40 dark:text-neutral-60">
+        <div className="flex items-center gap-x-2.5 text-iota-neutral-40 dark:text-iota-neutral-60">
             <ObjectVideoImage
                 disablePreview
                 title={name}
@@ -24,7 +24,9 @@ function Asset({ object }: { object: IotaObjectResponse }) {
                 disableVideoControls
                 disableAutoPlay
             />
-            <div className="whitespace-nowrap text-label-lg">{name ? name : '--'}</div>
+            <div className="max-w-[200px]">
+                <span className="block truncate text-label-lg">{name ? name : '--'}</span>
+            </div>
         </div>
     );
 }

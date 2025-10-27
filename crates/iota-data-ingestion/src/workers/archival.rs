@@ -61,7 +61,7 @@ impl ArchivalReducer {
         summary_buffer: Vec<u8>,
         buffer: Vec<u8>,
     ) -> anyhow::Result<()> {
-        let checkpoint_file_path = format!("epoch_{}/{}.chk", epoch, start);
+        let checkpoint_file_path = format!("epoch_{epoch}/{start}.chk");
         let chk_bytes = self
             .upload_file(
                 Path::from(checkpoint_file_path.clone()),
@@ -69,7 +69,7 @@ impl ArchivalReducer {
                 &buffer,
             )
             .await?;
-        let summary_file_path = format!("epoch_{}/{}.sum", epoch, start);
+        let summary_file_path = format!("epoch_{epoch}/{start}.sum");
         let sum_bytes = self
             .upload_file(
                 Path::from(summary_file_path.clone()),

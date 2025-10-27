@@ -1,0 +1,68 @@
+---
+title: "Comparison: Dynamic vs. Locked Notarization"
+description: "A detailed comparison to help you choose between Dynamic and Locked Notarization methods."
+teams:
+  - iotaledger/identity
+tags:
+ - explanation
+ - notarization
+ - dynamic-notarization
+ - locked-notarization
+---
+
+# Comparison: Dynamic vs. Locked Notarization
+
+The IOTA Notarization offers two distinct methods for creating on-chain records: **Dynamic** and **Locked**. While both leverage the power of the IOTA ledger to guarantee data integrity, they are designed for fundamentally different purposes. Choosing the right method is crucial for the success of your application.
+
+This guide provides a detailed comparison, analogies, and clear criteria to help you decide which method best suits your needs.
+
+---
+## The Core Analogy: A Living Document vs. A Stone Tablet
+
+To understand the difference intuitively, consider this analogy:
+
+-   **Locked Notarization is a Stone Tablet.** You carve a message into it once. The message is permanent, unchangeable, and serves as a definitive record of a fact at a single point in time. It cannot be altered or passed to someone else to alter. Its purpose is to exist as an immutable artifact.
+
+-   **Dynamic Notarization is a Living Document or a Public Registry.** It has a permanent, well-known location (its `ObjectId`), but the content inside can be updated. Think of a vehicle's registration status. The car (the object) remains the same, but its status can change from "registered" to "expired" to "sold". Observers only care about the *current* status, not the history of every previous status.
+
+---
+## Detailed Feature Comparison
+
+| Feature                 | Locked Notarization                                                               | Dynamic Notarization                                                             |
+| ----------------------- | --------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| **Core Principle** | **Immutability**. Creates a permanent, unchangeable record of a past state.       | **Availability**. Provides a stable reference to the most current, up-to-date state. |
+| **State Changes** | **Not Allowed**. The `state` is written once and is permanently locked.           | **Allowed**. The owner can update the `state`, overwriting the previous version. |
+| **Ownership** | **Permanent & Non-Transferable**. The original creator is the sole and final owner. | **Transferable**. Ownership can be passed to another address or entity.          |
+| **Primary Goal** | To **prove** that specific data existed in a fixed state at a specific time.       | To **provide** a reliable and always-current version of evolving data.           |
+| **Version Tracking** | Not applicable, as there is only one version.                                     | **Essential**. The `state_version_count` increments with each update.            |
+| **Timelocks** | Mandatory `delete_lock` to ensure data remains on-chain for a required period.   | Optional `transfer_lock` to temporarily prevent change of ownership.             |
+| **Lifecycle** | Create → Hold → Destroy                                                           | Create → Update → (Optional) Transfer → Destroy                                  |
+
+---
+## When to Use Which Method?
+
+Your choice depends entirely on the nature of the data you are notarizing: is it a static fact or an evolving state?
+
+### Use Locked Notarization if:
+You need to create a permanent, historical record that must be proven to be unaltered. Your primary concern is finality and legal-admissibility.
+
+-   **You need to prove authorship or existence.**
+    -   *Example*: Timestamping a patent application, a manuscript, or a piece of software to prove it existed before a certain date.
+-   **The data represents a final, unchangeable event.**
+    -   *Example*: Issuing a birth certificate, a university diploma, or a legal verdict. These are facts that, once established, do not change.
+-   **You are creating a legally binding snapshot.**
+    -   *Example*: Notarizing a signed contract, a financial statement at the end of a fiscal year, or an audit report.
+-   **The record must remain on-chain for a specific compliance period.**
+    -   *Example*: A Digital Product Passport for a non-serviceable part, where the manufacturing data must be available for 10 years.
+
+### Use Dynamic Notarization if:
+You need to provide a single, reliable source of truth for data that changes over time. Your primary concern is ensuring everyone has access to the *latest* information.
+
+-   **The data tracks the status of an asset or process.**
+    -   *Example*: A Digital Product Passport for a car, where the `state` is updated to reflect maintenance, ownership changes, and repairs over its lifetime.
+-   **You are managing a public list or registry.**
+    -   *Example*: An allowlist for a service, a list of authorized members in a consortium, or an identity revocation list.
+-   **The data is a "living document" that undergoes official revisions.**
+    -   *Example*: The terms and conditions for a service, an internal company policy, or a set of technical standards that are periodically updated. The `ObjectId` always points to the current, authoritative version.
+-   **Control or ownership of the data may need to change hands.**
+    -   *Example*: A project's master plan is notarized, and when the project lead changes, ownership of the notarization object is transferred to the new lead.

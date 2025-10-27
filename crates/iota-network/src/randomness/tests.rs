@@ -512,7 +512,7 @@ fn node_from_committee(
     .expect("should work to convert BLS key to G2Element");
     fastcrypto_tbls::nodes::Node::<EncG> {
         id,
-        pk: fastcrypto_tbls::ecies::PublicKey::from(pk),
+        pk: fastcrypto_tbls::ecies_v1::PublicKey::from(pk),
         weight: stake.try_into().unwrap(),
     }
 }

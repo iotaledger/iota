@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{cmp::Ordering, fmt::Debug, iter::IntoIterator};
@@ -90,7 +90,7 @@ impl<T: TName> UniqueSet<T> {
         self.iter().all(|(_, x_)| other.contains_(x_))
     }
 
-    pub fn iter(&self) -> Iter<T> {
+    pub fn iter(&self) -> Iter<'_, T> {
         self.into_iter()
     }
 

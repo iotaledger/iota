@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -47,7 +47,7 @@ impl ModuleViewer {
     }
 }
 
-impl<'a> RightScreen<BytecodeViewer<'a>> for ModuleViewer {
+impl RightScreen<BytecodeViewer<'_>> for ModuleViewer {
     fn source_for_code_location(&self, bytecode_info: &BytecodeInfo) -> Result<SourceContext> {
         let loc = self
             .source_map

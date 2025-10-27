@@ -13,7 +13,6 @@ path = "src/lib.rs"
 # external dependencies
 anyhow.workspace = true
 thiserror.workspace = true
-tracing.workspace = true
 
 # internal dependencies
 iota-json-rpc-types.workspace = true

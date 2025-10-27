@@ -23,7 +23,7 @@ function ArrayArgument({
     return (
         <>
             {data && (
-                <span className="break-all text-body-md text-neutral-40 dark:text-neutral-60">
+                <span className="break-all text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
                     ({flattenIotaArguments(data)})
                 </span>
             )}
@@ -41,7 +41,7 @@ function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>): JSX.Elem
     } = data;
 
     return (
-        <span className="text-body-md text-neutral-40 dark:text-neutral-60">
+        <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
             package:{' '}
             <span className="inline-flex">
                 <ObjectLink
@@ -59,7 +59,7 @@ function MoveCall({ data }: TransactionProps<MoveCallIotaTransaction>): JSX.Elem
                 />
             </span>
             , function:{' '}
-            <span className="break-all text-primary-30 dark:text-primary-80">{func}</span>
+            <span className="break-all text-iota-primary-30 dark:text-iota-primary-80">{func}</span>
             {args && (
                 <span className="break-all">, arguments: [{flattenIotaArguments(args!)}]</span>
             )}

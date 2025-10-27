@@ -30,6 +30,6 @@ impl Display for Pretty<'_, Summary> {
             1,
             TableStyle::modern().get_horizontal(),
         )]));
-        write!(f, "{}", table)
+        write!(f, "{table}")
     }
 }

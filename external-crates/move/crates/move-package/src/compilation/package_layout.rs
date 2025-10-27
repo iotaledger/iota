@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::{Path, PathBuf};
@@ -11,7 +11,7 @@ pub enum CompiledPackageLayout {
     Root,
     Dependencies,
     Sources,
-    SourceMaps,
+    DebugInfo,
     LockFiles,
     CompiledModules,
     CompiledDocs,
@@ -25,7 +25,7 @@ impl CompiledPackageLayout {
             Self::Root => "build",
             Self::Dependencies => "dependencies",
             Self::Sources => "sources",
-            Self::SourceMaps => "source_maps",
+            Self::DebugInfo => "debug_info",
             Self::LockFiles => "locks",
             Self::CompiledModules => "bytecode_modules",
             Self::CompiledDocs => "docs",

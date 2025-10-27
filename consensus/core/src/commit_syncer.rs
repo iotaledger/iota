@@ -510,6 +510,15 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .authority(authority)
                             .hostname
                             .clone();
+                        inner
+                            .context
+                            .metrics
+                            .update_scoring_metrics_on_block_receival(
+                                authority,
+                                hostname.as_str(),
+                                e.clone(),
+                                "fetch_once",
+                            );
                         warn!("Failed to fetch {commit_range:?} from {hostname}: {}", e);
                         let error: &'static str = e.into();
                         inner
@@ -681,18 +690,27 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 .context
                 .metrics
                 .node_metrics
-                .block_timestamp_drift_wait_ms
+                .block_timestamp_drift_ms
                 .with_label_values(&[peer_hostname.as_str(), "commit_syncer"])
                 .inc_by(forward_drift);
-            let forward_drift = Duration::from_millis(forward_drift);
-            if forward_drift >= inner.context.parameters.max_forward_time_drift {
-                warn!(
-                    "Local clock is behind a quorum of peers: local ts {}, certified block ts {}",
-                    now_ms,
-                    block.timestamp_ms()
-                );
+
+            // We want to run the following checks only if the median based commit timestamp
+            // is not enabled.
+            if !inner
+                .context
+                .protocol_config
+                .consensus_median_timestamp_with_checkpoint_enforcement()
+            {
+                let forward_drift = Duration::from_millis(forward_drift);
+                if forward_drift >= inner.context.parameters.max_forward_time_drift {
+                    warn!(
+                        "Local clock is behind a quorum of peers: local ts {}, committed block ts {}",
+                        now_ms,
+                        block.timestamp_ms()
+                    );
+                }
+                sleep(forward_drift).await;
             }
-            sleep(forward_drift).await;
         }
 
         // 9. Now create the Certified commits by assigning the blocks to each commit

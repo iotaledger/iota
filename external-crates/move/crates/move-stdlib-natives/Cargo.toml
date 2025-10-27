@@ -14,7 +14,8 @@ move-binary-format.workspace = true
 move-core-types.workspace = true
 # referred to via path for execution versioning
 move-vm-runtime = { path = "../move-vm-runtime" }
-move-vm-types.workspace = true
+# referred to via path for execution versioning
+move-vm-types = { path = "../move-vm-types" }
 sha2.workspace = true
 sha3.workspace = true
 smallvec.workspace = true

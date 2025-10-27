@@ -14,8 +14,8 @@ export const IMAGE_VARIANT_CLASSES: { [key in ImageShape]: string } = {
 
 export const IMAGE_BG_CLASSES: { [key in ImageType]: string } = {
     [ImageType.Placeholder]: '',
-    [ImageType.BgSolid]: 'bg-neutral-96 dark:bg-neutral-10',
-    [ImageType.BgWhite]: 'bg-white dark:bg-neutral-6',
+    [ImageType.BgSolid]: 'card-image-bg-solid',
+    [ImageType.BgWhite]: 'card-image-bg-white',
     [ImageType.BgTransparent]: '',
 };
 
@@ -23,5 +23,5 @@ export const CARD_TYPE_CLASSES: Record<CardType, string> = {
     [CardType.Default]: 'border border-transparent',
     [CardType.Outlined]:
         'border border-shader-neutral-light-8 dark:border-shader-primary-dark-8 p-xs',
-    [CardType.Filled]: 'border border-transparent bg-neutral-96 dark:bg-neutral-10 p-xs',
+    [CardType.Filled]: 'border border-transparent card-filled-bg p-xs',
 };

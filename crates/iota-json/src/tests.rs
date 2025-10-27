@@ -333,7 +333,7 @@ fn test_basic_args_linter_pure_args_good() {
         ),
         // U128 value encoded as hex str
         (
-            Value::from(format!("0x{:02x}", u128_val)),
+            Value::from(format!("0x{u128_val:02x}")),
             MoveTypeLayout::U128,
             bcs::to_bytes(&u128_val).unwrap(),
         ),
@@ -696,7 +696,7 @@ fn test_convert_struct() {
     let value = json!({"id":"0xf1416fe18c7baa1673187375777a7606708481311cb3548509ec91a5871c6b9a", "balance": "1000000"});
     let iota_json = IotaJsonValue::new(value).unwrap();
 
-    println!("JS: {:#?}", iota_json);
+    println!("JS: {iota_json:#?}");
 
     let bcs = iota_json.to_bcs_bytes(&layout).unwrap();
 
@@ -791,4 +791,36 @@ fn test_string_vec_df_name_child_id_eq() {
         "0xf35e1ecda8f9ba998608044c538f55c7f6c835081976e91fad47bfd9fd444cda",
         child_id.to_string()
     );
+}
+
+#[test]
+fn test_convert_u8_vec() {
+    let layout = MoveTypeLayout::Vector(Box::new(MoveTypeLayout::U8));
+    let bcs_valid_utf8 = [
+        122, 121, 2, 15, 48, 120, 50, 58, 58, 105, 111, 116, 97, 58, 58, 73, 79, 84, 65, 64, 66,
+        15, 0, 0, 0, 0, 0, 86, 48, 120, 98, 50, 49, 56, 53, 51, 100, 55, 51, 56, 48, 102, 97, 56,
+        51, 54, 48, 97, 97, 98, 102, 100, 97, 56, 52, 49, 51, 102, 56, 50, 53, 102, 100, 102, 99,
+        51, 102, 51, 101, 97, 55, 101, 56, 48, 49, 98, 56, 101, 54, 50, 98, 100, 100, 102, 99, 98,
+        57, 97, 50, 53, 99, 51, 55, 55, 58, 58, 116, 101, 115, 116, 99, 111, 105, 110, 58, 58, 84,
+        69, 83, 84, 67, 79, 73, 78, 10, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+    let json = IotaJsonValue::from_bcs_bytes(Some(&layout), &bcs_valid_utf8).unwrap();
+    assert_eq!(&bcs_valid_utf8[1..], json_into_vec_u8(json.0).as_slice());
+    let bcs_invalid_utf8 = [
+        28, 27, 1, 1, 15, 48, 120, 50, 58, 58, 105, 111, 116, 97, 58, 58, 73, 79, 84, 65, 210, 4,
+        0, 0, 0, 0, 0, 0, 0,
+    ];
+    let json = IotaJsonValue::from_bcs_bytes(Some(&layout), &bcs_invalid_utf8).unwrap();
+    assert_eq!(&bcs_invalid_utf8[1..], json_into_vec_u8(json.0).as_slice());
+}
+
+fn json_into_vec_u8(value: Value) -> Vec<u8> {
+    let Value::Array(vector) = value else {
+        panic!("{value:?} is not an array");
+    };
+    vector
+        .into_iter()
+        .filter_map(|num| num.as_i64())
+        .filter_map(|num| u8::try_from(num).ok())
+        .collect()
 }

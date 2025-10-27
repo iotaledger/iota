@@ -18,6 +18,9 @@ export function useNewStakeTransaction(validator: string, amount: bigint, sender
             const txDryRun = await client.dryRunTransactionBlock({
                 transactionBlock: txBytes,
             });
+            if (txDryRun.effects.status.status !== 'success') {
+                throw new Error(txDryRun.effects.status.error || 'Transaction dry run failed');
+            }
             return {
                 txBytes,
                 txDryRun,

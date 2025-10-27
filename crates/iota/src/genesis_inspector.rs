@@ -186,7 +186,7 @@ pub(crate) fn examine_genesis_checkpoint(
         "Total Number of Migration Objects: {}",
         total_objects - tot_additional_objects
     );
-    println!("Total Number of Objects/Packages: {}", total_objects);
+    println!("Total Number of Objects/Packages: {total_objects}");
 
     // Always check the Total Supply
     examine_total_supply(&system_object.iota_treasury_cap, &iota_distribution, false);
@@ -208,7 +208,7 @@ pub(crate) fn examine_genesis_checkpoint(
                 examine_validators(&validator_options, &validator_map);
             }
             Ok(name) if name == STR_OBJECTS => {
-                println!("Examine Objects (total: {})", total_objects);
+                println!("Examine Objects (total: {total_objects})");
                 examine_object(
                     &owner_map,
                     &validator_pool_id_map,
@@ -310,7 +310,7 @@ fn examine_object(
             }
             Ok(name) if name == STR_TIMELOCKED_IOTA => {
                 for timelocked in timelocked_iota_map.values() {
-                    println!("{:#?}", timelocked);
+                    println!("{timelocked:#?}");
                 }
                 print_divider(STR_TIMELOCKED_IOTA);
             }
@@ -326,19 +326,19 @@ fn examine_object(
             }
             Ok(name) if name == STR_ALIAS_OUTPUT_IOTA => {
                 for alias_output in alias_output_iota_map.values() {
-                    println!("{:#?}", alias_output);
+                    println!("{alias_output:#?}");
                 }
                 print_divider(STR_ALIAS_OUTPUT_IOTA);
             }
             Ok(name) if name == STR_BASIC_OUTPUT_IOTA => {
                 for basic_output in basic_output_iota_map.values() {
-                    println!("{:#?}", basic_output);
+                    println!("{basic_output:#?}");
                 }
                 print_divider(STR_BASIC_OUTPUT_IOTA);
             }
             Ok(name) if name == STR_NFT_OUTPUT_IOTA => {
                 for nft_output in nft_output_iota_map.values() {
-                    println!("{:#?}", nft_output);
+                    println!("{nft_output:#?}");
                 }
                 print_divider(STR_NFT_OUTPUT_IOTA);
             }
@@ -359,7 +359,7 @@ fn examine_object(
             }
             Ok(name) if name == STR_COIN_METADATA => {
                 for coin_metadata in coin_metadata_map.values() {
-                    println!("{:#?}\n", coin_metadata);
+                    println!("{coin_metadata:#?}\n");
                 }
                 print_divider("CoinMetadata");
             }
@@ -390,12 +390,12 @@ fn examine_total_supply(
         }
         total_iota += amount_sum;
         if print {
-            println!("Owner {:?}", owner);
+            println!("Owner {owner:?}");
             println!(
                 "Total Amount of Iota/StakedIota Owned: {amount_sum} NANOS or {} IOTA:",
                 amount_sum / NANOS_PER_IOTA
             );
-            println!("{:#?}\n", coins);
+            println!("{coins:#?}\n");
         }
     }
     // Always print this.
@@ -416,7 +416,7 @@ fn examine_total_supply(
 fn display_validator(validator: &IotaValidatorGenesis) {
     let metadata = validator.verified_metadata();
     println!("Validator name: {}", metadata.name);
-    println!("{:#?}", metadata);
+    println!("{metadata:#?}");
     println!("Voting Power: {}", validator.voting_power);
     println!("Gas Price: {}", validator.gas_price);
     println!("Next Epoch Gas Price: {}", validator.next_epoch_gas_price);
@@ -481,7 +481,7 @@ fn display_staked_iota(
     validator_pool_id_map: &BTreeMap<ObjectID, &IotaValidatorGenesis>,
     owner_map: &BTreeMap<ObjectID, Owner>,
 ) {
-    println!("{:#?}", staked_iota);
+    println!("{staked_iota:#?}");
     display_staked(
         &staked_iota.pool_id(),
         &staked_iota.id(),
@@ -495,7 +495,7 @@ fn display_timelocked_staked_iota(
     validator_pool_id_map: &BTreeMap<ObjectID, &IotaValidatorGenesis>,
     owner_map: &BTreeMap<ObjectID, Owner>,
 ) {
-    println!("{:#?}", timelocked_staked_iota);
+    println!("{timelocked_staked_iota:#?}");
     display_staked(
         &timelocked_staked_iota.pool_id(),
         &timelocked_staked_iota.id(),

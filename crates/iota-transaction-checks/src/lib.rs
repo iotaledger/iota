@@ -65,7 +65,7 @@ mod checked {
         )
     }
 
-    #[instrument(level = "trace", skip_all)]
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn check_transaction_input(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -94,6 +94,7 @@ mod checked {
         Ok((gas_status, input_objects.into_checked()))
     }
 
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn check_transaction_input_with_given_gas(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -155,6 +156,7 @@ mod checked {
 
     /// WARNING! This should only be used for the dev-inspect transaction. This
     /// transaction type bypasses many of the normal object checks
+    #[instrument(level = "trace", skip_all)]
     pub fn check_dev_inspect_input(
         config: &ProtocolConfig,
         kind: &TransactionKind,
@@ -165,8 +167,7 @@ mod checked {
         kind.validity_check(config)?;
         if kind.is_system_tx() {
             return Err(UserInputError::Unsupported(format!(
-                "Transaction kind {} is not supported in dev-inspect",
-                kind
+                "Transaction kind {kind} is not supported in dev-inspect"
             ))
             .into());
         }
@@ -192,6 +193,7 @@ mod checked {
     }
 
     // Common checks performed for transactions and certificates.
+    #[instrument(level = "trace", skip_all)]
     fn check_transaction_input_inner(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -219,6 +221,7 @@ mod checked {
         Ok(gas_status)
     }
 
+    #[instrument(level = "trace", skip_all)]
     fn check_receiving_objects(
         input_objects: &InputObjects,
         receiving_objects: &ReceivingObjects,
@@ -242,7 +245,7 @@ mod checked {
         } in receiving_objects.iter()
         {
             fp_ensure!(
-                *version < SequenceNumber::MAX,
+                *version < SequenceNumber::MAX_VALID_EXCL,
                 UserInputError::InvalidSequenceNumber.into()
             );
 
@@ -449,7 +452,7 @@ mod checked {
                     UserInputError::MovePackageAsObject { object_id }
                 );
                 fp_ensure!(
-                    sequence_number < SequenceNumber::MAX,
+                    sequence_number < SequenceNumber::MAX_VALID_EXCL,
                     UserInputError::InvalidSequenceNumber
                 );
 
@@ -483,8 +486,7 @@ mod checked {
                             owner == &actual_owner,
                             UserInputError::IncorrectUserSignature {
                                 error: format!(
-                                    "Object {:?} is owned by account address {:?}, but given owner/signer address is {:?}",
-                                    object_id, actual_owner, owner
+                                    "Object {object_id:?} is owned by account address {actual_owner:?}, but given owner/signer address is {owner:?}"
                                 ),
                             }
                         );
@@ -549,7 +551,7 @@ mod checked {
                 ..
             } => {
                 fp_ensure!(
-                    object.version() < SequenceNumber::MAX,
+                    object.version() < SequenceNumber::MAX_VALID_EXCL,
                     UserInputError::InvalidSequenceNumber
                 );
 

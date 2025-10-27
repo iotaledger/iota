@@ -1,6 +1,8 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-export interface FormDataValues {
+
+import type { ReceiverInputFormValues } from '@iota/core';
+
+export interface FormDataValues extends ReceiverInputFormValues {
     amount: string;
-    to: string;
 }

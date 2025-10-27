@@ -25,7 +25,7 @@ export function NavbarItemVertical({
     const textClasses = isSelected ? SELECTED_TEXT : UNSELECTED_TEXT;
     const disabledClasses = isDisabled
         ? 'cursor-not-allowed opacity-60'
-        : 'state-layer cursor-pointer ';
+        : 'state-layer-secondary cursor-pointer ';
     const handleClick = (e: React.MouseEvent<HTMLDivElement>) => {
         if (isDisabled) {
             e.preventDefault();

@@ -8,7 +8,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     AccountsFormType,
     useAccountsFormContext,
-    LedgerAccountList,
+    AccountList,
     useDeriveLedgerAccounts,
     type DerivedLedgerAccount,
     Overlay,
@@ -75,7 +75,7 @@ export function ImportLedgerAccountsPage() {
     } else if (!encounteredDerviceAccountsError) {
         importLedgerAccountsBody = (
             <div className="max-h-[530px] w-full overflow-auto">
-                <LedgerAccountList
+                <AccountList
                     accounts={ledgerAccounts}
                     selectedAccounts={selectedLedgerAccounts}
                     onAccountClick={onAccountClick}
@@ -126,12 +126,21 @@ export function ImportLedgerAccountsPage() {
             <div className="flex h-full w-full flex-col">
                 {importLedgerAccountsBody}
                 <div className="flex flex-1 items-end">
-                    <Button
-                        text="Next"
-                        disabled={isUnlockButtonDisabled}
-                        onClick={handleNextClick}
-                        fullWidth
-                    />
+                    {areAllAccountsImported ? (
+                        <Button
+                            text="Finish"
+                            onClick={() => navigate('/accounts/manage')}
+                            fullWidth
+                        />
+                    ) : (
+                        <Button
+                            text="Next"
+                            disabled={isUnlockButtonDisabled}
+                            onClick={handleNextClick}
+                            fullWidth
+                        />
+                    )}
+                    ;
                 </div>
             </div>
         </Overlay>
@@ -142,7 +151,7 @@ function LedgerViewLoading() {
     return (
         <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm">
             <LoadingIndicator />
-            <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+            <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                 Looking for Accounts...
             </span>
         </div>
@@ -152,8 +161,8 @@ function LedgerViewLoading() {
 function LedgerViewAllAccountsImported() {
     return (
         <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm [&_svg]:h-6 [&_svg]:w-6">
-            <CheckmarkFilled className="text-primary-30 dark:text-primary-80" />
-            <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+            <CheckmarkFilled className="text-iota-primary-30 dark:text-iota-primary-80" />
+            <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                 Imported all Ledger Accounts
             </span>
         </div>

@@ -158,8 +158,7 @@ fn verify_id_leak(
                         module.identifier_at(module.function_handle_at(func_def.function).name);
                     let module_name = module.self_id();
                     verification_failure(format!(
-                        "{} Found in {module_name}::{function_name}",
-                        message
+                        "{message} Found in {module_name}::{function_name}"
                     ))
                 } else {
                     verification_failure(err.to_string())
@@ -315,7 +314,7 @@ fn call(
     let function = verifier.resolve_function(function_handle);
     if FRESH_ID_FUNCTIONS.contains(&function) {
         if return_.0.len() != 1 {
-            debug_assert!(false, "{:?} should have a single return value", function);
+            debug_assert!(false, "{function:?} should have a single return value");
             return Err(PartialVMError::new(StatusCode::UNKNOWN_VERIFICATION_ERROR)
                 .with_message("Should have a single return value".to_string())
                 .with_sub_status(

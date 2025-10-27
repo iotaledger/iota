@@ -19,8 +19,11 @@ use iota_protocol_config::{
 use iota_types::{
     IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_CLOCK_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID,
     IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_STATE_OBJECT_ID, MOVE_STDLIB_PACKAGE_ID,
-    base_types::dbg_addr,
-    crypto::{AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair},
+    base_types::{AuthorityName, dbg_addr},
+    crypto::{
+        AccountKeyPair, AuthorityKeyPair, Signature, get_key_pair,
+        random_committee_key_pairs_of_size,
+    },
     digests::Digest,
     dynamic_field::DynamicFieldType,
     effects::TransactionEffects,
@@ -99,7 +102,7 @@ impl TestCallArg {
     }
 
     async fn call_arg_from_id(object_id: ObjectID, state: &AuthorityState) -> ObjectArg {
-        let object = state.get_object(&object_id).await.unwrap().unwrap();
+        let object = state.get_object(&object_id).await.unwrap();
         match &object.owner {
             Owner::AddressOwner(_) | Owner::ObjectOwner(_) | Owner::Immutable => {
                 ObjectArg::ImmOrOwnedObject(object.compute_object_reference())
@@ -150,11 +153,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
         .unwrap();
         effects.status().unwrap();
         let shared_object_id = effects.created()[0].0.0;
-        let mut shared_object = authority
-            .get_object(&shared_object_id)
-            .await
-            .unwrap()
-            .unwrap();
+        let mut shared_object = authority.get_object(&shared_object_id).await.unwrap();
         if let Some(initial_shared_version) = initial_shared_version_override {
             shared_object
                 .data
@@ -176,7 +175,7 @@ async fn construct_shared_object_transaction_with_sequence_number(
     validator.insert_genesis_object(shared_object.clone()).await;
     fullnode.insert_genesis_object(shared_object.clone()).await;
     let rgp = validator.reference_gas_price_for_testing().unwrap();
-    let gas_object = validator.get_object(&gas_object_id).await.unwrap();
+    let gas_object = validator.get_object(&gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let data = TransactionData::new_move_call(
         sender,
@@ -216,7 +215,6 @@ async fn test_dry_run_transaction_block() {
         .get_object(&shared_object_id)
         .await
         .unwrap()
-        .unwrap()
         .version();
 
     let transaction_digest = *transaction.digest();
@@ -226,23 +224,16 @@ async fn test_dry_run_transaction_block() {
             transaction.data().intent_message().value.clone(),
             transaction_digest,
         )
-        .await
         .unwrap();
     assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
     let gas_usage = response.effects.gas_cost_summary();
 
     // Make sure that objects are not mutated after dry run.
-    let gas_object_version = fullnode
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap()
-        .version();
+    let gas_object_version = fullnode.get_object(&gas_object_id).await.unwrap().version();
     assert_eq!(gas_object_version, OBJECT_START_VERSION);
     let shared_object_version = fullnode
         .get_object(&shared_object_id)
         .await
-        .unwrap()
         .unwrap()
         .version();
     assert_eq!(shared_object_version, initial_shared_object_version);
@@ -257,7 +248,6 @@ async fn test_dry_run_transaction_block() {
     );
     let (response, _, _, _) = fullnode
         .dry_exec_transaction(txn_data, transaction_digest)
-        .await
         .unwrap();
     let gas_usage_no_gas = response.effects.gas_cost_summary();
     assert_eq!(*response.effects.status(), IotaExecutionStatus::Success);
@@ -291,7 +281,6 @@ async fn test_dry_run_no_gas_big_transfer() {
             signed.data().intent_message().value.clone(),
             *signed.digest(),
         )
-        .await
         .unwrap();
     assert_eq!(*dry_run_res.effects.status(), IotaExecutionStatus::Success);
 }
@@ -358,11 +347,7 @@ async fn test_dev_inspect_object_by_bytes() {
     .await
     .unwrap();
     let created_object_id = effects.created()[0].0.0;
-    let created_object = validator
-        .get_object(&created_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let created_object = validator.get_object(&created_object_id).await.unwrap();
     let created_object_bytes = created_object
         .data
         .try_as_move()
@@ -433,11 +418,7 @@ async fn test_dev_inspect_object_by_bytes() {
     assert!(effects.unwrapped_then_deleted().is_empty());
 
     // compare the bytes
-    let updated_object = validator
-        .get_object(&created_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let updated_object = validator.get_object(&created_object_id).await.unwrap();
     let updated_object_bytes = updated_object.data.try_as_move().unwrap().contents();
     assert_eq!(updated_object_bytes, updated_reference_bytes)
 }
@@ -470,11 +451,7 @@ async fn test_dev_inspect_unowned_object() {
     .await
     .unwrap();
     let created_object_id = effects.created()[0].0.0;
-    let created_object = validator
-        .get_object(&created_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let created_object = validator.get_object(&created_object_id).await.unwrap();
     assert!(alice != bob);
     assert_eq!(created_object.owner, Owner::AddressOwner(bob));
 
@@ -543,11 +520,7 @@ async fn test_dev_inspect_dynamic_field() {
                 .unwrap();
                 assert!(effects.status().is_ok(), "{:#?}", effects.status());
                 let created_object_id = effects.created()[0].0.0;
-                let created_object = validator
-                    .get_object(&created_object_id)
-                    .await
-                    .unwrap()
-                    .unwrap();
+                let created_object = validator.get_object(&created_object_id).await.unwrap();
                 created_object
                     .data
                     .try_as_move()
@@ -570,13 +543,13 @@ async fn test_dev_inspect_dynamic_field() {
             CallArg::Pure(test_object1_bytes.clone()),
             CallArg::Pure(test_object1_bytes.clone()),
         ],
-        commands: vec![Command::MoveCall(Box::new(ProgrammableMoveCall {
-            package: object_basics.0,
-            module: Identifier::new("object_basics").unwrap(),
-            function: Identifier::new("add_ofield").unwrap(),
-            type_arguments: vec![],
-            arguments: vec![Argument::Input(0), Argument::Input(1)],
-        }))],
+        commands: vec![Command::move_call(
+            object_basics.0,
+            Identifier::new("object_basics").unwrap(),
+            Identifier::new("add_ofield").unwrap(),
+            vec![],
+            vec![Argument::Input(0), Argument::Input(1)],
+        )],
     };
     let kind = TransactionKind::programmable(pt);
     let DevInspectResults { error, .. } = fullnode
@@ -587,8 +560,7 @@ async fn test_dev_inspect_dynamic_field() {
     let err = error.unwrap();
     assert!(
         err.contains("kind: CircularObjectOwnership"),
-        "unexpected error: {}",
-        err
+        "unexpected error: {err}"
     );
 
     // add a dynamic field to an object
@@ -655,11 +627,7 @@ async fn test_dev_inspect_return_values() {
     .await
     .unwrap();
     let created_object_id = effects.created()[0].0.0;
-    let created_object = validator
-        .get_object(&created_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let created_object = validator.get_object(&created_object_id).await.unwrap();
     let created_object_bytes = created_object
         .data
         .try_as_move()
@@ -842,7 +810,7 @@ async fn test_dev_inspect_gas_coin_argument() {
     check_coin_value(
         arg_value,
         arg_type,
-        DEV_INSPECT_GAS_COIN_VALUE - protocol_config.max_tx_gas() - amount,
+        SIMULATION_GAS_COIN_VALUE - protocol_config.max_tx_gas() - amount,
     );
 
     assert_eq!(return_values.len(), 1);
@@ -985,12 +953,10 @@ async fn test_dry_run_on_validator() {
     let (validator, _fullnode, transaction, _gas_object_id, _shared_object_id) =
         construct_shared_object_transaction_with_sequence_number(None).await;
     let transaction_digest = *transaction.digest();
-    let response = validator
-        .dry_exec_transaction(
-            transaction.data().intent_message().value.clone(),
-            transaction_digest,
-        )
-        .await;
+    let response = validator.dry_exec_transaction(
+        transaction.data().intent_message().value.clone(),
+        transaction_digest,
+    );
     assert!(response.is_err());
 }
 
@@ -1073,19 +1039,19 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     assert_eq!(effects.created().len(), 1);
 
     // make sure the parent was updated
-    let new_parent = fullnode.get_object(&parent.0).await.unwrap().unwrap();
+    let new_parent = fullnode.get_object(&parent.0).await.unwrap();
     assert!(parent.1 < new_parent.version());
 
     // no child to delete since we are using the old version of the parent
     let pt = ProgrammableTransaction {
         inputs: vec![CallArg::Object(ObjectArg::ImmOrOwnedObject(parent))],
-        commands: vec![Command::MoveCall(Box::new(ProgrammableMoveCall {
-            package: object_basics.0,
-            module: Identifier::new("object_basics").unwrap(),
-            function: Identifier::new("remove_field").unwrap(),
-            type_arguments: vec![],
-            arguments: vec![Argument::Input(0)],
-        }))],
+        commands: vec![Command::move_call(
+            object_basics.0,
+            Identifier::new("object_basics").unwrap(),
+            Identifier::new("remove_field").unwrap(),
+            vec![],
+            vec![Argument::Input(0)],
+        )],
     };
     let kind = TransactionKind::programmable(pt.clone());
     let rgp = fullnode.reference_gas_price_for_testing().unwrap();
@@ -1107,7 +1073,7 @@ async fn test_dry_run_dev_inspect_dynamic_field_too_new() {
     let transaction = to_sender_signed_transaction(data.clone(), &sender_key);
     let digest = *transaction.digest();
     let DryRunTransactionBlockResponse { effects, .. } =
-        fullnode.dry_exec_transaction(data, digest).await.unwrap().0;
+        fullnode.dry_exec_transaction(data, digest).unwrap().0;
     assert_eq!(effects.deleted().len(), 0);
 }
 
@@ -1121,8 +1087,8 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let (fullnode, _object_basics) = publish_object_basics(fullnode).await;
     let gas_object = Object::with_id_owner_version_for_testing(
         gas_object_id,
-        SequenceNumber::from_u64(SequenceNumber::MAX.value() - 1),
-        sender,
+        SequenceNumber::from_u64(SequenceNumber::MAX_VALID_EXCL.value() - 1),
+        Owner::AddressOwner(sender),
     );
     let gas_object_ref = gas_object.compute_object_reference();
     validator.insert_genesis_object(gas_object.clone()).await;
@@ -1133,13 +1099,13 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
             CallArg::Pure(bcs::to_bytes(&(32_u64)).unwrap()),
             CallArg::Pure(bcs::to_bytes(&sender).unwrap()),
         ],
-        commands: vec![Command::MoveCall(Box::new(ProgrammableMoveCall {
-            package: object_basics.0,
-            module: Identifier::new("object_basics").unwrap(),
-            function: Identifier::new("create").unwrap(),
-            type_arguments: vec![],
-            arguments: vec![Argument::Input(0), Argument::Input(1)],
-        }))],
+        commands: vec![Command::move_call(
+            object_basics.0,
+            Identifier::new("object_basics").unwrap(),
+            Identifier::new("create").unwrap(),
+            vec![],
+            vec![Argument::Input(0), Argument::Input(1)],
+        )],
     };
     let kind = TransactionKind::programmable(pt.clone());
     // dev inspect
@@ -1160,7 +1126,7 @@ async fn test_dry_run_dev_inspect_max_gas_version() {
     let transaction = to_sender_signed_transaction(data.clone(), &sender_key);
     let digest = *transaction.digest();
     let DryRunTransactionBlockResponse { effects, .. } =
-        fullnode.dry_exec_transaction(data, digest).await.unwrap().0;
+        fullnode.dry_exec_transaction(data, digest).unwrap().0;
     assert_eq!(effects.status(), &IotaExecutionStatus::Success);
 }
 
@@ -1173,16 +1139,8 @@ async fn test_handle_transfer_transaction_bad_signature() {
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
     let transfer_transaction = init_transfer_transaction(
         &authority_state,
         sender,
@@ -1199,9 +1157,18 @@ async fn test_handle_transfer_transaction_bad_signature() {
 
     let server_handle = server.spawn_for_test().await.unwrap();
 
-    let client = NetworkAuthorityClient::connect(server_handle.address())
-        .await
-        .unwrap();
+    let client = NetworkAuthorityClient::connect(
+        server_handle.address(),
+        Some(
+            authority_state
+                .config
+                .network_key_pair()
+                .public()
+                .to_owned(),
+        ),
+    )
+    .await
+    .unwrap();
 
     let (_unknown_address, unknown_key): (_, AccountKeyPair) = get_key_pair();
     let mut bad_signature_transfer_transaction = transfer_transaction.clone().into_inner();
@@ -1222,11 +1189,7 @@ async fn test_handle_transfer_transaction_bad_signature() {
     // address in verify_user_input (transaction.rs)
     // assert_eq!(metrics.signature_errors.get(), 1);
 
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
     assert!(
         authority_state
             .get_transaction_lock(
@@ -1257,22 +1220,14 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
     let gas_object_id = ObjectID::random();
     let recipient = dbg_addr(2);
     let authority_state = init_state_with_ids_and_versions(vec![
-        (sender, object_id, SequenceNumber::MAX),
+        (sender, object_id, SequenceNumber::MAX_VALID_EXCL),
         (sender, gas_object_id, SequenceNumber::new()),
     ])
     .await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
     let transfer_transaction = init_transfer_transaction(
         &authority_state,
         sender,
@@ -1296,7 +1251,10 @@ async fn test_handle_transfer_transaction_with_max_sequence_number() {
 #[tokio::test]
 async fn test_handle_shared_object_with_max_sequence_number() {
     let (authority, _fullnode, transaction, _, _) =
-        construct_shared_object_transaction_with_sequence_number(Some(SequenceNumber::MAX)).await;
+        construct_shared_object_transaction_with_sequence_number(Some(
+            SequenceNumber::MAX_VALID_EXCL,
+        ))
+        .await;
     let epoch_store = authority.load_epoch_store_one_call_per_task();
     // Submit the transaction and assemble a certificate.
     let response = authority
@@ -1320,16 +1278,8 @@ async fn test_handle_transfer_transaction_unknown_sender() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
 
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let unknown_sender_transfer_transaction = init_transfer_transaction(
         &authority_state,
@@ -1349,11 +1299,7 @@ async fn test_handle_transfer_transaction_unknown_sender() {
             .is_err()
     );
 
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
     assert!(
         authority_state
             .get_transaction_lock(
@@ -1389,16 +1335,8 @@ async fn test_handle_transfer_transaction_ok() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
 
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let before_object_version = object.version();
     let after_object_version =
@@ -1487,16 +1425,8 @@ async fn test_handle_sponsored_transaction() {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
 
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let pt = {
         let mut builder = ProgrammableTransactionBuilder::new();
@@ -1621,11 +1551,7 @@ async fn test_transfer_package() {
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let gas_object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let gas_object = authority_state.get_object(&object_id).await.unwrap();
     let package_object_ref = authority_state
         .get_iota_system_package_object_ref()
         .await
@@ -1663,11 +1589,7 @@ async fn test_immutable_gas() {
     authority_state
         .insert_genesis_object(imm_object.clone())
         .await;
-    let mut_object = authority_state
-        .get_object(&mut_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let mut_object = authority_state.get_object(&mut_object_id).await.unwrap();
     let transfer_transaction = init_transfer_transaction(
         &authority_state,
         sender,
@@ -1784,13 +1706,7 @@ async fn test_publish_dependent_module_ok() {
         TxContext::new(&sender, transaction.digest(), &EpochData::new_test()).fresh_id();
 
     // Object does not exist
-    assert!(
-        authority
-            .get_object(&dependent_module_id)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority.get_object(&dependent_module_id).await.is_none());
     let signed_effects = send_and_confirm_transaction(&authority, transaction)
         .await
         .unwrap()
@@ -1798,7 +1714,7 @@ async fn test_publish_dependent_module_ok() {
     signed_effects.into_data().status().unwrap();
 
     // check that the dependent module got published
-    assert!(authority.get_object(&dependent_module_id).await.is_ok());
+    assert!(authority.get_object(&dependent_module_id).await.is_some());
 }
 
 // Test that publishing a module with no dependencies works
@@ -1909,7 +1825,6 @@ async fn test_publish_non_existing_dependent_module() {
             .get_object(&gas_payment_object_id)
             .await
             .unwrap()
-            .unwrap()
             .version(),
         gas_payment_object_ref.1
     );
@@ -1934,7 +1849,7 @@ async fn test_package_size_limit() {
         let mut module = file_format::empty_module();
         // generate unique name
         module.identifiers[0] =
-            Identifier::new(format!("TestModule{:0>21000?}", modules_size)).unwrap();
+            Identifier::new(format!("TestModule{modules_size:0>21000?}")).unwrap();
         let module_bytes = {
             let mut bytes = Vec::new();
             module
@@ -1996,7 +1911,6 @@ async fn test_handle_move_transaction() {
     let created_obj = authority_state
         .get_object(&created_object_id)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(created_obj.owner, sender);
     assert_eq!(created_obj.id(), created_object_id);
@@ -2014,16 +1928,8 @@ async fn test_conflicting_transactions() {
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let tx1 = init_transfer_transaction(
         &authority_state,
@@ -2128,16 +2034,8 @@ async fn test_handle_transfer_transaction_double_spend() {
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
     let transfer_transaction = init_transfer_transaction(
         &authority_state,
         sender,
@@ -2170,11 +2068,7 @@ async fn test_handle_transfer_iota_with_amount_insufficient_gas() {
     let object_id = ObjectID::random();
     let authority_state = init_state_with_ids(vec![(sender, object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
     let data = TransactionData::new_transfer_iota(
         recipient,
         sender,
@@ -2205,11 +2099,7 @@ async fn test_missing_package() {
         init_state_with_ids_and_object_basics(vec![(sender, gas_object_id)]).await;
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
     let non_existent_package = ObjectID::MAX;
     let gas_object_ref = gas_object.compute_object_reference();
     let data = TransactionData::new_move_call(
@@ -2248,15 +2138,15 @@ async fn test_type_argument_dependencies() {
     let epoch_store = authority_state.load_epoch_store_one_call_per_task();
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
     let gas1 = {
-        let o = authority_state.get_object(&gas1).await.unwrap().unwrap();
+        let o = authority_state.get_object(&gas1).await.unwrap();
         o.compute_object_reference()
     };
     let gas2 = {
-        let o = authority_state.get_object(&gas2).await.unwrap().unwrap();
+        let o = authority_state.get_object(&gas2).await.unwrap();
         o.compute_object_reference()
     };
     let gas3 = {
-        let o = authority_state.get_object(&gas3).await.unwrap().unwrap();
+        let o = authority_state.get_object(&gas3).await.unwrap();
         o.compute_object_reference()
     };
     // primitive type tag succeeds
@@ -2343,16 +2233,8 @@ async fn test_handle_confirmation_transaction_receiver_equal_sender() {
     let gas_object_id = ObjectID::random();
     let authority_state =
         init_state_with_ids(vec![(address, object_id), (address, gas_object_id)]).await;
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let certified_transfer_transaction = init_certified_transfer_transaction(
         address,
@@ -2380,16 +2262,8 @@ async fn test_handle_confirmation_transaction_ok() {
     let gas_object_id = ObjectID::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let next_sequence_number =
         SequenceNumber::lamport_increment([object.version(), gas_object.version()]);
@@ -2403,11 +2277,7 @@ async fn test_handle_confirmation_transaction_ok() {
         &authority_state,
     );
 
-    let old_account = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let old_account = authority_state.get_object(&object_id).await.unwrap();
 
     let signed_effects = authority_state
         .execute_certificate(
@@ -2419,11 +2289,7 @@ async fn test_handle_confirmation_transaction_ok() {
     signed_effects.status().unwrap();
     // Key check: the ownership has changed
 
-    let new_account = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let new_account = authority_state.get_object(&object_id).await.unwrap();
     assert_eq!(new_account.owner, recipient);
     assert_eq!(next_sequence_number, new_account.version());
 
@@ -2457,16 +2323,8 @@ async fn test_handle_confirmation_transaction_idempotent() {
     let gas_object_id = ObjectID::random();
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let certified_transfer_transaction = init_certified_transfer_transaction(
         sender,
@@ -2547,7 +2405,6 @@ async fn test_move_call_mutable_object_not_mutated() {
         .get_object(&gas_object_id)
         .await
         .unwrap()
-        .unwrap()
         .version();
 
     let next_object_version = SequenceNumber::lamport_increment([gas_version, seq1, seq2]);
@@ -2577,7 +2434,6 @@ async fn test_move_call_mutable_object_not_mutated() {
             .get_object(&new_object_id1)
             .await
             .unwrap()
-            .unwrap()
             .version(),
         next_object_version
     );
@@ -2585,7 +2441,6 @@ async fn test_move_call_mutable_object_not_mutated() {
         authority_state
             .get_object(&new_object_id2)
             .await
-            .unwrap()
             .unwrap()
             .version(),
         next_object_version
@@ -2621,12 +2476,10 @@ async fn test_move_call_insufficient_gas() {
             .get_object(&object_id)
             .await
             .unwrap()
-            .unwrap()
             .compute_object_reference(),
         authority_state
             .get_object(&gas_object_id1)
             .await
-            .unwrap()
             .unwrap()
             .compute_object_reference(),
         &authority_state,
@@ -2645,13 +2498,11 @@ async fn test_move_call_insufficient_gas() {
         .get_object(&object_id)
         .await
         .unwrap()
-        .unwrap()
         .compute_object_reference();
 
     let gas_ref = authority_state
         .get_object(&gas_object_id2)
         .await
-        .unwrap()
         .unwrap()
         .compute_object_reference();
 
@@ -2679,11 +2530,7 @@ async fn test_move_call_insufficient_gas() {
         .1;
     let effects = signed_effects.into_data();
     assert!(effects.status().is_err());
-    let obj = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let obj = authority_state.get_object(&object_id).await.unwrap();
     assert_eq!(obj.previous_transaction, tx_digest);
     assert_eq!(obj.version(), next_object_version);
     assert_eq!(obj.owner, recipient);
@@ -2768,7 +2615,6 @@ async fn test_get_latest_parent_entry_genesis() {
         authority_state
             .get_object_or_tombstone(ObjectID::ZERO)
             .await
-            .unwrap()
             .is_none()
     );
 }
@@ -2825,7 +2671,6 @@ async fn test_get_latest_parent_entry() {
     let obj_ref = authority_state
         .get_object_or_tombstone(new_object_id1)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(obj_ref.0, new_object_id1);
     assert_eq!(obj_ref.1, update_version);
@@ -2858,7 +2703,6 @@ async fn test_get_latest_parent_entry() {
         authority_state
             .get_object_or_tombstone(unknown_object_id)
             .await
-            .unwrap()
             .is_none()
     );
 
@@ -2866,7 +2710,6 @@ async fn test_get_latest_parent_entry() {
     let obj_ref = authority_state
         .get_object_or_tombstone(gas_object_id)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(obj_ref.0, gas_object_id);
     assert_eq!(obj_ref.1, delete_version);
@@ -2875,7 +2718,6 @@ async fn test_get_latest_parent_entry() {
     let obj_ref = authority_state
         .get_object_or_tombstone(new_object_id1)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(obj_ref.0, new_object_id1);
     assert_eq!(obj_ref.1, delete_version);
@@ -2888,11 +2730,7 @@ async fn test_account_state_ok() {
     let object_id = dbg_object_id(1);
 
     let authority_state = init_state_with_object_id(sender, object_id).await;
-    authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    authority_state.get_object(&object_id).await.unwrap();
 }
 
 #[tokio::test]
@@ -2900,13 +2738,7 @@ async fn test_account_state_unknown_account() {
     let sender = dbg_addr(1);
     let unknown_address = dbg_object_id(99);
     let authority_state = init_state_with_object_id(sender, ObjectID::random()).await;
-    assert!(
-        authority_state
-            .get_object(&unknown_address)
-            .await
-            .unwrap()
-            .is_none()
-    );
+    assert!(authority_state.get_object(&unknown_address).await.is_none());
 }
 
 // Reproducer and fix test for https://github.com/iotaledger/iota/issues/7267
@@ -2959,7 +2791,8 @@ async fn test_authority_store_init() {
             .disable_indexer()
             // Use passthrough cache so that the new objects end up in object store.
             // It's hard to flush the writeback cache that is enabled by default.
-            .with_cache_config(iota_config::ExecutionCacheConfig::PassthroughCache)
+            .with_cache_type(iota_config::ExecutionCacheType::PassthroughCache)
+            .with_cache_config(iota_config::ExecutionCacheConfig::default())
             .build()
             .await
     };
@@ -2977,7 +2810,7 @@ async fn test_authority_store_init() {
             false,
         )
         .await;
-        let package_obj = authority.get_object(&package.0).await.unwrap().unwrap();
+        let package_obj = authority.get_object(&package.0).await.unwrap();
 
         // Create a parent.
         let effects = call_move(
@@ -2995,7 +2828,7 @@ async fn test_authority_store_init() {
         .unwrap();
         assert!(effects.status().is_ok());
         let parent = effects.created()[0].0;
-        let parent_obj = authority.get_object(&parent.0).await.unwrap().unwrap();
+        let parent_obj = authority.get_object(&parent.0).await.unwrap();
 
         // Create a child.
         let effects = call_move(
@@ -3013,7 +2846,7 @@ async fn test_authority_store_init() {
         .unwrap();
         assert!(effects.status().is_ok());
         let child = effects.created()[0].0;
-        let child_obj = authority.get_object(&child.0).await.unwrap().unwrap();
+        let child_obj = authority.get_object(&child.0).await.unwrap();
 
         // Add the child to the parent.
         let effects = call_move(
@@ -3041,7 +2874,7 @@ async fn test_authority_store_init() {
             Owner::Shared { .. } | Owner::Immutable | Owner::AddressOwner(_) => panic!(),
         };
         // This is the object that we need to trigger the failure code path.
-        let field_obj = authority.get_object(&field_id).await.unwrap().unwrap();
+        let field_obj = authority.get_object(&field_id).await.unwrap();
         assert_eq!(field_obj.owner, parent.0);
 
         (package_obj, parent_obj, child_obj, field_obj)
@@ -3050,31 +2883,47 @@ async fn test_authority_store_init() {
     drop(authority);
 
     // Just in case, let rocksdb time to sync or something.
-    tokio::time::sleep(std::time::Duration::from_secs(20)).await;
+    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
 
     // Create the test authority.
-    let _ = {
-        let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
-            .rng(&mut StdRng::from_seed(authority_seed))
-            // Add the relevant and target objects to the genesis.
-            // The object version will reset to 1 when genesis is created.
-            .with_objects([gas_obj, package_obj, parent_obj, child_obj, field_obj])
-            .build();
-        let genesis = network_config.genesis;
-        let authority_key = network_config.validator_configs[0]
-            .authority_key_pair()
-            .copy();
+    let network_config = iota_swarm_config::network_config_builder::ConfigBuilder::new(&dir)
+        .rng(&mut StdRng::from_seed(authority_seed))
+        // Add the relevant and target objects to the genesis.
+        // The object version will reset to 1 when genesis is created.
+        .with_objects([
+            gas_obj.clone(),
+            package_obj.clone(),
+            parent_obj.clone(),
+            child_obj.clone(),
+            field_obj.clone(),
+        ])
+        .build();
+    let genesis = network_config.genesis;
+    let authority_key = network_config.validator_configs[0]
+        .authority_key_pair()
+        .copy();
 
-        TestAuthorityBuilder::new()
-            // Reuse the object store, there's no index store at this point.
-            .with_store_base_path(store_base_path)
-            .with_genesis_and_keypair(&genesis, &authority_key)
-            // Index is enabled by default and empty.
-            // We don't care about writeback cache now.
-            // Build invokes AuthorityState::new down to try_create_dynamic_field_info.
-            .build()
+    let authority_state = TestAuthorityBuilder::new()
+        // Reuse the object store, there's no index store at this point.
+        .with_store_base_path(store_base_path)
+        .with_genesis_and_keypair(&genesis, &authority_key)
+        // Do not execute genesis transactions again,
+        // otherwise we try to insert objects that are older than the ones that already exist in
+        // the cache, which will then panic.
+        .disable_execute_genesis_transactions()
+        // Index is enabled by default and empty.
+        // We don't care about writeback cache now.
+        // Build invokes AuthorityState::new down to try_create_dynamic_field_info.
+        .build()
+        .await;
+
+    // Check that the objects are present in the store.
+    for obj in [gas_obj, package_obj, parent_obj, child_obj, field_obj] {
+        authority_state
+            .get_object(&obj.id())
             .await
-    };
+            .expect("failed to get object");
+    }
 
     // The test is passed if the build didn't panic and authority is created.
 }
@@ -3105,7 +2954,7 @@ async fn test_authority_persist() {
     let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
     // Create an authority
     let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis, 0)
+        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
             .await
             .unwrap();
     let authority = init_state(&genesis, authority_key, store).await;
@@ -3132,11 +2981,11 @@ async fn test_authority_persist() {
     let committee = genesis.committee().unwrap();
     let perpetual_tables = Arc::new(AuthorityPerpetualTables::open(&path, None));
     let store =
-        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis, 0)
+        AuthorityStore::open_with_committee_for_testing(perpetual_tables, &committee, &genesis)
             .await
             .unwrap();
     let authority2 = init_state(&genesis, authority_key, store).await;
-    let obj2 = authority2.get_object(&object_id).await.unwrap().unwrap();
+    let obj2 = authority2.get_object(&object_id).await.unwrap();
 
     // Check the object is present
     assert_eq!(obj2.id(), object_id);
@@ -3379,8 +3228,7 @@ async fn test_invalid_object_ownership() {
         UserInputError::try_from(e).unwrap(),
         UserInputError::IncorrectUserSignature {
             error: format!(
-                "Object {:?} is owned by account address {:?}, but given owner/signer address is {:?}",
-                invalid_ownership_object_id, invalid_owner, sender
+                "Object {invalid_ownership_object_id:?} is owned by account address {invalid_owner:?}, but given owner/signer address is {sender:?}"
             )
         }
     );
@@ -3429,7 +3277,6 @@ async fn test_genesis_iota_system_state_object() {
     let wrapper = authority_state
         .get_object(&IOTA_SYSTEM_STATE_OBJECT_ID)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(wrapper.version(), SequenceNumber::from(1));
     let move_object = wrapper.data.try_as_move().unwrap();
@@ -3494,11 +3341,7 @@ async fn test_transfer_iota_no_amount() {
     assert!(gas_ref.1 < effects.gas_object().0.1);
     assert_eq!(effects.gas_object().1, Owner::AddressOwner(recipient));
     let new_balance = iota_types::gas::get_gas_balance(
-        &authority_state
-            .get_object(&gas_object_id)
-            .await
-            .unwrap()
-            .unwrap(),
+        &authority_state.get_object(&gas_object_id).await.unwrap(),
     )
     .unwrap();
     assert_eq!(
@@ -3541,17 +3384,12 @@ async fn test_transfer_iota_with_amount() {
     let new_gas = authority_state
         .get_object(&effects.created()[0].0.0)
         .await
-        .unwrap()
         .unwrap();
     assert_eq!(iota_types::gas::get_gas_balance(&new_gas).unwrap(), 500);
     assert!(gas_ref.1 < effects.gas_object().0.1);
     assert_eq!(effects.gas_object().1, Owner::AddressOwner(sender));
     let new_balance = iota_types::gas::get_gas_balance(
-        &authority_state
-            .get_object(&gas_object_id)
-            .await
-            .unwrap()
-            .unwrap(),
+        &authority_state.get_object(&gas_object_id).await.unwrap(),
     )
     .unwrap();
     assert_eq!(
@@ -3591,22 +3429,21 @@ async fn test_store_revert_transfer_iota() {
     let cache = authority_state.get_object_cache_reader();
     let tx_cache = authority_state.get_transaction_cache_reader();
     let reconfig_api = authority_state.get_reconfig_api();
-    reconfig_api.revert_state_update(&tx_digest).unwrap();
+    reconfig_api.revert_state_update(&tx_digest);
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
     assert_eq!(
-        cache.get_object(&gas_object_id).unwrap().unwrap().owner,
+        cache.get_object(&gas_object_id).unwrap().owner,
         Owner::AddressOwner(sender),
     );
     assert_eq!(
         cache
             .get_latest_object_ref_or_tombstone(gas_object_id)
-            .unwrap()
             .unwrap(),
         gas_object_ref
     );
-    assert!(!tx_cache.is_tx_already_executed(&tx_digest).unwrap());
+    assert!(!tx_cache.is_tx_already_executed(&tx_digest));
 }
 
 #[tokio::test]
@@ -3632,9 +3469,7 @@ async fn test_store_revert_wrap_move_call() {
         .commit_transaction_outputs(
             authority_state.epoch_store_for_testing().epoch(),
             &[*create_effects.transaction_digest()],
-        )
-        .await
-        .unwrap();
+        );
 
     assert!(create_effects.status().is_ok());
     assert_eq!(create_effects.created().len(), 1);
@@ -3674,19 +3509,19 @@ async fn test_store_revert_wrap_move_call() {
 
     let cache = &authority_state.get_object_cache_reader();
     let reconfig_api = authority_state.get_reconfig_api();
-    reconfig_api.revert_state_update(&wrap_digest).unwrap();
+    reconfig_api.revert_state_update(&wrap_digest);
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
     // The wrapped object is unwrapped once again (accessible from storage).
-    let object = cache.get_object(&object_v0.0).unwrap().unwrap();
+    let object = cache.get_object(&object_v0.0).unwrap();
     assert_eq!(object.version(), object_v0.1);
 
     // The wrapper doesn't exist
-    assert!(cache.get_object(&wrapper_v0.0).unwrap().is_none());
+    assert!(cache.get_object(&wrapper_v0.0).is_none());
 
     // The gas is uncharged
-    let gas = cache.get_object(&gas_object_id).unwrap().unwrap();
+    let gas = cache.get_object(&gas_object_id).unwrap();
     assert_eq!(gas.version(), create_effects.gas_object().0.1);
 }
 
@@ -3732,9 +3567,7 @@ async fn test_store_revert_unwrap_move_call() {
                 *create_effects.transaction_digest(),
                 *wrap_effects.transaction_digest(),
             ],
-        )
-        .await
-        .unwrap();
+        );
 
     assert!(wrap_effects.status().is_ok());
     assert_eq!(wrap_effects.created().len(), 1);
@@ -3776,19 +3609,19 @@ async fn test_store_revert_unwrap_move_call() {
     let cache = &authority_state.get_object_cache_reader();
     let reconfig_api = authority_state.get_reconfig_api();
 
-    reconfig_api.revert_state_update(&unwrap_digest).unwrap();
+    reconfig_api.revert_state_update(&unwrap_digest);
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
     // The unwrapped object is wrapped once again
-    assert!(cache.get_object(&object_v0.0).unwrap().is_none());
+    assert!(cache.get_object(&object_v0.0).is_none());
 
     // The wrapper exists
-    let wrapper = cache.get_object(&wrapper_v0.0).unwrap().unwrap();
+    let wrapper = cache.get_object(&wrapper_v0.0).unwrap();
     assert_eq!(wrapper.version(), wrapper_v0.1);
 
     // The gas is uncharged
-    let gas = cache.get_object(&gas_object_id).unwrap().unwrap();
+    let gas = cache.get_object(&gas_object_id).unwrap();
     assert_eq!(gas.version(), wrap_effects.gas_object().0.1);
 }
 
@@ -3828,8 +3661,7 @@ async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<D
 
     assert!(
         create_outer_effects.status().is_ok(),
-        "{:?}",
-        create_outer_effects
+        "{create_outer_effects:?}"
     );
     assert_eq!(create_outer_effects.created().len(), 1);
 
@@ -3870,12 +3702,7 @@ async fn create_and_retrieve_df_info(function: &IdentStr) -> (IotaAddress, Vec<D
 
     let add_cert = init_certified_transaction(add_txn, &authority_state);
 
-    let add_effects = authority_state
-        .try_execute_for_test(&add_cert)
-        .await
-        .unwrap()
-        .0
-        .into_message();
+    let add_effects = authority_state.execute_for_test(&add_cert).0.into_message();
 
     assert!(add_effects.status().is_ok(), "{:?}", add_effects.status());
     assert_eq!(add_effects.created().len(), 1);
@@ -4012,9 +3839,7 @@ async fn test_store_revert_add_ofield() {
                 *create_outer_effects.transaction_digest(),
                 *create_inner_effects.transaction_digest(),
             ],
-        )
-        .await
-        .unwrap();
+        );
 
     let add_txn = to_sender_signed_transaction(
         TransactionData::new_move_call(
@@ -4053,28 +3878,28 @@ async fn test_store_revert_add_ofield() {
     let cache = authority_state.get_object_cache_reader();
     let reconfig_api = &authority_state.get_reconfig_api();
 
-    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = cache.get_object(&outer_v0.0).unwrap();
     assert_eq!(outer.version(), outer_v1.1);
 
-    let field = cache.get_object(&field_v0.0).unwrap().unwrap();
+    let field = cache.get_object(&field_v0.0).unwrap();
     assert_eq!(field.owner, Owner::ObjectOwner(outer_v0.0.into()));
 
-    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.get_object(&inner_v0.0).unwrap();
     assert_eq!(inner.version(), inner_v1.1);
     assert_eq!(inner.owner, Owner::ObjectOwner(field_v0.0.into()));
 
-    reconfig_api.revert_state_update(&add_digest).unwrap();
+    reconfig_api.revert_state_update(&add_digest);
 
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
-    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = cache.get_object(&outer_v0.0).unwrap();
     assert_eq!(outer.version(), outer_v0.1);
 
     // Field no longer exists
-    assert!(cache.get_object(&field_v0.0).unwrap().is_none());
+    assert!(cache.get_object(&field_v0.0).is_none());
 
-    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.get_object(&inner_v0.0).unwrap();
     assert_eq!(inner.version(), inner_v0.1);
     assert_eq!(inner.owner, Owner::AddressOwner(sender));
 }
@@ -4140,9 +3965,7 @@ async fn test_store_revert_remove_ofield() {
                 *create_inner_effects.transaction_digest(),
                 *add_effects.transaction_digest(),
             ],
-        )
-        .await
-        .unwrap();
+        );
 
     let field_v0 = add_effects.created()[0].0;
     let outer_v1 = find_by_id(&add_effects.mutated(), outer_v0.0).unwrap();
@@ -4182,26 +4005,24 @@ async fn test_store_revert_remove_ofield() {
     let cache = &authority_state.get_object_cache_reader();
     let reconfig_api = &authority_state.get_reconfig_api();
 
-    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = cache.get_object(&outer_v0.0).unwrap();
     assert_eq!(outer.version(), outer_v2.1);
 
-    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.get_object(&inner_v0.0).unwrap();
     assert_eq!(inner.owner, Owner::AddressOwner(sender));
     assert_eq!(inner.version(), inner_v2.1);
 
-    reconfig_api
-        .revert_state_update(&remove_ofield_digest)
-        .unwrap();
+    reconfig_api.revert_state_update(&remove_ofield_digest);
     reconfig_api
         .clear_state_end_of_epoch(&authority_state.execution_lock_for_reconfiguration().await);
 
-    let outer = cache.get_object(&outer_v0.0).unwrap().unwrap();
+    let outer = cache.get_object(&outer_v0.0).unwrap();
     assert_eq!(outer.version(), outer_v1.1);
 
-    let field = cache.get_object(&field_v0.0).unwrap().unwrap();
+    let field = cache.get_object(&field_v0.0).unwrap();
     assert_eq!(field.owner, Owner::ObjectOwner(outer_v0.0.into()));
 
-    let inner = cache.get_object(&inner_v0.0).unwrap().unwrap();
+    let inner = cache.get_object(&inner_v0.0).unwrap();
     assert_eq!(inner.owner, Owner::ObjectOwner(field_v0.0.into()));
     assert_eq!(inner.version(), inner_v1.1);
 }
@@ -4225,8 +4046,8 @@ async fn test_iter_live_object_set() {
         })
         .collect();
 
-    let gas_obj = authority.get_object(&gas).await.unwrap().unwrap();
-    let obj = authority.get_object(&obj_id).await.unwrap().unwrap();
+    let gas_obj = authority.get_object(&gas).await.unwrap();
+    let obj = authority.get_object(&obj_id).await.unwrap();
 
     let certified_transfer_transaction = init_certified_transfer_transaction(
         sender,
@@ -4543,7 +4364,7 @@ pub async fn call_move_(
     test_args: Vec<TestCallArg>,
     with_shared: bool, // Move call includes shared objects
 ) -> IotaResult<TransactionEffects> {
-    let gas_object = authority.get_object(gas_object_id).await.unwrap();
+    let gas_object = authority.get_object(gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let mut builder = ProgrammableTransactionBuilder::new();
     let mut args = vec![];
@@ -4627,7 +4448,7 @@ pub async fn build_programmable_transaction(
     gas_unit: u64,
 ) -> IotaResult<Transaction> {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let gas_object = authority.get_object(gas_object_id).await.unwrap();
+    let gas_object = authority.get_object(gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let data =
         TransactionData::new_programmable(*sender, vec![gas_object_ref], pt, rgp * gas_unit, rgp);
@@ -4646,7 +4467,7 @@ async fn execute_programmable_transaction_(
     gas_unit: u64,
 ) -> IotaResult<TransactionEffects> {
     let rgp = authority.reference_gas_price_for_testing().unwrap();
-    let gas_object = authority.get_object(gas_object_id).await.unwrap();
+    let gas_object = authority.get_object(gas_object_id).await;
     let gas_object_ref = gas_object.unwrap().compute_object_reference();
     let data =
         TransactionData::new_programmable(*sender, vec![gas_object_ref], pt, rgp * gas_unit, rgp);
@@ -4675,7 +4496,7 @@ async fn call_move_with_gas_coins(
 ) -> IotaResult<TransactionEffects> {
     let mut gas_object_refs = vec![];
     for obj_id in gas_object_ids {
-        let gas_object = authority.get_object(obj_id).await.unwrap();
+        let gas_object = authority.get_object(obj_id).await;
         let gas_ref = gas_object.unwrap().compute_object_reference();
         gas_object_refs.push(gas_ref);
     }
@@ -4964,7 +4785,7 @@ async fn test_shared_object_transaction_shared_locks_not_set() {
 
     // Executing the certificate now panics since it was not sequenced and shared
     // locks are not set
-    let _ = authority.try_execute_for_test(&certificate).await;
+    let _ = authority.execute_for_test(&certificate);
 }
 
 #[tokio::test(flavor = "current_thread", start_paused = true)]
@@ -4979,7 +4800,6 @@ async fn test_shared_object_transaction_ok() {
     let shared_object_version = authority
         .epoch_store_for_testing()
         .get_assigned_shared_object_versions(&certificate.key())
-        .expect("Reading shared version assignments should not fail")
         .expect("Versions should be set")
         .into_iter()
         .find_map(|(object_id, version)| {
@@ -4993,7 +4813,7 @@ async fn test_shared_object_transaction_ok() {
     assert_eq!(shared_object_version, OBJECT_START_VERSION);
 
     // Finally (Re-)execute the contract should succeed.
-    authority.try_execute_for_test(&certificate).await.unwrap();
+    authority.execute_for_test(&certificate);
 
     // Ensure transaction effects are available.
     authority.notify_read_effects(&certificate).await.unwrap();
@@ -5002,7 +4822,6 @@ async fn test_shared_object_transaction_ok() {
     let shared_object_version = authority
         .get_object(&shared_object_id)
         .await
-        .unwrap()
         .unwrap()
         .version();
     assert_eq!(shared_object_version, SequenceNumber::from(2));
@@ -5091,7 +4910,6 @@ async fn test_consensus_commit_prologue_generation() {
         authority_state
             .epoch_store_for_testing()
             .get_assigned_shared_object_versions(txn_key)
-            .unwrap()
             .expect("versions should be set")
             .iter()
             .filter_map(|(id, seq)| {
@@ -5176,8 +4994,7 @@ async fn test_consensus_message_processed() {
 
         // on authority1, we always sequence via consensus
         send_consensus(&authority1, &certificate).await;
-        let (effects1, _execution_error_opt) =
-            authority1.try_execute_for_test(&certificate).await.unwrap();
+        let (effects1, _execution_error_opt) = authority1.execute_for_test(&certificate);
 
         // now, on authority2, we send 0 or 1 consensus messages, then we either
         // sequence and execute via effects or via handle_certificate_v1, then
@@ -5188,12 +5005,7 @@ async fn test_consensus_message_processed() {
         }
 
         let effects2 = if send_first && rng.gen_bool(0.5) {
-            authority2
-                .try_execute_for_test(&certificate)
-                .await
-                .unwrap()
-                .0
-                .into_message()
+            authority2.execute_for_test(&certificate).0.into_message()
         } else {
             let epoch_store = authority2.epoch_store_for_testing();
             epoch_store
@@ -5202,13 +5014,11 @@ async fn test_consensus_message_processed() {
                     &effects1,
                     authority2.get_object_cache_reader().as_ref(),
                 )
-                .await
                 .unwrap();
-            authority2.try_execute_for_test(&certificate).await.unwrap();
+            authority2.execute_for_test(&certificate);
             authority2
                 .get_transaction_cache_reader()
                 .get_executed_effects(transaction_digest)
-                .unwrap()
                 .unwrap()
         };
 
@@ -5292,8 +5102,17 @@ async fn test_choose_next_system_packages() {
 
     let committee = Committee::new_simple_test_committee().0;
     let v = &committee.voting_rights;
-    let mut protocol_config = ProtocolConfig::get_for_max_version_UNSAFE();
-    protocol_config.set_buffer_stake_for_protocol_upgrade_bps_for_testing(7500);
+    let protocol_config_digest = SupportedProtocolVersionsWithHashes::protocol_config_digest(
+        &ProtocolConfig::get_for_version(ProtocolVersion::new(1), Chain::Unknown),
+    );
+    let buffer_stake_for_protocol_upgrade_bps_for_testing = 7500;
+
+    // Create an active validators list for testing
+    // get_validators_supporting_protocol_version
+    let active_validators: Vec<AuthorityPublicKey> = v
+        .iter()
+        .map(|(name, _weight)| committee.public_key(name).unwrap().clone())
+        .collect();
 
     // all validators agree on new system packages, but without a new protocol
     // version, so no upgrade.
@@ -5304,15 +5123,25 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(1, v[3].0, vec![o1, o2]),
     ];
 
-    assert_eq!(
-        (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.2, vec![]);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    // for decided version
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0, // decided protocol version
+        result.1, // protocol digest
+        &active_validators,
+        &capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
 
     // one validator disagrees, stake buffer means no upgrade
     let capabilities = vec![
@@ -5322,28 +5151,48 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o3]),
     ];
 
-    assert_eq!(
-        (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities.clone(),
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.2, vec![]);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    // for decided version
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0, // decided protocol version
+        result.1, // protocol digest
+        &active_validators,
+        &capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators still support version 1
 
     // Now 2f+1 is enough to upgrade
-    protocol_config.set_buffer_stake_for_protocol_upgrade_bps_for_testing(0);
+    let buffer_stake_for_protocol_upgrade_bps_for_testing = 0;
 
-    assert_eq!(
-        (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.2, sort(vec![o1, o2]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    // for decided version
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0, // decided protocol version (ver(2))
+        result.1, // protocol digest
+        &active_validators,
+        &capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support
 
     // committee is split, can't upgrade even with 0 stake buffer
     let capabilities = vec![
@@ -5353,15 +5202,24 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o3]),
     ];
 
-    assert_eq!(
-        (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.2, vec![]);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &active_validators,
+        &capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1 without upgrading
 
     // all validators agree on packages, and a proto upgrade
     let capabilities = vec![
@@ -5371,15 +5229,24 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o2]),
     ];
 
-    assert_eq!(
-        (ver(2), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.2, sort(vec![o1, o2]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &active_validators,
+        &capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 2
 
     // all validators agree on packages, but not protocol version.
     let capabilities = vec![
@@ -5389,15 +5256,24 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o2]),
     ];
 
-    assert_eq!(
-        (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.2, vec![]);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &active_validators,
+        &capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1  without making an upgrade
 
     // all validators support 3, so we advance by multiple versions at once.
     let capabilities = vec![
@@ -5407,15 +5283,24 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(3, v[3].0, vec![o1, o3]),
     ];
 
-    assert_eq!(
-        (ver(3), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
+    assert_eq!(result.0, ver(3));
+    assert_eq!(result.2, sort(vec![o1, o2]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &active_validators,
+        &capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 3
 
     // one validator is having a problem with packages, so its vote does not count.
     let capabilities = vec![
@@ -5425,15 +5310,24 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o2]),
     ];
 
-    assert_eq!(
-        (ver(1), vec![]),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.2, vec![]);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &active_validators,
+        &capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
 
     let capabilities = vec![
         make_capabilities!(3, v[0].0, vec![o1, o2]),
@@ -5444,15 +5338,24 @@ async fn test_choose_next_system_packages() {
 
     // packages are identical between all currently supported versions, so we can
     // upgrade to 3 which is the highest supported version
-    assert_eq!(
-        (ver(3), sort(vec![o1, o2])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
+    assert_eq!(result.0, ver(3));
+    assert_eq!(result.2, sort(vec![o1, o2]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &active_validators,
+        &capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 3
 
     let capabilities = vec![
         make_capabilities!(2, v[0].0, vec![]),
@@ -5465,15 +5368,24 @@ async fn test_choose_next_system_packages() {
     // about the packages. In this situation it is likely that (v2, []) is a
     // valid upgrade, but we don't have a way to detect that. The upgrade simply
     // won't happen until everyone moves to 3.
-    assert_eq!(
-        (ver(1), sort(vec![])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.2, sort(vec![]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &active_validators,
+        &capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
 
     // all validators support 2, but they disagree on the digest of the protocol
     // config for 2, so no upgrade happens.
@@ -5486,15 +5398,269 @@ async fn test_choose_next_system_packages() {
         make_capabilities!(2, v[3].0, vec![o1, o2], digest_b),
     ];
 
-    assert_eq!(
-        (ver(1), sort(vec![])),
-        AuthorityState::choose_protocol_version_and_system_packages_v1(
-            ProtocolVersion::MIN,
-            &committee,
-            capabilities,
-            protocol_config.buffer_stake_for_protocol_upgrade_bps(),
-        )
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
     );
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.2, sort(vec![]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &active_validators,
+        &capabilities,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // All validators support version 1
+
+    // === Test cases with non-committee authorities (0 voting weight) ===
+
+    // Create additional non-committee authorities with 0 voting weight
+    // Generate more keys and skip the first 4 to avoid overlap with committee
+    // members
+    let all_keys = random_committee_key_pairs_of_size(7); // Generate 7 keys total
+    let zero_weight_authorities: Vec<AuthorityName> = all_keys
+        .iter()
+        .skip(4) // Skip the first 4 keys that are used by the committee
+        .take(3) // Take the next 3 keys for zero-weight authorities
+        .map(|key| AuthorityName::from(key.public()))
+        .collect();
+
+    // Create expanded active_validators list including zero-weight authorities
+    let mut all_active_validators = active_validators.clone();
+    for (i, _auth) in zero_weight_authorities.iter().enumerate() {
+        all_active_validators.push(all_keys[4 + i].public().clone()); // Indices 4, 5, 6 for zero-weight authorities
+    }
+
+    // Test 1: Zero-weight authorities support the same version as quorum - should
+    // not affect an outcome
+    let capabilities_with_zero_weight = vec![
+        make_capabilities!(2, v[0].0, vec![o1, o2]),
+        make_capabilities!(2, v[1].0, vec![o1, o2]),
+        make_capabilities!(2, v[2].0, vec![o1, o2]),
+        make_capabilities!(2, v[3].0, vec![o1, o2]),
+        // Zero-weight authorities supporting the same version
+        make_capabilities!(2, zero_weight_authorities[0], vec![o1, o2]),
+        make_capabilities!(2, zero_weight_authorities[1], vec![o1, o2]),
+        make_capabilities!(2, zero_weight_authorities[2], vec![o1, o2]),
+    ];
+
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities_with_zero_weight.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
+    );
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.2, sort(vec![o1, o2]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    // including zero-weight authorities
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &all_active_validators,
+        &capabilities_with_zero_weight,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators (including zero-weight) support version 2
+
+    // Test 2: Zero-weight authorities support a higher version than quorum
+    let capabilities_higher_version = vec![
+        make_capabilities!(2, v[0].0, vec![o1, o2]),
+        make_capabilities!(2, v[1].0, vec![o1, o2]),
+        make_capabilities!(2, v[2].0, vec![o1, o2]),
+        make_capabilities!(2, v[3].0, vec![o1, o2]),
+        // Zero-weight authorities supporting higher version
+        make_capabilities!(3, zero_weight_authorities[0], vec![o1, o2]),
+        make_capabilities!(4, zero_weight_authorities[1], vec![o1, o2]),
+        make_capabilities!(5, zero_weight_authorities[2], vec![o1, o2]),
+    ];
+
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities_higher_version.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
+    );
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.2, sort(vec![o1, o2]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &all_active_validators,
+        &capabilities_higher_version,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators support version 2 (zero-weight authorities support higher versions)
+
+    // Test 3: Zero-weight authorities support lower version than quorum
+    let capabilities_lower_version = vec![
+        make_capabilities!(3, v[0].0, vec![o1, o2]),
+        make_capabilities!(3, v[1].0, vec![o1, o2]),
+        make_capabilities!(3, v[2].0, vec![o1, o2]),
+        make_capabilities!(3, v[3].0, vec![o1, o2]),
+        // Zero-weight authorities supporting lower version
+        make_capabilities!(1, zero_weight_authorities[0], vec![o1, o2]),
+        make_capabilities!(2, zero_weight_authorities[1], vec![o1, o2]),
+        make_capabilities!(1, zero_weight_authorities[2], vec![o1, o2]),
+    ];
+
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities_lower_version.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
+    );
+    assert_eq!(result.0, ver(3));
+    assert_eq!(result.2, sort(vec![o1, o2]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &all_active_validators,
+        &capabilities_lower_version,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3]); // Only the committee validators support version 3
+
+    // Test 4: Zero-weight authorities support different objects/capabilities
+    let capabilities_different_objects = vec![
+        make_capabilities!(2, v[0].0, vec![o1, o2]),
+        make_capabilities!(2, v[1].0, vec![o1, o2]),
+        make_capabilities!(2, v[2].0, vec![o1, o2]),
+        make_capabilities!(2, v[3].0, vec![o1, o2]),
+        // Zero-weight authorities with different capabilities
+        make_capabilities!(2, zero_weight_authorities[0], vec![o1, o3]),
+        make_capabilities!(2, zero_weight_authorities[1], vec![o2, o3]),
+        make_capabilities!(2, zero_weight_authorities[2], vec![o3]),
+    ];
+
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities_different_objects.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
+    );
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.2, sort(vec![o1, o2]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &all_active_validators,
+        &capabilities_different_objects,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators support version 2
+
+    // Test 5: Edge case - Only capabilities from zero-weight authorities
+    let capabilities_only_zero_weight = vec![
+        // Committee validators with no capabilities (empty packages)
+        make_capabilities!(1, v[0].0, vec![]),
+        make_capabilities!(1, v[1].0, vec![]),
+        make_capabilities!(1, v[2].0, vec![]),
+        make_capabilities!(1, v[3].0, vec![]),
+        // Only zero-weight authorities have capabilities
+        make_capabilities!(2, zero_weight_authorities[0], vec![o1, o2]),
+        make_capabilities!(3, zero_weight_authorities[1], vec![o1, o2]),
+        make_capabilities!(4, zero_weight_authorities[2], vec![o1, o2]),
+    ];
+
+    // Should not upgrade since zero-weight authorities cannot form a quorum
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities_only_zero_weight.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
+    );
+    assert_eq!(result.0, ver(1));
+    assert_eq!(result.2, vec![]);
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &all_active_validators,
+        &capabilities_only_zero_weight,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 5, 6]); // All validators support version 1
+
+    // Test 6: Zero-weight authorities with conflicting capabilities don't interfere
+    let capabilities_conflicting_zero_weight = vec![
+        // Committee forming quorum for v2 with o1,o2
+        make_capabilities!(2, v[0].0, vec![o1, o2]),
+        make_capabilities!(2, v[1].0, vec![o1, o2]),
+        make_capabilities!(2, v[2].0, vec![o1, o2]),
+        make_capabilities!(1, v[3].0, vec![o1, o3]), // One disagreeing committee member
+        // Zero-weight authorities with completely different proposals
+        make_capabilities!(3, zero_weight_authorities[0], vec![o2, o3]),
+        make_capabilities!(4, zero_weight_authorities[1], vec![o1, o3]),
+        make_capabilities!(5, zero_weight_authorities[2], vec![o3]),
+    ];
+
+    // Should upgrade to v2 with o1,o2 despite zero-weight conflicting opinions
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities_conflicting_zero_weight.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
+    );
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.2, sort(vec![o1, o2]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &all_active_validators,
+        &capabilities_conflicting_zero_weight,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 4, 5, 6]); // Committee validators [0,1,2] + zero-weight authorities [4,5,6] support version 2
+
+    // Test 7: Mixed scenario - some zero-weight authorities agree with quorum,
+    // others don't
+    let capabilities_mixed_agreement = vec![
+        make_capabilities!(2, v[0].0, vec![o1, o2]),
+        make_capabilities!(2, v[1].0, vec![o1, o2]),
+        make_capabilities!(2, v[2].0, vec![o1, o2]),
+        make_capabilities!(2, v[3].0, vec![o1, o2]),
+        // Some zero-weight authorities agree
+        make_capabilities!(2, zero_weight_authorities[0], vec![o1, o2]),
+        // Others disagree with version
+        make_capabilities!(1, zero_weight_authorities[1], vec![o1, o2]),
+        // Others disagree with packages
+        make_capabilities!(2, zero_weight_authorities[2], vec![o1, o3]),
+    ];
+
+    let result = AuthorityState::choose_protocol_version_and_system_packages_v1(
+        ProtocolVersion::MIN,
+        protocol_config_digest,
+        &committee,
+        capabilities_mixed_agreement.clone(),
+        buffer_stake_for_protocol_upgrade_bps_for_testing,
+    );
+    assert_eq!(result.0, ver(2));
+    assert_eq!(result.2, sort(vec![o1, o2]));
+
+    // Verify get_validators_supporting_protocol_version returns correct validators
+    let supporting_validators = AuthorityState::get_validators_supporting_protocol_version(
+        result.0,
+        result.1,
+        &all_active_validators,
+        &capabilities_mixed_agreement,
+    );
+    assert_eq!(supporting_validators, vec![0, 1, 2, 3, 4, 6]); // Committee validators [0,1,2,3] + agreeing zero-weight authorities [4,6] support version 2
 }
 
 #[tokio::test]
@@ -5581,10 +5747,9 @@ async fn test_gas_smashing() {
             );
         }
         // balance on first coin is correct
-        let balance = iota_types::gas::get_gas_balance(
-            &state.get_object(&gas_coin_ids[0]).await.unwrap().unwrap(),
-        )
-        .unwrap();
+        let balance =
+            iota_types::gas::get_gas_balance(&state.get_object(&gas_coin_ids[0]).await.unwrap())
+                .unwrap();
         let gas_used = effects.gas_cost_summary().gas_used();
         assert!(reference_gas_used > balance);
         assert_eq!(reference_gas_used, balance + gas_used);
@@ -5697,7 +5862,6 @@ async fn test_for_inc_201_dry_run() {
             signed.data().intent_message().value.clone(),
             *signed.digest(),
         )
-        .await
         .unwrap();
     assert_eq!(effects.status(), &IotaExecutionStatus::Success);
 
@@ -5719,7 +5883,7 @@ async fn test_publish_transitive_dependencies_ok() {
     let rgp = state.reference_gas_price_for_testing().unwrap();
 
     // Get gas object
-    let gas_object = state.get_object(&gas_id).await.unwrap().unwrap();
+    let gas_object = state.get_object(&gas_id).await.unwrap();
     let gas_ref = gas_object.compute_object_reference();
 
     // Publish `package C`
@@ -5879,7 +6043,7 @@ async fn test_publish_transitive_dependencies_ok() {
         .into_data()
         .into_status();
 
-    assert!(status.is_ok(), "Transaction failed: {:?}", status);
+    assert!(status.is_ok(), "Transaction failed: {status:?}");
 }
 
 #[tokio::test]
@@ -5891,7 +6055,7 @@ async fn test_publish_missing_dependency() {
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
     // Get gas object
-    let gas_object = state.get_object(&gas_id).await.unwrap().unwrap();
+    let gas_object = state.get_object(&gas_id).await.unwrap();
     let gas_ref = gas_object.compute_object_reference();
 
     // Module bytes
@@ -5940,7 +6104,7 @@ async fn test_publish_missing_transitive_dependency() {
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
     // Get gas object
-    let gas_object = state.get_object(&gas_id).await.unwrap().unwrap();
+    let gas_object = state.get_object(&gas_id).await.unwrap();
     let gas_ref = gas_object.compute_object_reference();
 
     // Module bytes
@@ -5989,7 +6153,7 @@ async fn test_publish_not_a_package_dependency() {
     let state = init_state_with_ids(vec![(sender, gas_id)]).await;
 
     // Get gas object
-    let gas_object = state.get_object(&gas_id).await.unwrap().unwrap();
+    let gas_object = state.get_object(&gas_id).await.unwrap();
     let gas_ref = gas_object.compute_object_reference();
 
     // Module bytes
@@ -6157,7 +6321,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     // Sends the first batch of transactions. We should expect that 2 transactions
     // operate on the expensive object should go through, and all transactions
-    // oeprate on the cheaper object should go through. We also check that the
+    // operate on the cheaper object should go through. We also check that the
     // scheduled transactions on the expensive object have the highest gas price.
     let scheduled_txns = send_batch_consensus_no_execution(&authority, &certificates, true).await;
     assert_eq!(scheduled_txns.len(), 2 + non_congested_tx_count as usize);
@@ -6176,9 +6340,7 @@ async fn test_consensus_handler_per_object_congestion_control(
     // Checks that deferral keys are formed correctly.
     let epoch_store = authority.epoch_store_for_testing();
     let commit_round = epoch_store.get_highest_pending_checkpoint_height() / 2;
-    let deferred_txns = epoch_store
-        .get_all_deferred_transactions_for_test()
-        .unwrap();
+    let deferred_txns = epoch_store.get_all_deferred_transactions_for_test();
     assert_eq!(deferred_txns.len(), 1);
     assert_eq!(deferred_txns[0].1.len(), 3);
     let deferral_key = deferred_txns[0].0;
@@ -6193,10 +6355,7 @@ async fn test_consensus_handler_per_object_congestion_control(
         DeferralKey::Randomness {
             deferred_from_round,
         } => {
-            panic!(
-                "Expected ConsensusRound, got RandomnessDkg: {:?}",
-                deferred_from_round
-            );
+            panic!("Expected ConsensusRound, got RandomnessDkg: {deferred_from_round:?}");
         }
     }
 
@@ -6221,7 +6380,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     // Sends the second batch of transactions. We should expect that another 2
     // transactions operate on the expensive object, which are deferred from the
-    // previous round, should go through, and all the new transactions oeprate on
+    // previous round, should go through, and all the new transactions operate on
     // the cheaper object should go through.
     let scheduled_txns =
         send_batch_consensus_no_execution(&authority, &new_certificates, true).await;
@@ -6240,8 +6399,7 @@ async fn test_consensus_handler_per_object_congestion_control(
 
     let deferred_txns = authority
         .epoch_store_for_testing()
-        .get_all_deferred_transactions_for_test()
-        .unwrap();
+        .get_all_deferred_transactions_for_test();
     assert_eq!(deferred_txns.len(), 1);
     assert_eq!(deferred_txns[0].1.len(), 1);
     let deferral_key = deferred_txns[0].0;
@@ -6256,10 +6414,7 @@ async fn test_consensus_handler_per_object_congestion_control(
         DeferralKey::Randomness {
             deferred_from_round,
         } => {
-            panic!(
-                "Expected ConsensusRound, got RandomnessDkg: {:?}",
-                deferred_from_round
-            );
+            panic!("Expected ConsensusRound, got RandomnessDkg: {deferred_from_round:?}");
         }
     }
 
@@ -6271,7 +6426,6 @@ async fn test_consensus_handler_per_object_congestion_control(
         authority
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 }
@@ -6312,8 +6466,16 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     let gas_objects = create_gas_objects(3, sender);
     let gas_objects_cancelled_txn = create_gas_objects(1, sender);
     let owned_objects_cancelled_txn = vec![
-        Object::with_id_owner_version_for_testing(ObjectID::random(), 1.into(), sender),
-        Object::with_id_owner_version_for_testing(ObjectID::random(), 2.into(), sender),
+        Object::with_id_owner_version_for_testing(
+            ObjectID::random(),
+            1.into(),
+            Owner::AddressOwner(sender),
+        ),
+        Object::with_id_owner_version_for_testing(
+            ObjectID::random(),
+            2.into(),
+            Owner::AddressOwner(sender),
+        ),
     ];
 
     // Create the cluster with controlled per object congestion control and
@@ -6338,6 +6500,9 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     authority.insert_genesis_objects(&genesis_objects).await;
 
     let mut certificates: Vec<VerifiedCertificate> = vec![];
+    let gas_price_of_non_cancelled_txs = 2_000;
+    let gas_price_of_cancelled_txs = 1_000;
+    let suggested_gas_price = gas_price_of_non_cancelled_txs + 1;
 
     // Create 3 transactions that operate on shared_objects[0]. These transactions
     // will go through eventually.
@@ -6350,7 +6515,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             &gas_object.compute_object_reference(),
             &[&authority],
             12345,
-            Some(2000),
+            Some(gas_price_of_non_cancelled_txs),
             Some(100_000_000),
         )
         .await;
@@ -6372,7 +6537,7 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         &gas_objects_cancelled_txn[0].compute_object_reference(),
         &[&authority],
         12345,
-        Some(1000),
+        Some(gas_price_of_cancelled_txs),
         Some(100_000_000),
     )
     .await;
@@ -6392,7 +6557,9 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         scheduled_txns[0].data().transaction_data().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
-    assert!(scheduled_txns[1].data().transaction_data().gas_price() == 2000);
+    assert!(
+        scheduled_txns[1].data().transaction_data().gas_price() == gas_price_of_non_cancelled_txs
+    );
 
     let scheduled_txns = send_batch_consensus_no_execution(&authority, &[], false).await;
     assert_eq!(scheduled_txns.len(), 2);
@@ -6400,7 +6567,9 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         scheduled_txns[0].data().transaction_data().kind(),
         TransactionKind::ConsensusCommitPrologueV1(..)
     ));
-    assert!(scheduled_txns[1].data().transaction_data().gas_price() == 2000);
+    assert!(
+        scheduled_txns[1].data().transaction_data().gas_price() == gas_price_of_non_cancelled_txs
+    );
 
     // Run consensus round 3. 2 user transactions will come out with 1 transaction
     // being cancelled.
@@ -6410,7 +6579,6 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         authority
             .epoch_store_for_testing()
             .get_all_deferred_transactions_for_test()
-            .unwrap()
             .is_empty()
     );
 
@@ -6418,14 +6586,19 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     let shared_object_version = authority
         .epoch_store_for_testing()
         .get_assigned_shared_object_versions(&cancelled_txn.key())
-        .expect("Reading shared version assignments should not fail")
         .expect("Versions should be set")
         .into_iter()
         .collect::<HashMap<_, _>>();
     assert_eq!(
         [
-            (shared_objects[0].id(), SequenceNumber::CONGESTED),
-            (shared_objects[1].id(), SequenceNumber::CONGESTED)
+            (
+                shared_objects[0].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+            ),
+            (
+                shared_objects[1].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+            )
         ]
         .into_iter()
         .collect::<HashMap<_, _>>(),
@@ -6456,8 +6629,14 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
     assert_eq!(
         shared_inputs,
         vec![
-            SharedInput::Cancelled((shared_objects[0].id(), SequenceNumber::CONGESTED)),
-            SharedInput::Cancelled((shared_objects[1].id(), SequenceNumber::CONGESTED))
+            SharedInput::Cancelled((
+                shared_objects[0].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+            )),
+            SharedInput::Cancelled((
+                shared_objects[1].id(),
+                SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+            ))
         ]
     );
 
@@ -6467,7 +6646,10 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
         cancelled_objects,
         vec![shared_objects[0].id(), shared_objects[1].id()]
     );
-    assert_eq!(cancellation_reason, SequenceNumber::CONGESTED);
+    assert_eq!(
+        cancellation_reason,
+        SequenceNumber::new_congested_with_suggested_gas_price(suggested_gas_price)
+    );
 
     // Consensus commit prologue contains cancelled txn shared object version
     // assignment.
@@ -6478,12 +6660,22 @@ async fn test_consensus_handler_congestion_control_transaction_cancellation() {
             &prologue_txn.consensus_determined_version_assignments,
             ConsensusDeterminedVersionAssignments::CancelledTransactions(assignment)
             if assignment == &vec![(
-                                *cancelled_txn.digest(),
-                                vec![
-                                    (shared_objects[0].id(), SequenceNumber::CONGESTED),
-                                    (shared_objects[1].id(), SequenceNumber::CONGESTED)
-                                ]
-                            )]
+                *cancelled_txn.digest(),
+                vec![
+                    (
+                        shared_objects[0].id(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            suggested_gas_price
+                        ),
+                    ),
+                    (
+                        shared_objects[1].id(),
+                        SequenceNumber::new_congested_with_suggested_gas_price(
+                            suggested_gas_price
+                        ),
+                    )
+                ]
+            )]
         ));
     } else {
         panic!("First scheduled transaction must be a ConsensusCommitPrologueV1 transaction.");

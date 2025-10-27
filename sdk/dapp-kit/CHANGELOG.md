@@ -1,5 +1,69 @@
 # @iota/dapp-kit
 
+## 0.5.3
+
+### Patch Changes
+
+-   Updated dependencies [3244c29]
+    -   @iota/iota-sdk@1.6.1
+    -   @iota/wallet-standard@0.2.15
+
+## 0.5.2
+
+### Patch Changes
+
+-   Updated dependencies [c5543f0]
+-   Updated dependencies [bd17ba9]
+-   Updated dependencies [0accdb0]
+    -   @iota/iota-sdk@1.6.0
+    -   @iota/wallet-standard@0.2.14
+
+## 0.5.1
+
+### Patch Changes
+
+-   75554e6: Add `getIotaClientQuery` to get the `queryOptions` config for usage with the
+    `QueryClient` outside of React hooks. Added `useIotaClientSuspenseQuery` to support
+    suspense-based data fetching.
+-   Updated dependencies [40576ed]
+-   Updated dependencies [61b0944]
+-   Updated dependencies [966f83c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [733df30]
+-   Updated dependencies [13ca264]
+-   Updated dependencies [5bbafa8]
+-   Updated dependencies [28ce666]
+-   Updated dependencies [c855f8c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [464c15a]
+    -   @iota/iota-sdk@1.5.0
+    -   @iota/wallet-standard@0.2.13
+
+## 0.5.0
+
+### Minor Changes
+
+-   ea2b889: Add an opt-in flag to wait for the transaction in the useSignAndExecuteTransaction hook
+
+### Patch Changes
+
+-   Updated dependencies [f04033d]
+-   Updated dependencies [59342b2]
+-   Updated dependencies [ecea738]
+    -   @iota/iota-sdk@1.4.0
+    -   @iota/wallet-standard@0.2.12
+
+## 0.4.7
+
+### Patch Changes
+
+-   Updated dependencies [6051799]
+-   Updated dependencies [5db9797]
+-   Updated dependencies [c4c6d9a]
+-   Updated dependencies [c837b79]
+    -   @iota/iota-sdk@1.3.0
+    -   @iota/wallet-standard@0.2.11
+
 ## 0.4.6
 
 ### Patch Changes

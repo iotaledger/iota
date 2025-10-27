@@ -2,16 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { bcs } from '@iota/iota-sdk/bcs';
 import {
     type DryRunTransactionBlockResponse,
     type IotaClient,
     type IotaTransactionBlockResponse,
     type IotaTransactionBlockResponseOptions,
 } from '@iota/iota-sdk/client';
-import { messageWithIntent } from '@iota/iota-sdk/cryptography';
 import { isTransaction, type Transaction } from '@iota/iota-sdk/transactions';
-import { fromB64, toB64 } from '@iota/iota-sdk/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 
 export interface SignedTransaction {
     bytes: string;
@@ -30,23 +28,9 @@ export abstract class WalletSigner {
         this.client = client;
     }
 
-    abstract signData(data: Uint8Array): Promise<string>;
+    abstract signMessage(input: { message: Uint8Array }): Promise<SignedMessage>;
 
     abstract getAddress(): Promise<string>;
-
-    async signMessage(input: { message: Uint8Array }): Promise<SignedMessage> {
-        const signature = await this.signData(
-            messageWithIntent(
-                'PersonalMessage',
-                bcs.vector(bcs.u8()).serialize(input.message).toBytes(),
-            ),
-        );
-
-        return {
-            bytes: toB64(input.message),
-            signature,
-        };
-    }
 
     protected async prepareTransaction(transaction: Uint8Array | Transaction | string) {
         if (isTransaction(transaction)) {
@@ -62,7 +46,7 @@ export abstract class WalletSigner {
         }
 
         if (typeof transaction === 'string') {
-            return fromB64(transaction);
+            return fromBase64(transaction);
         }
 
         if (transaction instanceof Uint8Array) {
@@ -71,16 +55,14 @@ export abstract class WalletSigner {
         throw new Error('Unknown transaction format');
     }
 
+    abstract signTransactionBytes(bytes: Uint8Array): Promise<SignedTransaction>;
+
     async signTransaction(input: {
         transaction: Uint8Array | Transaction;
     }): Promise<SignedTransaction> {
+        // Prepare the transaction (sets sender if not already set, builds Transaction objects)
         const bytes = await this.prepareTransaction(input.transaction);
-        const signature = await this.signData(messageWithIntent('TransactionData', bytes));
-
-        return {
-            bytes: toB64(bytes),
-            signature,
-        };
+        return this.signTransactionBytes(bytes);
     }
 
     async signAndExecuteTransaction(input: {

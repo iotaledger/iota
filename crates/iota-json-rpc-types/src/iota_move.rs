@@ -4,22 +4,23 @@
 
 use std::{
     collections::BTreeMap,
-    fmt,
-    fmt::{Display, Formatter, Write},
+    fmt::{self, Display, Formatter, Write},
+    str::FromStr,
 };
 
 use colored::Colorize;
 use iota_macros::EnumVariantOrder;
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
+    error::{IotaError, UserInputError},
     iota_serde::IotaStructTag,
 };
 use itertools::Itertools;
 use move_binary_format::{
     file_format::{Ability, AbilitySet, DatatypeTyParameter, Visibility},
     normalized::{
-        Field as NormalizedField, Function as IotaNormalizedFunction, Module as NormalizedModule,
-        Struct as NormalizedStruct, Type as NormalizedType,
+        Enum as NormalizedEnum, Field as NormalizedField, Function as IotaNormalizedFunction,
+        Module as NormalizedModule, Struct as NormalizedStruct, Type as NormalizedType,
     },
 };
 use move_core_types::{
@@ -81,6 +82,14 @@ pub struct IotaMoveNormalizedStruct {
     pub fields: Vec<IotaMoveNormalizedField>,
 }
 
+#[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IotaMoveNormalizedEnum {
+    pub abilities: IotaMoveAbilitySet,
+    pub type_parameters: Vec<IotaMoveStructTypeParameter>,
+    pub variants: BTreeMap<String, Vec<IotaMoveNormalizedField>>,
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema, PartialEq)]
 pub enum IotaMoveNormalizedType {
     Bool,
@@ -121,6 +130,36 @@ pub struct IotaMoveModuleId {
     name: String,
 }
 
+/// Identifies a Move function.
+#[serde_as]
+#[derive(Serialize, Deserialize, Debug, Clone, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct MoveFunctionName {
+    /// The package ID to which the function belongs.
+    pub package: ObjectID,
+    /// The module name to which the function belongs.
+    pub module: String,
+    /// The function name.
+    pub function: String,
+}
+
+impl FromStr for MoveFunctionName {
+    type Err = IotaError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let (module, name) =
+            iota_types::parse_iota_fq_name(s).map_err(|e| UserInputError::InvalidIdentifier {
+                error: e.to_string(),
+            })?;
+        let package = ObjectID::from_address(*module.address());
+        Ok(Self {
+            package,
+            module: module.name().to_string(),
+            function: name.to_string(),
+        })
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone, Debug, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct IotaMoveNormalizedModule {
@@ -129,6 +168,8 @@ pub struct IotaMoveNormalizedModule {
     pub name: String,
     pub friends: Vec<IotaMoveModuleId>,
     pub structs: BTreeMap<String, IotaMoveNormalizedStruct>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub enums: BTreeMap<String, IotaMoveNormalizedEnum>,
     pub exposed_functions: BTreeMap<String, IotaMoveNormalizedFunction>,
 }
 
@@ -159,6 +200,11 @@ impl From<NormalizedModule> for IotaMoveNormalizedModule {
                 .into_iter()
                 .map(|(name, struct_)| (name.to_string(), IotaMoveNormalizedStruct::from(struct_)))
                 .collect::<BTreeMap<String, IotaMoveNormalizedStruct>>(),
+            enums: module
+                .enums
+                .into_iter()
+                .map(|(name, enum_)| (name.to_string(), IotaMoveNormalizedEnum::from(enum_)))
+                .collect(),
             exposed_functions: module
                 .functions
                 .into_iter()
@@ -214,6 +260,25 @@ impl From<NormalizedStruct> for IotaMoveNormalizedStruct {
                 .into_iter()
                 .map(IotaMoveNormalizedField::from)
                 .collect::<Vec<IotaMoveNormalizedField>>(),
+        }
+    }
+}
+
+impl From<NormalizedEnum> for IotaMoveNormalizedEnum {
+    fn from(value: NormalizedEnum) -> Self {
+        Self {
+            abilities: value.abilities.into(),
+            type_parameters: value.type_parameters.into_iter().map(Into::into).collect(),
+            variants: value
+                .variants
+                .into_iter()
+                .map(|variant| {
+                    (
+                        variant.name.to_string(),
+                        variant.fields.into_iter().map(Into::into).collect(),
+                    )
+                })
+                .collect(),
         }
     }
 }
@@ -461,7 +526,7 @@ impl Display for IotaMoveVariant {
         writeln!(writer, "  {}: {type_}", "type".bold().bright_black())?;
         writeln!(writer, "  {}: {variant}", "variant".bold().bright_black())?;
         for (name, value) in fields {
-            let value = format!("{}", value);
+            let value = format!("{value}");
             let value = if value.starts_with('\n') {
                 indent(&value, 2)
             } else {
@@ -608,7 +673,7 @@ fn try_convert_type(
     }
     warn!(
         fields =? fields,
-        "Failed to convert {struct_name} to IotaMoveValue"
+        "failed to convert {struct_name} to IotaMoveValue"
     );
     None
 }

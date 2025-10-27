@@ -6,18 +6,24 @@ import { ThemePreference, useTheme } from '@iota/core';
 import { Overlay } from '_components';
 import { useNavigate } from 'react-router-dom';
 
+const THEMES_TO_SHOW = [ThemePreference.Light, ThemePreference.Dark, ThemePreference.System];
+
+const THEME_ENTRIES = (Object.entries(ThemePreference) as Array<[string, ThemePreference]>).filter(
+    ([, value]) => THEMES_TO_SHOW.includes(value),
+);
+
 export function ThemeSettings() {
     const { themePreference, setThemePreference } = useTheme();
 
     const navigate = useNavigate();
 
     return (
-        <Overlay showModal title="Theme" closeOverlay={() => navigate('/')} showBackButton>
+        <Overlay showModal title="Theme" closeOverlay={() => navigate('/tokens')} showBackButton>
             <div className="flex w-full flex-col">
-                {Object.entries(ThemePreference).map(([key, value]) => (
+                {THEME_ENTRIES.map(([label, value]) => (
                     <div className="px-md" key={value}>
                         <RadioButton
-                            label={key}
+                            label={label}
                             isChecked={themePreference === value}
                             onChange={() => setThemePreference(value)}
                         />

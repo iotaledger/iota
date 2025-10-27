@@ -23,7 +23,7 @@ use tokio::{
     sync::{broadcast, watch},
     time::Instant,
 };
-use tracing::{debug, info, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 #[cfg(test)]
 use crate::{
@@ -66,11 +66,11 @@ pub(crate) struct Core {
     /// dependencies when processing new blocks and accept them or suspend
     /// if we are missing their causal history
     block_manager: BlockManager,
-    /// Whether there are subscribers waiting for new blocks proposed by this
-    /// authority. Core stops proposing new blocks when there is no
-    /// subscriber, because new proposed blocks will likely contain only
-    /// stale info when they propagate to peers.
-    subscriber_exists: bool,
+    /// Whether there is a quorum of 2f+1 subscribers waiting for new blocks
+    /// proposed by this authority. Core stops proposing new blocks when
+    /// there is not enough subscribers, because new proposed blocks will
+    /// not be sufficiently propagated to the network.
+    quorum_subscribers_exists: bool,
     /// Estimated delay by round for propagating blocks to a quorum.
     /// Because of the nature of TCP and block streaming, propagation delay is
     /// expected to be 0 in most cases, even when the actual latency of
@@ -192,7 +192,7 @@ impl Core {
             leader_schedule,
             transaction_consumer,
             block_manager,
-            subscriber_exists,
+            quorum_subscribers_exists: subscriber_exists,
             propagation_delay: 0,
             committer,
             commit_observer,
@@ -222,7 +222,17 @@ impl Core {
             .iter()
             .fold(0, |ts, (b, _)| ts.max(b.timestamp_ms()));
         let wait_ms = max_ancestor_timestamp.saturating_sub(self.context.clock.timestamp_utc_ms());
-        if wait_ms > 0 {
+
+        if self
+            .context
+            .protocol_config
+            .consensus_median_timestamp_with_checkpoint_enforcement()
+        {
+            info!(
+                "Median based timestamp is enabled. Will not wait for {} ms while recovering ancestors from storage",
+                wait_ms
+            );
+        } else if wait_ms > 0 {
             warn!(
                 "Waiting for {} ms while recovering ancestors from storage",
                 wait_ms
@@ -272,7 +282,7 @@ impl Core {
     /// Processes the provided blocks and accepts them if possible when their
     /// causal history exists. The method returns:
     /// - The references of ancestors missing their block
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument("consensus_add_blocks", skip_all)]
     pub(crate) fn add_blocks(
         &mut self,
         blocks: Vec<VerifiedBlock>,
@@ -420,6 +430,7 @@ impl Core {
             return;
         }
         // Then send a signal to set up leader timeout.
+        tracing::trace!(round = ?new_clock_round, "new_consensus_round_sent");
         self.signals.new_round(new_clock_round);
         self.last_signaled_round = new_clock_round;
 
@@ -500,6 +511,7 @@ impl Core {
     // Attempts to create a new block, persist and propose it to all peers.
     // When force is true, ignore if leader from the last round exists among
     // ancestors and if the minimum round delay has passed.
+    #[instrument(level = "trace", skip_all)]
     fn try_propose(&mut self, force: bool) -> ConsensusResult<Option<VerifiedBlock>> {
         if !self.should_propose() {
             return Ok(None);
@@ -519,6 +531,7 @@ impl Core {
     /// Attempts to propose a new block for the next round. If a block has
     /// already proposed for latest or earlier round, then no block is
     /// created and None is returned.
+    #[instrument(level = "trace", skip_all)]
     fn try_new_block(&mut self, force: bool) -> Option<ExtendedBlock> {
         let _s = self
             .context
@@ -643,15 +656,28 @@ impl Core {
                 .observe(clock_round.saturating_sub(ancestor.round()).into());
         }
 
-        // Ensure ancestor timestamps are not more advanced than the current time.
-        // Also catch the issue if system's clock go backwards.
         let now = self.context.clock.timestamp_utc_ms();
         ancestors.iter().for_each(|block| {
-            assert!(
-                block.timestamp_ms() <= now,
-                "Violation: ancestor block {:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {}.",
-                block, block.timestamp_ms(), clock_round
-            );
+            if self.context.protocol_config.consensus_median_timestamp_with_checkpoint_enforcement() {
+                if block.timestamp_ms() > now {
+                    trace!("Ancestor block {:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {}.", block, block.timestamp_ms(), clock_round);
+                    let authority = &self.context.committee.authority(block.author()).hostname;
+                    self.context
+                        .metrics
+                        .node_metrics
+                        .proposed_block_ancestors_timestamp_drift_ms
+                        .with_label_values(&[authority])
+                        .inc_by(block.timestamp_ms().saturating_sub(now));
+                }
+            } else {
+                // Ensure ancestor timestamps are not more advanced than the current time.
+                // Also catch the issue if system's clock go backwards.
+                assert!(
+                    block.timestamp_ms() <= now,
+                    "Violation: ancestor block {:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {}.",
+                    block, block.timestamp_ms(), clock_round
+                );
+            }
         });
 
         // Consume the next transactions to be included. Do not drop the guards yet as
@@ -724,7 +750,7 @@ impl Core {
         // Now acknowledge the transactions for their inclusion to block
         ack_transactions(verified_block.reference());
 
-        debug!("Created block {verified_block:?} for round {clock_round}");
+        info!("Created block {verified_block:?} for round {clock_round}");
 
         self.context
             .metrics
@@ -742,6 +768,7 @@ impl Core {
     /// Runs commit rule to attempt to commit additional blocks from the DAG. If
     /// any `certified_commits` are provided, then it will attempt to commit
     /// those first before trying to commit any further leaders.
+    #[instrument(level = "trace", skip_all)]
     fn try_commit(
         &mut self,
         mut certified_commits: Vec<CertifiedCommit>,
@@ -939,16 +966,15 @@ impl Core {
         Ok(committed_sub_dags)
     }
 
-    pub(crate) fn get_missing_blocks(&self) -> BTreeSet<BlockRef> {
+    pub(crate) fn get_missing_blocks(&self) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let _scope = monitored_scope("Core::get_missing_blocks");
         self.block_manager.missing_blocks()
     }
 
-    /// Sets if there is consumer available to consume blocks produced by the
-    /// core.
-    pub(crate) fn set_subscriber_exists(&mut self, exists: bool) {
-        info!("Block subscriber exists: {exists}");
-        self.subscriber_exists = exists;
+    /// Sets if there is 2f+1 subscriptions to the block stream.
+    pub(crate) fn set_quorum_subscribers_exists(&mut self, exists: bool) {
+        info!("A quorum of block subscribers exists: {exists}");
+        self.quorum_subscribers_exists = exists;
     }
 
     /// Sets the delay by round for propagating blocks to a quorum and the
@@ -1003,10 +1029,10 @@ impl Core {
         let clock_round = self.dag_state.read().threshold_clock_round();
         let core_skipped_proposals = &self.context.metrics.node_metrics.core_skipped_proposals;
 
-        if !self.subscriber_exists {
-            debug!("Skip proposing for round {clock_round}, no subscriber exists.");
+        if !self.quorum_subscribers_exists {
+            debug!("Skip proposing for round {clock_round}, don't have a quorum of subscribers.");
             core_skipped_proposals
-                .with_label_values(&["no_subscriber"])
+                .with_label_values(&["no_quorum_subscriber"])
                 .inc();
             return false;
         }
@@ -1152,8 +1178,7 @@ impl Core {
         }
         assert!(
             quorum.reached_threshold(&self.context.committee),
-            "Fatal error, quorum not reached for parent round when proposing for round {}. Possible mismatch between DagState and Core.",
-            clock_round
+            "Fatal error, quorum not reached for parent round when proposing for round {clock_round}. Possible mismatch between DagState and Core."
         );
 
         ancestors
@@ -1643,7 +1668,7 @@ mod test {
 
         // Create test blocks for all the authorities for 4 rounds and populate them in
         // store
-        let mut last_round_blocks = genesis_blocks(context.clone());
+        let mut last_round_blocks = genesis_blocks(&context);
         let mut all_blocks: Vec<VerifiedBlock> = last_round_blocks.clone();
         for round in 1..=4 {
             let mut this_round_blocks = Vec::new();
@@ -1768,7 +1793,7 @@ mod test {
         let transaction_consumer = TransactionConsumer::new(tx_receiver, context.clone());
 
         // Create test blocks for all authorities except our's (index = 0).
-        let mut last_round_blocks = genesis_blocks(context.clone());
+        let mut last_round_blocks = genesis_blocks(&context);
         let mut all_blocks = last_round_blocks.clone();
         for round in 1..=4 {
             let mut this_round_blocks = Vec::new();
@@ -1973,7 +1998,7 @@ mod test {
         );
 
         // genesis blocks should be referenced
-        let all_genesis = genesis_blocks(context);
+        let all_genesis = genesis_blocks(&context);
 
         for ancestor in extended_block.block.ancestors() {
             all_genesis
@@ -2258,14 +2283,15 @@ mod test {
                 D -> [*],
             },
             Round 5 : { 
+                A -> [*],
                 B -> [*],
                 C -> [*],
                 D -> [*],
             },
             Round 6 : { 
-                B -> [A6, B6, C6, D1],
-                C -> [A6, B6, C6, D1],
-                D -> [A6, B6, C6, D1],
+                B -> [A5, B5, C5, D1],
+                C -> [A5, B5, C5, D1],
+                D -> [A5, B5, C5, D1],
             },
             Round 7 : { 
                 B -> [*],
@@ -2514,7 +2540,7 @@ mod test {
                             .try_propose(true)
                             .unwrap()
                             .unwrap_or_else(|| {
-                                panic!("Block should have been proposed for round {}", round)
+                                panic!("Block should have been proposed for round {round}")
                             });
                     }
                 }
@@ -2625,7 +2651,7 @@ mod test {
                             .try_propose(true)
                             .unwrap()
                             .unwrap_or_else(|| {
-                                panic!("Block should have been proposed for round {}", round)
+                                panic!("Block should have been proposed for round {round}")
                             });
                     }
                 }
@@ -2660,7 +2686,7 @@ mod test {
                             .try_propose(true)
                             .unwrap()
                             .unwrap_or_else(|| {
-                                panic!("Block should have been proposed for round {}", round)
+                                panic!("Block should have been proposed for round {round}")
                             });
                     }
                 }
@@ -3093,7 +3119,7 @@ mod test {
         assert!(core.try_propose(true).unwrap().is_none());
 
         // Let Core know subscriber exists.
-        core.set_subscriber_exists(true);
+        core.set_quorum_subscribers_exists(true);
 
         // Proposing now would succeed.
         assert!(core.try_propose(true).unwrap().is_some());
@@ -3158,7 +3184,7 @@ mod test {
         core.set_propagation_delay_and_quorum_rounds(1000, vec![], vec![]);
 
         // Make propagation delay the only reason for not proposing.
-        core.set_subscriber_exists(true);
+        core.set_quorum_subscribers_exists(true);
 
         // There is no proposal even with forced proposing.
         assert!(core.try_propose(true).unwrap().is_none());
@@ -3518,7 +3544,7 @@ mod test {
                 expected_commit_index: 5,
                 commit_index: 6,
             } => (),
-            _ => panic!("Unexpected error: {:?}", err),
+            _ => panic!("Unexpected error: {err:?}"),
         }
     }
 

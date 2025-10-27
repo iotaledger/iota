@@ -4,8 +4,7 @@
 
 import { type CoinStruct } from '@iota/iota-sdk/client';
 import { Transaction, TransactionObjectArgument } from '@iota/iota-sdk/transactions';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
-import { parseAmount } from '../parseAmount';
+import { IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 
 interface Options {
     coinType: string;

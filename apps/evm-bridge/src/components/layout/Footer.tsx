@@ -43,10 +43,10 @@ const USE_CONDITIONS_LINKS: ExternalLink[] = [
 
 export function Footer() {
     return (
-        <footer className="w-full  dark:bg-neutral-10 bg-neutral-92 pt-lg pb-2xl">
+        <footer className="w-full  dark:bg-iota-neutral-10 bg-iota-neutral-92 pt-lg pb-2xl">
             <div className="container flex flex-col justify-center gap-y-lg md:gap-md--rs">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-y-lg">
-                    <IotaLogoWeb className="w-36 h-9 dark:text-neutral-92 text-neutral-10" />
+                    <IotaLogoWeb className="w-36 h-9 dark:text-iota-neutral-92 text-iota-neutral-10" />
                     <div className="flex flex-row gap-lg items-center">
                         {EXTERNAL_LINKS.map(({ url, text }) => (
                             <Link key={text} href={url} isSecondary>
@@ -59,7 +59,7 @@ export function Footer() {
                 <Divider />
 
                 <div className="flex flex-col-reverse md:flex-row justify-between items-center gap-y-lg">
-                    <span className="text-neutral-40 dark:text-neutral-60 text-body-md tracking-normal">
+                    <span className="text-iota-neutral-40 dark:text-iota-neutral-60 text-body-md tracking-normal">
                         © {new Date().getFullYear()} IOTA Foundation. All Rights Reserved.
                     </span>
 
@@ -72,7 +72,7 @@ export function Footer() {
                     </div>
                 </div>
 
-                <span className="w-full text-center text-neutral-40 dark:text-neutral-60 text-label-md">
+                <span className="w-full text-center text-iota-neutral-40 dark:text-iota-neutral-60 text-label-md">
                     {COMMIT_REV}
                 </span>
             </div>

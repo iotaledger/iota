@@ -27,7 +27,8 @@ use hyper::{
 };
 use iota_metrics::RegistryService;
 use iota_move::manage_package::resolve_lock_file_path;
-use iota_move_build::{BuildConfig, IotaPackageHooks};
+use iota_move_build::{BuildConfig, IotaPackageHooks, implicit_deps};
+use iota_package_management::system_package_versions::latest_system_packages;
 use iota_sdk::{
     IotaClientBuilder, rpc_types::IotaTransactionBlockEffects, types::base_types::ObjectID,
 };
@@ -171,6 +172,7 @@ pub async fn verify_package(
         resolve_lock_file_path(MoveBuildConfig::default(), Some(package_path.as_ref()))?;
     config.lint_flag = LintFlag::LEVEL_NONE;
     config.silence_warnings = true;
+    config.implicit_dependencies = implicit_deps(latest_system_packages());
     let build_config = BuildConfig {
         config,
         run_bytecode_verifier: false, // no need to run verifier if code is on-chain

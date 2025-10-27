@@ -319,8 +319,7 @@ pub async fn accumulate_live_object_iter(
             let accumulations_per_sec = num_accumulated as f64 / a_instant.elapsed().as_secs_f64();
             cloned_progress_bar.set_position(num_accumulated);
             cloned_progress_bar.set_message(format!(
-                "DB live obj accumulations per sec: {}",
-                accumulations_per_sec
+                "DB live obj accumulations per sec: {accumulations_per_sec}"
             ));
             tokio::time::sleep(Duration::from_secs(1)).await;
         }

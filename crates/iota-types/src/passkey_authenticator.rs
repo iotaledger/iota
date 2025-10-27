@@ -72,7 +72,7 @@ pub struct PasskeyAuthenticator {
     bytes: OnceCell<Vec<u8>>,
 }
 
-/// An raw passkey authenticator struct used during deserialization. Can be
+/// A raw passkey authenticator struct used during deserialization. Can be
 /// converted to [struct PasskeyAuthenticator].
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RawPasskeyAuthenticator {
@@ -106,7 +106,7 @@ impl TryFrom<RawPasskeyAuthenticator> for PasskeyAuthenticator {
             })?
             .try_into()
             .map_err(|_| IotaError::InvalidSignature {
-                error: "Invalid encoded challenge".to_string(),
+                error: "Invalid size for challenge".to_string(),
             })?;
 
         if raw.user_signature.scheme() != SignatureScheme::Secp256r1 {
@@ -165,12 +165,15 @@ impl Serialize for PasskeyAuthenticator {
             authenticator_data: self.authenticator_data.clone(),
             client_data_json: self.client_data_json.clone(),
             user_signature: Signature::Secp256r1IotaSignature(
-                Secp256r1IotaSignature::from_bytes(&bytes).unwrap(),
+                Secp256r1IotaSignature::from_bytes(&bytes).unwrap(), /* ok to unwrap since the
+                                                                      * bytes are constructed as
+                                                                      * valid above. */
             ),
         };
         raw.serialize(serializer)
     }
 }
+
 impl PasskeyAuthenticator {
     /// A constructor for [struct PasskeyAuthenticator] with custom
     /// defined fields. Used for testing.
@@ -190,6 +193,24 @@ impl PasskeyAuthenticator {
     /// Returns the public key of the passkey authenticator.
     pub fn get_pk(&self) -> IotaResult<PublicKey> {
         Ok(PublicKey::Passkey((&self.pk).into()))
+    }
+
+    pub fn authenticator_data(&self) -> &[u8] {
+        &self.authenticator_data
+    }
+
+    pub fn client_data_json(&self) -> &str {
+        &self.client_data_json
+    }
+
+    pub fn signature(&self) -> Signature {
+        let mut bytes = Vec::with_capacity(Secp256r1IotaSignature::LENGTH);
+        bytes.push(SignatureScheme::Secp256r1.flag());
+        bytes.extend_from_slice(self.signature.as_ref());
+        bytes.extend_from_slice(self.pk.as_ref());
+
+        // Safe to unwrap because signature and pk are serialized from valid struct.
+        Signature::Secp256r1IotaSignature(Secp256r1IotaSignature::from_bytes(&bytes).unwrap())
     }
 }
 
@@ -230,6 +251,13 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
     where
         T: Serialize,
     {
+        // Check if author is derived from the public key.
+        if author != IotaAddress::from(&self.get_pk()?) {
+            return Err(IotaError::InvalidSignature {
+                error: "Invalid author".to_string(),
+            });
+        };
+
         // Check the intent and signing is consisted from what's parsed from
         // client_data_json.challenge
         if self.challenge != to_signing_message(intent_msg) {
@@ -242,13 +270,6 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
         let mut message = self.authenticator_data.clone();
         let client_data_hash = Sha256::digest(self.client_data_json.as_bytes()).digest;
         message.extend_from_slice(&client_data_hash);
-
-        // Check if author is derived from the public key.
-        if author != IotaAddress::from(&self.get_pk()?) {
-            return Err(IotaError::InvalidSignature {
-                error: "Invalid author".to_string(),
-            });
-        };
 
         // Verify the signature against pk and message.
         self.pk

@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use diesel::connection::SimpleConnection;
+use diesel::{QueryableByName, connection::SimpleConnection, sql_types::BigInt};
 use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_metrics::init_metrics;
 use tokio::task::JoinHandle;
@@ -12,7 +12,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     IndexerMetrics,
-    config::{IngestionConfig, IotaNamesOptions, PruningOptions, SnapshotLagConfig},
+    config::{
+        IngestionConfig, IotaNamesOptions, PruningOptions, RetentionConfig, SnapshotLagConfig,
+    },
     db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool},
     errors::IndexerError,
     indexer::Indexer,
@@ -63,7 +65,8 @@ pub enum IndexerTypeConfig {
     },
     Writer {
         snapshot_config: SnapshotLagConfig,
-        pruning_options: PruningOptions,
+        retention_config: Option<RetentionConfig>,
+        optimistic_pruner_batch_size: Option<u64>,
     },
     AnalyticalWorker,
 }
@@ -77,11 +80,17 @@ impl IndexerTypeConfig {
 
     pub fn writer_mode(
         snapshot_config: Option<SnapshotLagConfig>,
-        epochs_to_keep: Option<u64>,
+        pruning_options: Option<PruningOptions>,
     ) -> Self {
         Self::Writer {
             snapshot_config: snapshot_config.unwrap_or_default(),
-            pruning_options: PruningOptions { epochs_to_keep },
+            retention_config: pruning_options.as_ref().and_then(|pruning_options| {
+                pruning_options
+                    .epochs_to_keep
+                    .map(RetentionConfig::new_with_default_retention_only_for_testing)
+            }),
+            optimistic_pruner_batch_size: pruning_options
+                .and_then(|pruning_options| pruning_options.optimistic_pruner_batch_size),
         }
     }
 }
@@ -132,6 +141,9 @@ pub async fn start_test_indexer_impl(
     }
 
     let registry = prometheus::Registry::default();
+    init_metrics(&registry);
+    let indexer_metrics = IndexerMetrics::new(&registry);
+
     let handle = match reader_writer_config {
         IndexerTypeConfig::Reader {
             reader_mode_rpc_url,
@@ -142,11 +154,15 @@ pub async fn start_test_indexer_impl(
                 rpc_client_url: rpc_url,
             };
             let pool = store.blocking_cp();
-            tokio::spawn(async move { Indexer::start_reader(&config, &registry, pool).await })
+            let store_clone = store.clone();
+            tokio::spawn(async move {
+                Indexer::start_reader(&config, store_clone, &registry, pool, indexer_metrics).await
+            })
         }
         IndexerTypeConfig::Writer {
             snapshot_config,
-            pruning_options,
+            retention_config,
+            optimistic_pruner_batch_size,
         } => {
             let store_clone = store.clone();
             let mut ingestion_config = IngestionConfig::default();
@@ -156,16 +172,14 @@ pub async fn start_test_indexer_impl(
             ingestion_config.sources.data_ingestion_path = data_ingestion_path;
             ingestion_config.sources.rpc_client_url = Some(rpc_url.parse().unwrap());
 
-            init_metrics(&registry);
-            let indexer_metrics = IndexerMetrics::new(&registry);
-
             tokio::spawn(async move {
                 Indexer::start_writer_with_config(
                     &ingestion_config,
                     store_clone,
                     indexer_metrics,
                     snapshot_config,
-                    pruning_options,
+                    retention_config,
+                    optimistic_pruner_batch_size,
                     cancel,
                 )
                 .await
@@ -173,9 +187,6 @@ pub async fn start_test_indexer_impl(
         }
         IndexerTypeConfig::AnalyticalWorker => {
             let store = PgIndexerAnalyticalStore::new(store.blocking_cp());
-
-            init_metrics(&registry);
-            let indexer_metrics = IndexerMetrics::new(&registry);
 
             tokio::spawn(
                 async move { Indexer::start_analytical_worker(store, indexer_metrics).await },
@@ -259,7 +270,7 @@ pub fn create_pg_store(db_url: &str, reset_database: bool) -> PgIndexerStore {
 }
 
 fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {
-    let pos = db_url.rfind('/').expect("Unable to find / in db_url");
+    let pos = db_url.rfind('/').expect("unable to find / in db_url");
     let old_db_name = &db_url[pos + 1..];
 
     (
@@ -281,7 +292,7 @@ pub async fn force_delete_database(db_url: String) {
     blocking_pool
         .get()
         .unwrap()
-        .batch_execute(&format!("DROP DATABASE IF EXISTS {} WITH (FORCE)", db_name))
+        .batch_execute(&format!("DROP DATABASE IF EXISTS {db_name} WITH (FORCE)"))
         .unwrap();
 }
 
@@ -369,4 +380,18 @@ impl<'a> IotaTransactionBlockResponseBuilder<'a> {
             ..self.full_response.clone()
         }
     }
+}
+
+/// Returns a database URL for testing purposes.
+/// It uses a default user and password, and connects to a local PostgreSQL
+/// instance.
+pub fn db_url(db_name: &str) -> String {
+    format!("postgres://postgres:postgrespw@localhost:5432/{db_name}")
+}
+
+/// Represents a row count result from a SQL query.
+#[derive(QueryableByName, Debug)]
+pub struct RowCount {
+    #[diesel(sql_type = BigInt)]
+    pub cnt: i64,
 }

@@ -33,7 +33,7 @@ pub struct ObjectRefColumn {
 // NOTE: please add updating statement like below in pg_indexer_store.rs,
 // if new columns are added here:
 // objects::epoch.eq(excluded(objects::epoch))
-#[derive(Queryable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
+#[derive(Queryable, Selectable, Insertable, Debug, Identifiable, Clone, QueryableByName)]
 #[diesel(table_name = objects, primary_key(object_id))]
 pub struct StoredObject {
     pub object_id: Vec<u8>,
@@ -446,6 +446,72 @@ impl StoredObject {
     }
 }
 
+/// Holds a granular collection of [`StoredObject`] fields.
+///
+/// This can be used to consume an iterator of [`StoredObject`]
+/// to construct the collection of the individual fields.
+///
+/// ## Examples
+///
+/// ```ignore
+/// use iota_indexer::models::objects::{StoredObject, StoredObjects};
+/// fn construct_data() -> Vec<StoredObject> {
+///     Default::default()
+/// }
+///
+/// let mut stored_objects = StoredObjects::default();
+/// stored_objects.extend(construct_data());
+/// ```
+///
+/// Or using [`unzip`][std::iter::Iterator::unzip]:
+///
+/// ```ignore
+/// use iota_indexer::models::objects::{StoredObject, StoredObjects};
+/// use iota_types::digests::TransactionDigest;
+///
+/// fn construct_data() -> Vec<(StoredObject, TransactionDigest)> {
+///     Default::default()
+/// }
+///
+/// let (objects, digests): (StoredObjects, Vec<_>) = construct_data().into_iter().unzip();
+/// ```
+#[derive(Debug, Clone, Default)]
+pub(crate) struct StoredObjects {
+    pub(crate) object_ids: Vec<Vec<u8>>,
+    pub(crate) object_versions: Vec<i64>,
+    pub(crate) object_digests: Vec<Vec<u8>>,
+    pub(crate) owner_types: Vec<i16>,
+    pub(crate) owner_ids: Vec<Option<Vec<u8>>>,
+    pub(crate) object_types: Vec<Option<String>>,
+    pub(crate) object_type_packages: Vec<Option<Vec<u8>>>,
+    pub(crate) object_type_modules: Vec<Option<String>>,
+    pub(crate) object_type_names: Vec<Option<String>>,
+    pub(crate) serialized_objects: Vec<Vec<u8>>,
+    pub(crate) coin_types: Vec<Option<String>>,
+    pub(crate) coin_balances: Vec<Option<i64>>,
+    pub(crate) df_kinds: Vec<Option<i16>>,
+}
+
+impl Extend<StoredObject> for StoredObjects {
+    fn extend<T: IntoIterator<Item = StoredObject>>(&mut self, iter: T) {
+        for object in iter {
+            self.object_ids.push(object.object_id);
+            self.object_versions.push(object.object_version);
+            self.object_digests.push(object.object_digest);
+            self.owner_types.push(object.owner_type);
+            self.owner_ids.push(object.owner_id);
+            self.object_types.push(object.object_type);
+            self.object_type_packages.push(object.object_type_package);
+            self.object_type_modules.push(object.object_type_module);
+            self.object_type_names.push(object.object_type_name);
+            self.serialized_objects.push(object.serialized_object);
+            self.coin_types.push(object.coin_type);
+            self.coin_balances.push(object.coin_balance);
+            self.df_kinds.push(object.df_kind);
+        }
+    }
+}
+
 impl TryFrom<StoredObject> for IotaCoin {
     type Error = IndexerError;
 
@@ -455,22 +521,19 @@ impl TryFrom<StoredObject> for IotaCoin {
         let coin_type_canonical =
             o.coin_type
                 .ok_or(IndexerError::PersistentStorageDataCorruption(format!(
-                    "Object {} is supposed to be a coin but has an empty coin_type column",
-                    coin_object_id,
+                    "Object {coin_object_id} is supposed to be a coin but has an empty coin_type column",
                 )))?;
         let coin_type = parse_to_struct_tag(coin_type_canonical.as_str())
             .map_err(|_| {
                 IndexerError::PersistentStorageDataCorruption(format!(
-                    "The type of object {} cannot be parsed as a struct tag",
-                    coin_object_id,
+                    "The type of object {coin_object_id} cannot be parsed as a struct tag",
                 ))
             })?
             .to_string();
         let balance = o
             .coin_balance
             .ok_or(IndexerError::PersistentStorageDataCorruption(format!(
-                "Object {} is supposed to be a coin but has an empty coin_balance column",
-                coin_object_id,
+                "Object {coin_object_id} is supposed to be a coin but has an empty coin_balance column",
             )))?;
         Ok(IotaCoin {
             coin_type,

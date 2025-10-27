@@ -9,6 +9,7 @@ use crate::{
     base_types::{ObjectID, SequenceNumber, TransactionDigest},
     crypto::{AuthoritySignInfo, AuthorityStrongQuorumSignInfo},
     effects::{SignedTransactionEffects, TransactionEvents, VerifiedSignedTransactionEffects},
+    messages_consensus::SignedAuthorityCapabilitiesV1,
     object::Object,
     transaction::{CertifiedTransaction, SenderSignedData, SignedTransaction},
 };
@@ -98,6 +99,7 @@ pub struct TransactionInfoRequest {
     pub transaction_digest: TransactionDigest,
 }
 
+#[expect(clippy::large_enum_variant)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum TransactionStatus {
     /// Signature over the transaction.
@@ -270,4 +272,15 @@ pub struct HandleSoftBundleCertificatesRequestV1 {
     pub include_input_objects: bool,
     pub include_output_objects: bool,
     pub include_auxiliary_data: bool,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HandleCapabilityNotificationRequestV1 {
+    pub message: SignedAuthorityCapabilitiesV1,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct HandleCapabilityNotificationResponseV1 {
+    // This is needed to make gRPC happy.
+    pub _unused: bool,
 }

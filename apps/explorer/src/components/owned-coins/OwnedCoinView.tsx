@@ -35,7 +35,7 @@ export function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
     const CARD_BODY: React.ComponentProps<typeof CardBody> = {
         title: symbol,
         subtitle: `${formattedTotalBalance} ${symbol}`,
-        icon: coin.isRecognized && <RecognizedBadge className="h-4 w-4 text-primary-40" />,
+        icon: coin.isRecognized && <RecognizedBadge className="h-4 w-4 text-iota-primary-40" />,
     };
     return (
         <div
@@ -47,7 +47,7 @@ export function OwnedCoinView({ coin, id }: OwnedCoinViewProps): JSX.Element {
         >
             <Card onClick={() => setAreCoinDetailsOpen((prev) => !prev)}>
                 <CardImage type={ImageType.Placeholder}>
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full border border-shader-neutral-light-8 text-iota-neutral-10">
                         <CoinIcon coinType={coin.coinType} size={ImageIconSize.Small} />
                     </div>
                 </CardImage>

@@ -2,7 +2,8 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, formatAmount, formatBalance, formatDate } from '@iota/core';
+import { formatDate } from '@iota/core';
+import { formatAmount, CoinFormat, formatBalance } from '@iota/iota-sdk/utils';
 import { useIotaClientQuery } from '@iota/dapp-kit';
 import { LabelTextSize, TooltipPosition } from '@iota/apps-ui-kit';
 import { StatisticsPanel } from './StatisticsPanel';
@@ -70,7 +71,7 @@ export function TransactionsCardGraph() {
         epochMetrics?.[epochMetrics.length - 1]?.epochTotalTransactions;
 
     const lastEpochTotalTransactionsFormatted = lastEpochTotalTransactions
-        ? formatBalance(lastEpochTotalTransactions, 0, CoinFormat.ROUNDED)
+        ? formatBalance(lastEpochTotalTransactions, 0, CoinFormat.Rounded)
         : '--';
 
     const stats: React.ComponentProps<typeof StatisticsPanel>['stats'] = [

@@ -27,7 +27,7 @@ function DynamicFieldRow({ id, result, defaultOpen }: DynamicFieldRowProps): JSX
     return (
         <Accordion>
             <AccordionHeader isExpanded={open} onToggle={() => onOpenChange(!open)}>
-                <div className="flex items-center gap-xs truncate break-words pl-md--rs text-body-md text-neutral-40">
+                <div className="flex items-center gap-xs truncate break-words pl-md--rs text-body-md text-iota-neutral-40">
                     <div className="block w-full truncate break-words">
                         {typeof result.name?.value === 'object' ? (
                             <>Struct {result.name.type}</>

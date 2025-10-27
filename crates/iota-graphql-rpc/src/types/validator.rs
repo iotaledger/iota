@@ -298,13 +298,14 @@ impl Validator {
         Some(BigInt::from(self.validator_summary.pool_token_balance))
     }
 
-    /// Pending stake amount for this epoch.
+    /// Pending stake amount for the current epoch, emptied at epoch boundaries.
+    /// Zero for past epochs.
     async fn pending_stake(&self) -> Option<BigInt> {
         Some(BigInt::from(self.validator_summary.pending_stake))
     }
 
     /// Pending stake withdrawn during the current epoch, emptied at epoch
-    /// boundaries.
+    /// boundaries. Zero for past epochs.
     async fn pending_total_iota_withdraw(&self) -> Option<BigInt> {
         Some(BigInt::from(
             self.validator_summary.pending_total_iota_withdraw,
@@ -312,7 +313,7 @@ impl Validator {
     }
 
     /// Pending pool token withdrawn during the current epoch, emptied at epoch
-    /// boundaries.
+    /// boundaries. Zero for past epochs.
     async fn pending_pool_token_withdraw(&self) -> Option<BigInt> {
         Some(BigInt::from(
             self.validator_summary.pending_pool_token_withdraw,
@@ -375,16 +376,16 @@ impl Validator {
             return Ok(connection);
         };
 
-        let Some((prev, next, _, cs)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(addresses.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             connection.edges.push(Edge::new(
                 c.encode_cursor(),
                 Address {

@@ -2,8 +2,8 @@
 # Modifications Copyright (c) 2025 IOTA Stiftung
 # SPDX-License-Identifier: Apache-2.0
 
-query resolveNameServiceAddress($domain: String!) {
-    resolveIotaNamesAddress(domain: $domain) {
+query resolveNameServiceAddress($name: String!) {
+    resolveIotaNamesAddress(name: $name) {
         address
     }
 }
@@ -16,7 +16,7 @@ query resolveNameServiceNames($address: IotaAddress!, $limit: Int, $cursor: Stri
                 endCursor
             }
             nodes {
-                domain
+                name
             }
         }
     }

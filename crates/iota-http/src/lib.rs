@@ -198,6 +198,12 @@ impl<A> ServerHandle<A> {
     }
 }
 
+impl<A> Clone for ServerHandle<A> {
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
+
 type ConnectingOutput<Io, Addr> = Result<(ServerIo<Io>, Addr), crate::BoxError>;
 
 struct Server<L: Listener> {

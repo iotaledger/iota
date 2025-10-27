@@ -72,13 +72,13 @@ export function TransactionsForAddressTable({
         );
     }
 
-    const tableColumns = generateTransactionsTableColumns();
+    const tableColumns = generateTransactionsTableColumns(address);
     const hasTxns = data?.length > 0;
 
     if (!hasTxns) {
         return (
             <div className="flex h-20 items-center justify-center md:h-full">
-                <span className="flex flex-row items-center gap-x-xs text-neutral-40 dark:text-neutral-60">
+                <span className="flex flex-row items-center gap-x-xs text-iota-neutral-40 dark:text-iota-neutral-60">
                     No transactions found
                 </span>
             </div>
@@ -122,6 +122,7 @@ export function TransactionsForAddress({ address }: TransactionsForAddressProps)
                 options: {
                     showEffects: true,
                     showInput: true,
+                    showBalanceChanges: true,
                 },
                 cursor,
                 limit,

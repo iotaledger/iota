@@ -173,7 +173,7 @@ impl BasicOutput {
         coin_type: &CoinType,
     ) -> Result<Object> {
         create_coin(
-            self.id,
+            *self.id.object_id(),
             owner,
             self.balance.value(),
             tx_context,
@@ -186,7 +186,7 @@ impl BasicOutput {
     /// Create a `BasicOutput` from BCS bytes.
     pub fn from_bcs_bytes(content: &[u8]) -> Result<Self, IotaError> {
         bcs::from_bytes(content).map_err(|err| IotaError::ObjectDeserialization {
-            error: format!("Unable to deserialize BasicOutput object: {:?}", err),
+            error: format!("Unable to deserialize BasicOutput object: {err:?}"),
         })
     }
 
@@ -199,7 +199,7 @@ impl BasicOutput {
 }
 
 pub(crate) fn create_coin(
-    object_id: UID,
+    object_id: ObjectID,
     owner: IotaAddress,
     amount: u64,
     tx_context: &TxContext,
@@ -238,7 +238,7 @@ impl TryFrom<&Object> for BasicOutput {
         }
 
         Err(IotaError::Type {
-            error: format!("Object type is not a BasicOutput: {:?}", object),
+            error: format!("Object type is not a BasicOutput: {object:?}"),
         })
     }
 }

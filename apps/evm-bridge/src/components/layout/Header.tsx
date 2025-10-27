@@ -5,15 +5,19 @@ import { ConnectButtonL2 } from './connect-buttons';
 import { useState } from 'react';
 import { Button, ButtonType, Divider } from '@iota/apps-ui-kit';
 import clsx from 'clsx';
+import { useNetwork, useFeatureEnabledByNetwork, Feature } from '@iota/core';
+import type { Network } from '@iota/iota-sdk/client';
 
 export function Header(): React.JSX.Element {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const networkName = useNetwork();
+    const iotaNamesEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, networkName as Network);
 
     const MobileIcon = isMobileMenuOpen ? Close : MenuIcon;
     return (
         <div className="fixed top-0 left-0 py-md--rs backdrop-blur-lg z-10 w-full">
             <div className="container flex justify-between items-center">
-                <IOTABridgeLogo className="dark:text-neutral-92 text-neutral-10" />
+                <IOTABridgeLogo className="dark:text-iota-neutral-92 text-iota-neutral-10" />
                 <div className="flex flex-row gap-xs">
                     <ThemeSwitcher />
 
@@ -23,6 +27,7 @@ export function Header(): React.JSX.Element {
                             className="text-label-lg h-10"
                             connectText="Connect L1 Wallet"
                             size="md"
+                            iotaNamesEnabled={iotaNamesEnabled}
                         />
                         <ConnectButtonL2 />
                     </div>
@@ -48,6 +53,7 @@ export function Header(): React.JSX.Element {
                         className="text-label-lg h-10"
                         connectText="Connect L1 Wallet"
                         size="md"
+                        iotaNamesEnabled={iotaNamesEnabled}
                     />
                     <Divider />
                     <ConnectButtonL2 />

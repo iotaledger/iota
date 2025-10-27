@@ -7,7 +7,6 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::anyhow;
 use arc_swap::Guard;
 use async_trait::async_trait;
 use iota_core::{
@@ -107,7 +106,7 @@ pub trait StateRead: Send + Sync {
 
     // transaction_execution_api
     #[allow(clippy::type_complexity)]
-    async fn dry_exec_transaction(
+    fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
         transaction_digest: TransactionDigest,
@@ -256,7 +255,7 @@ impl StateRead for AuthorityState {
     }
 
     async fn get_object(&self, object_id: &ObjectID) -> StateReadResult<Option<Object>> {
-        Ok(self.get_object(object_id).await?)
+        Ok(self.try_get_object(object_id).await?)
     }
 
     fn get_past_object_read(
@@ -317,7 +316,7 @@ impl StateRead for AuthorityState {
             .await?)
     }
 
-    async fn dry_exec_transaction(
+    fn dry_exec_transaction(
         &self,
         transaction: TransactionData,
         transaction_digest: TransactionDigest,
@@ -327,9 +326,7 @@ impl StateRead for AuthorityState {
         TransactionEffects,
         Option<ObjectID>,
     )> {
-        Ok(self
-            .dry_exec_transaction(transaction, transaction_digest)
-            .await?)
+        Ok(self.dry_exec_transaction(transaction, transaction_digest)?)
     }
 
     async fn dev_inspect_transaction_block(
@@ -412,7 +409,7 @@ impl StateRead for AuthorityState {
     fn get_system_state(&self) -> StateReadResult<IotaSystemState> {
         Ok(self
             .get_cache_reader()
-            .get_iota_system_state_object_unsafe()?)
+            .try_get_iota_system_state_object_unsafe()?)
     }
 
     fn get_or_latest_committee(&self, epoch: Option<BigInt<u64>>) -> StateReadResult<Committee> {
@@ -459,24 +456,30 @@ impl StateRead for AuthorityState {
         owner: IotaAddress,
         coin_type: TypeTag,
     ) -> StateReadResult<TotalBalance> {
-        Ok(self
-            .indexes
-            .as_ref()
-            .ok_or(IotaError::IndexStoreNotAvailable)?
-            .get_balance(owner, coin_type)
-            .await?)
+        let indexes = self.indexes.clone();
+        Ok(tokio::task::spawn_blocking(move || {
+            indexes
+                .as_ref()
+                .ok_or(IotaError::IndexStoreNotAvailable)?
+                .get_balance(owner, coin_type)
+        })
+        .await
+        .map_err(|e: JoinError| IotaError::Execution(e.to_string()))??)
     }
 
     async fn get_all_balance(
         &self,
         owner: IotaAddress,
     ) -> StateReadResult<Arc<HashMap<TypeTag, TotalBalance>>> {
-        Ok(self
-            .indexes
-            .as_ref()
-            .ok_or(IotaError::IndexStoreNotAvailable)?
-            .get_all_balance(owner)
-            .await?)
+        let indexes = self.indexes.clone();
+        Ok(tokio::task::spawn_blocking(move || {
+            indexes
+                .as_ref()
+                .ok_or(IotaError::IndexStoreNotAvailable)?
+                .get_all_balance(owner)
+        })
+        .await
+        .map_err(|e: JoinError| IotaError::Execution(e.to_string()))??)
     }
 
     fn get_verified_checkpoint_by_sequence_number(
@@ -506,7 +509,7 @@ impl StateRead for AuthorityState {
     ) -> StateReadResult<Vec<Option<(EpochId, CheckpointSequenceNumber)>>> {
         Ok(self
             .get_checkpoint_cache()
-            .multi_get_transactions_perpetual_checkpoints(digests)?)
+            .try_multi_get_transactions_perpetual_checkpoints(digests)?)
     }
 
     fn get_transaction_perpetual_checkpoint(
@@ -515,7 +518,7 @@ impl StateRead for AuthorityState {
     ) -> StateReadResult<Option<(EpochId, CheckpointSequenceNumber)>> {
         Ok(self
             .get_checkpoint_cache()
-            .get_transaction_perpetual_checkpoint(digest)?)
+            .try_get_transaction_perpetual_checkpoint(digest)?)
     }
 
     fn multi_get_checkpoint_by_sequence_number(
@@ -541,9 +544,7 @@ impl StateRead for AuthorityState {
     }
 
     fn get_chain_identifier(&self) -> StateReadResult<ChainIdentifier> {
-        Ok(self
-            .get_chain_identifier()
-            .ok_or(anyhow!("Chain identifier not found"))?)
+        Ok(self.get_chain_identifier())
     }
 }
 
@@ -569,7 +570,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for Arc<S> {
     ) -> Result<Option<Object>, Self::Error> {
         Ok(self
             .get_cache_reader()
-            .find_object_lt_or_eq_version(*id, *version)?)
+            .try_find_object_lt_or_eq_version(*id, *version)?)
     }
 }
 
@@ -602,7 +603,7 @@ impl<S: ?Sized + StateRead> ObjectProvider for (Arc<S>, Arc<TransactionKeyValueS
         Ok(self
             .0
             .get_cache_reader()
-            .find_object_lt_or_eq_version(*id, *version)?)
+            .try_find_object_lt_or_eq_version(*id, *version)?)
     }
 }
 

@@ -8,7 +8,16 @@ import { useAccountSources, useCreateAccountsMutation, useActiveAccount } from '
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import clsx from 'clsx';
-import { Button, ButtonSize, ButtonType, Divider, Dropdown, ListItem } from '@iota/apps-ui-kit';
+import {
+    Button,
+    ButtonSize,
+    ButtonType,
+    Chip,
+    ChipSize,
+    Divider,
+    Dropdown,
+    ListItem,
+} from '@iota/apps-ui-kit';
 import { Add, ArrowDown, MoreHoriz, TriangleDown } from '@iota/apps-ui-icons';
 import { OutsideClickHandler } from '_components/OutsideClickHandler';
 import { AccountGroupItem } from '_pages/accounts/manage/AccountGroupItem';
@@ -18,12 +27,14 @@ import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { parseDerivationPath } from '_src/background/account-sources/bip44Path';
 import { isMnemonicSerializedUiAccount } from '_src/background/accounts/mnemonicAccount';
 import { isSeedSerializedUiAccount } from '_src/background/accounts/seedAccount';
+import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
 
 const ACCOUNT_TYPE_TO_LABEL: Record<AccountType, string> = {
     [AccountType.MnemonicDerived]: 'Mnemonic',
     [AccountType.SeedDerived]: 'Seed',
     [AccountType.PrivateKeyDerived]: 'Private Key',
     [AccountType.LedgerDerived]: 'Ledger',
+    [AccountType.KeystoneDerived]: 'Keystone',
 };
 const ACCOUNTS_WITH_ENABLED_BALANCE_FINDER: AccountType[] = [
     AccountType.MnemonicDerived,
@@ -97,9 +108,9 @@ export function AccountGroup({
 
     const featureAccountFinderEnabled = useFeature<boolean>(Feature.AccountFinder).value;
 
+    const showBalanceFinder =
+        ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) && featureAccountFinderEnabled;
     const dropdownVisibility = {
-        showBalanceFinder:
-            ACCOUNTS_WITH_ENABLED_BALANCE_FINDER.includes(type) && featureAccountFinderEnabled,
         showExportMnemonic: isMnemonicDerivedGroup && accountSource,
         showExportSeed: isSeedDerivedGroup && accountSource,
     };
@@ -110,7 +121,11 @@ export function AccountGroup({
     function groupAccountsByAccountIndex(accounts: SerializedUIAccount[]) {
         const accountWalletGroups = accounts.reduce(
             (map, account) => {
-                if (isMnemonicSerializedUiAccount(account) || isSeedSerializedUiAccount(account)) {
+                if (
+                    isMnemonicSerializedUiAccount(account) ||
+                    isSeedSerializedUiAccount(account) ||
+                    isKeystoneAccountSerializedUI(account)
+                ) {
                     const { accountIndex } = parseDerivationPath(account.derivationPath);
                     (map[accountIndex] ||= []).push(account);
                 }
@@ -138,24 +153,31 @@ export function AccountGroup({
                         <div className="flex items-center gap-1">
                             <TriangleDown
                                 className={clsx(
-                                    'h-5 w-5 text-neutral-10 dark:text-neutral-40',
+                                    'h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-40',
                                     isOpen
                                         ? 'rotate-0 transition-transform ease-linear'
                                         : '-rotate-90 transition-transform ease-linear',
                                 )}
                             />
-                            <div className="text-title-md text-neutral-10 dark:text-neutral-92">
+                            <div className="text-title-md text-iota-neutral-10 dark:text-iota-neutral-92">
                                 {getGroupTitle(accounts[0])}
                             </div>
                         </div>
                         <div className="flex items-center gap-1">
+                            {showBalanceFinder && (
+                                <Chip
+                                    label="Balance Finder"
+                                    onClick={handleBalanceFinder}
+                                    size={ChipSize.Small}
+                                />
+                            )}
                             {(isMnemonicDerivedGroup || isSeedDerivedGroup) && accountSource ? (
                                 <Button
                                     size={ButtonSize.Small}
                                     type={ButtonType.Ghost}
                                     onClick={handleAdd}
                                     icon={
-                                        <Add className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />
+                                        <Add className="h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-92" />
                                     }
                                 />
                             ) : null}
@@ -169,7 +191,7 @@ export function AccountGroup({
                                             setDropdownOpen(true);
                                         }}
                                         icon={
-                                            <MoreHoriz className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />
+                                            <MoreHoriz className="h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-92" />
                                         }
                                     />
                                 </div>
@@ -188,7 +210,7 @@ export function AccountGroup({
                                     hideArrow
                                     hideBorder
                                     render={({ isOpen }) => (
-                                        <div className="flex w-full items-center gap-x-md p-sm text-neutral-40 dark:text-neutral-60">
+                                        <div className="flex w-full items-center gap-x-md p-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                             <div className="shrink-0 text-title-sm">
                                                 From {walletName}
                                             </div>
@@ -237,16 +259,10 @@ export function AccountGroup({
                 )}
             </Collapsible>
             <div
-                className={`absolute right-3 top-3 z-[100] rounded-lg bg-neutral-100 shadow-md dark:bg-neutral-6 ${isDropdownOpen ? '' : 'hidden'}`}
+                className={`absolute right-3 top-3 z-[100] rounded-lg bg-iota-neutral-100 shadow-md dark:bg-iota-neutral-6 ${isDropdownOpen ? '' : 'hidden'}`}
             >
                 <OutsideClickHandler onOutsideClick={() => setDropdownOpen(false)}>
                     <Dropdown>
-                        {dropdownVisibility.showBalanceFinder && (
-                            <ListItem hideBottomBorder onClick={handleBalanceFinder}>
-                                Balance finder
-                            </ListItem>
-                        )}
-
                         {dropdownVisibility.showExportMnemonic && (
                             <ListItem hideBottomBorder onClick={handleExportMnemonic}>
                                 Export Mnemonic

@@ -1,6 +1,6 @@
 [package]
 name = "use_named_address"
-edition = "2024.beta"
+edition = "2024"
 
 [addresses]
 A = "0x42"

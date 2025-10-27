@@ -51,7 +51,7 @@ export const Networks: Record<string, NetworkProps> = {
     },
     faucet: 'https://faucet.testnet.iota.cafe',
     explorer: {
-      url: 'https://explorer.rebased.iota.org/',
+      url: 'https://explorer.iota.org/',
       query: '?network=testnet',
     },
     evm: {

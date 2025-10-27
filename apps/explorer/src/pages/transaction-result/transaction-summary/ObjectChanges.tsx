@@ -95,7 +95,7 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
         <Accordion hideBorder>
             <AccordionHeader hideArrow isExpanded={open} onToggle={() => setOpen(!open)}>
                 <div className="flex w-full flex-row items-center justify-between px-md--rs">
-                    <div className="flex flex-row gap-xxxs text-neutral-40 dark:text-neutral-60">
+                    <div className="flex flex-row gap-xxxs text-iota-neutral-40 dark:text-iota-neutral-60">
                         <span className="text-body-md">Object</span>
 
                         <TriangleDown
@@ -107,7 +107,7 @@ function ObjectDetailPanel({ panelContent, headerContent }: ObjectDetailPanelPro
                             )}
                         />
                     </div>
-                    <div className="flex flex-row items-center gap-xxs truncate pr-xxs">
+                    <div className="flex flex-row items-center gap-xxs overflow-hidden truncate pr-xxs">
                         {headerContent}
                     </div>
                 </div>
@@ -273,18 +273,25 @@ function ObjectChangeEntriesCardFooter({
 }: ObjectChangeEntriesCardFooterProps): JSX.Element {
     return (
         <div className="flex flex-wrap justify-between px-md--rs py-sm--rs">
-            <span className="text-body-md text-neutral-40 dark:text-neutral-60">Owner</span>
-            <div className="flex flex-col gap-xxs">
+            <span className="text-body-md text-iota-neutral-40 dark:text-iota-neutral-60">
+                Owner
+            </span>
+            <div className="flex flex-row items-center gap-xs">
                 {ownerType === 'AddressOwner' && (
-                    <AddressLink address={ownerAddress} copyText={ownerAddress} />
+                    <AddressLink
+                        address={ownerAddress}
+                        copyText={ownerAddress}
+                        className="[&>div]:max-w-[200px] [&>div]:truncate"
+                        display="block"
+                    />
                 )}
                 {ownerType === 'ObjectOwner' && (
                     <ObjectLink objectId={ownerAddress} copyText={ownerAddress} />
                 )}
+                {ownerType === 'Shared' && (
+                    <ObjectLink objectId={ownerAddress} label="Shared" showAddressAlias={false} />
+                )}
             </div>
-            {ownerType === 'Shared' && (
-                <ObjectLink objectId={ownerAddress} label="Shared" showAddressAlias={false} />
-            )}
         </div>
     );
 }

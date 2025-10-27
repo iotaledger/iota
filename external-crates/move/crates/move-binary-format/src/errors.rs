@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt;
@@ -381,7 +381,7 @@ impl fmt::Display for VMError {
 }
 
 ////////////////////////////////////////////////////////////////////////////
-/// Conversion functions from internal VM statuses into external VM statuses
+// Conversion functions from internal VM statuses into external VM statuses
 ////////////////////////////////////////////////////////////////////////////
 
 pub fn offset_out_of_bounds(

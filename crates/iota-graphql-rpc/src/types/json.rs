@@ -5,10 +5,11 @@
 use std::fmt;
 
 use async_graphql::*;
+use serde::Serialize;
 
 /// Arbitrary JSON data.
-#[derive(Debug)]
-pub(crate) struct Json(Value);
+#[derive(Debug, Clone, Serialize)]
+pub(crate) struct Json(pub(crate) Value);
 
 #[Scalar(name = "JSON", use_type_description = true)]
 impl ScalarType for Json {

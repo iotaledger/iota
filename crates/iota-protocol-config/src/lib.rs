@@ -19,43 +19,71 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 9;
+pub const MAX_PROTOCOL_VERSION: u64 = 14;
 
 // Record history of protocol version allocations here:
 //
-// Version 1: Original version.
-// Version 2: Don't redistribute slashed staking rewards, fix computation of
-//            SystemEpochInfoEventV1.
-// Version 3: Set the `relocate_event_module` to be true so that the module that
-//            is associated as the "sending module" for an event is relocated by
-//            linkage.
-//            Add `Clock` based unlock to `Timelock` objects.
-// Version 4: Introduce the `max_type_to_layout_nodes` config that sets the
-//            maximal nodes which are allowed when converting to a type layout.
-// Version 5: Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
-//            SystemEpochInfoEventV2.
-//            Disallow adding new modules in `deps-only` packages.
-//            Improve gas/wall time efficiency of some Move stdlib vector
-//            functions.
-//            Add new gas model version to update charging of functions.
-//            Enable proper conversion of certain type argument errors in the
-//            execution layer.
-// Version 6: Bound size of values created in the adapter.
-// Version 7: Improve handling of stake withdrawal from candidate validators.
-// Version 8: Variants as type nodes.
-//            Enable smart ancestor selection for testnet.
-//            Enable probing for accepted rounds in round prober for testnet.
-//            Switch to distributed vote scoring in consensus in testnet.
-//            Enable zstd compression for consensus tonic network in testnet.
-//            Enable consensus garbage collection for testnet
-//            Enable the new consensus commit rule for testnet.
-//            Enable min_free_execution_slot for the shared object congestion
-//            tracker in devnet.
-// Version 9: Disable smart ancestor selection for the testnet.
-//            Enable zstd compression for consensus tonic network in mainnet.
-//            Enable passkey auth in multisig for devnet.
-//            Remove the iota-bridge from the framework.
-
+// Version 1:  Original version.
+// Version 2:  Don't redistribute slashed staking rewards, fix computation of
+//             SystemEpochInfoEventV1.
+// Version 3:  Set the `relocate_event_module` to be true so that the module
+//             that is associated as the "sending module" for an event is
+//             relocated by linkage.
+//             Add `Clock` based unlock to `Timelock` objects.
+// Version 4:  Introduce the `max_type_to_layout_nodes` config that sets the
+//             maximal nodes which are allowed when converting to a type layout.
+// Version 5:  Introduce fixed protocol-defined base fee, IotaSystemStateV2 and
+//             SystemEpochInfoEventV2.
+//             Disallow adding new modules in `deps-only` packages.
+//             Improve gas/wall time efficiency of some Move stdlib vector
+//             functions.
+//             Add new gas model version to update charging of functions.
+//             Enable proper conversion of certain type argument errors in the
+//             execution layer.
+// Version 6:  Bound size of values created in the adapter.
+// Version 7:  Improve handling of stake withdrawal from candidate validators.
+// Version 8:  Variants as type nodes.
+//             Enable smart ancestor selection for testnet.
+//             Enable probing for accepted rounds in round prober for testnet.
+//             Switch to distributed vote scoring in consensus in testnet.
+//             Enable zstd compression for consensus tonic network in testnet.
+//             Enable consensus garbage collection for testnet
+//             Enable the new consensus commit rule for testnet.
+//             Enable min_free_execution_slot for the shared object congestion
+//             tracker in devnet.
+// Version 9:  Disable smart ancestor selection for the testnet.
+//             Enable zstd compression for consensus tonic network in mainnet.
+//             Enable passkey auth in multisig for devnet.
+//             Remove the iota-bridge from the framework.
+// Version 10: Enable min_free_execution_slot for the shared object congestion
+//             tracker in all networks.
+//             Increase the committee size to 80 on all networks.
+//             Enable round prober in consensus for mainnet.
+//             Enable probing for accepted rounds in round prober for mainnet.
+//             Switch to distributed vote scoring in consensus for mainnet.
+//             Enable the new consensus commit rule for mainnet.
+//             Enable consensus garbage collection for mainnet with GC depth set
+//             to 60 rounds.
+//             Enable batching in synchronizer for testnet
+//             Enable the gas price feedback mechanism in devnet.
+//             Enable Identifier input validation.
+//             Removes unnecessary child object mutations
+//             Add additional signature checks
+//             Add additional linkage checks
+// Version 11: Framework fix regarding candidate validator commission rate.
+// Version 12: Enable the gas price feedback mechanism in all networks.
+//             Enable the normalization of PTB arguments.
+// Version 13: Introduce logic to allow the committee to be selected from a set
+//             of eligible active validators.
+//             Enable processing and tracking AuthorityCapabilitiesV1 from
+//             non-committee validators in the devnet.
+// Version 14: Switches the consensus protocol to Starfish in devnet.
+//             Enable median-based commit timestamp calculation in consensus,
+//             and enforce checkpoint timestamp monotonicity for testnet.
+//             Enable batched block sync for mainnet.
+//             Enable selecting committee only from active validators that
+//             support the next epoch's version and issued valid
+//             AuthorityCapabilities notification in testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -274,6 +302,66 @@ struct FeatureFlags {
     // If true, multisig containing passkey sig is accepted.
     #[serde(skip_serializing_if = "is_false")]
     accept_passkey_in_multisig: bool,
+
+    // If true, enabled batched block sync in consensus.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_batched_block_sync: bool,
+
+    // To enable/disable the gas price feedback mechanism used for transactions
+    // cancelled due to shared object congestion
+    #[serde(skip_serializing_if = "is_false")]
+    congestion_control_gas_price_feedback_mechanism: bool,
+
+    // Validate identifier inputs separately
+    #[serde(skip_serializing_if = "is_false")]
+    validate_identifier_inputs: bool,
+
+    // If true, enables the optimizations for child object mutations, removing unnecessary
+    // mutations
+    #[serde(skip_serializing_if = "is_false")]
+    minimize_child_object_mutations: bool,
+
+    // If true enable additional linkage checks.
+    #[serde(skip_serializing_if = "is_false")]
+    dependency_linkage_error: bool,
+
+    // If true enable additional multisig checks.
+    #[serde(skip_serializing_if = "is_false")]
+    additional_multisig_checks: bool,
+
+    // If true, enables the normalization of PTB arguments but does not yet enable splatting
+    // `Result`s of length not equal to 1
+    #[serde(skip_serializing_if = "is_false")]
+    normalize_ptb_arguments: bool,
+
+    // If true, use ChangeEpochV3 for epoch change to pass an additional eligible_active_validators
+    // parameter to IotaSystem's advance_epoch call. This should only be enabled when on-chain
+    // IotaSystem objects are updated as well.
+    #[serde(skip_serializing_if = "is_false")]
+    select_committee_from_eligible_validators: bool,
+
+    // If true, non-committee active validators will sign and send AuthorityCapabilitiesV1 to the
+    // committee. Once the committee reaches consensus over the AuthorityCapabilitiesV1, it is
+    // recorded and possible to use in the committee selection if
+    // select_validators_supporting_next_epoch_version is enabled. This flag does not change the
+    // way that eligible_validators vector is created - still all active validators are used for
+    // selecting the committee.
+    #[serde(skip_serializing_if = "is_false")]
+    track_non_committee_eligible_validators: bool,
+
+    // The committee be selected from active_validators who support the next protocol version AND
+    // have issued a correct AuthorityCapabilities notification. This flag should only be enabled
+    // if both select_committee_from_eligible_validators and
+    // track_non_committee_eligible_validators are enabled. If this is disabled, then all
+    // active validators are used for selecting the committee (default behavior).
+    #[serde(skip_serializing_if = "is_false")]
+    select_committee_supporting_next_epoch_version: bool,
+
+    // If true, then it (1) will not enforce monotonicity checks for a block's ancestors, (2)
+    // calculates the commit's timestamp based on the weighted by stake median timestamp of the
+    // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_median_timestamp_with_checkpoint_enforcement: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -321,11 +409,15 @@ impl PerObjectCongestionControlMode {
 pub enum ConsensusChoice {
     #[default]
     Mysticeti,
+    Starfish,
 }
 
 impl ConsensusChoice {
     pub fn is_mysticeti(&self) -> bool {
         matches!(self, ConsensusChoice::Mysticeti)
+    }
+    pub fn is_starfish(&self) -> bool {
+        matches!(self, ConsensusChoice::Starfish)
     }
 }
 
@@ -1059,6 +1151,13 @@ pub struct ProtocolConfig {
     /// Configures the garbage collection depth for consensus. When is unset or
     /// `0` then the garbage collection is disabled.
     consensus_gc_depth: Option<u32>,
+
+    /// Configures the maximum number of acknowledgments to be included in a
+    /// block. It must be reasonably larger than the number of validators
+    /// because not all validators create their blocks at the same pace.
+    /// Default value set to 400. (5 x expected committee size (80)).
+    /// Applicable only to `starfish` consensus.
+    consensus_max_acknowledgments_per_block: Option<u32>,
 }
 
 // feature flags
@@ -1153,14 +1252,20 @@ impl ProtocolConfig {
     }
 
     pub fn max_transactions_in_block_bytes(&self) -> u64 {
-        // Provide a default value if protocol config version is too low.
-        self.consensus_max_transactions_in_block_bytes
-            .unwrap_or(512 * 1024)
+        if cfg!(msim) {
+            256 * 1024
+        } else {
+            self.consensus_max_transactions_in_block_bytes
+                .unwrap_or(512 * 1024)
+        }
     }
 
     pub fn max_num_transactions_in_block(&self) -> u64 {
-        // 500 is the value used before this field is introduced.
-        self.consensus_max_num_transactions_in_block.unwrap_or(500)
+        if cfg!(msim) {
+            8
+        } else {
+            self.consensus_max_num_transactions_in_block.unwrap_or(512)
+        }
     }
 
     pub fn rethrow_serialization_type_layout_errors(&self) -> bool {
@@ -1215,6 +1320,10 @@ impl ProtocolConfig {
         res
     }
 
+    pub fn consensus_max_acknowledgments_per_block_or_default(&self) -> u32 {
+        self.consensus_max_acknowledgments_per_block.unwrap_or(400)
+    }
+
     pub fn variant_nodes(&self) -> bool {
         self.feature_flags.variant_nodes
     }
@@ -1239,6 +1348,80 @@ impl ProtocolConfig {
 
     pub fn accept_passkey_in_multisig(&self) -> bool {
         self.feature_flags.accept_passkey_in_multisig
+    }
+
+    pub fn consensus_batched_block_sync(&self) -> bool {
+        self.feature_flags.consensus_batched_block_sync
+    }
+
+    /// Check if the gas price feedback mechanism (which is used for
+    /// transactions cancelled due to shared object congestion) is enabled
+    pub fn congestion_control_gas_price_feedback_mechanism(&self) -> bool {
+        self.feature_flags
+            .congestion_control_gas_price_feedback_mechanism
+    }
+
+    pub fn validate_identifier_inputs(&self) -> bool {
+        self.feature_flags.validate_identifier_inputs
+    }
+
+    pub fn minimize_child_object_mutations(&self) -> bool {
+        self.feature_flags.minimize_child_object_mutations
+    }
+
+    pub fn dependency_linkage_error(&self) -> bool {
+        self.feature_flags.dependency_linkage_error
+    }
+
+    pub fn additional_multisig_checks(&self) -> bool {
+        self.feature_flags.additional_multisig_checks
+    }
+
+    pub fn consensus_num_requested_prior_commits_at_startup(&self) -> u32 {
+        // TODO: this will eventually be the max of some number of other
+        // parameters.
+        0
+    }
+
+    pub fn normalize_ptb_arguments(&self) -> bool {
+        self.feature_flags.normalize_ptb_arguments
+    }
+
+    pub fn select_committee_from_eligible_validators(&self) -> bool {
+        let res = self.feature_flags.select_committee_from_eligible_validators;
+        assert!(
+            !res || (self.protocol_defined_base_fee()
+                && self.max_committee_members_count_as_option().is_some()),
+            "select_committee_from_eligible_validators requires protocol_defined_base_fee and max_committee_members_count to be set"
+        );
+        res
+    }
+
+    pub fn track_non_committee_eligible_validators(&self) -> bool {
+        self.feature_flags.track_non_committee_eligible_validators
+    }
+
+    pub fn select_committee_supporting_next_epoch_version(&self) -> bool {
+        let res = self
+            .feature_flags
+            .select_committee_supporting_next_epoch_version;
+        assert!(
+            !res || (self.track_non_committee_eligible_validators()
+                && self.select_committee_from_eligible_validators()),
+            "select_committee_supporting_next_epoch_version requires select_committee_from_eligible_validators to be set"
+        );
+        res
+    }
+
+    pub fn consensus_median_timestamp_with_checkpoint_enforcement(&self) -> bool {
+        let res = self
+            .feature_flags
+            .consensus_median_timestamp_with_checkpoint_enforcement;
+        assert!(
+            !res || self.gc_depth() > 0,
+            "The consensus median timestamp with checkpoint enforcement requires GC to be enabled"
+        );
+        res
     }
 }
 
@@ -1796,6 +1979,8 @@ impl ProtocolConfig {
             max_committee_members_count: None,
 
             consensus_gc_depth: None,
+
+            consensus_max_acknowledgments_per_block: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -1947,8 +2132,10 @@ impl ProtocolConfig {
                 6 => {
                     cfg.max_ptb_value_size = Some(1024 * 1024);
                 }
-                // version 7 is a new framework version but with no config changes
-                7 => {}
+                7 => {
+                    // version 7 is a new framework version but with no config
+                    // changes
+                }
                 8 => {
                     cfg.feature_flags.variant_nodes = true;
 
@@ -1971,6 +2158,7 @@ impl ProtocolConfig {
                         // to be included before be considered garbage collected.
                         cfg.consensus_gc_depth = Some(60);
                     }
+
                     // Enable min_free_execution_slot for the shared object congestion tracker in
                     // devnet.
                     if chain != Chain::Testnet && chain != Chain::Mainnet {
@@ -1994,6 +2182,98 @@ impl ProtocolConfig {
                     // this flag is now deprecated because of the bridge removal.
                     cfg.bridge_should_try_to_finalize_committee = None;
                 }
+                10 => {
+                    // Enable min_free_execution_slot for the shared object congestion tracker in
+                    // all networks.
+                    cfg.feature_flags.congestion_control_min_free_execution_slot = true;
+
+                    // Increase the committee size to 80 on all networks.
+                    cfg.max_committee_members_count = Some(80);
+
+                    // Enable round prober in consensus.
+                    cfg.feature_flags.consensus_round_prober = true;
+                    // Enable probing for accepted rounds in round.
+                    cfg.feature_flags
+                        .consensus_round_prober_probe_accepted_rounds = true;
+                    // Enable distributed vote scoring.
+                    cfg.feature_flags
+                        .consensus_distributed_vote_scoring_strategy = true;
+                    // Enable the new consensus commit rule.
+                    cfg.feature_flags.consensus_linearize_subdag_v2 = true;
+
+                    // Enable consensus garbage collection
+                    // Assuming a round rate of max 15/sec, then using a gc depth of 60 allow
+                    // blocks within a window of ~4 seconds
+                    // to be included before be considered garbage collected.
+                    cfg.consensus_gc_depth = Some(60);
+
+                    // Enable minimized child object mutation counting.
+                    cfg.feature_flags.minimize_child_object_mutations = true;
+
+                    if chain != Chain::Mainnet {
+                        // Enable batched block sync in devnet and testnet.
+                        cfg.feature_flags.consensus_batched_block_sync = true;
+                    }
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable the gas price feedback mechanism (which is used for
+                        // transactions cancelled due to shared object congestion) in devnet
+                        cfg.feature_flags
+                            .congestion_control_gas_price_feedback_mechanism = true;
+                    }
+
+                    cfg.feature_flags.validate_identifier_inputs = true;
+                    cfg.feature_flags.dependency_linkage_error = true;
+                    cfg.feature_flags.additional_multisig_checks = true;
+                }
+                11 => {
+                    // version 11 is a new framework version but with no config
+                    // changes
+                }
+                12 => {
+                    // Enable the gas price feedback mechanism for transactions
+                    // cancelled due to congestion in all networks
+                    cfg.feature_flags
+                        .congestion_control_gas_price_feedback_mechanism = true;
+
+                    // Enable normalization of PTB arguments in all networks.
+                    cfg.feature_flags.normalize_ptb_arguments = true;
+                }
+                13 => {
+                    // Enable selecting committee based on eligible active validators on all
+                    // networks.
+                    cfg.feature_flags.select_committee_from_eligible_validators = true;
+                    // Enable tracking non-committee eligible active
+                    // validators on all networks.
+                    cfg.feature_flags.track_non_committee_eligible_validators = true;
+
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enable selecting committee only from active validators that next epoch
+                        // version and issued valid AuthorityCapabilities notification in devnet.
+                        cfg.feature_flags
+                            .select_committee_supporting_next_epoch_version = true;
+                    }
+                }
+                14 => {
+                    // Enable batched block sync for mainnet.
+                    cfg.feature_flags.consensus_batched_block_sync = true;
+
+                    if chain != Chain::Mainnet {
+                        // Enable median-based commit timestamp calculation in consensus and
+                        // enforce checkpoint timestamp monotonicity for testnet.
+                        cfg.feature_flags
+                            .consensus_median_timestamp_with_checkpoint_enforcement = true;
+                        // Enable selecting committee only from active validators that support the
+                        // next epoch's version and issued valid AuthorityCapabilities notification
+                        // in testnet.
+                        cfg.feature_flags
+                            .select_committee_supporting_next_epoch_version = true;
+                    }
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Switch consensus protocol to Starfish in devnet
+                        cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
+                    }
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2004,7 +2284,7 @@ impl ProtocolConfig {
                 //
                 //     // Remove a constant (ensure that it is never accessed during this version).
                 //     max_move_object_size: None,
-                _ => panic!("unsupported version {:?}", version),
+                _ => panic!("unsupported version {version:?}"),
             }
         }
         cfg
@@ -2140,6 +2420,40 @@ impl ProtocolConfig {
     pub fn set_consensus_smart_ancestor_selection_for_testing(&mut self, val: bool) {
         self.feature_flags.consensus_smart_ancestor_selection = val;
     }
+
+    pub fn set_consensus_batched_block_sync_for_testing(&mut self, val: bool) {
+        self.feature_flags.consensus_batched_block_sync = val;
+    }
+
+    pub fn set_congestion_control_min_free_execution_slot_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .congestion_control_min_free_execution_slot = val;
+    }
+
+    pub fn set_congestion_control_gas_price_feedback_mechanism_for_testing(&mut self, val: bool) {
+        self.feature_flags
+            .congestion_control_gas_price_feedback_mechanism = val;
+    }
+    pub fn set_select_committee_from_eligible_validators_for_testing(&mut self, val: bool) {
+        self.feature_flags.select_committee_from_eligible_validators = val;
+    }
+
+    pub fn set_track_non_committee_eligible_validators_for_testing(&mut self, val: bool) {
+        self.feature_flags.track_non_committee_eligible_validators = val;
+    }
+
+    pub fn set_select_committee_supporting_next_epoch_version(&mut self, val: bool) {
+        self.feature_flags
+            .select_committee_supporting_next_epoch_version = val;
+    }
+
+    pub fn set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .consensus_median_timestamp_with_checkpoint_enforcement = val;
+    }
 }
 
 type OverrideFn = dyn Fn(ProtocolVersion, ProtocolConfig) -> ProtocolConfig + Send + Sync;
@@ -2251,7 +2565,7 @@ mod test {
             // only test Mainnet and Testnet
             let chain_str = match chain_id {
                 Chain::Unknown => "".to_string(),
-                _ => format!("{:?}_", chain_id),
+                _ => format!("{chain_id:?}_"),
             };
             for i in MIN_PROTOCOL_VERSION..=MAX_PROTOCOL_VERSION {
                 let cur = ProtocolVersion::new(i);

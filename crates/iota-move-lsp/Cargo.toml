@@ -12,4 +12,6 @@ clap = { version = "4.1.4", features = ["derive"] }
 
 # internal dependencies
 bin-version.workspace = true
+iota-move-build.workspace = true
+iota-package-management.workspace = true
 move-analyzer.workspace = true

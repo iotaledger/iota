@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    CoinFormat,
     createValidationSchema,
     MIN_NUMBER_IOTA_TO_STAKE,
-    parseAmount,
     StakeTransactionInfo,
     useBalance,
     useCoinMetadata,
@@ -26,7 +24,7 @@ import {
     FormikProvider,
     useFormik,
 } from 'formik';
-import { memo, useEffect, useMemo } from 'react';
+import { memo, useMemo } from 'react';
 import { useActiveAccount, useSigner } from '_hooks';
 import {
     Button,
@@ -43,7 +41,7 @@ import { Exclamation, Loader, Warning } from '@iota/apps-ui-icons';
 import { ExplorerLinkHelper } from '../../components';
 import { useMutation } from '@tanstack/react-query';
 import { getSignerOperationErrorMessage } from '../../helpers';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG, parseAmount } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
@@ -72,14 +70,39 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
 
     // set minimum stake amount to 1 IOTA
     const minimumStake = parseAmount(MIN_NUMBER_IOTA_TO_STAKE.toString(), decimals);
-    const validationSchema = useMemo(
-        () => createValidationSchema(coinBalance, coinSymbol, decimals, minimumStake),
-        [coinBalance, coinSymbol, decimals, minimumStake],
+
+    const { data: minAmountTransactionData } = useNewStakeTransaction(
+        validatorAddress,
+        minimumStake,
+        activeAddress,
     );
+
+    const minAmountTxGasBudget = BigInt(minAmountTransactionData?.gasSummary?.budget ?? 0n);
+    const availableBalance = coinBalance - minAmountTxGasBudget;
+    const [availableBalanceFormatted, symbol] = useFormatCoin({
+        balance: availableBalance,
+        format: CoinFormat.Full,
+    });
+
+    const validationSchema = useMemo(
+        () => createValidationSchema(availableBalance, coinSymbol, decimals, minimumStake),
+        [availableBalance, coinSymbol, decimals, minimumStake],
+    );
+
+    const formik = useFormik<FormValues>({
+        initialValues: INITIAL_VALUES,
+        validationSchema: validationSchema,
+        onSubmit: handleSubmit,
+        validateOnMount: true,
+    });
+    const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
+    const { amount } = values;
+    const amountWithoutDecimals = parseAmount(amount, decimals);
+    const [stakedAmountFormatted] = useFormatCoin({ balance: amountWithoutDecimals });
 
     const { mutateAsync: stakeTokenMutateAsync, isPending: isStakeTokenTransactionPending } =
         useMutation({
-            mutationFn: async (formikHelpers: FormikHelpers<FormValues>) => {
+            mutationFn: async () => {
                 if (!transaction || !signer) {
                     throw new Error('Failed, missing required field');
                 }
@@ -98,11 +121,10 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                     showEvents: true,
                                 },
                             });
-                            formikHelpers.resetForm();
                             await signer.client.waitForTransaction({
                                 digest: tx.digest,
                             });
-                            return tx;
+                            return { tx };
                         } finally {
                             span?.end();
                         }
@@ -111,7 +133,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
             },
             onSuccess: (_) => {
                 ampli.stakedIota({
-                    stakedAmount: Number(amountWithoutDecimals),
+                    stakedAmount: Number(stakedAmountFormatted),
                     validatorAddress: validatorAddress || '',
                 });
             },
@@ -120,10 +142,18 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
             },
         });
 
-    const handleSubmit = async (_: FormValues, formikHelpers: FormikHelpers<FormValues>) => {
+    async function handleSubmit(_: FormValues, formikHelpers: FormikHelpers<FormValues>) {
         try {
-            const response = await stakeTokenMutateAsync(formikHelpers);
-            onSuccess(response);
+            await stakeTokenMutateAsync(undefined, {
+                onSuccess(data) {
+                    ampli.stakedIota({
+                        stakedAmount: Number(amount),
+                        validatorAddress: validatorAddress || '',
+                    });
+                    formikHelpers.resetForm();
+                    onSuccess(data.tx);
+                },
+            });
         } catch (error) {
             toast.error(
                 <div className="flex max-w-xs flex-col overflow-hidden">
@@ -134,17 +164,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                 </div>,
             );
         }
-    };
-
-    const formik = useFormik<FormValues>({
-        initialValues: INITIAL_VALUES,
-        validationSchema: validationSchema,
-        onSubmit: handleSubmit,
-        validateOnChange: true,
-    });
-    const { values, isValid, isSubmitting, setFieldValue, submitForm } = formik;
-    const { amount } = values;
-    const amountWithoutDecimals = parseAmount(amount, decimals);
+    }
 
     const {
         data: newStakeData,
@@ -154,35 +174,17 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
     const transaction = newStakeData?.transaction;
     const gasSummary = newStakeData?.gasSummary;
 
-    const { data: maxAmountTransactionData } = useNewStakeTransaction(
-        validatorAddress,
-        coinBalance,
-        activeAddress,
-    );
-    const maxAmountTxGasBudget = BigInt(maxAmountTransactionData?.gasSummary?.budget ?? 0n);
-    // do not remove: gasBudget field is used in the validation schema apps/core/src/utils/stake/createValidationSchema.ts
-    useEffect(() => {
-        setFieldValue('gasBudget', maxAmountTxGasBudget);
-    }, [maxAmountTxGasBudget]);
-
-    // for user we show available amount as available_balance - gas_budget
-    const availableBalance = coinBalance - maxAmountTxGasBudget;
-    const [availableBalanceFormatted, symbol] = useFormatCoin({
-        balance: availableBalance,
-        format: CoinFormat.FULL,
-    });
-
     const isLoading =
         isIotaBalanceLoading ||
         isSubmitting ||
         isStakeTokenTransactionLoading ||
         isStakeTokenTransactionPending;
 
-    const gasUnstakeBuffer = maxAmountTxGasBudget * BigInt(2);
+    const gasUnstakeBuffer = minAmountTxGasBudget * BigInt(2);
     const maxSafeAmount = availableBalance - gasUnstakeBuffer;
     const [maxSafeAmountFormatted, maxSafeAmountSymbol] = useFormatCoin({
         balance: maxSafeAmount,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     const isUnsafeAmount =
         amountWithoutDecimals &&
@@ -222,7 +224,7 @@ export function StakeFormComponent({ validatorAddress, epoch, onSuccess }: Stake
                                 placeholder={`0 ${symbol}`}
                                 value={amount}
                                 caption={
-                                    maxAmountTxGasBudget
+                                    minAmountTxGasBudget
                                         ? `${availableBalanceFormatted} ${symbol} Available`
                                         : '--'
                                 }

@@ -4,7 +4,7 @@
 export enum BadgeType {
     Neutral = 'neutral',
     PrimarySolid = 'primary-solid',
-    PrimarySoft = 'primary-fill',
+    PrimarySoft = 'primary-soft',
     Success = 'success',
     Warning = 'warning',
     Error = 'error',

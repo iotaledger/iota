@@ -13,7 +13,7 @@ use anemo::PeerId;
 use anyhow::{Result, bail};
 use fastcrypto::groups::bls12381;
 use fastcrypto_tbls::{
-    dkg,
+    dkg_v1,
     nodes::PartyId,
     tbls::ThresholdBls,
     types::{ShareIndex, ThresholdBls12381MinSig},
@@ -80,7 +80,7 @@ impl Handle {
         &self,
         new_epoch: EpochId,
         authority_info: HashMap<AuthorityName, (PeerId, PartyId)>,
-        dkg_output: dkg::Output<bls12381::G2Element, bls12381::G2Element>,
+        dkg_output: dkg_v1::Output<bls12381::G2Element, bls12381::G2Element>,
         aggregation_threshold: u16,
         recovered_last_completed_round: Option<RandomnessRound>, /* set to None if not starting
                                                                   * up mid-epoch */
@@ -184,7 +184,7 @@ enum RandomnessMessage {
     UpdateEpoch(
         EpochId,
         HashMap<AuthorityName, (PeerId, PartyId)>,
-        dkg::Output<bls12381::G2Element, bls12381::G2Element>,
+        dkg_v1::Output<bls12381::G2Element, bls12381::G2Element>,
         u16,                     // aggregation_threshold
         Option<RandomnessRound>, // recovered_highest_completed_round
     ),
@@ -227,7 +227,7 @@ struct RandomnessEventLoop {
     authority_info: Arc<HashMap<AuthorityName, (PeerId, PartyId)>>,
     peer_share_ids: Option<HashMap<PeerId, Vec<ShareIndex>>>,
     blocked_share_id_count: usize,
-    dkg_output: Option<dkg::Output<bls12381::G2Element, bls12381::G2Element>>,
+    dkg_output: Option<dkg_v1::Output<bls12381::G2Element, bls12381::G2Element>>,
     aggregation_threshold: u16,
     highest_requested_round: BTreeMap<EpochId, RandomnessRound>,
     send_tasks: BTreeMap<
@@ -324,7 +324,7 @@ impl RandomnessEventLoop {
         &mut self,
         new_epoch: EpochId,
         authority_info: HashMap<AuthorityName, (PeerId, PartyId)>,
-        dkg_output: dkg::Output<bls12381::G2Element, bls12381::G2Element>,
+        dkg_output: dkg_v1::Output<bls12381::G2Element, bls12381::G2Element>,
         aggregation_threshold: u16,
         recovered_highest_completed_round: Option<RandomnessRound>,
     ) -> Result<()> {

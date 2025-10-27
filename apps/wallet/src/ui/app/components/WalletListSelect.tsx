@@ -72,7 +72,7 @@ export function WalletListSelect({
                         <Checkbox name={address} isChecked={values.includes(address)} />
                         <span
                             className={cx(
-                                'cursor-default text-body-md text-neutral-40 dark:text-neutral-60',
+                                'cursor-default text-body-md text-iota-neutral-40 dark:text-iota-neutral-60',
                                 disabled && 'text-opacity-40',
                             )}
                         >

@@ -17,14 +17,14 @@ pub struct IotaNameRecord {
     /// The ID of the registration NFT assigned to this record.
     ///
     /// The owner of the corresponding NFT has the rights to
-    /// be able to change and adjust the `target_address` of this domain.
+    /// be able to change and adjust the `target_address` of this name.
     ///
     /// It is possible that the ID changes if the record expires and is
     /// purchased by someone else.
     pub nft_id: ObjectID,
     /// Timestamp in milliseconds when the record expires.
     pub expiration_timestamp_ms: u64,
-    /// The target address that this domain points to
+    /// The target address that this name points to
     pub target_address: Option<IotaAddress>,
     /// Additional data which may be stored in a record
     pub data: BTreeMap<String, String>,

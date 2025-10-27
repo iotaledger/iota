@@ -209,7 +209,7 @@ impl<'a, S> Api<'a, S> {
             Method::POST => &mut pathitem.post,
             Method::PUT => &mut pathitem.put,
             Method::TRACE => &mut pathitem.trace,
-            other => panic!("unexpected method `{}`", other),
+            other => panic!("unexpected method `{other}`"),
         };
 
         let operation = endpoint.operation(generator);

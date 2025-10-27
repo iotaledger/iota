@@ -6,34 +6,45 @@ import { DepositForm } from '../DepositForm';
 import toast from 'react-hot-toast';
 
 import { L1_USER_REJECTED_TX_ERROR_TEXT } from '../../../lib/constants';
-import { useBuildL1DepositTransaction } from '../../../hooks/useBuildL1DepositTransaction';
-import { formatIOTAFromNanos, parseAmount } from '../../../lib/utils';
+import { useBuildDepositTransactionL1 } from '../../../hooks/useBuildDepositTransactionL1';
 import { useFormContext } from 'react-hook-form';
 import { DepositFormData } from '../../../lib/schema/bridgeForm.schema';
 import { L2_FROM_L1_GAS_BUDGET } from '@iota/isc-sdk';
-import { useBalanceBaseTokenL2 } from '../../../hooks/useBalanceBaseTokenL2';
-import { IOTA_DECIMALS } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatBalance, IOTA_DECIMALS, parseAmount } from '@iota/iota-sdk/utils';
+import { useCoinMetadata, useGetAllCoins } from '@iota/core';
+import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
+import { useAccount } from 'wagmi';
 
 export function DepositLayer1() {
+    const addressL1 = useCurrentAccount()?.address as string;
+    const addressL2 = useAccount().address as `0x${string}`;
     const client = useIotaClient();
     const { mutateAsync: signAndExecuteTransaction, isPending: isTransactionLoading } =
         useSignAndExecuteTransaction();
-    const { watch } = useFormContext<DepositFormData>();
-    const { depositAmount, receivingAddress } = watch();
 
-    const address = useCurrentAccount()?.address as string;
-    const { data: l1BalanceInL2 } = useBalanceBaseTokenL2(address);
-    console.log('l1BalanceInL2:', l1BalanceInL2);
+    const { watch } = useFormContext<DepositFormData>();
+    const { depositAmount, receivingAddress, coinType: selectedCoinType } = watch();
+
+    const { refetch: refetchL2Balance } = useGetAllBalancesL2(addressL2);
+
+    // Get all coins of the type
+    const { data: selectedCoinObjects = [] } = useGetAllCoins(selectedCoinType, addressL1);
+
+    const { data: coinMetadata } = useCoinMetadata(selectedCoinType);
+
+    const amount = parseAmount(depositAmount, coinMetadata?.decimals ?? IOTA_DECIMALS) || BigInt(0);
 
     const { data: transactionData, isPending: isBuildingTransaction } =
-        useBuildL1DepositTransaction({
+        useBuildDepositTransactionL1({
             receivingAddress,
-            amount: parseAmount(depositAmount, IOTA_DECIMALS) ?? BigInt(0),
+            amount,
+            coins: selectedCoinObjects,
+            coinType: selectedCoinType,
             refetchInterval: 2000,
         });
     const gasSummary = transactionData?.gasSummary;
     const formattedGasEstimation = gasSummary?.totalGas
-        ? formatIOTAFromNanos(BigInt(gasSummary.totalGas))
+        ? formatBalance(BigInt(gasSummary.totalGas), IOTA_DECIMALS, CoinFormat.Full)
         : undefined;
 
     const deposit = async () => {
@@ -55,6 +66,10 @@ export function DepositLayer1() {
                     client
                         .waitForTransaction({
                             digest: tx.digest,
+                        })
+                        .then(() => {
+                            toast.success('Deposit transaction confirmed!');
+                            refetchL2Balance();
                         })
                         .catch((err) => {
                             if (import.meta.env.DEV) {
@@ -86,7 +101,7 @@ export function DepositLayer1() {
             isGasEstimationLoading={isBuildingTransaction}
             isTransactionLoading={isTransactionLoading}
             gasEstimation={formattedGasEstimation}
-            gasEstimationEVM={formatIOTAFromNanos(L2_FROM_L1_GAS_BUDGET)}
+            gasEstimationEVM={formatBalance(L2_FROM_L1_GAS_BUDGET, IOTA_DECIMALS, CoinFormat.Full)}
         />
     );
 }

@@ -22,9 +22,9 @@ import {
     PageTemplate,
 } from '_components';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
-import { useAppSelector, useCreateAccountsMutation } from '_hooks';
+import { useAppSelector, useCheckCameraPermissionStatus, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
-import { Create, ImportPass, Key, Seed, Ledger } from '@iota/apps-ui-icons';
+import { Create, ImportPass, Key, Seed, Ledger, Keystone } from '@iota/apps-ui-icons';
 import Browser from 'webextension-polyfill';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
@@ -39,6 +39,12 @@ async function openTabWithSearchParam(searchParam: string, searchParamValue: str
     });
 }
 
+async function openTabOnImportKeystone() {
+    await Browser.tabs.create({
+        url: Browser.runtime.getURL('ui.html#/accounts/import-keystone'),
+    });
+}
+
 export function AddAccountPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -49,6 +55,8 @@ export function AddAccountPage() {
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
+    const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
+
     const cardGroups = [
         {
             title: 'Create a new mnemonic profile',
@@ -85,12 +93,18 @@ export function AddAccountPage() {
             ],
         },
         {
-            title: 'Import from Ledger',
+            title: 'Hardware Wallets',
             cards: [
                 {
                     title: 'Ledger',
                     icon: Ledger,
                     actionType: AccountsFormType.ImportLedger,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+                {
+                    title: 'Keystone',
+                    icon: Keystone,
+                    actionType: AccountsFormType.ImportKeystone,
                     isDisabled: createAccountsMutation.isPending,
                 },
             ],
@@ -115,6 +129,7 @@ export function AddAccountPage() {
                 navigate('/accounts/import-private-key');
                 break;
             case AccountsFormType.ImportSeed:
+                ampli.clickedImportSeed({ sourceFlow });
                 navigate('/accounts/import-seed');
                 break;
             case AccountsFormType.ImportLedger:
@@ -126,6 +141,15 @@ export function AddAccountPage() {
                     setConnectLedgerModalOpen(true);
                 }
                 break;
+            case AccountsFormType.ImportKeystone:
+                ampli.clickedImportKeystone({ sourceFlow });
+                if (isPopup && cameraPermissionStatus === 'prompt') {
+                    await openTabOnImportKeystone();
+                    window.close();
+                } else {
+                    navigate('/accounts/import-keystone');
+                }
+                break;
             default:
                 break;
         }
@@ -135,13 +159,13 @@ export function AddAccountPage() {
         <PageTemplate
             title="Add Profile"
             isTitleCentered
-            onClose={() => navigate('/')}
+            onClose={() => navigate('/tokens')}
             showBackButton
         >
             <div className="flex h-full w-full flex-col gap-4 ">
                 {cardGroups.map((group, groupIndex) => (
                     <div key={groupIndex} className="flex flex-col gap-y-2">
-                        <span className="text-label-lg text-neutral-60 dark:text-neutral-40">
+                        <span className="text-label-lg text-iota-neutral-60 dark:text-iota-neutral-40">
                             {group.title}
                         </span>
                         {group.cards.map((card, cardIndex) => (
@@ -183,6 +207,6 @@ export function AddAccountPage() {
 
 const CardIcon = ({ Icon }: { Icon: React.ComponentType<{ className: string }> }) => (
     <CardImage type={ImageType.BgTransparent}>
-        <Icon className="h-5 w-5 text-primary-30 dark:text-primary-80" />
+        <Icon className="h-5 w-5 text-iota-primary-30 dark:text-iota-primary-80" />
     </CardImage>
 );

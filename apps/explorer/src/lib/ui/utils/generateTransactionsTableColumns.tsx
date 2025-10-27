@@ -2,20 +2,28 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, formatBalance, getTotalGasUsed } from '@iota/core';
+import { getTotalGasUsed } from '@iota/core';
 import type { IotaTransactionBlockKind, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 
 import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import type { ColumnDef } from '@tanstack/react-table';
 import { AddressLink, TransactionLink } from '../../../components/ui';
-import { formatDigest, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import {
+    CoinFormat,
+    formatBalance,
+    formatDigest,
+    IOTA_TYPE_ARG,
+    NANOS_PER_IOTA,
+} from '@iota/iota-sdk/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
 
 /**
  * Generate table columns renderers for the transactions data.
  */
-export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlockResponse>[] {
-    return [
+export function generateTransactionsTableColumns(
+    address?: string,
+): ColumnDef<IotaTransactionBlockResponse>[] {
+    const columns: ColumnDef<IotaTransactionBlockResponse>[] = [
         {
             header: 'Digest',
             accessorKey: 'digest',
@@ -39,7 +47,12 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                 const address = getValue<string>();
                 return (
                     <TableCellBase>
-                        <AddressLink address={address} copyText={address} />
+                        <AddressLink
+                            address={address}
+                            copyText={address}
+                            className="[&>div]:max-w-[200px] [&>div]:truncate"
+                            display="block"
+                        />
                     </TableCellBase>
                 );
             },
@@ -60,6 +73,53 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                 );
             },
         },
+    ];
+
+    if (address) {
+        columns.push({
+            header: 'Balance Change',
+            accessorKey: 'balanceChanges',
+            cell: ({ getValue }) => {
+                const balanceChanges = getValue<IotaTransactionBlockResponse['balanceChanges']>();
+                if (!balanceChanges) {
+                    return (
+                        <TableCellBase>
+                            <TableCellText>--</TableCellText>
+                        </TableCellBase>
+                    );
+                }
+                const balanceChange = balanceChanges.find(
+                    (change) =>
+                        change.owner &&
+                        typeof change.owner === 'object' &&
+                        'AddressOwner' in change.owner &&
+                        change.owner.AddressOwner === address &&
+                        change.coinType === IOTA_TYPE_ARG,
+                );
+                if (!balanceChange) {
+                    return (
+                        <TableCellBase>
+                            <TableCellText>--</TableCellText>
+                        </TableCellBase>
+                    );
+                }
+                const amount = balanceChange.amount;
+                const formatted = formatBalance(
+                    Math.abs(Number(amount)) / Number(NANOS_PER_IOTA),
+                    0,
+                    CoinFormat.Rounded,
+                );
+                const sign = Number(amount) >= 0 ? '+' : '-';
+                return (
+                    <TableCellBase>
+                        <TableCellText supportingLabel="IOTA">{sign + formatted}</TableCellText>
+                    </TableCellBase>
+                );
+            },
+        });
+    }
+
+    columns.push(
         {
             header: 'Gas',
             accessorKey: 'effects',
@@ -70,7 +130,7 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                     ? formatBalance(
                           Number(totalGasUsed) / Number(NANOS_PER_IOTA),
                           0,
-                          CoinFormat.ROUNDED,
+                          CoinFormat.Rounded,
                       )
                     : '--';
                 return (
@@ -97,5 +157,7 @@ export function generateTransactionsTableColumns(): ColumnDef<IotaTransactionBlo
                 );
             },
         },
-    ];
+    );
+
+    return columns;
 }

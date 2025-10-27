@@ -4,7 +4,7 @@
 
 import BigNumber from 'bignumber.js';
 import * as Yup from 'yup';
-import { formatBalance } from '../../hooks';
+import { formatBalance } from '@iota/iota-sdk/utils';
 
 export function createTokenValidation(coinBalance: bigint, coinSymbol: string, decimals: number) {
     return Yup.mixed<BigNumber>()

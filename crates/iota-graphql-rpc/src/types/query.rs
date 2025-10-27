@@ -6,11 +6,13 @@ use std::str::FromStr;
 
 use async_graphql::{connection::Connection, *};
 use fastcrypto::encoding::{Base64, Encoding};
-use iota_json_rpc_types::DevInspectArgs;
-use iota_sdk::IotaClient;
+use iota_json::IotaJsonValue;
+use iota_json_rpc_api::{ReadApiClient, WriteApiServer};
+use iota_json_rpc_types::{DevInspectArgs, IotaTypeTag};
 use iota_types::{
     TypeTag,
     gas_coin::GAS,
+    supported_protocol_versions::Chain,
     transaction::{TransactionData, TransactionDataAPI, TransactionKind},
 };
 use move_core_types::account_address::AccountAddress;
@@ -21,12 +23,12 @@ use crate::{
     connection::ScanConnection,
     error::Error,
     mutation::Mutation,
-    server::watermark_task::Watermark,
+    server::{builder::get_write_api, watermark_task::Watermark},
     types::{
         address::Address,
         available_range::AvailableRange,
         base64::Base64 as GraphQLBase64,
-        chain_identifier::ChainIdentifier,
+        chain_identifier::ChainIdentifierCache,
         checkpoint::{self, Checkpoint, CheckpointId},
         coin::Coin,
         coin_metadata::CoinMetadata,
@@ -36,9 +38,10 @@ use crate::{
         epoch::Epoch,
         event::{self, Event, EventFilter},
         iota_address::IotaAddress,
-        iota_names_registration::{Domain, IotaNames},
+        iota_names_registration::{IotaNames, Name},
         move_package::{self, MovePackage, MovePackageCheckpointFilter, MovePackageVersionFilter},
         move_type::MoveType,
+        move_view_result::MoveViewResult,
         object::{self, Object, ObjectFilter},
         owner::Owner,
         protocol_config::ProtocolConfigs,
@@ -60,10 +63,15 @@ impl Query {
     /// First four bytes of the network's genesis checkpoint digest (uniquely
     /// identifies the network).
     async fn chain_identifier(&self, ctx: &Context<'_>) -> Result<String> {
-        Ok(ChainIdentifier::query(ctx.data_unchecked())
+        // the chain identifier cache is added to the context during server
+        // initialization, if it panics it's a bug, it should be always present.
+        let chain_id_cache: &ChainIdentifierCache = ctx.data_unchecked();
+
+        chain_id_cache
+            .read(ctx.data_unchecked(), ctx.data_unchecked())
             .await
-            .extend()?
-            .to_string())
+            .map(|id| id.into_inner().to_string())
+            .extend()
     }
 
     /// Range of checkpoints that the RPC has data available for (for data
@@ -81,6 +89,46 @@ impl Query {
             .map_err(|_| Error::Internal("Unable to fetch service configuration.".to_string()))
             .cloned()
             .extend()
+    }
+
+    async fn move_view_call(
+        &self,
+        ctx: &Context<'_>,
+        function_name: String,
+        type_args: Option<Vec<String>>,
+        arguments: Option<Vec<serde_json::Value>>,
+    ) -> Result<MoveViewResult> {
+        let chain_id_cache: &ChainIdentifierCache = ctx.data_unchecked();
+
+        let db = ctx.data_unchecked();
+        let metrics = ctx.data_unchecked();
+        let chain = chain_id_cache
+            .read(db, metrics)
+            .await
+            .extend()?
+            .into_inner()
+            .chain();
+        if !matches!(chain, Chain::Unknown) {
+            return Err(Error::UnsupportedFeature(format!(
+                "View calls are not yet supported on {}",
+                chain.as_str()
+            )))
+            .extend();
+        }
+        let type_args = type_args.map(|args| args.into_iter().map(IotaTypeTag::new).collect());
+        let call_args = arguments
+            .unwrap_or_default()
+            .into_iter()
+            .map(IotaJsonValue::new)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Error::Client(e.to_string()))
+            .extend()?;
+        let write_api = get_write_api(ctx).extend()?;
+        let results = write_api
+            .view_function_call(function_name, type_args, call_args)
+            .await?;
+
+        results.try_into().extend()
     }
 
     /// Simulate running a transaction to inspect its effects without
@@ -109,15 +157,7 @@ impl Query {
     ) -> Result<DryRunResult> {
         let skip_checks = skip_checks.unwrap_or(false);
 
-        let iota_sdk_client: &Option<IotaClient> = ctx
-            .data()
-            .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
-            .extend()?;
-        let iota_sdk_client = iota_sdk_client
-            .as_ref()
-            .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
-            .extend()?;
-
+        let write_api = get_write_api(ctx).extend()?;
         let (sender_address, tx_kind, gas_price, gas_sponsor, gas_budget, gas_objects) =
             if let Some(TransactionMetadata {
                 sender,
@@ -171,11 +211,15 @@ impl Query {
             skip_checks: Some(skip_checks),
         };
 
-        let res = iota_sdk_client
-            .read_api()
+        let tx_bytes = Base64::from_bytes(
+            &bcs::to_bytes(&tx_kind)
+                .map_err(|e| Error::Internal(e.to_string()))
+                .extend()?,
+        );
+        let res = write_api
             .dev_inspect_transaction_block(
                 sender_address,
-                tx_kind,
+                tx_bytes,
                 gas_price,
                 None,
                 Some(dev_inspect_args),
@@ -183,6 +227,19 @@ impl Query {
             .await?;
 
         DryRunResult::try_from(res).extend()
+    }
+
+    /// Check if a transaction is indexed on the fullnode.
+    async fn is_transaction_indexed_on_node(
+        &self,
+        ctx: &Context<'_>,
+        digest: Digest,
+    ) -> Result<bool> {
+        let write_api = get_write_api(ctx).extend()?;
+        Ok(write_api
+            .fullnode_client()
+            .is_transaction_indexed_on_node(digest.into())
+            .await?)
     }
 
     /// Look up an Owner by its IotaAddress.
@@ -292,11 +349,10 @@ impl Query {
     /// Fetch a structured representation of a concrete type, including its
     /// layout information. Fails if the type is malformed.
     async fn type_(&self, type_: String) -> Result<MoveType> {
-        Ok(MoveType::new(
-            TypeTag::from_str(&type_)
-                .map_err(|e| Error::Client(format!("Bad type: {e}")))
-                .extend()?,
-        ))
+        Ok(TypeTag::from_str(&type_)
+            .map_err(|e| Error::Client(format!("Bad type: {e}")))
+            .extend()?
+            .into())
     }
 
     /// Fetch epoch information by ID (defaults to the latest epoch).
@@ -541,16 +597,16 @@ impl Query {
             .extend()
     }
 
-    /// Resolves an IOTA-Names `domain` name to an address, if it has been
+    /// Resolves an IOTA-Names `name` to an address, if it has been
     /// bound.
     async fn resolve_iota_names_address(
         &self,
         ctx: &Context<'_>,
-        domain: Domain,
+        name: Name,
     ) -> Result<Option<Address>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
 
-        Ok(IotaNames::resolve_to_record(ctx, &domain, checkpoint)
+        Ok(IotaNames::resolve_to_record(ctx, &name, checkpoint)
             .await
             .extend()?
             .and_then(|r| r.target_address)

@@ -122,11 +122,11 @@ export function SiteConnectPage() {
                                 icon={<Warning />}
                             />
                             <div className="flex flex-col gap-xs">
-                                <span className="text-label-lg text-neutral-60">
+                                <span className="text-label-lg text-iota-neutral-60">
                                     Connecting your wallet to this site could expose your data to
                                     attackers.
                                 </span>
-                                <span className="text-label-lg text-neutral-60">
+                                <span className="text-label-lg text-iota-neutral-60">
                                     If you don't have confidence in this site, reject the
                                     connection.
                                 </span>

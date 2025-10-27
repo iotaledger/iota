@@ -1,7 +1,7 @@
 # Get the address' balance and its coins' id and type
 {
   address(
-    address: "0x5094652429957619e6efa79a404a6714d1126e63f551f4b6c7fb76440f8118c9"
+    address: "0x479c602460ae68771dcb9bfcef607dccc678859fb72d7d8aa8d9ce58c9430747"
   ) {
     address
     balance {

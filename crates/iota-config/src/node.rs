@@ -30,6 +30,7 @@ use iota_types::{
 use once_cell::sync::OnceCell;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
+use starfish_config::Parameters as StarfishParameters;
 use tracing::info;
 
 use crate::{
@@ -168,11 +169,6 @@ pub struct NodeConfig {
     #[serde(default)]
     pub db_checkpoint_config: DBCheckpointConfig,
 
-    /// Defines a threshold for an object size above which object
-    /// is stored separately as `IndirectObject`. Used in `AuthorityStore`.
-    #[serde(default)]
-    pub indirect_objects_threshold: usize,
-
     /// Configuration for enabling/disabling expensive safety checks.
     #[serde(default)]
     pub expensive_safety_check_config: ExpensiveSafetyCheckConfig,
@@ -244,7 +240,10 @@ pub struct NodeConfig {
     pub firewall_config: Option<RemoteFirewallConfig>,
 
     #[serde(default)]
-    pub execution_cache: ExecutionCacheConfig,
+    pub execution_cache: ExecutionCacheType,
+
+    #[serde(default)]
+    pub execution_cache_config: ExecutionCacheConfig,
 
     #[serde(default = "bool_true")]
     pub enable_validator_tx_finalizer: bool,
@@ -260,24 +259,249 @@ pub struct NodeConfig {
 
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub iota_names_config: Option<IotaNamesConfig>,
+
+    /// Flag to enable the gRPC API.
+    #[serde(default)]
+    pub enable_grpc_api: bool,
+    #[serde(
+        default = "default_grpc_api_config",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub grpc_api_config: Option<GrpcApiConfig>,
 }
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+/// Configuration for the gRPC API service
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum ExecutionCacheConfig {
-    PassthroughCache,
-    WritebackCache {
-        /// Maximum number of entries in each cache. (There are several
-        /// different caches). If None, the default of 10000 is used.
-        max_cache_size: Option<usize>,
-    },
+pub struct GrpcApiConfig {
+    /// The address to bind the gRPC server to
+    #[serde(default = "default_grpc_api_address")]
+    pub address: std::net::SocketAddr,
+
+    /// Buffer size for broadcast channels used for checkpoint streaming
+    #[serde(default = "default_checkpoint_broadcast_buffer_size")]
+    pub checkpoint_broadcast_buffer_size: usize,
+
+    /// Buffer size for broadcast channels used for event streaming
+    #[serde(default = "default_event_broadcast_buffer_size")]
+    pub event_broadcast_buffer_size: usize,
 }
 
-impl Default for ExecutionCacheConfig {
+impl Default for GrpcApiConfig {
     fn default() -> Self {
-        ExecutionCacheConfig::WritebackCache {
-            max_cache_size: None,
+        Self {
+            address: default_grpc_api_address(),
+            checkpoint_broadcast_buffer_size: default_checkpoint_broadcast_buffer_size(),
+            event_broadcast_buffer_size: default_event_broadcast_buffer_size(),
         }
+    }
+}
+
+fn default_grpc_api_address() -> std::net::SocketAddr {
+    use std::net::{IpAddr, Ipv4Addr};
+    std::net::SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 50051)
+}
+
+fn default_checkpoint_broadcast_buffer_size() -> usize {
+    100
+}
+
+fn default_event_broadcast_buffer_size() -> usize {
+    1000
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExecutionCacheType {
+    #[default]
+    WritebackCache,
+    PassthroughCache,
+}
+
+impl From<ExecutionCacheType> for u8 {
+    fn from(cache_type: ExecutionCacheType) -> Self {
+        match cache_type {
+            ExecutionCacheType::WritebackCache => 0,
+            ExecutionCacheType::PassthroughCache => 1,
+        }
+    }
+}
+
+impl From<&u8> for ExecutionCacheType {
+    fn from(cache_type: &u8) -> Self {
+        match cache_type {
+            0 => ExecutionCacheType::WritebackCache,
+            1 => ExecutionCacheType::PassthroughCache,
+            _ => unreachable!("Invalid value for ExecutionCacheType"),
+        }
+    }
+}
+
+/// Type alias for atomic representation of ExecutionCacheType for lock-free
+/// operations
+pub type ExecutionCacheTypeAtomicU8 = std::sync::atomic::AtomicU8;
+
+impl From<ExecutionCacheType> for ExecutionCacheTypeAtomicU8 {
+    fn from(cache_type: ExecutionCacheType) -> Self {
+        ExecutionCacheTypeAtomicU8::new(u8::from(cache_type))
+    }
+}
+
+impl ExecutionCacheType {
+    pub fn cache_type(self) -> Self {
+        if std::env::var("DISABLE_WRITEBACK_CACHE").is_ok() {
+            Self::PassthroughCache
+        } else {
+            self
+        }
+    }
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct ExecutionCacheConfig {
+    #[serde(default)]
+    pub writeback_cache: WritebackCacheConfig,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub struct WritebackCacheConfig {
+    /// Maximum number of entries in each cache. (There are several
+    /// different caches).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_cache_size: Option<u64>, // defaults to 100000
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package_cache_size: Option<u64>, // defaults to 1000
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object_cache_size: Option<u64>, // defaults to max_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub marker_cache_size: Option<u64>, // defaults to object_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub object_by_id_cache_size: Option<u64>, // defaults to object_cache_size
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transaction_cache_size: Option<u64>, // defaults to max_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub executed_effect_cache_size: Option<u64>, // defaults to transaction_cache_size
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effect_cache_size: Option<u64>, // defaults to executed_effect_cache_size
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub events_cache_size: Option<u64>, // defaults to transaction_cache_size
+
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub transaction_objects_cache_size: Option<u64>, // defaults to 1000
+
+    /// Number of uncommitted transactions at which to pause consensus
+    /// handler.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backpressure_threshold: Option<u64>, // defaults to 100_000
+
+    /// Number of uncommitted transactions at which to refuse new
+    /// transaction submissions. Defaults to backpressure_threshold
+    /// if unset.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub backpressure_threshold_for_rpc: Option<u64>, // defaults to backpressure_threshold
+}
+
+impl WritebackCacheConfig {
+    pub fn max_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_MAX")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.max_cache_size)
+            .unwrap_or(100000)
+    }
+
+    pub fn package_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_PACKAGE")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.package_cache_size)
+            .unwrap_or(1000)
+    }
+
+    pub fn object_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_OBJECT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.object_cache_size)
+            .unwrap_or_else(|| self.max_cache_size())
+    }
+
+    pub fn marker_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_MARKER")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.marker_cache_size)
+            .unwrap_or_else(|| self.object_cache_size())
+    }
+
+    pub fn object_by_id_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_OBJECT_BY_ID")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.object_by_id_cache_size)
+            .unwrap_or_else(|| self.object_cache_size())
+    }
+
+    pub fn transaction_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_TRANSACTION")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.transaction_cache_size)
+            .unwrap_or_else(|| self.max_cache_size())
+    }
+
+    pub fn executed_effect_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_EXECUTED_EFFECT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.executed_effect_cache_size)
+            .unwrap_or_else(|| self.transaction_cache_size())
+    }
+
+    pub fn effect_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_EFFECT")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.effect_cache_size)
+            .unwrap_or_else(|| self.executed_effect_cache_size())
+    }
+
+    pub fn events_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_EVENTS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.events_cache_size)
+            .unwrap_or_else(|| self.transaction_cache_size())
+    }
+
+    pub fn transaction_objects_cache_size(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_SIZE_TRANSACTION_OBJECTS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.transaction_objects_cache_size)
+            .unwrap_or(1000)
+    }
+
+    pub fn backpressure_threshold(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_BACKPRESSURE_THRESHOLD")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.backpressure_threshold)
+            .unwrap_or(100_000)
+    }
+
+    pub fn backpressure_threshold_for_rpc(&self) -> u64 {
+        std::env::var("IOTA_CACHE_WRITEBACK_BACKPRESSURE_THRESHOLD_FOR_RPC")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .or(self.backpressure_threshold_for_rpc)
+            .unwrap_or(self.backpressure_threshold())
     }
 }
 
@@ -393,6 +617,10 @@ pub fn default_json_rpc_address() -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)), 9000)
 }
 
+pub fn default_grpc_api_config() -> Option<GrpcApiConfig> {
+    None
+}
+
 pub fn default_concurrency_limit() -> Option<usize> {
     Some(DEFAULT_GRPC_CONCURRENCY_LIMIT)
 }
@@ -419,20 +647,18 @@ impl NodeConfig {
     pub fn protocol_key_pair(&self) -> &NetworkKeyPair {
         match self.protocol_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
-            other => panic!(
-                "invalid keypair type: {:?}, only Ed25519 is allowed for protocol key",
-                other
-            ),
+            other => {
+                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for protocol key")
+            }
         }
     }
 
     pub fn network_key_pair(&self) -> &NetworkKeyPair {
         match self.network_key_pair.keypair() {
             IotaKeyPair::Ed25519(kp) => kp,
-            other => panic!(
-                "invalid keypair type: {:?}, only Ed25519 is allowed for network key",
-                other
-            ),
+            other => {
+                panic!("invalid keypair type: {other:?}, only Ed25519 is allowed for network key")
+            }
         }
     }
 
@@ -511,6 +737,8 @@ impl NodeConfig {
 pub enum ConsensusProtocol {
     #[serde(rename = "mysticeti")]
     Mysticeti,
+    #[serde(rename = "starfish")]
+    Starfish,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -548,7 +776,12 @@ pub struct ConsensusConfig {
     /// estimates.
     pub submit_delay_step_override_millis: Option<u64>,
 
+    /// Parameters for Mysticeti consensus
     pub parameters: Option<ConsensusParameters>,
+
+    /// Parameters for Starfish consensus
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub starfish_parameters: Option<StarfishParameters>,
 }
 
 impl ConsensusConfig {
@@ -689,7 +922,7 @@ impl ExpensiveSafetyCheckConfig {
 }
 
 fn default_checkpoint_execution_max_concurrency() -> usize {
-    200
+    40
 }
 
 fn default_local_execution_timeout_sec() -> u64 {
@@ -747,6 +980,13 @@ pub struct AuthorityStorePruningConfig {
     pub num_epochs_to_retain_for_checkpoints: Option<u64>,
     #[serde(default = "default_smoothing", skip_serializing_if = "is_true")]
     pub smooth: bool,
+    /// Enables the compaction filter for pruning the objects table.
+    /// If disabled, a range deletion approach is used instead.
+    /// While it is generally safe to switch between the two modes,
+    /// switching from the compaction filter approach back to range deletion
+    /// may result in some old versions that will never be pruned.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub enable_compaction_filter: bool,
 }
 
 fn default_num_latest_epoch_dbs_to_retain() -> usize {
@@ -785,6 +1025,7 @@ impl Default for AuthorityStorePruningConfig {
             periodic_compaction_threshold_days: None,
             num_epochs_to_retain_for_checkpoints: if cfg!(msim) { Some(2) } else { None },
             smooth: true,
+            enable_compaction_filter: cfg!(test) || cfg!(msim),
         }
     }
 }
@@ -1004,7 +1245,9 @@ pub struct Genesis {
 impl Genesis {
     pub fn new(genesis: genesis::Genesis) -> Self {
         Self {
-            location: Some(GenesisLocation::InPlace { genesis }),
+            location: Some(GenesisLocation::InPlace {
+                genesis: Box::new(genesis),
+            }),
             genesis: Default::default(),
         }
     }
@@ -1042,7 +1285,7 @@ impl Genesis {
 #[serde(untagged)]
 enum GenesisLocation {
     InPlace {
-        genesis: genesis::Genesis,
+        genesis: Box<genesis::Genesis>,
     },
     File {
         #[serde(rename = "genesis-file-location")]
@@ -1109,7 +1352,7 @@ impl KeyPairWithPath {
                     // loaded.
                     Arc::new(
                         read_keypair_from_file(path).unwrap_or_else(|e| {
-                            panic!("invalid keypair file at path {:?}: {e}", path)
+                            panic!("invalid keypair file at path {path:?}: {e}")
                         }),
                     )
                 }
@@ -1279,6 +1522,13 @@ impl RunWithRange {
 
     pub fn matches_checkpoint(&self, seq_num: CheckpointSequenceNumber) -> bool {
         matches!(self, RunWithRange::Checkpoint(seq) if *seq == seq_num)
+    }
+
+    pub fn into_checkpoint_bound(self) -> Option<CheckpointSequenceNumber> {
+        match self {
+            RunWithRange::Epoch(_) => None,
+            RunWithRange::Checkpoint(seq) => Some(seq),
+        }
     }
 }
 

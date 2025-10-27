@@ -1,6 +1,7 @@
+# Get metadata for a specific on-chain object and the digest of the transaction block that last modified it
 {
   object(
-    address: "0x04e20ddf36af412a4096f9014f4a565af9e812db9a05cc40254846cf6ed0ad91"
+    address: "0x281b97c4303f1571f64499b214c35d933ea5ad21522a608daffd2a5b2bd318d8"
   ) {
     address
     version

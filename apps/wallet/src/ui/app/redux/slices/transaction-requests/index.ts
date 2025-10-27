@@ -13,7 +13,7 @@ import {
 import type { AppThunkConfig } from '_src/ui/app/redux/store/thunkExtras';
 import { type IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { fromB64 } from '@iota/iota-sdk/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 import { createAsyncThunk, createEntityAdapter, createSlice } from '@reduxjs/toolkit';
 import type { PayloadAction } from '@reduxjs/toolkit';
 
@@ -52,7 +52,7 @@ export const respondToTransactionRequest = createAsyncThunk<
             try {
                 if (txRequest.tx.type === 'sign-personal-message') {
                     txResult = await signer.signMessage({
-                        message: fromB64(txRequest.tx.message),
+                        message: fromBase64(txRequest.tx.message),
                     });
                 } else if (txRequest.tx.type === 'transaction') {
                     const tx = Transaction.from(txRequest.tx.data);

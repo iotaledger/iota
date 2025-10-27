@@ -15,7 +15,7 @@ import questions from '/json/developer/iota-101/move-overview/package-upgrades/i
 A Move package consists of one or more modules that define how the package interacts with on-chain objects. 
 These modules are written in Move, compiled into a package object, and then published on-chain.
 Once a package is on the IOTA network,
-its content and logic are transparent and accessible to anyone through an [IOTA network explorer](https://explorer.rebased.iota.org/).
+its content and logic are transparent and accessible to anyone through an [IOTA network explorer](https://explorer.iota.org/).
 
 ## Packages Are Immutable
 
@@ -33,9 +33,9 @@ safeguarding the integrity of packages that depend on it.
 
 ## Upgrading Packages with IOTA Client CLI
 
-The [IOTA Client CLI](../../../../references/cli/client.mdx) provides an [`upgrade` command](../../../../references/cli/client.mdx#commands),
+The [IOTA Client CLI](../../../references/cli/client.mdx) provides an [`upgrade` command](../../../references/cli/client.mdx#commands),
 which is a straightforward way to upgrade packages.
-To use this command, the CLI's active address must own the [`UpgradeCap`](../../../../references/framework/iota/package.mdx) object
+To use this command, the CLI's active address must own the [`UpgradeCap`](../../../references/framework/iota/package.mdx) object
 associated with the package you wish to upgrade.
 
 While the IOTA CLI is convenient for initiating upgrades, especially during the early stages of development,
@@ -46,7 +46,7 @@ relying on a single key to manage upgrades can introduce significant security ri
 ## Making Packages Truly Immutable
 
 To eliminate the risks associated with single-key control, you can make your package _immutable_ after it is published.
-You can do this with the [`iota::package::make_immutable`](../../../../references/framework/iota/package.mdx#function-make_immutable) function,
+You can do this with the [`iota::package::make_immutable`](../../../references/framework/iota/package.mdx#function-make_immutable) function,
 which destroys the `UpgradeCap` associated with the package, preventing any future upgrades.
 However, making a package immutable also means that you lose the ability to fix bugs or introduce new features,
 so it should be done with caution.

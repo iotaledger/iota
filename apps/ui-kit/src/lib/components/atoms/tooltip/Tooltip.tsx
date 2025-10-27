@@ -97,8 +97,9 @@ export function Tooltip({
         };
     }, [visible]);
 
-    const base =
-        'z-[999] w-max rounded bg-neutral-80 p-xs text-neutral-10 dark:bg-neutral-30 dark:text-neutral-92';
+    // z-[9999999999]: needed because we must exceed the popup’s ≈2 147 483 647 z-index;
+    // otherwise the tooltip renders but stays invisible inside a Chrome extension
+    const base = 'z-[9999999999] w-max rounded p-xs tooltip-bg tooltip-text-color';
 
     return (
         <>
