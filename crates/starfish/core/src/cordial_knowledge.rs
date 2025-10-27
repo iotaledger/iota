@@ -726,6 +726,7 @@ impl ConnectionKnowledge {
         }
     }
 
+    /// Processes a vector of ConnecitonKnowledge messages
     fn process_vec_messages(&mut self, msgs: Vec<ConnectionKnowledgeMessage>) {
         for msg in msgs {
             self.process_one_message(msg);
@@ -925,11 +926,8 @@ impl ConnectionKnowledge {
         );
     }
 
-    /// Handles taking additional parts (headers, shards) for a block bundle
-    /// to send to the peer. In addition, it returns from which authors
-    /// the peer can send additional headers and shards to the peer.
-    /// This is an async function because it reads from the DAG state and
-    /// sends the response back via oneshot channel.
+    /// Used by AuthorityService to create a block bundle
+    /// to send to the peer.
     pub fn create_bundle(&mut self, block: VerifiedBlock) -> BlockBundle {
         let round_upper_bound_exclusive = block.round();
         // 1. Own headers and shards for round up to round_upper_bound_exclusive should
