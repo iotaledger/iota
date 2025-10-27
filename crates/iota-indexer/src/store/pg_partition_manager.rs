@@ -15,7 +15,7 @@ use downcast::Any;
 use tracing::{error, info};
 
 use crate::{
-    db::ConnectionPool, errors::IndexerError, handlers::EpochToCommit,
+    db::ConnectionPool, errors::IndexerError, ingestion::primary::persist::EpochToCommit,
     models::epoch::StoredEpochInfo, store::diesel_macro::*,
 };
 
@@ -205,8 +205,8 @@ impl PgPartitionManager {
             // skip when the partition is already advanced once, which is possible when
             // indexer crashes and restarts; error otherwise.
             error!(
-                "Epoch partition for table {} is not in sync with the last epoch {}.",
-                table, data.last_epoch
+                "epoch partition for table {table} is not in sync with the last epoch {}.",
+                data.last_epoch
             );
         } else {
             info!(

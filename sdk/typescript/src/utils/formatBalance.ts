@@ -86,9 +86,9 @@ export function formatWithSubscript(
     const remainder = decimals.slice(zeroCount);
 
     const digits = zeroCount.toString().split('');
-    const suscripts = digits.map((n) => SUBSCRIPTS[Number(n)]).join('');
+    const subscripts = digits.map((n) => SUBSCRIPTS[Number(n)]).join('');
 
-    return `0.0${suscripts}${remainder}`;
+    return `0.0${subscripts}${remainder}`;
 }
 
 export enum CoinFormat {

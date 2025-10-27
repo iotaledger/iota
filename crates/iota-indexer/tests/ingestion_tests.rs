@@ -15,7 +15,7 @@ mod ingestion_tests {
     use iota_indexer::{
         db::get_pool_connection,
         errors::{Context, IndexerError},
-        handlers::TransactionObjectChangesToCommit,
+        ingestion::common::prepare::CheckpointObjectChanges,
         insert_or_ignore_into,
         models::{
             checkpoints::StoredCheckpoint,
@@ -28,8 +28,7 @@ mod ingestion_tests {
         },
         store::{PgIndexerStore, indexer_store::IndexerStore},
         transactional_blocking_with_retry,
-        transform::CheckpointObjectChanges,
-        types::{EventIndex, IndexedDeletedObject, IndexedObject, TxIndex},
+        types::{EventIndex, TxIndex},
     };
     use iota_types::{
         IOTA_FRAMEWORK_PACKAGE_ID, base_types::IotaAddress, effects::TransactionEffectsAPI,
@@ -80,33 +79,6 @@ mod ingestion_tests {
     }
 
     #[tokio::test]
-    pub async fn objects_ingestion() -> Result<(), IndexerError> {
-        let tempdir = tempdir().unwrap();
-        let mut sim = Simulacrum::new();
-        let data_ingestion_path = tempdir.path().to_path_buf();
-        sim.set_data_ingestion_path(data_ingestion_path.clone());
-
-        let (_, pg_store, _) = start_simulacrum_rest_api_with_write_indexer(
-            Arc::new(sim),
-            data_ingestion_path,
-            None,
-            Some("indexer_ingestion_tests_db"),
-            None,
-        )
-        .await;
-
-        let mut objects = Vec::new();
-        for _ in 0..1000 {
-            objects.push(TransactionObjectChangesToCommit {
-                changed_objects: vec![IndexedObject::random()],
-                deleted_objects: vec![IndexedDeletedObject::random()],
-            });
-        }
-        pg_store.persist_objects(objects).await?;
-        Ok(())
-    }
-
-    #[tokio::test]
     pub async fn transaction_table() -> Result<(), IndexerError> {
         let mut sim = Simulacrum::new();
         let data_ingestion_path = tempdir().unwrap().keep();
@@ -140,7 +112,7 @@ mod ingestion_tests {
                 .filter(transactions::transaction_digest.eq(digest.inner().to_vec()))
                 .first::<StoredTransaction>(conn)
         })
-        .context("Failed reading transaction from PostgresDB")?;
+        .context("failed reading transaction from PostgresDB")?;
 
         // Check that the transaction was stored correctly.
         assert_eq!(db_txn.tx_sequence_number, 1);
@@ -252,7 +224,7 @@ mod ingestion_tests {
                 .limit(1)
                 .first::<i64>(conn)
         })
-        .context("Failed reading max checkpoint_sequence_number from PostgresDB")?;
+        .context("failed reading max checkpoint_sequence_number from PostgresDB")?;
 
         assert_eq!(
             max_checkpoint_sequence_number,
@@ -273,7 +245,7 @@ mod ingestion_tests {
                 )
                 .first::<StoredObjectSnapshot>(conn)
         })
-        .context("Failed reading snapshot object from PostgresDB")?;
+        .context("failed reading snapshot object from PostgresDB")?;
         // Assert that the object state is as expected at checkpoint
         // max_expected_checkpoint_sequence_number
         assert_eq!(snapshot_object.object_id, obj_id.to_vec());
@@ -320,7 +292,7 @@ mod ingestion_tests {
                 .select(StoredTxDigest::as_select())
                 .first::<StoredTxDigest>(conn)
         })
-        .context("Failed reading `tx_global_order` from PostgresDB")?;
+        .context("failed reading `tx_global_order` from PostgresDB")?;
 
         let stored_global_order = read_only_blocking!(&pg_store.blocking_cp(), |conn| {
             tx_global_order::table
@@ -328,7 +300,7 @@ mod ingestion_tests {
                 .select(TxGlobalOrder::as_select())
                 .first::<TxGlobalOrder>(conn)
         })
-        .context("Failed reading `tx_global_order` from PostgresDB")?;
+        .context("failed reading `tx_global_order` from PostgresDB")?;
 
         assert_eq!(
             stored_global_order.global_sequence_number,
@@ -396,7 +368,7 @@ mod ingestion_tests {
                 .select(TxGlobalOrder::as_select())
                 .first::<TxGlobalOrder>(conn)
         })
-        .context("Failed reading `tx_global_order` from PostgresDB")?;
+        .context("failed reading `tx_global_order` from PostgresDB")?;
 
         assert_eq!(stored.global_sequence_number, global_sequence_number);
         let expected_optimistic_sequence_number = 1;

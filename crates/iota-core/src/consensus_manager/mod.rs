@@ -181,6 +181,7 @@ impl ConsensusManager {
 
         match protocol_config.consensus_choice() {
             ConsensusChoice::Mysticeti => ConsensusProtocol::Mysticeti,
+            ConsensusChoice::Starfish => ConsensusProtocol::Starfish,
         }
     }
 }
@@ -204,7 +205,6 @@ impl ConsensusManagerTrait for ConsensusManager {
             });
             let protocol = self.pick_protocol(&epoch_store);
             info!("Starting consensus protocol {protocol:?} ...");
-            self.consensus_client.set(self.mysticeti_client.clone());
             match protocol {
                 ConsensusProtocol::Mysticeti => {
                     active[0] = true;

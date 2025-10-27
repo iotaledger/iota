@@ -103,7 +103,7 @@ impl<T: IngestionBackfill + 'static> IngestionBackfillTask<T> {
 
         tokio::spawn(async move {
             if let Err(join_err) = executor.await {
-                error!(?join_err, "Ingestion executor panicked or was cancelled");
+                error!(?join_err, "ingestion executor panicked or was cancelled");
             }
         });
 
@@ -251,20 +251,20 @@ mod tests {
             // Perform backfill for checkpoint 0..=4
             task.backfill_range(pool.clone(), &(0..=4))
                 .await
-                .expect("Backfill failed for checkpoint range 0..=4");
+                .expect("backfill failed for checkpoint range 0..=4");
 
             // Validate checkpoints 0..=4 are consumed
             for seq in 0..=4 {
                 assert!(
                     !ready_checkpoints.contains_key(&seq),
-                    "Checkpoint {seq} should have been consumed"
+                    "checkpoint {seq} should have been consumed"
                 );
             }
             // Validate checkpoints 5..=19 are still present
             for seq in 5..=19 {
                 assert!(
                     ready_checkpoints.contains_key(&seq),
-                    "Checkpoint {seq} should still be present"
+                    "checkpoint {seq} should still be present"
                 );
             }
 
@@ -273,11 +273,11 @@ mod tests {
             // Consume the rest of the checkpoints
             task.backfill_range(pool.clone(), &(5..=19))
                 .await
-                .expect("Backfill failed for checkpoint range 5..=19");
+                .expect("backfill failed for checkpoint range 5..=19");
 
             assert!(
                 ready_checkpoints.is_empty(),
-                "All checkpoints should have been consumed"
+                "all checkpoints should have been consumed"
             );
 
             // Check if the data was written correctly
@@ -285,7 +285,7 @@ mod tests {
             let RowCount { cnt } = sql_query("SELECT COUNT(*) AS cnt FROM ingestion_items")
                 .get_result(&mut conn)
                 .unwrap();
-            assert_eq!(cnt, 20, "Should have 20 items in ingestion_items table");
+            assert_eq!(cnt, 20, "should have 20 items in ingestion_items table");
         }
 
         db.drop_if_exists();

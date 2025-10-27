@@ -22,7 +22,7 @@ import {
     useGetNextEpochCommitteeMember,
 } from '@iota/core';
 import { Network, type StakeObject } from '@iota/iota-sdk/client';
-import { NANOS_PER_IOTA, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import BigNumber from 'bignumber.js';
 import { useMemo } from 'react';
 import { getDelegationDataByStakeId } from '../getDelegationByStakeId';
@@ -144,7 +144,7 @@ export function DelegationDetailCard({ validatorAddress, stakedId }: DelegationD
     function handleUnstake() {
         navigate(stakeByValidatorAddress + '&unstake=true');
         ampli.clickedUnstakeIota({
-            stakedAmount: Number(totalStake / NANOS_PER_IOTA),
+            stakedAmount: Number(totalStakeFormatted),
             validatorAddress,
         });
     }

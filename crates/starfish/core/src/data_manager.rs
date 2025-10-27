@@ -9,7 +9,7 @@ use std::{
 use parking_lot::RwLock;
 use tracing::debug;
 
-use crate::{BlockRef, CommittedSubDag, commit::PendingSubDag, dag_state::DagState};
+use crate::{BlockRef, CommitIndex, CommittedSubDag, commit::PendingSubDag, dag_state::DagState};
 
 /// The `DataManager` is responsible for managing and handling
 /// the commit process for newly committed sub-dags. It ensures that sub-dags
@@ -32,7 +32,7 @@ pub(crate) struct DataManager {
     // Buffer for pending subdags, keyed by commit_ref.index for order
     pending_subdags: BTreeMap<u32, PendingSubDag>,
     // The highest committed commit_ref.index
-    last_committed_index: u32,
+    last_committed_index: CommitIndex,
 }
 
 impl DataManager {
@@ -54,7 +54,7 @@ impl DataManager {
         }
     }
 
-    pub(crate) fn set_last_committed_index(&mut self, index: u32) {
+    pub(crate) fn set_last_committed_index(&mut self, index: CommitIndex) {
         self.last_committed_index = index;
     }
 
@@ -227,7 +227,7 @@ mod tests {
         block_header::{BlockRef, genesis_block_headers, genesis_blocks},
         commit::{CommitRef, PendingSubDag},
         context::Context,
-        dag_state::DagState,
+        dag_state::{DagState, TransactionSource},
         test_dag_builder::DagBuilder,
     };
 
@@ -282,11 +282,14 @@ mod tests {
 
             // Add genesis blocks if round 0 is included
             if included_rounds.contains(&0) {
-                let genesis_blocks = genesis_blocks(self.context.clone());
+                let genesis_blocks = genesis_blocks(&self.context);
                 for (i, block) in genesis_blocks.iter().enumerate() {
                     state.accept_block_header(block.verified_block_header.clone());
                     if !excluded_transactions.contains(&(0, i)) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 }
             }
@@ -301,7 +304,10 @@ mod tests {
                 for (i, block) in blocks.iter().enumerate() {
                     state.accept_block_header(block.verified_block_header.clone());
                     if !excluded_transactions.contains(&(round, i)) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 }
             }
@@ -331,14 +337,20 @@ mod tests {
             let mut state = dag_state.write();
             for &(round, block_index) in blocks {
                 if round == 0 {
-                    let genesis_blocks = genesis_blocks(self.context.clone());
+                    let genesis_blocks = genesis_blocks(&self.context);
                     if let Some(block) = genesis_blocks.get(block_index) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 } else {
                     let blocks = self.dag_builder.blocks(round..=round);
                     if let Some(block) = blocks.get(block_index) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 }
             }
@@ -410,7 +422,7 @@ mod tests {
 
         fn with_committed_refs_from_round(mut self, round: u32) -> Self {
             let refs = if round == 0 {
-                genesis_blocks(self.setup.context.clone())
+                genesis_blocks(&self.setup.context)
                     .iter()
                     .map(|b| b.reference())
                     .collect()
@@ -434,7 +446,7 @@ mod tests {
         fn build(self) -> PendingSubDag {
             // Get leader block
             let leader = if self.leader_round == 0 {
-                genesis_blocks(self.setup.context.clone())[self.leader_index].reference()
+                genesis_blocks(&self.setup.context)[self.leader_index].reference()
             } else {
                 self.setup
                     .dag_builder
@@ -447,7 +459,7 @@ mod tests {
 
             for spec in &self.block_specs {
                 let headers = if spec.round == 0 {
-                    genesis_block_headers(self.setup.context.clone())
+                    genesis_block_headers(&self.setup.context)
                 } else {
                     self.setup
                         .dag_builder
@@ -473,7 +485,7 @@ mod tests {
 
             // Add a leader block if not already included
             let leader_header = if self.leader_round == 0 {
-                genesis_blocks(self.setup.context.clone())[self.leader_index]
+                genesis_blocks(&self.setup.context)[self.leader_index]
                     .verified_block_header
                     .clone()
             } else {

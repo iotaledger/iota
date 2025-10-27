@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 13;
+pub const MAX_PROTOCOL_VERSION: u64 = 14;
 
 // Record history of protocol version allocations here:
 //
@@ -77,7 +77,13 @@ pub const MAX_PROTOCOL_VERSION: u64 = 13;
 //             of eligible active validators.
 //             Enable processing and tracking AuthorityCapabilitiesV1 from
 //             non-committee validators in the devnet.
-
+// Version 14: Switches the consensus protocol to Starfish in devnet.
+//             Enable median-based commit timestamp calculation in consensus,
+//             and enforce checkpoint timestamp monotonicity for testnet.
+//             Enable batched block sync for mainnet.
+//             Enable selecting committee only from active validators that
+//             support the next epoch's version and issued valid
+//             AuthorityCapabilities notification in testnet.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -350,6 +356,12 @@ struct FeatureFlags {
     // active validators are used for selecting the committee (default behavior).
     #[serde(skip_serializing_if = "is_false")]
     select_committee_supporting_next_epoch_version: bool,
+
+    // If true, then it (1) will not enforce monotonicity checks for a block's ancestors, (2)
+    // calculates the commit's timestamp based on the weighted by stake median timestamp of the
+    // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_median_timestamp_with_checkpoint_enforcement: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -397,11 +409,15 @@ impl PerObjectCongestionControlMode {
 pub enum ConsensusChoice {
     #[default]
     Mysticeti,
+    Starfish,
 }
 
 impl ConsensusChoice {
     pub fn is_mysticeti(&self) -> bool {
         matches!(self, ConsensusChoice::Mysticeti)
+    }
+    pub fn is_starfish(&self) -> bool {
+        matches!(self, ConsensusChoice::Starfish)
     }
 }
 
@@ -1396,6 +1412,17 @@ impl ProtocolConfig {
         );
         res
     }
+
+    pub fn consensus_median_timestamp_with_checkpoint_enforcement(&self) -> bool {
+        let res = self
+            .feature_flags
+            .consensus_median_timestamp_with_checkpoint_enforcement;
+        assert!(
+            !res || self.gc_depth() > 0,
+            "The consensus median timestamp with checkpoint enforcement requires GC to be enabled"
+        );
+        res
+    }
 }
 
 #[cfg(not(msim))]
@@ -2227,6 +2254,26 @@ impl ProtocolConfig {
                             .select_committee_supporting_next_epoch_version = true;
                     }
                 }
+                14 => {
+                    // Enable batched block sync for mainnet.
+                    cfg.feature_flags.consensus_batched_block_sync = true;
+
+                    if chain != Chain::Mainnet {
+                        // Enable median-based commit timestamp calculation in consensus and
+                        // enforce checkpoint timestamp monotonicity for testnet.
+                        cfg.feature_flags
+                            .consensus_median_timestamp_with_checkpoint_enforcement = true;
+                        // Enable selecting committee only from active validators that support the
+                        // next epoch's version and issued valid AuthorityCapabilities notification
+                        // in testnet.
+                        cfg.feature_flags
+                            .select_committee_supporting_next_epoch_version = true;
+                    }
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Switch consensus protocol to Starfish in devnet
+                        cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
+                    }
+                }
                 // Use this template when making changes:
                 //
                 //     // modify an existing constant.
@@ -2398,6 +2445,14 @@ impl ProtocolConfig {
     pub fn set_select_committee_supporting_next_epoch_version(&mut self, val: bool) {
         self.feature_flags
             .select_committee_supporting_next_epoch_version = val;
+    }
+
+    pub fn set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(
+        &mut self,
+        val: bool,
+    ) {
+        self.feature_flags
+            .consensus_median_timestamp_with_checkpoint_enforcement = val;
     }
 }
 

@@ -282,15 +282,15 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 );
             }
         } else if (type === AccountType.KeystoneDerived) {
-            const { sourceID } = payload.args;
-            const accountSource = await getAccountSourceByID(payload.args.sourceID);
+            const { sourceID, accounts } = payload.args;
+            const accountSource = await getAccountSourceByID(sourceID);
             if (!accountSource) {
                 throw new Error(`Account source ${sourceID} not found`);
             }
             if (!(accountSource instanceof KeystoneAccountSource)) {
                 throw new Error(`Invalid account source type`);
             }
-            for (const account of payload.args.accounts) {
+            for (const account of accounts) {
                 newSerializedAccounts.push(
                     await KeystoneAccount.createNew({ ...account, sourceID }),
                 );

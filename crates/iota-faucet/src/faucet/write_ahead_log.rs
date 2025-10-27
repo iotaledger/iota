@@ -92,7 +92,7 @@ impl WriteAheadLog {
                 // the WAL.
                 self.log
                     .remove(&coin)
-                    .unwrap_or_else(|_| panic!("Coin: {coin:?} unable to be removed from log."));
+                    .unwrap_or_else(|_| panic!("coin: {coin:?} unable to be removed from log."));
                 Ok(None)
             }
             Err(err) => Err(err),
@@ -157,7 +157,7 @@ mod tests {
 
         // Reclaim once
         let Some(entry) = wal.reclaim(coin.0).unwrap() else {
-            panic!("Entry not found for {}", coin.0);
+            panic!("entry not found for {}", coin.0);
         };
 
         assert_eq!(uuid, Uuid::from_bytes(entry.uuid));
@@ -166,7 +166,7 @@ mod tests {
 
         // Reclaim again, should still be there.
         let Some(entry) = wal.reclaim(coin.0).unwrap() else {
-            panic!("Entry not found for {}", coin.0);
+            panic!("entry not found for {}", coin.0);
         };
 
         assert_eq!(uuid, Uuid::from_bytes(entry.uuid));
@@ -223,7 +223,7 @@ mod tests {
 
         // Reclaim to show that the entry is there
         let Some(entry) = wal.reclaim(coin.0).unwrap() else {
-            panic!("Entry not found for {}", coin.0);
+            panic!("entry not found for {}", coin.0);
         };
 
         assert_eq!(uuid, Uuid::from_bytes(entry.uuid));

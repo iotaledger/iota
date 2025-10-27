@@ -4,7 +4,7 @@
 
 use std::{collections::HashMap, path::Path, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
 use iota_indexer::{errors::IndexerError, types::owner_to_owner_info};
@@ -166,9 +166,9 @@ impl DynamicFieldHandler {
             },
             DynamicFieldType::DynamicObject => {
                 let object = all_written_objects.get(&object_id).ok_or(
-                    IndexerError::Uncategorized(anyhow::anyhow!(
-                        "Failed to find object_id {:?} when trying to create dynamic field info",
-                        object_id
+                    IndexerError::Uncategorized(anyhow!(
+                        "failed to find object_id {object_id:?} when trying to create dynamic field info",
+
                     )),
                 )?;
                 let version = object.version().value();
