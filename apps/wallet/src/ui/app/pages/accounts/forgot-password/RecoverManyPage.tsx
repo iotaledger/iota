@@ -42,7 +42,7 @@ export function RecoverManyPage() {
     } | null>(null);
 
     function handleCancel() {
-        navigate('/');
+        navigate('/tokens');
     }
 
     function handleNext() {

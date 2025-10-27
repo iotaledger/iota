@@ -143,6 +143,14 @@ jobs:
         run: |
           brew install postgresql
 
+      - name: Install protoc (Windows)
+        if: ${{ matrix.os_type == 'windows-x86_64' }}
+        uses: taiki-e/install-action@protoc
+
+      - name: Install protoc (MacOS arm64)
+        if: ${{ matrix.os_type == 'macos-arm64' }}
+        uses: taiki-e/install-action@protoc
+
       - name: Remove unused apps (MacOS arm64)
         if: ${{ matrix.os_type == 'macos-arm64' }}
         continue-on-error: true

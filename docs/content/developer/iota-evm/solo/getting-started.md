@@ -21,8 +21,10 @@ validate real smart contracts and entire inter-chain protocols before deploying 
 
 ### Prerequisites
 
-[Go (version 1.20)](https://tip.golang.org/doc/go1.20). As _Solo_ tests are written in Go, you must
-[install Go](https://go.dev/doc/install).
+- [Go (version 1.20)](https://tip.golang.org/doc/go1.20). As _Solo_ tests are written in Go, you must
+  [install Go](https://go.dev/doc/install).
+
+- [Docker](https://www.docker.com/). Solo will run a local IOTA network in a Docker container
 
 ### Access the Solo Framework
 

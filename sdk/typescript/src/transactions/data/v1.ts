@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64, toB64 } from '@iota/bcs';
+import { fromBase64, toBase64 } from '@iota/bcs';
 import type { GenericSchema, InferInput, InferOutput } from 'valibot';
 import {
     array,
@@ -238,7 +238,7 @@ export function serializeV1TransactionData(
                     kind: 'Input',
                     index,
                     value: {
-                        Pure: Array.from(fromB64(input.Pure.bytes)),
+                        Pure: Array.from(fromBase64(input.Pure.bytes)),
                     },
                     type: 'pure',
                 };
@@ -325,7 +325,7 @@ export function serializeV1TransactionData(
                 if (command.Publish) {
                     return {
                         kind: 'Publish',
-                        modules: command.Publish.modules.map((mod) => Array.from(fromB64(mod))),
+                        modules: command.Publish.modules.map((mod) => Array.from(fromBase64(mod))),
                         dependencies: command.Publish.dependencies,
                     };
                 }
@@ -354,7 +354,7 @@ export function serializeV1TransactionData(
                 if (command.Upgrade) {
                     return {
                         kind: 'Upgrade',
-                        modules: command.Upgrade.modules.map((mod) => Array.from(fromB64(mod))),
+                        modules: command.Upgrade.modules.map((mod) => Array.from(fromBase64(mod))),
                         dependencies: command.Upgrade.dependencies,
                         packageId: command.Upgrade.package,
                         ticket: convertTransactionArgument(command.Upgrade.ticket, inputs),
@@ -457,7 +457,7 @@ export function transactionDataFromV1(data: SerializedTransactionDataV1): Transa
 
                     return {
                         Pure: {
-                            bytes: toB64(new Uint8Array(value.Pure)),
+                            bytes: toBase64(new Uint8Array(value.Pure)),
                         },
                     };
                 }
@@ -520,7 +520,9 @@ export function transactionDataFromV1(data: SerializedTransactionDataV1): Transa
                 case 'Publish': {
                     return {
                         Publish: {
-                            modules: transaction.modules.map((mod) => toB64(Uint8Array.from(mod))),
+                            modules: transaction.modules.map((mod) =>
+                                toBase64(Uint8Array.from(mod)),
+                            ),
                             dependencies: transaction.dependencies,
                         },
                     };
@@ -548,7 +550,9 @@ export function transactionDataFromV1(data: SerializedTransactionDataV1): Transa
                 case 'Upgrade': {
                     return {
                         Upgrade: {
-                            modules: transaction.modules.map((mod) => toB64(Uint8Array.from(mod))),
+                            modules: transaction.modules.map((mod) =>
+                                toBase64(Uint8Array.from(mod)),
+                            ),
                             dependencies: transaction.dependencies,
                             package: transaction.packageId,
                             ticket: parseV1TransactionArgument(transaction.ticket),

@@ -20,6 +20,7 @@
 /crates/iota-common/ @iotaledger/core-protocol
 /crates/iota-config/ @iotaledger/node
 /crates/iota-core/ @iotaledger/node @iotaledger/consensus
+/crates/iota-core/src/authority/ @iotaledger/node @iotaledger/consensus @iotaledger/research
 /crates/iota-cost/ @iotaledger/vm-language
 /crates/iota-data-ingestion*/ @iotaledger/infrastructure
 /crates/iota-e2e-tests/ @iotaledger/node @iotaledger/vm-language
@@ -31,11 +32,15 @@
 /crates/iota-genesis-builder/ @iotaledger/vm-language
 /crates/iota-genesis-common/ @iotaledger/vm-language
 /crates/iota-graphql*/ @iotaledger/infrastructure
+/crates/iota-grpc-*/ @iotaledger/node
 /crates/iota-http/ @iotaledger/node
 /crates/iota-indexer*/ @iotaledger/infrastructure
 /crates/iota-json/ @iotaledger/infrastructure
 /crates/iota-json-rpc*/ @iotaledger/infrastructure
 /crates/iota-keys/ @iotaledger/dev-tools
+/crates/iota-kvstore/ @iotaledger/infrastructure
+/crates/iota-ledger/ @iotaledger/dev-tools @alexsporn
+/crates/iota-ledger-signer/ @iotaledger/dev-tools @alexsporn
 /crates/iota-light-client/ @iotaledger/dev-tools
 /crates/iota-macros/ @iotaledger/dev-tools
 /crates/iota-mainnet-unlocks/ @iotaledger/infrastructure
@@ -72,6 +77,7 @@
 /crates/iota-surfer/ @iotaledger/node
 /crates/iota-swarm/ @iotaledger/node
 /crates/iota-swarm-config/ @iotaledger/node
+/crates/iota-synthetic-ingestion/ @iotaledger/infrastructure
 /crates/iota-test-transaction-builder/ @iotaledger/dev-tools
 /crates/iota-tls/ @iotaledger/core-protocol
 /crates/iota-tool/ @iotaledger/node
@@ -84,6 +90,7 @@
 /crates/prometheus-closure-metric/ @iotaledger/node
 /crates/shared-crypto/ @iotaledger/core-protocol
 /crates/simulacrum/ @iotaledger/vm-language
+/crates/starfish/ @iotaledger/consensus
 /crates/telemetry-subscribers/ @iotaledger/core-protocol
 /crates/transaction-fuzzer/ @iotaledger/node @iotaledger/vm-language
 /crates/test-cluster/ @iotaledger/infrastructure
@@ -122,13 +129,13 @@ vercel.json @iotaledger/tooling
 /iota-execution/ @iotaledger/vm-language
 /external-crates/ @iotaledger/vm-language
 
-# Docs and examples are for DevEx to approve upon
-/docs/ @iotaledger/devx
-/examples/ @iotaledger/devx
+# Docs and examples are for DevRel to approve upon
+/docs/ @iotaledger/devrel
+/examples/ @iotaledger/devrel
 
 # Override ownership of Boxfish Studio and the tooling team for the following files
-/docs/**/package.json @iotaledger/devx
-/docs/**/vercel.json @iotaledger/devx
+/docs/**/package.json @iotaledger/devrel
+/docs/**/vercel.json @iotaledger/devrel
 
 # CI Taskforce
 /.github/actions/ @msarcev @alexsporn @thibault-martinez @DaughterOfMars @Dr-Electron
@@ -144,6 +151,7 @@ vercel.json @iotaledger/tooling
 /scripts/generate_files/ @muXxer
 /scripts/tooling/ @iotaledger/tooling
 /scripts/utils/ @muXxer
+/scripts/release_notes/ @iotaledger/dev-tools
 
 # Other
 /kiosk/ @iotaledger/vm-language

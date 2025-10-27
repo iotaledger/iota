@@ -34,7 +34,7 @@ use move_core_types::ident_str;
 use crate::{
     authority::{
         AuthorityState,
-        authority_test_utils::{
+        auth_unit_test_utils::{
             publish_package_on_single_authority, upgrade_package_on_single_authority,
         },
         test_authority_builder::TestAuthorityBuilder,
@@ -365,14 +365,10 @@ async fn test_package_denied() {
     .await
     .unwrap();
 
-    state
-        .get_cache_commit()
-        .commit_transaction_outputs(
-            state.epoch_store_for_testing().epoch(),
-            &[tx_c, tx_b, tx_a, tx_c_prime, tx_b_prime],
-        )
-        .await
-        .unwrap();
+    state.get_cache_commit().commit_transaction_outputs(
+        state.epoch_store_for_testing().epoch(),
+        &[tx_c, tx_b, tx_a, tx_c_prime, tx_b_prime],
+    );
 
     // Re-create the state such that we could deny package c.
     let state = reload_state_with_new_deny_config(
@@ -492,7 +488,7 @@ async fn test_certificate_deny() {
         CertifiedTransaction::new(tx.into_message(), vec![signature], epoch_store.committee())
             .unwrap(),
     );
-    let (effects, _) = state.try_execute_for_test(&cert).await.unwrap();
+    let (effects, _) = state.execute_for_test(&cert);
     assert!(matches!(
         effects.status(),
         &ExecutionStatus::Failure {

@@ -100,6 +100,6 @@ async fn main() -> Result<(), anyhow::Error> {
             ExecuteTransactionRequestType::WaitForLocalExecution,
         )
         .await?;
-    println!("{}", transaction_response);
+    println!("{transaction_response}");
     Ok(())
 }

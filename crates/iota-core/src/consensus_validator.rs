@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use consensus_core::{TransactionVerifier, ValidationError};
+use consensus_core;
 use eyre::WrapErr;
 use fastcrypto_tbls::dkg_v1;
 use iota_metrics::monitored_scope;
@@ -13,6 +13,7 @@ use iota_types::{
     messages_consensus::{ConsensusTransaction, ConsensusTransactionKind},
 };
 use prometheus::{IntCounter, Registry, register_int_counter_with_registry};
+use starfish_core;
 use tap::TapFallible;
 use tracing::{info, warn};
 
@@ -53,6 +54,8 @@ impl IotaTxValidator {
         let mut cert_batch = Vec::new();
         let mut ckpt_messages = Vec::new();
         let mut ckpt_batch = Vec::new();
+        let mut authority_cap_batch = Vec::new();
+
         for tx in txs.iter() {
             match tx {
                 ConsensusTransactionKind::CertifiedTransaction(certificate) => {
@@ -74,6 +77,9 @@ impl IotaTxValidator {
                         return Err(IotaError::InvalidDkgMessageSize);
                     }
                 }
+                ConsensusTransactionKind::SignedCapabilityNotificationV1(signed_cap) => {
+                    authority_cap_batch.push(signed_cap);
+                }
 
                 ConsensusTransactionKind::EndOfPublish(_)
                 | ConsensusTransactionKind::NewJWKFetched(_, _, _)
@@ -84,10 +90,11 @@ impl IotaTxValidator {
         // verify the certificate signatures as a batch
         let cert_count = cert_batch.len();
         let ckpt_count = ckpt_batch.len();
+        let authority_cap_count = authority_cap_batch.len();
 
         self.epoch_store
             .signature_verifier
-            .verify_certs_and_checkpoints(cert_batch, ckpt_batch)
+            .verify_certs_and_checkpoints(cert_batch, ckpt_batch, authority_cap_batch)
             .tap_err(|e| warn!("batch verification error: {}", e))?;
 
         // All checkpoint sigs have been verified, forward them to the checkpoint
@@ -103,6 +110,9 @@ impl IotaTxValidator {
         self.metrics
             .checkpoint_signatures_verified
             .inc_by(ckpt_count as u64);
+        self.metrics
+            .authority_capabilities_verified
+            .inc_by(authority_cap_count as u64);
         Ok(())
 
         // todo - we should un-comment line below once we have a way to revert
@@ -122,27 +132,50 @@ fn tx_from_bytes(tx: &[u8]) -> Result<ConsensusTransaction, eyre::Report> {
         .wrap_err("Malformed transaction (failed to deserialize)")
 }
 
-impl TransactionVerifier for IotaTxValidator {
-    fn verify_batch(&self, batch: &[&[u8]]) -> Result<(), ValidationError> {
-        let _scope = monitored_scope("ValidateBatch");
+macro_rules! impl_tx_verifier_for {
+    (
+        // The type to implement the trait for
+        type = $impl_ty:path,
+        // The trait to implement
+        trait = $trait_path:path,
+        // The error type to use in the trait method
+        error = $err_path:path,
+    ) => {
+        impl $trait_path for $impl_ty {
+            fn verify_batch(&self, batch: &[&[u8]]) -> core::result::Result<(), $err_path> {
+                let _scope = monitored_scope("ValidateBatch");
 
-        let txs = batch
-            .iter()
-            .map(|tx| {
-                tx_from_bytes(tx)
-                    .map(|tx| tx.kind)
-                    .map_err(|e| ValidationError::InvalidTransaction(e.to_string()))
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+                let txs = batch
+                    .iter()
+                    .map(|tx| {
+                        tx_from_bytes(tx)
+                            .map(|tx| tx.kind)
+                            .map_err(|e| <$err_path>::InvalidTransaction(e.to_string()))
+                    })
+                    .collect::<core::result::Result<Vec<_>, _>>()?;
 
-        self.validate_transactions(txs)
-            .map_err(|e| ValidationError::InvalidTransaction(e.to_string()))
-    }
+                self.validate_transactions(txs)
+                    .map_err(|e| <$err_path>::InvalidTransaction(e.to_string()))
+            }
+        }
+    };
 }
+// Use it for both traits:
+impl_tx_verifier_for!(
+    type = IotaTxValidator,
+    trait = consensus_core::TransactionVerifier,
+    error = consensus_core::ValidationError,
+);
+impl_tx_verifier_for!(
+    type = IotaTxValidator,
+    trait = starfish_core::TransactionVerifier,
+    error = starfish_core::ValidationError,
+);
 
 pub struct IotaTxValidatorMetrics {
     certificate_signatures_verified: IntCounter,
     checkpoint_signatures_verified: IntCounter,
+    authority_capabilities_verified: IntCounter,
 }
 
 impl IotaTxValidatorMetrics {
@@ -157,6 +190,12 @@ impl IotaTxValidatorMetrics {
             checkpoint_signatures_verified: register_int_counter_with_registry!(
                 "checkpoint_signatures_verified",
                 "Number of checkpoint verified in consensus batch verifier",
+                registry
+            )
+            .unwrap(),
+            authority_capabilities_verified: register_int_counter_with_registry!(
+                "authority_capabilities_verified",
+                "Number of signed authority capabilities verified in consensus batch verifier",
                 registry
             )
             .unwrap(),

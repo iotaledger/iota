@@ -115,6 +115,12 @@ pub struct EpochMetrics {
     /// DKG protocol, at which point the node has submitted a DKG
     /// Confirmation, for the most recent epoch.
     pub epoch_random_beacon_dkg_confirmation_time_ms: IntGauge,
+
+    /// The number of consensus output items in the quarantine.
+    pub consensus_quarantine_queue_size: IntGauge,
+
+    /// The number of shared object assignments in the quarantine.
+    pub shared_object_assignments_size: IntGauge,
 }
 
 impl EpochMetrics {
@@ -230,6 +236,18 @@ impl EpochMetrics {
             epoch_random_beacon_dkg_confirmation_time_ms: register_int_gauge_with_registry!(
                 "epoch_random_beacon_dkg_confirmation_time_ms",
                 "The amount of time taken to complete first phase of the random beacon DKG protocol, at which point the node has submitted a DKG Confirmation, for the most recent epoch",
+                registry
+            )
+            .unwrap(),
+            consensus_quarantine_queue_size: register_int_gauge_with_registry!(
+                "consensus_quarantine_queue_size",
+                "The number of consensus output items in the quarantine",
+                registry
+            )
+            .unwrap(),
+            shared_object_assignments_size: register_int_gauge_with_registry!(
+                "shared_object_assignments_size",
+                "The number of shared object assignments in the quarantine",
                 registry
             )
             .unwrap(),

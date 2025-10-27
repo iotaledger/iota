@@ -1,6 +1,6 @@
 [package]
 name = "abort_math"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 MoveStdlib = { local = "../../../../move-stdlib" }

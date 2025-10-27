@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{
@@ -125,10 +125,10 @@ pub trait ValueView {
     }
 
     /// Returns the abstract memory size of the value.
-    fn abstract_memory_size(&self) -> AbstractMemorySize {
+    fn abstract_memory_size(&self, traverse: bool) -> AbstractMemorySize {
         use crate::values::{LEGACY_CONST_SIZE, LEGACY_REFERENCE_SIZE, LEGACY_STRUCT_SIZE};
 
-        struct Acc(AbstractMemorySize);
+        struct Acc(AbstractMemorySize, bool);
 
         impl ValueVisitor for Acc {
             fn visit_u8(&mut self, _depth: usize, _val: u8) {
@@ -220,11 +220,11 @@ pub trait ValueView {
 
             fn visit_ref(&mut self, _depth: usize, _is_global: bool) -> bool {
                 self.0 += LEGACY_REFERENCE_SIZE;
-                false
+                self.1
             }
         }
 
-        let mut acc = Acc(0.into());
+        let mut acc = Acc(0.into(), traverse);
         self.visit(&mut acc);
 
         acc.0

@@ -26,6 +26,7 @@ use iota_types::{
     quorum_driver_types::ExecuteTransactionRequestType,
     transaction::CallArg,
 };
+use rand::{SeedableRng, rngs::StdRng};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 trait MatchesResponseOptions {
@@ -548,6 +549,42 @@ async fn get_transaction_block_timestamp() {
 #[sim_test]
 async fn get_transaction_block() {
     get_transaction_block_with_options(IotaTransactionBlockResponseOptions::default()).await;
+}
+
+#[sim_test]
+async fn is_transaction_not_present() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let rng = StdRng::from_seed([1; 32]);
+    let digest = TransactionDigest::generate(rng);
+
+    assert!(
+        !cluster
+            .rpc_client()
+            .is_transaction_indexed_on_node(digest)
+            .await
+            .unwrap()
+    );
+}
+
+#[sim_test]
+async fn is_transaction_present() {
+    let cluster = TestClusterBuilder::new().build().await;
+    let address = cluster.get_address_0();
+
+    let (object_ids, gas) = get_objects_to_mutate(&cluster, address).await;
+
+    let transaction = cluster
+        .transfer_object(address, address, object_ids[0], gas, None)
+        .await
+        .unwrap();
+
+    assert!(
+        cluster
+            .rpc_client()
+            .is_transaction_indexed_on_node(transaction.digest)
+            .await
+            .unwrap()
+    );
 }
 
 #[sim_test]
@@ -1273,8 +1310,7 @@ async fn get_chain_identifier() {
     let fullnode_chain_identifier = cluster
         .fullnode_handle
         .iota_node
-        .with(|node| node.state().get_chain_identifier())
-        .unwrap();
+        .with(|node| node.state().get_chain_identifier());
 
     let rpc_chain_identifier = http_client.get_chain_identifier().await.unwrap();
 
@@ -1475,7 +1511,7 @@ async fn try_get_past_object_version_not_found() {
             .with(|node| {
                 node.state()
                     .get_object_cache_reader()
-                    .object_exists_by_key(&mutated_obj_id, seq_num)
+                    .try_object_exists_by_key(&mutated_obj_id, seq_num)
             })
             .unwrap()
         {

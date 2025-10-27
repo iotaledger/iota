@@ -4,7 +4,7 @@
 
 use core::num::NonZeroUsize;
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use iota_config::node::ArchiveReaderConfig;
 use iota_data_ingestion_core::history::reader::HistoricalReader;
 use iota_types::{
@@ -20,11 +20,9 @@ pub struct CheckpointStore {
 
 impl CheckpointStore {
     pub fn new(config: &Config) -> Result<Self> {
-        let checkpoint_store_config = config
-            .checkpoint_store_config
-            .as_ref()
-            .cloned()
-            .ok_or_else(|| anyhow!("missing checkpoint store url"))?;
+        let Some(checkpoint_store_config) = config.checkpoint_store_config.clone() else {
+            bail!("missing checkpoint store config");
+        };
 
         let config = ArchiveReaderConfig {
             remote_store_config: checkpoint_store_config,

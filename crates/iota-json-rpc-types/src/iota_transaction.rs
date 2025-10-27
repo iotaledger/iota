@@ -9,6 +9,7 @@ use std::{
 
 use enum_dispatch::enum_dispatch;
 use fastcrypto::encoding::Base64;
+use futures::{Stream, StreamExt, stream::FuturesOrdered};
 use iota_json::{IotaJsonValue, primitive_type};
 use iota_metrics::monitored_scope;
 use iota_package_resolver::{PackageStore, Resolver};
@@ -29,22 +30,23 @@ use iota_types::{
     layout_resolver::{LayoutResolver, get_layout_from_struct_tag},
     messages_checkpoint::CheckpointSequenceNumber,
     messages_consensus::ConsensusDeterminedVersionAssignments,
-    object::Owner,
+    object::{Owner, bounded_visitor::BoundedVisitor},
     parse_iota_type_tag,
     quorum_driver_types::ExecuteTransactionRequestType,
     signature::GenericSignature,
     storage::{DeleteKind, WriteKind},
     transaction::{
-        Argument, CallArg, ChangeEpoch, ChangeEpochV2, Command, EndOfEpochTransactionKind,
-        GenesisObject, InputObjectKind, ObjectArg, ProgrammableMoveCall, ProgrammableTransaction,
-        SenderSignedData, TransactionData, TransactionDataAPI, TransactionKind,
+        Argument, CallArg, ChangeEpoch, ChangeEpochV2, ChangeEpochV3, Command,
+        EndOfEpochTransactionKind, GenesisObject, InputObjectKind, ObjectArg, ProgrammableMoveCall,
+        ProgrammableTransaction, SenderSignedData, TransactionData, TransactionDataAPI,
+        TransactionKind,
     },
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
 use move_core_types::{
     annotated_value::MoveTypeLayout,
-    identifier::IdentStr,
+    identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag, TypeTag},
 };
 use schemars::JsonSchema;
@@ -57,7 +59,7 @@ use tabled::{
 };
 
 use crate::{
-    Filter, IotaEvent, IotaObjectRef, Page, balance_changes::BalanceChange,
+    Filter, IotaEvent, IotaMoveValue, IotaObjectRef, Page, balance_changes::BalanceChange,
     iota_transaction::GenericSignature::Signature, object_changes::ObjectChange,
 };
 
@@ -87,6 +89,36 @@ impl IotaTransactionBlockResponseQuery {
     }
 
     pub fn new_with_filter(filter: TransactionFilter) -> Self {
+        Self {
+            filter: Some(filter),
+            options: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, JsonSchema, Default)]
+#[serde(
+    rename_all = "camelCase",
+    rename = "TransactionBlockResponseQuery",
+    default
+)]
+pub struct IotaTransactionBlockResponseQueryV2 {
+    /// If None, no filter will be applied
+    pub filter: Option<TransactionFilterV2>,
+    /// config which fields to include in the response, by default only digest
+    /// is included
+    pub options: Option<IotaTransactionBlockResponseOptions>,
+}
+
+impl IotaTransactionBlockResponseQueryV2 {
+    pub fn new(
+        filter: Option<TransactionFilterV2>,
+        options: Option<IotaTransactionBlockResponseOptions>,
+    ) -> Self {
+        Self { filter, options }
+    }
+
+    pub fn new_with_filter(filter: TransactionFilterV2) -> Self {
         Self {
             filter: Some(filter),
             options: None,
@@ -521,6 +553,9 @@ impl IotaTransactionBlockKind {
                             EndOfEpochTransactionKind::ChangeEpochV2(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
+                            EndOfEpochTransactionKind::ChangeEpochV3(e) => {
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                            }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                                 IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
                             }
@@ -598,6 +633,9 @@ impl IotaTransactionBlockKind {
                                 IotaEndOfEpochTransactionKind::ChangeEpoch(e.into())
                             }
                             EndOfEpochTransactionKind::ChangeEpochV2(e) => {
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
+                            }
+                            EndOfEpochTransactionKind::ChangeEpochV3(e) => {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
@@ -689,6 +727,10 @@ pub struct IotaChangeEpochV2 {
     #[schemars(with = "BigInt<u64>")]
     #[serde_as(as = "BigInt<u64>")]
     pub epoch_start_timestamp_ms: u64,
+    #[schemars(with = "Option<Vec<BigInt<u64>>>")]
+    #[serde_as(as = "Option<Vec<BigInt<u64>>>")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub eligible_active_validators: Option<Vec<u64>>,
 }
 
 impl From<ChangeEpochV2> for IotaChangeEpochV2 {
@@ -700,6 +742,21 @@ impl From<ChangeEpochV2> for IotaChangeEpochV2 {
             computation_charge_burned: e.computation_charge_burned,
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
+            eligible_active_validators: None,
+        }
+    }
+}
+
+impl From<ChangeEpochV3> for IotaChangeEpochV2 {
+    fn from(e: ChangeEpochV3) -> Self {
+        Self {
+            epoch: e.epoch,
+            storage_charge: e.storage_charge,
+            computation_charge: e.computation_charge,
+            computation_charge_burned: e.computation_charge_burned,
+            storage_rebate: e.storage_rebate,
+            epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
+            eligible_active_validators: Some(e.eligible_active_validators),
         }
     }
 }
@@ -1088,6 +1145,7 @@ impl Display for IotaTransactionBlockEffects {
     }
 }
 
+#[serde_as]
 #[derive(Eq, PartialEq, Clone, Debug, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct DryRunTransactionBlockResponse {
@@ -1096,6 +1154,11 @@ pub struct DryRunTransactionBlockResponse {
     pub object_changes: Vec<ObjectChange>,
     pub balance_changes: Vec<BalanceChange>,
     pub input: IotaTransactionBlockData,
+    /// If an input object is congested, suggest a gas price to use.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "Option<BigInt<u64>>")]
+    #[serde_as(as = "Option<BigInt<u64>>")]
+    pub suggested_gas_price: Option<u64>,
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]
@@ -1226,6 +1289,80 @@ pub struct IotaExecutionResult {
     /// The return values from the transaction
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub return_values: Vec<(Vec<u8>, IotaTypeTag)>,
+}
+
+impl IotaExecutionResult {
+    fn into_stream_return_value_layouts<S: PackageStore>(
+        self,
+        package_resolver: &Resolver<S>,
+    ) -> impl Stream<Item = anyhow::Result<(Vec<u8>, MoveTypeLayout)>> + use<'_, S> {
+        self.return_values
+            .into_iter()
+            .map(|(bytes, iota_type_tag)| async {
+                let type_tag = TypeTag::try_from(iota_type_tag)?;
+                let move_type_layout = package_resolver.type_layout(type_tag).await?;
+                Ok((bytes, move_type_layout))
+            })
+            .collect::<FuturesOrdered<_>>()
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub enum IotaMoveViewCallResults {
+    /// Execution error from executing the move view call
+    #[serde(rename = "executionError")]
+    Error(String),
+    /// The return values of the move view function
+    #[serde(rename = "functionReturnValues")]
+    Results(Vec<IotaMoveValue>),
+}
+
+impl IotaMoveViewCallResults {
+    /// Processes the dev-inspect results to produce the response
+    /// of the move-view function call.
+    pub async fn from_dev_inspect_results<S: PackageStore>(
+        package_store: S,
+        dev_inspect_results: DevInspectResults,
+    ) -> anyhow::Result<Self> {
+        if let Some(error) = dev_inspect_results.error {
+            return Ok(Self::Error(error));
+        }
+        let Some(mut tx_execution_results) = dev_inspect_results.results else {
+            return Ok(Self::Error("function call returned no values".into()));
+        };
+        let Some(execution_results) = tx_execution_results.pop() else {
+            return Ok(Self::Error(
+                "no results from move view function call".into(),
+            ));
+        };
+        if !tx_execution_results.is_empty() {
+            return Ok(Self::Error("multiple transactions executed".into()));
+        }
+        let mut move_call_results = Vec::with_capacity(execution_results.return_values.len());
+        let package_resolver = Resolver::new(package_store);
+        let mut execution_results =
+            execution_results.into_stream_return_value_layouts(&package_resolver);
+        while let Some(result) = execution_results.next().await {
+            let (bytes, move_type_layout) = result?;
+            let move_value = BoundedVisitor::deserialize_value(&bytes, &move_type_layout)?;
+            move_call_results.push(IotaMoveValue::from(move_value));
+        }
+        Ok(Self::Results(move_call_results))
+    }
+
+    pub fn into_return_values(self) -> Vec<IotaMoveValue> {
+        match self {
+            IotaMoveViewCallResults::Error(_) => Default::default(),
+            IotaMoveViewCallResults::Results(values) => values,
+        }
+    }
+
+    pub fn error(&self) -> Option<&str> {
+        match self {
+            IotaMoveViewCallResults::Error(e) => Some(e.as_str()),
+            IotaMoveViewCallResults::Results(_) => None,
+        }
+    }
 }
 
 type ExecutionResult = (
@@ -1802,9 +1939,17 @@ impl IotaProgrammableTransactionBlock {
         for command in commands.iter() {
             match command {
                 Command::MoveCall(c) => {
-                    let id = ModuleId::new(c.package.into(), c.module.clone());
+                    let Ok(module) = Identifier::new(c.module.clone()) else {
+                        return result_types;
+                    };
+
+                    let Ok(function) = Identifier::new(c.function.clone()) else {
+                        return result_types;
+                    };
+
+                    let id = ModuleId::new(c.package.into(), module);
                     let Some(types) =
-                        get_signature_types(id, c.function.as_ident_str(), module_cache)
+                        get_signature_types(id, function.as_ident_str(), module_cache)
                     else {
                         return result_types;
                     };
@@ -2005,6 +2150,13 @@ impl From<Argument> for IotaArgument {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(untagged)]
+pub enum PtbInput {
+    PtbRef(IotaArgument),
+    CallArg(IotaJsonValue),
+}
+
 /// The transaction for calling a Move function, either an entry function or a
 /// public function (which cannot return references).
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
@@ -2151,7 +2303,7 @@ pub struct MoveCallParams {
     pub function: String,
     #[serde(default)]
     pub type_arguments: Vec<IotaTypeTag>,
-    pub arguments: Vec<IotaJsonValue>,
+    pub arguments: Vec<PtbInput>,
 }
 
 #[serde_as]
@@ -2369,6 +2521,42 @@ pub enum TransactionFilter {
     TransactionKindIn(Vec<IotaTransactionKind>),
 }
 
+impl TransactionFilter {
+    pub fn as_v2(&self) -> TransactionFilterV2 {
+        match self {
+            TransactionFilter::InputObject(o) => TransactionFilterV2::InputObject(*o),
+            TransactionFilter::ChangedObject(o) => TransactionFilterV2::ChangedObject(*o),
+            TransactionFilter::FromAddress(a) => TransactionFilterV2::FromAddress(*a),
+            TransactionFilter::ToAddress(a) => TransactionFilterV2::ToAddress(*a),
+            TransactionFilter::FromAndToAddress { from, to } => {
+                TransactionFilterV2::FromAndToAddress {
+                    from: *from,
+                    to: *to,
+                }
+            }
+            TransactionFilter::FromOrToAddress { addr } => {
+                TransactionFilterV2::FromOrToAddress { addr: *addr }
+            }
+            TransactionFilter::MoveFunction {
+                package,
+                module,
+                function,
+            } => TransactionFilterV2::MoveFunction {
+                package: *package,
+                module: module.clone(),
+                function: function.clone(),
+            },
+            TransactionFilter::TransactionKind(kind) => TransactionFilterV2::TransactionKind(*kind),
+            TransactionFilter::TransactionKindIn(kinds) => {
+                TransactionFilterV2::TransactionKindIn(kinds.clone())
+            }
+            TransactionFilter::Checkpoint(checkpoint) => {
+                TransactionFilterV2::Checkpoint(*checkpoint)
+            }
+        }
+    }
+}
+
 impl Filter<EffectsWithInput> for TransactionFilter {
     fn matches(&self, item: &EffectsWithInput) -> bool {
         let _scope = monitored_scope("TransactionFilter::matches");
@@ -2414,6 +2602,106 @@ impl Filter<EffectsWithInput> for TransactionFilter {
                 .any(|kind| kind == &IotaTransactionKind::from(item.input.kind())),
             // this filter is not supported, RPC will reject it on subscription
             TransactionFilter::Checkpoint(_) => false,
+        }
+    }
+}
+
+#[serde_as]
+#[derive(Clone, Debug, JsonSchema, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum TransactionFilterV2 {
+    /// Query by checkpoint.
+    Checkpoint(
+        #[schemars(with = "BigInt<u64>")]
+        #[serde_as(as = "Readable<BigInt<u64>, _>")]
+        CheckpointSequenceNumber,
+    ),
+    /// Query by move function.
+    MoveFunction {
+        package: ObjectID,
+        module: Option<String>,
+        function: Option<String>,
+    },
+    /// Query by input object.
+    InputObject(ObjectID),
+    /// Query by changed object, including created, mutated and unwrapped
+    /// objects.
+    ChangedObject(ObjectID),
+    /// Query transactions that wrapped or deleted the specified object.
+    /// Includes transactions that either created and immediately wrapped
+    /// the object or unwrapped and immediately deleted it.
+    WrappedOrDeletedObject(ObjectID),
+    /// Query by sender address.
+    FromAddress(IotaAddress),
+    /// Query by recipient address.
+    ToAddress(IotaAddress),
+    /// Query by sender and recipient address.
+    FromAndToAddress { from: IotaAddress, to: IotaAddress },
+    /// Query txs that have a given address as sender or recipient.
+    FromOrToAddress { addr: IotaAddress },
+    /// Query by transaction kind
+    TransactionKind(IotaTransactionKind),
+    /// Query transactions of any given kind in the input.
+    TransactionKindIn(Vec<IotaTransactionKind>),
+}
+
+impl TransactionFilterV2 {
+    pub fn as_v1(&self) -> Option<TransactionFilter> {
+        match self {
+            TransactionFilterV2::InputObject(o) => Some(TransactionFilter::InputObject(*o)),
+            TransactionFilterV2::ChangedObject(o) => Some(TransactionFilter::ChangedObject(*o)),
+            TransactionFilterV2::FromAddress(a) => Some(TransactionFilter::FromAddress(*a)),
+            TransactionFilterV2::ToAddress(a) => Some(TransactionFilter::ToAddress(*a)),
+            TransactionFilterV2::FromAndToAddress { from, to } => {
+                Some(TransactionFilter::FromAndToAddress {
+                    from: *from,
+                    to: *to,
+                })
+            }
+            TransactionFilterV2::FromOrToAddress { addr } => {
+                Some(TransactionFilter::FromOrToAddress { addr: *addr })
+            }
+            TransactionFilterV2::MoveFunction {
+                package,
+                module,
+                function,
+            } => Some(TransactionFilter::MoveFunction {
+                package: *package,
+                module: module.clone(),
+                function: function.clone(),
+            }),
+            TransactionFilterV2::TransactionKind(kind) => {
+                Some(TransactionFilter::TransactionKind(*kind))
+            }
+            TransactionFilterV2::TransactionKindIn(kinds) => {
+                Some(TransactionFilter::TransactionKindIn(kinds.clone()))
+            }
+            TransactionFilterV2::Checkpoint(checkpoint) => {
+                Some(TransactionFilter::Checkpoint(*checkpoint))
+            }
+            // V2-only variants which do not have a V1 equivalent
+            TransactionFilterV2::WrappedOrDeletedObject(_) => None,
+        }
+    }
+}
+
+impl Filter<EffectsWithInput> for TransactionFilterV2 {
+    fn matches(&self, item: &EffectsWithInput) -> bool {
+        let _scope = monitored_scope("TransactionFilterV2::matches");
+        if let Some(v1) = self.as_v1() {
+            return v1.matches(item);
+        }
+        // Fallback for new V2-only variants:
+        match self {
+            TransactionFilterV2::WrappedOrDeletedObject(o) => item
+                .effects
+                .wrapped()
+                .iter()
+                .chain(item.effects.deleted())
+                .chain(item.effects.unwrapped_then_deleted())
+                .any(|oref| &oref.object_id == o),
+
+            _ => false,
         }
     }
 }

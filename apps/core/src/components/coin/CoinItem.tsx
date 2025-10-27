@@ -11,9 +11,9 @@ import {
     ImageType,
 } from '@iota/apps-ui-kit';
 import { CoinIcon, ImageIconSize } from '../';
-import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { CoinFormat, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { type ReactNode } from 'react';
-import { CoinFormat, useFormatCoin } from '../../hooks';
+import { useFormatCoin } from '../../hooks';
 
 interface CoinItemProps {
     coinType: string;

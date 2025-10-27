@@ -10,4 +10,3 @@ description = "Library for a Prometheus metric that computes its value by given 
 [dependencies]
 anyhow.workspace = true
 prometheus.workspace = true
-protobuf.workspace = true

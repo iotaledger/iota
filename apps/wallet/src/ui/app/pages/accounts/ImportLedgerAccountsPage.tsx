@@ -8,7 +8,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     AccountsFormType,
     useAccountsFormContext,
-    LedgerAccountList,
+    AccountList,
     useDeriveLedgerAccounts,
     type DerivedLedgerAccount,
     Overlay,
@@ -75,7 +75,7 @@ export function ImportLedgerAccountsPage() {
     } else if (!encounteredDerviceAccountsError) {
         importLedgerAccountsBody = (
             <div className="max-h-[530px] w-full overflow-auto">
-                <LedgerAccountList
+                <AccountList
                     accounts={ledgerAccounts}
                     selectedAccounts={selectedLedgerAccounts}
                     onAccountClick={onAccountClick}
@@ -126,12 +126,21 @@ export function ImportLedgerAccountsPage() {
             <div className="flex h-full w-full flex-col">
                 {importLedgerAccountsBody}
                 <div className="flex flex-1 items-end">
-                    <Button
-                        text="Next"
-                        disabled={isUnlockButtonDisabled}
-                        onClick={handleNextClick}
-                        fullWidth
-                    />
+                    {areAllAccountsImported ? (
+                        <Button
+                            text="Finish"
+                            onClick={() => navigate('/accounts/manage')}
+                            fullWidth
+                        />
+                    ) : (
+                        <Button
+                            text="Next"
+                            disabled={isUnlockButtonDisabled}
+                            onClick={handleNextClick}
+                            fullWidth
+                        />
+                    )}
+                    ;
                 </div>
             </div>
         </Overlay>

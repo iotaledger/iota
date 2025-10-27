@@ -126,7 +126,7 @@ fn parse_template(template: &str, move_struct: &MoveStruct) -> Result<String, Di
             '}' if !escaped => {
                 in_braces = false;
                 let value = get_value_from_move_struct(move_struct, &var_name)?;
-                output = output.replace(&format!("{{{}}}", var_name), &value.to_string());
+                output = output.replace(&format!("{{{var_name}}}"), &value.to_string());
             }
             _ if !escaped => {
                 if in_braces {

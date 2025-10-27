@@ -22,7 +22,7 @@ use iota_types::{
     transaction::GasData,
 };
 use proptest::{collection::vec, prelude::*, test_runner::TestRunner};
-use rand::{SeedableRng, rngs::StdRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 fn new_gas_coin_with_balance_and_owner(balance: u64, owner: Owner) -> Object {
     Object::new_move(
@@ -174,6 +174,6 @@ pub fn run_proptest<D>(
         test_fn(test_data.data, test_data.executor)
     });
     if result.is_err() {
-        panic!("test failed: {:?}", result);
+        panic!("test failed: {result:?}");
     }
 }

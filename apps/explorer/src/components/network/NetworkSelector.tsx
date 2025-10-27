@@ -129,6 +129,7 @@ export function NetworkSelector(): JSX.Element {
                                 </div>
                                 {customOpen && (
                                     <div className="mt-3">
+                                        For full functionality, provide an indexer URL.
                                         <CustomRPCInput
                                             value={isCustomNetwork ? network : ''}
                                             onChange={handleNetworkSwitch}

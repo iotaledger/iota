@@ -14,7 +14,7 @@ tags:
 # Revoke a Verifiable Credential
 
 The [example](#full-example-code) below demonstrates two methods that an issuer can use to revoke a verifiable credential
-using the IOTA Identity Framework:
+using the IOTA Identity Library:
 
 1. By using the [`credentialStatus`](https://www.w3.org/TR/vc-data-model/#status) field in a credential and linking
    to a [revocation method](#revocation-methods).
@@ -23,11 +23,11 @@ using the IOTA Identity Framework:
 
 ## Revocation methods
 
-The IOTA Identity Framework supports two different revocation methods: `RevocationBitmap2022` and `StatusList2021`.
+The IOTA Identity Library supports two different revocation methods: `RevocationBitmap2022` and `StatusList2021`.
 
 ### Revocation Bitmap
 
-[RevocationBitmap2022](../../references/revocation-bitmap-2022.mdx) is the default credential revocation method used in the IOTA Identity Framework. It allows
+[RevocationBitmap2022](../../references/revocation-bitmap-2022.mdx) is the default credential revocation method used in the IOTA Identity Library. It allows
 issuers to control whether a credential is _valid_ or _revoked_. To do so, a revocation list (represented
 as a bitmap) is stored in the issuer's DID document.
 When a credential is issued, a unique index from the issuer's revocation list

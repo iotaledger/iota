@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { toB58, toB64 } from '@iota/bcs';
+import { toBase58, toBase64 } from '@iota/bcs';
 import { beforeAll, describe, expect, it, test } from 'vitest';
 
 import { bcs } from '../../../src/bcs';
@@ -50,7 +50,7 @@ describe('Multisig scenarios', () => {
             {
                 objectId: (Math.random() * 100000).toFixed(0).padEnd(64, '0'),
                 version: String((Math.random() * 10000).toFixed(0)),
-                digest: toB58(
+                digest: toBase58(
                     new Uint8Array([
                         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
                         5, 6, 7, 8, 9, 1, 2,
@@ -137,7 +137,7 @@ describe('Multisig scenarios', () => {
         tmp.set([SIGNATURE_SCHEME_TO_FLAG['MultiSig']]);
         tmp.set(bytes, 1);
 
-        const multisig = toB64(tmp);
+        const multisig = toBase64(tmp);
 
         expect(() =>
             multiSigPublicKey.combinePartialSignatures([sig1.signature, sig3.signature]),
@@ -206,7 +206,7 @@ describe('Multisig scenarios', () => {
         tmp.set([SIGNATURE_SCHEME_TO_FLAG['MultiSig']]);
         tmp.set(bytes, 1);
 
-        const multisig = toB64(tmp);
+        const multisig = toBase64(tmp);
 
         expect(() =>
             multiSigPublicKey.combinePartialSignatures([sig2.signature, sig2.signature]),
@@ -573,7 +573,7 @@ describe('MultisigKeypair', () => {
             {
                 objectId: (Math.random() * 100000).toFixed(0).padEnd(64, '0'),
                 version: String((Math.random() * 10000).toFixed(0)),
-                digest: toB58(
+                digest: toBase58(
                     new Uint8Array([
                         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 0, 1, 2, 3, 4,
                         5, 6, 7, 8, 9, 1, 2,

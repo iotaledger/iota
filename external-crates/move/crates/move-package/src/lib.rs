@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod package_lock;
@@ -33,7 +33,7 @@ use serde::{Deserialize, Serialize};
 use source_package::{
     layout::SourcePackageLayout,
     manifest_parser::{parse_move_manifest_string, parse_source_manifest},
-    parsed_manifest::DependencyKind,
+    parsed_manifest::{Dependencies, DependencyKind},
 };
 
 use crate::{
@@ -121,6 +121,10 @@ pub struct BuildConfig {
 
     #[clap(flatten)]
     pub lint_flag: LintFlag,
+
+    /// Additional dependencies to be automatically included in every package
+    #[clap(skip)]
+    pub implicit_dependencies: Dependencies,
 }
 
 #[derive(
@@ -185,7 +189,7 @@ impl BuildConfig {
     pub fn compile_package<W: Write>(self, path: &Path, writer: &mut W) -> Result<CompiledPackage> {
         let resolved_graph = self.resolution_graph_for_package(path, None, writer)?;
         let _mutx = PackageLock::lock(); // held until function returns
-        BuildPlan::create(resolved_graph)?.compile(writer, |compiler| compiler)
+        BuildPlan::create(&resolved_graph)?.compile(writer, |compiler| compiler)
     }
 
     /// Compile the package at `path` or the containing Move package. Exit
@@ -199,14 +203,14 @@ impl BuildConfig {
     ) -> Result<CompiledPackage> {
         let resolved_graph = self.resolution_graph_for_package(path, None, writer)?;
         let _mutx = PackageLock::lock(); // held until function returns
-        let build_plan = BuildPlan::create(resolved_graph)?;
-        // TODO: When we are ready to release and enable automatic migration, uncomment
-        // this. if !build_plan.root_crate_edition_defined() {
-        //     // We would also like to call build here, but the edition is already
-        // computed and     // the lock + build config have been used for this
-        // build already. The user will     // have to call build a second time
-        // -- this is reasonable...     migration::migrate(build_plan, writer,
-        // _reader)?; } else {
+        let build_plan = BuildPlan::create(&resolved_graph)?;
+        // TODO: When we are ready to release and enable automatic migration, uncomment this.
+        // if !build_plan.root_crate_edition_defined() {
+        //     // We would also like to call build here, but the edition is already computed and
+        //     // the lock + build config have been used for this build already. The user will
+        //     // have to call build a second time -- this is reasonable...
+        //     migration::migrate(build_plan, writer, _reader)?;
+        // } else {
         //     build_plan.compile(writer)
         // }
         build_plan.compile(writer, |compiler| compiler)
@@ -221,7 +225,7 @@ impl BuildConfig {
     ) -> Result<CompiledPackage> {
         let resolved_graph = self.resolution_graph_for_package(path, None, writer)?;
         let _mutx = PackageLock::lock(); // held until function returns
-        BuildPlan::create(resolved_graph)?.compile_no_exit(writer, |compiler| compiler)
+        BuildPlan::create(&resolved_graph)?.compile_no_exit(writer, |compiler| compiler)
     }
 
     /// Compile the package at `path` or the containing Move package. Exit
@@ -237,8 +241,8 @@ impl BuildConfig {
         self.dev_mode = true;
         let resolved_graph = self.resolution_graph_for_package(path, None, writer)?;
         let _mutx = PackageLock::lock(); // held until function returns
-        let build_plan = BuildPlan::create(resolved_graph)?;
-        migration::migrate(build_plan, writer, reader)?;
+        let build_plan = BuildPlan::create(&resolved_graph)?;
+        migration::migrate(&build_plan, writer, reader)?;
         Ok(())
     }
 
@@ -294,6 +298,7 @@ impl BuildConfig {
             self.skip_fetch_latest_git_deps,
             writer,
             install_dir.clone(),
+            self.implicit_dependencies.clone(),
         );
         let (dependency_graph, modified) = dep_graph_builder.get_graph(
             &DependencyKind::default(),

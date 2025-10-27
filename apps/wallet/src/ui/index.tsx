@@ -18,6 +18,7 @@ import { thunkExtras } from '_src/ui/app/redux/store/thunkExtras';
 import {
     ClipboardPasteSafetyWrapper,
     IotaGraphQLClientProvider,
+    IotaNamesClientProvider,
     KioskClientProvider,
     StardustIndexerClientProvider,
     ThemeProvider,
@@ -40,6 +41,7 @@ import { persister, queryClient } from './app/helpers/queryClient';
 import { useAppSelector } from '_hooks';
 import './styles/global.scss';
 import { defaultShouldDehydrateQuery, type Query } from '@tanstack/react-query';
+import { KeystoneProvider } from './app/components/keystone/KeystoneProvider';
 
 async function init() {
     if (process.env.NODE_ENV === 'development') {
@@ -102,29 +104,33 @@ function AppWrapper() {
                             >
                                 <StardustIndexerClientProvider>
                                     <IotaGraphQLClientProvider>
-                                        <KioskClientProvider>
-                                            <AccountsFormProvider>
-                                                <ThemeProvider appId="iota-wallet">
-                                                    <UnlockAccountProvider>
-                                                        <ClipboardPasteSafetyWrapper>
-                                                            <div
-                                                                className={cn(
-                                                                    'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
-                                                                    isFullscreen &&
-                                                                        'rounded-xl shadow-lg',
-                                                                )}
-                                                            >
-                                                                <ErrorBoundary>
-                                                                    <App />
-                                                                </ErrorBoundary>
-                                                                <div id="overlay-portal-container"></div>
-                                                                <div id="toaster-portal-container"></div>
-                                                            </div>
-                                                        </ClipboardPasteSafetyWrapper>
-                                                    </UnlockAccountProvider>
-                                                </ThemeProvider>
-                                            </AccountsFormProvider>
-                                        </KioskClientProvider>
+                                        <IotaNamesClientProvider>
+                                            <KioskClientProvider>
+                                                <AccountsFormProvider>
+                                                    <ThemeProvider appId="iota-wallet">
+                                                        <UnlockAccountProvider>
+                                                            <ClipboardPasteSafetyWrapper>
+                                                                <KeystoneProvider>
+                                                                    <div
+                                                                        className={cn(
+                                                                            'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                                            isFullscreen &&
+                                                                                'rounded-xl shadow-lg',
+                                                                        )}
+                                                                    >
+                                                                        <ErrorBoundary>
+                                                                            <App />
+                                                                        </ErrorBoundary>
+                                                                        <div id="overlay-portal-container"></div>
+                                                                        <div id="toaster-portal-container"></div>
+                                                                    </div>
+                                                                </KeystoneProvider>
+                                                            </ClipboardPasteSafetyWrapper>
+                                                        </UnlockAccountProvider>
+                                                    </ThemeProvider>
+                                                </AccountsFormProvider>
+                                            </KioskClientProvider>
+                                        </IotaNamesClientProvider>
                                     </IotaGraphQLClientProvider>
                                 </StardustIndexerClientProvider>
                             </IotaClientProvider>

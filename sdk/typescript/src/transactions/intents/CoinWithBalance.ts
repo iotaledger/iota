@@ -66,7 +66,7 @@ async function resolveCoinBalance(
         if (command.$kind === '$Intent' && command.$Intent.name === COIN_WITH_BALANCE) {
             const { type, balance } = parse(CoinWithBalanceData, command.$Intent.data);
 
-            if (type !== 'gas') {
+            if (type !== 'gas' && balance > 0n) {
                 coinTypes.add(type);
             }
 
@@ -114,6 +114,14 @@ async function resolveCoinBalance(
             type: string;
             balance: bigint;
         };
+
+        if (balance === 0n) {
+            transactionData.replaceCommand(
+                index,
+                Commands.MoveCall({ target: '0x2::coin::zero', typeArguments: [type] }),
+            );
+            continue;
+        }
 
         const commands = [];
 

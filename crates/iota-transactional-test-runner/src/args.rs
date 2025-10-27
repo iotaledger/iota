@@ -125,7 +125,7 @@ pub struct ProgrammableTransactionCommand {
     #[arg(long)]
     pub gas_price: Option<u64>,
     #[clap(long = "gas-payment", value_parser = parse_fake_id)]
-    pub gas_payment: Option<FakeID>,
+    pub gas_payment: Option<Vec<FakeID>>,
     #[arg(long = "dev-inspect")]
     pub dev_inspect: bool,
     #[clap(long = "dry-run")]
@@ -151,6 +151,8 @@ pub struct UpgradePackageCommand {
     pub sender: String,
     #[arg(long)]
     pub gas_budget: Option<u64>,
+    #[arg(long)]
+    pub dry_run: bool,
     #[arg(long)]
     pub syntax: Option<SyntaxChoice>,
     #[arg(long, default_value="compatible", value_parser = parse_policy)]
@@ -448,9 +450,9 @@ impl IotaValue {
             None => bail!("INVALID TEST. Unknown object, object({})", fake_id),
         };
         let obj_res = if let Some(v) = version {
-            iota_types::storage::ObjectStore::get_object_by_key(&*test_adapter.executor, &id, v)
+            iota_types::storage::ObjectStore::try_get_object_by_key(&*test_adapter.executor, &id, v)
         } else {
-            iota_types::storage::ObjectStore::get_object(&*test_adapter.executor, &id)
+            iota_types::storage::ObjectStore::try_get_object(&*test_adapter.executor, &id)
         };
         let obj = match obj_res {
             Ok(Some(obj)) => obj,

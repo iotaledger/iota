@@ -6,10 +6,11 @@ use std::{cell::RefCell, collections::BTreeMap, path::Path, sync::Arc};
 
 use anyhow::bail;
 use clap::Parser;
-use iota_move_build::decorate_warnings;
+use iota_move_build::{decorate_warnings, implicit_deps};
 use iota_move_natives::{
     NativesCostTable, object_runtime::ObjectRuntime, test_scenario::InMemoryTestStore,
 };
+use iota_package_management::system_package_versions::latest_system_packages;
 use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     gas_model::tables::initial_cost_schedule_for_unit_tests, in_memory_storage::InMemoryStorage,
@@ -42,9 +43,10 @@ impl Test {
         build_config: BuildConfig,
     ) -> anyhow::Result<UnitTestResult> {
         let compute_coverage = self.test.compute_coverage;
-        if !cfg!(debug_assertions) && compute_coverage {
+        if !cfg!(feature = "tracing") && compute_coverage {
             bail!(
-                "The --coverage flag is currently supported only in debug builds. Please build the IOTA CLI from source in debug mode."
+                "The --coverage flag is currently supported only in builds built with the `tracing` feature enabled. \
++                Please build the IOTA CLI from source with `--features tracing` to use this flag."
             );
         }
         // save disassembly if trace execution is enabled
@@ -78,7 +80,7 @@ static SET_EXTENSION_HOOK: Lazy<()> =
 /// indicates whether all tests pass.
 pub fn run_move_unit_tests(
     path: &Path,
-    build_config: BuildConfig,
+    mut build_config: BuildConfig,
     config: Option<UnitTestingConfig>,
     compute_coverage: bool,
     save_disassembly: bool,
@@ -88,6 +90,7 @@ pub fn run_move_unit_tests(
 
     let config = config
         .unwrap_or_else(|| UnitTestingConfig::default_with_bound(Some(MAX_UNIT_TEST_INSTRUCTIONS)));
+    build_config.implicit_dependencies = implicit_deps(latest_system_packages());
 
     let result = move_cli::base::test::run_move_unit_tests(
         path,

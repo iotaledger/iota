@@ -8,6 +8,6 @@ See [IOTA Environment Setup](https://github.com/iotaledger/iota/blob/develop/doc
 
 Found a bug or security vulnerability? Create a [GitHub issue](https://github.com/iotaledger/iota/issues/new/choose).
 
-For larger documentation issues, you can [create an issue](https://github.com/iotaledger/iota/issues/new/choose) in GitHub. To fix the problem yourself, follow the [documentation contribution](./docs/content/references/contribute/contribution-process.mdx) guidelines.
+For larger documentation issues, you can [create an issue](https://github.com/iotaledger/iota/issues/new/choose) in GitHub. To fix the problem yourself, follow the [documentation contribution](./docs/content/developer/references/contribute/contribution-process.mdx) guidelines.
 
 Want to contribute to the IOTA framework? See [CONTRIBUTING.md](https://github.com/iotaledger/iota/blob/develop/crates/iota-framework/CONTRIBUTING.md) for information related to `iota-framework` crate contributions.

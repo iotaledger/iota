@@ -10,11 +10,12 @@ use iota_json_rpc_api::{IndexerApiServer, cap_page_limit, error_object_from_rpc,
 use iota_json_rpc_types::{
     DynamicFieldPage, EventFilter, EventPage, IotaNameRecord, IotaObjectData, IotaObjectDataFilter,
     IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
-    IotaTransactionBlockResponseQuery, ObjectsPage, Page, TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockResponseQuery, IotaTransactionBlockResponseQueryV2, ObjectsPage, Page,
+    TransactionBlocksPage, TransactionFilter,
 };
 use iota_names::{
-    IotaNamesNft, IotaNamesRegistration, config::IotaNamesConfig, error::IotaNamesError,
-    name::Name, registry::NameRecord,
+    IotaNamesNft, NameRegistration, config::IotaNamesConfig, error::IotaNamesError, name::Name,
+    registry::NameRecord,
 };
 use iota_open_rpc::Module;
 use iota_types::{
@@ -32,7 +33,7 @@ use jsonrpsee::{
 };
 use tap::TapFallible;
 
-use crate::{errors::IndexerError, indexer_reader::IndexerReader};
+use crate::{errors::IndexerError, read::IndexerReader};
 
 pub(crate) struct IndexerApi {
     inner: IndexerReader,
@@ -70,13 +71,13 @@ impl IndexerApi {
         let mut objects = futures::future::try_join_all(object_futures)
             .await
             .map_err(|e| {
-                tracing::error!("Error joining object read futures.");
+                tracing::error!("error joining object read futures.");
                 RpcClientError::Custom(format!("Error joining object read futures. {e}"))
             })
             .map_err(error_object_from_rpc)?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
-            .tap_err(|e| tracing::error!("Error converting object to object read: {e}"))?;
+            .tap_err(|e| tracing::error!("error converting object to object read: {e}"))?;
         let has_next_page = objects.len() > limit;
         objects.truncate(limit);
 
@@ -248,6 +249,38 @@ impl IndexerApiServer for IndexerApi {
         })
     }
 
+    async fn query_transaction_blocks_v2(
+        &self,
+        query: IotaTransactionBlockResponseQueryV2,
+        cursor: Option<TransactionDigest>,
+        limit: Option<usize>,
+        descending_order: Option<bool>,
+    ) -> RpcResult<TransactionBlocksPage> {
+        let limit = cap_page_limit(limit);
+        if limit == 0 {
+            return Ok(TransactionBlocksPage::empty());
+        }
+        let mut results = self
+            .inner
+            .query_transaction_blocks_in_blocking_task_v2(
+                query.filter,
+                query.options.unwrap_or_default(),
+                cursor,
+                limit + 1,
+                descending_order.unwrap_or(false),
+            )
+            .await?;
+
+        let has_next_page = results.len() > limit;
+        results.truncate(limit);
+        let next_cursor = results.last().map(|o| o.digest);
+        Ok(Page {
+            data: results,
+            next_cursor,
+            has_next_page,
+        })
+    }
+
     async fn query_events(
         &self,
         query: EventFilter,
@@ -263,7 +296,12 @@ impl IndexerApiServer for IndexerApi {
         let descending_order = descending_order.unwrap_or(false);
         let mut results = self
             .inner
-            .query_events_in_blocking_task(query, cursor, limit + 1, descending_order)
+            .query_only_checkpointed_events_in_blocking_task(
+                query,
+                cursor,
+                limit + 1,
+                descending_order,
+            )
             .await?;
 
         let has_next_page = results.len() > limit;
@@ -451,9 +489,9 @@ impl IndexerApiServer for IndexerApi {
         options: Option<IotaObjectDataOptions>,
     ) -> RpcResult<ObjectsPage> {
         let query = IotaObjectResponseQuery {
-            filter: Some(IotaObjectDataFilter::StructType(
-                IotaNamesRegistration::type_(self.iota_names_config.package_address.into()),
-            )),
+            filter: Some(IotaObjectDataFilter::StructType(NameRegistration::type_(
+                self.iota_names_config.package_address.into(),
+            ))),
             options,
         };
 

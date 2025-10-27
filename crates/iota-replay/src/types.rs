@@ -176,7 +176,7 @@ pub enum ReplayEngineError {
     #[error("Unable to query system events; {}", rpc_err)]
     UnableToQuerySystemEvents { rpc_err: String },
 
-    #[error("Internal error or cache corrupted! Object {id}{} should be in cache.", version.map(|q| format!(" version {:#?}", q)).unwrap_or_default()
+    #[error("Internal error or cache corrupted! Object {id}{} should be in cache.", version.map(|q| format!(" version {q:#?}")).unwrap_or_default()
     )]
     InternalCacheInvariantViolation {
         id: ObjectID,
@@ -227,7 +227,7 @@ impl From<IotaObjectResponseError> for ReplayEngineError {
 
 impl From<ReplayEngineError> for IotaError {
     fn from(err: ReplayEngineError) -> Self {
-        IotaError::Unknown(format!("{:#?}", err))
+        IotaError::Unknown(format!("{err:#?}"))
     }
 }
 
@@ -243,7 +243,7 @@ impl From<IotaRpcError> for ReplayEngineError {
                 ReplayEngineError::IotaRpcRequestTimeout
             }
             _ => ReplayEngineError::IotaRpcError {
-                err: format!("{:?}", err),
+                err: format!("{err:?}"),
             },
         }
     }
@@ -258,7 +258,7 @@ impl From<UserInputError> for ReplayEngineError {
 impl From<anyhow::Error> for ReplayEngineError {
     fn from(err: anyhow::Error) -> Self {
         ReplayEngineError::GeneralError {
-            err: format!("{:#?}", err),
+            err: format!("{err:#?}"),
         }
     }
 }

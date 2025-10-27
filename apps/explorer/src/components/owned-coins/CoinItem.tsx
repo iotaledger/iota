@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { KeyValueInfo } from '@iota/apps-ui-kit';
-import { CoinFormat, useFormatCoin } from '@iota/core';
+import { useFormatCoin } from '@iota/core';
 import { type CoinStruct } from '@iota/iota-sdk/client';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatAddress } from '@iota/iota-sdk/utils';
 import { ObjectLink } from '../ui';
 
 interface CoinItemProps {
@@ -16,7 +16,7 @@ export function CoinItem({ coin }: CoinItemProps): JSX.Element {
     const [formattedBalance, symbol] = useFormatCoin({
         balance: coin.balance,
         coinType: coin.coinType,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     return (
         <KeyValueInfo

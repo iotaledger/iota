@@ -4,7 +4,11 @@ import {
     IOTA_NAMES_COLOR_PALETTE,
     SHADER_COLOR_PALETTE,
 } from '../../../lib/constants/colors.constants';
+import { COLOR_GRADIENTS } from '../../constants/gradients.constants';
+import { DocsSyncTheme } from '../components';
+import { formatGradientNames } from '../../helpers/formatGradientNames';
 
+<DocsSyncTheme />
 <Meta title="Design Tokens/Colors" />
 
 ## Primitives
@@ -20,6 +24,14 @@ import {
 <ColorPalette>
     {Object.entries(IOTA_NAMES_COLOR_PALETTE).map(([color, values]) => {
         return <ColorItem key={color} title={color} colors={values} />;
+    })}
+</ColorPalette>
+
+## Gradients
+
+<ColorPalette>
+    {Object.entries(COLOR_GRADIENTS).map(([color, values]) => {
+        return <ColorItem key={color} title={color} colors={formatGradientNames(color, values)} />;
     })}
 </ColorPalette>
 

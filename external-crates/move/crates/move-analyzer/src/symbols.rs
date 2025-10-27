@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module is responsible for building symbolication information on top of
@@ -59,6 +59,24 @@
 //! (DefLoc) to a set of use locations (UseLoc).
 #![allow(clippy::non_canonical_partial_ord_impl)]
 
+use crate::{
+    analysis::{parsing_analysis, typing_analysis},
+    compiler_info::CompilerInfo,
+    context::Context,
+    diagnostics::{lsp_diagnostics, lsp_empty_diagnostics},
+    utils::{loc_start_to_lsp_position_opt, lsp_position_to_loc},
+};
+
+use anyhow::{anyhow, Result};
+use crossbeam::channel::Sender;
+use im::ordmap::OrdMap;
+use lsp_server::{Request, RequestId};
+use lsp_types::{
+    request::GotoTypeDefinitionParams, Diagnostic, DocumentSymbol, DocumentSymbolParams,
+    GotoDefinitionParams, Hover, HoverContents, HoverParams, Location, MarkupContent, MarkupKind,
+    Position, Range, ReferenceParams, SymbolKind,
+};
+use sha2::{Digest, Sha256};
 use std::{
     cmp,
     collections::{BTreeMap, BTreeSet},
@@ -69,60 +87,43 @@ use std::{
     time::Instant,
     vec,
 };
-
-use anyhow::{Result, anyhow};
-use crossbeam::channel::Sender;
-use im::ordmap::OrdMap;
-use lsp_server::{Request, RequestId};
-use lsp_types::{
-    Diagnostic, DocumentSymbol, DocumentSymbolParams, GotoDefinitionParams, Hover, HoverContents,
-    HoverParams, Location, MarkupContent, MarkupKind, Position, Range, ReferenceParams, SymbolKind,
-    request::GotoTypeDefinitionParams,
+use tempfile::tempdir;
+use url::Url;
+use vfs::{
+    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
+    VfsPath,
 };
+
 use move_command_line_common::files::FileHash;
 use move_compiler::{
-    PASS_CFGIR, PASS_PARSER, PASS_TYPING,
-    command_line::compiler::{FullyCompiledProgram, construct_pre_compiled_lib},
+    command_line::compiler::{construct_pre_compiled_lib, FullyCompiledProgram},
     editions::{Edition, FeatureGate, Flavor},
     expansion::{
         ast::{self as E, AbilitySet, ModuleIdent, ModuleIdent_, Value, Value_, Visibility},
         name_validation::{IMPLICIT_STD_MEMBERS, IMPLICIT_STD_MODULES},
     },
     linters::LintLevel,
-    naming::ast::{DatatypeTypeParameter, StructFields, Type, Type_, TypeName_, VariantFields},
+    naming::ast::{DatatypeTypeParameter, StructFields, Type, TypeName_, Type_, VariantFields},
     parser::ast::{self as P, DocComment},
     shared::{
-        Identifier, Name, NamedAddressMap, NamedAddressMaps, files::MappedFiles,
-        unique_map::UniqueMap,
+        files::MappedFiles, unique_map::UniqueMap, Identifier, Name, NamedAddressMap,
+        NamedAddressMaps,
     },
     typing::{
         ast::{Exp, ExpListItem, ModuleDefinition, SequenceItem, SequenceItem_, UnannotatedExp_},
         visitor::TypingVisitorContext,
     },
     unit_test::filter_test_members::UNIT_TEST_POISON_FUN_NAME,
+    PASS_CFGIR, PASS_PARSER, PASS_TYPING,
 };
 use move_core_types::account_address::AccountAddress;
 use move_ir_types::location::*;
 use move_package::{
     compilation::{build_plan::BuildPlan, compiled_package::ModuleFormat},
     resolution::resolution_graph::ResolvedGraph,
+    source_package::parsed_manifest::Dependencies,
 };
 use move_symbol_pool::Symbol;
-use sha2::{Digest, Sha256};
-use tempfile::tempdir;
-use url::Url;
-use vfs::{
-    VfsPath,
-    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
-};
-
-use crate::{
-    analysis::{parsing_analysis, typing_analysis},
-    compiler_info::CompilerInfo,
-    context::Context,
-    diagnostics::{lsp_diagnostics, lsp_empty_diagnostics},
-    utils::{loc_start_to_lsp_position_opt, lsp_position_to_loc},
-};
 
 const MANIFEST_FILE_NAME: &str = "Move.toml";
 const STD_LIB_PKG_ADDRESS: &str = "0x1";
@@ -186,6 +187,12 @@ pub struct SymbolsComputationData {
     /// appropriately set before the module processing starts) keyed on a
     /// ModuleIdent string
     mod_to_alias_lengths: BTreeMap<String, BTreeMap<Position, usize>>,
+}
+
+impl Default for SymbolsComputationData {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl SymbolsComputationData {
@@ -461,6 +468,12 @@ pub type VariantFieldOrderInfo = BTreeMap<Symbol, BTreeMap<Symbol, BTreeMap<Symb
 pub struct FieldOrderInfo {
     structs: BTreeMap<String, StructFieldOrderInfo>,
     variants: BTreeMap<String, VariantFieldOrderInfo>,
+}
+
+impl Default for FieldOrderInfo {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl FieldOrderInfo {
@@ -1392,6 +1405,7 @@ impl SymbolicatorRunner {
         packages_info: Arc<Mutex<BTreeMap<PathBuf, PrecomputedPkgInfo>>>,
         sender: Sender<Result<BTreeMap<PathBuf, Vec<Diagnostic>>>>,
         lint: LintLevel,
+        implicit_deps: Dependencies,
     ) -> Self {
         let mtx_cvar = Arc::new((Mutex::new(RunnerState::Wait), Condvar::new()));
         let thread_mtx_cvar = mtx_cvar.clone();
@@ -1447,6 +1461,7 @@ impl SymbolicatorRunner {
                                 Some(modified_files.into_iter().collect()),
                                 lint,
                                 None,
+                                implicit_deps.clone(),
                             ) {
                                 Ok((symbols_opt, lsp_diagnostics)) => {
                                     eprintln!("symbolication finished");
@@ -1938,6 +1953,7 @@ pub fn get_compiled_pkg(
     pkg_path: &Path,
     modified_files: Option<Vec<PathBuf>>,
     lint: LintLevel,
+    implicit_deps: Dependencies,
 ) -> Result<(Option<CompiledPkgInfo>, BTreeMap<PathBuf, Vec<Diagnostic>>)> {
     let build_config = move_package::BuildConfig {
         test_mode: true,
@@ -1945,6 +1961,7 @@ pub fn get_compiled_pkg(
         default_flavor: Some(Flavor::Iota),
         lint_flag: lint.into(),
         skip_fetch_latest_git_deps: has_precompiled_deps(pkg_path, packages_info.clone()),
+        implicit_dependencies: implicit_deps,
         ..Default::default()
     };
 
@@ -1987,7 +2004,7 @@ pub fn get_compiled_pkg(
     );
     let compiler_flags = resolution_graph.build_options.compiler_flags().clone();
     let build_plan =
-        BuildPlan::create(resolution_graph)?.set_compiler_vfs_root(overlay_fs_root.clone());
+        BuildPlan::create(&resolution_graph)?.set_compiler_vfs_root(overlay_fs_root.clone());
     let mut parsed_ast = None;
     let mut typed_ast = None;
     let mut compiler_info = None;
@@ -2525,6 +2542,7 @@ pub fn get_symbols(
     modified_files: Option<Vec<PathBuf>>,
     lint: LintLevel,
     cursor_info: Option<(&PathBuf, Position)>,
+    implicit_deps: Dependencies,
 ) -> Result<(Option<Symbols>, BTreeMap<PathBuf, Vec<Diagnostic>>)> {
     let compilation_start = Instant::now();
     let (compiled_pkg_info_opt, ide_diagnostics) = get_compiled_pkg(
@@ -2533,6 +2551,7 @@ pub fn get_symbols(
         pkg_path,
         modified_files,
         lint,
+        implicit_deps,
     )?;
     eprintln!("compilation complete in: {:?}", compilation_start.elapsed());
     let Some(compiled_pkg_info) = compiled_pkg_info_opt else {

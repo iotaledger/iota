@@ -1,7 +1,8 @@
 @layer utilities {
     .state-layer,
     .state-layer-inverted,
-    .state-active {
+    .state-active,
+    .state-layer-secondary {
         &::after {
             content: '';
             border-radius: inherit;
@@ -14,6 +15,7 @@
     }
 
     .state-layer,
+    .state-layer-secondary,
     .state-layer-inverted {
         &::after {
             @apply opacity-0;
@@ -35,13 +37,19 @@
     .state-active,
     .state-layer {
         &::after {
-            @apply bg-iota-primary-60;
+            background-color: var(--state-layer-bg-color);
         }
     }
 
     .state-layer-inverted {
         &::after {
-            @apply bg-iota-primary-80;
+            background-color: var(--state-layer-inverted-bg-color);
+        }
+    }
+
+    .state-layer-secondary {
+        &::after {
+            background-color: var(--state-layer-secondary-bg-color);
         }
     }
 

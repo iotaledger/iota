@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This file contains an abstraction of concrete *access paths*, which are
@@ -831,7 +831,7 @@ pub struct AbsStructTypeDisplay<'a> {
     env: &'a GlobalEnv,
 }
 
-impl<'a> fmt::Display for AbsStructTypeDisplay<'a> {
+impl fmt::Display for AbsStructTypeDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.s.normalize(self.env) {
             Some(t) => {
@@ -855,7 +855,7 @@ pub struct AddrDisplay<'a> {
     env: &'a FunctionEnv<'a>,
 }
 
-impl<'a> fmt::Display for AddrDisplay<'a> {
+impl fmt::Display for AddrDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.addr {
             Addr::Constant(a) => write!(f, "{:#x}", a),
@@ -869,7 +869,7 @@ pub struct AbsAddrDisplay<'a> {
     env: &'a FunctionEnv<'a>,
 }
 
-impl<'a> fmt::Display for AbsAddrDisplay<'a> {
+impl fmt::Display for AbsAddrDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         if self.addr.len() == 1 {
             write!(f, "{}", self.addr.iter().next().unwrap().display(self.env))
@@ -890,7 +890,7 @@ pub struct GlobalKeyDisplay<'a> {
     env: &'a FunctionEnv<'a>,
 }
 
-impl<'a> fmt::Display for GlobalKeyDisplay<'a> {
+impl fmt::Display for GlobalKeyDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         write!(
             f,
@@ -906,7 +906,7 @@ pub struct RootDisplay<'a> {
     env: &'a FunctionEnv<'a>,
 }
 
-impl<'a> fmt::Display for RootDisplay<'a> {
+impl fmt::Display for RootDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self.root {
             Root::Global(g) => write!(f, "{}", g.display(self.env)),
@@ -923,7 +923,7 @@ pub struct OffsetDisplay<'a> {
     env: &'a GlobalEnv,
 }
 
-impl<'a> fmt::Display for OffsetDisplay<'a> {
+impl fmt::Display for OffsetDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         use Offset::*;
         match self.offset {
@@ -961,7 +961,7 @@ pub struct AccessPathDisplay<'a> {
     env: &'a FunctionEnv<'a>,
 }
 
-impl<'a> fmt::Display for AccessPathDisplay<'a> {
+impl fmt::Display for AccessPathDisplay<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         let genv = self.env.module_env.env;
         write!(f, "{}", self.ap.root.display(self.env))?;

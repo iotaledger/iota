@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::BTreeSet,
+    collections::{BTreeMap, BTreeSet},
     fmt::Debug,
     sync::{
         Arc,
@@ -12,6 +12,7 @@ use std::{
 };
 
 use async_trait::async_trait;
+use consensus_config::AuthorityIndex;
 use iota_metrics::{
     monitored_mpsc::{Receiver, Sender, WeakSender, channel},
     monitored_scope, spawn_logged_monitored_task,
@@ -48,8 +49,9 @@ enum CoreThreadCommand {
     /// any checks (ex leader existence of previous round). More information can
     /// be found on the `Core` component.
     NewBlock(Round, oneshot::Sender<()>, bool),
-    /// Request missing blocks that need to be synced.
-    GetMissing(oneshot::Sender<BTreeSet<BlockRef>>),
+    /// Request missing blocks that need to be synced together with authorities
+    /// that have these blocks.
+    GetMissingBlocks(oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>),
 }
 
 #[derive(Error, Debug)]
@@ -77,7 +79,9 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
 
     async fn new_block(&self, round: Round, force: bool) -> Result<(), CoreError>;
 
-    async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError>;
+    async fn get_missing_blocks(
+        &self,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     /// Informs the core whether consumer of produced blocks exists.
     /// This is only used by core to decide if it should propose new blocks.
@@ -155,8 +159,8 @@ impl CoreThread {
                             self.core.new_block(round, force)?;
                             sender.send(()).ok();
                         }
-                        CoreThreadCommand::GetMissing(sender) => {
-                            let _scope = monitored_scope("CoreThread::loop::get_missing");
+                        CoreThreadCommand::GetMissingBlocks(sender) => {
+                            let _scope = monitored_scope("CoreThread::loop::get_missing_blocks");
                             sender.send(self.core.get_missing_blocks()).ok();
                         }
                     }
@@ -353,9 +357,11 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
-    async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+    async fn get_missing_blocks(
+        &self,
+    ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
-        self.send(CoreThreadCommand::GetMissing(sender)).await;
+        self.send(CoreThreadCommand::GetMissingBlocks(sender)).await;
         receiver.await.map_err(|e| Shutdown(e.to_string()))
     }
 
@@ -424,7 +430,7 @@ pub(crate) mod tests {
     #[derive(Default)]
     pub(crate) struct MockCoreThreadDispatcher {
         add_blocks: parking_lot::Mutex<Vec<VerifiedBlock>>,
-        missing_blocks: parking_lot::Mutex<BTreeSet<BlockRef>>,
+        missing_blocks: parking_lot::Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
         last_known_proposed_round: parking_lot::Mutex<Vec<Round>>,
     }
 
@@ -436,7 +442,9 @@ pub(crate) mod tests {
 
         pub(crate) async fn stub_missing_blocks(&self, block_refs: BTreeSet<BlockRef>) {
             let mut missing_blocks = self.missing_blocks.lock();
-            missing_blocks.extend(block_refs);
+            for block_ref in &block_refs {
+                missing_blocks.insert(*block_ref, BTreeSet::from([block_ref.author]));
+            }
         }
 
         pub(crate) async fn get_last_own_proposed_round(&self) -> Vec<Round> {
@@ -474,7 +482,9 @@ pub(crate) mod tests {
             Ok(())
         }
 
-        async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+        async fn get_missing_blocks(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             let mut missing_blocks = self.missing_blocks.lock();
             let result = missing_blocks.clone();
             missing_blocks.clear();

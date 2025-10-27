@@ -25,7 +25,7 @@ import { getCustomNetwork, type NetworkEnvType } from '@iota/core';
 import { type SignMessageRequest } from '_src/shared/messaging/messages/payloads/transactions/signMessage';
 import { isWalletStatusChangePayload } from '_src/shared/messaging/messages/payloads/wallet-status-change';
 import { getNetwork, Network, type ChainType } from '@iota/iota-sdk/client';
-import { fromB64, toB64 } from '@iota/iota-sdk/utils';
+import { fromBase64, toBase64 } from '@iota/iota-sdk/utils';
 import {
     ReadonlyWalletAccount,
     SUPPORTED_CHAINS,
@@ -115,7 +115,7 @@ export class IotaWallet implements Wallet {
                 new ReadonlyWalletAccount({
                     address,
                     label: nickname || undefined,
-                    publicKey: publicKey ? fromB64(publicKey) : new Uint8Array(),
+                    publicKey: publicKey ? fromBase64(publicKey) : new Uint8Array(),
                     chains: this.#activeChain ? [this.#activeChain] : [],
                     features: ['iota:signAndExecuteTransaction'],
                 }),
@@ -230,7 +230,7 @@ export class IotaWallet implements Wallet {
                         txSignatures: [signature],
                         intentMessage: { value: bcsTransaction },
                     },
-                ] = bcs.SenderSignedData.parse(fromB64(rawTransaction!));
+                ] = bcs.SenderSignedData.parse(fromBase64(rawTransaction!));
 
                 const bytes = bcs.TransactionData.serialize(bcsTransaction).toBase64();
 
@@ -238,7 +238,7 @@ export class IotaWallet implements Wallet {
                     digest,
                     signature,
                     bytes,
-                    effects: toB64(new Uint8Array(rawEffects!)),
+                    effects: toBase64(new Uint8Array(rawEffects!)),
                 };
             },
         );
@@ -249,7 +249,7 @@ export class IotaWallet implements Wallet {
             this.#send<SignMessageRequest, SignMessageRequest>({
                 type: 'sign-personal-message-request',
                 args: {
-                    message: toB64(message),
+                    message: toBase64(message),
                     accountAddress: account.address,
                 },
             }),

@@ -20,7 +20,7 @@ module clt_tutorial::voucher {
     }
 
     // Create a new VOUCHER currency, create a `TokenPolicy` for it and allow
-    // everyone to to spend their voucher for a led bulb.
+    // everyone to spend their voucher for a led bulb.
     fun init(otw: VOUCHER, ctx: &mut TxContext) {
         let (treasury_cap, coin_metadata) = coin::create_currency(
             otw,

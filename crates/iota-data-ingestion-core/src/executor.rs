@@ -70,7 +70,7 @@ impl CheckpointReader {
             } => {
                 _ = exit_sender.send(());
                 handle.await.map_err(|err| IngestionError::Shutdown {
-                    component: "Checkpoint Reader".into(),
+                    component: "checkpoint reader".into(),
                     msg: err.to_string(),
                 })?
             }
@@ -314,7 +314,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                 // Shutdown worker pools
                 for worker_pool in worker_pools {
                     worker_pool.await.map_err(|err| IngestionError::Shutdown {
-                        component: "Worker Pool".into(),
+                        component: "worker pool".into(),
                         msg: err.to_string(),
                     })?;
                 }
@@ -403,7 +403,7 @@ pub async fn setup_single_workflow<W: Worker + 'static>(
     executor.register(worker_pool).await?;
     Ok((
         executor.run(
-            tempfile::tempdir()?.into_path(),
+            tempfile::tempdir()?.keep(),
             Some(remote_store_url),
             vec![],
             reader_options.unwrap_or_default(),

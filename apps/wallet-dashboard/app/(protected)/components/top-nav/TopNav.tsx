@@ -5,12 +5,16 @@ import { SettingsDialog, useSettingsDialog } from '@/components';
 import { Badge, BadgeType, Button, ButtonType } from '@iota/apps-ui-kit';
 import { ConnectButton } from '@iota/dapp-kit';
 import { Network } from '@iota/iota-sdk/client';
-import { toTitleCase, ThemeSwitcher } from '@iota/core';
+import { toTitleCase, ThemeSwitcher, Feature, useFeatureEnabledByNetwork } from '@iota/core';
 import { Settings } from '@iota/apps-ui-icons';
 import { usePersistedNetwork } from '@/hooks';
 
 export function TopNav() {
     const { persistedNetwork } = usePersistedNetwork();
+    const iotaNamesEnabled = useFeatureEnabledByNetwork(
+        Feature.IotaNames,
+        persistedNetwork as Network,
+    );
 
     const {
         isSettingsDialogOpen,
@@ -28,7 +32,7 @@ export function TopNav() {
                     persistedNetwork === Network.Mainnet ? BadgeType.PrimarySoft : BadgeType.Neutral
                 }
             />
-            <ConnectButton size="md" />
+            <ConnectButton size="md" iotaNamesEnabled={iotaNamesEnabled} />
             <SettingsDialog
                 isOpen={isSettingsDialogOpen}
                 handleClose={onCloseSettingsDialogClick}

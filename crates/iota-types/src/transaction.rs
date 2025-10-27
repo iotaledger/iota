@@ -19,7 +19,7 @@ use iota_protocol_config::ProtocolConfig;
 use itertools::Either;
 use move_core_types::{
     ident_str,
-    identifier::{IdentStr, Identifier},
+    identifier::{self, Identifier},
     language_storage::TypeTag,
 };
 use nonempty::{NonEmpty, nonempty};
@@ -27,7 +27,7 @@ use serde::{Deserialize, Serialize};
 use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use strum::IntoStaticStr;
 use tap::Pipe;
-use tracing::trace;
+use tracing::{instrument, trace};
 
 use super::{base_types::*, error::*};
 use crate::{
@@ -54,6 +54,7 @@ use crate::{
     programmable_transaction_builder::ProgrammableTransactionBuilder,
     signature::{GenericSignature, VerifyParams},
     signature_verification::{VerifiedDigestCache, verify_sender_signed_data_message_signatures},
+    type_input::TypeInput,
 };
 
 pub const TEST_ONLY_GAS_UNIT_FOR_TRANSFER: u64 = 10_000;
@@ -121,8 +122,8 @@ pub enum ObjectArg {
     Receiving(ObjectRef),
 }
 
-fn type_tag_validity_check(
-    tag: &TypeTag,
+fn type_input_validity_check(
+    tag: &TypeInput,
     config: &ProtocolConfig,
     starting_count: &mut usize,
 ) -> UserInputResult<()> {
@@ -144,20 +145,34 @@ fn type_tag_validity_check(
             }
         );
         match tag {
-            TypeTag::Bool
-            | TypeTag::U8
-            | TypeTag::U64
-            | TypeTag::U128
-            | TypeTag::Address
-            | TypeTag::Signer
-            | TypeTag::U16
-            | TypeTag::U32
-            | TypeTag::U256 => (),
-            TypeTag::Vector(t) => {
+            TypeInput::Bool
+            | TypeInput::U8
+            | TypeInput::U64
+            | TypeInput::U128
+            | TypeInput::Address
+            | TypeInput::Signer
+            | TypeInput::U16
+            | TypeInput::U32
+            | TypeInput::U256 => (),
+            TypeInput::Vector(t) => {
                 stack.push((t, depth + 1));
             }
-            TypeTag::Struct(s) => {
+            TypeInput::Struct(s) => {
                 let next_depth = depth + 1;
+                if config.validate_identifier_inputs() {
+                    fp_ensure!(
+                        identifier::is_valid(&s.module),
+                        UserInputError::InvalidIdentifier {
+                            error: s.module.clone()
+                        }
+                    );
+                    fp_ensure!(
+                        identifier::is_valid(&s.name),
+                        UserInputError::InvalidIdentifier {
+                            error: s.name.clone()
+                        }
+                    );
+                }
                 stack.extend(s.type_params.iter().map(|t| (t, next_depth)));
             }
         }
@@ -165,7 +180,7 @@ fn type_tag_validity_check(
     Ok(())
 }
 
-// System transaction for advancing the epoch.
+/// System transaction for advancing the epoch.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ChangeEpoch {
     /// The next (to become) epoch ID.
@@ -191,9 +206,9 @@ pub struct ChangeEpoch {
     pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
 }
 
-// System transaction for advancing the epoch.
-// This version includes the computation_charge_burned field for when
-// protocol_defined_base_fee is enabled in the protocol config.
+/// System transaction for advancing the epoch.
+/// This version includes the computation_charge_burned field for when
+/// protocol_defined_base_fee is enabled in the protocol config.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ChangeEpochV2 {
     /// The next (to become) epoch ID.
@@ -219,6 +234,40 @@ pub struct ChangeEpochV2 {
     /// will be upgraded to, their modules in serialized form (which include
     /// their package ID), and a list of their transitive dependencies.
     pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+}
+
+/// System transaction for advancing the epoch.
+/// This version includes active validator indices that are eligible
+/// to take part in committee selection based on protocol version support.
+#[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+pub struct ChangeEpochV3 {
+    /// The next (to become) epoch ID.
+    pub epoch: EpochId,
+    /// The protocol version in effect in the new epoch.
+    pub protocol_version: ProtocolVersion,
+    /// The total amount of gas charged for storage during the epoch.
+    pub storage_charge: u64,
+    /// The total amount of gas charged for computation during the epoch.
+    pub computation_charge: u64,
+    /// The burned component of the total computation/execution costs.
+    pub computation_charge_burned: u64,
+    /// The amount of storage rebate refunded to the txn senders.
+    pub storage_rebate: u64,
+    /// The amount of storage rebate that is burnt due to the
+    /// gas_price. It's given that storage_rebate + non_refundable_storage_fee
+    /// is always equal to the storage_charge of the tx.
+    pub non_refundable_storage_fee: u64,
+    /// Unix timestamp from the start of the epoch as milliseconds
+    pub epoch_start_timestamp_ms: u64,
+    /// System packages (specifically framework and move stdlib) that are
+    /// written by the execution of this transaction. Validators must write
+    /// out the modules below.  Modules are provided with the version they
+    /// will be upgraded to, their modules in serialized form (which include
+    /// their package ID), and a list of their transitive dependencies.
+    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+    /// Vector of active validator indices eligible to take part in committee
+    /// selection because they support the new, target protocol version.
+    pub eligible_active_validators: Vec<u64>,
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
@@ -320,6 +369,10 @@ pub enum TransactionKind {
 
     RandomnessStateUpdate(RandomnessStateUpdate),
     // .. more transaction types go here
+    // TODO: When introducing `ConsensusCommitPrologueV2`, please add
+    // and use a new variant for `ConsensusDeterminedVersionAssignments`.
+    // See https://github.com/iotaledger/iota/issues/7692 and
+    // https://github.com/iotaledger/iota/pull/7697 for detail.
 }
 
 /// EndOfEpochTransactionKind
@@ -327,6 +380,7 @@ pub enum TransactionKind {
 pub enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpoch),
     ChangeEpochV2(ChangeEpochV2),
+    ChangeEpochV3(ChangeEpochV3),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
 }
@@ -378,6 +432,32 @@ impl EndOfEpochTransactionKind {
         })
     }
 
+    pub fn new_change_epoch_v3(
+        next_epoch: EpochId,
+        protocol_version: ProtocolVersion,
+        storage_charge: u64,
+        computation_charge: u64,
+        computation_charge_burned: u64,
+        storage_rebate: u64,
+        non_refundable_storage_fee: u64,
+        epoch_start_timestamp_ms: u64,
+        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+        eligible_active_validators: Vec<u64>,
+    ) -> Self {
+        Self::ChangeEpochV3(ChangeEpochV3 {
+            epoch: next_epoch,
+            protocol_version,
+            storage_charge,
+            computation_charge,
+            computation_charge_burned,
+            storage_rebate,
+            non_refundable_storage_fee,
+            epoch_start_timestamp_ms,
+            system_packages,
+            eligible_active_validators,
+        })
+    }
+
     pub fn new_authenticator_state_expire(
         min_epoch: u64,
         authenticator_obj_initial_shared_version: SequenceNumber,
@@ -408,6 +488,13 @@ impl EndOfEpochTransactionKind {
                     mutable: true,
                 }]
             }
+            Self::ChangeEpochV3(_) => {
+                vec![InputObjectKind::SharedMoveObject {
+                    id: IOTA_SYSTEM_STATE_OBJECT_ID,
+                    initial_shared_version: IOTA_SYSTEM_STATE_OBJECT_SHARED_VERSION,
+                    mutable: true,
+                }]
+            }
             Self::AuthenticatorStateCreate => vec![],
             Self::AuthenticatorStateExpire(expire) => {
                 vec![InputObjectKind::SharedMoveObject {
@@ -425,6 +512,9 @@ impl EndOfEpochTransactionKind {
                 Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
             }
             Self::ChangeEpochV2(_) => {
+                Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
+            }
+            Self::ChangeEpochV3(_) => {
                 Either::Left(vec![SharedInputObject::IOTA_SYSTEM_OBJ].into_iter())
             }
             Self::AuthenticatorStateExpire(expire) => Either::Left(
@@ -447,11 +537,33 @@ impl EndOfEpochTransactionKind {
                         "protocol defined base fee not supported".to_string(),
                     ));
                 }
+                if config.select_committee_from_eligible_validators() {
+                    return Err(UserInputError::Unsupported(
+                        "selecting committee only among validators supporting the protocol version not supported".to_string(),
+                    ));
+                }
             }
             Self::ChangeEpochV2(_) => {
                 if !config.protocol_defined_base_fee() {
                     return Err(UserInputError::Unsupported(
                         "protocol defined base fee required".to_string(),
+                    ));
+                }
+                if config.select_committee_from_eligible_validators() {
+                    return Err(UserInputError::Unsupported(
+                        "selecting committee only among validators supporting the protocol version not supported".to_string(),
+                    ));
+                }
+            }
+            Self::ChangeEpochV3(_) => {
+                if !config.protocol_defined_base_fee() {
+                    return Err(UserInputError::Unsupported(
+                        "protocol defined base fee required".to_string(),
+                    ));
+                }
+                if !config.select_committee_from_eligible_validators() {
+                    return Err(UserInputError::Unsupported(
+                        "selecting committee only among validators supporting the protocol version required".to_string(),
                     ));
                 }
             }
@@ -597,21 +709,21 @@ impl ObjectArg {
 }
 
 // Add package IDs, `ObjectID`, for types defined in modules.
-fn add_type_tag_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &TypeTag) {
+fn add_type_input_packages(packages: &mut BTreeSet<ObjectID>, type_argument: &TypeInput) {
     let mut stack = vec![type_argument];
     while let Some(cur) = stack.pop() {
         match cur {
-            TypeTag::Bool
-            | TypeTag::U8
-            | TypeTag::U64
-            | TypeTag::U128
-            | TypeTag::Address
-            | TypeTag::Signer
-            | TypeTag::U16
-            | TypeTag::U32
-            | TypeTag::U256 => (),
-            TypeTag::Vector(inner) => stack.push(inner),
-            TypeTag::Struct(struct_tag) => {
+            TypeInput::Bool
+            | TypeInput::U8
+            | TypeInput::U64
+            | TypeInput::U128
+            | TypeInput::Address
+            | TypeInput::Signer
+            | TypeInput::U16
+            | TypeInput::U32
+            | TypeInput::U256 => (),
+            TypeInput::Vector(inner) => stack.push(inner),
+            TypeInput::Struct(struct_tag) => {
                 packages.insert(struct_tag.address.into());
                 stack.extend(struct_tag.type_params.iter())
             }
@@ -651,8 +763,8 @@ pub enum Command {
     Publish(Vec<Vec<u8>>, Vec<ObjectID>),
     /// `forall T: Vec<T> -> vector<T>`
     /// Given n-values of the same type, it constructs a vector. For non objects
-    /// or an empty vector, the type tag must be specified.
-    MakeMoveVec(Option<TypeTag>, Vec<Argument>),
+    /// or an empty vector, the type input must be specified.
+    MakeMoveVec(Option<TypeInput>, Vec<Argument>),
     /// Upgrades a Move package
     /// Takes (in order):
     /// 1. A vector of serialized modules for the package.
@@ -688,11 +800,11 @@ pub struct ProgrammableMoveCall {
     /// The package containing the module and function.
     pub package: ObjectID,
     /// The specific module in the package containing the function.
-    pub module: Identifier,
+    pub module: String,
     /// The function to be called.
-    pub function: Identifier,
+    pub function: String,
     /// The type arguments to the function.
-    pub type_arguments: Vec<TypeTag>,
+    pub type_arguments: Vec<TypeInput>,
     /// The arguments to the function.
     pub arguments: Vec<Argument>,
 }
@@ -706,7 +818,7 @@ impl ProgrammableMoveCall {
         } = self;
         let mut packages = BTreeSet::from([*package]);
         for type_argument in type_arguments {
-            add_type_tag_packages(&mut packages, type_argument)
+            add_type_input_packages(&mut packages, type_argument)
         }
         packages
             .into_iter()
@@ -723,7 +835,7 @@ impl ProgrammableMoveCall {
         fp_ensure!(!is_blocked, UserInputError::BlockedMoveFunction);
         let mut type_arguments_count = 0;
         for tag in &self.type_arguments {
-            type_tag_validity_check(tag, config, &mut type_arguments_count)?;
+            type_input_validity_check(tag, config, &mut type_arguments_count)?;
         }
         fp_ensure!(
             self.arguments.len() < config.max_arguments() as usize,
@@ -732,6 +844,20 @@ impl ProgrammableMoveCall {
                 value: config.max_arguments().to_string()
             }
         );
+        if config.validate_identifier_inputs() {
+            fp_ensure!(
+                identifier::is_valid(&self.module),
+                UserInputError::InvalidIdentifier {
+                    error: self.module.clone()
+                }
+            );
+            fp_ensure!(
+                identifier::is_valid(&self.function),
+                UserInputError::InvalidIdentifier {
+                    error: self.module.clone()
+                }
+            );
+        }
         Ok(())
     }
 
@@ -750,6 +876,9 @@ impl Command {
         type_arguments: Vec<TypeTag>,
         arguments: Vec<Argument>,
     ) -> Self {
+        let module = module.to_string();
+        let function = function.to_string();
+        let type_arguments = type_arguments.into_iter().map(TypeInput::from).collect();
         Command::MoveCall(Box::new(ProgrammableMoveCall {
             package,
             module,
@@ -757,6 +886,10 @@ impl Command {
             type_arguments,
             arguments,
         }))
+    }
+
+    pub fn make_move_vec(ty: Option<TypeTag>, args: Vec<Argument>) -> Self {
+        Command::MakeMoveVec(ty.map(TypeInput::from), args)
     }
 
     fn input_objects(&self) -> Vec<InputObjectKind> {
@@ -773,7 +906,7 @@ impl Command {
             Command::MoveCall(c) => c.input_objects(),
             Command::MakeMoveVec(Some(t), _) => {
                 let mut packages = BTreeSet::new();
-                add_type_tag_packages(&mut packages, t);
+                add_type_input_packages(&mut packages, t);
                 packages
                     .into_iter()
                     .map(InputObjectKind::MovePackage)
@@ -822,7 +955,7 @@ impl Command {
                 );
                 if let Some(ty) = ty_opt {
                     let mut type_arguments_count = 0;
-                    type_tag_validity_check(ty, config, &mut type_arguments_count)?;
+                    type_input_validity_check(ty, config, &mut type_arguments_count)?;
                 }
                 fp_ensure!(
                     args.len() < config.max_arguments() as usize,
@@ -1008,15 +1141,11 @@ impl ProgrammableTransaction {
             .flatten()
     }
 
-    fn move_calls(&self) -> Vec<(&ObjectID, &IdentStr, &IdentStr)> {
+    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
         self.commands
             .iter()
             .filter_map(|command| match command {
-                Command::MoveCall(m) => Some((
-                    &m.package,
-                    m.module.as_ident_str(),
-                    m.function.as_ident_str(),
-                )),
+                Command::MoveCall(m) => Some((&m.package, m.module.as_str(), m.function.as_str())),
                 _ => None,
             })
             .collect()
@@ -1180,6 +1309,9 @@ impl TransactionKind {
                     EndOfEpochTransactionKind::ChangeEpochV2(e) => {
                         Some((e.computation_charge + e.storage_charge, e.storage_rebate))
                     }
+                    EndOfEpochTransactionKind::ChangeEpochV3(e) => {
+                        Some((e.computation_charge + e.storage_charge, e.storage_rebate))
+                    }
                     _ => panic!("final end-of-epoch txn must be ChangeEpoch"),
                 }
             }
@@ -1226,7 +1358,7 @@ impl TransactionKind {
         }
     }
 
-    fn move_calls(&self) -> Vec<(&ObjectID, &IdentStr, &IdentStr)> {
+    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
         match &self {
             Self::ProgrammableTransaction(pt) => pt.move_calls(),
             _ => vec![],
@@ -1395,7 +1527,7 @@ impl Display for TransactionKind {
                 writeln!(writer, "Transaction Kind : End of Epoch Transaction")?;
             }
         }
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 
@@ -1689,6 +1821,22 @@ impl TransactionData {
         Self::new_programmable(sender, coins, pt, gas_budget, gas_price)
     }
 
+    pub fn new_split_coin(
+        sender: IotaAddress,
+        coin: ObjectRef,
+        amounts: Vec<u64>,
+        gas_payment: ObjectRef,
+        gas_budget: u64,
+        gas_price: u64,
+    ) -> Self {
+        let pt = {
+            let mut builder = ProgrammableTransactionBuilder::new();
+            builder.split_coin(sender, coin, amounts);
+            builder.finish()
+        };
+        Self::new_programmable(sender, vec![gas_payment], pt, gas_budget, gas_price)
+    }
+
     pub fn new_module(
         sender: IotaAddress,
         gas_payment: ObjectRef,
@@ -1857,7 +2005,7 @@ pub trait TransactionDataAPI {
 
     fn shared_input_objects(&self) -> Vec<SharedInputObject>;
 
-    fn move_calls(&self) -> Vec<(&ObjectID, &IdentStr, &IdentStr)>;
+    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
 
     fn input_objects(&self) -> UserInputResult<Vec<InputObjectKind>>;
 
@@ -1946,7 +2094,7 @@ impl TransactionDataAPI for TransactionDataV1 {
         self.kind.shared_input_objects().collect()
     }
 
-    fn move_calls(&self) -> Vec<(&ObjectID, &IdentStr, &IdentStr)> {
+    fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)> {
         self.kind.move_calls()
     }
 
@@ -1981,6 +2129,7 @@ impl TransactionDataAPI for TransactionDataV1 {
 
     // Keep all the logic for validity here, we need this for dry run where the gas
     // may not be provided and created "on the fly"
+    #[instrument(level = "trace", skip_all)]
     fn validity_check_no_gas_check(&self, config: &ProtocolConfig) -> UserInputResult {
         self.kind().validity_check(config)?;
         self.check_sponsorship()
@@ -2700,10 +2849,10 @@ impl std::fmt::Debug for ObjectReadResultKind {
                 write!(f, "Object({:?})", obj.compute_object_reference())
             }
             ObjectReadResultKind::DeletedSharedObject(seq, digest) => {
-                write!(f, "DeletedSharedObject({}, {:?})", seq, digest)
+                write!(f, "DeletedSharedObject({seq}, {digest:?})")
             }
             ObjectReadResultKind::CancelledTransactionSharedObject(seq) => {
-                write!(f, "CancelledTransactionSharedObject({})", seq)
+                write!(f, "CancelledTransactionSharedObject({seq})")
             }
         }
     }
@@ -2929,9 +3078,7 @@ impl InputObjects {
         for obj in &self.objects {
             if let ObjectReadResultKind::CancelledTransactionSharedObject(version) = obj.object {
                 contains_cancelled = true;
-                if version == SequenceNumber::CONGESTED
-                    || version == SequenceNumber::RANDOMNESS_UNAVAILABLE
-                {
+                if version.is_congested() || version == SequenceNumber::RANDOMNESS_UNAVAILABLE {
                     // Verify we don't have multiple cancellation reasons.
                     assert!(cancel_reason.is_none() || cancel_reason == Some(version));
                     cancel_reason = Some(version);
@@ -3160,7 +3307,7 @@ impl Display for CertifiedTransaction {
             self.auth_sig().signers_map
         )?;
         write!(writer, "{}", &self.data().intent_message().value.kind())?;
-        write!(f, "{}", writer)
+        write!(f, "{writer}")
     }
 }
 

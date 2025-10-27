@@ -9,14 +9,16 @@ import { useAppSelector, useActiveAccount } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
 import { Header } from '../header/Header';
 import { Toaster } from '../toaster';
-import { IotaLogoMark, Ledger } from '@iota/apps-ui-icons';
+import { IotaLogoMark, Keystone, Ledger } from '@iota/apps-ui-icons';
 import { Link } from 'react-router-dom';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
-import { formatAddress } from '@iota/iota-sdk/utils';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
 import { isLegacyAccount } from '_src/background/accounts/isLegacyAccount';
 import { isMainAccount } from '_src/background/accounts/isMainAccount';
+import { useGetDefaultIotaName } from '@iota/core';
+import { formatAccountName } from '../../helpers';
+import { isKeystoneAccountSerializedUI } from '_src/background/accounts/keystoneAccount';
 
 export const PageMainLayoutContext = createContext<HTMLDivElement | null>(null);
 
@@ -37,6 +39,7 @@ export function PageMainLayout({
     const isFullScreen = appType === AppType.Fullscreen;
     const [titlePortalContainer, setTitlePortalContainer] = useState<HTMLDivElement | null>(null);
     const isLedgerAccount = activeAccount && isLedgerAccountSerializedUI(activeAccount);
+    const isKeystoneAccount = activeAccount && isKeystoneAccountSerializedUI(activeAccount);
     const isHomePage = window.location.hash === '#/tokens';
 
     return (
@@ -52,6 +55,7 @@ export function PageMainLayout({
                         <LeftContent
                             account={activeAccount}
                             isLedgerAccount={isLedgerAccount}
+                            isKeystoneAccount={isKeystoneAccount}
                             isLocked={activeAccount?.isLocked}
                             isLegacyAccount={isLegacyAccount(activeAccount)}
                             isMainAccount={isMainAccount(activeAccount)}
@@ -85,17 +89,20 @@ export function PageMainLayout({
 function LeftContent({
     account,
     isLedgerAccount,
+    isKeystoneAccount,
     isLocked,
     isLegacyAccount,
     isMainAccount,
 }: {
     account: SerializedUIAccount | null;
     isLedgerAccount: boolean | null;
+    isKeystoneAccount: boolean | null;
     isLocked?: boolean;
     isLegacyAccount?: boolean;
     isMainAccount?: boolean;
 }) {
-    const accountName = account?.nickname ?? formatAddress(account?.address || '');
+    const { data: iotaName } = useGetDefaultIotaName(account?.address);
+    const accountName = formatAccountName(account?.nickname, iotaName, account?.address);
     const backgroundColor = isLocked ? 'bg-iota-neutral-90' : 'bg-iota-primary-30';
     return (
         <Link
@@ -109,11 +116,13 @@ function LeftContent({
                     backgroundColor,
                 )}
             >
-                {isLedgerAccount ? <Ledger /> : <IotaLogoMark />}
+                {isLedgerAccount ? <Ledger /> : isKeystoneAccount ? <Keystone /> : <IotaLogoMark />}
             </div>
-            <span className="line-clamp-1 break-all text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
-                {accountName}
-            </span>
+            <div className="flex flex-col items-start">
+                <span className="text-title-sm text-iota-neutral-10 dark:text-iota-neutral-92">
+                    {accountName}
+                </span>
+            </div>
             {isLegacyAccount && <Badge type={BadgeType.Neutral} label="Legacy" />}
             {isMainAccount && <Badge type={BadgeType.PrimarySoft} label="Main" />}
         </Link>

@@ -90,7 +90,7 @@ impl<A: Allower + 'static> ClientCertVerifier<A> {
         let mut config = rustls::ServerConfig::builder_with_provider(Arc::new(
             rustls::crypto::ring::default_provider(),
         ))
-        .with_safe_default_protocol_versions()?
+        .with_protocol_versions(&[&rustls::version::TLS13])?
         .with_client_cert_verifier(std::sync::Arc::new(self))
         .with_single_cert(certificates, private_key)?;
         config.alpn_protocols = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
@@ -130,8 +130,7 @@ impl<A: Allower> rustls::server::danger::ClientCertVerifier for ClientCertVerifi
 
         if !self.allower.allowed(&public_key) {
             return Err(rustls::Error::General(format!(
-                "invalid certificate: {:?} is not in the validator set",
-                public_key,
+                "invalid certificate: {public_key:?} is not in the validator set",
             )));
         }
 
@@ -190,7 +189,7 @@ impl ServerCertVerifier {
         rustls::ClientConfig::builder_with_provider(Arc::new(
             rustls::crypto::ring::default_provider(),
         ))
-        .with_safe_default_protocol_versions()?
+        .with_protocol_versions(&[&rustls::version::TLS13])?
         .dangerous()
         .with_custom_certificate_verifier(std::sync::Arc::new(self))
         .with_client_auth_cert(certificates, private_key)
@@ -202,7 +201,7 @@ impl ServerCertVerifier {
         Ok(rustls::ClientConfig::builder_with_provider(Arc::new(
             rustls::crypto::ring::default_provider(),
         ))
-        .with_safe_default_protocol_versions()?
+        .with_protocol_versions(&[&rustls::version::TLS13])?
         .dangerous()
         .with_custom_certificate_verifier(std::sync::Arc::new(self))
         .with_no_client_auth())
@@ -221,8 +220,7 @@ impl rustls::client::danger::ServerCertVerifier for ServerCertVerifier {
         let public_key = public_key_from_certificate(end_entity)?;
         if public_key != self.public_key {
             return Err(rustls::Error::General(format!(
-                "invalid certificate: {:?} is not the expected server public key",
-                public_key,
+                "invalid certificate: {public_key:?} is not the expected server public key",
             )));
         }
 

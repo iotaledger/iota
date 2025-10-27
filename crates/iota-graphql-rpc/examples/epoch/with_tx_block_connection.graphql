@@ -1,8 +1,8 @@
-# Fetch the first 20 transactions after tx 231220153 (encoded as a
-# cursor) in epoch 97.
+# Fetch the first 20 transactions after tx EDkHSZUwYFnHSLkWRQBJocgDxWogwvW8dmxFzbQjwFTp (encoded as a
+# cursor) in epoch 62.
 {
-  epoch(id: 97) {
-    transactionBlocks(first: 20, after:"eyJjIjoyNjkzMzc3OCwidCI6MjMxMjIwMTUzLCJ0YyI6ODAxMDg4NH0") {
+  epoch(id: 62) {
+    transactionBlocks(first: 20, after:"eyJjIjoyMzg5NDEzNSwidCI6MTA1MTI4NDEyLCJpIjpmYWxzZX0") {
       pageInfo {
         hasNextPage
         endCursor

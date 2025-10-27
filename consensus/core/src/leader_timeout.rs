@@ -110,6 +110,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 Ok(_) = new_round.changed() => {
                     leader_round = *new_round.borrow_and_update();
                     debug!("New round has been received {leader_round}, resetting timer");
+                    let _span = tracing::trace_span!("new_consensus_round_received", round = ?leader_round).entered();
 
                     min_leader_round_timed_out = false;
                     max_leader_round_timed_out = false;
@@ -133,10 +134,14 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::BTreeSet, sync::Arc, time::Duration};
+    use std::{
+        collections::{BTreeMap, BTreeSet},
+        sync::Arc,
+        time::Duration,
+    };
 
     use async_trait::async_trait;
-    use consensus_config::Parameters;
+    use consensus_config::{AuthorityIndex, Parameters};
     use parking_lot::Mutex;
     use tokio::time::{Instant, sleep};
 
@@ -193,7 +198,9 @@ mod tests {
             Ok(())
         }
 
-        async fn get_missing_blocks(&self) -> Result<BTreeSet<BlockRef>, CoreError> {
+        async fn get_missing_blocks(
+            &self,
+        ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             todo!()
         }
 

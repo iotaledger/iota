@@ -1,0 +1,10 @@
+[package]
+name = "gas_price_feedback"
+version = "0.0.1"
+edition = "2024"
+
+[dependencies]
+Iota = { local = "../../../../../iota-framework/packages/iota-framework" }
+
+[addresses]
+gas_price_feedback = "0x0"

@@ -1,10 +1,10 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 /// Module providing debug functionality.
-module std::debug {
-    native public fun print<T>(x: &T);
+module std::debug;
 
-    native public fun print_stack_trace();
-}
+public native fun print<T>(x: &T);
+
+public native fun print_stack_trace();

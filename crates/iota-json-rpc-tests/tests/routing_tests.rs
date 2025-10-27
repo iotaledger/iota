@@ -37,10 +37,10 @@ async fn test_rpc_backward_compatibility() {
     let response: String = client.request("test_foo", rpc_params!(true)).await.unwrap();
     assert_eq!("Some string", response);
 
-    // try to access old method directly should fail
+    // try to access old method directly should work
     let client = HttpClientBuilder::default().build(&url).unwrap();
     let response: Result<String, _> = client.request("test_foo_1_5", rpc_params!("string")).await;
-    assert!(response.is_err());
+    assert!(response.is_ok());
 
     // Test with versioned client, version > backward compatible method version
     let mut versioned_header = HeaderMap::new();
@@ -114,10 +114,10 @@ async fn test_disable_routing() {
         .unwrap();
     let url = format!("http://0.0.0.0:{}", address.port());
 
-    // try to access old method directly should fail
+    // try to access old method directly should work
     let client = HttpClientBuilder::default().build(&url).unwrap();
     let response: Result<String, _> = client.request("test_foo_1_5", rpc_params!("string")).await;
-    assert!(response.is_err());
+    assert!(response.is_ok());
 
     // Test with versioned client, version = backward compatible method version,
     // should fail because routing is disabled.

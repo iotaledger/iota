@@ -39,7 +39,11 @@ const PRIMARY_COIN_VALUE: u64 = 100 * NANOS_PER_IOTA;
 /// Number of nanos sent to each address on each batch transfer
 const BATCH_TRANSFER_AMOUNT: u64 = 1;
 
-const DUMMY_GAS: ObjectRef = (ObjectID::ZERO, SequenceNumber::MIN, ObjectDigest::MIN);
+const DUMMY_GAS: ObjectRef = (
+    ObjectID::ZERO,
+    SequenceNumber::MIN_VALID_INCL,
+    ObjectDigest::MIN,
+);
 
 #[derive(Debug)]
 pub struct BatchPaymentTestPayload {
@@ -150,7 +154,7 @@ impl BatchPaymentWorkloadBuilder {
         duration: Interval,
         group: u32,
     ) -> Option<WorkloadBuilderInfo> {
-        let target_qps = (workload_weight * target_qps as f32) as u64;
+        let target_qps = (workload_weight * target_qps as f32).ceil() as u64;
         let num_workers = (workload_weight * num_workers as f32).ceil() as u64;
         let max_ops = target_qps * in_flight_ratio;
         if max_ops == 0 || num_workers == 0 {

@@ -6,7 +6,6 @@ import {
     haveSupplyIncreaseLabel,
     COIN_TYPE,
     Collapsible,
-    formatBalance,
     IOTA_COIN_METADATA,
     STARDUST_BASIC_OUTPUT_TYPE,
     STARDUST_NFT_OUTPUT_TYPE,
@@ -18,7 +17,7 @@ import {
 import { TriangleDown } from '@iota/apps-ui-icons';
 import clsx from 'clsx';
 import { Badge, BadgeType } from '@iota/apps-ui-kit';
-import { formatAddress, IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
+import { formatAddress, IOTA_TYPE_ARG, formatBalance } from '@iota/iota-sdk/utils';
 import {
     useGetOwnedObjectsMultipleAddresses,
     useGetSharedObjectsMultipleAddresses,

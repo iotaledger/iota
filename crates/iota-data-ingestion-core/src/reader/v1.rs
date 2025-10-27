@@ -4,6 +4,7 @@
 
 use std::{
     collections::BTreeMap,
+    fs,
     path::{Path, PathBuf},
     sync::Arc,
     time::Duration,
@@ -26,6 +27,8 @@ use tokio::{
 };
 use tracing::{debug, error, info};
 
+#[cfg(not(target_os = "macos"))]
+use crate::reader::fetch::init_watcher;
 use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     reader::fetch::{
@@ -106,7 +109,7 @@ impl Default for ReaderOptions {
 
 enum RemoteStore {
     ObjectStore(Box<dyn ObjectStore>),
-    Rest(iota_rest_api::Client),
+    Fullnode(iota_rest_api::Client),
     Hybrid(Box<dyn ObjectStore>, iota_rest_api::Client),
 }
 
@@ -119,7 +122,7 @@ impl CheckpointReader {
             RemoteStore::ObjectStore(store) => {
                 fetch_from_object_store(store, checkpoint_number).await
             }
-            RemoteStore::Rest(client) => fetch_from_full_node(client, checkpoint_number).await,
+            RemoteStore::Fullnode(client) => fetch_from_full_node(client, checkpoint_number).await,
             RemoteStore::Hybrid(store, client) => {
                 match fetch_from_full_node(client, checkpoint_number).await {
                     Ok(result) => Ok(result),
@@ -145,9 +148,8 @@ impl CheckpointReader {
                     Some(duration) => {
                         if !err.to_string().contains("404") {
                             debug!(
-                                "remote reader retry in {} ms. Error is {:?}",
+                                "remote reader retry in {} ms. Error is {err:?}",
                                 duration.as_millis(),
-                                err
                             );
                         }
                         tokio::time::sleep(duration).await
@@ -175,7 +177,7 @@ impl CheckpointReader {
             .expect("failed to create remote store client");
             RemoteStore::Hybrid(object_store, iota_rest_api::Client::new(fn_url))
         } else if url.ends_with("/api/v1") {
-            RemoteStore::Rest(iota_rest_api::Client::new(url))
+            RemoteStore::Fullnode(iota_rest_api::Client::new(url))
         } else {
             let object_store = create_remote_store_client(
                 url,
@@ -303,19 +305,24 @@ impl CheckpointReader {
     }
 
     pub async fn run(mut self) -> IngestionResult<()> {
-        let (_watcher, mut inotify_recv) = self.setup_directory_watcher();
+        let (_inotify_sender, mut inotify_recv) = mpsc::channel::<()>(1);
+        fs::create_dir_all(self.path()).expect("failed to create a directory");
+
+        #[cfg(not(target_os = "macos"))]
+        let _watcher = init_watcher(_inotify_sender, self.path());
+
         self.data_limiter.gc(self.last_pruned_watermark);
         self.gc_processed_files(self.last_pruned_watermark)
-            .expect("Failed to clean the directory");
+            .expect("failed to clean the directory");
         loop {
             tokio::select! {
                 _ = &mut self.exit_receiver => break,
                 Some(gc_checkpoint_number) = self.processed_receiver.recv() => {
                     self.data_limiter.gc(gc_checkpoint_number);
-                    self.gc_processed_files(gc_checkpoint_number).expect("Failed to clean the directory");
+                    self.gc_processed_files(gc_checkpoint_number).expect("failed to clean the directory");
                 }
                 Ok(Some(_)) | Err(_) = timeout(Duration::from_millis(self.options.tick_interval_ms), inotify_recv.recv())  => {
-                    self.sync().await.expect("Failed to read checkpoint files");
+                    self.sync().await.expect("failed to read checkpoint files");
                 }
             }
         }

@@ -2,14 +2,25 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, path::PathBuf};
+use std::{collections::HashMap, net::SocketAddr, path::PathBuf};
 
+use anyhow::Context;
 use clap::{Args, Parser, Subcommand};
 use iota_names::config::IotaNamesConfig;
 use iota_types::base_types::{IotaAddress, ObjectID};
+use serde::{Deserialize, Serialize};
+use strum::IntoEnumIterator;
+use tracing::warn;
 use url::Url;
 
-use crate::db::ConnectionPoolConfig;
+use crate::{
+    backfill::BackfillKind, db::ConnectionPoolConfig, pruning::pruner::PrunableTable,
+    types::IndexerResult,
+};
+
+/// The primary purpose of objects_history is to serve consistency query.
+/// A short retention is sufficient.
+const OBJECTS_HISTORY_EPOCHS_TO_KEEP: u64 = 2;
 
 #[derive(Parser, Clone, Debug)]
 #[command(
@@ -165,6 +176,27 @@ impl Default for IngestionConfig {
     }
 }
 
+#[derive(Args, Debug, Clone)]
+pub struct BackfillConfig {
+    /// Maximum number of concurrent tasks to run.
+    #[arg(
+    long,
+    default_value_t = Self::DEFAULT_MAX_CONCURRENCY,
+    )]
+    pub max_concurrency: usize,
+    /// Size of the data chunks processed per task.
+    #[arg(
+    long,
+    default_value_t = Self::DEFAULT_CHUNK_SIZE,
+    )]
+    pub chunk_size: usize,
+}
+
+impl BackfillConfig {
+    const DEFAULT_MAX_CONCURRENCY: usize = 10;
+    const DEFAULT_CHUNK_SIZE: usize = 1000;
+}
+
 #[derive(Subcommand, Clone, Debug)]
 pub enum Command {
     Indexer {
@@ -181,12 +213,146 @@ pub enum Command {
     AnalyticalWorker,
     /// Print help for the deprecated interface.
     HelpDeprecated,
+    /// Backfill DB tables for some ID range [start, end].
+    /// The tool will automatically slice it into smaller ranges and for each
+    /// range, it first makes a read query to the DB to get data needed for
+    /// backfill if needed, which then can be processed and written back to
+    /// the DB. To add a new backfill, add a new module and implement the
+    /// `BackfillTask` trait.
+    RunBackfill {
+        /// Start of the range to backfill, inclusive.
+        /// It can be a checkpoint number or an epoch or any other identifier
+        /// that can be used to slice the backfill range.
+        start: usize,
+        /// End of the range to backfill, inclusive.
+        end: usize,
+        #[command(subcommand)]
+        runner_kind: BackfillKind,
+        #[command(flatten)]
+        backfill_config: BackfillConfig,
+    },
 }
 
 #[derive(Args, Default, Debug, Clone)]
 pub struct PruningOptions {
+    /// Argument left for backward compatibility, users are encouraged to use
+    /// pruning_config_path
     #[arg(long, env = "EPOCHS_TO_KEEP")]
     pub epochs_to_keep: Option<u64>,
+    /// Path to TOML file containing configuration for retention policies.
+    #[arg(long)]
+    pub pruning_config_path: Option<PathBuf>,
+    #[arg(long, env = "OPTIMISTIC_PRUNER_BATCH_SIZE")]
+    pub optimistic_pruner_batch_size: Option<u64>,
+}
+
+/// Represents the default retention policy and overrides for prunable tables.
+/// Instantiated only if `PruningOptions` is provided on indexer start.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetentionConfig {
+    /// Default retention policy for all tables.
+    pub epochs_to_keep: u64,
+    /// A map of tables to their respective retention policies that will
+    /// override the default. Prunable tables not named here will use the
+    /// default retention policy.
+    #[serde(default)]
+    pub overrides: HashMap<PrunableTable, u64>,
+}
+
+impl PruningOptions {
+    /// Loads default retention policy and overrides from file.
+    pub fn load_from_file(&self) -> IndexerResult<Option<RetentionConfig>> {
+        let Some(config_path) = self.pruning_config_path.as_ref() else {
+            let Some(epochs_to_keep) = self.epochs_to_keep else {
+                return Ok(None);
+            };
+            warn!(
+                "using the deprecated --epochs-to-keep argument for pruning configuration. \
+                 Please use --pruning-config-path to specify a TOML configuration file instead."
+            );
+            return Ok(Some(RetentionConfig::new(
+                epochs_to_keep,
+                Default::default(),
+            )));
+        };
+
+        if self.epochs_to_keep.is_some() {
+            warn!(
+                "the --epochs-to-keep argument will be ignored since --pruning-config-path is also provided."
+            );
+        };
+
+        let contents = std::fs::read_to_string(config_path)
+            .context("failed to read default retention policy and overrides from file")?;
+        let retention_with_overrides = toml::de::from_str::<RetentionConfig>(&contents)
+            .context("failed to parse into RetentionConfig struct")?;
+
+        let default_retention = retention_with_overrides.epochs_to_keep;
+
+        assert!(
+            default_retention > 0,
+            "default retention must be greater than 0"
+        );
+        assert!(
+            retention_with_overrides
+                .overrides
+                .values()
+                .all(|&policy| policy > 0),
+            "all retention overrides must be greater than 0"
+        );
+
+        Ok(Some(retention_with_overrides))
+    }
+}
+
+impl RetentionConfig {
+    /// Creates a new `RetentionConfig` with the specified default retention and
+    /// overrides.
+    ///
+    /// Call `finalize()` on the instance to update the `policies` field with
+    /// the default retention policy for all tables that do not have an
+    /// override specified.
+    pub fn new(epochs_to_keep: u64, overrides: HashMap<PrunableTable, u64>) -> Self {
+        Self {
+            epochs_to_keep,
+            overrides,
+        }
+    }
+
+    pub fn new_with_default_retention_only_for_testing(epochs_to_keep: u64) -> Self {
+        let mut overrides = HashMap::new();
+        overrides.insert(
+            PrunableTable::ObjectsHistory,
+            OBJECTS_HISTORY_EPOCHS_TO_KEEP,
+        );
+
+        Self::new(epochs_to_keep, HashMap::new())
+    }
+
+    /// Consumes the struct and produces a mapping of every prunable table
+    /// and its retention policy.
+    ///
+    /// By default, every prunable table will have the default retention policy
+    /// from `epochs_to_keep`. Some tables like `objects_history` will
+    /// observe a different default retention policy. These default values
+    /// are overridden by any entries in `overrides`.
+    pub fn retention_policies(self) -> HashMap<PrunableTable, u64> {
+        let RetentionConfig {
+            epochs_to_keep,
+            mut overrides,
+        } = self;
+
+        for table in PrunableTable::iter() {
+            let default_retention = match table {
+                PrunableTable::ObjectsHistory => OBJECTS_HISTORY_EPOCHS_TO_KEEP,
+                _ => epochs_to_keep,
+            };
+
+            overrides.entry(table).or_insert(default_retention);
+        }
+
+        overrides
+    }
 }
 
 #[derive(Args, Debug, Clone)]
@@ -285,7 +451,7 @@ pub mod deprecated {
         pub fn base_connection_url(&self) -> anyhow::Result<String, anyhow::Error> {
             let url_secret = self.get_db_url()?;
             let url_str = url_secret.expose_secret();
-            let url = Url::parse(url_str).expect("Failed to parse URL");
+            let url = Url::parse(url_str).expect("failed to parse URL");
             Ok(format!(
                 "{}://{}:{}@{}:{}/",
                 url.scheme(),
@@ -322,7 +488,7 @@ pub mod deprecated {
                     db_name
                 ))),
                 _ => bail!(
-                    "Invalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided"
+                    "invalid db connection config, either db_url or (db_user_name, db_password, db_host, db_port, db_name) must be provided"
                 ),
             }
         }
@@ -397,13 +563,13 @@ pub mod deprecated {
                     IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_QUEUE_SIZE.to_string()
                 })
                 .parse::<usize>()
-                .expect("Invalid DOWNLOAD_QUEUE_SIZE");
+                .expect("invalid DOWNLOAD_QUEUE_SIZE");
             let ingestion_reader_timeout_secs = std::env::var("INGESTION_READER_TIMEOUT_SECS")
                 .unwrap_or_else(|_| {
                     IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_TIMEOUT.to_string()
                 })
                 .parse::<u64>()
-                .expect("Invalid INGESTION_READER_TIMEOUT_SECS");
+                .expect("invalid INGESTION_READER_TIMEOUT_SECS");
             let data_limit = std::env::var("CHECKPOINT_PROCESSING_BATCH_DATA_LIMIT")
                 .unwrap_or(
                     IngestionConfig::DEFAULT_CHECKPOINT_DOWNLOAD_QUEUE_SIZE_BYTES.to_string(),
@@ -419,7 +585,7 @@ pub mod deprecated {
             let rpc_client_url_parsed = old_conf
                 .rpc_client_url
                 .parse()
-                .expect("RPC Client url should be valid");
+                .expect("rpc client url should be valid");
 
             let command = if old_conf.analytical_worker {
                 Command::AnalyticalWorker
@@ -431,7 +597,7 @@ pub mod deprecated {
                             .rpc_server_url
                             .as_str()
                             .parse()
-                            .expect("RPC Server url should be valid"),
+                            .expect("rpc server url should be valid"),
                         old_conf.rpc_server_port,
                     ),
                     rpc_client_url: old_conf.rpc_client_url,
@@ -442,7 +608,7 @@ pub mod deprecated {
                         sources: IngestionSources {
                             data_ingestion_path: old_conf.data_ingestion_path,
                             remote_store_url: old_conf.remote_store_url.map(|url| {
-                                url.parse().expect("Remote Store URL should be correct")
+                                url.parse().expect("remote store url should be correct")
                             }),
                             rpc_client_url: Some(rpc_client_url_parsed),
                         },
@@ -458,12 +624,16 @@ pub mod deprecated {
                         epochs_to_keep: std::env::var("EPOCHS_TO_KEEP")
                             .map(|s| s.parse::<u64>().ok())
                             .unwrap_or_else(|_e| None),
+                        optimistic_pruner_batch_size: std::env::var("OPTIMISTIC_PRUNER_BATCH_SIZE")
+                            .map(|s| s.parse::<u64>().ok())
+                            .unwrap_or_default(),
+                        pruning_config_path: None,
                     },
                     reset_db: old_conf.reset_db,
                 }
             } else {
                 return Err(IndexerError::InvalidArgument(
-                    "Worker type argument not specified".into(),
+                    "worker type argument not specified".into(),
                 ));
             };
 
@@ -472,12 +642,12 @@ pub mod deprecated {
                     db_url
                         .map_err(|e| {
                             IndexerError::PgPoolConnection(format!(
-                                "Failed parsing database url with error {e:?}"
+                                "failed parsing database url with error {e:?}"
                             ))
                         })?
                         .expose_secret()
                         .parse()
-                        .expect("Database URL should be correct"),
+                        .expect("database url should be correct"),
                 ),
                 connection_pool_config: pool_config_from_env(),
                 metrics_address,
@@ -489,9 +659,13 @@ pub mod deprecated {
 
 #[cfg(test)]
 mod test {
+    use std::io::Write;
+
     use tap::Pipe;
+    use tempfile::NamedTempFile;
 
     use super::*;
+    use crate::pruning::pruner::PrunableTable;
 
     fn parse_args<'a, T>(args: impl IntoIterator<Item = &'a str>) -> Result<T, clap::error::Error>
     where
@@ -553,5 +727,131 @@ mod test {
 
         // fullnode rpc url must be present
         parse_args::<JsonRpcConfig>([]).unwrap_err();
+    }
+
+    #[test]
+    fn pruning_options_with_objects_history_override() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let toml_content = r#"
+        epochs_to_keep = 5
+        [overrides]
+        objects_history = 10
+        transactions = 20
+        "#;
+        temp_file.write_all(toml_content.as_bytes()).unwrap();
+        let temp_path: PathBuf = temp_file.path().to_path_buf();
+        let pruning_options = PruningOptions {
+            epochs_to_keep: None,
+            pruning_config_path: Some(temp_path.clone()),
+            optimistic_pruner_batch_size: None,
+        };
+        let retention_config = pruning_options.load_from_file().unwrap().unwrap();
+
+        // Assert the parsed values
+        assert_eq!(retention_config.epochs_to_keep, 5);
+        assert_eq!(
+            retention_config
+                .overrides
+                .get(&PrunableTable::ObjectsHistory)
+                .copied(),
+            Some(10)
+        );
+        assert_eq!(
+            retention_config
+                .overrides
+                .get(&PrunableTable::Transactions)
+                .copied(),
+            Some(20)
+        );
+        assert_eq!(retention_config.overrides.len(), 2);
+
+        let retention_policies = retention_config.retention_policies();
+
+        for table in PrunableTable::iter() {
+            let Some(retention) = retention_policies.get(&table).copied() else {
+                panic!("expected a retention policy for table {table:?}");
+            };
+
+            match table {
+                PrunableTable::ObjectsHistory => assert_eq!(retention, 10),
+                PrunableTable::Transactions => assert_eq!(retention, 20),
+                _ => assert_eq!(retention, 5),
+            };
+        }
+    }
+
+    #[test]
+    fn pruning_options_no_objects_history_override() {
+        let mut temp_file = NamedTempFile::new().unwrap();
+        let toml_content = r#"
+        epochs_to_keep = 5
+        [overrides]
+        tx_affected_addresses = 10
+        transactions = 20
+        "#;
+        temp_file.write_all(toml_content.as_bytes()).unwrap();
+        let temp_path: PathBuf = temp_file.path().to_path_buf();
+        let pruning_options = PruningOptions {
+            epochs_to_keep: None,
+            pruning_config_path: Some(temp_path.clone()),
+            optimistic_pruner_batch_size: None,
+        };
+        let retention_config = pruning_options.load_from_file().unwrap().unwrap();
+
+        // Assert the parsed values
+        assert_eq!(retention_config.epochs_to_keep, 5);
+        assert_eq!(
+            retention_config
+                .overrides
+                .get(&PrunableTable::TxAffectedAddresses)
+                .copied(),
+            Some(10)
+        );
+        assert_eq!(
+            retention_config
+                .overrides
+                .get(&PrunableTable::Transactions)
+                .copied(),
+            Some(20)
+        );
+        assert_eq!(retention_config.overrides.len(), 2);
+
+        let retention_policies = retention_config.retention_policies();
+
+        for table in PrunableTable::iter() {
+            let Some(retention) = retention_policies.get(&table).copied() else {
+                panic!("expected a retention policy for table {table:?}");
+            };
+
+            match table {
+                PrunableTable::ObjectsHistory => {
+                    assert_eq!(retention, OBJECTS_HISTORY_EPOCHS_TO_KEEP)
+                }
+                PrunableTable::TxAffectedAddresses => assert_eq!(retention, 10),
+                PrunableTable::Transactions => assert_eq!(retention, 20),
+                _ => assert_eq!(retention, 5),
+            };
+        }
+    }
+
+    #[test]
+    fn test_invalid_pruning_config_file() {
+        let toml_str = r#"
+        epochs_to_keep = 5
+        [overrides]
+        objects_history = 10
+        transactions = 20
+        invalid_table = 30
+        "#;
+
+        let result = toml::from_str::<RetentionConfig>(toml_str);
+        assert!(result.is_err(), "expected an error, but parsing succeeded");
+
+        if let Err(e) = result {
+            assert!(
+                e.to_string().contains("unknown variant `invalid_table`"),
+                "error message doesn't mention the invalid table"
+            );
+        }
     }
 }

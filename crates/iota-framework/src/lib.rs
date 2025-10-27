@@ -193,7 +193,7 @@ pub async fn compare_system_package<S: ObjectStore>(
     dependencies: Vec<ObjectID>,
     binary_config: &BinaryConfig,
 ) -> Option<ObjectRef> {
-    let cur_object = match object_store.get_object(id) {
+    let cur_object = match object_store.try_get_object(id) {
         Ok(Some(cur_object)) => cur_object,
 
         Ok(None) => {

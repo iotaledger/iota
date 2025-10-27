@@ -15,7 +15,7 @@ import { setNavVisibility } from '_redux/slices/app';
 import { isLedgerAccountSerializedUI } from '_src/background/accounts/ledgerAccount';
 import { persistableStorage } from '_src/shared/analytics/amplitude';
 import { type LedgerAccountsPublicKeys } from '_src/shared/messaging/messages/payloads/methodPayload';
-import { toB64 } from '@iota/iota-sdk/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import { useEffect, useMemo } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { throttle } from 'throttle-debounce';
@@ -60,6 +60,7 @@ import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
 import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder/AccountsFinderIntroPage';
+import { ImportKeystone } from './pages/accounts/ImportKeystone';
 
 const HIDDEN_MENU_PATHS = [
     '/nft-details',
@@ -120,7 +121,7 @@ export function App() {
                                     await iotaLedgerClient.getPublicKey(derivationPath);
                                 publicKeysToStore.push({
                                     accountID: id,
-                                    publicKey: toB64(publicKey),
+                                    publicKey: toBase64(publicKey),
                                 });
                             } catch (e) {
                                 // do nothing
@@ -192,6 +193,7 @@ export function App() {
                 <Route path="import-passphrase" element={<ImportPassphrasePage />} />
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
+                <Route path="import-keystone" element={<ImportKeystone />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
                 <Route path="manage/accounts-finder/intro" element={<AccountsFinderIntroPage />} />
                 <Route

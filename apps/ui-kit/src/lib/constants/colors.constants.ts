@@ -87,6 +87,7 @@ export const IOTA_PRIMITIVES_COLOR_PALETTE = {
         '100': '#FFFFFF',
     },
 };
+
 export const IOTA_NAMES_COLOR_PALETTE = {
     'names-primary': {
         '0': '#000000',
@@ -159,11 +160,11 @@ export const IOTA_NAMES_COLOR_PALETTE = {
         '98': '#F8F9FF',
         '100': '#ffffff',
     },
-    'names-gradient': {
-        'stop-1': '#3131FF',
-        'stop-2': '#A139FF',
-        'stop-3': '#14F0D6',
-        'stop-4': '#20233C',
+    'names-solid': {
+        blue: '#3131FF',
+        purple: '#A139FF',
+        green: '#14F0D6',
+        neutral: '#20233C',
     },
     'names-warning': {
         '0': '#000000',
@@ -188,6 +189,7 @@ export const SHADER_COLOR_PALETTE = {
         '16': '#bed8ff28',
         '48': '#bed8ff7a',
         '72': '#bed8ffb7',
+        '100': '#bed8ff',
     },
     'shader-inverted-dark': {
         '0': '#002f6d00',
@@ -196,6 +198,7 @@ export const SHADER_COLOR_PALETTE = {
         '16': '#002f6d28',
         '48': '#002f6d7a',
         '72': '#002f6db7',
+        '100': '#002f6d',
     },
     'shader-neutral-dark': {
         '0': '#bed8ff00',
@@ -204,6 +207,7 @@ export const SHADER_COLOR_PALETTE = {
         '16': '#bed8ff28',
         '48': '#bed8ff7a',
         '72': '#bed8ffb7',
+        '100': '#bed8ff',
     },
     'shader-primary-light': {
         0: '#0067ee00',
@@ -212,6 +216,7 @@ export const SHADER_COLOR_PALETTE = {
         16: '#0067ee28',
         48: '#0067ee7a',
         72: '#0067eeb7',
+        100: '#0067ee',
     },
     'shader-inverted-light': {
         0: '#bed8ff00',
@@ -220,6 +225,7 @@ export const SHADER_COLOR_PALETTE = {
         16: '#bed8ff28',
         48: '#bed8ff7a',
         72: '#bed8ffb7',
+        100: '#bed8ff',
     },
     'shader-neutral-light': {
         0: '#002f6d00',
@@ -228,5 +234,6 @@ export const SHADER_COLOR_PALETTE = {
         16: '#002f6d28',
         48: '#002f6d7a',
         72: '#002f6db7',
+        100: '#002f6d',
     },
 };

@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { toHEX } from '@iota/bcs';
+import { toHex } from '@iota/bcs';
 import { mnemonicToSeedSync as bip39MnemonicToSeedSync } from '@scure/bip39';
 
 /**
@@ -46,5 +46,5 @@ export function mnemonicToSeed(mnemonics: string): Uint8Array {
  * @param mnemonics 24 words string split by spaces.
  */
 export function mnemonicToSeedHex(mnemonics: string): string {
-    return toHEX(mnemonicToSeed(mnemonics));
+    return toHex(mnemonicToSeed(mnemonics));
 }

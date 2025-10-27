@@ -753,7 +753,7 @@ async fn test_transaction(
             Some(ExecuteTransactionRequestType::WaitForLocalExecution),
         )
         .await
-        .map_err(|e| anyhow!("TX execution failed for {data:#?}, error : {e}"))
+        .map_err(|e| anyhow!("tx execution failed for {data:#?}, error : {e}"))
         .unwrap();
 
     let effects = response.effects.as_ref().unwrap();
@@ -762,8 +762,7 @@ async fn test_transaction(
         assert_eq!(
             IotaExecutionStatus::Success,
             *effects.status(),
-            "TX execution failed for {:#?}",
-            data
+            "tx execution failed for {data:#?}"
         );
     } else {
         assert!(matches!(
@@ -784,8 +783,7 @@ async fn test_transaction(
     }
     assert_eq!(
         actual_balance_change, balances_from_ops,
-        "balance check failed for tx: {}\neffect:{:#?}",
-        tx, effects
+        "balance check failed for tx: {tx}\neffect:{effects:#?}"
     );
     response
 }

@@ -20,7 +20,7 @@ use self::name::Name;
 
 /// An object to manage a second-level name (SLN).
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct IotaNamesRegistration {
+pub struct NameRegistration {
     id: ObjectID,
     name: Name,
     name_str: String,
@@ -31,16 +31,16 @@ pub struct IotaNamesRegistration {
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SubnameRegistration {
     id: ObjectID,
-    nft: IotaNamesRegistration,
+    nft: NameRegistration,
 }
 
 impl SubnameRegistration {
-    pub fn into_inner(self) -> IotaNamesRegistration {
+    pub fn into_inner(self) -> NameRegistration {
         self.nft
     }
 }
 
-/// Unifying trait for [`IotaNamesRegistration`] and [`SubnameRegistration`]
+/// Unifying trait for [`NameRegistration`] and [`SubnameRegistration`]
 pub trait IotaNamesNft {
     const MODULE: &IdentStr;
     const TYPE_NAME: &IdentStr;
@@ -71,9 +71,9 @@ pub trait IotaNamesNft {
     fn id(&self) -> ObjectID;
 }
 
-impl IotaNamesNft for IotaNamesRegistration {
-    const MODULE: &IdentStr = ident_str!("iota_names_registration");
-    const TYPE_NAME: &IdentStr = ident_str!("IotaNamesRegistration");
+impl IotaNamesNft for NameRegistration {
+    const MODULE: &IdentStr = ident_str!("name_registration");
+    const TYPE_NAME: &IdentStr = ident_str!("NameRegistration");
 
     fn name(&self) -> &Name {
         &self.name

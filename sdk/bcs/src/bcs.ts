@@ -179,6 +179,41 @@ export const bcs = {
     },
 
     /**
+     * Creates a BcsType representing a variable length byte array
+     *
+     * @example
+     * bcs.byteVector().serialize([1, 2, 3]).toBytes() // Uint8Array [3, 1, 2, 3]
+     */
+    byteVector(options?: BcsTypeOptions<Uint8Array, Iterable<number>>) {
+        return new BcsType<Uint8Array, Iterable<number>>({
+            name: `bytesVector`,
+            read: (reader) => {
+                const length = reader.readULEB();
+
+                return reader.readBytes(length);
+            },
+            write: (value, writer) => {
+                const array = new Uint8Array(value);
+                writer.writeULEB(array.length);
+                for (let i = 0; i < array.length; i++) {
+                    writer.write8(array[i] ?? 0);
+                }
+            },
+            ...options,
+            serializedSize: (value) => {
+                const length = 'length' in value ? (value.length as number) : null;
+                return length == null ? null : ulebEncode(length).length + length;
+            },
+            validate: (value) => {
+                options?.validate?.(value);
+                if (!value || typeof value !== 'object' || !('length' in value)) {
+                    throw new TypeError(`Expected array, found ${typeof value}`);
+                }
+            },
+        });
+    },
+
+    /**
      * Creates a BcsType that can ser/de string values.  Strings will be UTF-8 encoded
      * @example
      * bcs.string().serialize('a').toBytes() // Uint8Array [ 1, 97 ]

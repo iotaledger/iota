@@ -73,9 +73,9 @@ export function InactiveValidators({
                     />
                     <KeyValueInfo
                         keyText="Address"
-                        value={<AddressLink address={validatorAddress} label={validatorAddress} />}
-                        copyText={validatorAddress}
-                        onCopySuccess={onCopySuccess}
+                        value={
+                            <AddressLink address={validatorAddress} copyText={validatorAddress} />
+                        }
                     />
                     <KeyValueInfo
                         keyText="Public Key"
@@ -146,11 +146,10 @@ export function ValidatorMeta({ validatorData }: ValidatorMetaProps): JSX.Elemen
                         value={
                             <AddressLink
                                 address={validatorData.iotaAddress}
-                                label={validatorData.iotaAddress}
+                                copyText={validatorData.iotaAddress}
+                                noTruncate
                             />
                         }
-                        copyText={validatorData.iotaAddress}
-                        onCopySuccess={onCopySuccess}
                     />
                     <KeyValueInfo
                         keyText="Public Key"

@@ -4,7 +4,7 @@
 
 import { KeyValueInfo, TitleSize } from '@iota/apps-ui-kit';
 import { type IotaCallArg } from '@iota/iota-sdk/client';
-import { isValidIotaAddress, toHEX } from '@iota/iota-sdk/utils';
+import { isValidIotaAddress, toHex } from '@iota/iota-sdk/utils';
 import { ProgrammableTxnBlockCard, AddressLink, ObjectLink, CollapsibleCard } from '~/components';
 import { useBreakpoint } from '~/hooks';
 import { EVM_ADDRESS_LENGTH } from '~/lib/constants/evm.constants';
@@ -75,7 +75,7 @@ export function InputsCard({ inputs }: InputsCardProps): JSX.Element | null {
                         let parsedAddress: string | null = null;
                         try {
                             if (parsedVector) {
-                                const hex = toHEX(new Uint8Array(parsedVector));
+                                const hex = toHex(new Uint8Array(parsedVector));
                                 if (hex.length == EVM_ADDRESS_LENGTH || isValidIotaAddress(hex)) {
                                     parsedAddress = hex;
                                 }

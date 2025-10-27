@@ -49,7 +49,6 @@ export function ObjectResult(): JSX.Element {
                                     <div className="flex flex-col gap-xs">
                                         <AddressAlias
                                             address={resp?.id || ''}
-                                            formatUnknownAddress={false}
                                             onCopy={() => copyToClipboard(resp?.id || '')}
                                         />
                                     </div>
@@ -83,7 +82,6 @@ export function ObjectResult(): JSX.Element {
                                             <AddressAlias
                                                 address={resp.id}
                                                 onCopy={() => copyToClipboard(resp.id)}
-                                                formatUnknownAddress={false}
                                             />
                                         </div>
                                     }

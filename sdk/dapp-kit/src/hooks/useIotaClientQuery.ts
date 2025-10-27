@@ -3,8 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IotaClient } from '@iota/iota-sdk/client';
-import type { UseQueryOptions, UseQueryResult } from '@tanstack/react-query';
-import { useQuery } from '@tanstack/react-query';
+import type {
+    UndefinedInitialDataOptions,
+    UseQueryOptions,
+    UseQueryResult,
+} from '@tanstack/react-query';
+import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 
 import type { PartialBy } from '../types/utilityTypes.js';
 import { useIotaClientContext } from './useIotaClient.js';
@@ -37,6 +42,34 @@ export type UseIotaClientQueryOptions<T extends keyof IotaRpcMethods, TData> = P
     Omit<UseQueryOptions<IotaRpcMethods[T]['result'], Error, TData, unknown[]>, 'queryFn'>,
     'queryKey'
 >;
+
+export type GetIotaClientQueryOptions<T extends keyof IotaRpcMethods> = {
+    client: IotaClient;
+    network: string;
+    method: T;
+    options?: PartialBy<
+        Omit<UndefinedInitialDataOptions<IotaRpcMethods[T]['result']>, 'queryFn'>,
+        'queryKey'
+    >;
+} & (undefined extends IotaRpcMethods[T]['params']
+    ? { params?: IotaRpcMethods[T]['params'] }
+    : { params: IotaRpcMethods[T]['params'] });
+
+export function getIotaClientQuery<T extends keyof IotaRpcMethods>({
+    client,
+    network,
+    method,
+    params,
+    options,
+}: GetIotaClientQueryOptions<T>) {
+    return queryOptions<IotaRpcMethods[T]['result']>({
+        ...options,
+        queryKey: [network, method, params],
+        queryFn: async () => {
+            return await client[method](params as never);
+        },
+    });
+}
 
 export function useIotaClientQuery<
     T extends keyof IotaRpcMethods,
@@ -71,4 +104,41 @@ export function useIotaClientQuery<
             )) as IotaRpcMethods[T]['result'];
         },
     });
+}
+
+export function useIotaClientSuspenseQuery<
+    T extends keyof IotaRpcMethods,
+    TData = IotaRpcMethods[T]['result'],
+>(
+    ...args: undefined extends IotaRpcMethods[T]['params']
+        ? [
+              method: T,
+              params?: IotaRpcMethods[T]['params'],
+              options?: UndefinedInitialDataOptions<TData>,
+          ]
+        : [
+              method: T,
+              params: IotaRpcMethods[T]['params'],
+              options?: UndefinedInitialDataOptions<TData>,
+          ]
+) {
+    const [method, params, options = {}] = args as [
+        method: T,
+        params?: IotaRpcMethods[T]['params'],
+        options?: UndefinedInitialDataOptions<TData>,
+    ];
+
+    const iotaContext = useIotaClientContext();
+
+    const query = useMemo(() => {
+        return getIotaClientQuery<T>({
+            client: iotaContext.client,
+            network: iotaContext.network,
+            method,
+            params,
+            options,
+        });
+    }, [iotaContext.network, method, params, options]);
+
+    return useSuspenseQuery(query);
 }

@@ -610,6 +610,9 @@ calculate_total_active_stakes
 calculate_total_committee_stakes
 	fun
 	0x3::validator_set
+validate_eligible_validators_voting_power
+	fun
+	0x3::validator_set
 adjust_next_epoch_commission_rate
 	fun
 	0x3::validator_set
@@ -658,7 +661,7 @@ active_validator_addresses
 committee_validator_addresses
 	public(package) fun
 	0x3::validator_set
-select_committee_members_top_n_stakers
+select_committee_members_from_eligible
 	public(package) fun
 	0x3::validator_set
 process_new_committee
@@ -1010,6 +1013,12 @@ request_add_stake_mul_bal_non_entry
 	public fun
 	0x3::timelocked_staking
 request_withdraw_stake_non_entry
+	public fun
+	0x3::timelocked_staking
+unlock
+	public fun
+	0x3::timelocked_staking
+unlock_with_clock
 	public fun
 	0x3::timelocked_staking
 split
@@ -3052,14 +3061,8 @@ new_generator
 derive_next_block
 	fun
 	0x2::random
-fill_buffer
-	fun
-	0x2::random
 generate_bytes
 	public fun
-	0x2::random
-u256_from_bytes
-	fun
 	0x2::random
 generate_u256
 	public fun
@@ -3081,9 +3084,6 @@ generate_u8
 	0x2::random
 generate_bool
 	public fun
-	0x2::random
-u128_in_range
-	fun
 	0x2::random
 generate_u128_in_range
 	public fun

@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -68,7 +68,7 @@ pub struct ArmResult {
 /// compilation in HLIR lowering.
 pub trait MatchContext<const AFTER_TYPING: bool> {
     fn env(&self) -> &CompilationEnv;
-    fn reporter(&self) -> &DiagnosticReporter;
+    fn reporter(&self) -> &DiagnosticReporter<'_>;
     fn new_match_var(&mut self, name: String, loc: Loc) -> N::Var;
     fn program_info(&self) -> &ProgramInfo<AFTER_TYPING>;
 

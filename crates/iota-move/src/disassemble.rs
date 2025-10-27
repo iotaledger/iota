@@ -85,7 +85,7 @@ impl Disassemble {
             if self.bytecode_map {
                 println!("{}", serialize_to_json_string(&bcode_map)?);
             }
-            println!("{}", disassemble_string);
+            println!("{disassemble_string}");
         }
 
         Ok(())

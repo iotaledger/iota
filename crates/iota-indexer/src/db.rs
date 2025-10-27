@@ -2,18 +2,25 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::time::Duration;
+//! Types and logic to setup and maintain the database.
+//!
+//! Creating connections, applying or validating migrations are examples of
+//! operations included in this scope.
+
+use std::{collections::HashSet, time::Duration};
 
 use anyhow::anyhow;
 use clap::Args;
 use diesel::{
-    PgConnection,
+    PgConnection, QueryableByName,
     connection::BoxableConnection,
     query_dsl::RunQueryDsl,
     r2d2::{ConnectionManager, Pool, PooledConnection, R2D2Connection},
 };
+use strum::IntoEnumIterator;
+use tracing::info;
 
-use crate::errors::IndexerError;
+use crate::{errors::IndexerError, pruning::pruner::PrunableTable};
 
 pub type ConnectionPool = Pool<ConnectionManager<PgConnection>>;
 pub type PoolConnection = PooledConnection<ConnectionManager<PgConnection>>;
@@ -88,7 +95,7 @@ impl<T: R2D2Connection + 'static> diesel::r2d2::CustomizeConnection<T, diesel::r
                 || {
                     Err(diesel::r2d2::Error::QueryError(
                         diesel::result::Error::DeserializationError(
-                            "Failed to downcast connection to PgConnection"
+                            "failed to downcast connection to PgConnection"
                                 .to_string()
                                 .into(),
                         ),
@@ -127,7 +134,7 @@ pub fn new_connection_pool(
         .build(manager)
         .map_err(|e| {
             IndexerError::PgConnectionPoolInit(format!(
-                "Failed to initialize connection pool for {db_url} with error: {e:?}"
+                "failed to initialize connection pool for {db_url} with error: {e:?}"
             ))
         })
 }
@@ -135,8 +142,7 @@ pub fn new_connection_pool(
 pub fn get_pool_connection(pool: &ConnectionPool) -> Result<PoolConnection, IndexerError> {
     pool.get().map_err(|e| {
         IndexerError::PgPoolConnection(format!(
-            "Failed to get connection from PG connection pool with error: {:?}",
-            e
+            "failed to get connection from PG connection pool with error: {e:?}"
         ))
     })
 }
@@ -146,13 +152,60 @@ pub fn reset_database(conn: &mut PoolConnection) -> Result<(), anyhow::Error> {
         conn.as_any_mut()
             .downcast_mut::<PoolConnection>()
             .map_or_else(
-                || Err(anyhow!("Failed to downcast connection to PgConnection")),
+                || Err(anyhow!("failed to downcast connection to PgConnection")),
                 |pg_conn| {
                     setup_postgres::reset_database(pg_conn)?;
                     Ok(())
                 },
             )?;
     }
+    Ok(())
+}
+
+/// Check that prunable tables exist in the database.
+pub async fn check_prunable_tables_valid(conn: &mut PoolConnection) -> Result<(), IndexerError> {
+    info!("Starting compatibility check");
+
+    use diesel::RunQueryDsl;
+
+    let select_parent_tables = r#"
+    SELECT c.relname AS table_name
+    FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    LEFT JOIN pg_partitioned_table pt ON pt.partrelid = c.oid
+    WHERE c.relkind IN ('r', 'p')  -- 'r' for regular tables, 'p' for partitioned tables
+        AND n.nspname = 'public'
+        AND (
+            pt.partrelid IS NOT NULL  -- This is a partitioned (parent) table
+            OR NOT EXISTS (  -- This is not a partition (child table)
+                SELECT 1
+                FROM pg_inherits i
+                WHERE i.inhrelid = c.oid
+            )
+        );
+    "#;
+
+    #[derive(QueryableByName)]
+    struct TableName {
+        #[diesel(sql_type = diesel::sql_types::Text)]
+        table_name: String,
+    }
+
+    let result: Vec<TableName> = diesel::sql_query(select_parent_tables)
+        .load(conn)
+        .map_err(|e| IndexerError::DbMigration(format!("failed to fetch tables: {e}")))?;
+
+    let parent_tables_from_db: HashSet<_> = result.into_iter().map(|t| t.table_name).collect();
+
+    for key in PrunableTable::iter() {
+        if !parent_tables_from_db.contains(key.as_ref()) {
+            return Err(IndexerError::Generic(format!(
+                "invalid retention policy override provided for table {key}: does not exist in the database",
+            )));
+        }
+    }
+
+    info!("Compatibility check passed");
     Ok(())
 }
 
@@ -232,7 +285,7 @@ pub mod setup_postgres {
     /// Execute all unapplied migrations.
     pub fn run_migrations(conn: &mut PoolConnection) -> Result<(), anyhow::Error> {
         conn.run_pending_migrations(MIGRATIONS)
-            .map_err(|e| anyhow!("Failed to run migrations {e}"))?;
+            .map_err(|e| anyhow!("failed to run migrations {e}"))?;
         Ok(())
     }
 
@@ -260,7 +313,7 @@ pub mod setup_postgres {
         info!("Starting compatibility check");
         let migrations: Vec<Box<dyn Migration<Pg>>> = MIGRATIONS.migrations().map_err(|err| {
             IndexerError::DbMigration(format!(
-                "Failed to fetch local migrations from schema: {err}"
+                "failed to fetch local migrations from schema: {err}"
             ))
         })?;
 
@@ -290,14 +343,14 @@ pub mod setup_postgres {
         // We check that the local migrations is a prefix of the applied migrations.
         if local_migrations.len() > applied_migrations.len() {
             return Err(IndexerError::DbMigration(format!(
-                "The number of local migrations is greater than the number of applied migrations. Local migrations: {local_migrations:?}, Applied migrations: {applied_migrations:?}",
+                "the number of local migrations is greater than the number of applied migrations. Local migrations: {local_migrations:?}, Applied migrations: {applied_migrations:?}",
             )));
         }
         for (local_migration, applied_migration) in local_migrations.iter().zip(&applied_migrations)
         {
             if local_migration != applied_migration {
                 return Err(IndexerError::DbMigration(format!(
-                    "The next applied migration `{applied_migration:?}` diverges from the local migration `{local_migration:?}`",
+                    "the next applied migration `{applied_migration:?}` diverges from the local migration `{local_migration:?}`",
                 )));
             }
         }
@@ -315,19 +368,14 @@ pub mod setup_postgres {
 
         use crate::{
             db::setup_postgres::{self, MIGRATIONS},
-            test_utils::TestDatabase,
+            test_utils::{TestDatabase, db_url},
         };
-
-        fn database_url(db_name: &str) -> String {
-            format!("postgres://postgres:postgrespw@localhost:5432/{db_name}")
-        }
 
         // Check that the migration records in the database created from the local
         // schema pass the consistency check.
         #[test]
         fn db_migration_consistency_smoke_test() {
-            let mut database =
-                TestDatabase::new(database_url("db_migration_consistency_smoke_test"));
+            let mut database = TestDatabase::new(db_url("db_migration_consistency_smoke_test"));
             database.recreate();
             database.reset_db();
             {
@@ -341,7 +389,7 @@ pub mod setup_postgres {
         #[test]
         fn db_migration_consistency_non_prefix_test() {
             let mut database =
-                TestDatabase::new(database_url("db_migration_consistency_non_prefix_test"));
+                TestDatabase::new(db_url("db_migration_consistency_non_prefix_test"));
             database.recreate();
             database.reset_db();
             {
@@ -362,8 +410,7 @@ pub mod setup_postgres {
 
         #[test]
         fn db_migration_consistency_prefix_test() {
-            let mut database =
-                TestDatabase::new(database_url("db_migration_consistency_prefix_test"));
+            let mut database = TestDatabase::new(db_url("db_migration_consistency_prefix_test"));
             database.recreate();
             database.reset_db();
             {

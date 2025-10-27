@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::format::{MoveTrace, TraceEvent, TraceVersion};
@@ -25,7 +25,7 @@ impl Tracer for NopTracer {
 /// non-external events cannot be accidentally added.
 pub struct Writer<'a>(pub(crate) &'a mut MoveTrace);
 
-impl<'a> Writer<'a> {
+impl Writer<'_> {
     /// Emit an external event into the trace.
     pub fn push<T: Serialize>(&mut self, e: T) {
         self.0.events.push(TraceEvent::External(Box::new(

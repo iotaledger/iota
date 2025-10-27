@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -11,7 +11,7 @@ use clap::Parser;
 use move_binary_format::file_format::CompiledModule;
 use move_bytecode_source_map::{mapping::SourceMapping, utils::source_map_from_file};
 use move_command_line_common::files::{
-    MOVE_COMPILED_EXTENSION, MOVE_EXTENSION, SOURCE_MAP_EXTENSION,
+    DEBUG_INFO_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
 };
 use move_coverage::coverage_map::CoverageMap;
 use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
@@ -53,7 +53,7 @@ fn main() {
 
     let move_extension = MOVE_EXTENSION;
     let mv_bytecode_extension = MOVE_COMPILED_EXTENSION;
-    let source_map_extension = SOURCE_MAP_EXTENSION;
+    let debug_info_extension = DEBUG_INFO_EXTENSION;
 
     let source_path = Path::new(&args.bytecode_file_path);
     let extension = source_path
@@ -72,7 +72,7 @@ fn main() {
     let source_path = Path::new(&args.bytecode_file_path).with_extension(move_extension);
     let source = fs::read_to_string(&source_path).ok();
     let source_map = source_map_from_file(
-        &Path::new(&args.bytecode_file_path).with_extension(source_map_extension),
+        &Path::new(&args.bytecode_file_path).with_extension(debug_info_extension),
     );
 
     let mut disassembler_options = DisassemblerOptions::new();

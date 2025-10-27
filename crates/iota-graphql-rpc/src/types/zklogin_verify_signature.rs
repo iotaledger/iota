@@ -121,8 +121,14 @@ pub(crate) async fn verify_zklogin_signature(
             }
         }
     }
-    let verify_params =
-        VerifyParams::new(oidc_provider_jwks, zklogin_env_native, true, true, Some(30));
+    let verify_params = VerifyParams::new(
+        oidc_provider_jwks,
+        zklogin_env_native,
+        true,
+        true,
+        Some(30),
+        true,
+    );
 
     let bytes = bytes.0;
     match intent_scope {
@@ -182,5 +188,5 @@ pub(crate) async fn verify_zklogin_signature(
 
 /// Format the error message for failed JWK read.
 fn as_jwks_read_error(e: String) -> Error {
-    Error::Internal(format!("Failed to read JWK from system object 0x7: {}", e))
+    Error::Internal(format!("Failed to read JWK from system object 0x7: {e}"))
 }

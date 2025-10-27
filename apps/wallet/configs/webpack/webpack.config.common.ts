@@ -28,6 +28,7 @@ const IS_DEV = BUILD_ENV === 'development';
 const IS_PROD = BUILD_ENV === 'production';
 const IS_RC = BUILD_ENV === 'rc';
 const RC_VERSION = IS_RC ? Number(process.env.RC_VERSION) || 0 : undefined;
+const BUILD_BROWSER = (process.env.BUILD_BROWSER as 'chrome' | 'firefox') ?? 'chrome';
 
 const TS_CONFIG_FILE = resolve(TS_CONFIGS_ROOT, `tsconfig.${IS_DEV ? 'dev' : 'prod'}.json`);
 const APP_NAME = IS_RC
@@ -204,6 +205,17 @@ const commonConfig: () => Promise<Configuration> = async () => {
                                 ...walletVersionDetails,
                                 name: APP_NAME,
                                 description: packageJson.description,
+                                ...(BUILD_BROWSER === 'chrome'
+                                    ? {
+                                          background: {
+                                              service_worker: 'background.js',
+                                          },
+                                      }
+                                    : {
+                                          background: {
+                                              scripts: ['background.js'],
+                                          },
+                                      }),
                                 ...(IS_DEV
                                     ? {
                                           key: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1uOw+go7YTI8xNuHzIQC7J7x6Jw0in2UPptgcR1c+7aA3XSb03TVZkMXSMslCB7KTpaJOOQK1urLN3/FFos55f3vXixsjHT3pVbX/FhUmBK0kLOx8kl5Ns9ywVgBJyCSEnMrR1IlbiiU8GoXH1Bzb4SxkDELSQIZRetd+zTnwsUx/74grPT4EmgVglHBBYO75iJMsiJ/F0zMEsEQ+0SDfmU0v5Qh8slzryZr+8p8Q/mpNADzwS51o74feeGC5nAM5IgX0LyjRzCLXsiEmdC57KOaCpI7yhzDjXpye374oTdZJulv/tVeA1ymLIKQM5rfyeoqnxSOMsgGsvoM60WoYQIDAQAB',

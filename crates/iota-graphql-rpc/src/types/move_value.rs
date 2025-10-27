@@ -32,10 +32,10 @@ const MOD_OBJECT: &IdentStr = ident_str!("object");
 const MOD_OPTION: &IdentStr = ident_str!("option");
 const MOD_STRING: &IdentStr = ident_str!("string");
 
-const TYP_ID: &IdentStr = ident_str!("ID");
-const TYP_OPTION: &IdentStr = ident_str!("Option");
-const TYP_STRING: &IdentStr = ident_str!("String");
-const TYP_UID: &IdentStr = ident_str!("UID");
+const TYPE_ID: &IdentStr = ident_str!("ID");
+const TYPE_OPTION: &IdentStr = ident_str!("Option");
+const TYPE_STRING: &IdentStr = ident_str!("String");
+const TYPE_UID: &IdentStr = ident_str!("UID");
 
 #[derive(SimpleObject)]
 #[graphql(complex)]
@@ -68,7 +68,7 @@ type MoveData =
   }"
 );
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) enum MoveData {
     Address(IotaAddress),
     #[serde(rename = "UID")]
@@ -84,13 +84,13 @@ pub(crate) enum MoveData {
     Variant(MoveVariant),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct MoveVariant {
     name: String,
     fields: Vec<MoveField>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct MoveField {
     name: String,
     value: MoveData,
@@ -106,10 +106,16 @@ impl MoveValue {
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
 
+        let Some(layout) = self.type_.layout_impl(resolver).await.extend()? else {
+            return Err(Error::Internal(
+                "Move value must have valid layout".to_string(),
+            ))
+            .extend();
+        };
+
         // Factor out into its own non-GraphQL, non-async function for better
         // testability
-        self.data_impl(self.type_.layout_impl(resolver).await.extend()?)
-            .extend()
+        self.data_impl(layout).extend()
     }
 
     /// Representation of a Move value in JSON, where:
@@ -131,16 +137,22 @@ impl MoveValue {
             .map_err(|_| Error::Internal("Unable to fetch Package Cache.".to_string()))
             .extend()?;
 
+        let Some(layout) = self.type_.layout_impl(resolver).await.extend()? else {
+            return Err(Error::Internal(
+                "Move value must have valid layout".to_string(),
+            ))
+            .extend();
+        };
+
         // Factor out into its own non-GraphQL, non-async function for better
         // testability
-        self.json_impl(self.type_.layout_impl(resolver).await.extend()?)
-            .extend()
+        self.json_impl(layout).extend()
     }
 }
 
 impl MoveValue {
     pub fn new(tag: TypeTag, bcs: Base64) -> Self {
-        let type_ = MoveType::new(tag);
+        let type_ = MoveType::from(tag);
         Self { type_, bcs }
     }
 
@@ -149,8 +161,7 @@ impl MoveValue {
         BoundedVisitor::deserialize_value(&self.bcs.0[..], &layout).map_err(|_| {
             let type_tag: TypeTag = (&layout).into();
             Error::Internal(format!(
-                "Failed to deserialize Move value for type: {}",
-                type_tag
+                "Failed to deserialize Move value for type: {type_tag}"
             ))
         })
     }
@@ -189,21 +200,21 @@ impl TryFrom<A::MoveValue> for MoveData {
 
             V::Struct(s) => {
                 let A::MoveStruct { type_, fields } = s;
-                if is_type(&type_, &STD, MOD_OPTION, TYP_OPTION) {
+                if is_type(&type_, &STD, MOD_OPTION, TYPE_OPTION) {
                     // 0x1::option::Option
                     Self::Option(match extract_option(&type_, fields)? {
                         Some(value) => Some(Box::new(MoveData::try_from(value)?)),
                         None => None,
                     })
-                } else if is_type(&type_, &STD, MOD_ASCII, TYP_STRING)
-                    || is_type(&type_, &STD, MOD_STRING, TYP_STRING)
+                } else if is_type(&type_, &STD, MOD_ASCII, TYPE_STRING)
+                    || is_type(&type_, &STD, MOD_STRING, TYPE_STRING)
                 {
                     // 0x1::ascii::String, 0x1::string::String
                     Self::String(extract_string(&type_, fields)?)
-                } else if is_type(&type_, &IOTA, MOD_OBJECT, TYP_UID) {
+                } else if is_type(&type_, &IOTA, MOD_OBJECT, TYPE_UID) {
                     // 0x2::object::UID
                     Self::Uid(extract_uid(&type_, fields)?.into())
-                } else if is_type(&type_, &IOTA, MOD_OBJECT, TYP_ID) {
+                } else if is_type(&type_, &IOTA, MOD_OBJECT, TYPE_ID) {
                     // 0x2::object::ID
                     Self::Id(extract_id(&type_, fields)?.into())
                 } else {
@@ -268,23 +279,23 @@ fn try_to_json_value(value: A::MoveValue) -> Result<Value, Error> {
 
         V::Struct(s) => {
             let A::MoveStruct { type_, fields } = s;
-            if is_type(&type_, &STD, MOD_OPTION, TYP_OPTION) {
+            if is_type(&type_, &STD, MOD_OPTION, TYPE_OPTION) {
                 // 0x1::option::Option
                 match extract_option(&type_, fields)? {
                     Some(value) => try_to_json_value(value)?,
                     None => Value::Null,
                 }
-            } else if is_type(&type_, &STD, MOD_ASCII, TYP_STRING)
-                || is_type(&type_, &STD, MOD_STRING, TYP_STRING)
+            } else if is_type(&type_, &STD, MOD_ASCII, TYPE_STRING)
+                || is_type(&type_, &STD, MOD_STRING, TYPE_STRING)
             {
                 // 0x1::ascii::String, 0x1::string::String
                 Value::String(extract_string(&type_, fields)?)
-            } else if is_type(&type_, &IOTA, MOD_OBJECT, TYP_UID) {
+            } else if is_type(&type_, &IOTA, MOD_OBJECT, TYPE_UID) {
                 // 0x2::object::UID
                 Value::String(
                     extract_uid(&type_, fields)?.to_canonical_string(/* with_prefix */ true),
                 )
-            } else if is_type(&type_, &IOTA, MOD_OBJECT, TYP_ID) {
+            } else if is_type(&type_, &IOTA, MOD_OBJECT, TYPE_ID) {
                 // 0x2::object::ID
                 Value::String(
                     extract_id(&type_, fields)?.to_canonical_string(/* with_prefix */ true),
@@ -436,7 +447,7 @@ fn extract_uid(
     };
 
     let A::MoveStruct { type_, fields } = s;
-    if !is_type(&type_, &IOTA, MOD_OBJECT, TYP_ID) {
+    if !is_type(&type_, &IOTA, MOD_OBJECT, TYPE_ID) {
         return Err(Error::Internal(
             "Expected UID.id to have type ID.".to_string(),
         ));
@@ -488,7 +499,7 @@ mod tests {
     macro_rules! struct_layout {
         ($type:literal { $($name:literal : $layout:expr),* $(,)?}) => {
             A::MoveTypeLayout::Struct(Box::new(S {
-                type_: StructTag::from_str($type).expect("Failed to parse struct"),
+                type_: StructTag::from_str($type).expect("failed to parse struct"),
                 fields: vec![$(MoveFieldLayout {
                     name: ident_str!($name).to_owned(),
                     layout: $layout,
@@ -513,7 +524,7 @@ mod tests {
         // The format for type from its `Display` impl does not technically match the
         // format that the RPC expects from the data layer (where a type's
         // package should be canonicalized), but it will suffice.
-        data_with_tag(format!("{}", tag), layout, data)
+        data_with_tag(format!("{tag}"), layout, data)
     }
 
     fn data_with_tag<T: Serialize>(
@@ -522,14 +533,14 @@ mod tests {
         data: T,
     ) -> Result<MoveData, Error> {
         let tag = TypeTag::from_str(tag.into().as_str()).unwrap();
-        let type_ = MoveType::new(tag);
+        let type_ = MoveType::from(tag);
         let bcs = Base64(bcs::to_bytes(&data).unwrap());
         MoveValue { type_, bcs }.data_impl(layout)
     }
 
     fn json<T: Serialize>(layout: A::MoveTypeLayout, data: T) -> Result<Json, Error> {
         let tag: TypeTag = (&layout).into();
-        let type_ = MoveType::new(tag);
+        let type_ = MoveType::from(tag);
         let bcs = Base64(bcs::to_bytes(&data).unwrap());
         MoveValue { type_, bcs }.json_impl(layout)
     }

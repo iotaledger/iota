@@ -31,23 +31,23 @@ async fn main() {
     match cmd {
         Command::GenerateConfig { output } => {
             let config = ServiceConfig::default();
-            let toml = toml::to_string_pretty(&config).expect("Failed to serialize configuration");
+            let toml = toml::to_string_pretty(&config).expect("failed to serialize configuration");
 
             if let Some(path) = output {
                 fs::write(&path, toml).unwrap_or_else(|e| {
-                    panic!("Failed to write configuration to {}: {e}", path.display())
+                    panic!("failed to write configuration to {}: {e}", path.display())
                 });
             } else {
-                println!("{}", toml);
+                println!("{toml}");
             }
         }
         Command::GenerateSchema { file } => {
             let out = export_schema();
             if let Some(file) = file {
-                println!("Write schema to file: {:?}", file);
+                println!("Write schema to file: {file:?}");
                 std::fs::write(file, &out).unwrap();
             } else {
-                println!("{}", out);
+                println!("{out}");
             }
         }
         Command::StartServer {
@@ -90,7 +90,7 @@ async fn main() {
             tokio::select! {
                 result = graphql_service_handle => {
                     if let Err(e) = result {
-                        println!("GraphQL service crashed or exited with error: {:?}", e);
+                        println!("GraphQL service crashed or exited with error: {e:?}");
                     }
                 }
                 _ = tokio::signal::ctrl_c() => {
@@ -113,6 +113,6 @@ fn service_config(path: Option<PathBuf>) -> ServiceConfig {
         return ServiceConfig::default();
     };
 
-    let contents = fs::read_to_string(path).expect("Reading configuration");
-    ServiceConfig::read(&contents).expect("Deserializing configuration")
+    let contents = fs::read_to_string(path).expect("reading configuration");
+    ServiceConfig::read(&contents).expect("deserializing configuration")
 }

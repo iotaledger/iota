@@ -1,0 +1,160 @@
+---
+title: Add Properties
+sidebar_label: Add Properties
+description: Guide to add properties to a federation hierarchy.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+## Add Properties
+
+This guide demonstrates how to add properties to a federation.
+
+### Prerequisites
+
+- An existing federation on the IOTA network
+- Root authority permissions on the federation
+- A funded client with write access
+
+### Overview
+
+Properties define the types of claims that can be made within a federation. They specify the allowed values and conditions for attestations and accreditations.
+
+### 1. Set Up Client
+
+Initialize a funded client to interact with the hierarchy:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/03_add_properties.rs#L22
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/03_add_properties.ts#L13
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Federation
+
+Create a new Federation (or use an existing one):
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/03_add_properties.rs#L25-L29
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/03_add_properties.ts#L16-L21
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Define Property
+
+Create a property name and define allowed values:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/03_add_properties.rs#L34-L41
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/03_add_properties.ts#L24-L29
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Add Property to Federation
+
+Add the Property with its allowed values to the Federation:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/03_add_properties.rs#L43-L50
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/03_add_properties.ts#L32-L36
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Verify Property Addition
+
+Retrieve the updated federation and verify the property was added:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/03_add_properties.rs#L52-L62
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/03_add_properties.ts#L39-L45
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### Key Points
+
+- **Property Names**: Can be simple strings or multi-level hierarchical names
+- **Allowed Values**: Define the valid values that can be used in attestations
+- **Multiple Values**: Properties can have multiple allowed values
+- **Immutable**: Once added, properties cannot be removed, only new values can be added
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/03_add_properties.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/03_add_properties.ts
+```
+
+</TabItem>
+</Tabs>
+</div>

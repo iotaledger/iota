@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
@@ -21,8 +21,8 @@ use move_bytecode_source_map::utils::{
 };
 use move_bytecode_utils::Modules;
 use move_command_line_common::files::{
-    extension_equals, find_filenames, try_exists, FileHash, MOVE_BYTECODE_EXTENSION,
-    MOVE_COMPILED_EXTENSION, MOVE_EXTENSION, SOURCE_MAP_EXTENSION,
+    extension_equals, find_filenames, try_exists, FileHash, DEBUG_INFO_EXTENSION,
+    MOVE_BYTECODE_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
 };
 use move_compiler::{
     compiled_unit::{AnnotatedCompiledUnit, CompiledUnit, NamedCompiledModule},
@@ -241,9 +241,9 @@ impl OnDiskCompiledPackage {
         let source_map = source_map_from_file(
             &self
                 .root_path
-                .join(CompiledPackageLayout::SourceMaps.path())
+                .join(CompiledPackageLayout::DebugInfo.path())
                 .join(&path_to_file)
-                .with_extension(SOURCE_MAP_EXTENSION),
+                .with_extension(DEBUG_INFO_EXTENSION),
         )?;
         let source_path = self
             .root_path
@@ -343,14 +343,14 @@ impl OnDiskCompiledPackage {
             compiled_unit.unit.serialize().as_slice(),
         )?;
         self.save_under(
-            CompiledPackageLayout::SourceMaps
+            CompiledPackageLayout::DebugInfo
                 .path()
                 .join(&file_path)
-                .with_extension(SOURCE_MAP_EXTENSION),
+                .with_extension(DEBUG_INFO_EXTENSION),
             compiled_unit.unit.serialize_source_map().as_slice(),
         )?;
         self.save_under(
-            CompiledPackageLayout::SourceMaps
+            CompiledPackageLayout::DebugInfo
                 .path()
                 .join(&file_path)
                 .with_extension("json"),
@@ -382,13 +382,21 @@ impl OnDiskCompiledPackage {
         }
         .join(unit.unit.name.as_str());
         let d = Disassembler::from_unit(&unit.unit);
-        let (disassembled_string, bytecode_map) = d.disassemble_with_source_map()?;
+        let (disassembled_string, mut bytecode_map) = d.disassemble_with_source_map()?;
+        let disassembly_file_path = disassembly_dir
+            .join(&file_path)
+            .with_extension(MOVE_BYTECODE_EXTENSION);
         self.save_under(
-            disassembly_dir
-                .join(&file_path)
-                .with_extension(MOVE_BYTECODE_EXTENSION),
+            disassembly_file_path.clone(),
             disassembled_string.as_bytes(),
         )?;
+        // unwrap below is safe as we just successfully saved a file at disassembly_file_path
+        if let Ok(p) =
+            dunce::canonicalize(self.root_path.join(disassembly_file_path).parent().unwrap())
+        {
+            bytecode_map
+                .set_from_file_path(p.join(&file_path).with_extension(MOVE_BYTECODE_EXTENSION));
+        }
         self.save_under(
             disassembly_dir.join(&file_path).with_extension("json"),
             serialize_to_json_string(&bytecode_map)?.as_bytes(),
@@ -413,11 +421,11 @@ impl CompiledPackage {
 
     /// Returns compiled modules for this package and its transitive
     /// dependencies
-    pub fn all_modules_map(&self) -> Modules {
+    pub fn all_modules_map(&self) -> Modules<'_> {
         Modules::new(self.all_compiled_units().map(|unit| &unit.module))
     }
 
-    pub fn root_modules_map(&self) -> Modules {
+    pub fn root_modules_map(&self) -> Modules<'_> {
         Modules::new(
             self.root_compiled_units
                 .iter()
@@ -544,10 +552,7 @@ impl CompiledPackage {
         paths.push(sources_package_paths.clone());
 
         let lint_level = resolution_graph.build_options.lint_flag.get();
-        let iota_mode = resolution_graph
-            .build_options
-            .default_flavor
-            .map_or(false, |f| f == Flavor::Iota);
+        let iota_mode = resolution_graph.build_options.default_flavor == Some(Flavor::Iota);
 
         let mut compiler = Compiler::from_package_paths(vfs_root, paths, bytecode_deps)
             .unwrap()
@@ -618,7 +623,7 @@ impl CompiledPackage {
         let mut all_compiled_units_vec = vec![];
         let mut root_compiled_units = vec![];
         let mut deps_compiled_units = vec![];
-        for annot_unit in all_compiled_units {
+        for mut annot_unit in all_compiled_units {
             let source_path = PathBuf::from(
                 file_map
                     .get(&annot_unit.loc().file_hash())
@@ -627,6 +632,15 @@ impl CompiledPackage {
                     .as_str(),
             );
             let package_name = annot_unit.named_module.package_name.unwrap();
+            // unwraps below are safe as the source path exists (or must have existed at some point)
+            // so it would be syntactically correct
+            let file_name = PathBuf::from(source_path.file_name().unwrap());
+            if let Ok(p) = dunce::canonicalize(source_path.parent().unwrap()) {
+                annot_unit
+                    .named_module
+                    .source_map
+                    .set_from_file_path(p.join(file_name));
+            }
             let unit = CompiledUnitWithSource {
                 unit: annot_unit.named_module,
                 source_path,
@@ -642,7 +656,7 @@ impl CompiledPackage {
         let mut compiled_docs = None;
         if resolution_graph.build_options.generate_docs {
             let root_named_address_map = resolved_package.resolved_table.clone();
-            let model = source_model::Model::new(
+            let model = source_model::Model::from_source(
                 file_map.clone(),
                 Some(root_package_name),
                 root_named_address_map,

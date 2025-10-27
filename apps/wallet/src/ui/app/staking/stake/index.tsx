@@ -20,7 +20,7 @@ export function StakePage() {
         <Overlay
             showModal={true}
             title={validatorAddress ? stakingTitle : 'Select a Validator'}
-            closeOverlay={() => navigate('/')}
+            closeOverlay={() => navigate('/tokens')}
             showBackButton
         >
             {validatorAddress ? <StakingCard /> : <SelectValidatorCard />}

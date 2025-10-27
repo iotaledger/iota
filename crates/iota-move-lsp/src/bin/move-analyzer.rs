@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use clap::*;
+use iota_move_build::implicit_deps;
+use iota_package_management::system_package_versions::latest_system_packages;
 use move_analyzer::analyzer;
 
 // Define the `GIT_REVISION` and `VERSION` consts
@@ -18,5 +20,5 @@ struct App {}
 
 fn main() {
     App::parse();
-    analyzer::run();
+    analyzer::run(implicit_deps(latest_system_packages()));
 }

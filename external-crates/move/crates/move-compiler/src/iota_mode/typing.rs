@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::sync::Arc;
@@ -110,7 +110,7 @@ const OTW_NOTE: &str = "One-time witness types are structs with the following re
 // Entry
 //**************************************************************************************************
 
-impl<'a> TypingVisitorContext for Context<'a> {
+impl TypingVisitorContext for Context<'_> {
     fn push_warning_filter_scope(&mut self, filters: WarningFilters) {
         self.reporter.push_warning_filter_scope(filters)
     }

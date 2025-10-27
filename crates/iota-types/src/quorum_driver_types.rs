@@ -151,7 +151,7 @@ impl QuorumDriverError {
 
                 let mut error_list = vec![];
                 for err in new_errors.iter() {
-                    error_list.push(format!("- {}", err));
+                    error_list.push(format!("- {err}"));
                 }
 
                 format!(

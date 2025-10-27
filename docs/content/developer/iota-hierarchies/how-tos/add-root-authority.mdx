@@ -1,0 +1,135 @@
+---
+title: Add Root Authority
+sidebar_label: Add Root Authority
+description: Guide to add a root authority to an existing federation.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+# Add Root Authority
+
+This guide demonstrates how to add a root authority to an existing federation.
+
+### Prerequisites
+
+- An existing federation on the IOTA network
+- Root authority permissions on the federation
+- A funded client with write access
+
+### Overview
+
+Root authorities have the highest level of permissions in a federation. They can add statements, create accreditations, and manage other root authorities.
+
+### 1. Set Up Client
+
+Initialize a funded client to interact with the hierarchy:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/02_add_root_authority.rs#L21
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/02_add_root_authority.ts#L10
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Federation
+
+Create a new federation (or use an existing one):
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/02_add_root_authority.rs#L23-L27
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/02_add_root_authority.ts#L12-L18
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Add New Root Authority
+
+Add a new root authority to the federation:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/02_add_root_authority.rs#L29-L41
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/02_add_root_authority.ts#L19-L27
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Verify Root Authority Addition
+
+Retrieve the updated federation and verify the new root authority was added:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/02_add_root_authority.rs#L43-L55
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/02_add_root_authority.ts#L29-L37
+```
+</TabItem>
+</Tabs>
+</div>
+
+### Key Points
+
+- **Root Authority Permissions**: Only existing root authorities can add new root authorities
+- **Unique Identifier**: Each root authority is identified by a unique ObjectID
+- **Federation Update**: The federation state is updated on-chain when a new root authority is added
+- **Verification**: Always verify the operation by retrieving the updated federation state
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/02_add_root_authority.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/02_add_root_authority.ts
+```
+
+</TabItem>
+</Tabs>
+</div>

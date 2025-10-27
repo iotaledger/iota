@@ -134,7 +134,7 @@ pub trait SimulatorStore:
                     crate::store::SimulatorStore::get_object(self, id)
                 }
                 InputObjectKind::ImmOrOwnedMoveObject(objref) => {
-                    self.get_object_by_key(&objref.0, objref.1)?
+                    self.try_get_object_by_key(&objref.0, objref.1)?
                 }
 
                 InputObjectKind::SharedMoveObject { id, .. } => {

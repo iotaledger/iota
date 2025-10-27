@@ -1,9 +1,9 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { EnterValuesFormView, ReviewValuesFormView, TransactionDetailsView } from './views';
-import { CoinBalance } from '@iota/iota-sdk/client';
+import { CoinBalance, getNetwork } from '@iota/iota-sdk/client';
 import {
     useGetAllCoins,
     useSendCoinTransaction,
@@ -11,6 +11,9 @@ import {
     useCoinMetadata,
     createValidationSchemaSendTokenForm,
     sumCoinBalances,
+    SendTokenFormValues,
+    useFeatureEnabledByNetwork,
+    Feature,
 } from '@iota/core';
 import { Dialog, DialogContent, DialogPosition } from '@iota/apps-ui-kit';
 import { INITIAL_VALUES } from './constants';
@@ -19,6 +22,8 @@ import { ampli } from '@/lib/utils/analytics';
 import { useQueryClient } from '@tanstack/react-query';
 import { IOTA_TYPE_ARG } from '@iota/iota-sdk/utils';
 import { FormikProvider, useFormik } from 'formik';
+import { shouldResolveInputAsName } from '@iota/core/utils/validation/names';
+import { useNetwork } from '@iota/core/src/hooks/useNetwork';
 
 interface SendCoinDialogProps {
     coin: CoinBalance;
@@ -56,28 +61,40 @@ function SendTokenDialogBody({
     const coinDecimals = selectedCoinMetadata.data?.decimals ?? 0;
     const coinSymbol = selectedCoinMetadata.data?.symbol ?? '';
 
-    const validationSchemaStepOne = createValidationSchemaSendTokenForm(
-        coinBalance,
-        coinSymbol,
-        coinDecimals,
+    const networkId = useNetwork();
+    const network = getNetwork(networkId).id;
+
+    const isFeatureEnabled = useFeatureEnabledByNetwork(Feature.IotaNames, network);
+
+    const validationSchemaStepOne = useMemo(
+        () =>
+            createValidationSchemaSendTokenForm(
+                isFeatureEnabled,
+                coinBalance,
+                coinSymbol,
+                coinDecimals,
+            ),
+        [isFeatureEnabled, coinBalance, coinSymbol, coinDecimals],
     );
 
-    const formik = useFormik({
+    const formik = useFormik<SendTokenFormValues>({
         initialValues: INITIAL_VALUES,
         validationSchema: validationSchemaStepOne,
-        enableReinitialize: true,
+        onSubmit: () => {},
         validateOnChange: false,
         validateOnBlur: false,
-        onSubmit: () => {},
     });
+
+    const isNameInput = shouldResolveInputAsName(formik.values.to);
 
     const sendCoinQuery = useSendCoinTransaction({
         coins,
         coinType: selectedCoin.coinType,
         senderAddress: activeAddress,
-        recipientAddress: formik.values.to,
+        recipientAddress: isNameInput ? (formik.values.resolvedAddress ?? '') : formik.values.to,
         amount: formik.values.amount,
     });
+
     const { data: transactionData } = sendCoinQuery;
 
     const isPayAllIota =

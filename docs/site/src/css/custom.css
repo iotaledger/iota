@@ -455,4 +455,11 @@ h4 {
   color: var(--iota-white);
 }
 
+#skcm-cookie-disclaimer__buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+#skcm-cookie-disclaimer{
+  border: var(--iota-gray-70) 1px solid;
 }

@@ -32,7 +32,7 @@ impl Display for Pretty<'_, DryRunTransactionBlockResponse> {
             1,
             TableStyle::modern().get_horizontal(),
         )]));
-        writeln!(f, "{}", table)?;
+        writeln!(f, "{table}")?;
         writeln!(f, "{}", response.effects)?;
         write!(f, "{}", response.events)?;
 
@@ -74,7 +74,7 @@ impl Display for Pretty<'_, DryRunTransactionBlockResponse> {
                 1,
                 TableStyle::modern().get_horizontal(),
             )]));
-            writeln!(f, "{}", table)?;
+            writeln!(f, "{table}")?;
         }
         if response.balance_changes.is_empty() {
             writeln!(f, "╭─────────────────────────────╮")?;
@@ -91,7 +91,7 @@ impl Display for Pretty<'_, DryRunTransactionBlockResponse> {
                 1,
                 TableStyle::modern().get_horizontal(),
             )]));
-            writeln!(f, "{}", table)?;
+            writeln!(f, "{table}")?;
         }
         writeln!(
             f,

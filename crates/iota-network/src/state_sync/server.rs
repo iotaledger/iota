@@ -71,7 +71,7 @@ where
 
         let highest_verified_checkpoint = *self
             .store
-            .get_highest_verified_checkpoint()
+            .try_get_highest_verified_checkpoint()
             .map_err(|e| Status::internal(e.to_string()))?
             .sequence_number();
 
@@ -94,14 +94,14 @@ where
     ) -> Result<Response<Option<Checkpoint>>, Status> {
         let checkpoint = match request.inner() {
             GetCheckpointSummaryRequest::Latest => {
-                self.store.get_highest_synced_checkpoint().map(Some)
+                self.store.try_get_highest_synced_checkpoint().map(Some)
             }
             GetCheckpointSummaryRequest::ByDigest(digest) => {
-                self.store.get_checkpoint_by_digest(digest)
+                self.store.try_get_checkpoint_by_digest(digest)
             }
             GetCheckpointSummaryRequest::BySequenceNumber(sequence_number) => self
                 .store
-                .get_checkpoint_by_sequence_number(*sequence_number),
+                .try_get_checkpoint_by_sequence_number(*sequence_number),
         }
         .map_err(|e| Status::internal(e.to_string()))?
         .map(VerifiedCheckpoint::into_inner);
@@ -117,12 +117,12 @@ where
     ) -> Result<Response<GetCheckpointAvailabilityResponse>, Status> {
         let highest_synced_checkpoint = self
             .store
-            .get_highest_synced_checkpoint()
+            .try_get_highest_synced_checkpoint()
             .map_err(|e| Status::internal(e.to_string()))
             .map(VerifiedCheckpoint::into_inner)?;
         let lowest_available_checkpoint = self
             .store
-            .get_lowest_available_checkpoint()
+            .try_get_lowest_available_checkpoint()
             .map_err(|e| Status::internal(e.to_string()))?;
 
         Ok(Response::new(GetCheckpointAvailabilityResponse {
@@ -138,7 +138,7 @@ where
     ) -> Result<Response<Option<FullCheckpointContents>>, Status> {
         let contents = self
             .store
-            .get_full_checkpoint_contents(request.inner())
+            .try_get_full_checkpoint_contents(request.inner())
             .map_err(|e| Status::internal(e.to_string()))?;
         Ok(Response::new(contents))
     }

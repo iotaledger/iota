@@ -286,7 +286,7 @@ Your app then sends the transaction effects back to the wallet, which reports re
 
 ```tsx
 wallet.features['iota:reportTransactionEffects'].reportTransactionEffects(
-    effects: Array.isArray(transactionResponse.effects) ? toB64(
+    effects: Array.isArray(transactionResponse.effects) ? toBase64(
         Uint8Array.from(transactionResponse.effects) : transactionResponse.effects,
         account: wallet.accounts[0], // for example
         chain: wallet.chains[0]

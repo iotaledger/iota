@@ -37,7 +37,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
                 recipient,
                 authority_state
                     .get_object(obj_id)
-                    .await?
+                    .await
                     .unwrap()
                     .compute_object_reference(),
             )
@@ -62,7 +62,7 @@ async fn test_batch_transaction_ok() -> anyhow::Result<()> {
         vec![
             authority_state
                 .get_object(&all_ids[N])
-                .await?
+                .await
                 .unwrap()
                 .compute_object_reference(),
         ],
@@ -120,7 +120,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
                 recipient,
                 authority_state
                     .get_object(obj_id)
-                    .await?
+                    .await
                     .unwrap()
                     .compute_object_reference(),
             )
@@ -140,7 +140,7 @@ async fn test_batch_transaction_last_one_fail() -> anyhow::Result<()> {
         vec![
             authority_state
                 .get_object(&all_ids[N])
-                .await?
+                .await
                 .unwrap()
                 .compute_object_reference(),
         ],

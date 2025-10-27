@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use criterion::*;
 use fastcrypto_zkp::bn254::zk_login_api::ZkLoginEnv;
@@ -78,12 +78,14 @@ fn async_verifier_bench(c: &mut Criterion) {
                         .unwrap();
                     let batch_verifier = Arc::new(SignatureVerifier::new_with_batch_size(
                         committee.clone(),
+                        BTreeSet::new(),
                         batch_size,
                         metrics.clone(),
                         ZkLoginEnv::Test,
                         true, // accept_zklogin_in_multisig
                         true, // accept_passkey_in_multisig
                         Some(30),
+                        true,
                     ));
 
                     b.iter(|| {
@@ -130,7 +132,7 @@ fn batch_verification_bench(c: &mut Criterion) {
 
             group.throughput(Throughput::Elements(batch_size));
             group.bench_with_input(
-                BenchmarkId::from_parameter(format!("size={} errors={}", batch_size, num_errors)),
+                BenchmarkId::from_parameter(format!("size={batch_size} errors={num_errors}")),
                 &batch_size,
                 |b, batch_size| {
                     assert_eq!(certs.len() as u64, *batch_size);

@@ -205,6 +205,7 @@ async fn list_dynamic_fields(
     accept: AcceptFormat,
     State(state): State<StateReader>,
 ) -> Result<Page<DynamicFieldInfo, ObjectId>> {
+    let indexes = state.inner().indexes().ok_or_else(RestError::not_found)?;
     match accept {
         AcceptFormat::Json => {}
         _ => {
@@ -218,8 +219,7 @@ async fn list_dynamic_fields(
     let limit = parameters.limit();
     let start = parameters.start();
 
-    let mut dynamic_fields = state
-        .inner()
+    let mut dynamic_fields = indexes
         .dynamic_field_iter(parent.into(), start)?
         .take(limit + 1)
         .map(DynamicFieldInfo::try_from)

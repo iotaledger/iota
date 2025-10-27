@@ -146,7 +146,7 @@ pub enum HealthCheckError {
 
 impl std::fmt::Display for HealthCheckError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 

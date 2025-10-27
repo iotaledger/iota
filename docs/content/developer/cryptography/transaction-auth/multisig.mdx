@@ -93,7 +93,7 @@ The response resembles the following, but displays actual addresses, keys, and p
 
 ## Step 3: Create a multisig address
 
-To create a multisig address, input a list of public keys to use for the multisig address and a list of their corresponding weights and the threshold (replacing `<VARIABLES>` with actual values). 
+To create a multisig address, input a list of public keys to use for the multisig address and a list of their corresponding weights and the threshold (replacing `<VARIABLES>` with actual values).
 
 ```shell
 iota keytool multi-sig-address --pks <PUBLIC-KEY-ED25519> <PUBLIC-KEY-SECPK1> <PUBLIC-KEY-SECP256R1> --weights 1 2 3 --threshold 3
@@ -144,10 +144,18 @@ The response resembles the following:
 This section demonstrates how to use an object that belongs to a multisig address and serialize a transfer to be signed. The `tx_bytes` value can be any serialized transaction data where the sender is the multisig address. Use the `--serialize-unsigned-transaction` flag for supported commands in `iota client -h` (`publish`, `upgrade`, `call`, `transfer`, `pay`, `pay-all-iota`, `pay-iota`, `split`, `merge-coin`) to output the Base64 encoded transaction bytes.
 
 ```shell
-iota client transfer --to <IOTA-ADDRESS> --object-id <OBJECT-ID> --serialize-unsigned-transaction
+iota client transfer --to <IOTA-ADDRESS> --object-id <OBJECT-ID> --serialize-unsigned-transaction --sender <MULTISIG-ADDRESS>
 
 Raw tx_bytes to execute: <TX_BYTES>
 ```
+
+
+:::info
+
+Use the --sender option to set the address of the (multisig) account that will be signing the transaction.
+
+:::
+
 
 ## Step 6: Sign the transaction with two keys
 

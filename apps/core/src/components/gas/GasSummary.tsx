@@ -2,9 +2,9 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { CoinFormat, ExplorerLinkType, useFormatCoin, type GasSummaryType } from '../../';
+import { ExplorerLinkType, useFormatCoin, type GasSummaryType } from '../../';
 import { RenderExplorerLink } from '../../types';
-import { formatAddress } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatAddress } from '@iota/iota-sdk/utils';
 
 import { KeyValueInfo } from '@iota/apps-ui-kit';
 
@@ -26,7 +26,7 @@ export function GasSummary({
     activeAddress,
 }: GasSummaryProps) {
     const address = sender || activeAddress;
-    const [gas, symbol] = useFormatCoin({ balance: gasSummary?.totalGas, format: CoinFormat.FULL });
+    const [gas, symbol] = useFormatCoin({ balance: gasSummary?.totalGas, format: CoinFormat.Full });
 
     const gasValueText = isPending
         ? 'Estimating...'

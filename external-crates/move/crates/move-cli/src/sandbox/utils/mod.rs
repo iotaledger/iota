@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![allow(hidden_glob_reexports)]
@@ -46,7 +46,7 @@ use move_vm_test_utils::gas_schedule::{CostTable, GasStatus};
 pub use on_disk_state_view::*;
 pub use package_context::*;
 
-pub fn get_gas_status(cost_table: &CostTable, gas_budget: Option<u64>) -> Result<GasStatus> {
+pub fn get_gas_status(cost_table: &CostTable, gas_budget: Option<u64>) -> Result<GasStatus<'_>> {
     let gas_status = if let Some(gas_budget) = gas_budget {
         // TODO(Gas): This should not be hardcoded.
         let max_gas_budget = u64::MAX.checked_div(1000).unwrap();
@@ -371,7 +371,7 @@ pub(crate) fn explain_execution_error(
 /// Return `true` if `path` is a Move bytecode file based on its extension
 pub(crate) fn is_bytecode_file(path: &Path) -> bool {
     path.extension()
-        .map_or(false, |ext| ext == MOVE_COMPILED_EXTENSION)
+        .is_some_and(|ext| ext == MOVE_COMPILED_EXTENSION)
 }
 
 /// Return `true` if path contains a valid Move bytecode module

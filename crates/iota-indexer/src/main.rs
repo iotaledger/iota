@@ -6,9 +6,10 @@ use std::env;
 
 use clap::{CommandFactory, FromArgMatches, Parser};
 use iota_indexer::{
+    backfill::runner::BackfillRunner,
     config::{Command, IndexerConfig, deprecated::OldIndexerConfig},
     db::{
-        get_pool_connection, new_connection_pool, reset_database,
+        check_prunable_tables_valid, get_pool_connection, new_connection_pool, reset_database,
         setup_postgres::{check_db_migration_consistency, run_migrations},
     },
     errors::IndexerError,
@@ -48,7 +49,7 @@ async fn main() -> Result<(), IndexerError> {
 
     if let Command::HelpDeprecated = opts.command {
         OldIndexerConfig::command().print_help().map_err(|e| {
-            IndexerError::Generic(format!("Failed printing deprecated CLI help: {e}"))
+            IndexerError::Generic(format!("failed printing deprecated CLI help: {e}"))
         })?;
         return Ok(());
     }
@@ -70,6 +71,7 @@ async fn main() -> Result<(), IndexerError> {
             pruning_options,
             reset_db,
         } => {
+            let retention_config = pruning_options.load_from_file()?;
             {
                 // Make sure to run all migrations on startup, and also serve as a compatibility
                 // check.
@@ -79,6 +81,9 @@ async fn main() -> Result<(), IndexerError> {
                 } else {
                     run_migrations(&mut pool_conn)?;
                 }
+                if retention_config.is_some() {
+                    check_prunable_tables_valid(&mut pool_conn).await?;
+                }
             }
 
             let store = PgIndexerStore::new(connection_pool, indexer_metrics.clone());
@@ -87,7 +92,8 @@ async fn main() -> Result<(), IndexerError> {
                 store,
                 indexer_metrics,
                 snapshot_config,
-                pruning_options,
+                retention_config,
+                pruning_options.optimistic_pruner_batch_size,
                 CancellationToken::new(),
             )
             .await?;
@@ -99,13 +105,30 @@ async fn main() -> Result<(), IndexerError> {
                 check_db_migration_consistency(&mut pool_conn)?;
             }
 
-            Indexer::start_reader(&json_rpc_config, &registry, connection_pool).await?;
+            let store = PgIndexerStore::new(connection_pool.clone(), indexer_metrics.clone());
+            Indexer::start_reader(
+                &json_rpc_config,
+                store,
+                &registry,
+                connection_pool,
+                indexer_metrics,
+            )
+            .await?;
         }
         Command::AnalyticalWorker => {
             let store = PgIndexerAnalyticalStore::new(connection_pool);
             return Indexer::start_analytical_worker(store, indexer_metrics.clone()).await;
         }
-        Command::HelpDeprecated => unreachable!("This case is handled earlier"),
+        Command::HelpDeprecated => unreachable!("this case is handled earlier"),
+        Command::RunBackfill {
+            start,
+            end,
+            runner_kind,
+            backfill_config,
+        } => {
+            let total_range = start..=end;
+            BackfillRunner::run(runner_kind, connection_pool, backfill_config, total_range).await?;
+        }
     }
 
     Ok(())

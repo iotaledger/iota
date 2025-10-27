@@ -371,18 +371,8 @@ const iotaEvm = [
                         label: 'Run a Node',
                     },
                     {
-                        type: 'doc',
-                        id: 'developer/iota-evm/operator/how-tos/running-an-access-node',
-                        label: 'Run an Access Node',
-                    },
-                    {
                         id: 'developer/iota-evm/operator/how-tos/wasp-cli',
                         label: 'Configure wasp-cli',
-                        type: 'doc',
-                    },
-                    {
-                        id: 'developer/iota-evm/operator/how-tos/setting-up-a-chain',
-                        label: 'Set Up a Chain',
                         type: 'doc',
                     },
                     {

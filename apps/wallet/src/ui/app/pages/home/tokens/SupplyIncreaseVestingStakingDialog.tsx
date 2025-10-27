@@ -6,6 +6,7 @@ import { Button, Dialog, DialogContent, DialogBody, Header, Panel } from '@iota/
 import { Banner, BannerSize, Theme, useTheme } from '@iota/core';
 import { WALLET_DASHBOARD_URL } from '_src/shared/constants';
 import { Link } from 'react-router-dom';
+import { ampli } from '_src/shared/analytics/ampli';
 
 interface SupplyIncreaseVestingStakingDialogProps {
     open: boolean;
@@ -24,6 +25,7 @@ export function SupplyIncreaseVestingStakingDialog({
             : 'https://files.iota.org/media/tooling/wallet-dashboard-staking-light.mp4';
 
     function navigateToDashboard() {
+        ampli.openedLink({ url: WALLET_DASHBOARD_URL });
         window.open(WALLET_DASHBOARD_URL, '_blank', 'noopener noreferrer');
     }
     return (
@@ -40,7 +42,7 @@ export function SupplyIncreaseVestingStakingDialog({
                         >
                             <div className="flex w-full flex-wrap justify-start gap-xs text-body-sm text-iota-primary-30 dark:text-iota-primary-80">
                                 <Link
-                                    to="https://docs.iota.org/about-iota/iota-wallet-dashboard/how-to/vesting"
+                                    to="https://docs.iota.org/users/iota-wallet-dashboard/how-to/vesting"
                                     target="_blank"
                                     rel="noreferrer"
                                     className="flex items-center gap-x-xxs underline"
@@ -61,7 +63,7 @@ export function SupplyIncreaseVestingStakingDialog({
                                     <li>Click See All to open the full vesting schedule</li>
                                     <li>
                                         Collect tokens as they unlock, or stake them directly from
-                                        the the the the dashboard
+                                        the dashboard
                                     </li>
                                 </ol>
                             </div>

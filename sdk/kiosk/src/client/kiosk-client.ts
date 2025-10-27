@@ -74,8 +74,8 @@ export class KioskClient {
 
     /**
      * Fetches the kiosk contents.
-     * @param kioskId The ID of the kiosk to fetch.
-     * @param options Optioal
+     * @param id The ID of the kiosk to fetch.
+     * @param options Optional to control the fetch behavior.
      * @returns
      */
     async getKiosk({
@@ -116,7 +116,7 @@ export class KioskClient {
 
     /**
      * Query all the owned transfer policies for an address.
-     * Returns `TransferPolicyCap` which uncludes `policyId, policyCapId, type`.
+     * Returns `TransferPolicyCap` which includes `policyId, policyCapId, type`.
      * @param address The address we're searching the owned transfer policies for.
      */
     async getOwnedTransferPolicies({ address }: { address: string }) {

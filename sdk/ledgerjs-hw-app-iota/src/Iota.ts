@@ -73,14 +73,15 @@ export default class Iota {
         const payload = buildBip32KeyPayload(path);
         const response = await this.#sendChunks(cla, ins, p1, p2, payload);
         const keySize = response[0];
+
         const publicKey = response.slice(1, keySize + 1); // slice uses end index.
         let address: Uint8Array | null = null;
         if (response.length > keySize + 2) {
             const addressSize = response[keySize + 1];
-            address = response.slice(keySize + 2, keySize + 2 + addressSize);
+            address = response.slice(keySize + 2, keySize + 2 + addressSize) as Uint8Array;
         }
         const res: GetPublicKeyResult = {
-            publicKey: publicKey,
+            publicKey: publicKey as Uint8Array,
             address: address!,
         };
         return res;
@@ -89,37 +90,75 @@ export default class Iota {
     /**
      * Sign a transaction with the key at a BIP32 path.
      *
-     * @param txn - The transaction; this can be any of a node Buffer, Uint8Array, or a hexadecimal string, encoding the form of the transaction appropriate for hashing and signing.
-     * @param path - the path to use when signing the transaction.
+     * @param txn - The transaction bytes to sign.
+     * @param path - The path to use when signing the transaction.
+     * @param options - Additional options used for clear signing purposes.
      */
     async signTransaction(
         path: string,
-        txn: string | Buffer | Uint8Array,
+        txn: Uint8Array,
+        options?: {
+            bcsObjects: Uint8Array[];
+        },
     ): Promise<SignTransactionResult> {
         const cla = 0x00;
         const ins = 0x03;
         const p1 = 0;
         const p2 = 0;
-        // Transaction payload is the byte length as uint32le followed by the bytes
-        // Type guard not actually required but TypeScript can't tell that.
+
         if (this.#verbose) this.#log(txn);
-        const rawTxn = typeof txn == 'string' ? Buffer.from(txn, 'hex') : Buffer.from(txn);
+
+        // Transaction payload is the byte length as uint32le followed by the bytes
+        const rawTxn = Buffer.from(txn);
         const hashSize = Buffer.alloc(4);
         hashSize.writeUInt32LE(rawTxn.length, 0);
-        // Bip32key payload same as getPublicKey
+
+        // Build transaction payload:
+        const payloadTxn = Buffer.concat([hashSize, rawTxn] as Uint8Array[]);
+        this.#log('Payload Txn', payloadTxn);
+
         const bip32KeyPayload = buildBip32KeyPayload(path);
-        // These are just squashed together
-        const payload_txn = Buffer.concat([hashSize, rawTxn]);
-        this.#log('Payload Txn', payload_txn);
-        // TODO batch this since the payload length can be uint32le.max long
-        const signature = await this.#sendChunks(cla, ins, p1, p2, [payload_txn, bip32KeyPayload]);
-        return { signature };
+        const payloads = [payloadTxn, bip32KeyPayload];
+
+        // The public getVersion is decorated with a lock in the constructor:
+        const { major } = await this.#internalGetVersion();
+        const bcsObjects = options?.bcsObjects ?? [];
+
+        this.#log('Objects list length', bcsObjects.length);
+        this.#log('App version', major);
+
+        if (major > 0 && bcsObjects.length > 0) {
+            // Build object list payload:
+            const numItems = Buffer.alloc(4);
+            numItems.writeUInt32LE(bcsObjects.length, 0);
+
+            let listData = Buffer.from(numItems as Uint8Array);
+
+            // Add each item with its length prefix:
+            for (const item of bcsObjects) {
+                const rawItem = Buffer.from(item);
+                const itemLen = Buffer.alloc(4);
+                itemLen.writeUInt32LE(rawItem.length, 0);
+
+                listData = Buffer.concat([listData, itemLen, rawItem] as Uint8Array[]);
+            }
+
+            payloads.push(listData);
+        }
+
+        // Send the chunks and return the signature
+        const signature = await this.#sendChunks(cla, ins, p1, p2, payloads);
+        return { signature: signature as Uint8Array };
     }
 
     /**
      * Retrieve the app version on the attached Ledger device.
      */
     async getVersion(): Promise<GetVersionResult> {
+        return await this.#internalGetVersion();
+    }
+
+    async #internalGetVersion() {
         const [major, minor, patch] = await this.#sendChunks(
             0x00,
             0x00,
@@ -167,10 +206,10 @@ export default class Iota {
             // We have to do it this way, because a block knows the hash of
             // the next block.
             data = chunkList.reduceRight((blocks, chunk) => {
-                const linkedChunk = Buffer.concat([lastHash, chunk]);
+                const linkedChunk = Buffer.concat([lastHash, chunk] as Uint8Array[]);
                 this.#log('Chunk: ', chunk);
                 this.#log('linkedChunk: ', linkedChunk);
-                lastHash = Buffer.from(sha256(linkedChunk));
+                lastHash = Buffer.from(sha256(linkedChunk as Uint8Array));
                 blocks.set(lastHash.toString('hex'), linkedChunk);
                 return blocks;
             }, data);
@@ -183,7 +222,11 @@ export default class Iota {
             ins,
             p1,
             p2,
-            Buffer.concat([Buffer.from([HostToLedger.START])].concat(parameterList)),
+            Buffer.concat(
+                ([Buffer.from([HostToLedger.START])] as Uint8Array[]).concat(
+                    parameterList as Uint8Array[],
+                ),
+            ),
             data,
         );
     }
@@ -211,7 +254,7 @@ export default class Iota {
             switch (rv_instruction) {
                 case LedgerToHost.RESULT_ACCUMULATING:
                 case LedgerToHost.RESULT_FINAL:
-                    result = Buffer.concat([result, rv_payload]);
+                    result = Buffer.concat([result, rv_payload] as Uint8Array[]);
                     // Won't actually send this if we drop out of the loop for RESULT_FINAL
                     payload = Buffer.from([HostToLedger.RESULT_ACCUMULATING_RESPONSE]);
                     break;
@@ -223,13 +266,16 @@ export default class Iota {
                         payload = Buffer.concat([
                             Buffer.from([HostToLedger.GET_CHUNK_RESPONSE_SUCCESS]),
                             chunk,
-                        ]);
+                        ] as Uint8Array[]);
                     } else {
                         payload = Buffer.from([HostToLedger.GET_CHUNK_RESPONSE_FAILURE]);
                     }
                     break;
                 case LedgerToHost.PUT_CHUNK:
-                    data.set(Buffer.from(sha256(rv_payload)).toString('hex'), rv_payload);
+                    data.set(
+                        Buffer.from(sha256(rv_payload as Uint8Array)).toString('hex'),
+                        rv_payload,
+                    );
                     payload = Buffer.from([HostToLedger.PUT_CHUNK_RESPONSE]);
                     break;
             }

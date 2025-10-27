@@ -16,7 +16,7 @@ use crate::{
     server::ServerBuilder,
 };
 
-#[derive(Debug, Default, Deserialize, Serialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Config {
     /// Set the concurrency limit applied to on requests inbound per connection.
     pub concurrency_limit_per_connection: Option<usize>,
@@ -112,5 +112,16 @@ impl Config {
         tls_config: Option<ClientConfig>,
     ) -> Result<Channel> {
         connect_lazy_with_config(addr, tls_config, self)
+    }
+
+    pub(crate) fn http_config(&self) -> iota_http::Config {
+        iota_http::Config::default()
+            .initial_stream_window_size(self.http2_initial_stream_window_size)
+            .initial_connection_window_size(self.http2_initial_connection_window_size)
+            .max_concurrent_streams(self.http2_max_concurrent_streams)
+            .http2_keepalive_timeout(self.http2_keepalive_timeout)
+            .http2_keepalive_interval(self.http2_keepalive_interval)
+            .tcp_keepalive(self.tcp_keepalive)
+            .tcp_nodelay(self.tcp_nodelay.unwrap_or_default())
     }
 }

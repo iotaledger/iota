@@ -5,11 +5,6 @@
 import { KIOSK_OWNER_CAP } from '@iota/kiosk';
 import { IotaObjectData, IotaObjectResponse, NetworkId, getNetwork } from '@iota/iota-sdk/client';
 
-export const ORIGINBYTE_KIOSK_MODULE =
-    '0x95a441d389b07437d00dd07e0b6f05f513d7659b13fd7c5d3923c7d9d847199b::ob_kiosk';
-
-export const ORIGINBYTE_KIOSK_OWNER_TOKEN = `${ORIGINBYTE_KIOSK_MODULE}::OwnerToken`;
-
 export function isKioskOwnerToken(
     network: NetworkId,
     object?: IotaObjectResponse | IotaObjectData | null,
@@ -19,7 +14,6 @@ export function isKioskOwnerToken(
     return [
         KIOSK_OWNER_CAP,
         `${getNetwork(network).kiosk?.personalKioskRulePackageId}::personal_kiosk::PersonalKioskCap`,
-        ORIGINBYTE_KIOSK_OWNER_TOKEN,
     ].includes(objectData?.type ?? '');
 }
 

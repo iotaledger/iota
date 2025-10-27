@@ -311,7 +311,7 @@ impl Future for CachingFuture {
                 if join_err.is_cancelled() {
                     Err(io::Error::new(io::ErrorKind::Interrupted, join_err))
                 } else {
-                    panic!("background task failed: {:?}", join_err)
+                    panic!("background task failed: {join_err:?}")
                 }
             }
         })

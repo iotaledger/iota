@@ -2,12 +2,15 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{fs, str::FromStr};
+use std::{
+    fs::{self},
+    str::FromStr,
+};
 
-use fastcrypto::hash::HashFunction;
+use fastcrypto::{hash::HashFunction, traits::EncodeDecodeBase64};
 use iota_keys::{
     key_derive::generate_new_key,
-    keystore::{AccountKeystore, FileBasedKeystore, InMemKeystore, Keystore},
+    keystore::{AccountKeystore, Alias, FileBasedKeystore, InMemKeystore, Keystore},
 };
 use iota_types::{
     base_types::{IOTA_ADDRESS_LENGTH, IotaAddress},
@@ -35,46 +38,6 @@ fn alias_exists_test() {
 }
 
 #[test]
-fn create_alias_keystore_file_test() {
-    let temp_dir = TempDir::new().unwrap();
-    let mut keystore_path = temp_dir.path().join("iota.keystore");
-    let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    keystore
-        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
-        .unwrap();
-    keystore_path.set_extension("aliases");
-    assert!(keystore_path.exists());
-
-    keystore_path = temp_dir.path().join("myfile.keystore");
-    let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    keystore
-        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
-        .unwrap();
-    keystore_path.set_extension("aliases");
-    assert!(keystore_path.exists());
-}
-
-#[test]
-fn check_reading_aliases_file_correctly() {
-    // when reading the alias file containing alias + public key base 64,
-    // make sure the addresses are correctly converted back from pk
-
-    let temp_dir = TempDir::new().unwrap();
-    let mut keystore_path = temp_dir.path().join("iota.keystore");
-    let keystore_path_keep = temp_dir.path().join("iota.keystore");
-    let mut keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    let kp = keystore
-        .generate_and_add_new_key(SignatureScheme::ED25519, None, None, None)
-        .unwrap();
-    keystore_path.set_extension("aliases");
-    assert!(keystore_path.exists());
-
-    let new_keystore = Keystore::from(FileBasedKeystore::new(&keystore_path_keep).unwrap());
-    let addresses = new_keystore.addresses_with_alias();
-    assert_eq!(kp.0, *addresses.first().unwrap().0)
-}
-
-#[test]
 fn create_alias_if_not_exists_test() {
     let temp_dir = TempDir::new().unwrap();
     let keystore_path = temp_dir.path().join("iota.keystore");
@@ -95,29 +58,6 @@ fn create_alias_if_not_exists_test() {
     assert!(keystore.create_alias(Some("-A".to_string())).is_err());
     assert!(keystore.create_alias(Some("1A".to_string())).is_err());
     assert!(keystore.create_alias(Some("&&AA".to_string())).is_err());
-}
-
-#[test]
-fn keystore_no_aliases() {
-    // this tests if when calling FileBasedKeystore::new, it creates a
-    // iota.aliases file with the existing address in the iota.keystore,
-    // and a new alias for it.
-    // This idea is to test the correct conversion
-    // from the old type (which only contains keys and an optional path)
-    // to the new type which contains keys and aliases (and an optional path), and
-    // if it creates the aliases file.
-
-    let temp_dir = TempDir::new().unwrap();
-    let mut keystore_path = temp_dir.path().join("iota.keystore");
-    let (_, keypair, _, _) = generate_new_key(SignatureScheme::ED25519, None, None).unwrap();
-    let private_keys = vec![keypair.encode().unwrap()];
-    let keystore_data = serde_json::to_string_pretty(&private_keys).unwrap();
-    fs::write(&keystore_path, keystore_data).unwrap();
-
-    let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
-    keystore_path.set_extension("aliases");
-    assert!(keystore_path.exists());
-    assert_eq!(1, keystore.aliases().len());
 }
 
 #[test]
@@ -242,7 +182,7 @@ fn iota_wallet_address_mnemonic_test() -> Result<(), anyhow::Error> {
         .import_from_mnemonic(phrase, SignatureScheme::ED25519, None, None)
         .unwrap();
 
-    let pubkey = keystore.keys()[0].clone();
+    let pubkey = keystore.keys()[0].public();
     assert_eq!(pubkey.flag(), Ed25519IotaSignature::SCHEME.flag());
 
     let mut hasher = DefaultHash::default();
@@ -299,17 +239,98 @@ fn remove_key_test() {
         .unwrap()
         .0;
 
-    let mut aliases_path = keystore_path.clone();
-    aliases_path.set_extension("aliases");
-
-    let aliases_content = fs::read_to_string(&aliases_path).unwrap();
-    assert!(aliases_content.contains("test_key"));
+    let keystore_content = fs::read_to_string(&keystore_path).unwrap();
+    assert!(keystore_content.contains("test_key"));
     assert!(keystore.get_key(&address).is_ok());
 
     keystore.remove_key(&address).unwrap();
 
     // Verify alias is removed from file
-    let aliases_content = fs::read_to_string(&aliases_path).unwrap();
-    assert!(!aliases_content.contains("test_key"));
+    let keystore_content = fs::read_to_string(&keystore_path).unwrap();
+    assert!(!keystore_content.contains("test_key"));
     assert!(keystore.get_key(&address).is_err());
+}
+
+#[test]
+fn test_migrate_v1_to_v2_no_aliases() {
+    // This test creates a v1 keystore file without aliases and migrates it to v2
+    // format. It first re-creates the v1 aliases file, then migrates it to v2.
+    let temp_dir = TempDir::new().unwrap();
+    let keystore_path = temp_dir.path().join("test.keystore_extension");
+
+    let (_, keypair, _, _) = generate_new_key(SignatureScheme::ED25519, None, None).unwrap();
+    // Create a v1 keystore file with a single key
+    let private_keys = vec![keypair.encode().unwrap()];
+    let keystore_data = serde_json::to_string_pretty(&private_keys).unwrap();
+    fs::write(&keystore_path, keystore_data).unwrap();
+
+    let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
+    assert!(keystore_path.exists());
+    assert_eq!(1, keystore.aliases().len());
+    assert_eq!(
+        *keystore
+            .get_key(&IotaAddress::from(&keypair.public()))
+            .unwrap()
+            .as_keypair()
+            .unwrap(),
+        keypair,
+    );
+
+    let mut backup_keystore_path = keystore_path.clone();
+    backup_keystore_path.set_extension("keystore_extension.migrated");
+    assert!(backup_keystore_path.exists());
+
+    let mut backup_aliases_path = keystore_path.clone();
+    backup_aliases_path.set_extension("aliases.migrated");
+    assert!(backup_aliases_path.exists());
+}
+
+#[test]
+fn test_migrate_v1_to_v2_with_aliases() {
+    // This test creates a v1 keystore file with the corresponding aliases and
+    // migrates it to v2 format.
+    let temp_dir = TempDir::new().unwrap();
+    let keystore_path = temp_dir.path().join("test"); // No extension since it is not required
+    let mut aliases_path = keystore_path.clone();
+    aliases_path.set_extension("aliases");
+
+    let (_, keypair, _, _) = generate_new_key(SignatureScheme::ED25519, None, None).unwrap();
+    // Create a v1 keystore file with a single key
+    let private_keys = vec![keypair.encode().unwrap()];
+    let keystore_data = serde_json::to_string_pretty(&private_keys).unwrap();
+    fs::write(&keystore_path, keystore_data).unwrap();
+
+    // Create an aliases file with a single alias
+    let aliases = vec![Alias {
+        alias: "test_alias".to_string(),
+        public_key_base64: keypair.public().encode_base64(),
+    }];
+    let aliases_data = serde_json::to_string_pretty(&aliases).unwrap();
+    fs::write(&aliases_path, aliases_data).unwrap();
+
+    let keystore = Keystore::from(FileBasedKeystore::new(&keystore_path).unwrap());
+    assert!(keystore_path.exists());
+    assert_eq!(1, keystore.aliases().len());
+    assert_eq!(
+        *keystore
+            .get_key(&IotaAddress::from(&keypair.public()))
+            .unwrap()
+            .as_keypair()
+            .unwrap(),
+        keypair,
+    );
+    assert_eq!(
+        keystore
+            .get_alias_by_address(&IotaAddress::from(&keypair.public()))
+            .unwrap(),
+        "test_alias"
+    );
+
+    let mut backup_keystore_path = keystore_path.clone();
+    backup_keystore_path.set_extension("migrated");
+    assert!(backup_keystore_path.exists());
+
+    let mut backup_aliases_path = keystore_path.clone();
+    backup_aliases_path.set_extension("aliases.migrated");
+    assert!(backup_aliases_path.exists());
 }

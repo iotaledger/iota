@@ -32,7 +32,7 @@ use crate::{
         coin::Coin,
         cursor::{BcsCursor, JsonCursor, Page, RawPaginated, ScanLimited, Target},
         iota_address::{IotaAddress, addr},
-        iota_names_registration::{IotaNamesRegistration, NameFormat},
+        iota_names_registration::{NameFormat, NameRegistration},
         move_module::MoveModule,
         move_object::MoveObject,
         object::{self, Object, ObjectFilter, ObjectImpl, ObjectOwner, ObjectStatus},
@@ -289,7 +289,7 @@ impl MovePackage {
             .await
     }
 
-    /// The IotaNamesRegistration NFTs owned by this package. These grant the
+    /// The NameRegistration NFTs owned by this package. These grant the
     /// owner the capability to manage the associated name.
     ///
     /// Note that objects owned by a package are inaccessible, because packages
@@ -301,7 +301,7 @@ impl MovePackage {
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNamesRegistration>> {
+    ) -> Result<Connection<String, NameRegistration>> {
         OwnerImpl::from(&self.super_)
             .iota_names_registrations(ctx, first, after, last, before)
             .await
@@ -312,14 +312,13 @@ impl MovePackage {
     }
 
     /// The current status of the object as read from the off-chain store. The
-    /// possible states are: NOT_INDEXED, the object is loaded from
-    /// serialized data, such as the contents of a genesis or system package
-    /// upgrade transaction. LIVE, the version returned is the most recent for
-    /// the object, and it is not deleted or wrapped at that version.
-    /// HISTORICAL, the object was referenced at a specific version or
-    /// checkpoint, so is fetched from historical tables and may not be the
-    /// latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-    /// or wrapped and only partial information can be loaded."
+    /// possible states are:
+    /// - NOT_INDEXED: The object is loaded from serialized data, such as the
+    ///   contents of a genesis or system package upgrade transaction.
+    /// - INDEXED: The object is retrieved from the off-chain index and
+    ///   represents the most recent or historical state of the object.
+    /// - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+    ///   information can be loaded.
     pub(crate) async fn status(&self) -> ObjectStatus {
         ObjectImpl(&self.super_).status().await
     }

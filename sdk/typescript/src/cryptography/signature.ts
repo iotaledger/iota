@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64, toB64 } from '@iota/bcs';
+import { fromBase64, toBase64 } from '@iota/bcs';
 
 import { bcs } from '../bcs/index.js';
 import type { MultiSigStruct } from '../multisig/publickey.js';
@@ -43,14 +43,14 @@ export function toSerializedSignature({
     serializedSignature.set([SIGNATURE_SCHEME_TO_FLAG[signatureScheme]]);
     serializedSignature.set(signature, 1);
     serializedSignature.set(pubKeyBytes, 1 + signature.length);
-    return toB64(serializedSignature);
+    return toBase64(serializedSignature);
 }
 
 /**
  * Decodes a serialized signature into its constituent components: the signature scheme, the actual signature, and the public key
  */
 export function parseSerializedSignature(serializedSignature: string) {
-    const bytes = fromB64(serializedSignature);
+    const bytes = fromBase64(serializedSignature);
 
     const signatureScheme =
         SIGNATURE_FLAG_TO_SCHEME[bytes[0] as keyof typeof SIGNATURE_FLAG_TO_SCHEME];

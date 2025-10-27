@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use crate::kv_store_client::KvStoreClient;
+use crate::bigtable::KvStoreClient;
 
 /// Represents a shared instance of the [`KvStoreClient`], primerely used by the
 /// REST API server global [`State`](axum::extract::State).

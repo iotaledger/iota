@@ -19,6 +19,7 @@ export interface IotaClientGraphQLTransportOptions {
     url: string;
     fallbackTransportUrl?: string;
     fallbackMethods?: (keyof typeof RPC_METHODS)[];
+    unsupportedMethods?: (keyof typeof RPC_METHODS)[];
 }
 
 export type GraphQLDocument<
@@ -59,6 +60,7 @@ export class IotaClientGraphQLTransport implements IotaTransport {
     #options: IotaClientGraphQLTransportOptions;
     #fallbackTransport?: IotaTransport;
     #fallbackMethods: (keyof typeof RPC_METHODS)[];
+    #unsupportedMethods: (keyof typeof RPC_METHODS)[];
 
     constructor(options: IotaClientGraphQLTransportOptions) {
         this.#options = options;
@@ -66,7 +68,15 @@ export class IotaClientGraphQLTransport implements IotaTransport {
             'executeTransactionBlock',
             'dryRunTransactionBlock',
             'devInspectTransactionBlock',
+            'getTotalTransactions',
+            'getNetworkMetrics',
+            'getParticipationMetrics',
+            'getMoveCallMetrics',
+            'getAllEpochAddressMetrics',
+            'getEpochs',
+            'getDynamicFieldObjectV2',
         ];
+        this.#unsupportedMethods = options.unsupportedMethods || ['getOwnedObjects'];
 
         if (options.fallbackTransportUrl) {
             this.#fallbackTransport = new IotaHTTPTransport({
@@ -137,20 +147,35 @@ export class IotaClientGraphQLTransport implements IotaTransport {
                 clientMethod = input.method.split('_')[1] as keyof typeof RPC_METHODS;
         }
 
+        // Methods with allowed fallback will go through GraphQL first and only default to JSON-RPC if they fail
+        const allowFallback = this.#fallbackMethods.includes(clientMethod);
+        // Unsupported methods will go through JSON-RPC directly
+        const isUnsupported = this.#unsupportedMethods.includes(clientMethod);
+
         const method = RPC_METHODS[clientMethod];
 
-        if (!method || this.#fallbackMethods.includes(clientMethod)) {
-            return this.#unsupportedMethod(input);
+        if (isUnsupported) {
+            // If Unsupported we force to try fallback
+            return this.#tryUseFallback(input);
+        }
+
+        // No method and no fallback allowed
+        if (!method && !allowFallback) {
+            throw new UnsupportedMethodError(input.method);
         }
 
         try {
+            // Method doesnt have a graphql implementation
+            if (!method) throw new Error('Missing method');
+
             return method(this, input.params as never) as Promise<T>;
         } catch (error) {
-            if (this.#fallbackTransport && error instanceof UnsupportedParamError) {
-                return this.#fallbackTransport.request(input);
+            // Method has an allowed fallback or is partially unsupported
+            if (allowFallback || error instanceof UnsupportedParamError) {
+                return this.#tryUseFallback(input);
+            } else {
+                throw error;
             }
-
-            throw error;
         }
     }
 
@@ -164,7 +189,7 @@ export class IotaClientGraphQLTransport implements IotaTransport {
         return this.#fallbackTransport.subscribe(input);
     }
 
-    async #unsupportedMethod<T = unknown>(input: IotaTransportRequestOptions): Promise<T> {
+    async #tryUseFallback<T = unknown>(input: IotaTransportRequestOptions): Promise<T> {
         if (!this.#fallbackTransport) {
             throw new UnsupportedMethodError(input.method);
         }

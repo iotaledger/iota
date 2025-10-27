@@ -237,6 +237,10 @@ crates:
   label: Crates
   description: The IOTA Rust crates.
 
+dapp-kit:
+  label: dApp Kit
+  description: IOTA dApp Kit for building web dApps.
+
 getting-started:
   label: Getting Started
   description: Initial steps to start using IOTA.
@@ -300,6 +304,11 @@ node-operation:
 infrastructure:
   label: Infrastructure
   description: Infrastructure
+
+# Hierarchies
+hierarchies:
+  label: Hierarchies
+  description: The IOTA Hierarchies API.
 
 # Notarization
 notarization:

@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeSet;
@@ -150,7 +150,12 @@ mod count {
     fn lvalue(context: &mut Context, sp!(_, l_): &LValue, substitutable: bool) {
         use LValue_ as L;
         match l_ {
-            L::Ignore | L::Unpack(_, _, _) | L::UnpackVariant(..) => (),
+            L::Ignore => (),
+            L::Unpack(_, _, field_lvalues) | L::UnpackVariant(_, _, _, _, _, field_lvalues) => {
+                for (_field, fl) in field_lvalues {
+                    lvalue(context, fl, /* substitutable */ false);
+                }
+            }
             L::Var { var, .. } => context.assign(var, substitutable),
         }
     }

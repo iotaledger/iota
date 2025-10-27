@@ -242,7 +242,7 @@ pub async fn execute_replay_command(
             .await?;
 
             let out = serde_json::to_string(&sandbox_state).unwrap();
-            let path = base_path.join(format!("{}.json", tx_digest));
+            let path = base_path.join(format!("{tx_digest}.json"));
             std::fs::write(path, out)?;
             None
         }
@@ -303,7 +303,7 @@ pub async fn execute_replay_command(
             let digests = buf_reader.lines().map(|line| {
                 let line = line.unwrap();
                 TransactionDigest::from_str(&line).unwrap_or_else(|err| {
-                    panic!("Error parsing tx digest {:?}: {:?}", line, err);
+                    panic!("Error parsing tx digest {line:?}: {err:?}");
                 })
             });
             batch_replay::batch_replay(
@@ -451,7 +451,7 @@ pub async fn execute_replay_command(
             for x in lx.protocol_version_system_package_table {
                 println!("Protocol version: {}", x.0);
                 for (package_id, seq_num) in x.1 {
-                    println!("Package: {} Seq: {}", package_id, seq_num);
+                    println!("Package: {package_id} Seq: {seq_num}");
                 }
             }
             None

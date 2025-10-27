@@ -96,7 +96,7 @@ impl CheckpointWriter {
     ) -> Result<Self> {
         let epoch_num = manifest.epoch_num();
         let checkpoint_sequence_num = manifest.next_checkpoint_seq_num();
-        let epoch_dir = root_dir_path.join(format!("{}{epoch_num}", EPOCH_DIR_PREFIX));
+        let epoch_dir = root_dir_path.join(format!("{EPOCH_DIR_PREFIX}{epoch_num}"));
         if epoch_dir.exists() {
             fs::remove_dir_all(&epoch_dir)?;
         }
@@ -441,11 +441,11 @@ impl ArchiveWriter {
 
         while kill.try_recv().is_err() {
             if let Some(checkpoint_summary) = store
-                .get_checkpoint_by_sequence_number(checkpoint_sequence_number)
+                .try_get_checkpoint_by_sequence_number(checkpoint_sequence_number)
                 .map_err(|_| anyhow!("Failed to read checkpoint summary from store"))?
             {
                 if let Some(checkpoint_contents) = store
-                    .get_full_checkpoint_contents(&checkpoint_summary.content_digest)
+                    .try_get_full_checkpoint_contents(&checkpoint_summary.content_digest)
                     .map_err(|_| anyhow!("Failed to read checkpoint content from store"))?
                 {
                     checkpoint_writer

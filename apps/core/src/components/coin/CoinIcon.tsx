@@ -19,10 +19,12 @@ function NonIotaCoin({ coinType, size = ImageIconSize.Full, rounded }: NonIotaCo
     return (
         <div className="flex h-full w-full items-center justify-center rounded-full bg-iota-neutral-96 dark:bg-iota-neutral-12">
             <ImageIcon
+                key={coinMeta?.iconUrl}
                 src={coinMeta?.iconUrl}
                 label={coinMeta?.name || coinType}
                 fallback={coinMeta?.name || coinType}
                 size={coinMeta?.iconUrl ? ImageIconSize.Full : size}
+                fallbackSize={size}
                 rounded={rounded}
             />
         </div>

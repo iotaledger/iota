@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -47,7 +47,7 @@ impl<BytecodeViewer: LeftScreen, SourceViewer: RightScreen<BytecodeViewer>> TUII
     const LEFT_TITLE: &'static str = "Bytecode";
     const RIGHT_TITLE: &'static str = "Source Code";
 
-    fn on_redraw(&mut self, line_number: u16, column_number: u16) -> TUIOutput {
+    fn on_redraw(&mut self, line_number: u16, column_number: u16) -> TUIOutput<'_> {
         // Highlight style
         let style: Style = Style::default().bg(Color::Red);
         let report = match self

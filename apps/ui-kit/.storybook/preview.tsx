@@ -5,7 +5,6 @@ import { type Preview } from '@storybook/react';
 import { withThemeByClassName } from '@storybook/addon-themes';
 
 import '../src/lib/styles/index.css';
-document.documentElement.classList.add('light');
 
 const preview: Preview = {
     parameters: {

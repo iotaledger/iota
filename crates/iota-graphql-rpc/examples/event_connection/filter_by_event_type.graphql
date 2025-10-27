@@ -1,0 +1,27 @@
+# Queries fetches all on-chain events of type StakingRequestEvent
+query ByEventType {
+  events(
+    filter: {
+      eventType: "0x3::validator::StakingRequestEvent"
+    }
+  ) {
+    pageInfo {
+      hasNextPage
+      endCursor
+    }
+    nodes {
+      sendingModule {
+        name
+      }
+      type {
+        repr
+      }
+      sender {
+        address
+      }
+      timestamp
+      json
+      bcs
+    }
+  }
+}

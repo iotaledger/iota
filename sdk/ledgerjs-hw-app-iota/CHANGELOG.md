@@ -1,5 +1,18 @@
 # @iota/ledgerjs-hw-app-iota
 
+## 0.4.0
+
+### Minor Changes
+
+-   d0aa220: Updates Axios to 1.12.0
+
+## 0.3.0
+
+### Minor Changes
+
+-   fc692a2: Remove option to pass `txn` as a hexadecimal string or Buffer
+-   fc692a2: Add `options` parameter to the `signTransaction` method for clear signing displays
+
 ## 0.2.2
 
 ### Patch Changes

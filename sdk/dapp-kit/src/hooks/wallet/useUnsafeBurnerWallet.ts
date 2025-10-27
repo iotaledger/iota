@@ -5,7 +5,7 @@
 import type { IotaClient } from '@iota/iota-sdk/client';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
 import { Transaction } from '@iota/iota-sdk/transactions';
-import { toB64 } from '@iota/iota-sdk/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import type {
     StandardConnectFeature,
     StandardConnectMethod,
@@ -159,7 +159,7 @@ function registerUnsafeBurnerWallet(iotaClient: IotaClient) {
                 bytes,
                 signature,
                 digest,
-                effects: toB64(new Uint8Array(rawEffects!)),
+                effects: toBase64(new Uint8Array(rawEffects!)),
             };
         };
     }

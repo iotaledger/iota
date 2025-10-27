@@ -183,6 +183,8 @@ export interface DryRunTransactionBlockResponse {
     events: IotaEvent[];
     input: TransactionBlockData;
     objectChanges: IotaObjectChange[];
+    /** If an input object is congested, suggest a gas price to use. */
+    suggestedGasPrice?: string | null;
 }
 export type DynamicFieldInfo =
     | {
@@ -522,6 +524,7 @@ export interface IotaChangeEpoch {
 export interface IotaChangeEpochV2 {
     computation_charge: string;
     computation_charge_burned: string;
+    eligible_active_validators?: string[] | null;
     epoch: string;
     epoch_start_timestamp_ms: string;
     storage_charge: string;
@@ -585,6 +588,13 @@ export interface IotaMoveModuleId {
     address: string;
     name: string;
 }
+export interface IotaMoveNormalizedEnum {
+    abilities: IotaMoveAbilitySet;
+    typeParameters: IotaMoveStructTypeParameter[];
+    variants: {
+        [key: string]: IotaMoveNormalizedField[];
+    };
+}
 export interface IotaMoveNormalizedField {
     name: string;
     type: IotaMoveNormalizedType;
@@ -598,6 +608,9 @@ export interface IotaMoveNormalizedFunction {
 }
 export interface IotaMoveNormalizedModule {
     address: string;
+    enums?: {
+        [key: string]: IotaMoveNormalizedEnum;
+    };
     exposedFunctions: {
         [key: string]: IotaMoveNormalizedFunction;
     };
@@ -647,6 +660,14 @@ export interface IotaMoveStructTypeParameter {
     constraints: IotaMoveAbilitySet;
     isPhantom: boolean;
 }
+export type IotaMoveViewCallResults =
+    /** Execution error from executing the move view call */
+    | {
+          executionError: string;
+      } /** The return values of the move view function */
+    | {
+          functionReturnValues: MoveValue[];
+      };
 export type IotaMoveVisibility = 'Private' | 'Public' | 'Friend';
 /** A single record in the registry. */
 export interface IotaNameRecord {
@@ -1069,7 +1090,7 @@ export interface MoveCallMetrics {
     rank7Days: [MoveFunctionName, string][];
 }
 export interface MoveCallParams {
-    arguments: unknown[];
+    arguments: PtbInput[];
     function: string;
     module: string;
     packageObjectId: string;
@@ -1485,6 +1506,7 @@ export type ProtocolConfigValue =
     | {
           bool: string;
       };
+export type PtbInput = IotaArgument | unknown;
 export type PublicKey =
     | {
           Ed25519: string;
@@ -1749,7 +1771,7 @@ export interface IotaTransactionBlockResponseOptions {
 }
 export interface IotaTransactionBlockResponseQuery {
     /** If None, no filter will be applied */
-    filter?: TransactionFilter | null;
+    filter?: TransactionFilterV2 | null;
     /** config which fields to include in the response, by default only digest is included */
     options?: IotaTransactionBlockResponseOptions | null;
 }
@@ -1770,6 +1792,53 @@ export type TransactionFilter =
       } /** Query by changed object, including created, mutated and unwrapped objects. */
     | {
           ChangedObject: string;
+      } /** Query by sender address. */
+    | {
+          FromAddress: string;
+      } /** Query by recipient address. */
+    | {
+          ToAddress: string;
+      } /** Query by sender and recipient address. */
+    | {
+          FromAndToAddress: {
+              from: string;
+              to: string;
+          };
+      } /** Query txs that have a given address as sender or recipient. */
+    | {
+          FromOrToAddress: {
+              addr: string;
+          };
+      } /** Query by transaction kind */
+    | {
+          TransactionKind: IotaTransactionKind;
+      } /** Query transactions of any given kind in the input. */
+    | {
+          TransactionKindIn: IotaTransactionKind[];
+      };
+export type TransactionFilterV2 =
+    /** Query by checkpoint. */
+    | {
+          Checkpoint: string;
+      } /** Query by move function. */
+    | {
+          MoveFunction: {
+              function?: string | null;
+              module?: string | null;
+              package: string;
+          };
+      } /** Query by input object. */
+    | {
+          InputObject: string;
+      } /** Query by changed object, including created, mutated and unwrapped objects. */
+    | {
+          ChangedObject: string;
+      } /**
+     * Query transactions that wrapped or deleted the specified object. Includes transactions that either
+     * created and immediately wrapped the object or unwrapped and immediately deleted it.
+     */
+    | {
+          WrappedOrDeletedObject: string;
       } /** Query by sender address. */
     | {
           FromAddress: string;

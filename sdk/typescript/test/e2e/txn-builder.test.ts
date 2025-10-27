@@ -214,6 +214,47 @@ describe('Transaction Builders', () => {
             retry: 10,
         },
     );
+
+    it('builds object options', async () => {
+        const tx = new Transaction();
+
+        tx.moveCall({
+            target: `${packageId}::serializer_tests::none`,
+            typeArguments: ['0x2::coin::Coin<0x2::iota::IOTA>'],
+            arguments: [
+                tx.object.option({
+                    type: '0x2::coin::Coin<0x2::iota::IOTA>',
+                    value: null,
+                }),
+            ],
+        });
+        const coin = tx.splitCoins(tx.gas, [1]);
+        const coin2 = tx.moveCall({
+            target: `${packageId}::serializer_tests::some`,
+            typeArguments: ['0x2::coin::Coin<0x2::iota::IOTA>'],
+            arguments: [
+                tx.object.option({
+                    type: '0x2::coin::Coin<0x2::iota::IOTA>',
+                    value: coin,
+                }),
+            ],
+        });
+
+        const coin3 = tx.moveCall({
+            target: `${packageId}::serializer_tests::some`,
+            typeArguments: ['0x2::coin::Coin<0x2::iota::IOTA>'],
+            arguments: [
+                tx.object.option({
+                    type: '0x2::coin::Coin<0x2::iota::IOTA>',
+                    value: coin2,
+                }),
+            ],
+        });
+
+        tx.transferObjects([coin3], toolbox.keypair.toIotaAddress());
+
+        await validateTransaction(toolbox.client, toolbox.keypair, tx);
+    });
 });
 
 async function validateTransaction(client: IotaClient, signer: Keypair, tx: Transaction) {

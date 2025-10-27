@@ -19,7 +19,7 @@ use std::{
 use dashmap::DashMap;
 use fs::File;
 use iota_metrics::spawn_monitored_task;
-use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig, Weight};
+use iota_types::traffic_control::{PolicyConfig, PolicyType, RemoteFirewallConfig, Weight};
 use prometheus::IntGauge;
 use rand::Rng;
 use tokio::{
@@ -95,7 +95,7 @@ impl TrafficController {
                     .into_iter()
                     .map(|ip_str| {
                         parse_ip(&ip_str).unwrap_or_else(|| {
-                            panic!("Failed to parse allowlist IP address: {:?}", ip_str)
+                            panic!("Failed to parse allowlist IP address: {ip_str:?}")
                         })
                     })
                     .collect();
@@ -116,6 +116,7 @@ impl TrafficController {
         fw_config: Option<RemoteFirewallConfig>,
     ) -> Self {
         let metrics = Arc::new(metrics);
+        Self::set_policy_config_metrics(&policy_config, metrics.clone());
         let (tx, rx) = mpsc::channel(policy_config.channel_capacity);
         // Memoized drainfile existence state. This is passed into delegation
         // functions to prevent them from continuing to populate blocklists
@@ -154,6 +155,28 @@ impl TrafficController {
             acl: Acl::Blocklists(blocklists),
             metrics: metrics.clone(),
             dry_run_mode,
+        }
+    }
+
+    fn set_policy_config_metrics(
+        policy_config: &PolicyConfig,
+        metrics: Arc<TrafficControllerMetrics>,
+    ) {
+        if let PolicyType::FreqThreshold(config) = &policy_config.spam_policy_type {
+            metrics
+                .spam_client_threshold
+                .set(config.client_threshold as i64);
+            metrics
+                .spam_proxied_client_threshold
+                .set(config.proxied_client_threshold as i64);
+        }
+        if let PolicyType::FreqThreshold(config) = &policy_config.error_policy_type {
+            metrics
+                .error_client_threshold
+                .set(config.client_threshold as i64);
+            metrics
+                .error_proxied_client_threshold
+                .set(config.proxied_client_threshold as i64);
         }
     }
 
@@ -688,9 +711,9 @@ impl TrafficSim {
                     "Running naive traffic simulation for {} seconds",
                     duration.as_secs()
                 );
-                println!("Policy: {:#?}", policy);
-                println!("Num clients: {}", num_clients);
-                println!("TPS per client: {}", per_client_tps);
+                println!("Policy: {policy:#?}");
+                println!("Num clients: {num_clients}");
+                println!("TPS per client: {per_client_tps}");
                 println!(
                     "Target total TPS: {}",
                     per_client_tps * num_clients as usize
@@ -828,7 +851,7 @@ impl TrafficSim {
         let avg_first_block_time = metrics
             .time_to_first_block
             .map(|ttf| ttf / num_clients as u32);
-        println!("Average time to first block: {:?}", avg_first_block_time);
+        println!("Average time to first block: {avg_first_block_time:?}");
         // This is the time it took for the first request to be blocked across all
         // clients, and is instead more useful for understanding false positives
         // in terms of rate and magnitude.

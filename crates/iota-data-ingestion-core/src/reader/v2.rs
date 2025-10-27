@@ -30,6 +30,8 @@ use tokio::{
 };
 use tracing::{debug, error, info};
 
+#[cfg(not(target_os = "macos"))]
+use crate::reader::fetch::init_watcher;
 use crate::{
     IngestionError, IngestionResult, MAX_CHECKPOINTS_IN_PROGRESS, create_remote_store_client,
     history::reader::HistoricalReader,
@@ -47,20 +49,23 @@ use crate::{
 /// backend or combination of backends for checkpoint retrieval.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum RemoteUrl {
-    /// A REST API endpoint for checkpoint data.
+    /// The URL to the Fullnode server that exposes
+    /// checkpoint data.
+    ///
     /// # Example
     /// ```text
     /// "http://127.0.0.1:9000/api/v1"
     /// ```
-    Rest(String),
+    Fullnode(String),
     /// A hybrid source combining historical object store and optional live
     /// object store.
     HybridHistoricalStore {
-        /// The URL of the historical object store.
+        /// The URL path to the historical object store that contains `*.chk`,
+        /// `*.sum` & `MANIFEST` files.
         ///
         /// # Example
         /// ```text
-        /// "https://checkpoints.mainnet.iota.cafe"
+        /// "https://checkpoints.mainnet.iota.cafe/ingestion/historical"
         /// ```
         historical_url: String,
         /// The URL path to the live object store that contains `*.chk`
@@ -80,7 +85,7 @@ pub enum RemoteUrl {
 /// used by the ingestion framework to fetch checkpoint data. Each variant
 /// corresponds to a different type of remote source.
 enum RemoteStore {
-    Rest(iota_rest_api::Client),
+    Fullnode(iota_rest_api::Client),
     HybridHistoricalStore {
         historical: HistoricalReader,
         live: Option<Box<dyn ObjectStore>>,
@@ -94,7 +99,7 @@ impl RemoteStore {
         timeout_secs: u64,
     ) -> IngestionResult<Self> {
         let store = match remote_url {
-            RemoteUrl::Rest(url) => RemoteStore::Rest(iota_rest_api::Client::new(url)),
+            RemoteUrl::Fullnode(url) => RemoteStore::Fullnode(iota_rest_api::Client::new(url)),
             RemoteUrl::HybridHistoricalStore {
                 historical_url,
                 live_url,
@@ -113,8 +118,7 @@ impl RemoteStore {
                     use_for_pruning_watermark: false,
                 };
                 let historical = HistoricalReader::new(config)
-                    .inspect_err(|e| error!("Unable to instantiate historical reader: {e}"))?;
-                historical.sync_manifest_once().await?;
+                    .inspect_err(|e| error!("unable to instantiate historical reader: {e}"))?;
 
                 let live = live_url
                     .map(|url| create_remote_store_client(url, Default::default(), timeout_secs))
@@ -222,7 +226,14 @@ impl CheckpointReaderActor {
         // If the requested checkpoint is beyond what's currently available in our
         // cached manifest, we need to refresh it to check for newer checkpoints.
         if self.current_checkpoint_number > historical_reader.latest_available_checkpoint().await? {
-            historical_reader.sync_manifest_once().await?;
+            timeout(
+                Duration::from_secs(self.reader_options.timeout_secs),
+                historical_reader.sync_manifest_once(),
+            )
+            .await
+            .map_err(|_| {
+                IngestionError::HistoryRead("reading manifest exceeded the timeout".into())
+            })??;
 
             // Verify the requested checkpoint is now available after the manifest refresh.
             // If it's still not available, the checkpoint hasn't been published yet.
@@ -249,11 +260,19 @@ impl CheckpointReaderActor {
             .enumerate()
             .filter_map(|(index, metadata)| (index >= start_index).then_some(metadata))
         {
-            let checkpoints = historical_reader
-                .iter_for_file(metadata.file_path())
-                .await?
-                .filter(|c| c.checkpoint_summary.sequence_number >= self.current_checkpoint_number)
-                .collect::<Vec<CheckpointData>>();
+            let checkpoints = timeout(
+                Duration::from_secs(self.reader_options.timeout_secs),
+                historical_reader.iter_for_file(metadata.file_path()),
+            )
+            .await
+            .map_err(|_| {
+                IngestionError::HistoryRead(format!(
+                    "reading checkpoint {} exceeded the timeout",
+                    metadata.file_path()
+                ))
+            })??
+            .filter(|c| c.checkpoint_summary.sequence_number >= self.current_checkpoint_number)
+            .collect::<Vec<CheckpointData>>();
 
             for checkpoint in checkpoints {
                 let size = bcs::serialized_size(&checkpoint)?;
@@ -277,7 +296,7 @@ impl CheckpointReaderActor {
         };
         let batch_size = self.reader_options.batch_size;
         match remote_store.as_ref() {
-            RemoteStore::Rest(client) => {
+            RemoteStore::Fullnode(client) => {
                 let mut checkpoint_stream = (self.current_checkpoint_number..u64::MAX)
                     .map(|checkpoint_number| fetch_from_full_node(client, checkpoint_number))
                     .pipe(futures::stream::iter)
@@ -434,20 +453,25 @@ impl CheckpointReaderActor {
 
     /// Run the main loop of the checkpoint reader actor.
     async fn run(mut self) {
-        let (_watcher, mut inotify_rx) = self.setup_directory_watcher();
+        let (_inotify_tx, mut inotify_rx) = mpsc::channel::<()>(1);
+        std::fs::create_dir_all(self.path()).expect("failed to create a directory");
+
+        #[cfg(not(target_os = "macos"))]
+        let _watcher = init_watcher(_inotify_tx, self.path());
+
         self.data_limiter.gc(self.last_pruned_watermark);
         self.gc_processed_files(self.last_pruned_watermark)
-            .expect("Failed to clean the directory");
+            .expect("failed to clean the directory");
 
         loop {
             tokio::select! {
                 _ = &mut self.shutdown_rx => break,
                 Some(watermark) = self.gc_signal_rx.recv() => {
                     self.data_limiter.gc(watermark);
-                    self.gc_processed_files(watermark).expect("Failed to clean the directory");
+                    self.gc_processed_files(watermark).expect("failed to clean the directory");
                 }
                 Ok(Some(_)) | Err(_) = timeout(Duration::from_millis(self.reader_options.tick_interval_ms), inotify_rx.recv())  => {
-                    self.sync().await.expect("Failed to read checkpoint files");
+                    self.sync().await.expect("failed to read checkpoint files");
                 }
             }
         }
@@ -491,7 +515,7 @@ impl CheckpointReader {
 
         let path = match config.ingestion_path {
             Some(p) => p,
-            None => tempfile::tempdir()?.into_path(),
+            None => tempfile::tempdir()?.keep(),
         };
 
         let reader = CheckpointReaderActor {
@@ -546,7 +570,7 @@ impl CheckpointReader {
     pub(crate) async fn shutdown(self) -> IngestionResult<()> {
         _ = self.shutdown_tx.send(());
         self.handle.await.map_err(|err| IngestionError::Shutdown {
-            component: "CheckpointReader".into(),
+            component: "checkpoint reader".into(),
             msg: err.to_string(),
         })
     }

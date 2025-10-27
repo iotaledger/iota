@@ -514,7 +514,7 @@ impl StateSnapshotWriterV1 {
     }
 
     fn epoch_dir(&self, epoch: u64) -> Path {
-        Path::from(format!("epoch_{}", epoch))
+        Path::from(format!("epoch_{epoch}"))
     }
 
     /// Creates a new epoch directory and a new staging directory for the epoch
@@ -529,7 +529,7 @@ impl StateSnapshotWriterV1 {
         )
         .await?;
         // Deletes local staging epoch dir if it exists
-        let local_epoch_dir_path = self.local_staging_dir.join(format!("epoch_{}", epoch));
+        let local_epoch_dir_path = self.local_staging_dir.join(format!("epoch_{epoch}"));
         if local_epoch_dir_path.exists() {
             fs::remove_dir_all(&local_epoch_dir_path)?;
         }

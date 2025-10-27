@@ -1,30 +1,70 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-
 use async_graphql::*;
-use fastcrypto::{
-    encoding::{Base64, Encoding},
-    traits::ToFromBytes,
+use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, SelectableHelper};
+use fastcrypto::encoding::Base64;
+use iota_indexer::{
+    models::transactions::{OptimisticTransaction, StoredTransaction},
+    schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
+use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
-use iota_sdk::IotaClient;
-use iota_types::{
-    effects::TransactionEffects as NativeTransactionEffects,
-    event::Event as NativeEvent,
-    quorum_driver_types::ExecuteTransactionRequestType,
-    signature::GenericSignature,
-    transaction::{SenderSignedData, Transaction},
-};
 
 use crate::{
+    data::{Db, DbConnection, QueryExecutor},
     error::Error,
+    server::builder::get_write_api,
     types::{
-        execution_result::ExecutionResult,
-        transaction_block_effects::{TransactionBlockEffects, TransactionBlockEffectsKind},
+        execution_result::ExecutionResult, transaction_block::TransactionBlock,
+        transaction_block_effects::TransactionBlockEffects,
     },
 };
 pub struct Mutation;
+
+/// Query checkpointed transaction by digest from the database
+async fn query_checkpointed_transaction_by_digest(
+    db: &Db,
+    digest_bytes: Vec<u8>,
+) -> Result<StoredTransaction, Error> {
+    db.execute_repeatable(move |conn| {
+        conn.first(move || {
+            transactions::table
+                .inner_join(
+                    tx_digests::table
+                        .on(transactions::tx_sequence_number.eq(tx_digests::tx_sequence_number)),
+                )
+                .filter(tx_digests::tx_digest.eq(digest_bytes.clone()))
+                .select(StoredTransaction::as_select())
+        })
+    })
+    .await
+    .map_err(|e| Error::Internal(format!("Unable to query checkpointed transaction: {e}")))
+}
+
+/// Query optimistic transaction by digest from the database
+async fn query_optimistic_transaction_by_digest(
+    db: &Db,
+    digest_bytes: Vec<u8>,
+) -> Result<OptimisticTransaction, Error> {
+    db.execute_repeatable(move |conn| {
+        conn.first(move || {
+            optimistic_transactions::table
+                .inner_join(
+                    tx_global_order::table.on(optimistic_transactions::global_sequence_number
+                        .eq(tx_global_order::global_sequence_number)
+                        .and(
+                            optimistic_transactions::optimistic_sequence_number
+                                .eq(tx_global_order::optimistic_sequence_number),
+                        )),
+                )
+                .filter(tx_global_order::tx_digest.eq(digest_bytes.clone()))
+                .select(OptimisticTransaction::as_select())
+        })
+    })
+    .await
+    .map_err(|e| Error::Internal(format!("Unable to query optimistic transaction: {e}")))
+}
 
 /// Mutations are used to write to the IOTA network.
 #[Object]
@@ -41,100 +81,71 @@ impl Mutation {
     /// that was not possible. A transaction is final when its effects are
     /// guaranteed on chain (it cannot be revoked).
     ///
-    /// There may be a delay between transaction finality and when GraphQL
-    /// requests (including the request that issued the transaction) reflect
-    /// its effects. As a result, queries that depend on indexing the state
-    /// of the chain (e.g. contents of output objects, address-level balance
-    /// information at the time of the transaction), must wait for indexing to
-    /// catch up by polling for the transaction digest using
-    /// `Query.transactionBlock`.
+    /// Transaction effects are now available immediately after execution
+    /// through `Query.transactionBlock`. However, other queries that depend
+    /// on the chain’s indexed state (e.g., address-level balance updates)
+    /// may still lag until the transaction has been checkpointed.
+    /// To confirm that a transaction has been included in a checkpoint, query
+    /// `Query.transactionBlock` and check whether the `effects.checkpoint`
+    /// field is set (or `null` if not yet checkpointed).
     async fn execute_transaction_block(
         &self,
         ctx: &Context<'_>,
         tx_bytes: String,
         signatures: Vec<String>,
     ) -> Result<ExecutionResult> {
-        let iota_sdk_client: &Option<IotaClient> = ctx
-            .data()
-            .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
+        let write_api = get_write_api(ctx).extend()?;
+        let tx_data = Base64::try_from(tx_bytes)
+            .map_err(|e| {
+                Error::Client(format!(
+                    "Unable to deserialize transaction bytes from Base64: {e}"
+                ))
+            })
             .extend()?;
-        let iota_sdk_client = iota_sdk_client
-            .as_ref()
-            .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
-            .extend()?;
-        let tx_data = bcs::from_bytes(
-            &Base64::decode(&tx_bytes)
-                .map_err(|e| {
-                    Error::Client(format!(
-                        "Unable to deserialize transaction bytes from Base64: {e}"
-                    ))
-                })
-                .extend()?,
-        )
-        .map_err(|e| {
-            Error::Client(format!(
-                "Unable to deserialize transaction bytes as BCS: {e}"
-            ))
-        })
-        .extend()?;
 
         let mut sigs = Vec::new();
         for sig in signatures {
             sigs.push(
-                GenericSignature::from_bytes(
-                    &Base64::decode(&sig)
-                        .map_err(|e| {
-                            Error::Client(format!(
-                                "Unable to deserialize signature bytes {sig} from Base64: {e}"
-                            ))
-                        })
-                        .extend()?,
-                )
-                .map_err(|e| Error::Client(format!("Unable to create signature from bytes: {e}")))
-                .extend()?,
+                Base64::try_from(sig.clone())
+                    .map_err(|e| {
+                        Error::Client(format!(
+                            "Unable to deserialize signature bytes {sig} from Base64: {e}"
+                        ))
+                    })
+                    .extend()?,
             );
         }
-        let transaction = Transaction::from_generic_sig_data(tx_data, sigs);
         let options = IotaTransactionBlockResponseOptions::new()
             .with_events()
             .with_raw_input()
             .with_raw_effects();
 
-        let result = iota_sdk_client
-            .quorum_driver_api()
-            .execute_transaction_block(
-                transaction,
-                options,
-                Some(ExecuteTransactionRequestType::WaitForEffectsCert),
-            )
+        let result = write_api
+            .execute_transaction_block(tx_data, sigs, Some(options), None)
             .await
-            // TODO: use proper error type as this could be a client error or internal error
-            // depending on the specific error returned
             .map_err(|e| Error::Internal(format!("Unable to execute transaction: {e}")))
             .extend()?;
 
-        let native: NativeTransactionEffects = bcs::from_bytes(&result.raw_effects)
-            .map_err(|e| Error::Internal(format!("Unable to deserialize transaction effects: {e}")))
-            .extend()?;
-        let tx_data: SenderSignedData = bcs::from_bytes(&result.raw_transaction)
-            .map_err(|e| Error::Internal(format!("Unable to deserialize transaction data: {e}")))
-            .extend()?;
+        let tx_digest = result.digest;
+        let digest_bytes = tx_digest.inner().to_vec();
 
-        let events = result
-            .events
-            .ok_or_else(|| {
-                Error::Internal("No events are returned from transaction execution".to_string())
-            })?
-            .data
-            .into_iter()
-            .map(|e| NativeEvent {
-                package_id: e.package_id,
-                transaction_module: e.transaction_module,
-                sender: e.sender,
-                type_: e.type_,
-                contents: e.bcs.into_bytes(),
-            })
-            .collect();
+        let db: &Db = ctx.data_unchecked();
+        let query_optimistic_tx = query_optimistic_transaction_by_digest(db, digest_bytes.clone());
+        let query_checkpointed_tx = query_checkpointed_transaction_by_digest(db, digest_bytes);
+        tokio::pin!(query_optimistic_tx, query_checkpointed_tx);
+
+        let effects: Result<TransactionBlockEffects, _> = tokio::select! {
+                checkpointed_tx = &mut query_checkpointed_tx => match checkpointed_tx {
+                    Ok(checkpointed_tx) => TransactionBlock::try_from(checkpointed_tx)?.try_into(),
+                    _ => query_optimistic_tx.await?.try_into()
+                },
+                optimistic_tx = &mut query_optimistic_tx => {
+                    match optimistic_tx {
+                        Ok(optimistic_tx) => optimistic_tx.try_into(),
+                        _ => TransactionBlock::try_from(query_checkpointed_tx.await?)?.try_into(),
+                    }
+                }
+        };
 
         Ok(ExecutionResult {
             errors: if result.errors.is_empty() {
@@ -142,15 +153,9 @@ impl Mutation {
             } else {
                 Some(result.errors)
             },
-            effects: TransactionBlockEffects {
-                kind: TransactionBlockEffectsKind::Executed {
-                    tx_data,
-                    native,
-                    events,
-                },
-                // set to u64::MAX, as the executed transaction has not been indexed yet
-                checkpoint_viewed_at: u64::MAX,
-            },
+            effects: effects
+                .map_err(|_| Error::Internal("Transaction not indexed after execution".into()))
+                .extend()?,
         })
     }
 }

@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { toB64 } from '@iota/bcs';
+import { toBase64 } from '@iota/bcs';
 
 import type { SignatureScheme } from '../cryptography/index.js';
 import { Signer } from '../cryptography/index.js';
@@ -76,7 +76,7 @@ export class MultiSigSigner extends Signer {
 
         return {
             signature,
-            bytes: toB64(bytes),
+            bytes: toBase64(bytes),
         };
     }
 
@@ -91,7 +91,7 @@ export class MultiSigSigner extends Signer {
 
         return {
             signature,
-            bytes: toB64(bytes),
+            bytes: toBase64(bytes),
         };
     }
 }

@@ -38,6 +38,13 @@ type MethodPayloads = {
                   password: string;
                   seed: string;
               };
+          }
+        | {
+              type: AccountSourceType.Keystone;
+              params: {
+                  password: string;
+                  masterFingerprint: string;
+              };
           };
     accountSourceCreationResponse: { accountSource: AccountSourceSerializedUI };
     lockAccountSourceOrAccount: { id: string };
@@ -50,6 +57,15 @@ type MethodPayloads = {
               type: AccountType.LedgerDerived;
               accounts: { publicKey: string; derivationPath: string; address: string }[];
               password: string;
+          }
+        | {
+              type: AccountType.KeystoneDerived;
+              sourceID: string;
+              accounts: {
+                  publicKey: string;
+                  derivationPath: string;
+                  address: string;
+              }[];
           };
     accountsCreatedResponse: { accounts: SerializedUIAccount[] };
     signData: { data: string; id: string };

@@ -11,7 +11,7 @@ use crate::{
         coin::Coin,
         cursor::Page,
         iota_address::IotaAddress,
-        iota_names_registration::{IotaNamesRegistration, NameFormat},
+        iota_names_registration::{NameFormat, NameRegistration},
         move_object::MoveObject,
         object::{self, ObjectFilter},
         owner::OwnerImpl,
@@ -129,7 +129,7 @@ impl Address {
             .await
     }
 
-    /// The IotaNamesRegistration NFTs owned by this address. These grant the
+    /// The NameRegistration NFTs owned by this address. These grant the
     /// owner the capability to manage the associated name.
     pub(crate) async fn iota_names_registrations(
         &self,
@@ -138,7 +138,7 @@ impl Address {
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNamesRegistration>> {
+    ) -> Result<Connection<String, NameRegistration>> {
         OwnerImpl::from(self)
             .iota_names_registrations(ctx, first, after, last, before)
             .await

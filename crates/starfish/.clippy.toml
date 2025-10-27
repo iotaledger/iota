@@ -1,0 +1,26 @@
+# cyclomatic complexity is not always useful
+cognitive-complexity-threshold = 100
+# types are used for safety encoding
+type-complexity-threshold = 10000
+# big constructors
+too-many-arguments-threshold = 20
+
+# Disallow types
+disallowed-types = [
+  { path = "anyhow::Error", reason = "use eyre::Report instead" },
+  { path = "anyhow::Result", reason = "use eyre::Result instead" },
+]
+
+# Disallow macros
+disallowed-macros = [
+  { path = "log::info", reason = "use tracing::info instead" },
+  { path = "log::debug", reason = "use tracing::debug instead" },
+  { path = "log::error", reason = "use tracing::error instead" },
+  { path = "log::warn", reason = "use tracing::warn instead" },
+]
+
+# Disallow methods
+disallowed-methods = [
+  { path = "futures::executor::block_on", reason = "use tokio::runtime::Runtime::block_on instead" },
+  { path = "bincode::deserialize_from", reason = "use bincode::deserialize instead" },
+]

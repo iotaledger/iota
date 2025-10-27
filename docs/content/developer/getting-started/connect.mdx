@@ -63,18 +63,10 @@ iota client
 
 If this is the first time you run the command, you will be prompted to configure the client.
 
-#### 1. Create `client.yaml`
+#### 1. Create a client config (`client.yaml`)
 
 ```
-Config file ["<FILE-PATH>/.iota/iota_config/client.yaml"] doesn't exist, do you want to connect to an IOTA Full node server [y/N]?
-```
-
-Enter `y` to proceed. You receive the following response:
-
-#### 2. Select the Network
-
-```
-IOTA Full node server URL (Defaults to IOTA Testnet if not specified) :
+Select a default network [mainnet|testnet|devnet|localnet], or enter a custom IOTA full node server URL (defaults to testnet if not specified):
 ```
 
 If you want to connect to the [Testnet](#testnet), you can simply press `Enter`.
@@ -86,7 +78,7 @@ access:
 Environment alias for [<URL-ENTERED>] :
 ```
 
-#### 3. Generate Keys and Address
+#### 2. Generate Keys and Address
 
 ```
 Select key scheme to generate keypair (0 for ed25519, 1 for secp256k1, 2: for secp256r1):

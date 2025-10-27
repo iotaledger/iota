@@ -40,7 +40,7 @@ async fn main() {
     if args.dump_spans {
         for message in messages.iter() {
             for span in &message.resource_spans {
-                println!("{:#?}", span);
+                println!("{span:#?}");
             }
         }
         return;
@@ -54,10 +54,10 @@ async fn main() {
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        format!("iota-node-{}", timestamp)
+        format!("iota-node-{timestamp}")
     });
 
-    println!("importing trace with service name {:?}", service_name);
+    println!("importing trace with service name {service_name:?}");
 
     for mut message in messages {
         let mut span_count = 0;
@@ -89,7 +89,7 @@ async fn main() {
             }
         }
 
-        println!("sending {} spans to otlp collector", span_count);
+        println!("sending {span_count} spans to otlp collector");
         trace_exporter.export(Request::new(message)).await.unwrap();
     }
     println!("all spans imported");
@@ -122,7 +122,7 @@ where
             .ok_or_else(|| io::Error::new(io::ErrorKind::UnexpectedEof, "Buffer underflow"))?;
 
         let msg = M::decode(msg_bytes).map_err(|e| {
-            io::Error::new(io::ErrorKind::InvalidData, format!("Decode error: {}", e))
+            io::Error::new(io::ErrorKind::InvalidData, format!("Decode error: {e}"))
         })?;
         messages.push(msg);
 

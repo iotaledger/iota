@@ -144,14 +144,14 @@ async fn scan_blocks(
         let scanned_blocks = store
             .scan_blocks_by_author(AuthorityIndex::new_for_test(1), 20)
             .expect("Scan blocks should not fail");
-        assert!(scanned_blocks.is_empty(), "{:?}", scanned_blocks);
+        assert!(scanned_blocks.is_empty(), "{scanned_blocks:?}");
     }
 
     {
         let scanned_blocks = store
             .scan_blocks_by_author(AuthorityIndex::new_for_test(1), 12)
             .expect("Scan blocks should not fail");
-        assert_eq!(scanned_blocks.len(), 2, "{:?}", scanned_blocks);
+        assert_eq!(scanned_blocks.len(), 2, "{scanned_blocks:?}");
         assert_eq!(
             scanned_blocks,
             vec![written_blocks[5].clone(), written_blocks[7].clone()]
@@ -172,7 +172,7 @@ async fn scan_blocks(
         let scanned_blocks = store
             .scan_blocks_by_author(AuthorityIndex::new_for_test(1), 10)
             .expect("Scan blocks should not fail");
-        assert_eq!(scanned_blocks.len(), 5, "{:?}", scanned_blocks);
+        assert_eq!(scanned_blocks.len(), 5, "{scanned_blocks:?}");
         assert_eq!(
             scanned_blocks,
             vec![
@@ -189,7 +189,7 @@ async fn scan_blocks(
         let scanned_blocks = store
             .scan_last_blocks_by_author(AuthorityIndex::new_for_test(1), 2, None)
             .expect("Scan blocks should not fail");
-        assert_eq!(scanned_blocks.len(), 2, "{:?}", scanned_blocks);
+        assert_eq!(scanned_blocks.len(), 2, "{scanned_blocks:?}");
         assert_eq!(
             scanned_blocks,
             vec![written_blocks[7].clone(), additional_blocks[2].clone()]
@@ -213,7 +213,7 @@ async fn read_and_scan_commits(
         let last_commit = store
             .read_last_commit()
             .expect("Read last commit should not fail");
-        assert!(last_commit.is_none(), "{:?}", last_commit);
+        assert!(last_commit.is_none(), "{last_commit:?}");
     }
 
     let written_commits = vec![
@@ -257,8 +257,7 @@ async fn read_and_scan_commits(
         assert_eq!(
             last_commit.as_ref(),
             written_commits.last(),
-            "{:?}",
-            last_commit
+            "{last_commit:?}"
         );
     }
 
@@ -266,14 +265,14 @@ async fn read_and_scan_commits(
         let scanned_commits = store
             .scan_commits((20..=24).into())
             .expect("Scan commits should not fail");
-        assert!(scanned_commits.is_empty(), "{:?}", scanned_commits);
+        assert!(scanned_commits.is_empty(), "{scanned_commits:?}");
     }
 
     {
         let scanned_commits = store
             .scan_commits((3..=4).into())
             .expect("Scan commits should not fail");
-        assert_eq!(scanned_commits.len(), 2, "{:?}", scanned_commits);
+        assert_eq!(scanned_commits.len(), 2, "{scanned_commits:?}");
         assert_eq!(
             scanned_commits,
             vec![written_commits[2].clone(), written_commits[3].clone()]
@@ -284,7 +283,7 @@ async fn read_and_scan_commits(
         let scanned_commits = store
             .scan_commits((0..=2).into())
             .expect("Scan commits should not fail");
-        assert_eq!(scanned_commits.len(), 2, "{:?}", scanned_commits);
+        assert_eq!(scanned_commits.len(), 2, "{scanned_commits:?}");
         assert_eq!(
             scanned_commits,
             vec![written_commits[0].clone(), written_commits[1].clone()]
@@ -295,7 +294,7 @@ async fn read_and_scan_commits(
         let scanned_commits = store
             .scan_commits((0..=4).into())
             .expect("Scan commits should not fail");
-        assert_eq!(scanned_commits.len(), 4, "{:?}", scanned_commits);
+        assert_eq!(scanned_commits.len(), 4, "{scanned_commits:?}");
         assert_eq!(scanned_commits, written_commits,);
     }
 }

@@ -358,7 +358,7 @@ impl ConnectionConfig {
         prom_port: u16,
     ) -> Self {
         Self {
-            db_url: format!("postgres://postgres:postgrespw@localhost:5432/{}", db_name),
+            db_url: format!("postgres://postgres:postgrespw@localhost:5432/{db_name}"),
             port,
             prom_port,
             ..Default::default()

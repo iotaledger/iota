@@ -13,7 +13,7 @@ use iota_light_client::{
     checkpoint::read_checkpoint_list,
     config::Config,
     construct::construct_proof,
-    proof::{Proof, ProofTarget, verify_proof},
+    proof::{Proof, ProofTargets, verify_proof},
 };
 use iota_types::{
     committee::Committee,
@@ -27,17 +27,18 @@ use iota_types::{
 const FIXTURES_DIR: &str = "tests/fixtures";
 
 async fn read_test_data() -> (Committee, CheckpointData) {
-    let mut config = Config::get_mainnet_config();
+    let mut config = Config::mainnet();
     config.checkpoints_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(FIXTURES_DIR);
 
     let checkpoint_list =
         read_checkpoint_list(&config).expect("reading the checkpoints.yaml should not fail");
+
     let committee_seq = checkpoint_list
-        .checkpoints()
+        .checkpoints
         .first()
         .expect("there should be a first checkpoint in the checkpoints.yaml");
     let seq = checkpoint_list
-        .checkpoints()
+        .checkpoints
         .get(1)
         .expect("there should be a second checkpoint in the checkpoints.yaml");
 
@@ -126,7 +127,7 @@ async fn test_new_committee() {
     let committee_proof = Proof {
         checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
         contents_proof: None,
-        targets: ProofTarget::new().set_committee(new_committee.clone()),
+        targets: ProofTargets::new().set_committee(new_committee.clone()),
     };
 
     verify_proof(&committee, &committee_proof).unwrap()
@@ -140,7 +141,7 @@ async fn test_incorrect_new_committee() {
     let committee_proof = Proof {
         checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
         contents_proof: None,
-        targets: ProofTarget::new().set_committee(committee.clone()), // WRONG,
+        targets: ProofTargets::new().set_committee(committee.clone()), // WRONG,
     };
 
     assert!(verify_proof(&committee, &committee_proof).is_err());
@@ -174,7 +175,7 @@ async fn test_fail_incorrect_cert() {
     let committee_proof = Proof {
         checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
         contents_proof: None,
-        targets: ProofTarget::new(),
+        targets: ProofTargets::new(),
     };
 
     assert!(
@@ -196,7 +197,7 @@ async fn test_object_target_fail_no_data() {
     let bad_proof = Proof {
         checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
         contents_proof: None, // WRONG
-        targets: ProofTarget::new().add_object(sample_ref, sample_object),
+        targets: ProofTargets::new().add_object(sample_ref, sample_object),
     };
 
     assert!(verify_proof(&committee, &bad_proof).is_err());
@@ -209,7 +210,7 @@ async fn test_object_target_success() {
     let sample_object: Object = full_checkpoint.transactions[0].output_objects[0].clone();
     let sample_ref = sample_object.compute_object_reference();
 
-    let target = ProofTarget::new().add_object(sample_ref, sample_object);
+    let target = ProofTargets::new().add_object(sample_ref, sample_object);
     let object_proof = construct_proof(target, &full_checkpoint).unwrap();
 
     assert!(verify_proof(&committee, &object_proof).is_ok());
@@ -224,14 +225,14 @@ async fn test_object_target_fail_wrong_object() {
     let mut sample_ref = sample_object.compute_object_reference();
     let wrong_ref = wrong_object.compute_object_reference();
 
-    let target = ProofTarget::new().add_object(wrong_ref, sample_object.clone()); // WRONG
+    let target = ProofTargets::new().add_object(wrong_ref, sample_object.clone()); // WRONG
     let object_proof = construct_proof(target, &full_checkpoint).unwrap();
     assert!(verify_proof(&committee, &object_proof).is_err());
 
     // Does not exist
     sample_ref.1 = sample_ref.1.next(); // WRONG
 
-    let target = ProofTarget::new().add_object(sample_ref, sample_object);
+    let target = ProofTargets::new().add_object(sample_ref, sample_object);
     let object_proof = construct_proof(target, &full_checkpoint).unwrap();
     assert!(verify_proof(&committee, &object_proof).is_err());
 }
@@ -254,7 +255,7 @@ async fn test_event_target_fail_no_data() {
     let bad_proof = Proof {
         checkpoint_summary: full_checkpoint.checkpoint_summary.clone(),
         contents_proof: None, // WRONG
-        targets: ProofTarget::new().add_event(sample_eid, sample_event),
+        targets: ProofTargets::new().add_event(sample_eid, sample_event),
     };
 
     assert!(verify_proof(&committee, &bad_proof).is_err());
@@ -275,7 +276,7 @@ async fn test_event_target_success() {
         0,
     ));
 
-    let target = ProofTarget::new().add_event(sample_eid, sample_event);
+    let target = ProofTargets::new().add_event(sample_eid, sample_event);
     let event_proof = construct_proof(target, &full_checkpoint).unwrap();
 
     assert!(verify_proof(&committee, &event_proof).is_ok());
@@ -296,7 +297,7 @@ async fn test_event_target_fail_bad_event() {
         1, // WRONG
     ));
 
-    let target = ProofTarget::new().add_event(sample_eid, sample_event);
+    let target = ProofTargets::new().add_event(sample_eid, sample_event);
     let event_proof = construct_proof(target, &full_checkpoint).unwrap();
 
     assert!(verify_proof(&committee, &event_proof).is_err());

@@ -72,7 +72,7 @@ async fn health(
     Query(Threshold { threshold_seconds }): Query<Threshold>,
     State(state): State<StateReader>,
 ) -> Result<impl IntoResponse> {
-    let summary = state.inner().get_latest_checkpoint()?;
+    let summary = state.inner().try_get_latest_checkpoint()?;
 
     // If we have a provided threshold, check that it's close to the current time
     if let Some(threshold_seconds) = threshold_seconds {

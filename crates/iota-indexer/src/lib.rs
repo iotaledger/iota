@@ -20,23 +20,28 @@ use tracing::warn;
 
 use crate::{
     apis::{
-        CoinReadApi, ExtendedApi, GovernanceReadApi, IndexerApi, MoveUtilsApi, ReadApi,
-        TransactionBuilderApi, WriteApi,
+        CoinReadApi, ExtendedApi, GovernanceReadApi, IndexerApi, MoveUtilsApi, OptimisticWriteApi,
+        ReadApi, TransactionBuilderApi, WriteApi,
     },
     config::JsonRpcConfig,
-    indexer_reader::IndexerReader,
+    optimistic_indexing::OptimisticTransactionExecutor,
+    read::IndexerReader,
+    store::PgIndexerStore,
 };
 
 pub mod apis;
+pub mod backfill;
 pub mod config;
 pub mod db;
 pub mod errors;
-pub mod handlers;
 pub mod indexer;
-pub mod indexer_reader;
+pub mod ingestion;
 pub mod metrics;
 pub mod models;
+pub mod optimistic_indexing;
 pub mod processors;
+pub mod pruning;
+pub mod read;
 pub mod schema;
 pub mod store;
 pub mod system_package_task;
@@ -44,29 +49,35 @@ pub mod test_utils;
 pub mod types;
 
 pub async fn build_json_rpc_server(
+    store: PgIndexerStore,
     prometheus_registry: &Registry,
     reader: IndexerReader,
     config: &JsonRpcConfig,
+    metrics: IndexerMetrics,
 ) -> Result<ServerHandle, IndexerError> {
     let mut builder =
         JsonRpcServerBuilder::new(env!("CARGO_PKG_VERSION"), prometheus_registry, None, None);
-    let http_client = crate::get_http_client(&config.rpc_client_url)?;
 
-    builder.register_module(WriteApi::new(http_client.clone()))?;
+    let fullnode_client = get_http_client(&config.rpc_client_url)?;
+    // Register common modules
     builder.register_module(IndexerApi::new(
         reader.clone(),
         config.iota_names_options.clone().into(),
     ))?;
-    builder.register_module(TransactionBuilderApi::new(reader.clone()))?;
+    builder.register_module(TransactionBuilderApi::from(reader.clone()))?;
     builder.register_module(MoveUtilsApi::new(reader.clone()))?;
     builder.register_module(GovernanceReadApi::new(reader.clone()))?;
-    builder.register_module(ReadApi::new(reader.clone()))?;
+    builder.register_module(ReadApi::new(reader.clone(), fullnode_client.clone()))?;
     builder.register_module(CoinReadApi::new(reader.clone())?)?;
     builder.register_module(ExtendedApi::new(reader.clone()))?;
+    builder.register_module(OptimisticWriteApi::new(
+        WriteApi::new(fullnode_client, reader.clone()),
+        OptimisticTransactionExecutor::new(&config.rpc_client_url, reader.clone(), store, metrics),
+    ))?;
 
     let cancel = CancellationToken::new();
     let system_package_task =
-        SystemPackageTask::new(reader.clone(), cancel.clone(), Duration::from_secs(10));
+        SystemPackageTask::new(reader, cancel.clone(), Duration::from_secs(10));
 
     tracing::info!("Starting system package task");
     spawn_monitored_task!(async move { system_package_task.run().await });
@@ -85,10 +96,9 @@ fn get_http_client(rpc_client_url: &str) -> Result<HttpClient, IndexerError> {
         .set_headers(headers.clone())
         .build(rpc_client_url)
         .map_err(|e| {
-            warn!("Failed to get new Http client with error: {:?}", e);
+            warn!("failed to get new Http client with error: {:?}", e);
             IndexerError::HttpClientInit(format!(
-                "Failed to initialize fullnode RPC client with error: {:?}",
-                e
+                "failed to initialize fullnode RPC client with error: {e:?}"
             ))
         })
 }

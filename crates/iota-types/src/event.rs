@@ -207,7 +207,7 @@ impl From<Event> for SystemEpochInfoEvent {
 }
 
 /// Event emitted in move code `fun advance_epoch` in protocol versions 1 to 3
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct SystemEpochInfoEventV1 {
     pub epoch: u64,
     pub protocol_version: u64,
@@ -227,7 +227,7 @@ pub struct SystemEpochInfoEventV1 {
 /// This second version of the event includes the tips amount to show how much
 /// of the gas fees go to the validators when protocol_defined_base_fee is
 /// enabled in the protocol config.
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize, Default)]
 pub struct SystemEpochInfoEventV2 {
     pub epoch: u64,
     pub protocol_version: u64,

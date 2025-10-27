@@ -7,9 +7,9 @@ use std::{collections::BTreeSet, sync::Arc};
 use anyhow::Result;
 use fastcrypto::encoding::{Base64, Encoding};
 use iota_data_ingestion_core::Worker;
-use iota_rest_api::{CheckpointData, CheckpointTransaction};
 use iota_types::{
     effects::{TransactionEffects, TransactionEffectsAPI},
+    full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     transaction::{Command, TransactionDataAPI, TransactionKind},
 };
 use tokio::sync::Mutex;
@@ -131,12 +131,12 @@ impl TransactionHandler {
                 }
             } else {
                 error!(
-                    "Transaction kind [{kind}] is not programmable transaction and not a system transaction"
+                    "transaction kind [{kind}] is not programmable transaction and not a system transaction"
                 );
             }
             if move_calls_count != move_calls {
                 error!(
-                    "Mismatch in move calls count: commands {move_calls_count} != {move_calls} calls"
+                    "mismatch in move calls count: commands {move_calls_count} != {move_calls} calls"
                 );
             }
         }
@@ -156,7 +156,7 @@ impl TransactionHandler {
             execution_success: effects.status().is_ok(),
             input: txn_data
                 .input_objects()
-                .expect("Input objects must be valid")
+                .expect("input objects must be valid")
                 .len() as u64,
             shared_input: txn_data.shared_input_objects().len() as u64,
             gas_coins: txn_data.gas().len() as u64,
@@ -224,9 +224,9 @@ mod tests {
         let checkpoint = sim.create_checkpoint();
         let checkpoint_data = sim.get_checkpoint_data(
             checkpoint.clone(),
-            sim.get_checkpoint_contents_by_digest(&checkpoint.content_digest)?
+            sim.get_checkpoint_contents_by_digest(&checkpoint.content_digest)
                 .unwrap(),
-        )?;
+        );
         let shared_checkpoint_data = Arc::new(checkpoint_data);
         let txn_handler = TransactionHandler::new();
         txn_handler
