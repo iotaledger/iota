@@ -16,13 +16,17 @@ use consensus_core::{CommitConsumerMonitor, CommitIndex};
 use fastcrypto::hash::HashFunction;
 use iota_macros::{fail_point, fail_point_if};
 use iota_metrics::{monitored_mpsc::UnboundedReceiver, monitored_scope, spawn_monitored_task};
+use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     authenticator_state::ActiveJwk,
     base_types::{AuthorityName, EpochId, ObjectID, SequenceNumber, TransactionDigest},
     digests::{AdditionalConsensusStateDigest, ConsensusCommitDigest},
     executable_transaction::{TrustedExecutableTransaction, VerifiedExecutableTransaction},
     iota_system_state::epoch_start_iota_system_state::EpochStartSystemStateTrait,
-    messages_consensus::{ConsensusTransaction, ConsensusTransactionKey, ConsensusTransactionKind},
+    messages_consensus::{
+        ConsensusDeterminedVersionAssignments, ConsensusTransaction, ConsensusTransactionKey,
+        ConsensusTransactionKind,
+    },
     transaction::{SenderSignedData, VerifiedTransaction},
 };
 use lru::LruCache;
@@ -136,7 +140,7 @@ mod additional_consensus_state {
         }
 
         /// Update all internal state based on the new commit
-        pub(crate) fn observe_commit(&mut self, consensus_commit: &impl ConsensusCommitAPI) {
+        pub(crate) fn observe_commit(&mut self, consensus_commit: &impl ConsensusOutputAPI) {
             self.commit_rate_estimate
                 .observe_commit_time(consensus_commit);
         }
@@ -272,7 +276,7 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             .record_additional_state_digest_in_prologue()
         {
             self.additional_consensus_state
-                .observe_commit(&consensus_commit);
+                .observe_commit(&consensus_output);
         }
 
         // TODO: Is this check necessary? For now mysticeti will not
@@ -950,45 +954,47 @@ impl ConsensusCommitInfo {
     ) -> VerifiedExecutableTransaction {
         // self.consensus_commit_prologue_v1_transaction(epoch,
         // cancelled_txn_version_assignment)
-        let version_assignments = if protocol_config
-            .record_consensus_determined_version_assignments_in_prologue_v2()
-        {
-            Some(
-                ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(
-                    cancelled_txn_version_assignment,
-                ),
-            )
-        } else if protocol_config.record_consensus_determined_version_assignments_in_prologue() {
-            Some(
-                ConsensusDeterminedVersionAssignments::CancelledTransactions(
-                    cancelled_txn_version_assignment
-                        .into_iter()
-                        .map(|(tx_digest, versions)| {
-                            (
-                                tx_digest,
-                                versions.into_iter().map(|(id, v)| (id.0, v)).collect(),
-                            )
-                        })
-                        .collect(),
-                ),
-            )
-        } else {
-            None
-        };
-
-        if protocol_config.record_additional_state_digest_in_prologue() {
-            self.consensus_commit_prologue_v4_transaction(
-                epoch,
-                version_assignments.unwrap(),
-                additional_state.digest(),
-            )
-        } else if let Some(version_assignments) = version_assignments {
-            self.consensus_commit_prologue_v3_transaction(epoch, version_assignments)
-        } else if protocol_config.include_consensus_digest_in_prologue() {
-            self.consensus_commit_prologue_v2_transaction(epoch)
-        } else {
-            self.consensus_commit_prologue_transaction(epoch)
-        }
+        todo!()
+        // let version_assignments = if protocol_config
+        //    .record_consensus_determined_version_assignments_in_prologue_v2()
+        //{
+        //    Some(
+        //        ConsensusDeterminedVersionAssignments::CancelledTransactionsV2(
+        //            cancelled_txn_version_assignment,
+        //        ),
+        //    )
+        //} else if protocol_config.
+        //} record_consensus_determined_version_assignments_in_prologue() {
+        //    Some(
+        //        ConsensusDeterminedVersionAssignments::CancelledTransactions(
+        //            cancelled_txn_version_assignment
+        //                .into_iter()
+        //                .map(|(tx_digest, versions)| {
+        //                    (
+        //                        tx_digest,
+        //                        versions.into_iter().map(|(id, v)| (id.0,
+        // v)).collect(),                    )
+        //                })
+        //                .collect(),
+        //        ),
+        //    )
+        //} else {
+        //    None
+        //};
+        // if protocol_config.record_additional_state_digest_in_prologue() {
+        //    self.consensus_commit_prologue_v4_transaction(
+        //        epoch,
+        //        version_assignments.unwrap(),
+        //        additional_state.digest(),
+        //    )
+        //} else if let Some(version_assignments) = version_assignments {
+        //    self.consensus_commit_prologue_v3_transaction(epoch,
+        // version_assignments)
+        //} else if protocol_config.include_consensus_digest_in_prologue() {
+        //    self.consensus_commit_prologue_v2_transaction(epoch)
+        //} else {
+        //    self.consensus_commit_prologue_transaction(epoch)
+        //}
     }
 }
 
@@ -1004,7 +1010,7 @@ impl CommitRateObserver {
         }
     }
 
-    pub fn observe_commit_time(&mut self, consensus_commit: &impl ConsensusCommitAPI) {
+    pub fn observe_commit_time(&mut self, consensus_commit: &impl ConsensusOutputAPI) {
         let commit_time = consensus_commit.commit_timestamp_ms();
         if self.ring_buffer.len() == self.ring_buffer.capacity() {
             self.ring_buffer.pop_front();
@@ -1057,7 +1063,6 @@ mod tests {
         },
         checkpoints::CheckpointServiceNoop,
         consensus_adapter::consensus_tests::{test_certificates, test_gas_objects},
-        consensus_types::consensus_output_api::ParsedTransaction,
         post_consensus_tx_reorder::PostConsensusTxReorder,
     };
 
@@ -1337,7 +1342,7 @@ mod tests {
             }
         }
 
-        impl ConsensusCommitAPI for TestConsensusCommit {
+        impl ConsensusOutputAPI for TestConsensusCommit {
             fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>> {
                 None
             }
@@ -1360,12 +1365,15 @@ mod tests {
 
             /// Returns all accepted and rejected transactions per block in the
             /// commit in deterministic order.
-            fn transactions(&self) -> Vec<(AuthorityIndex, Vec<ParsedTransaction>)> {
+            fn transactions(
+                &self,
+            ) -> crate::consensus_types::consensus_output_api::ConsensusOutputTransactions
+            {
                 vec![]
             }
 
             /// Returns the digest of consensus output.
-            fn consensus_digest(&self, _: &ProtocolConfig) -> ConsensusCommitDigest {
+            fn consensus_digest(&self) -> ConsensusCommitDigest {
                 ConsensusCommitDigest::ZERO
             }
         }

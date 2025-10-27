@@ -671,8 +671,8 @@ mod checked {
                     metrics,
                     trace_builder_opt,
                 )
-                .expect("ConsensusCommitPrologue cannot fail");
-                Ok((Mode::empty_results(), vec![]))
+                .expect("ConsensusCommitPrologueV4 cannot fail");
+                Ok(Mode::empty_results())
             }
             TransactionKind::ProgrammableTransaction(pt) => {
                 programmable_transactions::execution::execute::<Mode>(

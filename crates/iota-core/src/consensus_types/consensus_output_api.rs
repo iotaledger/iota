@@ -13,7 +13,8 @@ use crate::consensus_types::AuthorityIndex;
 /// (block origin authority index, all transactions contained in the block).
 /// For each transaction, returns deserialized transaction and its serialized
 /// size.
-type ConsensusOutputTransactions = Vec<(AuthorityIndex, Vec<(ConsensusTransaction, usize)>)>;
+pub(crate) type ConsensusOutputTransactions =
+    Vec<(AuthorityIndex, Vec<(ConsensusTransaction, usize)>)>;
 
 pub(crate) trait ConsensusOutputAPI: Display {
     fn reputation_score_sorted_desc(&self) -> Option<Vec<(AuthorityIndex, u64)>>;

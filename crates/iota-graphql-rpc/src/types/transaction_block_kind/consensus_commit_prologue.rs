@@ -4,13 +4,7 @@
 
 use async_graphql::*;
 use fastcrypto::encoding::{Base58, Encoding};
-use iota_types::{
-    digests::{AdditionalConsensusStateDigest, ConsensusCommitDigest},
-    messages_consensus::{
-        ConsensusCommitPrologueV1 as NativeConsensusCommitPrologueTransactionV1,
-        ConsensusCommitPrologueV4 as NativeConsensusCommitPrologueTransactionV4,
-    },
-};
+use iota_types::messages_consensus::ConsensusCommitPrologueV4 as NativeConsensusCommitPrologueTransactionV4;
 
 use crate::types::{date_time::DateTime, epoch::Epoch, uint53::UInt53};
 

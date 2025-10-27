@@ -475,6 +475,7 @@ impl TryFrom<crate::transaction::TransactionKind> for TransactionKind {
                     consensus_determined_version_assignments,
                 })
             }
+            InternalTxnKind::ConsensusCommitPrologueV4(_consensus_commit_prologue_v4) => todo!(),
             InternalTxnKind::AuthenticatorStateUpdateV1(authenticator_state_update_v1) => {
                 TransactionKind::AuthenticatorStateUpdateV1(AuthenticatorStateUpdateV1 {
                     epoch: authenticator_state_update_v1.epoch,

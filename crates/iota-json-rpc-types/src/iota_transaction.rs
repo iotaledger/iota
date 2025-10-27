@@ -2784,6 +2784,7 @@ pub enum IotaTransactionKind {
     AuthenticatorStateUpdateV1 = 4,
     RandomnessStateUpdate = 5,
     EndOfEpochTransaction = 6,
+    ConsensusCommitPrologueV4 = 7,
 }
 
 impl IotaTransactionKind {
@@ -2802,6 +2803,7 @@ impl From<&TransactionKind> for IotaTransactionKind {
             TransactionKind::RandomnessStateUpdate(_) => Self::RandomnessStateUpdate,
             TransactionKind::EndOfEpochTransaction(_) => Self::EndOfEpochTransaction,
             TransactionKind::ProgrammableTransaction(_) => Self::ProgrammableTransaction,
+            TransactionKind::ConsensusCommitPrologueV4(_) => Self::ConsensusCommitPrologueV4,
         }
     }
 }
