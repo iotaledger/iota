@@ -116,6 +116,23 @@ pub(crate) struct Core {
     encoder: Box<dyn ShardEncoder + Send + Sync>,
 }
 
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub (crate) enum Reason {
+    MinTimeout,
+    AddBlock,
+    MaxTimeout,
+}
+
+impl Reason {
+    fn to_string(&self) -> &'static str {
+        match self {
+            Reason::MinTimeout => "MinTimeout",
+            Reason::AddBlock => "AddBlock",
+            Reason::MaxTimeout => "MaxTimeout",
+        }
+    }
+}
+
 impl Core {
     pub(crate) fn new(
         context: Arc<Context>,
@@ -219,7 +236,7 @@ impl Core {
         // refs can be ignored as the missing transactions will be fetched by the
         // periodic transactions' synchronizer.
         self.try_commit().unwrap();
-        let last_proposed_block = match self.try_propose(true).unwrap() {
+        let last_proposed_block = match self.try_propose(Reason::MaxTimeout).unwrap() {
             (Some(block), _) => Some(block),
             (None, _) => {
                 let last_proposed_block = self.dag_state.read().recover_last_own_block();
@@ -295,7 +312,7 @@ impl Core {
             let (_subdags, new_missing_committed_txns) = self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
-            self.try_propose(false)?;
+            self.try_propose(Reason::AddBlock)?;
 
             // Now set up leader timeout if needed.
             // This needs to be called after try_commit() and try_propose(), which may
@@ -357,7 +374,7 @@ impl Core {
             let (_subdags, new_missing_committed_txns) = self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
-            self.try_propose(false)?;
+            self.try_propose(Reason::AddBlock)?;
 
             // Now set up leader timeout if needed.
             // This needs to be called after try_commit() and try_propose(), which may
@@ -491,7 +508,7 @@ impl Core {
     pub(crate) fn new_block(
         &mut self,
         round: Round,
-        force: bool,
+        reason: Reason,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
         BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
@@ -502,9 +519,9 @@ impl Core {
                 .metrics
                 .node_metrics
                 .leader_timeout_total
-                .with_label_values(&[&format!("{force}")])
+                .with_label_values(&[&reason.to_string()])
                 .inc();
-            let result = self.try_propose(force);
+            let result = self.try_propose(reason);
             // The threshold clock round may have advanced, so a signal needs to be sent.
             self.try_signal_new_round();
             return result;
@@ -517,7 +534,7 @@ impl Core {
     // ancestors and if the minimum round delay has passed.
     fn try_propose(
         &mut self,
-        force: bool,
+        reason: Reason,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
         BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
@@ -525,7 +542,7 @@ impl Core {
         if !self.should_propose() {
             return Ok((None, BTreeMap::new()));
         }
-        if let Some(verified_block) = self.try_new_block(force) {
+        if let Some(verified_block) = self.try_new_block(reason) {
             self.signals.new_block(verified_block.clone())?;
 
             fail_point!("consensus-after-propose");
@@ -541,7 +558,7 @@ impl Core {
     /// already proposed for latest or earlier round, then no block is
     /// created and None is returned.
     #[instrument(level = "trace", skip_all)]
-    fn try_new_block(&mut self, force: bool) -> Option<VerifiedBlock> {
+    fn try_new_block(&mut self, reason: Reason) -> Option<VerifiedBlock> {
         let _s = self
             .context
             .metrics
@@ -566,7 +583,7 @@ impl Core {
         // Create a new block either because we want to "forcefully" propose a block due
         // to a leader timeout, or because we are actually ready to produce the
         // block (leader exists and min delay has passed).
-        if !force {
+        if reason != Reason::MaxTimeout {
             if !self.leaders_exist(quorum_round) {
                 return None;
             }
@@ -583,14 +600,14 @@ impl Core {
         }
 
         // Determine the ancestors to be included in proposal.
-        let ancestors = self.ancestors_to_propose(clock_round, !force);
+        let ancestors = self.ancestors_to_propose(clock_round, reason);
 
         // If we did not find enough good ancestors to propose, continue to wait before
         // proposing.
         if ancestors.is_empty() {
             assert!(
-                !force,
-                "Ancestors should have been returned if force is true!"
+                reason != Reason::MaxTimeout,
+                "Ancestors should have been returned if maximal timeout is expired!"
             );
             return None;
         }
@@ -782,7 +799,7 @@ impl Core {
             .metrics
             .node_metrics
             .proposed_blocks
-            .with_label_values(&[&force.to_string()])
+            .with_label_values(&[&reason.to_string()])
             .inc();
 
         Some(verified_block)
@@ -1028,13 +1045,13 @@ impl Core {
 
     /// Retrieves the next ancestors to propose to form a block at `clock_round`
     /// round. If force=false and the stake of available ancestors is not big
-    /// enough, then this function will wait. It force=true and stake is not
+    /// enough, then this function will return empty vector. It force=true and stake is not
     /// big enough then the function will panic, because it means that there is
     /// a bug somewhere
     fn ancestors_to_propose(
         &mut self,
         clock_round: Round,
-        force: bool,
+        reason: Reason,
     ) -> Vec<VerifiedBlockHeader> {
         let node_metrics = &self.context.metrics.node_metrics;
         let _s = node_metrics
@@ -1082,7 +1099,7 @@ impl Core {
             parent_round_quorum.add(ancestor.author(), &self.context.committee);
         }
 
-        if !force && !parent_round_quorum.reached_threshold(&self.context.committee) {
+        if reason != Reason::MaxTimeout && !parent_round_quorum.reached_threshold(&self.context.committee) {
             node_metrics.selection_wait.inc();
             debug!(
                 "Only found {} stake of ancestors to include for round {clock_round}, will wait for more.",

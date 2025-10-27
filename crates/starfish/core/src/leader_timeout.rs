@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{sync::Arc, time::Duration};
-
+use crate::core::Reason;
 use tokio::{
     sync::{
         oneshot::{Receiver, Sender},
@@ -91,7 +91,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 // all the time to produce already produced blocks for that round.
 
                 () = &mut min_leader_timeout, if !min_leader_round_timed_out => {
-                    match self.dispatcher.new_block(leader_round, false).await {
+                    match self.dispatcher.new_block(leader_round, Reason::MinTimeout).await {
                         Ok(missing_committed_txns) => {
                             if !missing_committed_txns.is_empty() {
                                 debug!(
@@ -122,7 +122,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 // if the round has not advanced in the meantime. Otherwise, the max timeout will not get
                 // triggered at all.
                 () = &mut max_leader_timeout, if !max_leader_round_timed_out => {
-                    match self.dispatcher.new_block(leader_round, true).await {
+                    match self.dispatcher.new_block(leader_round, Reason::MaxTimeout).await {
                         Ok(missing_committed_txns) => {
                             if !missing_committed_txns.is_empty() {
                                 debug!(
