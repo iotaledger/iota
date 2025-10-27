@@ -40,6 +40,8 @@ import {
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK, DISCORD_SUPPORT_LINK } from '@iota/core';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
+import { openInNewTab } from '_src/shared/utils';
 
 export function MenuList() {
     const { themePreference } = useTheme();
@@ -52,7 +54,9 @@ export function MenuList() {
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const version = Browser.runtime.getManifest().version;
     const autoLockInterval = useAutoLockMinutes();
-    const isAppPopup = useAppSelector((state) => state.app.isAppViewPopup);
+    const isAppPopup = useAppSelector(
+        (state) => state.app.extensionViewType === ExtensionViewType.Popup,
+    );
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -130,8 +134,7 @@ export function MenuList() {
         {
             title: 'Expand View',
             icon: <Expand />,
-            onClick: () =>
-                window.open(window.location.href.split('?')[0], '_blank', 'noopener noreferrer'),
+            onClick: () => openInNewTab('/tokens'),
             hidden: !isAppPopup,
         },
         {

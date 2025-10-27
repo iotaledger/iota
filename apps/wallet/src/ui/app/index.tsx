@@ -60,6 +60,7 @@ import { StakingPage } from './staking/home';
 import { StorageMigrationPage } from './pages/StorageMigrationPage';
 import { AccountsFinderPage } from './pages/accounts/manage/accounts-finder/AccountsFinderPage';
 import { AccountsFinderIntroPage } from './pages/accounts/manage/accounts-finder/AccountsFinderIntroPage';
+import { PasskeyAccountPage } from './pages/accounts/PasskeyAccountPage';
 import { ImportKeystone } from './pages/accounts/ImportKeystone';
 
 const HIDDEN_MENU_PATHS = [
@@ -193,6 +194,7 @@ export function App() {
                 <Route path="import-passphrase" element={<ImportPassphrasePage />} />
                 <Route path="import-private-key" element={<ImportPrivateKeyPage />} />
                 <Route path="import-seed" element={<ImportSeedPage />} />
+                <Route path="passkey-account" element={<PasskeyAccountPage />} />
                 <Route path="import-keystone" element={<ImportKeystone />} />
                 <Route path="manage" element={<ManageAccountsPage />} />
                 <Route path="manage/accounts-finder/intro" element={<AccountsFinderIntroPage />} />
