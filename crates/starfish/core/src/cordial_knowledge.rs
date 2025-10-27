@@ -279,7 +279,7 @@ impl DisseminationWorker {
         debug!("Dissemination Worker loop started");
         loop {
             match self.dissemination_receiver.recv().await {
-                // Upon receiption of messages from CordialKnowledge, disseminate them across all
+                // Upon reception of messages from CordialKnowledge, disseminate them across all
                 // ConnectionKnowledges
                 Some(vec_msgs) => {
                     for (connection_knowledge, msgs) in
@@ -726,7 +726,7 @@ impl ConnectionKnowledge {
         }
     }
 
-    /// Processes a vector of ConnecitonKnowledge messages
+    /// Processes a vector of ConnectionKnowledge messages
     fn process_vec_messages(&mut self, msgs: Vec<ConnectionKnowledgeMessage>) {
         for msg in msgs {
             self.process_one_message(msg);
