@@ -22,6 +22,7 @@
     "dependencies": {
         "@amplitude/analytics-browser": "^1.10.3",
         "@amplitude/analytics-types": "^0.20.0",
+        "@boxfish-studio/react-cookie-manager": "^1.0.5",
         "@growthbook/growthbook": "^1.0.0",
         "@growthbook/growthbook-react": "^1.0.0",
         "@iota/apps-ui-icons": "workspace:*",
