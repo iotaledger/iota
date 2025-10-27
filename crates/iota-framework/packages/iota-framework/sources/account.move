@@ -4,6 +4,7 @@
 module iota::account;
 
 use iota::dynamic_field;
+use iota::package_metadata::PackageMetadataV1;
 use std::ascii;
 
 #[error(code = 0)]
@@ -12,12 +13,16 @@ const EAuthenticatorInfoV1AlreadyAttached: vector<u8> =
 #[error(code = 1)]
 const EAuthenticatorInfoV1NotAttached: vector<u8> =
     b"'AuthenticatorInfoV1' is not attached to the account.";
+#[error(code = 2)]
+const EFunctionIsNotAuthenticator: vector<u8> =
+    b"The specified function is not an 'authenticator' function.";
+#[error(code = 3)]
+const EUnexpectedAuthenticatorVersion: vector<u8> = b"Unexpected 'authenticator' function version.";
 
 /// Dynamic field key, where the system will look for a potential
 /// authenticate function.
 public struct AuthenticatorInfoV1Key has copy, drop, store {}
 
-#[allow(unused_field)]
 public struct AuthenticatorInfoV1 has copy, drop, store {
     package: ID,
     module_name: ascii::String,
@@ -48,6 +53,22 @@ public fun create_auth_info_v1(
         module_name,
         function_name,
     }
+}
+
+public fun create_auth_info_v1_package(
+    package_metadata: &PackageMetadataV1,
+    module_name: ascii::String,
+    function_name: ascii::String,
+): AuthenticatorInfoV1 {
+    let module_handle = package_metadata.find_module_handle(module_name);
+    let function_handle = package_metadata.find_function_handle(module_handle, function_name);
+
+    assert!(function_handle.authenticator_version().is_some(), EFunctionIsNotAuthenticator);
+    let authenticator_version = function_handle.authenticator_version().extract();
+
+    assert!(authenticator_version == 1, EUnexpectedAuthenticatorVersion);
+
+    AuthenticatorInfoV1 { package: package_metadata.package_id(), module_name, function_name }
 }
 
 /// Attach the `authenticator` instance to the account.
