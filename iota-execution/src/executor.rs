@@ -81,7 +81,39 @@ pub trait Executor {
         Result<Vec<ExecutionResult>, ExecutionError>,
     );
 
-    fn validate_transaction(
+    fn authenticate_then_execute_transaction_to_effects(
+        &self,
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_status: IotaGasStatus,
+        gas_coins: Vec<ObjectRef>,
+        // Authenticator
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfoV1,
+        authenticator_input_objects: CheckedInputObjects,
+        authenticator_and_transaction_input_objects: CheckedInputObjects,
+        // Transaction
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
+        // Tracing
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        Result<(), ExecutionError>,
+    );
+
+    fn authenticate_transaction(
         &self,
         store: &dyn BackingStore,
         // Configuration
@@ -102,7 +134,7 @@ pub trait Executor {
         authenticated_transaction_digest: TransactionDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> Result<u64, ExecutionError>;
+    ) -> Result<(), ExecutionError>;
 
     fn update_genesis_state(
         &self,

@@ -2937,7 +2937,7 @@ pub struct ObjectReadResult {
     pub object: ObjectReadResultKind,
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub enum ObjectReadResultKind {
     Object(Object),
     // The version of the object that the transaction intended to read, and the digest of the tx
@@ -3328,6 +3328,11 @@ impl InputObjects {
 
     pub fn push(&mut self, object: ObjectReadResult) {
         self.objects.push(object);
+    }
+
+    // If it contains then it returns the ObjectReadResult
+    pub fn find_object_id_mut(&mut self, object_id: ObjectID) -> Option<&mut ObjectReadResult> {
+        self.objects.iter_mut().find(|o| o.id() == object_id)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ObjectReadResult> {

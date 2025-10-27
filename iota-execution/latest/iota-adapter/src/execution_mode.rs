@@ -215,9 +215,9 @@ impl ExecutionMode for System {
 }
 
 #[derive(Copy, Clone)]
-pub struct Validation;
+pub struct Authentication;
 
-impl ExecutionMode for Validation {
+impl ExecutionMode for Authentication {
     type ArgumentUpdates = ();
     type ExecutionResults = ();
 

@@ -7,7 +7,10 @@ pub use checked::*;
 #[iota_macros::with_checked_arithmetic]
 mod checked {
 
-    use std::{collections::HashSet, sync::Arc};
+    use std::{
+        collections::{BTreeSet, HashSet},
+        sync::Arc,
+    };
 
     use iota_move_natives::all_natives;
     use iota_protocol_config::{LimitThresholdCrossed, ProtocolConfig, check_limit_by_meter};
@@ -34,10 +37,10 @@ mod checked {
         committee::EpochId,
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
-        execution::{ExecutionResults, ExecutionResultsV1, is_certificate_denied},
+        execution::{ExecutionResults, ExecutionResultsV1, SharedInput, is_certificate_denied},
         execution_config_utils::to_binary_config,
         execution_status::{CongestedObjects, ExecutionStatus},
-        gas::{GasCostSummary, IotaGasStatus, IotaGasStatusAPI},
+        gas::{GasCostSummary, IotaGasStatus},
         gas_coin::GAS,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{
@@ -53,8 +56,8 @@ mod checked {
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
             ChangeEpochV2, ChangeEpochV3, CheckedInputObjects, Command, EndOfEpochTransactionKind,
-            GenesisTransaction, ObjectArg, ProgrammableTransaction, RandomnessStateUpdate,
-            TransactionKind,
+            GenesisTransaction, InputObjects, ObjectArg, ProgrammableTransaction,
+            RandomnessStateUpdate, TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
@@ -64,7 +67,7 @@ mod checked {
 
     use crate::{
         adapter::new_move_vm,
-        execution_mode::{self, ExecutionMode, Validation},
+        execution_mode::{self, ExecutionMode},
         gas_charger::GasCharger,
         programmable_transactions,
         temporary_store::TemporaryStore,
@@ -113,11 +116,11 @@ mod checked {
         };
         let shared_object_refs = input_objects.filter_shared_objects();
         let receiving_objects = transaction_kind.receiving_objects();
-        let mut transaction_dependencies = input_objects.transaction_dependencies();
+        let transaction_dependencies = input_objects.transaction_dependencies();
         let contains_deleted_input = input_objects.contains_deleted_objects();
         let cancelled_objects = input_objects.get_cancelled_objects();
 
-        let mut temporary_store = TemporaryStore::new(
+        let temporary_store = TemporaryStore::new(
             store,
             input_objects,
             receiving_objects,
@@ -126,7 +129,7 @@ mod checked {
             *epoch_id,
         );
 
-        let mut gas_charger =
+        let gas_charger =
             GasCharger::new(transaction_digest, gas_coins, gas_status, protocol_config);
 
         let mut tx_ctx = TxContext::new_from_components(
@@ -136,14 +139,71 @@ mod checked {
             epoch_timestamp_ms,
         );
 
-        let is_epoch_change = transaction_kind.is_end_of_epoch_tx();
+        execute_transaction_to_effects_inner::<Mode>(
+            temporary_store,
+            gas_charger,
+            &mut tx_ctx,
+            &mutable_inputs,
+            shared_object_refs,
+            transaction_dependencies,
+            contains_deleted_input,
+            cancelled_objects,
+            transaction_kind,
+            transaction_signer,
+            transaction_digest,
+            move_vm,
+            epoch_id,
+            protocol_config,
+            metrics,
+            enable_expensive_checks,
+            certificate_deny_set,
+            trace_builder_opt,
+            None,
+        )
+    }
 
+    /// The main execution function that processes a transaction and produces
+    /// effects. It handles gas charging and execution logic.
+    #[instrument(name = "tx_execute_to_effects_inner", level = "debug", skip_all)]
+    fn execute_transaction_to_effects_inner<Mode: ExecutionMode>(
+        mut temporary_store: TemporaryStore,
+        mut gas_charger: GasCharger,
+        tx_ctx: &mut TxContext,
+        mutable_inputs: &HashSet<ObjectID>,
+        shared_object_refs: Vec<SharedInput>,
+        mut transaction_dependencies: BTreeSet<TransactionDigest>,
+        contains_deleted_input: bool,
+        cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
+        move_vm: &Arc<MoveVM>,
+        epoch_id: &EpochId,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+        pre_execution_result_opt: Option<
+            Result<
+                <execution_mode::Authentication as ExecutionMode>::ExecutionResults,
+                ExecutionError,
+            >,
+        >,
+    ) -> (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        Result<Mode::ExecutionResults, ExecutionError>,
+    ) {
+        let is_epoch_change = transaction_kind.is_end_of_epoch_tx();
         let deny_cert = is_certificate_denied(&transaction_digest, certificate_deny_set);
+
         let (gas_cost_summary, execution_result) = execute_transaction::<Mode>(
             &mut temporary_store,
             transaction_kind,
             &mut gas_charger,
-            &mut tx_ctx,
+            tx_ctx,
             move_vm,
             protocol_config,
             metrics,
@@ -152,47 +212,11 @@ mod checked {
             contains_deleted_input,
             cancelled_objects,
             trace_builder_opt,
+            pre_execution_result_opt,
         );
 
         let status = if let Err(error) = &execution_result {
-            // Elaborate errors in logs if they are unexpected or their status is terse.
-            use ExecutionErrorKind as K;
-            match error.kind() {
-                K::InvariantViolation | K::VMInvariantViolation => {
-                    #[skip_checked_arithmetic]
-                    tracing::error!(
-                        kind = ?error.kind(),
-                        tx_digest = ?transaction_digest,
-                        "INVARIANT VIOLATION! Source: {:?}",
-                        error.source(),
-                    );
-                }
-
-                K::IotaMoveVerificationError | K::VMVerificationOrDeserializationError => {
-                    #[skip_checked_arithmetic]
-                    tracing::debug!(
-                        kind = ?error.kind(),
-                        tx_digest = ?transaction_digest,
-                        "Verification Error. Source: {:?}",
-                        error.source(),
-                    );
-                }
-
-                K::PublishUpgradeMissingDependency | K::PublishUpgradeDependencyDowngrade => {
-                    #[skip_checked_arithmetic]
-                    tracing::debug!(
-                        kind = ?error.kind(),
-                        tx_digest = ?transaction_digest,
-                        "Publish/Upgrade Error. Source: {:?}",
-                        error.source(),
-                    )
-                }
-
-                _ => (),
-            };
-
-            let (status, command) = error.to_execution_status();
-            ExecutionStatus::new_failure(status, command)
+            elaborate_error_logs(error, transaction_digest)
         } else {
             ExecutionStatus::Success
         };
@@ -218,7 +242,7 @@ mod checked {
                 .check_ownership_invariants(
                     &transaction_signer,
                     &mut gas_charger,
-                    &mutable_inputs,
+                    mutable_inputs,
                     is_epoch_change,
                 )
                 .unwrap()
@@ -242,22 +266,157 @@ mod checked {
         )
     }
 
-    /// This function implements an abstracted IOTA account transaction
-    /// validation. This validation checks that the authentication method used
-    /// for the account is valid. It prepares a `MoveAuthenticator` PTB with
-    /// a single move call for execution, then executes it through an inner
-    /// execution method. The `MoveAuthenticator` provides the inputs to use for
-    /// the authentication function found in `AuthenticatorInfo`, that is
-    /// retrieved from the abstracted IOTA account.
-    ///
-    /// Returns an error if it happens or the move authenticator computation gas
-    /// cost without bucketing. It is different from the
-    /// `execute_transaction_to_effects` return type, because, in this case, we
-    /// do not need to return the gas value used for execution when an error
-    /// happens since we cannot charge it separately in the current
-    /// implementation.
+    /// This function produces transaction effects for a transaction that
+    /// requires the Move authentication.
+    /// It creates a temporary store, gas charger, and transaction context for
+    /// the authentication execution and then reuses these for the normal
+    /// transaction execution.
+    /// Running the Move authentication can have two outcomes:
+    ///   - If it fails, then it charges gas for the failed execution of the
+    ///     authentication and produces transaction effects with the appropriate
+    ///     error status.
+    ///   - Else, if the authentication is successful, it continues with the
+    ///     normal transaction execution.
+    /// It combines the input objects from both the authentication and
+    /// transaction.
+    #[instrument(
+        name = "tx_authenticate_then_execute_to_effects",
+        level = "debug",
+        skip_all
+    )]
+    pub fn authenticate_then_execute_transaction_to_effects<Mode: ExecutionMode>(
+        store: &dyn BackingStore,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        enable_expensive_checks: bool,
+        certificate_deny_set: &HashSet<TransactionDigest>,
+        // Epoch
+        epoch_id: &EpochId,
+        epoch_timestamp_ms: u64,
+        // Gas related
+        gas_status: IotaGasStatus,
+        gas_coins: Vec<ObjectRef>,
+        // Authenticator
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfoV1,
+        authenticator_input_objects: CheckedInputObjects,
+        authenticator_and_transaction_input_objects: CheckedInputObjects,
+        // Transaction
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
+        // Tracing
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+        // VM
+        move_vm: &Arc<MoveVM>,
+    ) -> (
+        InnerTemporaryStore,
+        IotaGasStatus,
+        TransactionEffects,
+        Result<Mode::ExecutionResults, ExecutionError>,
+    ) {
+        // Preparation
+        // It involves setting up the TemporaryStore, GasCharger, and TxContext, that
+        // will be common for both the authentication and transaction execution.
+
+        // Input objects come from both authentication and transaction inputs
+        let input_objects = authenticator_and_transaction_input_objects.into_inner();
+        // Mutable inputs come only from the transaction inputs
+        let mutable_inputs = if enable_expensive_checks {
+            input_objects.mutable_inputs().keys().copied().collect()
+        } else {
+            HashSet::new()
+        };
+        // Shared object refs come from both authentication and transaction inputs
+        let shared_object_refs = input_objects.filter_shared_objects();
+        // Receiving objects can only come from the transaction inputs
+        let transaction_receiving_objects = transaction_kind.receiving_objects();
+        // Transaction dependencies come from both authentication and transaction inputs
+        let transaction_dependencies = input_objects.transaction_dependencies();
+        // Deleted and cancelled objects come from both authentication and transaction
+        // inputs
+        let contains_deleted_input = input_objects.contains_deleted_objects();
+        let cancelled_objects = input_objects.get_cancelled_objects();
+
+        // Prepare the temporary store.
+        let mut temporary_store = TemporaryStore::new(
+            store,
+            input_objects,
+            transaction_receiving_objects,
+            transaction_digest,
+            protocol_config,
+            *epoch_id,
+        );
+
+        // Prepare the gas charger.
+        let mut gas_charger =
+            GasCharger::new(transaction_digest, gas_coins, gas_status, protocol_config);
+
+        // Prepare the transaction context.
+        let mut tx_ctx = TxContext::new_from_components(
+            &transaction_signer,
+            &transaction_digest,
+            epoch_id,
+            epoch_timestamp_ms,
+        );
+
+        // Authentication execution.
+        // It does not alter the state, if not for command execution gas charging, and
+        // produces no effects other than possible errors.
+
+        // Run the authentication execution.
+        let authentication_execution_result = authenticate_transaction_inner(
+            &mut temporary_store,
+            protocol_config,
+            metrics.clone(),
+            &mut gas_charger,
+            authenticator,
+            authenticator_info,
+            &authenticator_input_objects.into_inner(),
+            transaction_kind.clone(),
+            transaction_digest,
+            &mut tx_ctx,
+            trace_builder_opt,
+            move_vm,
+        );
+
+        // Transaction execution.
+        // At this stage we arrive with gas charged for the execution of the
+        // authenticate function and a result which is either empty or an error.
+        // We can now start the creation of the transaction effects, either for an
+        // authentication failure or for a normal execution of the transaction.
+
+        // Run the transaction execution and return the effects.
+        execute_transaction_to_effects_inner::<Mode>(
+            temporary_store,
+            gas_charger,
+            &mut tx_ctx,
+            &mutable_inputs,
+            shared_object_refs,
+            transaction_dependencies,
+            contains_deleted_input,
+            cancelled_objects,
+            transaction_kind,
+            transaction_signer,
+            transaction_digest,
+            move_vm,
+            epoch_id,
+            protocol_config,
+            metrics,
+            enable_expensive_checks,
+            certificate_deny_set,
+            trace_builder_opt,
+            Some(authentication_execution_result),
+        )
+    }
+
+    /// This function checks the authentication of a transaction without
+    /// returning effects. It executes an authenticate function using the
+    /// information of an authenticator. If the execution fails, it returns
+    /// an execution error; otherwise it returns an empty value.
     #[instrument(name = "tx_validate", level = "debug", skip_all)]
-    pub fn validate_transaction(
+    pub fn authenticate_transaction(
         store: &dyn BackingStore,
         // Configuration
         protocol_config: &ProtocolConfig,
@@ -272,140 +431,155 @@ mod checked {
         authenticator_info: AuthenticatorInfoV1,
         authenticator_input_objects: CheckedInputObjects,
         // Transaction
-        authenticated_transaction_kind: TransactionKind,
-        authenticated_transaction_signer: IotaAddress,
-        authenticated_transaction_digest: TransactionDigest,
+        transaction_kind: TransactionKind,
+        transaction_signer: IotaAddress,
+        transaction_digest: TransactionDigest,
         // Tracing
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
         // VM
         move_vm: &Arc<MoveVM>,
-    ) -> Result<u64, ExecutionError> {
-        // Check the preconditions.
-        debug_assert!(
-            authenticated_transaction_kind.is_programmable_transaction(),
-            "Only programmable transactions are allowed"
-        );
-
-        // Prepare the move authenticator input objects.
+    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
+    {
         let input_objects = authenticator_input_objects.into_inner();
 
-        let mutable_inputs = input_objects
-            .mutable_inputs()
-            .keys()
-            .copied()
-            .collect::<HashSet<_>>();
-        debug_assert!(mutable_inputs.is_empty(), "No mutable inputs are allowed");
-
-        let receiving_objects = authenticator.receiving_objects();
-        debug_assert!(
-            receiving_objects.is_empty(),
-            "No receiving inputs are allowed"
-        );
-        let contains_deleted_input = input_objects.contains_deleted_objects();
-        let cancelled_objects = input_objects.get_cancelled_objects();
-
-        // Prepare an environment for the move authenticator transaction execution.
+        // Prepare the temporary store for the authentication execution.
         let mut temporary_store = TemporaryStore::new(
             store,
-            input_objects,
-            receiving_objects,
-            authenticated_transaction_digest,
+            input_objects.clone(),
+            vec![],
+            transaction_digest,
             protocol_config,
             *epoch_id,
         );
 
-        let gas_charger = GasCharger::new(
-            authenticated_transaction_digest,
-            // Gas objects are not used when verifying smart account transactions.
-            Vec::new(),
-            gas_status,
-            protocol_config,
-        );
+        // Prepare the gas charger for authentication execution.
+        let mut gas_charger =
+            GasCharger::new(transaction_digest, vec![], gas_status, protocol_config);
 
-        // Prepare the authenticated transaction context.
+        // Prepare the transaction context, equal for both authentication and
+        // transaction execution.
         let mut tx_ctx = TxContext::new_from_components(
-            &authenticated_transaction_signer,
-            &authenticated_transaction_digest,
+            &transaction_signer,
+            &transaction_digest,
             epoch_id,
             epoch_timestamp_ms,
         );
 
-        // Prepare the authenticator context.
+        // Run the authentication.
+        authenticate_transaction_inner(
+            &mut temporary_store,
+            protocol_config,
+            metrics.clone(),
+            &mut gas_charger,
+            authenticator,
+            authenticator_info,
+            &input_objects,
+            transaction_kind.clone(),
+            transaction_digest,
+            &mut tx_ctx,
+            trace_builder_opt,
+            move_vm,
+        )
+    }
+
+    // This function implements the authentication execution. It checks that the
+    // authentication method used by the authenticator is valid. It prepares a
+    /// `MoveAuthenticator` PTB with a single move call for execution, then
+    /// executes it through an inner execution method. The
+    /// `MoveAuthenticator` provides the inputs to use for the
+    /// authentication function found in `AuthenticatorInfo`,
+    /// that is retrieved from an account.
+    /// If the execution fails, it returns an execution error; otherwise it
+    /// returns an empty value.
+    #[instrument(name = "tx_validate", level = "debug", skip_all)]
+    pub fn authenticate_transaction_inner(
+        temporary_store: &mut TemporaryStore<'_>,
+        // Configuration
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        // Gas related
+        gas_charger: &mut GasCharger,
+        // Authenticator
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfoV1,
+        authenticator_input_objects: &InputObjects,
+        // Transaction
+        transaction_kind: TransactionKind,
+        transaction_digest: TransactionDigest,
+        tx_ctx: &mut TxContext,
+        // Tracing
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+        // VM
+        move_vm: &Arc<MoveVM>,
+    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
+    {
+        // Check the preconditions.
+        debug_assert!(
+            transaction_kind.is_programmable_transaction(),
+            "Only programmable transactions are allowed"
+        );
+        debug_assert!(
+            authenticator_input_objects
+                .mutable_inputs()
+                .keys()
+                .copied()
+                .collect::<HashSet<_>>()
+                .is_empty(),
+            "No mutable inputs are allowed"
+        );
+        debug_assert!(
+            authenticator.receiving_objects().is_empty(),
+            "No receiving inputs are allowed"
+        );
+
+        let contains_deleted_input = authenticator_input_objects.contains_deleted_objects();
+        let cancelled_objects = authenticator_input_objects.get_cancelled_objects();
+
+        // Prepare the authentication context.
         let auth_ctx = {
-            let TransactionKind::ProgrammableTransaction(ptb) = authenticated_transaction_kind
-            else {
+            let TransactionKind::ProgrammableTransaction(ptb) = &transaction_kind else {
                 unreachable!("Only programmable transactions are allowed");
             };
-            AuthContext::new_from_components(authenticator.digest(), &ptb)
+            AuthContext::new_from_components(authenticator.digest(), ptb)
         };
 
-        // Store the authenticator context in the temporary store.
-        // It will be added to the authenticator's parameter list later, just before
+        // Store the authentication context in the temporary store.
+        // It will be added to the authentication's parameter list later, just before
         // execution.
         temporary_store.store_auth_context(auth_ctx);
 
-        // Setup a move authenticator transaction.
-        let authenticator_move_call =
-            setup_authenticator_move_call(authenticator, authenticator_info)?;
-
-        // Execute the authenticator transaction.
-        let (computation_gas_cost, execution_result) = execute_authenticator_move_call::<Validation>(
-            &mut temporary_store,
-            authenticator_move_call,
+        // Execute the authentication.
+        let authentication_execution_result = execute_authenticator_move_call(
+            temporary_store,
+            authenticator,
+            authenticator_info,
             gas_charger,
-            &mut tx_ctx,
+            tx_ctx,
             move_vm,
             protocol_config,
-            metrics,
+            metrics.clone(),
             false,
             contains_deleted_input,
             cancelled_objects,
             trace_builder_opt,
         );
 
-        // Check the execution result.
-        let status = if let Err(error) = &execution_result {
-            // Elaborate errors in logs if they are unexpected or their status is terse.
-            use ExecutionErrorKind as K;
-            match error.kind() {
-                K::InvariantViolation | K::VMInvariantViolation => {
-                    #[skip_checked_arithmetic]
-                    tracing::error!(
-                        kind = ?error.kind(),
-                        tx_digest = ?authenticated_transaction_digest,
-                        "INVARIANT VIOLATION in authenticator! Source: {:?}",
-                        error.source(),
-                    );
-                }
-
-                K::IotaMoveVerificationError | K::VMVerificationOrDeserializationError => {
-                    #[skip_checked_arithmetic]
-                    tracing::debug!(
-                        kind = ?error.kind(),
-                        tx_digest = ?authenticated_transaction_digest,
-                        "Authenticator Verification Error. Source: {:?}",
-                        error.source(),
-                    );
-                }
-
-                _ => (),
-            };
-
-            let (status, command) = error.to_execution_status();
-            ExecutionStatus::new_failure(status, command)
+        // Check the authentication result.
+        let authentication_execution_status = if let Err(error) = &authentication_execution_result {
+            elaborate_error_logs(error, transaction_digest)
         } else {
             ExecutionStatus::Success
         };
 
         #[skip_checked_arithmetic]
         trace!(
-            tx_digest = ?authenticated_transaction_digest,
-            computation_gas_cost,
+            tx_digest = ?transaction_digest,
+            computation_gas_cost = gas_charger.summary().gas_used(),
             "Finished authenticator execution of transaction with status {:?}",
-            status
+            authentication_execution_status
         );
 
-        execution_result.map(|_| computation_gas_cost)
+        authentication_execution_result
     }
 
     /// Executes an authentication move call by processing the specified
@@ -415,15 +589,15 @@ mod checked {
     /// consistency checks.
     ///
     /// Gas costs are managed through the `GasCharger` argument and charged only
-    /// for the authenticator move call execution.
+    /// for authentication move function execution.
     ///
-    /// Returns the move authenticator computation gas cost without bucketing
-    /// and the execution result.
+    /// Returns only the execution results.
     #[instrument(name = "auth_execute", level = "debug", skip_all)]
-    fn execute_authenticator_move_call<Mode: ExecutionMode>(
+    fn execute_authenticator_move_call(
         temporary_store: &mut TemporaryStore<'_>,
-        authenticator_move_call: ProgrammableTransaction,
-        mut gas_charger: GasCharger,
+        authenticator: MoveAuthenticator,
+        authenticator_info: AuthenticatorInfoV1,
+        gas_charger: &mut GasCharger,
         tx_ctx: &mut TxContext,
         move_vm: &Arc<MoveVM>,
         protocol_config: &ProtocolConfig,
@@ -432,45 +606,40 @@ mod checked {
         contains_deleted_input: bool,
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
-    ) -> (u64, Result<Mode::ExecutionResults, ExecutionError>) {
+    ) -> Result<<execution_mode::Authentication as ExecutionMode>::ExecutionResults, ExecutionError>
+    {
         debug_assert!(
             gas_charger.no_charges(),
             "At this point no gas charges must be applied yet"
         );
 
-        // Charge gas for reading the Move authenticator input objects from the storage.
-        let result = gas_charger
-            .charge_input_objects(temporary_store)
-            .and_then(|()| {
-                run_inputs_checks(
-                    protocol_config,
-                    deny_cert,
-                    contains_deleted_input,
-                    cancelled_objects,
-                )?;
-                programmable_transactions::execution::execute::<Mode>(
-                    protocol_config,
-                    metrics.clone(),
-                    move_vm,
-                    temporary_store,
-                    tx_ctx,
-                    &mut gas_charger,
-                    authenticator_move_call,
-                    trace_builder_opt,
-                )
-                .and_then(|ok_result| {
-                    temporary_store.check_move_authenticator_results_consistency()?;
-                    Ok(ok_result)
-                })
-            });
-
-        // Compute the gas used for the authentication execution without
-        // rounding/bucketing.
-        let gas_status = gas_charger.into_gas_status();
-
-        let authentication_computation_cost = gas_status.gas_used() * gas_status.gas_price();
-
-        (authentication_computation_cost, result)
+        // It must NOT charge gas for reading the Move authenticator input objects from
+        // the storage. It will be done later during the transaction execution.
+        // Then execute the authentication.
+        run_inputs_checks(
+            protocol_config,
+            deny_cert,
+            contains_deleted_input,
+            cancelled_objects,
+        )
+        .and_then(|()| {
+            let authenticator_move_call =
+                setup_authenticator_move_call(authenticator, authenticator_info)?;
+            programmable_transactions::execution::execute::<execution_mode::Authentication>(
+                protocol_config,
+                metrics.clone(),
+                move_vm,
+                temporary_store,
+                tx_ctx,
+                gas_charger,
+                authenticator_move_call,
+                trace_builder_opt,
+            )
+            .and_then(|ok_result| {
+                temporary_store.check_move_authenticator_results_consistency()?;
+                Ok(ok_result)
+            })
+        })
     }
 
     /// Function dedicated to the execution of a GenesisTransaction.
@@ -534,15 +703,22 @@ mod checked {
         contains_deleted_input: bool,
         cancelled_objects: Option<(Vec<ObjectID>, SequenceNumber)>,
         trace_builder_opt: &mut Option<MoveTraceBuilder>,
+        pre_execution_result_opt: Option<
+            Result<
+                <execution_mode::Authentication as ExecutionMode>::ExecutionResults,
+                ExecutionError,
+            >,
+        >,
     ) -> (
         GasCostSummary,
         Result<Mode::ExecutionResults, ExecutionError>,
     ) {
         gas_charger.smash_gas(temporary_store);
 
-        // At this point no charges have been applied yet
+        // At this point, either no charges have been applied yet or we have
+        // already a pre execution result to handle.
         debug_assert!(
-            gas_charger.no_charges_for_execution(),
+            pre_execution_result_opt.is_some() || gas_charger.no_charges(),
             "No gas charges must be applied yet"
         );
 
@@ -563,16 +739,20 @@ mod checked {
                 cancelled_objects,
             )?;
 
-            let mut execution_result = execution_loop::<Mode>(
-                temporary_store,
-                transaction_kind,
-                tx_ctx,
-                move_vm,
-                gas_charger,
-                protocol_config,
-                metrics.clone(),
-                trace_builder_opt,
-            );
+            // If the pre-execution succeeded, proceed with the main execution loop
+            // else propagate the pre-execution error
+            let mut execution_result = pre_execution_result_opt.unwrap_or(Ok(())).and_then(|_| {
+                execution_loop::<Mode>(
+                    temporary_store,
+                    transaction_kind,
+                    tx_ctx,
+                    move_vm,
+                    gas_charger,
+                    protocol_config,
+                    metrics.clone(),
+                    trace_builder_opt,
+                )
+            });
 
             let meter_check = check_meter_limit(
                 temporary_store,
@@ -625,6 +805,51 @@ mod checked {
         }
 
         (cost_summary, result)
+    }
+
+    /// Elaborate errors in logs if they are unexpected or their status is
+    /// terse.
+    fn elaborate_error_logs(
+        execution_error: &ExecutionError,
+        transaction_digest: TransactionDigest,
+    ) -> ExecutionStatus {
+        use ExecutionErrorKind as K;
+        match execution_error.kind() {
+            K::InvariantViolation | K::VMInvariantViolation => {
+                #[skip_checked_arithmetic]
+                tracing::error!(
+                    kind = ?execution_error.kind(),
+                    tx_digest = ?transaction_digest,
+                    "INVARIANT VIOLATION! Source: {:?}",
+                    execution_error.source(),
+                );
+            }
+
+            K::IotaMoveVerificationError | K::VMVerificationOrDeserializationError => {
+                #[skip_checked_arithmetic]
+                tracing::debug!(
+                    kind = ?execution_error.kind(),
+                    tx_digest = ?transaction_digest,
+                    "Verification Error. Source: {:?}",
+                    execution_error.source(),
+                );
+            }
+
+            K::PublishUpgradeMissingDependency | K::PublishUpgradeDependencyDowngrade => {
+                #[skip_checked_arithmetic]
+                tracing::debug!(
+                    kind = ?execution_error.kind(),
+                    tx_digest = ?transaction_digest,
+                    "Publish/Upgrade Error. Source: {:?}",
+                    execution_error.source(),
+                )
+            }
+
+            _ => (),
+        };
+
+        let (status, command) = execution_error.to_execution_status();
+        ExecutionStatus::new_failure(status, command)
     }
 
     /// Performs IOTA conservation checks during transaction execution, ensuring
