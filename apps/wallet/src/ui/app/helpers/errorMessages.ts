@@ -62,6 +62,17 @@ export function getIotaApplicationErrorMessage(error: unknown) {
     } else if (isLedgerTransportStatusError(error)) {
         if (error.statusCode === StatusCodes.INS_NOT_SUPPORTED) {
             return "Something went wrong. We're working on it!";
+        } else if (
+            error.statusCode === 0x6e04 ||
+            error.statusCode === StatusCodes.CONDITIONS_OF_USE_NOT_SATISFIED
+        ) {
+            // User reject tx
+            // v.1.0.0: 0x6985
+            // v.0.9.2: 0x6e04
+            return 'User rejected the transaction.'; // getAltStatusMessage(error.statusCode)
+        } else if (error.statusCode === 0x8) {
+            // v.0.9.2: 0x8
+            return 'Enable Blind Signing in the IOTA app settings on your Ledger device.';
         } else {
             return 'Make sure the IOTA app is open on your device.';
         }
