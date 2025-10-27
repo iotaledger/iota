@@ -433,6 +433,9 @@ importers:
       '@amplitude/analytics-types':
         specifier: ^0.20.0
         version: 0.20.0
+      '@boxfish-studio/react-cookie-manager':
+        specifier: ^1.0.5
+        version: 1.0.5
       '@fontsource-variable/inter':
         specifier: ^5.0.5
         version: 5.1.0
@@ -1395,8 +1398,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@boxfish-studio/react-cookie-manager':
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.5
+        version: 1.0.5
       '@docusaurus/core':
         specifier: 3.7.0
         version: 3.7.0(@mdx-js/react@3.0.1(@types/react@18.3.9)(react@18.3.1))(bufferutil@4.0.9)(eslint@8.57.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)(utf-8-validate@5.0.10)
@@ -3498,8 +3501,8 @@ packages:
   '@blakeembrey/template@1.2.0':
     resolution: {integrity: sha512-w/63nURdkRPpg3AXbNr7lPv6HgOuVDyefTumiXsbXxtIwcuk5EXayWR5OpSwDjsQPgaYsfUSedMduaNOjAYY8A==}
 
-  '@boxfish-studio/react-cookie-manager@1.0.2':
-    resolution: {integrity: sha512-2UZPvRNy+uakMpHXrg+2MiKUFk1PanoZ5YbX8kM09Bhs9zd4L/XQD0IF4OAxz6fWEZxcwSxRIj8KwxkyvNwS/A==}
+  '@boxfish-studio/react-cookie-manager@1.0.5':
+    resolution: {integrity: sha512-0NI3lnm0ByfmbvIFD2n/HlFZTxwW4mQ88tqcZBjjOymOzQWGWCqDY/k35Ooj1qo2gqRnEOa945hNuYuiDh207A==}
 
   '@braintree/sanitize-url@6.0.4':
     resolution: {integrity: sha512-s3jaWicZd0pkP0jf5ysyHUI/RE7MHos6qlToFcGWXVp+ykHOy77OUMrfbgJ9it2C5bow7OIQwYYaHjk9XlBQ2A==}
@@ -17962,7 +17965,7 @@ packages:
   superagent@8.1.2:
     resolution: {integrity: sha512-6WTxW1EB6yCxV5VFOIPQruWGHqc3yI7hEmZK6h+pyk69Lk/Ut7rLUY6W/ONF2MjBuGjvmMiIpsrVJ2vjrHlslA==}
     engines: {node: '>=6.4.0 <13 || >=14'}
-    deprecated: Please upgrade to superagent v10.2.2+, see release notes at https://github.com/forwardemail/superagent/releases/tag/v10.2.2 - maintenance is supported by Forward Email @ https://forwardemail.net
+    deprecated: Please upgrade to v9.0.0+ as we have fixed a public vulnerability with formidable dependency. Note that v9.0.0+ requires Node.js v14.18.0+. See https://github.com/ladjs/superagent/pull/1800 for insight. This project is supported and maintained by the team at Forward Email @ https://forwardemail.net
 
   superstruct@1.0.4:
     resolution: {integrity: sha512-7JpaAoX2NGyoFlI9NBh66BQXGONc+uE+MRS5i2iOBKuS4e+ccgMDjATgZldkah+33DakBxDHiss9kvUcGAO8UQ==}
@@ -22414,7 +22417,7 @@ snapshots:
 
   '@blakeembrey/template@1.2.0': {}
 
-  '@boxfish-studio/react-cookie-manager@1.0.2':
+  '@boxfish-studio/react-cookie-manager@1.0.5':
     dependencies:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
