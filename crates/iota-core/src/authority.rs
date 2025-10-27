@@ -912,7 +912,7 @@ impl AuthorityState {
             epoch,
         )?;
 
-        if let Some(move_authenticator) = transaction.move_authenticator() {
+        if let Some(move_authenticator) = transaction.sender_move_authenticator() {
             // It is supposed that `MoveAuthenticator` availability is checked in
             // `SenderSignedData::validity_check`.
 
@@ -1348,7 +1348,7 @@ impl AuthorityState {
             .execution_load_input_objects_latency
             .start_timer();
 
-        let objects = if let Some(move_authenticator) = certificate.move_authenticator() {
+        let objects = if let Some(move_authenticator) = certificate.sender_move_authenticator() {
             // It is supposed that `MoveAuthenticator` availability is checked in
             // `SenderSignedData::validity_check`.
 
@@ -1779,108 +1779,121 @@ impl AuthorityState {
         let (kind, signer, gas) = tx_data.execution_parts();
 
         #[cfg_attr(not(any(msim, fail_points)), expect(unused_mut))]
-        let (inner_temp_store, _, mut effects, execution_error_opt) =
+        let (inner_temp_store, _, mut effects, execution_error_opt) = if let Some(
+            move_authenticator,
+        ) =
+            certificate.sender_move_authenticator()
+        {
             // Check if the sender needs to be authenticated in Move and, if so, execute the
-            // authentication.        
-            if let Some(move_authenticator) = certificate.move_authenticator() {
+            // authentication.
+            // It is supposed that `MoveAuthenticator` availability is checked in
+            // `SenderSignedData::validity_check`.
 
-                // Check basic `object_to_authenticate` preconditions and get its components.
-                let (auth_account_object_id, auth_account_object_seq_number, auth_account_object_digest) =
-                    move_authenticator.object_to_authenticate_components()?;
+            // Check basic `object_to_authenticate` preconditions and get its components.
+            let (
+                auth_account_object_id,
+                auth_account_object_seq_number,
+                auth_account_object_digest,
+            ) = move_authenticator.object_to_authenticate_components()?;
 
-                // Since the `object_to_authenticate` components are provided, it is supposed
-                // that the account object is loaded.
-                let account_object = account_object.expect("Account object must be provided");
+            // Since the `object_to_authenticate` components are provided, it is supposed
+            // that the account object is loaded.
+            let account_object = account_object.expect("Account object must be provided");
 
-                let authenticator_info = self.check_move_account(
-                    auth_account_object_id,
-                    auth_account_object_seq_number,
-                    auth_account_object_digest,
-                    account_object,
-                    &signer,
-                )?;
+            let authenticator_info = self.check_move_account(
+                auth_account_object_id,
+                auth_account_object_seq_number,
+                auth_account_object_digest,
+                account_object,
+                &signer,
+            )?;
 
-                let move_authenticator_input_objects = move_authenticator_input_objects.expect(
+            let move_authenticator_input_objects = move_authenticator_input_objects.expect(
                     "In case of a `MoveAuthenticator` signature, the authenticator input objects must be provided",
                 );
 
-                // Check the `MoveAuthenticator` input objects.
-                // The `MoveAuthenticator` receiving objects are checked on the signing step.
-                // `max_auth_gas` is used here as a Move authenticator gas budget until it is
-                // not a part of the transaction data.
-                let authenticator_gas_budget = protocol_config.max_auth_gas();
-                let (gas_status, authenticator_checked_input_objects, authenticator_and_tx_checked_input_objects) =
-                    iota_transaction_checks::check_certificate_and_move_authenticator_input(
-                        certificate,
-                        tx_input_objects, 
-                        move_authenticator_input_objects,
-                        authenticator_gas_budget,
-                        protocol_config,
-                        reference_gas_price,
-                    )?;
+            // Check the `MoveAuthenticator` input objects.
+            // The `MoveAuthenticator` receiving objects are checked on the signing step.
+            // `max_auth_gas` is used here as a Move authenticator gas budget until it is
+            // not a part of the transaction data.
+            let authenticator_gas_budget = protocol_config.max_auth_gas();
+            let (
+                gas_status,
+                authenticator_checked_input_objects,
+                authenticator_and_tx_checked_input_objects,
+            ) = iota_transaction_checks::check_certificate_and_move_authenticator_input(
+                certificate,
+                tx_input_objects,
+                move_authenticator_input_objects,
+                authenticator_gas_budget,
+                protocol_config,
+                reference_gas_price,
+            )?;
 
-                let owned_object_refs = authenticator_and_tx_checked_input_objects.inner().filter_owned_objects();
-                self.check_owned_locks(&owned_object_refs)?;
+            let owned_object_refs = authenticator_and_tx_checked_input_objects
+                .inner()
+                .filter_owned_objects();
+            self.check_owned_locks(&owned_object_refs)?;
 
-                epoch_store
-                    .executor()
-                    .authenticate_then_execute_transaction_to_effects(
-                        backing_store,
-                        protocol_config,
-                        self.metrics.limits_metrics.clone(),
-                        self.config
-                            .expensive_safety_check_config
-                            .enable_deep_per_tx_iota_conservation_check(),
-                        self.config.certificate_deny_config.certificate_deny_set(),
-                        &epoch_id,
-                        epoch_start_timestamp,
-                        gas_status,
-                        gas,
-                        move_authenticator.to_owned(),
-                        authenticator_info,
-                        authenticator_checked_input_objects,
-                        authenticator_and_tx_checked_input_objects,
-                        kind,
-                        signer,
-                        tx_digest,
-                        &mut None,
-                    )
-            } else {
-                // No Move authentication required, proceed to execute the transaction directly.
+            epoch_store
+                .executor()
+                .authenticate_then_execute_transaction_to_effects(
+                    backing_store,
+                    protocol_config,
+                    self.metrics.limits_metrics.clone(),
+                    self.config
+                        .expensive_safety_check_config
+                        .enable_deep_per_tx_iota_conservation_check(),
+                    self.config.certificate_deny_config.certificate_deny_set(),
+                    &epoch_id,
+                    epoch_start_timestamp,
+                    gas_status,
+                    gas,
+                    move_authenticator.to_owned(),
+                    authenticator_info,
+                    authenticator_checked_input_objects,
+                    authenticator_and_tx_checked_input_objects,
+                    kind,
+                    signer,
+                    tx_digest,
+                    &mut None,
+                )
+        } else {
+            // No Move authentication required, proceed to execute the transaction directly.
 
-                // The cost of partially re-auditing a transaction before execution is
-                // tolerated.
-                let (tx_gas_status, tx_checked_input_objects) =
-                    iota_transaction_checks::check_certificate_input(
-                        certificate,
-                        tx_input_objects,
-                        protocol_config,
-                        reference_gas_price,
-                    )?;
+            // The cost of partially re-auditing a transaction before execution is
+            // tolerated.
+            let (tx_gas_status, tx_checked_input_objects) =
+                iota_transaction_checks::check_certificate_input(
+                    certificate,
+                    tx_input_objects,
+                    protocol_config,
+                    reference_gas_price,
+                )?;
 
-                let owned_object_refs = tx_checked_input_objects.inner().filter_owned_objects();
-                self.check_owned_locks(&owned_object_refs)?;
-                epoch_store.executor().execute_transaction_to_effects(
-                        backing_store,
-                        protocol_config,
-                        self.metrics.limits_metrics.clone(),
-                        // TODO: would be nice to pass the whole NodeConfig here, but it creates a
-                        // cyclic dependency w/ iota-adapter
-                        self.config
-                            .expensive_safety_check_config
-                            .enable_deep_per_tx_iota_conservation_check(),
-                        self.config.certificate_deny_config.certificate_deny_set(),
-                        &epoch_id,
-                        epoch_start_timestamp,
-                        tx_checked_input_objects,
-                        gas,
-                        tx_gas_status,
-                        kind,
-                        signer,
-                        tx_digest,
-                        &mut None,
-                    )
-            };
+            let owned_object_refs = tx_checked_input_objects.inner().filter_owned_objects();
+            self.check_owned_locks(&owned_object_refs)?;
+            epoch_store.executor().execute_transaction_to_effects(
+                backing_store,
+                protocol_config,
+                self.metrics.limits_metrics.clone(),
+                // TODO: would be nice to pass the whole NodeConfig here, but it creates a
+                // cyclic dependency w/ iota-adapter
+                self.config
+                    .expensive_safety_check_config
+                    .enable_deep_per_tx_iota_conservation_check(),
+                self.config.certificate_deny_config.certificate_deny_set(),
+                &epoch_id,
+                epoch_start_timestamp,
+                tx_checked_input_objects,
+                gas,
+                tx_gas_status,
+                kind,
+                signer,
+                tx_digest,
+                &mut None,
+            )
+        };
 
         fail_point_if!("cp_execution_nondeterminism", || {
             #[cfg(msim)]

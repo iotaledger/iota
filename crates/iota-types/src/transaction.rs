@@ -2428,13 +2428,35 @@ impl SenderSignedData {
             }
         );
 
-        // Check the `MoveAuthenticator` transactions limitations.
-        if self.move_authenticator().is_some() && !tx_data.kind().is_programmable_transaction() {
-            return Err(UserInputError::Unsupported(
-                "SenderSignedData with MoveAuthenticator must be a programmable transaction"
-                    .to_string(),
-            )
-            .into());
+        // Check the `MoveAuthenticator` limitations.
+        let authenticators_num = self.move_authenticators().len();
+        if authenticators_num > 0 {
+            if !tx_data.kind().is_programmable_transaction() {
+                return Err(UserInputError::Unsupported(
+                    "SenderSignedData with MoveAuthenticator must be a programmable transaction"
+                        .to_string(),
+                )
+                .into());
+            }
+
+            // TODO(https://github.com/iotaledger/iota/issues/8966): The following
+            // restrictions are temporary added until we implement MoveAuthenticator support
+            // for sponsors.
+
+            if authenticators_num > 1 {
+                return Err(UserInputError::Unsupported(
+                    "SenderSignedData with more than one MoveAuthenticator is not supported"
+                        .to_string(),
+                )
+                .into());
+            }
+
+            if self.sender_move_authenticator().is_none() {
+                return Err(UserInputError::Unsupported(
+                    "SenderSignedData can have MoveAuthenticator only for the sender".to_string(),
+                )
+                .into());
+            }
         }
 
         // Checks to see if the transaction has expired
@@ -2467,19 +2489,28 @@ impl SenderSignedData {
         Ok(tx_size)
     }
 
-    // TODO: A temporary created function. Needs to be replaced with a proper check.
-    pub fn move_authenticator(&self) -> Option<&MoveAuthenticator> {
-        let signatures = self.tx_signatures();
+    pub fn move_authenticators(&self) -> Vec<&MoveAuthenticator> {
+        self.tx_signatures()
+            .iter()
+            .filter_map(|sig| {
+                if let GenericSignature::MoveAuthenticator(move_authenticator) = sig {
+                    Some(move_authenticator)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
 
-        if signatures.len() == 1 {
-            if let GenericSignature::MoveAuthenticator(move_authenticator) = &signatures[0] {
-                Some(move_authenticator)
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+    pub fn sender_move_authenticator(&self) -> Option<&MoveAuthenticator> {
+        let sender = self.intent_message().value.sender();
+
+        self.move_authenticators()
+            .into_iter()
+            .find(|a| match a.address() {
+                Ok(addr) => addr == sender,
+                Err(_) => false,
+            })
     }
 }
 
@@ -2512,7 +2543,7 @@ impl<S> Envelope<SenderSignedData, S> {
     pub fn shared_input_objects(&self) -> impl Iterator<Item = SharedInputObject> + '_ {
         // Add the Move authenticator shared objects if any.
         let authenticator_shared_objects =
-            if let Some(move_authenticator) = self.move_authenticator() {
+            if let Some(move_authenticator) = self.sender_move_authenticator() {
                 move_authenticator
                     .shared_objects()
                     .into_iter()
