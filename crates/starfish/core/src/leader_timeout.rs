@@ -79,7 +79,8 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
     /// block within the specified timeout, the task forces the creation of a
     /// new block, maintaining the continuity and robustness of the leader
     /// election process.
-    /// In addition, if min b
+    /// In addition, if min block delay timeout is expired it attempts to
+    /// non-forcefully create a new block.
     async fn run(&mut self) {
         debug!("LeaderTimeoutTask is running");
         let new_clock_round = &mut self.new_round_receiver;
