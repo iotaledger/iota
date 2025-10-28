@@ -514,8 +514,8 @@ impl ConsensusOutputQuarantine {
             builder_checkpoint_summary: BTreeMap::new(),
             builder_digest_to_checkpoint: HashMap::new(),
             shared_object_next_versions: RefCountedHashMap::new(),
-            congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             congestion_control_object_debts: RefCountedHashMap::new(),
+            congestion_control_randomness_object_debts: RefCountedHashMap::new(),
             processed_consensus_messages: RefCountedHashMap::new(),
             metrics: authority_metrics,
         }
