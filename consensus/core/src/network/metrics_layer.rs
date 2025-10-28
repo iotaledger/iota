@@ -72,6 +72,7 @@ impl MetricsCallbackMaker {
             timer,
             route,
             excessive_message_size: self.excessive_message_size,
+            response_body_size: None,
         }
     }
 }
@@ -83,12 +84,34 @@ pub(crate) struct MetricsResponseCallback {
     timer: HistogramTimer,
     route: String,
     excessive_message_size: usize,
+    /// If Some, response size has already been observed (exact size was known
+    /// from headers). If None, response size should be tracked via body
+    /// chunks.
+    response_body_size: Option<usize>,
 }
 
 impl MetricsResponseCallback {
-    // Update response metrics.
-    pub(crate) fn on_response(&mut self, response: &dyn SizedResponse) {
-        let response_size = response.size();
+    /// Track response metrics from HTTP response parts.
+    /// Handles both size tracking and error tracking.
+    pub(crate) fn on_response(&mut self, response: &dyn SizedResponse, headers: &http::HeaderMap) {
+        let mut response_size = response.size();
+
+        // Try to get exact body size from Content-Length header
+        // This is calculated outside of response.size() to properly handle
+        // streaming/chunked responses later to avoid calculating the same bytes twice -
+        // once from the header value and when parsing the response body chunks.
+        let body_size = headers
+            .get(http::header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<usize>().ok());
+
+        if let Some(body_size) = body_size {
+            // Exact size is known, update response size
+            response_size += body_size;
+
+            // Mark as already observed
+            self.response_body_size = Some(body_size);
+        }
         if response_size > 0 {
             self.metrics
                 .response_size
@@ -115,6 +138,16 @@ impl MetricsResponseCallback {
             .errors
             .with_label_values(&[self.route.as_str(), "unknown"])
             .inc();
+    }
+
+    pub(crate) fn on_chunk(&mut self, chunk_size: usize) {
+        // Only track chunks if the exact size wasn't known from headers
+        if self.response_body_size.is_none() && chunk_size > 0 {
+            self.metrics
+                .response_size
+                .with_label_values(&[&self.route])
+                .observe(chunk_size as f64);
+        }
     }
 }
 
