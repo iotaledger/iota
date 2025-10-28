@@ -285,7 +285,10 @@ impl InMemory {
             .ready_chunks(config.notification_chunk_size.get());
 
         while let Some(messages) = stream.next().await {
-            let _timer = metrics.process_notification_batch_latency.start_timer();
+            // auto-records duration on drop (after each iteration).
+            let _record_processed_checkpoint_notifications =
+                metrics.process_notification_batch_latency.start_timer();
+
             if let Some((min_tx_sequence_number, max_tx_sequence_number)) =
                 Self::resolve_tx_bounds(&metrics, messages)?
             {
@@ -350,8 +353,9 @@ impl InMemory {
         transaction_tx: &broadcast::Sender<StoredTransaction>,
     ) -> IndexerStreamingResult<()> {
         // auto-records duration on drop (function return).
-        let _timer = metrics.process_transaction_batch_latency.start_timer();
-        let guard = metrics.query_tx_from_indexer_db_latency.start_timer();
+        let _record_function_execution_latency =
+            metrics.process_transaction_batch_latency.start_timer();
+        let db_query_timer = metrics.query_tx_from_indexer_db_latency.start_timer();
 
         let transactions: Vec<StoredTransaction> = indexer_reader
             .spawn_blocking(move |this| {
@@ -359,20 +363,20 @@ impl InMemory {
             })
             .await?;
 
-        let elapsed = guard.stop_and_record();
+        let elapsed = db_query_timer.stop_and_record();
         debug!(
             "transactions query took: {:?}, tx: {}",
             Duration::from_secs_f64(elapsed),
             transactions.len()
         );
 
-        let guard = metrics
+        let publish_data_to_subscribers_timer = metrics
             .broadcast_tx_and_ev_to_subscribers_latency
             .start_timer();
 
         Self::publish_tx_and_events(metrics, transactions, event_tx, transaction_tx).await?;
 
-        let elapsed = guard.stop_and_record();
+        let elapsed = publish_data_to_subscribers_timer.stop_and_record();
         debug!(
             "broadcast data took: {:?}",
             Duration::from_secs_f64(elapsed)
@@ -406,12 +410,12 @@ impl InMemory {
         // we sacrifice per-event/transaction granularity to avoid degrading
         // performance from frequent metric updates in a hot path.
         metrics
-            .channel_queue_size
+            .channel_pending_messages
             .with_label_values(&[METRICS_EVENT_LABEL])
             .set(event_tx.len() as i64);
 
         metrics
-            .channel_queue_size
+            .channel_pending_messages
             .with_label_values(&[METRICS_TRANSACTION_LABEL])
             .set(transaction_tx.len() as i64);
         Ok(())

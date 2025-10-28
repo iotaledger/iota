@@ -39,8 +39,8 @@ pub struct InMemoryStreamMetrics {
     pub query_tx_from_indexer_db_latency: Histogram,
     /// Latency of broadcasting transactions and events to subscribers.
     pub broadcast_tx_and_ev_to_subscribers_latency: Histogram,
-    /// Current size of the broadcast channel queues.
-    pub channel_queue_size: IntGaugeVec,
+    /// The number of messages not yet received by all active subscribers.
+    pub channel_pending_messages: IntGaugeVec,
     /// Latency of processing a batch of transactions, from query to broadcast
     /// to subscribers.
     pub process_transaction_batch_latency: Histogram,
@@ -109,9 +109,9 @@ impl InMemoryStreamMetrics {
                 registry,
             )
             .unwrap(),
-            channel_queue_size: register_int_gauge_vec_with_registry!(
-                "channel_queue_size",
-                "Current size of the broadcast channel queue",
+            channel_pending_messages: register_int_gauge_vec_with_registry!(
+                "channel_pending_messages",
+                "The number of messages not yet received by all active subscribers",
                 &["type"],
                 registry,
             )
