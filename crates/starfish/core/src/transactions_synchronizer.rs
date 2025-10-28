@@ -1078,6 +1078,7 @@ mod tests {
         network::{BlockBundleStream, NetworkClient, SerializedTransactions},
         storage::mem_store::MemStore,
     };
+    use crate::core::ReasonToCreateBlock;
 
     #[tokio::test]
     async fn successful_live_syncing() {
@@ -2106,7 +2107,7 @@ mod tests {
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
+            _reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }

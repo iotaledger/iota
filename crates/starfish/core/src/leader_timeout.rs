@@ -327,9 +327,9 @@ mod tests {
         let all_calls = dispatcher.get_new_block_calls().await;
         assert_eq!(all_calls.len(), 1);
 
-        let (round, force, timestamp) = all_calls[0];
+        let (round, reason, timestamp) = all_calls[0];
         assert_eq!(round, 10);
-        assert!(force);
+        assert_eq!(reason, ReasonToCreateBlock::MaxLeaderTimeout);
         assert!(
             leader_timeout <= timestamp - start,
             "Leader timeout setting {:?} should be less than actual time difference {:?}",

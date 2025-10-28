@@ -661,6 +661,7 @@ mod tests {
         },
         storage::mem_store::MemStore,
     };
+    use crate::core::ReasonToCreateBlock;
 
     #[derive(Default)]
     struct MockCoreThreadDispatcher {
@@ -741,7 +742,7 @@ mod tests {
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
+            _reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }

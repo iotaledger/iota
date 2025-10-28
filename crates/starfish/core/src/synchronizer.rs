@@ -1429,6 +1429,7 @@ mod tests {
         },
         transactions_synchronizer::TransactionsSynchronizer,
     };
+    use crate::core::ReasonToCreateBlock;
 
     type FetchRequestKey = (Vec<BlockRef>, AuthorityIndex);
     type FetchRequestHeadersResponse = (Vec<VerifiedBlockHeader>, Option<Duration>);
@@ -2411,7 +2412,7 @@ mod tests {
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
+            _reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             Ok(BTreeMap::new())
         }

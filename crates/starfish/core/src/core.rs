@@ -1716,11 +1716,11 @@ mod test {
 
         // Try to propose again - with or without ignore leaders check, it will not
         // return any block
-        let (new_block_opt, missing_committed_txns) = core.try_propose(false).unwrap();
+        let (new_block_opt, missing_committed_txns) = core.try_propose(ReasonToCreateBlock::MinBlockDelayTimeout).unwrap();
         assert!(new_block_opt.is_none());
         assert!(missing_committed_txns.is_empty());
 
-        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        let (new_block_opt, missing_committed_txns) = core.try_propose(ReasonToCreateBlock::MaxLeaderTimeout).unwrap();
         assert!(new_block_opt.is_none());
         assert!(missing_committed_txns.is_empty());
         // Check no commits have been persisted to dag_state & store
@@ -1785,11 +1785,11 @@ mod test {
         assert_eq!(core.last_proposed_round(), 1);
         expected_ancestors.insert(core.last_proposed_block_header().reference());
         // attempt to create a block - none will be produced.
-        let (new_block_opt, missing_committed_txns) = core.try_propose(false).unwrap();
+        let (new_block_opt, missing_committed_txns) = core.try_propose(ReasonToCreateBlock::MinBlockDelayTimeout).unwrap();
         assert!(new_block_opt.is_none());
         assert!(missing_committed_txns.is_empty());
 
-        // Adding another block now forms a quorum for round 1, so block at round 2 will
+        // Adding another block now forms a quorum for round 1, so block at round 2 will be
         // proposed
         let block_3 = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 2).build());
         expected_ancestors.insert(block_3.reference());
@@ -1868,7 +1868,7 @@ mod test {
         );
 
         // Trying to explicitly propose a block will not produce anything
-        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        let (new_block_opt, missing_committed_txns) = core.try_propose(ReasonToCreateBlock::MaxLeaderTimeout).unwrap();
         assert!(new_block_opt.is_none());
         assert!(missing_committed_txns.is_empty());
 
@@ -1885,7 +1885,7 @@ mod test {
         assert!(missing_committed_txns.is_empty());
 
         // Try to propose - no block should be produced.
-        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        let (new_block_opt, missing_committed_txns) = core.try_propose(ReasonToCreateBlock::MaxLeaderTimeout).unwrap();
         assert!(new_block_opt.is_none());
         assert!(missing_committed_txns.is_empty());
 
@@ -1893,7 +1893,7 @@ mod test {
         // the network informed us that we do have proposed a block about.
         core.set_last_known_proposed_round(10);
 
-        let (new_block_opt, missing_committed_txns) = core.try_propose(true).expect("No error");
+        let (new_block_opt, missing_committed_txns) = core.try_propose(ReasonToCreateBlock::KnownLastBlock).expect("No error");
         assert!(missing_committed_txns.is_empty());
 
         let block = new_block_opt.unwrap();
@@ -1960,9 +1960,9 @@ mod test {
                 if let Some(r) = last_round_blocks.first().map(|b| b.round()) {
                     assert_eq!(round - 1, r);
                     if core_fixture.core.last_proposed_round() == r {
-                        // Force propose new block regardless of min round delay.
+                        // Force propose new block regardless of min block delay.
                         let (new_block_opt, missing_committed_txns) =
-                            core_fixture.core.try_propose(true).unwrap();
+                            core_fixture.core.try_propose(ReasonToCreateBlock::MaxLeaderTimeout).unwrap();
                         assert!(missing_committed_txns.is_empty());
                         new_block_opt.unwrap_or_else(|| {
                             panic!("Block should have been proposed for round {round}")
