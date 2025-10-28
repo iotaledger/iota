@@ -3073,6 +3073,7 @@ impl AuthorityPerEpochStore {
             }
         }
 
+        // Write details of the this consensus commit to consensus output quarantine.
         self.consensus_quarantine
             .write()
             .push_consensus_output(output, self)?;
@@ -3499,6 +3500,9 @@ impl AuthorityPerEpochStore {
                     as i64,
             );
 
+        // Record accumulated debts from this consensus commit following sequencing.
+        // This output will be written to consensus quarantine so the debts can be
+        // loaded in the future consensus commit rounds where the objects are involved.
         if let Some(max_execution_duration_per_commit) =
             self.get_max_execution_duration_per_commit_as_option()
         {

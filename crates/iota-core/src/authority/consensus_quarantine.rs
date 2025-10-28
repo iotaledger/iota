@@ -493,6 +493,8 @@ pub(crate) struct ConsensusOutputQuarantine {
 
     // The most recent congestion control debts for objects. Uses a ref-count to track
     // which objects still exist in some element of output_queue.
+    // These debts will be moved to the epoch store when the corresponding consensus commit
+    // is included in a checkpoint.
     congestion_control_object_debts: RefCountedHashMap<ObjectID, CongestionPerObjectDebt>,
     congestion_control_randomness_object_debts:
         RefCountedHashMap<ObjectID, CongestionPerObjectDebt>,
@@ -667,6 +669,8 @@ impl ConsensusOutputQuarantine {
                     "committing output with highest pending checkpoint height {:?}",
                     highest_in_commit
                 );
+                // Remove the quarantined data for this consensus commit and write it to
+                // the epoch store.
                 let output = self.output_queue.pop_front().unwrap();
                 self.remove_shared_object_next_versions(&output);
                 self.remove_processed_consensus_messages(&output);
@@ -699,6 +703,9 @@ impl ConsensusOutputQuarantine {
         }
     }
 
+    // Insert congestion control debts into the in-memory quarantine. This should be
+    // called when a new consensus commit output is created following sequencing, so
+    // this includes the debts accrued during sequencing of this round.
     fn insert_congestion_control_debts(&mut self, output: &ConsensusCommitOutput) {
         let current_round = output.consensus_round;
 
@@ -717,6 +724,9 @@ impl ConsensusOutputQuarantine {
         }
     }
 
+    // Remove congestion control debts from the in-memory quarantine. This should be
+    // called when the corresponding consensus commit output is included in a
+    // checkpoint and moved to the epoch store.
     fn remove_congestion_control_debts(&mut self, output: &ConsensusCommitOutput) {
         for (object_id, _) in output.congestion_control_object_debts.iter() {
             self.congestion_control_object_debts.remove(object_id);
@@ -944,6 +954,10 @@ impl ConsensusOutputQuarantine {
         shared_input_object_ids.sort();
         shared_input_object_ids.dedup();
 
+        // First, try to load any debts from the in-memory quarantine.
+        // For any misses, fall back to the database stored in the epoch store. We
+        // expect misses if the object debt was last modified in a consensus commit that
+        // has now been included in a checkpoint.
         let results = do_fallback_lookup(
             &shared_input_object_ids,
             |object_id| {
@@ -978,7 +992,7 @@ impl ConsensusOutputQuarantine {
             }))
     }
 
-    // Used in testing to load debts.
+    // Used in testing to load debts. Only looks in the in-memory quarantine.
     pub(crate) fn load_stored_object_debts_for_testing(
         &self,
         for_randomness: bool,
