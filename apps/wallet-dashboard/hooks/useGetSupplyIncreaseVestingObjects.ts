@@ -96,7 +96,7 @@ export function useGetSupplyIncreaseVestingObjects(address: string): SupplyIncre
     );
 
     const supplyIncreaseVestingPortfolio =
-        lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout, clockTimestampMs);
+        lastPayout && buildSupplyIncreaseVestingSchedule(lastPayout);
 
     const supplyIncreaseVestingUnlocked = (() => {
         let filtered = supplyIncreaseVestingMapped?.filter((supplyIncreaseVestingObject) =>
