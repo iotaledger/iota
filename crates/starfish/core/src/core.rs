@@ -597,7 +597,7 @@ impl Core {
         // to a leader timeout, or because we are actually ready to produce the
         // block (leader exists and min delay has passed).
         if !reason.is_forced() {
-            if !self.leaders_exist(quorum_round) {
+            if !self.leader_exist(quorum_round) {
                 return None;
             }
 
@@ -1032,13 +1032,8 @@ impl Core {
     /// Retrieves the next ancestors to propose to form a block at `clock_round`
     /// round.
     fn ancestors_to_propose(&mut self, clock_round: Round) -> Vec<VerifiedBlockHeader> {
-        let node_metrics = &self.context.metrics.node_metrics;
-        let _s = node_metrics
-            .scope_processing_time
-            .with_label_values(&["Core::ancestors_to_propose"])
-            .start_timer();
 
-        // Now take the ancestors before the clock_round (excluded) for each authority.
+        // Take the ancestors before the clock_round (excluded) for each authority.
         let all_ancestors = self
             .dag_state
             .read()
@@ -1070,7 +1065,8 @@ impl Core {
 
         let mut parent_round_quorum = StakeAggregator::<QuorumThreshold>::new();
 
-        // Check total stake of high scoring parent round ancestors
+        // Make a sanity check that the total stake of quorum clock round ancestors is above a quorum threshold.
+        // This must be guaranteed by a threshold clock component that advanced the round.
         for ancestor in included_ancestors
             .iter()
             .filter(|a| a.round() == quorum_round)
@@ -1086,10 +1082,7 @@ impl Core {
         included_ancestors
     }
 
-    /// Checks whether all the leaders of the round exist.
-    /// TODO: we can leverage some additional signal here in order to more
-    /// cleverly manipulate later the leader timeout Ex if we already have
-    /// one leader - the first in order - we might don't want to wait as much.
+    /// Checks whether the leaders of the round exist.
     fn leaders_exist(&self, round: Round) -> bool {
         let dag_state = self.dag_state.read();
         for leader in self.leaders(round) {
