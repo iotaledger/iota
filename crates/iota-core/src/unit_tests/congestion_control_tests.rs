@@ -581,7 +581,7 @@ async fn test_congestion_control_debt_tracking() {
     // touches shared_object_2 and an owned object.
     // Due to the debt of 1.5*default_tx_gas_budget for shared_object_2 from Commit
     // 2, this should result in an overshoot of 2.5*default_tx_gas_budget on
-    // shared_object_2 (inital debt [1.5*default_gas_budget]
+    // shared_object_2 (initial debt [1.5*default_gas_budget]
     // + transaction [2*default_gas_budget] - congestion limit
     // [default_gas_budget]) which exceeds the allowed
     // overshoot, and should be cancelled.
@@ -666,7 +666,7 @@ async fn test_congestion_control_debt_tracking() {
     // reduced to 0.5*default_gas_budget for commit round 4 because round 3 was
     // skipped, reducing it by the congestion limit of default_gas_budget.
     // Therefore, this transaction should be executed successfully as the total
-    // overshoot will be 2*default_gas_budget (inital debt [0.5*default_gas_budget]
+    // overshoot will be 2*default_gas_budget (initial debt [0.5*default_gas_budget]
     // + transaction [2.5*default_gas_budget] - congestion limit
     // [default_gas_budget]).
     let (_, effects) = commit_and_execute_transaction(
