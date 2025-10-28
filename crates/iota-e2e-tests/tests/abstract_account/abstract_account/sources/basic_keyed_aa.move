@@ -131,7 +131,7 @@ public fun authenticate_free_access(self: &AbstractAccount, _: &AuthContext, ctx
 /// the authenticator is disallowed by the AA auth framework and must fail.
 public fun authenticate_receive_gift(
     account: &AbstractAccount,
-    _sent: transfer::Receiving<Gift>,
+    _sent: &transfer::Receiving<Gift>,
     _: &AuthContext,
     ctx: &TxContext,
 ) {

@@ -180,8 +180,7 @@ async fn test_authenticate_receiving_object_fails() -> Result<(), anyhow::Error>
     let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
 
     // Expect authentication failure
-    // test_env.execute_and_expect_failure(tx).await
-    Ok(())
+    test_env.execute_and_expect_failure(tx).await
 }
 
 /// SUCCESS: receive in the main PT using
@@ -826,5 +825,29 @@ impl TestEnvironment {
         Ok(GenericSignature::MoveAuthenticator(
             MoveAuthenticator::new_for_testing(vec![self_arg.clone(), gift_arg], vec![], self_arg),
         ))
+    }
+
+    async fn execute_and_expect_failure(&self, tx: Transaction) -> anyhow::Result<()> {
+        match self
+            .test_cluster
+            .wallet
+            .execute_transaction_may_fail(tx)
+            .await
+        {
+            Ok(resp) => {
+                let failed = resp.confirmed_local_execution != Some(true)
+                    || !resp.errors.is_empty()
+                    || !resp.status_ok().unwrap_or(false);
+                assert!(
+                    failed,
+                    "Expected transaction to fail, but it succeeded: {resp:?}"
+                );
+            }
+            Err(_rpc_err) => {
+                // Also acceptable: the node rejects the TX (e.g., \"Receiving objects ... in the MoveAuthenticator input is unsupported\").
+                // We don't need to inspect the exact error contents here.
+            }
+        }
+        Ok(())
     }
 }
