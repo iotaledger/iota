@@ -27,12 +27,11 @@ use crate::{
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
     commit::CertifiedCommits,
     context::Context,
-    core::Core,
+    core::{Core, Reason},
     core_thread::CoreError::Shutdown,
     dag_state::{DagState, TransactionSource},
     error::{ConsensusError, ConsensusResult},
 };
-use crate::core::Reason;
 
 const CORE_THREAD_COMMANDS_CHANNEL_SIZE: usize = 2000;
 
@@ -241,7 +240,7 @@ impl CoreThread {
                     let _scope = monitored_scope("CoreThread::loop::set_last_known_proposed_round");
                     let round = *self.rx_last_known_proposed_round.borrow();
                     self.core.set_last_known_proposed_round(round);
-                    self.core.new_block(round + 1, Reason::MaxTimeout)?;
+                    self.core.new_block(round + 1, Reason::KnownLastBlock)?;
                 }
                 _ = self.rx_quorum_subscribers_exists.changed() => {
                     let _scope = monitored_scope("CoreThread::loop::set_quorum_subscribers_exists");
@@ -251,7 +250,7 @@ impl CoreThread {
                     if !should_propose_before && self.core.should_propose() {
                         // If core cannot propose before but can propose now, try to produce a new block to ensure liveness,
                         // because block proposal could have been skipped.
-                        self.core.new_block(Round::MAX, Reason::MaxTimeout)?;
+                        self.core.new_block(Round::MAX, Reason::QuorumSubscribersExist)?;
                     }
                 }
             }

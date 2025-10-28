@@ -60,13 +60,6 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_sync_last_known_own_block_timeout")]
     pub sync_last_known_own_block_timeout: Duration,
 
-    /// Proposing new block is stopped when the propagation delay is greater
-    /// than this threshold. Propagation delay is the difference between the
-    /// round of the last proposed block and the highest round from this
-    /// authority that is received by all validators in a quorum.
-    #[serde(default = "Parameters::default_propagation_delay_stop_proposal_threshold")]
-    pub propagation_delay_stop_proposal_threshold: u32,
-
     /// The number of rounds of blocks to be kept in the Dag state cache per
     /// authority. The larger the number the more the blocks that will be
     /// kept in memory allowing minimising any potential disk access.
@@ -166,10 +159,6 @@ impl Parameters {
             Duration::from_secs(5)
         }
     }
-    pub(crate) fn default_propagation_delay_stop_proposal_threshold() -> u32 {
-        // Propagation delay is usually 0 round in production.
-        if cfg!(msim) { 2 } else { 5 }
-    }
 
     pub(crate) fn default_dag_state_cached_rounds() -> u32 {
         if cfg!(msim) {
@@ -223,8 +212,6 @@ impl Default for Parameters {
             max_transactions_per_fetch: Parameters::default_max_transactions_per_fetch(),
             sync_last_known_own_block_timeout:
                 Parameters::default_sync_last_known_own_block_timeout(),
-            propagation_delay_stop_proposal_threshold:
-                Parameters::default_propagation_delay_stop_proposal_threshold(),
             dag_state_cached_rounds: Parameters::default_dag_state_cached_rounds(),
             commit_sync_parallel_fetches: Parameters::default_commit_sync_parallel_fetches(),
             commit_sync_batch_size: Parameters::default_commit_sync_batch_size(),

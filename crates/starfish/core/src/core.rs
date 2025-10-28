@@ -67,14 +67,6 @@ pub(crate) struct Core {
     /// there is not enough subscribers, because new proposed blocks will
     /// not be sufficiently propagated to the network.
     quorum_subscribers_exists: bool,
-    /// Estimated delay by round for propagating blocks to a quorum.
-    /// Because of the nature of TCP and block streaming, propagation delay is
-    /// expected to be 0 in most cases, even when the actual latency of
-    /// broadcasting blocks is high. When this value is higher than the
-    /// `propagation_delay_stop_proposal_threshold`, most likely this
-    /// validator cannot broadcast  blocks to the network at all. Core stops
-    /// proposing new blocks in this case.
-    propagation_delay: Round,
 
     /// Used to make commit decisions for leader blocks in the dag.
     committer: UniversalCommitter,
@@ -117,18 +109,38 @@ pub(crate) struct Core {
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub (crate) enum Reason {
-    MinTimeout,
+pub(crate) enum Reason {
+    MinRoundTimeout,
     AddBlock,
-    MaxTimeout,
+    AddBlockHeader,
+    MaxLeaderTimeout,
+    Recover,
+    QuorumSubscribersExist,
+    KnownLastBlock,
 }
 
 impl Reason {
     fn to_string(&self) -> &'static str {
         match self {
-            Reason::MinTimeout => "MinTimeout",
+            Reason::MinRoundTimeout => "MinRoundTimeout",
             Reason::AddBlock => "AddBlock",
-            Reason::MaxTimeout => "MaxTimeout",
+            Reason::MaxLeaderTimeout => "MaxLeaderTimeout",
+            Reason::AddBlockHeader => "AddBlockHeader",
+            Reason::Recover => "Recover",
+            Reason::QuorumSubscribersExist => "QuorumSubscribersExist",
+            Reason::KnownLastBlock => "KnownLastBlock",
+        }
+    }
+
+    fn is_forced(&self) -> bool {
+        match self {
+            Reason::MinRoundTimeout => false,
+            Reason::AddBlock => false,
+            Reason::MaxLeaderTimeout => true,
+            Reason::AddBlockHeader => true,
+            Reason::Recover => true,
+            Reason::QuorumSubscribersExist => true,
+            Reason::KnownLastBlock => true,
         }
     }
 }
@@ -193,7 +205,6 @@ impl Core {
             transaction_consumer,
             block_manager,
             quorum_subscribers_exists,
-            propagation_delay: 0,
             committer,
             commit_observer,
             signals,
@@ -236,7 +247,7 @@ impl Core {
         // refs can be ignored as the missing transactions will be fetched by the
         // periodic transactions' synchronizer.
         self.try_commit().unwrap();
-        let last_proposed_block = match self.try_propose(Reason::MaxTimeout).unwrap() {
+        let last_proposed_block = match self.try_propose(Reason::Recover).unwrap() {
             (Some(block), _) => Some(block),
             (None, _) => {
                 let last_proposed_block = self.dag_state.read().recover_last_own_block();
@@ -374,7 +385,7 @@ impl Core {
             let (_subdags, new_missing_committed_txns) = self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
-            self.try_propose(Reason::AddBlock)?;
+            self.try_propose(Reason::AddBlockHeader)?;
 
             // Now set up leader timeout if needed.
             // This needs to be called after try_commit() and try_propose(), which may
@@ -583,7 +594,7 @@ impl Core {
         // Create a new block either because we want to "forcefully" propose a block due
         // to a leader timeout, or because we are actually ready to produce the
         // block (leader exists and min delay has passed).
-        if reason != Reason::MaxTimeout {
+        if !reason.is_forced() {
             if !self.leaders_exist(quorum_round) {
                 return None;
             }
@@ -599,18 +610,9 @@ impl Core {
             }
         }
 
-        // Determine the ancestors to be included in proposal.
-        let ancestors = self.ancestors_to_propose(clock_round, reason);
-
-        // If we did not find enough good ancestors to propose, continue to wait before
-        // proposing.
-        if ancestors.is_empty() {
-            assert!(
-                reason != Reason::MaxTimeout,
-                "Ancestors should have been returned if maximal timeout is expired!"
-            );
-            return None;
-        }
+        // Determine the ancestors to be included in proposal. A quorum of ancestor must
+        // exist due to a threshold clock
+        let ancestors = self.ancestors_to_propose(clock_round);
 
         // Update the last included ancestor block refs
         for ancestor in &ancestors {
@@ -1002,25 +1004,6 @@ impl Core {
             return false;
         }
 
-        if self.propagation_delay
-            > self
-                .context
-                .parameters
-                .propagation_delay_stop_proposal_threshold
-        {
-            debug!(
-                "Skip proposing for round {clock_round}, high propagation delay {} > {}.",
-                self.propagation_delay,
-                self.context
-                    .parameters
-                    .propagation_delay_stop_proposal_threshold
-            );
-            core_skipped_proposals
-                .with_label_values(&["high_propagation_delay"])
-                .inc();
-            return false;
-        }
-
         let Some(last_known_proposed_round) = self.last_known_proposed_round else {
             debug!(
                 "Skip proposing for round {clock_round}, last known proposed round has not been synced yet."
@@ -1044,15 +1027,8 @@ impl Core {
     }
 
     /// Retrieves the next ancestors to propose to form a block at `clock_round`
-    /// round. If force=false and the stake of available ancestors is not big
-    /// enough, then this function will return empty vector. It force=true and stake is not
-    /// big enough then the function will panic, because it means that there is
-    /// a bug somewhere
-    fn ancestors_to_propose(
-        &mut self,
-        clock_round: Round,
-        reason: Reason,
-    ) -> Vec<VerifiedBlockHeader> {
+    /// round.
+    fn ancestors_to_propose(&mut self, clock_round: Round) -> Vec<VerifiedBlockHeader> {
         let node_metrics = &self.context.metrics.node_metrics;
         let _s = node_metrics
             .scope_processing_time
@@ -1097,15 +1073,6 @@ impl Core {
             .filter(|a| a.round() == quorum_round)
         {
             parent_round_quorum.add(ancestor.author(), &self.context.committee);
-        }
-
-        if reason != Reason::MaxTimeout && !parent_round_quorum.reached_threshold(&self.context.committee) {
-            node_metrics.selection_wait.inc();
-            debug!(
-                "Only found {} stake of ancestors to include for round {clock_round}, will wait for more.",
-                parent_round_quorum.stake()
-            );
-            return vec![];
         }
 
         assert!(

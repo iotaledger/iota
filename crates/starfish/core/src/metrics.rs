@@ -175,7 +175,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_round_advancement_interval: Histogram,
     pub(crate) last_decided_leader_round: IntGauge,
     pub(crate) leader_timeout_total: IntCounterVec,
-    pub(crate) selection_wait: IntCounter,
     pub(crate) missing_blocks_total: IntCounter,
     pub(crate) missing_blocks_after_fetch_total: IntCounter,
     pub(crate) num_of_bad_nodes: IntGauge,
@@ -674,11 +673,6 @@ impl NodeMetrics {
                 "leader_timeout_total",
                 "Total number of leader timeouts, either when the min round time has passed, or max leader timeout",
                 &["timeout_type"],
-                registry,
-            ).unwrap(),
-            selection_wait: register_int_counter_with_registry!(
-                "selection_wait",
-                "Number of times we waited for ancestor selection.",
                 registry,
             ).unwrap(),
             missing_blocks_total: register_int_counter_with_registry!(

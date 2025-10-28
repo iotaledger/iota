@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{sync::Arc, time::Duration};
-use crate::core::Reason;
+
 use tokio::{
     sync::{
+        broadcast,
         oneshot::{Receiver, Sender},
         watch,
     },
@@ -15,8 +16,12 @@ use tokio::{
 use tracing::{debug, warn};
 
 use crate::{
-    block_header::Round, context::Context, core::CoreSignalsReceivers,
-    core_thread::CoreThreadDispatcher, transactions_synchronizer::TransactionsSynchronizerHandle,
+    BlockHeaderAPI,
+    block_header::{Round, VerifiedBlock},
+    context::Context,
+    core::{CoreSignalsReceivers, Reason},
+    core_thread::CoreThreadDispatcher,
+    transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
 pub(crate) struct LeaderTimeoutTaskHandle {
@@ -35,6 +40,7 @@ pub(crate) struct LeaderTimeoutTask<D: CoreThreadDispatcher> {
     dispatcher: Arc<D>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     new_round_receiver: watch::Receiver<Round>,
+    new_block_receiver: broadcast::Receiver<VerifiedBlock>,
     leader_timeout: Duration,
     min_round_delay: Duration,
     stop: Receiver<()>,
@@ -54,6 +60,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
             dispatcher,
             transactions_synchronizer,
             stop,
+            new_block_receiver: signals_receivers.block_broadcast_receiver(),
             new_round_receiver: signals_receivers.new_round_receiver(),
             leader_timeout: context.parameters.leader_timeout,
             min_round_delay: context.parameters.min_round_delay,
@@ -74,24 +81,27 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
     /// election process.
     async fn run(&mut self) {
         let new_round = &mut self.new_round_receiver;
-        let mut leader_round: Round = *new_round.borrow_and_update();
-        let mut min_leader_round_timed_out = false;
+        let new_block = &mut self.new_block_receiver.resubscribe();
+        let mut quorum_round: Round = *new_round.borrow_and_update();
+        let mut last_own_round: Option<Round> = None;
+        let mut min_round_delay_timed_out = false;
         let mut max_leader_round_timed_out = false;
         let timer_start = Instant::now();
-        let min_leader_timeout = sleep_until(timer_start + self.min_round_delay);
+        let min_round_delay_timeout = sleep_until(timer_start + self.min_round_delay);
         let max_leader_timeout = sleep_until(timer_start + self.leader_timeout);
 
-        tokio::pin!(min_leader_timeout);
+        tokio::pin!(min_round_delay_timeout);
         tokio::pin!(max_leader_timeout);
 
         loop {
             tokio::select! {
-                // When the min leader timer expires, then we attempt to trigger the creation of a new block.
+                // When the min round delay timer expires, then we attempt to trigger the creation of a new block.
                 // If we already timed out before then, the branch gets disabled so we don't attempt
                 // all the time to produce already produced blocks for that round.
 
-                () = &mut min_leader_timeout, if !min_leader_round_timed_out => {
-                    match self.dispatcher.new_block(leader_round, Reason::MinTimeout).await {
+                () = &mut min_round_delay_timeout, if !min_round_delay_timed_out && last_own_round.is_some() => {
+                    let round_to_create_block: Round = last_own_round.expect("We should expect some last own round") + 1;
+                    match self.dispatcher.new_block(round_to_create_block, Reason::MinRoundTimeout).await {
                         Ok(missing_committed_txns) => {
                             if !missing_committed_txns.is_empty() {
                                 debug!(
@@ -113,7 +123,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                             return;
                         }
                     }
-                    min_leader_round_timed_out = true;
+                    min_round_delay_timed_out = true;
                 },
                 // When the max leader timer expires then we attempt to trigger the creation of a new block. This
                 // call is made with `force = true` to bypass any checks that allow to propose immediately if block
@@ -122,7 +132,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 // if the round has not advanced in the meantime. Otherwise, the max timeout will not get
                 // triggered at all.
                 () = &mut max_leader_timeout, if !max_leader_round_timed_out => {
-                    match self.dispatcher.new_block(leader_round, Reason::MaxTimeout).await {
+                    match self.dispatcher.new_block(quorum_round, Reason::MaxLeaderTimeout).await {
                         Ok(missing_committed_txns) => {
                             if !missing_committed_txns.is_empty() {
                                 debug!(
@@ -147,22 +157,28 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                     max_leader_round_timed_out = true;
                 }
 
-                // A new round has been produced. Reset the leader timeout.
+                // A threshold round has been advanced. Reset the leader timeout.
                 Ok(_) = new_round.changed() => {
-                    leader_round = *new_round.borrow_and_update();
-                    debug!("New round has been received {leader_round}, resetting timer");
-                    let _span = tracing::trace_span!("new_consensus_round_received", round = ?leader_round).entered();
+                    quorum_round = *new_round.borrow_and_update();
+                    debug!("New quorum round has been received {quorum_round}, resetting timer");
+                    let _span = tracing::trace_span!("new_consensus_round_received", round = ?quorum_round).entered();
 
-                    min_leader_round_timed_out = false;
                     max_leader_round_timed_out = false;
 
                     let now = Instant::now();
-                    min_leader_timeout
-                    .as_mut()
-                    .reset(now + self.min_round_delay);
+
                     max_leader_timeout
                     .as_mut()
                     .reset(now + self.leader_timeout);
+                },
+                 // A new block was created ---
+                Ok(block) = new_block.recv() => {
+                    last_own_round = Some(block.round());
+
+                    min_round_delay_timed_out = false;
+
+                    let now = Instant::now();
+                    min_round_delay_timeout.as_mut().reset(now + self.min_round_delay);
                 },
                 _ = &mut self.stop => {
                     debug!("Stop signal has been received, now shutting down");
