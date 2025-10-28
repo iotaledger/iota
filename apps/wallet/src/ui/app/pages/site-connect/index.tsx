@@ -19,6 +19,8 @@ import { useParams } from 'react-router-dom';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
+import { AppType, getFromLocationSearch } from '../../redux/slices/app/appType';
+import { SidePanel } from '_src/polyfills/sidepanel';
 
 export function SiteConnectPage() {
     const { requestID } = useParams();
@@ -47,6 +49,14 @@ export function SiteConnectPage() {
         return preselectedAccounts.concat(previouslyPermittedAccounts);
     });
 
+    function close() {
+        if (getFromLocationSearch() == AppType.SidePanel) {
+            SidePanel.enableAndGoTo(`${location.pathname}?type=sidepanel`);
+        } else {
+            window.close();
+        }
+    }
+
     const handleOnSubmit = useCallback(
         async (allowed: boolean) => {
             if (requestID && accountsToConnect && permissionRequest) {
@@ -64,14 +74,14 @@ export function SiteConnectPage() {
                     applicationUrl: permissionRequest.origin,
                     approvedConnection: allowed,
                 });
-                window.close();
+                close();
             }
         },
         [requestID, accountsToConnect, permissionRequest, dispatch],
     );
     useEffect(() => {
         if (!loading && !permissionRequest) {
-            window.close();
+            close();
         }
     }, [loading, permissionRequest]);
 

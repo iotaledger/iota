@@ -14,6 +14,8 @@ import { type RootState } from '../../redux/rootReducer';
 import { txRequestsSelectors } from '../../redux/slices/transaction-requests';
 import { SignMessageRequest } from './SignMessageRequest';
 import { TransactionRequest } from './transaction-request';
+import { AppType, getFromLocationSearch } from '../../redux/slices/app/appType';
+import { SidePanel } from '_src/polyfills/sidepanel';
 
 export function ApprovalRequestPage() {
     const { requestID } = useParams();
@@ -28,7 +30,11 @@ export function ApprovalRequestPage() {
     );
     useEffect(() => {
         if (!requestsLoading && (!request || (request && request.approved !== null))) {
-            window.close();
+            if (getFromLocationSearch() == AppType.SidePanel) {
+                SidePanel.enableAndGoTo(`${location.pathname}?type=sidepanel`);
+            } else {
+                window.close();
+            }
         }
     }, [requestsLoading, request]);
     return (

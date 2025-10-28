@@ -7,12 +7,16 @@ import Browser from 'webextension-polyfill';
 export enum AppType {
     Unknown,
     Fullscreen,
+    SidePanel,
     Popup,
 }
 
 export function getFromLocationSearch() {
     if (/type=popup/.test(window.location.search)) {
         return AppType.Popup;
+    }
+    if (/type=sidepanel/.test(window.location.search)) {
+        return AppType.SidePanel;
     }
     return AppType.Fullscreen;
 }

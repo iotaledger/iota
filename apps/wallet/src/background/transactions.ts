@@ -17,6 +17,7 @@ import { v4 as uuidV4 } from 'uuid';
 import Browser from 'webextension-polyfill';
 
 import { Window } from './window';
+import { SidePanel } from '_src/polyfills/sidepanel';
 
 const STALE_TRANSACTION_MILLISECONDS = 1000 * 60 * 60 * 3; // 3 hours
 const TX_STORE_KEY = 'transactions';
@@ -158,6 +159,40 @@ class Transactions {
     ) {
         const txRequest = this.createTransactionRequest(request, origin, favIcon);
         await this.storeTransactionRequest(txRequest);
+
+        if (await SidePanel.isEnabled()) {
+            SidePanel.enableAndGoTo(
+                Browser.runtime.getURL('ui.html') +
+                    `?type=sidepanel&#/dapp/approve/${encodeURIComponent(txRequest.id)}`,
+            );
+            const txResponseMessage = this._txResponseMessages.pipe(
+                filter((msg) => msg.txID === txRequest.id),
+                take(1),
+            );
+            return lastValueFrom(
+                race(txResponseMessage).pipe(
+                    take(1),
+                    map(async (response) => {
+                        await this.removeTransactionRequest(txRequest.id);
+                        await SidePanel.enableAndGoTo(
+                            Browser.runtime.getURL('ui.html') + `?type=sidepanel`,
+                        );
+                        if (response) {
+                            const { approved, txResult, txSigned, txResultError } = response;
+                            if (approved) {
+                                txRequest.approved = approved;
+                                txRequest.txResult = txResult;
+                                txRequest.txResultError = txResultError;
+                                txRequest.txSigned = txSigned;
+                                return txRequest;
+                            }
+                        }
+                        throw new Error('Rejected from user');
+                    }),
+                ),
+            );
+        }
+
         const popUp = openTxWindow(txRequest.id);
         const popUpClose = (await popUp.show()).pipe(
             take(1),

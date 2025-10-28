@@ -71,7 +71,7 @@ function renderApp() {
 
 function AppWrapper() {
     const network = useAppSelector(({ app: { network, customRpc } }) => `${network}_${customRpc}`);
-    const isFullscreen = useAppSelector((state) => state.app.appType === AppType.Fullscreen);
+    const appType = useAppSelector((state) => state.app.appType);
     return (
         <GrowthBookProvider growthbook={growthbook}>
             <HashRouter>
@@ -113,8 +113,13 @@ function AppWrapper() {
                                                                 <KeystoneProvider>
                                                                     <div
                                                                         className={cn(
-                                                                            'relative flex h-screen max-h-popup-height min-h-popup-minimum w-popup-width flex-col flex-nowrap items-center justify-center overflow-hidden',
-                                                                            isFullscreen &&
+                                                                            'relative flex h-screen flex-col flex-nowrap items-center justify-center overflow-hidden',
+                                                                            appType ===
+                                                                                AppType.SidePanel
+                                                                                ? 'min-h-sidepanel-minimum max-h-sidepanel-height w-sidepanel-width'
+                                                                                : 'max-h-popup-height min-h-popup-minimum w-popup-width',
+                                                                            appType !==
+                                                                                AppType.Popup &&
                                                                                 'rounded-xl shadow-lg',
                                                                         )}
                                                                     >
