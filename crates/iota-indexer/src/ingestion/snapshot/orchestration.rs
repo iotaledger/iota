@@ -134,9 +134,9 @@ impl SnapshotPipeline {
         self,
         remote_store_url: Option<String>,
         reader_options: ReaderOptions,
-    ) -> IndexerResult<JoinHandle<IndexerResult<()>>> {
+    ) -> JoinHandle<IndexerResult<()>> {
         let handle = tokio::spawn(async move {
-            wait_for_snapshottable_data(&self.writer, &self.cancel).await?;
+            wait_for_initial_snapshot_lag(&self.writer, &self.cancel).await?;
             let cancel_clone = self.cancel.clone();
 
             info!("Starting snapshot writer");
@@ -181,11 +181,14 @@ impl SnapshotPipeline {
             Ok(())
         });
 
-        Ok(handle)
+        handle
     }
 }
 
-async fn wait_for_snapshottable_data(
+/// Waits until initial snapshot lag is reached,
+/// meaning that the snapshot pipeline is allowed to process the genesis
+/// checkpoint.
+async fn wait_for_initial_snapshot_lag(
     writer: &ObjectSnapshotWriter,
     cancel: &CancellationToken,
 ) -> IndexerResult<()> {

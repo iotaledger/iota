@@ -134,7 +134,7 @@ impl Indexer {
 
         let mut snapshot_pipeline_handle = snapshot_pipeline
             .run(remote_store_url, extra_reader_options)
-            .await?;
+            .await;
 
         let mut primary_pipeline_done = false;
         let mut snapshot_pipeline_done = false;
