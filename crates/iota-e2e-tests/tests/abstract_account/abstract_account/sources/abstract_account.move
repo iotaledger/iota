@@ -3,6 +3,7 @@
 
 module abstract_account::abstract_account;
 
+use abstract_account::gift_asset::Gift;
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::dynamic_field;
 
@@ -184,6 +185,16 @@ public fun borrow_auth_info_v1(self: &AbstractAccount): &AuthenticatorInfoV1 {
     account::borrow_auth_info_v1(&self.id)
 }
 
+/// Receive an object that was previously sent to this AbstractAccount.
+/// Gated so only the account itself can do it.
+public fun receive_object(
+    self: &mut AbstractAccount,
+    sent: transfer::Receiving<Gift>,
+    ctx: &TxContext,
+) {
+    ensure_tx_sender_is_account(self, ctx);
+    transfer::public_receive(&mut self.id, sent).drop();
+}
 // === Admin Functions ===
 
 /// Check that the sender of this transaction is the account.
