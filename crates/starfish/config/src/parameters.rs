@@ -28,8 +28,8 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_leader_timeout")]
     pub leader_timeout: Duration,
 
-    /// Minimum delay between own blocks. This avoids generating too many rounds when
-    /// latency is low. This is especially necessary for tests running
+    /// Minimum delay between own blocks. This avoids generating too many rounds
+    /// when latency is low. This is especially necessary for tests running
     /// locally. If setting a non-default value, it should be set low enough
     /// to avoid reducing round rate and increasing latency in realistic and
     /// distributed configurations.
@@ -115,7 +115,8 @@ impl Parameters {
             // Avoid excessive CPU, data and logs in tests.
             Duration::from_millis(250)
         } else {
-            // For production, use min delay between block being set to 50ms, reducing the block rate to 20 blocks/sec
+            // For production, use min delay between block being set to 50ms, reducing the
+            // block rate to 20 blocks/sec
             Duration::from_millis(50)
         }
     }

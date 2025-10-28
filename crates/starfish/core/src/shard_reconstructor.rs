@@ -653,6 +653,7 @@ mod tests {
         },
         commit::CertifiedCommits,
         context::Context,
+        core::ReasonToCreateBlock,
         core_thread::{CoreError, CoreThreadDispatcher},
         dag_state::{DagState, TransactionSource},
         encoder::create_encoder,
@@ -661,7 +662,6 @@ mod tests {
         },
         storage::mem_store::MemStore,
     };
-    use crate::core::ReasonToCreateBlock;
 
     #[derive(Default)]
     struct MockCoreThreadDispatcher {

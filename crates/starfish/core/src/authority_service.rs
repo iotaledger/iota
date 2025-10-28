@@ -1239,7 +1239,7 @@ mod tests {
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         cordial_knowledge::{ConnectionKnowledgeMessage, CordialKnowledge},
-        core::{Core, CoreSignals},
+        core::{Core, CoreSignals, ReasonToCreateBlock},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::{DagState, TransactionSource},
         encoder::create_encoder,
@@ -1256,7 +1256,6 @@ mod tests {
         transaction::TransactionConsumer,
         transactions_synchronizer::TransactionsSynchronizer,
     };
-    use crate::core::ReasonToCreateBlock;
 
     #[derive(Default)]
     struct FakeNetworkClient {}

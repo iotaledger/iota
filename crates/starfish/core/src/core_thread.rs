@@ -536,7 +536,9 @@ pub(crate) mod tests {
             last_known_proposed_round.clone()
         }
 
-        pub(crate) async fn get_new_block_calls(&self) -> Vec<(Round, ReasonToCreateBlock, Instant)> {
+        pub(crate) async fn get_new_block_calls(
+            &self,
+        ) -> Vec<(Round, ReasonToCreateBlock, Instant)> {
             let mut binding = self.new_block_calls.lock();
             let all_calls = binding.drain(0..);
             all_calls.into_iter().collect()

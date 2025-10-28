@@ -81,9 +81,10 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
     /// election process.
     /// In addition, if min b
     async fn run(&mut self) {
-        let new_round = &mut self.new_round_receiver;
+        debug!("LeaderTimeoutTask is running");
+        let new_clock_round = &mut self.new_round_receiver;
         let new_block = &mut self.new_block_receiver.resubscribe();
-        let mut quorum_round: Round = *new_round.borrow_and_update();
+        let mut clock_round: Round = *new_clock_round.borrow_and_update();
         let mut last_own_block_round: Option<Round> = None;
         let mut min_block_delay_timed_out = false;
         let mut max_leader_round_timed_out = false;
@@ -95,14 +96,15 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
         tokio::pin!(max_leader_timeout);
 
         loop {
+            debug!("Loop is running");
             tokio::select! {
-                // When the min round delay timer expires, then we attempt to trigger the creation of a new block.
+                // When the min block delay timer expires, then we attempt to trigger the creation of a new block.
                 // If we already timed out before then, the branch gets disabled so we don't attempt
                 // all the time to produce already produced blocks for that round.
 
                 () = &mut min_block_delay_timeout, if !min_block_delay_timed_out && last_own_block_round.is_some() => {
-                    let round_to_create_block: Round = last_own_block_round.expect("We should expect some last own round") + 1;
-                    match self.dispatcher.new_block(round_to_create_block, ReasonToCreateBlock::MinBlockDelayTimeout).await {
+                    let next_round: Round = last_own_block_round.expect("We should expect some last own round") + 1;
+                    match self.dispatcher.new_block(next_round, ReasonToCreateBlock::MinBlockDelayTimeout).await {
                         Ok(missing_committed_txns) => {
                             if !missing_committed_txns.is_empty() {
                                 debug!(
@@ -127,13 +129,10 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                     min_block_delay_timed_out = true;
                 },
                 // When the max leader timer expires then we attempt to trigger the creation of a new block. This
-                // call is made with `force = true` to bypass any checks that allow to propose immediately if block
+                // call is made with reason MaxLeaderTimeout to bypass any checks that allow to propose immediately if block
                 // not already produced.
-                // Keep in mind that first the min timeout should get triggered and then the max timeout, only
-                // if the round has not advanced in the meantime. Otherwise, the max timeout will not get
-                // triggered at all.
                 () = &mut max_leader_timeout, if !max_leader_round_timed_out => {
-                    match self.dispatcher.new_block(quorum_round, ReasonToCreateBlock::MaxLeaderTimeout).await {
+                    match self.dispatcher.new_block(clock_round, ReasonToCreateBlock::MaxLeaderTimeout).await {
                         Ok(missing_committed_txns) => {
                             if !missing_committed_txns.is_empty() {
                                 debug!(
@@ -158,11 +157,11 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                     max_leader_round_timed_out = true;
                 }
 
-                // A threshold round has been advanced. Reset the leader timeout.
-                Ok(_) = new_round.changed() => {
-                    quorum_round = *new_round.borrow_and_update();
-                    debug!("New quorum round has been received {quorum_round}, resetting timer");
-                    let _span = tracing::trace_span!("new_consensus_round_received", round = ?quorum_round).entered();
+                // A clock round has been advanced. Reset the leader timeout.
+                Ok(_) = new_clock_round.changed() => {
+                    clock_round = *new_clock_round.borrow_and_update();
+                    debug!("New clock round has been received {clock_round}, resetting timer");
+                    let _span = tracing::trace_span!("new_consensus_round_received", round = ?clock_round).entered();
 
                     max_leader_round_timed_out = false;
 
@@ -174,6 +173,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 },
                  // A new block was created. Set a timer in min_block_delay
                 Ok(block) = new_block.recv() => {
+                    debug!("New block {block:?} was created and seen in leader timeout task");
                     last_own_block_round = Some(block.round());
 
                     min_block_delay_timed_out = false;
@@ -200,20 +200,21 @@ mod tests {
     use tokio::time::{Instant, sleep};
 
     use crate::{
-        BlockRef, Round,
+        BlockRef, Round, TestBlockHeader,
+        block_header::VerifiedBlock,
         block_verifier::NoopBlockVerifier,
         commit::CommitRange,
         context::Context,
-        core::CoreSignals,
+        core::{CoreSignals, ReasonToCreateBlock},
         core_thread::tests::MockCoreThreadDispatcher,
         dag_state::DagState,
+        encoder::create_encoder,
         error::ConsensusResult,
         leader_timeout::LeaderTimeoutTask,
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
         transactions_synchronizer::TransactionsSynchronizer,
     };
-    use crate::core::ReasonToCreateBlock;
 
     #[derive(Default)]
     struct FakeNetworkClient {}
@@ -270,13 +271,14 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn basic_leader_timeout() {
+        telemetry_subscribers::init_for_testing();
         let (context, _signers) = Context::new_for_test(4);
         let dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let leader_timeout = Duration::from_millis(500);
-        let min_round_delay = Duration::from_millis(50);
+        let min_block_delay = Duration::from_millis(50);
         let parameters = Parameters {
             leader_timeout,
-            min_block_delay: min_round_delay,
+            min_block_delay,
             ..Default::default()
         };
         let context = Arc::new(context.with_parameters(parameters));
@@ -300,15 +302,36 @@ mod tests {
             dispatcher.clone(),
             transactions_synchronizer,
             &signal_receivers,
-            context,
+            context.clone(),
         );
 
-        // send a signal that a new round has been produced.
+        // send a signal that own block was created at round 8 to initialize the
+        // broadcaster
+        let mut encoder = create_encoder(&context);
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(8, 0, &context, &mut encoder).build(),
+        );
+        // send a signal that a new round has been advanced to initialize the watcher.
+        signals.new_round(9);
+
+        signals
+            .new_block(input_block)
+            .expect("We should expect correct sending a new block");
+        sleep(min_block_delay / 2).await;
+        // send a signal that own block was created at round 9, which will start min
+        // block delay timeout
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(9, 0, &context, &mut encoder).build(),
+        );
+        signals
+            .new_block(input_block)
+            .expect("We should expect correct sending a new block");
+        // send a signal that a new round has been advanced.
         signals.new_round(10);
 
-        // wait enough until the min round delay has passed and a new_block call is
+        // wait enough until the min block delay has passed and a new_block call is
         // triggered
-        sleep(2 * min_round_delay).await;
+        sleep(2 * min_block_delay).await;
         let all_calls = dispatcher.get_new_block_calls().await;
         assert_eq!(all_calls.len(), 1);
 
@@ -316,9 +339,9 @@ mod tests {
         assert_eq!(round, 10);
         assert_eq!(reason, ReasonToCreateBlock::MinBlockDelayTimeout);
         assert!(
-            min_round_delay <= timestamp - start,
+            min_block_delay <= timestamp - start,
             "Leader timeout min setting {:?} should be less than actual time difference {:?}",
-            min_round_delay,
+            min_block_delay,
             timestamp - start
         );
 
@@ -346,6 +369,7 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread", start_paused = true)]
     async fn multiple_leader_timeouts() {
+        telemetry_subscribers::init_for_testing();
         let (context, _signers) = Context::new_for_test(4);
         let dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let leader_timeout = Duration::from_millis(500);
@@ -378,16 +402,39 @@ mod tests {
             dispatcher.clone(),
             transactions_synchronizer,
             &signal_receivers,
-            context,
+            context.clone(),
         );
 
         // now send some signals with some small delay between them, but not enough so
-        // every round manages to timeout and call the new block method.
+        // it does not trigger a call of the new block method.
         signals.new_round(13);
+        // send a signal that own block was created at round 12
+        let mut encoder = create_encoder(&context);
+
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(12, 0, &context, &mut encoder).build(),
+        );
+        signals
+            .new_block(input_block)
+            .expect("We should expect correct sending a new block");
         sleep(min_block_delay / 2).await;
         signals.new_round(14);
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(13, 0, &context, &mut encoder).build(),
+        );
+        signals
+            .new_block(input_block)
+            .expect("We should expect correct sending a new block");
         sleep(min_block_delay / 2).await;
+
+        // Finally signal again and give enough time to trigger block creation
         signals.new_round(15);
+        let input_block = VerifiedBlock::new_for_test(
+            TestBlockHeader::new_with_commitment(14, 0, &context, &mut encoder).build(),
+        );
+        signals
+            .new_block(input_block)
+            .expect("We should expect correct sending a new block");
         sleep(2 * leader_timeout).await;
 
         // only the last one should be received

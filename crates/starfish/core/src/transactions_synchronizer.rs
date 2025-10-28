@@ -1073,12 +1073,12 @@ mod tests {
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange},
         context::Context,
+        core::ReasonToCreateBlock,
         core_thread::CoreError,
         dag_state::DagState,
         network::{BlockBundleStream, NetworkClient, SerializedTransactions},
         storage::mem_store::MemStore,
     };
-    use crate::core::ReasonToCreateBlock;
 
     #[tokio::test]
     async fn successful_live_syncing() {
