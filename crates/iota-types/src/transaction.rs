@@ -4,11 +4,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::{Debug, Display, Formatter, Write},
     hash::Hash,
-    iter,
-    iter::once,
+    iter::{self, once},
     sync::Arc,
 };
 
@@ -2515,7 +2514,7 @@ impl SenderSignedData {
 
     /// Returns all input objects including those from the sender
     /// `MoveAuthenticator` if any.
-    pub fn collect_inputs(&self) -> IotaResult<Vec<InputObjectKind>> {
+    pub fn collect_all_inputs(&self) -> IotaResult<Vec<InputObjectKind>> {
         if let Some(move_authenticator) = self.sender_move_authenticator() {
             let mut input_objects_set = self
                 .transaction_data()
@@ -2532,24 +2531,29 @@ impl SenderSignedData {
         }
     }
 
-    /// Splits the provided input objects into three categories:
+    /// Splits the provided input objects into three groups:
     /// 1. Input objects required by the transaction itself.
     /// 2. Input objects required by the sender `MoveAuthenticator`.
     /// 3. The object to authenticate from the sender `MoveAuthenticator`, if
     ///    any.
-    pub fn split_inputs(
+    pub fn split_inputs_into_groups(
         &self,
         input_objects: InputObjects,
     ) -> IotaResult<(InputObjects, Option<InputObjects>, Option<ObjectReadResult>)> {
         if let Some(move_authenticator) = self.sender_move_authenticator() {
+            let input_objects_map = input_objects
+                .iter()
+                .map(|o| (&o.input_object_kind, o))
+                .collect::<HashMap<_, _>>();
+
             let tx_input_objects = self
                 .transaction_data()
                 .input_objects()?
-                .into_iter()
+                .iter()
                 .map(|k| {
-                    input_objects
-                        .iter()
-                        .find(|r| r.input_object_kind == k)
+                    input_objects_map
+                        .get(k)
+                        .cloned()
                         .cloned()
                         .expect("All transaction input objects are expected to be present")
                 })
@@ -2558,11 +2562,11 @@ impl SenderSignedData {
 
             let auth_input_objects = move_authenticator
                 .input_objects()
-                .into_iter()
+                .iter()
                 .map(|k| {
-                    input_objects
-                        .iter()
-                        .find(|r| r.input_object_kind == k)
+                    input_objects_map
+                        .get(k)
+                        .cloned()
                         .cloned()
                         .expect("All authenticator input objects are expected to be present")
                 })
@@ -2572,11 +2576,11 @@ impl SenderSignedData {
             let account_objects = move_authenticator
                 .object_to_authenticate()
                 .input_objects()
-                .into_iter()
+                .iter()
                 .map(|k| {
-                    input_objects
-                        .iter()
-                        .find(|r| r.input_object_kind == k)
+                    input_objects_map
+                        .get(k)
+                        .cloned()
                         .cloned()
                         .expect("Account object is expected to be present")
                 })
