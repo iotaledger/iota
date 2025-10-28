@@ -1032,7 +1032,6 @@ impl Core {
     /// Retrieves the next ancestors to propose to form a block at `clock_round`
     /// round.
     fn ancestors_to_propose(&mut self, clock_round: Round) -> Vec<VerifiedBlockHeader> {
-
         // Take the ancestors before the clock_round (excluded) for each authority.
         let all_ancestors = self
             .dag_state
@@ -1065,8 +1064,9 @@ impl Core {
 
         let mut parent_round_quorum = StakeAggregator::<QuorumThreshold>::new();
 
-        // Make a sanity check that the total stake of quorum clock round ancestors is above a quorum threshold.
-        // This must be guaranteed by a threshold clock component that advanced the round.
+        // Make a sanity check that the total stake of quorum clock round ancestors is
+        // above a quorum threshold. This must be guaranteed by a threshold
+        // clock component that advanced the round.
         for ancestor in included_ancestors
             .iter()
             .filter(|a| a.round() == quorum_round)
