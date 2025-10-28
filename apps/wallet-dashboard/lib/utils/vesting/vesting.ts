@@ -115,12 +115,10 @@ export function getSupplyIncreaseVestingUserType(
 
 export function buildSupplyIncreaseVestingSchedule(
     referencePayout: SupplyIncreaseVestingPayout,
-    timestampMs: number,
 ): SupplyIncreaseVestingPortfolio {
     const userType = getSupplyIncreaseVestingUserType([referencePayout]);
 
-    if (!userType || timestampMs >= referencePayout.expirationTimestampMs) {
-        // if the latest payout has already been unlocked, we cant build a vesting schedule
+    if (!userType) {
         return [];
     }
 
@@ -162,7 +160,7 @@ export function getVestingOverview(
     const vestingPayoutsCount = getSupplyIncreaseVestingPayoutsCount(userType!);
     // Note: we add the initial payout to the total rewards, 10% of the total rewards are paid out immediately
     const totalVestedAmount = (BigInt(vestingPayoutsCount) * latestPayout.amount * 10n) / 9n;
-    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(latestPayout, timestampMs);
+    const vestingPortfolio = buildSupplyIncreaseVestingSchedule(latestPayout);
     const totalLockedAmount = vestingPortfolio.reduce(
         (acc, current) =>
             current.expirationTimestampMs > timestampMs ? acc + BigInt(current.amount) : acc,
