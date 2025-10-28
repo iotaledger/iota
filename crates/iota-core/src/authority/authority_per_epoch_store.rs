@@ -1933,6 +1933,7 @@ impl AuthorityPerEpochStore {
     }
 
     fn get_max_congestion_limit_overshoot_per_commit(&self) -> u64 {
+        // If not set, defaults to 0 which means no overshoot allowed.
         self.protocol_config()
             .max_congestion_limit_overshoot_per_commit_as_option()
             .unwrap_or_default()
