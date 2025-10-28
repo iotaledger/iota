@@ -887,11 +887,7 @@ impl AuthorityState {
 
         let epoch = epoch_store.epoch();
 
-        let tx_digest = transaction.digest();
         let tx_data = transaction.data().transaction_data();
-
-        let tx_input_object_kinds = tx_data.input_objects()?;
-        let tx_receiving_objects_refs = tx_data.receiving_objects();
 
         // Note: the deny checks may do redundant package loads but:
         // - they only load packages when there is an active package deny map
@@ -899,33 +895,29 @@ impl AuthorityState {
         iota_transaction_checks::deny::check_transaction_for_signing(
             tx_data,
             transaction.tx_signatures(),
-            &tx_input_object_kinds,
-            &tx_receiving_objects_refs,
+            &tx_data.input_objects()?,
+            &tx_data.receiving_objects(),
             &self.config.transaction_deny_config,
             self.get_backing_package_store().as_ref(),
         )?;
 
-        let (tx_input_objects, tx_receiving_objects) = self.input_loader.read_objects_for_signing(
-            Some(tx_digest),
-            &tx_input_object_kinds,
-            &tx_receiving_objects_refs,
-            epoch,
-        )?;
+        let (tx_input_objects, tx_receiving_objects, auth_input_objects, move_account) =
+            self.read_objects_for_signing(&transaction, epoch)?;
 
         if let Some(move_authenticator) = transaction.sender_move_authenticator() {
             // It is supposed that `MoveAuthenticator` availability is checked in
             // `SenderSignedData::validity_check`.
 
-            // Check the `MoveAuthenticator` input objects.
-            //
-            // TODO: Since the authenticator input is loaded with a dedicated call, we can
-            // load the same object twice if it is presented in the transaction and
-            // authenticator inputs.
+            let auth_input_objects =
+                auth_input_objects.expect("MoveAuthenticator input objects must be provided");
+            let move_account = move_account.expect("Move account object must be provided");
+
             let (authenticator_gas_status, authenticator_input_objects, authenticator_info) = self
                 .check_move_authenticator_inputs_for_signing(
                     move_authenticator,
                     &tx_input_objects,
-                    epoch_store,
+                    auth_input_objects,
+                    move_account,
                     protocol_config,
                     reference_gas_price,
                     tx_data,
@@ -949,7 +941,7 @@ impl AuthorityState {
                 authenticator_input_objects,
                 kind,
                 signer,
-                tx_digest.to_owned(),
+                transaction.digest().to_owned(),
                 &mut None,
             );
 
@@ -1277,18 +1269,8 @@ impl AuthorityState {
             return Ok((effects, None));
         }
 
-        let tx_input_objects =
+        let (tx_input_objects, authenticator_input_objects, account_object) =
             self.read_objects_for_execution(tx_guard.as_lock_guard(), certificate, epoch_store)?;
-
-        // TODO: Since the authenticator input is loaded with a dedicated call, we
-        // can load the same object twice if it is presented in the transaction and
-        // authenticator inputs.
-        let (account_object, authenticator_input_objects) = self
-            .read_authenticator_objects_for_execution(
-                tx_guard.as_lock_guard(),
-                certificate,
-                epoch_store,
-            )?;
 
         // If no expected_effects_digest was provided, try to get it from storage.
         // We could be re-executing a previously executed but uncommitted transaction,
@@ -1318,79 +1300,24 @@ impl AuthorityState {
         tx_lock: &CertLockGuard,
         certificate: &VerifiedExecutableTransaction,
         epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<InputObjects> {
+    ) -> IotaResult<(InputObjects, Option<InputObjects>, Option<ObjectReadResult>)> {
         let _scope = monitored_scope("Execution::load_input_objects");
         let _metrics_guard = self
             .metrics
             .execution_load_input_objects_latency
             .start_timer();
-        let input_objects = &certificate.data().transaction_data().input_objects()?;
-        self.input_loader.read_objects_for_execution(
+
+        let input_objects = certificate.collect_inputs()?;
+
+        let input_objects = self.input_loader.read_objects_for_execution(
             epoch_store,
             &certificate.key(),
             tx_lock,
-            input_objects,
+            &input_objects,
             epoch_store.epoch(),
-        )
-    }
+        )?;
 
-    /// Reads the `MoveAuthenticator`-related input and account objects if a
-    /// `MoveAuthenticator` signature is used in the transaction.
-    pub fn read_authenticator_objects_for_execution(
-        &self,
-        tx_lock: &CertLockGuard,
-        certificate: &VerifiedExecutableTransaction,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
-    ) -> IotaResult<(Option<ObjectReadResult>, Option<InputObjects>)> {
-        let _scope = monitored_scope("Execution::load_move_authenticator_input_objects");
-        let _metrics_guard = self
-            .metrics
-            .execution_load_input_objects_latency
-            .start_timer();
-
-        let objects = if let Some(move_authenticator) = certificate.sender_move_authenticator() {
-            // It is supposed that `MoveAuthenticator` availability is checked in
-            // `SenderSignedData::validity_check`.
-
-            // Load the account object.
-            let account_object = self.input_loader.read_objects_for_execution(
-                epoch_store,
-                // This key is used for resolving transaction shared object versions.
-                // It is supposed that the authenticator shared inputs are also can be
-                // resolved using this key.
-                &certificate.key(),
-                tx_lock,
-                &move_authenticator.object_to_authenticate().input_objects(),
-                epoch_store.epoch(),
-            )?;
-
-            debug_assert!(
-                account_object.len() <= 1,
-                "Only one account object must be loaded or none if the `object_to_authenticate` type is not supported"
-            );
-
-            let account_object = account_object.iter().next().cloned();
-
-            // Load the `MoveAuthenticator` input objects.
-            let input_object_kinds = move_authenticator.input_objects();
-
-            let input_objects = self.input_loader.read_objects_for_execution(
-                epoch_store,
-                // This key is used for resolving transaction shared object versions.
-                // It is supposed that the authenticator shared inputs are also can be
-                // resolved using this key.
-                &certificate.key(),
-                tx_lock,
-                &input_object_kinds,
-                epoch_store.epoch(),
-            )?;
-
-            (account_object, Some(input_objects))
-        } else {
-            (None, None)
-        };
-
-        Ok(objects)
+        certificate.split_inputs(input_objects)
     }
 
     /// Test only wrapper for `try_execute_immediately()` above, useful for
@@ -5258,7 +5185,7 @@ impl AuthorityState {
             &[executable_tx.clone()],
         )?;
 
-        let input_objects =
+        let (input_objects, _, _) =
             self.read_objects_for_execution(&tx_lock, &executable_tx, epoch_store)?;
 
         let (temporary_store, effects, _execution_error_opt) = self.prepare_certificate(
@@ -5496,58 +5423,50 @@ impl AuthorityState {
         }
     }
 
+    fn read_objects_for_signing(
+        &self,
+        transaction: &VerifiedTransaction,
+        epoch: u64,
+    ) -> IotaResult<(
+        InputObjects,
+        ReceivingObjects,
+        Option<InputObjects>,
+        Option<ObjectReadResult>,
+    )> {
+        let (input_objects, tx_receiving_objects) = self.input_loader.read_objects_for_signing(
+            Some(transaction.digest()),
+            &transaction.collect_inputs()?,
+            &transaction.data().transaction_data().receiving_objects(),
+            epoch,
+        )?;
+
+        transaction.split_inputs(input_objects).map(
+            |(tx_input_objects, auth_input_objects, account_object)| {
+                (
+                    tx_input_objects,
+                    tx_receiving_objects,
+                    auth_input_objects,
+                    account_object,
+                )
+            },
+        )
+    }
+
     /// Checks the `MoveAuthenticator` inputs for signing including the related
     /// account object.
     fn check_move_authenticator_inputs_for_signing(
         &self,
         move_authenticator: &MoveAuthenticator,
         tx_input_objects: &InputObjects,
-        epoch_store: &Arc<AuthorityPerEpochStore>,
+        auth_input_objects: InputObjects,
+        account_object: ObjectReadResult,
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
         transaction: &TransactionData,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects, AuthenticatorInfoV1)> {
-        let digest = transaction.digest();
-        let signer = transaction.sender();
-
-        let epoch = epoch_store.epoch();
-
         // Check basic `object_to_authenticate` preconditions and get its components.
         let (auth_account_object_id, auth_account_object_seq_number, auth_account_object_digest) =
             move_authenticator.object_to_authenticate_components()?;
-
-        // Load the account object.
-        let (account_object, object_to_authenticate_receiving) =
-            self.input_loader.read_objects_for_signing(
-                Some(&digest),
-                &move_authenticator.object_to_authenticate().input_objects(),
-                &Vec::new(),
-                epoch,
-            )?;
-
-        debug_assert!(
-            object_to_authenticate_receiving.objects.is_empty(),
-            "Move authenticator receiving objects loaded for transaction {:?}, that is not expected {:?}",
-            transaction.digest(),
-            object_to_authenticate_receiving
-                .objects
-                .iter()
-                .map(|o| o.object_ref)
-                .collect::<Vec<_>>()
-        );
-
-        debug_assert!(
-            account_object.len() == 1,
-            "Only one account object must be loaded"
-        );
-
-        // Since the `object_to_authenticate` components are provided, it is supposed
-        // that the account object is loaded.
-        let account_object = account_object
-            .iter()
-            .next()
-            .cloned()
-            .expect("Account object must be loaded");
 
         // Make sure the sender is a Move account.
         let authenticator_info = self.check_move_account(
@@ -5555,42 +5474,8 @@ impl AuthorityState {
             auth_account_object_seq_number,
             auth_account_object_digest,
             account_object,
-            &signer,
+            &transaction.sender(),
         )?;
-
-        // Load the `MoveAuthenticator` input objects.
-        let authenticator_input_object_kinds = move_authenticator.input_objects();
-        let authenticator_receiving_objects_refs = move_authenticator.receiving_objects();
-
-        fp_ensure!(
-            authenticator_receiving_objects_refs.is_empty(),
-            UserInputError::ReceivingObjectsIsInMoveAuthenticatorInput {
-                receiving_objects: authenticator_receiving_objects_refs,
-            }
-            .into()
-        );
-
-        // `tx_digest_for_caching` parameter is not used, but we need to be careful
-        // with caching because we call `read_objects_for_signing` several times with
-        // different inputs but the same transaction digest.
-        let (authenticator_input_objects, authenticator_receiving_objects) =
-            self.input_loader.read_objects_for_signing(
-                Some(&digest),
-                &authenticator_input_object_kinds,
-                &Vec::new(),
-                epoch,
-            )?;
-
-        debug_assert!(
-            authenticator_receiving_objects.objects.is_empty(),
-            "Move authenticator receiving objects loaded for transaction {:?}, that is not expected {:?}",
-            transaction.digest(),
-            authenticator_receiving_objects
-                .objects
-                .iter()
-                .map(|o| o.object_ref)
-                .collect::<Vec<_>>()
-        );
 
         // Check the inputs.
 
@@ -5606,7 +5491,7 @@ impl AuthorityState {
                 authenticator_gas_budget,
                 transaction.gas_budget(),
                 transaction.gas_price(),
-                authenticator_input_objects,
+                auth_input_objects,
                 tx_input_objects,
             )?;
 

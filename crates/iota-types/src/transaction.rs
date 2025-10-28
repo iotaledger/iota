@@ -2512,6 +2512,63 @@ impl SenderSignedData {
                 Err(_) => false,
             })
     }
+
+    /// Returns all input objects including those from the sender
+    /// `MoveAuthenticator` if any.
+    pub fn collect_inputs(&self) -> IotaResult<Vec<InputObjectKind>> {
+        if let Some(move_authenticator) = self.sender_move_authenticator() {
+            let mut input_objects_set = self
+                .transaction_data()
+                .input_objects()?
+                .into_iter()
+                .collect::<HashSet<_>>();
+
+            input_objects_set.extend(move_authenticator.object_to_authenticate().input_objects());
+            input_objects_set.extend(move_authenticator.input_objects());
+
+            Ok(input_objects_set.clone().into_iter().collect::<Vec<_>>())
+        } else {
+            Ok(self.transaction_data().input_objects()?)
+        }
+    }
+
+    /// Splits the provided input objects into three categories:
+    /// 1. Input objects required by the transaction itself.
+    /// 2. Input objects required by the sender `MoveAuthenticator`.
+    /// 3. The object to authenticate from the sender `MoveAuthenticator`, if
+    ///    any.
+    pub fn split_inputs(
+        &self,
+        input_objects: InputObjects,
+    ) -> IotaResult<(InputObjects, Option<InputObjects>, Option<ObjectReadResult>)> {
+        if let Some(move_authenticator) = self.sender_move_authenticator() {
+            let tx_input_objects = self.transaction_data().input_objects()?;
+            let tx_input_objects = input_objects
+                .iter()
+                .filter(|o| tx_input_objects.contains(&o.input_object_kind))
+                .cloned()
+                .collect::<Vec<_>>()
+                .into();
+
+            let auth_input_objects = move_authenticator.input_objects();
+            let auth_input_objects = input_objects
+                .iter()
+                .filter(|o| auth_input_objects.contains(&o.input_object_kind))
+                .cloned()
+                .collect::<Vec<_>>()
+                .into();
+
+            let account_object = move_authenticator.object_to_authenticate().input_objects();
+            let account_object = input_objects
+                .iter()
+                .find(|o| account_object.contains(&o.input_object_kind))
+                .cloned();
+
+            Ok((tx_input_objects, Some(auth_input_objects), account_object))
+        } else {
+            Ok((input_objects, None, None))
+        }
+    }
 }
 
 impl Message for SenderSignedData {
