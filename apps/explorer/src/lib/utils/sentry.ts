@@ -33,25 +33,12 @@ export function initSentry() {
             }),
         ],
         tracesSampleRate: SENTRY_SAMPLE_RATE,
-        beforeSend(event) {
-            try {
-                // Filter out any code from unknown sources:
-                if (
-                    !event.exception?.values?.[0].stacktrace ||
-                    event.exception?.values?.[0].stacktrace?.frames?.[0].filename === '<anonymous>'
-                ) {
-                    return null;
-                }
-                // eslint-disable-next-line no-empty
-            } catch (e) {}
-
-            return event;
-        },
 
         denyUrls: [
-            // Chrome extensions
+            // Browser extensions
             /extensions\//i,
             /^chrome(?:-extension)?:\/\//i,
+            /^moz-extension:\/\//i,
             /<anonymous>/,
         ],
         allowUrls: [/.*\.iota\.org/i, /.*\.iota\.cafe/i, /.*\.iotaledger\.net/i],
