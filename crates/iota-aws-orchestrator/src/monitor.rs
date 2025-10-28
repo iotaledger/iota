@@ -239,13 +239,11 @@ impl Grafana {
                 Self::DASHBOARDS_PATH
             ),
             &format!(
-                "sudo echo '{}' > {}/aws-dashboard.json",
-                include_str!("../assets/grafana-dashboard.json"),
+                "sudo cp iota/crates/iota-aws-orchestrator/assets/grafana-dashboard.json {}",
                 Self::DASHBOARDS_PATH
             ),
             &format!(
-                "sudo echo '{}' > {}/cluster-dashboard.json",
-                include_str!("../../../dev-tools/grafana-local/dashboards/cluster-status-dashboard.json"),
+                "sudo cp iota/crates/iota-aws-orchestrator/assets/cluster-status-dashboard.json {}",
                 Self::DASHBOARDS_PATH
             ),
             "sudo service grafana-server restart",
@@ -292,7 +290,6 @@ impl Grafana {
         ]
         .join("\n")
     }
-
 }
 
 /// Bootstrap the grafana with datasource to connect to the given instances.
