@@ -3,7 +3,7 @@
 
 use anyhow::anyhow;
 use futures::{Stream, StreamExt};
-use iota_grpc_types::v0::events as grpc_events;
+use iota_grpc_types::v0::{common as grpc_common, events as grpc_events};
 use iota_json_rpc_types::{BcsEvent, IotaEvent};
 use iota_types::{
     base_types::{IotaAddress, ObjectID, TransactionDigest},
@@ -55,7 +55,7 @@ impl EventClient {
     }
 
     /// Deserialize event data from BCS bytes.
-    fn deserialize_event(event: &grpc_events::Event) -> anyhow::Result<IotaEvent> {
+    fn deserialize_event(event: &grpc_common::Event) -> anyhow::Result<IotaEvent> {
         let event_id = event
             .event_id
             .as_ref()
@@ -76,10 +76,15 @@ impl EventClient {
             .as_ref()
             .ok_or_else(|| anyhow!("Missing sender"))?;
 
-        let bcs_data = event
+        let bcs_wrapper = event
             .event_data
             .as_ref()
             .ok_or_else(|| anyhow!("Missing event data"))?;
+
+        let bcs_data = bcs_wrapper
+            .value
+            .as_ref()
+            .ok_or_else(|| anyhow!("Missing BCS data value"))?;
 
         // Parse the StructTag from string
         let type_tag: StructTag = event
@@ -87,9 +92,8 @@ impl EventClient {
             .parse()
             .map_err(|e| anyhow!("Failed to parse type tag: {e}"))?;
 
-        // Parse the JSON
-        let parsed_json: serde_json::Value = serde_json::from_str(&event.parsed_json)
-            .map_err(|e| anyhow!("Failed to parse JSON: {e}"))?;
+        // We only provide BCS data; parsed_json is left empty for now
+        let parsed_json = serde_json::json!({});
 
         Ok(IotaEvent {
             id: EventID {

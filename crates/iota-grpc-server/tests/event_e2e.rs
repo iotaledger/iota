@@ -21,11 +21,6 @@ const CLOCK_ACCESS_FUNCTION: &str = "access";
 // Event type names
 const NFT_MINTED_EVENT: &str = "NFTMinted";
 
-// JSON field names for event validation
-const OBJECT_ID_FIELD: &str = "object_id";
-const CREATOR_FIELD: &str = "creator";
-const NAME_FIELD: &str = "name";
-
 async fn setup_test_cluster() -> (TestCluster, EventClient, ObjectID, ObjectID) {
     let localhost = local_ip_utils::localhost_for_testing();
     let grpc_port = local_ip_utils::get_available_port(&localhost);
@@ -102,7 +97,7 @@ async fn test_event_filtering_and_bcs_serialization() {
     // Client 1: AllFilter - should receive all events
     let mut all_client = event_client.clone();
     let all_filter = grpc_events::EventFilter {
-        filter: Some(Filter::All(grpc_events::AllFilter {})),
+        filter: Some(Filter::All(grpc_common::AllFilter {})),
     };
     let mut all_stream = all_client
         .stream_events(all_filter)
@@ -112,8 +107,8 @@ async fn test_event_filtering_and_bcs_serialization() {
     // Client 2: SenderFilter - should receive only events from sender_1
     let mut sender_client = event_client.clone();
     let sender_filter = grpc_events::EventFilter {
-        filter: Some(Filter::Sender(grpc_events::SenderFilter {
-            sender: Some(grpc_common::Address {
+        filter: Some(Filter::Sender(grpc_common::AddressFilter {
+            address: Some(grpc_common::Address {
                 address: sender_1.to_vec(),
             }),
         })),
@@ -126,7 +121,7 @@ async fn test_event_filtering_and_bcs_serialization() {
     // Client 3: MoveEventTypeFilter - should receive only NFT events
     let mut nft_client = event_client.clone();
     let nft_filter = grpc_events::EventFilter {
-        filter: Some(Filter::MoveEventType(grpc_events::MoveEventTypeFilter {
+        filter: Some(Filter::MoveEventType(grpc_common::MoveEventTypeFilter {
             package_id: Some(grpc_common::Address {
                 address: nft_package_id.to_vec(),
             }),
@@ -271,12 +266,6 @@ async fn test_event_filtering_and_bcs_serialization() {
                             "MoveEventTypeFilter should only match NFTMinted events"
                         );
                         assert!(!event.bcs.bytes().is_empty(), "BCS data must be valid");
-
-                        // Verify JSON structure for BCS deserialization
-                        let parsed_json = &event.parsed_json;
-                        assert!(parsed_json.get(OBJECT_ID_FIELD).is_some());
-                        assert!(parsed_json.get(CREATOR_FIELD).is_some());
-                        assert!(parsed_json.get(NAME_FIELD).is_some());
 
                         nft_events.push(event);
 

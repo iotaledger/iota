@@ -40,7 +40,7 @@ impl EventGrpcService {
 #[tonic::async_trait]
 impl grpc_events::event_service_server::EventService for EventGrpcService {
     type StreamEventsStream =
-        std::pin::Pin<Box<dyn futures::Stream<Item = Result<grpc_events::Event, Status>> + Send>>;
+        std::pin::Pin<Box<dyn futures::Stream<Item = Result<grpc_common::Event, Status>> + Send>>;
 
     async fn stream_events(
         &self,
@@ -82,7 +82,7 @@ impl grpc_events::event_service_server::EventService for EventGrpcService {
                         );
 
                         // Convert to protobuf Event
-                        let proto_event = grpc_events::Event::from(&event);
+                        let proto_event = grpc_common::Event::from(&event);
 
                         yield proto_event;
                     }
@@ -106,7 +106,7 @@ fn create_event_filter(proto_filter: &grpc_events::EventFilter) -> Result<EventF
     match &proto_filter.filter {
         Some(Filter::All(_)) => Ok(EventFilter::All(vec![])),
         Some(Filter::Sender(f)) => {
-            let sender = parse_iota_address(&f.sender, "Sender address")?;
+            let sender = parse_iota_address(&f.address, "Sender address")?;
             Ok(EventFilter::Sender(sender))
         }
         Some(Filter::Transaction(f)) => {
@@ -174,7 +174,7 @@ fn parse_iota_address(
 }
 
 fn parse_tx_digest(
-    digest: &Option<grpc_common::TransactionDigest>,
+    digest: &Option<grpc_common::Digest>,
     field_name: &str,
 ) -> Result<TransactionDigest, Status> {
     let digest = digest

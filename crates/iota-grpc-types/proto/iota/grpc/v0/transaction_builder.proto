@@ -1,0 +1,149 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v0.transaction_builder;
+
+import "common.proto";
+
+// Transaction builder service provides methods for constructing unsigned
+// transactions such as transferring objects, sending coins, or publishing
+// Move packages.
+service TransactionBuilderService {
+  // Create an unsigned transaction to transfer IOTA tokens
+  rpc TransferIota (TransferIotaRequest) returns (TransferIotaResponse);
+
+  // Create an unsigned transaction to transfer an object
+  rpc TransferObject (TransferObjectRequest) returns (TransferObjectResponse);
+
+  // Create an unsigned transaction to merge coins
+  rpc MergeCoins (MergeCoinsRequest) returns (MergeCoinsResponse);
+
+  // Create an unsigned transaction to pay multiple recipients
+  rpc Pay (PayRequest) returns (PayResponse);
+
+  // Create an unsigned transaction to publish a Move package
+  rpc Publish (PublishRequest) returns (PublishResponse);
+}
+
+// TransferIota - Create unsigned transaction to send IOTA coin to an address
+message TransferIotaRequest {
+  // The transaction signer's IOTA address
+  iota.grpc.v0.common.Address signer = 1;
+
+  // The IOTA coin object to be used in this transaction
+  iota.grpc.v0.common.Address iota_object_id = 2;
+
+  // The gas budget, transaction will fail if gas cost exceeds the budget
+  uint64 gas_budget = 3;
+
+  // The recipient's IOTA address
+  iota.grpc.v0.common.Address recipient = 4;
+
+  // The amount to be split out and transferred (optional, if None transfers entire coin)
+  optional uint64 amount = 5;
+}
+
+message TransferIotaResponse {
+  // BCS-encoded iota_types::transaction::TransactionData
+  iota.grpc.v0.common.Bcs transaction_data = 1;
+}
+
+// TransferObject - Create unsigned transaction to transfer an object
+message TransferObjectRequest {
+  // The transaction signer's IOTA address
+  iota.grpc.v0.common.Address signer = 1;
+
+  // The ID of the object to be transferred
+  iota.grpc.v0.common.Address object_id = 2;
+
+  // Gas object to be used in this transaction
+  // Node will pick one from the signer's possession if not provided
+  optional iota.grpc.v0.common.Address gas = 3;
+
+  // The gas budget, transaction will fail if gas cost exceeds the budget
+  uint64 gas_budget = 4;
+
+  // The recipient's IOTA address
+  iota.grpc.v0.common.Address recipient = 5;
+}
+
+message TransferObjectResponse {
+  // BCS-encoded iota_types::transaction::TransactionData
+  iota.grpc.v0.common.Bcs transaction_data = 1;
+}
+
+// MergeCoins - Create unsigned transaction to merge multiple coins into one
+message MergeCoinsRequest {
+  // The transaction signer's IOTA address
+  iota.grpc.v0.common.Address signer = 1;
+
+  // The coin object to merge into (this coin will remain after the transaction)
+  iota.grpc.v0.common.Address primary_coin = 2;
+
+  // The coin object to be merged (this coin will be destroyed, balance added to primary_coin)
+  iota.grpc.v0.common.Address coin_to_merge = 3;
+
+  // Gas object to be used in this transaction
+  // Node will pick one from the signer's possession if not provided
+  optional iota.grpc.v0.common.Address gas = 4;
+
+  // The gas budget, transaction will fail if gas cost exceeds the budget
+  uint64 gas_budget = 5;
+}
+
+message MergeCoinsResponse {
+  // BCS-encoded iota_types::transaction::TransactionData
+  iota.grpc.v0.common.Bcs transaction_data = 1;
+}
+
+// Pay - Send Coin<T> to a list of addresses with specified amounts
+message PayRequest {
+  // The transaction signer's IOTA address
+  iota.grpc.v0.common.Address signer = 1;
+
+  // The coin objects to be used in this transaction
+  repeated iota.grpc.v0.common.Address input_coins = 2;
+
+  // The recipients' addresses (length must match amounts)
+  repeated iota.grpc.v0.common.Address recipients = 3;
+
+  // The amounts to be transferred to recipients (same order as recipients)
+  repeated uint64 amounts = 4;
+
+  // Gas object to be used in this transaction
+  optional iota.grpc.v0.common.Address gas = 5;
+
+  // The gas budget
+  uint64 gas_budget = 6;
+}
+
+message PayResponse {
+  // BCS-encoded iota_types::transaction::TransactionData
+  iota.grpc.v0.common.Bcs transaction_data = 1;
+}
+
+// Publish - Create unsigned transaction to publish a Move package
+message PublishRequest {
+  // The transaction sender's IOTA address
+  iota.grpc.v0.common.Address sender = 1;
+
+  // The compiled bytes of Move modules
+  repeated bytes compiled_modules = 2;
+
+  // A list of transitive dependency addresses that this set of modules depends on
+  repeated iota.grpc.v0.common.Address dependencies = 3;
+
+  // Gas object to be used in this transaction
+  // Node will pick one from the sender's possession if not provided
+  optional iota.grpc.v0.common.Address gas = 4;
+
+  // The gas budget, transaction will fail if gas cost exceeds the budget
+  uint64 gas_budget = 5;
+}
+
+message PublishResponse {
+  // BCS-encoded iota_types::transaction::TransactionData
+  iota.grpc.v0.common.Bcs transaction_data = 1;
+}

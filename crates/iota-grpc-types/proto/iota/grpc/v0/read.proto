@@ -1,0 +1,191 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v0.read;
+
+import "common.proto";
+
+service ReadService {
+  rpc GetObject (GetObjectRequest) returns (GetObjectResponse);
+  rpc GetTransaction (GetTransactionRequest) returns (GetTransactionResponse);
+  rpc ContainsTransaction (ContainsTransactionRequest) returns (ContainsTransactionResponse);
+  rpc GetOwnedObjects (GetOwnedObjectsRequest) returns (GetOwnedObjectsResponse);
+  rpc GetDynamicFields (GetDynamicFieldsRequest) returns (GetDynamicFieldsResponse);
+  rpc TryGetPastObject (TryGetPastObjectRequest) returns (TryGetPastObjectResponse);
+}
+
+// GetObject
+message GetObjectRequest {
+  // The ID of the queried object
+  iota.grpc.v0.common.Address object_id = 1;
+}
+
+message GetObjectResponse {
+  oneof result {
+    NotExists not_exists = 1;
+    Exists exists = 2;
+    Deleted deleted = 3;
+  }
+}
+
+message NotExists {
+  iota.grpc.v0.common.Address object_id = 1;
+}
+
+message Exists {
+  // Object reference
+  iota.grpc.v0.common.ObjectRef object_ref = 1;
+
+  // Full object with BCS-encoded data, name should be the object type
+  iota.grpc.v0.common.Object object = 2;
+
+  // BCS-encoded move_core_types::annotated_value::MoveStructLayout
+  optional iota.grpc.v0.common.Bcs move_structure_layout = 3;
+}
+
+message Deleted {
+  iota.grpc.v0.common.ObjectRef object_ref = 1;
+}
+
+// GetTransaction
+message GetTransactionRequest {
+  // The digest of the queried transaction
+  iota.grpc.v0.common.Digest digest = 1;
+}
+
+message GetTransactionResponse {
+  // Transaction digest (32-byte)
+  iota.grpc.v0.common.Digest digest = 1;
+
+  // BCS-encoded iota_types::transaction::Transaction
+  iota.grpc.v0.common.Bcs transaction = 2;
+
+  // BCS-encoded iota_types::effects::TransactionEffects
+  iota.grpc.v0.common.Bcs effects = 3;
+
+  // BCS-encoded iota_types::events::TransactionEvents
+  iota.grpc.v0.common.Bcs events = 4;
+
+  // Object changes
+  repeated iota.grpc.v0.common.ObjectChange object_changes = 5;
+
+  // Balance changes
+  repeated iota.grpc.v0.common.BalanceChange balance_changes = 6;
+
+  // Timestamp in milliseconds
+  optional uint64 timestamp_ms = 7;
+
+  // Checkpoint sequence number
+  optional uint64 checkpoint = 8;
+
+  // Error messages
+  repeated string errors = 9;
+}
+
+// ContainsTransaction
+message ContainsTransactionRequest {
+  // The digest of the transaction to check
+  iota.grpc.v0.common.Digest digest = 1;
+}
+
+message ContainsTransactionResponse {
+  // True if the transaction exists, false otherwise
+  bool exists = 1;
+}
+
+// GetOwnedObjects - Get all objects owned by an address
+message GetOwnedObjectsRequest {
+  // Required. The address of the account that owns the objects
+  iota.grpc.v0.common.Address owner = 1;
+
+  // The maximum number of objects to return per page
+  // Default: 50, Max: 1000
+  optional uint32 page_size = 2;
+
+  // Opaque pagination token from previous response
+  // Token is BCS-encoded and should be treated as opaque by clients
+  optional iota.grpc.v0.common.BcsData page_token = 3;
+
+  // Type filter to limit the types of objects listed
+  // Example: "0x2::coin::Coin<0x2::iota::IOTA>"
+  // 0x{address}::{module}::{name}<{type_params}>
+  optional string object_type = 4;
+}
+
+message GetOwnedObjectsResponse {
+  // List of owned objects
+  repeated iota.grpc.v0.common.Object objects = 1;
+
+  // Token for next page. If omitted, no more pages exist.
+  // This is an opaque BCS-encoded token
+  optional iota.grpc.v0.common.Bcs next_page_token = 2;
+}
+
+// GetDynamicFields - Get dynamic fields attached to an object
+message GetDynamicFieldsRequest {
+  // Required. The ID of the parent object that owns dynamic fields
+  iota.grpc.v0.common.Address parent_object_id = 1;
+
+  // The maximum number of fields to return per page
+  // Default: 50, Max: 1000
+  optional uint32 page_size = 2;
+
+  // Opaque pagination token from previous response
+  // Token is BCS-encoded and should be treated as opaque by clients
+  optional iota.grpc.v0.common.BcsData page_token = 3;
+}
+
+message GetDynamicFieldsResponse {
+  // List of dynamic fields
+  // iota_types::dynamic_field::DynamicFieldInfo
+  repeated iota.grpc.v0.common.Bcs dynamic_fields = 1;
+
+  // Token for next page. If omitted, no more pages exist.
+  // This is an opaque BCS-encoded token
+  optional iota.grpc.v0.common.Bcs next_page_token = 2;
+}
+
+// TryGetPastObject - Get historical object data at a specific version
+message TryGetPastObjectRequest {
+  // Required. The object ID
+  iota.grpc.v0.common.Address object_id = 1;
+
+  // Required. The version number to retrieve
+  uint64 version = 2;
+}
+
+message TryGetPastObjectResponse {
+  oneof result {
+    PastObjectNotFound not_found = 1;
+    PastObjectDeleted deleted = 2;
+    PastObjectExists exists = 3;
+    VersionNotFound version_not_found = 4;
+    VersionTooHigh version_too_high = 5;
+  }
+}
+
+message PastObjectNotFound {
+  iota.grpc.v0.common.Address object_id = 1;
+}
+
+message PastObjectDeleted {
+  iota.grpc.v0.common.ObjectRef object_ref = 1;
+}
+
+message PastObjectExists {
+  iota.grpc.v0.common.Object object = 1;
+}
+
+message VersionNotFound {
+  iota.grpc.v0.common.Address object_id = 1;
+  uint64 version = 2;
+}
+
+message VersionTooHigh {
+  iota.grpc.v0.common.Address object_id = 1;
+  uint64 asked_version = 2;
+  uint64 latest_version = 3;
+}
+
