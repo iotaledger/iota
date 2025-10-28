@@ -15,7 +15,9 @@ use iota_types::{
 };
 use prometheus::Registry;
 use starfish_config::{Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
-use starfish_core::{CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority};
+use starfish_core::{
+    Clock, CommitConsumer, CommitConsumerMonitor, CommitIndex, ConsensusAuthority,
+};
 use tokio::sync::Mutex;
 use tracing::info;
 
@@ -93,7 +95,7 @@ impl ConsensusManagerTrait for StarfishManager {
     /// Starts the Starfish consensus manager for the current epoch.
     async fn start(
         &self,
-        _config: &NodeConfig,
+        config: &NodeConfig,
         epoch_store: Arc<AuthorityPerEpochStore>,
         consensus_handler_initializer: ConsensusHandlerInitializer,
         tx_validator: IotaTxValidator,
@@ -114,12 +116,16 @@ impl ConsensusManagerTrait for StarfishManager {
             return;
         };
 
-        // TODO: https://github.com/iotaledger/iota/issues/8353
-        // We might need to get consensus parameters from the node config in the future
-        // and use them for creating parameters.
+        let consensus_config = config
+            .consensus_config()
+            .expect("consensus_config should exist");
+
         let parameters = Parameters {
             db_path: self.get_store_path(epoch),
-            ..Default::default()
+            ..consensus_config
+                .starfish_parameters
+                .clone()
+                .unwrap_or_default()
         };
 
         let own_protocol_key = self.protocol_keypair.public();
@@ -170,12 +176,14 @@ impl ConsensusManagerTrait for StarfishManager {
         }
 
         let authority = ConsensusAuthority::start(
+            epoch_store.epoch_start_config().epoch_start_timestamp_ms(),
             own_index,
             committee.clone(),
             parameters.clone(),
             protocol_config.clone(),
             self.protocol_keypair.clone(),
             self.network_keypair.clone(),
+            Arc::new(Clock::default()),
             Arc::new(tx_validator.clone()),
             consumer,
             registry.clone(),

@@ -37,7 +37,7 @@ use crate::{
     block_verifier::BlockVerifier,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, TransactionSource},
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactions},
@@ -969,7 +969,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         // Add the transactions to the core
         core_dispatcher
-            .add_transactions(transactions, "Transactions synchronizer")
+            .add_transactions(transactions, TransactionSource::TransactionSynchronizer)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
@@ -2047,7 +2047,7 @@ mod tests {
         async fn add_transactions(
             &self,
             transactions: Vec<VerifiedTransactions>,
-            _source: &'static str,
+            _source: TransactionSource,
         ) -> Result<(), CoreError> {
             let mut txns = self.transactions.lock().await;
 

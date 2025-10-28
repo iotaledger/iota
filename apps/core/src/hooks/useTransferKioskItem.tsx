@@ -2,24 +2,16 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useFeatureValue } from '@growthbook/growthbook-react';
 import {
     useKioskClient,
-    getKioskIdFromOwnerCap,
     KioskTypes,
-    ORIGINBYTE_KIOSK_OWNER_TOKEN,
     useGetKioskContents,
     useGetObject,
-    Feature,
     TransferAssetExecuteFn,
 } from '../../';
-import { useIotaClient } from '@iota/dapp-kit';
 import { KioskTransaction } from '@iota/kiosk';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { useMutation } from '@tanstack/react-query';
-
-export const ORIGINBYTE_PACKAGE_ID =
-    '0x083b02db943238dcea0ff0938a54a17d7575f5b48034506446e501e963391480';
 
 export function useTransferKioskItem({
     objectId,
@@ -32,8 +24,6 @@ export function useTransferKioskItem({
     executeFn?: TransferAssetExecuteFn;
     address?: string | null;
 }) {
-    const client = useIotaClient();
-    const obPackageId = useFeatureValue(Feature.KioskOriginbytePackageId, ORIGINBYTE_PACKAGE_ID);
     const { data: kioskData } = useGetKioskContents(address); // show personal kiosks too
     const objectData = useGetObject(objectId);
     const kioskClient = useKioskClient();
@@ -72,44 +62,6 @@ export function useTransferKioskItem({
                 });
             }
 
-            if (kiosk.type === KioskTypes.ORIGINBYTE && objectData?.data?.data?.type) {
-                const tx = new Transaction();
-                const recipientKiosks = await client.getOwnedObjects({
-                    owner: to,
-                    options: { showContent: true },
-                    filter: { StructType: ORIGINBYTE_KIOSK_OWNER_TOKEN },
-                });
-                const recipientKiosk = recipientKiosks.data[0];
-                const recipientKioskId = recipientKiosk
-                    ? getKioskIdFromOwnerCap(recipientKiosk)
-                    : null;
-
-                if (recipientKioskId) {
-                    tx.moveCall({
-                        target: `${obPackageId}::ob_kiosk::p2p_transfer`,
-                        typeArguments: [objectType],
-                        arguments: [
-                            tx.object(kioskId),
-                            tx.object(recipientKioskId),
-                            tx.pure.id(objectId),
-                        ],
-                    });
-                } else {
-                    tx.moveCall({
-                        target: `${obPackageId}::ob_kiosk::p2p_transfer_and_create_target_kiosk`,
-                        typeArguments: [objectType],
-                        arguments: [tx.object(kioskId), tx.pure.address(to), tx.pure.id(objectId)],
-                    });
-                }
-                return executeFn({
-                    transaction: tx,
-                    options: {
-                        showInput: true,
-                        showEffects: true,
-                        showEvents: true,
-                    },
-                });
-            }
             throw new Error('Failed to transfer object');
         },
     });

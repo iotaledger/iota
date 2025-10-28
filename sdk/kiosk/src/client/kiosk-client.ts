@@ -116,7 +116,7 @@ export class KioskClient {
 
     /**
      * Query all the owned transfer policies for an address.
-     * Returns `TransferPolicyCap` which uncludes `policyId, policyCapId, type`.
+     * Returns `TransferPolicyCap` which includes `policyId, policyCapId, type`.
      * @param address The address we're searching the owned transfer policies for.
      */
     async getOwnedTransferPolicies({ address }: { address: string }) {

@@ -185,7 +185,7 @@ impl SnowflakeMaxCheckpointReader {
             Some(role),
             passwd,
         )
-        .expect("Failed to build sf api client");
+        .expect("failed to build sf api client");
         Ok(SnowflakeMaxCheckpointReader {
             query: format!("SELECT max({col_id}) from {table_id}"),
             api,
@@ -204,14 +204,14 @@ impl MaxCheckpointReader for SnowflakeMaxCheckpointReader {
                     let col_array = col
                         .as_any()
                         .downcast_ref::<Int32Array>()
-                        .expect("Failed to downcast arrow column");
+                        .expect("failed to downcast arrow column");
                     Ok(col_array.value(0) as i64)
                 } else {
                     Ok(-1)
                 }
             }
-            QueryResult::Json(_j) => bail!("Unexpected query result"),
-            QueryResult::Empty => bail!("Unexpected query result"),
+            QueryResult::Json(_j) => bail!("unexpected query result"),
+            QueryResult::Empty => bail!("unexpected query result"),
         }
     }
 }
@@ -247,7 +247,7 @@ impl MaxCheckpointReader for BQMaxCheckpointReader {
             .query(&self.project_id, QueryRequest::new(&self.query))
             .await?;
         if result.next_row() {
-            let max_checkpoint = result.get_i64(0)?.ok_or(anyhow!("No rows returned"))?;
+            let max_checkpoint = result.get_i64(0)?.ok_or(anyhow!("no rows returned"))?;
             Ok(max_checkpoint)
         } else {
             Ok(-1)
@@ -537,7 +537,7 @@ pub async fn read_store_for_checkpoint(
     let remote_store_is_empty = remote_object_store
         .list_with_delimiter(None)
         .await
-        .expect("Failed to read remote analytics store")
+        .expect("failed to read remote analytics store")
         .common_prefixes
         .is_empty();
     info!("Remote store is empty: {remote_store_is_empty}");
@@ -565,23 +565,23 @@ pub async fn make_max_checkpoint_reader(
                 config
                     .bq_service_account_key_file
                     .as_ref()
-                    .ok_or(anyhow!("Missing gcp key file"))?,
+                    .ok_or(anyhow!("missing gcp key file"))?,
                 config
                     .bq_project_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing big query project id"))?,
+                    .ok_or(anyhow!("missing big query project id"))?,
                 config
                     .bq_dataset_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing big query dataset id"))?,
+                    .ok_or(anyhow!("missing big query dataset id"))?,
                 config
                     .bq_table_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing big query table id"))?,
+                    .ok_or(anyhow!("missing big query table id"))?,
                 config
                     .bq_checkpoint_col_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing big query checkpoint col id"))?,
+                    .ok_or(anyhow!("missing big query checkpoint col id"))?,
             )
             .await?,
         )
@@ -591,36 +591,36 @@ pub async fn make_max_checkpoint_reader(
                 config
                     .sf_account_identifier
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf account identifier"))?,
+                    .ok_or(anyhow!("missing sf account identifier"))?,
                 config
                     .sf_warehouse
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf warehouse"))?,
+                    .ok_or(anyhow!("missing sf warehouse"))?,
                 config
                     .sf_database
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf database"))?,
+                    .ok_or(anyhow!("missing sf database"))?,
                 config
                     .sf_schema
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf schema"))?,
+                    .ok_or(anyhow!("missing sf schema"))?,
                 config
                     .sf_username
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf username"))?,
-                config.sf_role.as_ref().ok_or(anyhow!("Missing sf role"))?,
+                    .ok_or(anyhow!("missing sf username"))?,
+                config.sf_role.as_ref().ok_or(anyhow!("missing sf role"))?,
                 config
                     .sf_password
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf password"))?,
+                    .ok_or(anyhow!("missing sf password"))?,
                 config
                     .sf_table_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf table id"))?,
+                    .ok_or(anyhow!("missing sf table id"))?,
                 config
                     .sf_checkpoint_col_id
                     .as_ref()
-                    .ok_or(anyhow!("Missing sf checkpoint col id"))?,
+                    .ok_or(anyhow!("missing sf checkpoint col id"))?,
             )
             .await?,
         )

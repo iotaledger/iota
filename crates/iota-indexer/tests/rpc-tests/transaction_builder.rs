@@ -10,7 +10,7 @@ use iota_json_rpc_api::{
     TransactionBuilderClient,
 };
 use iota_json_rpc_types::{
-    IotaObjectDataOptions, IotaObjectResponseQuery, MoveCallParams, ObjectsPage,
+    IotaObjectDataOptions, IotaObjectResponseQuery, MoveCallParams, ObjectsPage, PtbInput,
     RPCTransactionRequestParams, StakeStatus, TransactionBlockBytes, TransferObjectParams,
 };
 use iota_protocol_config::ProtocolConfig;
@@ -415,7 +415,10 @@ fn batch_transaction() {
                             module: "pay".to_string(),
                             function: "split".to_string(),
                             type_arguments: type_args![GAS::type_tag()]?,
-                            arguments: call_args!(coin_to_split, amount_to_split)?,
+                            arguments: call_args!(coin_to_split, amount_to_split)?
+                                .into_iter()
+                                .map(PtbInput::CallArg)
+                                .collect(),
                         }),
                         RPCTransactionRequestParams::TransferObjectRequestParams(
                             TransferObjectParams {

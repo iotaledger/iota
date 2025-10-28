@@ -20,8 +20,8 @@ impl Client {
             inner: reqwest::Client::builder()
                 .user_agent(concat!("iota-package-dump/", env!("CARGO_PKG_VERSION")))
                 .build()
-                .context("Failed to create GraphQL client")?,
-            url: url.into_url().context("Invalid RPC URL")?,
+                .context("failed to create GraphQL client")?,
+            url: url.into_url().context("invalid RPC URL")?,
         })
     }
 
@@ -34,8 +34,8 @@ impl Client {
             .post(self.url.clone())
             .run_graphql(query)
             .await
-            .context("Failed to send GraphQL query")?
+            .context("failed to send GraphQL query")?
             .data
-            .ok_or_else(|| anyhow!("Empty response to query"))
+            .ok_or_else(|| anyhow!("empty response to query"))
     }
 }
