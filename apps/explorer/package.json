@@ -64,7 +64,7 @@
     "devDependencies": {
         "@amplitude/ampli": "^1.31.5",
         "@babel/core": "^7.22.9",
-        "@playwright/test": "^1.46.1",
+        "@playwright/test": "^1.56.1",
         "@testing-library/dom": "^10.3.1",
         "@testing-library/jest-dom": "^6.4.6",
         "@testing-library/react": "^16.0.0",
