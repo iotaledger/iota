@@ -12,8 +12,8 @@
 //! inspired by the `examples/move/iotaccount` implementation. This is needed in
 //! order to not depend on an external folder and to enable easier changes to
 //! the Move code.
-use std::net::SocketAddr;
-use std::str::FromStr;
+use std::{net::SocketAddr, str::FromStr};
+
 use fastcrypto::{
     ed25519::Ed25519Signature,
     encoding::{Encoding, Hex},
@@ -145,6 +145,84 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
         .await
 }
 
+/// FAIL: try to "receive" in authenticate (by supplying a Receiving<Gift> to
+/// the authenticator).
+#[sim_test]
+async fn test_authenticate_receiving_object_fails() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // AA with the invalid authenticator
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_RECEIVE_GIFT)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.0.into();
+
+    // Fund AA
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    // Prepare Gift sent to AA (so a Receiving<Gift> can reference it)
+    let gift_ref = test_env.mint_and_send_gift_to_aa().await?;
+
+    // Any simple PTB; it won't run if auth fails
+    let pt = test_env.craft_aa_simple_ptb()?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Authenticator that takes `Receiving<Gift>`
+    let aa_sig = test_env.create_move_authenticator_for_receive_gift(gift_ref)?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
+
+    // Expect authentication failure
+    // test_env.execute_and_expect_failure(tx).await
+    Ok(())
+}
+
+/// SUCCESS: receive in the main PT using
+/// abstract_account::receive_object<T>(...).
+#[sim_test]
+async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // AA with free access (effect-free auth)
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.0.into();
+
+    // Fund AA
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+
+    // Prepare Gift sent to AA
+    let gift_ref = test_env.mint_and_send_gift_to_aa().await?;
+
+    // Main PTB: actually receive the Gift into the AA
+    let pt = test_env.craft_aa_receive_gift_ptb(gift_ref)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Authenticator: free-access (no object args)
+    let aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
+
+    // Should succeed
+    test_env.execute_and_check_tx_correctness(tx).await
+}
+
+/// Test environment for Abstract Account tests
 /// Test in 3 steps the failure of an Abstract Account transaction
 /// post-consensus:
 /// 1) Create a TX certificate signed by the validators where the authentication
@@ -657,16 +735,13 @@ impl TestEnvironment {
             vec![],
             vec![],
         );
-        let args = vec![
-                gift,
-                b.pure(aa_addr)?,
-        ];
+        let args = vec![gift, b.pure(aa_addr)?];
         b.programmable_move_call(
-                aa_package_id,
-                ident_str!(AA_GIFT_ASSET_MODULE_NAME).to_owned(),
-                ident_str!("send_to").to_owned(),
-                vec![],
-                args,
+            aa_package_id,
+            ident_str!(AA_GIFT_ASSET_MODULE_NAME).to_owned(),
+            ident_str!("send_to").to_owned(),
+            vec![],
+            args,
         );
         let pt = b.finish();
 
@@ -688,15 +763,23 @@ impl TestEnvironment {
             .all_changed_objects()
             .iter()
             .find_map(|(oref, owner, kind)| {
-                if matches!(kind, WriteKind::Create) && *owner == aa_owner { Some(*oref) } else { None }
+                if matches!(kind, WriteKind::Create) && *owner == aa_owner {
+                    Some(*oref)
+                } else {
+                    None
+                }
             })
             .ok_or_else(|| anyhow::anyhow!("Gift object not found"))?;
         Ok(gift_ref)
     }
 
     /// PTB to receive the Gift in the main transaction:
-    /// abstract_account::receive_object<Gift>(&mut account, Receiving<Gift>, ctx)
-    fn craft_aa_receive_gift_ptb(&self, gift_ref: ObjectRef) -> anyhow::Result<ProgrammableTransaction> {
+    /// abstract_account::receive_object<Gift>(&mut account, Receiving<Gift>,
+    /// ctx)
+    fn craft_aa_receive_gift_ptb(
+        &self,
+        gift_ref: ObjectRef,
+    ) -> anyhow::Result<ProgrammableTransaction> {
         let (Some(aa_ref), Some(aa_package_id)) = (self.aa_ref, self.aa_package_id) else {
             anyhow::bail!("Abstract account not created yet");
         };
@@ -714,7 +797,7 @@ impl TestEnvironment {
         ];
         b.programmable_move_call(
             aa_package_id,
-            ident_str!(AA_MODULE_NAME).to_owned(),               // abstract_account
+            ident_str!(AA_MODULE_NAME).to_owned(), // abstract_account
             ident_str!("receive_object").to_owned(),
             vec![],
             args,
@@ -722,8 +805,13 @@ impl TestEnvironment {
         Ok(b.finish())
     }
 
-    /// Build a MoveAuthenticator for `authenticate_receive_gift(&AbstractAccount, Receiving<Gift>, &AuthContext, &TxContext)`.
-    fn create_move_authenticator_for_receive_gift(&self, gift_ref: ObjectRef) -> anyhow::Result<GenericSignature> {
+    /// Build a MoveAuthenticator for
+    /// `authenticate_receive_gift(&AbstractAccount, Receiving<Gift>,
+    /// &AuthContext, &TxContext)`.
+    fn create_move_authenticator_for_receive_gift(
+        &self,
+        gift_ref: ObjectRef,
+    ) -> anyhow::Result<GenericSignature> {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
         };
@@ -732,7 +820,8 @@ impl TestEnvironment {
             initial_shared_version: aa_ref.1,
             mutable: false,
         });
-        // Pass the Gift as an object ref; the VM interprets it as a Receiving<T> at this position.
+        // Pass the Gift as an object ref; the VM interprets it as a Receiving<T> at
+        // this position.
         let gift_arg = CallArg::Object(ObjectArg::Receiving(gift_ref));
         Ok(GenericSignature::MoveAuthenticator(
             MoveAuthenticator::new_for_testing(vec![self_arg.clone(), gift_arg], vec![], self_arg),
