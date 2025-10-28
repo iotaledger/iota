@@ -19,7 +19,7 @@ use crate::{
     BlockHeaderAPI,
     block_header::{Round, VerifiedBlock},
     context::Context,
-    core::{CoreSignalsReceivers, Reason},
+    core::{CoreSignalsReceivers, ReasonToCreateBlock},
     core_thread::CoreThreadDispatcher,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
@@ -101,7 +101,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
 
                 () = &mut min_round_delay_timeout, if !min_round_delay_timed_out && last_own_round.is_some() => {
                     let round_to_create_block: Round = last_own_round.expect("We should expect some last own round") + 1;
-                    match self.dispatcher.new_block(round_to_create_block, Reason::MinRoundTimeout).await {
+                    match self.dispatcher.new_block(round_to_create_block, ReasonToCreateBlock::MinRoundTimeout).await {
                         Ok(missing_committed_txns) => {
                             if !missing_committed_txns.is_empty() {
                                 debug!(
@@ -132,7 +132,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 // if the round has not advanced in the meantime. Otherwise, the max timeout will not get
                 // triggered at all.
                 () = &mut max_leader_timeout, if !max_leader_round_timed_out => {
-                    match self.dispatcher.new_block(quorum_round, Reason::MaxLeaderTimeout).await {
+                    match self.dispatcher.new_block(quorum_round, ReasonToCreateBlock::MaxLeaderTimeout).await {
                         Ok(missing_committed_txns) => {
                             if !missing_committed_txns.is_empty() {
                                 debug!(

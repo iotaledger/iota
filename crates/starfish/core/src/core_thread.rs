@@ -27,7 +27,7 @@ use crate::{
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedOwnShard, VerifiedTransactions},
     commit::CertifiedCommits,
     context::Context,
-    core::{Core, Reason},
+    core::{Core, ReasonToCreateBlock},
     core_thread::CoreError::Shutdown,
     dag_state::{DagState, TransactionSource},
     error::{ConsensusError, ConsensusResult},
@@ -68,7 +68,7 @@ enum CoreThreadCommand {
     NewBlock(
         Round,
         oneshot::Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
-        Reason,
+        ReasonToCreateBlock,
     ),
     /// Request missing blocks that need to be synced together with authorities
     /// that have these blocks.
@@ -143,7 +143,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn new_block(
         &self,
         round: Round,
-        force: Reason,
+        force: ReasonToCreateBlock,
     ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     async fn get_missing_block_headers(
@@ -240,7 +240,7 @@ impl CoreThread {
                     let _scope = monitored_scope("CoreThread::loop::set_last_known_proposed_round");
                     let round = *self.rx_last_known_proposed_round.borrow();
                     self.core.set_last_known_proposed_round(round);
-                    self.core.new_block(round + 1, Reason::KnownLastBlock)?;
+                    self.core.new_block(round + 1, ReasonToCreateBlock::KnownLastBlock)?;
                 }
                 _ = self.rx_quorum_subscribers_exists.changed() => {
                     let _scope = monitored_scope("CoreThread::loop::set_quorum_subscribers_exists");
@@ -250,7 +250,7 @@ impl CoreThread {
                     if !should_propose_before && self.core.should_propose() {
                         // If core cannot propose before but can propose now, try to produce a new block to ensure liveness,
                         // because block proposal could have been skipped.
-                        self.core.new_block(Round::MAX, Reason::QuorumSubscribersExist)?;
+                        self.core.new_block(Round::MAX, ReasonToCreateBlock::QuorumSubscribersExist)?;
                     }
                 }
             }
@@ -439,7 +439,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
     async fn new_block(
         &self,
         round: Round,
-        reason: Reason,
+        reason: ReasonToCreateBlock,
     ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
         let (sender, receiver) = oneshot::channel();
         self.send(CoreThreadCommand::NewBlock(round, sender, reason))

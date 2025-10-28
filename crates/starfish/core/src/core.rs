@@ -109,7 +109,7 @@ pub(crate) struct Core {
 }
 
 #[derive(Eq, PartialEq, Copy, Clone, Debug)]
-pub(crate) enum Reason {
+pub(crate) enum ReasonToCreateBlock {
     MinRoundTimeout,
     AddBlock,
     AddBlockHeader,
@@ -119,28 +119,30 @@ pub(crate) enum Reason {
     KnownLastBlock,
 }
 
-impl Reason {
-    fn to_string(&self) -> &'static str {
+impl ReasonToCreateBlock {
+    fn label(&self) -> &'static str {
         match self {
-            Reason::MinRoundTimeout => "MinRoundTimeout",
-            Reason::AddBlock => "AddBlock",
-            Reason::MaxLeaderTimeout => "MaxLeaderTimeout",
-            Reason::AddBlockHeader => "AddBlockHeader",
-            Reason::Recover => "Recover",
-            Reason::QuorumSubscribersExist => "QuorumSubscribersExist",
-            Reason::KnownLastBlock => "KnownLastBlock",
+            ReasonToCreateBlock::MinRoundTimeout => "MinRoundTimeout",
+            ReasonToCreateBlock::AddBlock => "AddBlock",
+            ReasonToCreateBlock::MaxLeaderTimeout => "MaxLeaderTimeout",
+            ReasonToCreateBlock::AddBlockHeader => "AddBlockHeader",
+            ReasonToCreateBlock::Recover => "Recover",
+            ReasonToCreateBlock::QuorumSubscribersExist => "QuorumSubscribersExist",
+            ReasonToCreateBlock::KnownLastBlock => "KnownLastBlock",
         }
     }
 
+    // Some reason are forcing block creation, bypassing several checks such as
+    // existence of a leader in quorum round and min timeout
     fn is_forced(&self) -> bool {
         match self {
-            Reason::MinRoundTimeout => false,
-            Reason::AddBlock => false,
-            Reason::MaxLeaderTimeout => true,
-            Reason::AddBlockHeader => true,
-            Reason::Recover => true,
-            Reason::QuorumSubscribersExist => true,
-            Reason::KnownLastBlock => true,
+            ReasonToCreateBlock::MinRoundTimeout => false,
+            ReasonToCreateBlock::AddBlock => false,
+            ReasonToCreateBlock::MaxLeaderTimeout => true,
+            ReasonToCreateBlock::AddBlockHeader => true,
+            ReasonToCreateBlock::Recover => true,
+            ReasonToCreateBlock::QuorumSubscribersExist => true,
+            ReasonToCreateBlock::KnownLastBlock => true,
         }
     }
 }
@@ -247,7 +249,7 @@ impl Core {
         // refs can be ignored as the missing transactions will be fetched by the
         // periodic transactions' synchronizer.
         self.try_commit().unwrap();
-        let last_proposed_block = match self.try_propose(Reason::Recover).unwrap() {
+        let last_proposed_block = match self.try_propose(ReasonToCreateBlock::Recover).unwrap() {
             (Some(block), _) => Some(block),
             (None, _) => {
                 let last_proposed_block = self.dag_state.read().recover_last_own_block();
@@ -323,7 +325,7 @@ impl Core {
             let (_subdags, new_missing_committed_txns) = self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
-            self.try_propose(Reason::AddBlock)?;
+            self.try_propose(ReasonToCreateBlock::AddBlock)?;
 
             // Now set up leader timeout if needed.
             // This needs to be called after try_commit() and try_propose(), which may
@@ -385,7 +387,7 @@ impl Core {
             let (_subdags, new_missing_committed_txns) = self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
-            self.try_propose(Reason::AddBlockHeader)?;
+            self.try_propose(ReasonToCreateBlock::AddBlockHeader)?;
 
             // Now set up leader timeout if needed.
             // This needs to be called after try_commit() and try_propose(), which may
@@ -519,7 +521,7 @@ impl Core {
     pub(crate) fn new_block(
         &mut self,
         round: Round,
-        reason: Reason,
+        reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
         BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
@@ -530,7 +532,7 @@ impl Core {
                 .metrics
                 .node_metrics
                 .leader_timeout_total
-                .with_label_values(&[&reason.to_string()])
+                .with_label_values(&[&reason.label()])
                 .inc();
             let result = self.try_propose(reason);
             // The threshold clock round may have advanced, so a signal needs to be sent.
@@ -545,7 +547,7 @@ impl Core {
     // ancestors and if the minimum round delay has passed.
     fn try_propose(
         &mut self,
-        reason: Reason,
+        reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
         BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
@@ -569,7 +571,7 @@ impl Core {
     /// already proposed for latest or earlier round, then no block is
     /// created and None is returned.
     #[instrument(level = "trace", skip_all)]
-    fn try_new_block(&mut self, reason: Reason) -> Option<VerifiedBlock> {
+    fn try_new_block(&mut self, reason: ReasonToCreateBlock) -> Option<VerifiedBlock> {
         let _s = self
             .context
             .metrics
@@ -801,7 +803,7 @@ impl Core {
             .metrics
             .node_metrics
             .proposed_blocks
-            .with_label_values(&[&reason.to_string()])
+            .with_label_values(&[&reason.label()])
             .inc();
 
         Some(verified_block)
