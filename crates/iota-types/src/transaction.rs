@@ -2523,8 +2523,8 @@ impl SenderSignedData {
                 .into_iter()
                 .collect::<HashSet<_>>();
 
-            input_objects_set.extend(move_authenticator.object_to_authenticate().input_objects());
             input_objects_set.extend(move_authenticator.input_objects());
+            input_objects_set.extend(move_authenticator.object_to_authenticate().input_objects());
 
             Ok(input_objects_set.clone().into_iter().collect::<Vec<_>>())
         } else {
@@ -2542,29 +2542,56 @@ impl SenderSignedData {
         input_objects: InputObjects,
     ) -> IotaResult<(InputObjects, Option<InputObjects>, Option<ObjectReadResult>)> {
         if let Some(move_authenticator) = self.sender_move_authenticator() {
-            let tx_input_objects = self.transaction_data().input_objects()?;
-            let tx_input_objects = input_objects
-                .iter()
-                .filter(|o| tx_input_objects.contains(&o.input_object_kind))
-                .cloned()
+            let tx_input_objects = self
+                .transaction_data()
+                .input_objects()?
+                .into_iter()
+                .map(|k| {
+                    input_objects
+                        .iter()
+                        .find(|r| r.input_object_kind == k)
+                        .cloned()
+                        .expect("All transaction input objects are expected to be present")
+                })
                 .collect::<Vec<_>>()
                 .into();
 
-            let auth_input_objects = move_authenticator.input_objects();
-            let auth_input_objects = input_objects
-                .iter()
-                .filter(|o| auth_input_objects.contains(&o.input_object_kind))
-                .cloned()
+            let auth_input_objects = move_authenticator
+                .input_objects()
+                .into_iter()
+                .map(|k| {
+                    input_objects
+                        .iter()
+                        .find(|r| r.input_object_kind == k)
+                        .cloned()
+                        .expect("All authenticator input objects are expected to be present")
+                })
                 .collect::<Vec<_>>()
                 .into();
 
-            let account_object = move_authenticator.object_to_authenticate().input_objects();
-            let account_object = input_objects
-                .iter()
-                .find(|o| account_object.contains(&o.input_object_kind))
-                .cloned();
+            let account_objects = move_authenticator
+                .object_to_authenticate()
+                .input_objects()
+                .into_iter()
+                .map(|k| {
+                    input_objects
+                        .iter()
+                        .find(|r| r.input_object_kind == k)
+                        .cloned()
+                        .expect("Account object is expected to be present")
+                })
+                .collect::<Vec<_>>();
 
-            Ok((tx_input_objects, Some(auth_input_objects), account_object))
+            debug_assert!(
+                account_objects.len() == 1,
+                "Only one account object must be loaded"
+            );
+
+            Ok((
+                tx_input_objects,
+                Some(auth_input_objects),
+                account_objects.into_iter().next(),
+            ))
         } else {
             Ok((input_objects, None, None))
         }
