@@ -1256,6 +1256,7 @@ mod tests {
         transaction::TransactionConsumer,
         transactions_synchronizer::TransactionsSynchronizer,
     };
+    use crate::core::ReasonToCreateBlock;
 
     #[derive(Default)]
     struct FakeNetworkClient {}
@@ -2021,7 +2022,7 @@ mod tests {
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
+            _reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }

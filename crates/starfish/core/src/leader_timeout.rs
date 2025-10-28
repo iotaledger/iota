@@ -42,7 +42,7 @@ pub(crate) struct LeaderTimeoutTask<D: CoreThreadDispatcher> {
     new_round_receiver: watch::Receiver<Round>,
     new_block_receiver: broadcast::Receiver<VerifiedBlock>,
     leader_timeout: Duration,
-    min_round_delay: Duration,
+    min_block_delay: Duration,
     stop: Receiver<()>,
 }
 
@@ -63,7 +63,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
             new_block_receiver: signals_receivers.block_broadcast_receiver(),
             new_round_receiver: signals_receivers.new_round_receiver(),
             leader_timeout: context.parameters.leader_timeout,
-            min_round_delay: context.parameters.min_round_delay,
+            min_block_delay: context.parameters.min_block_delay,
         };
         let handle = tokio::spawn(async move { me.run().await });
 
@@ -79,18 +79,19 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
     /// block within the specified timeout, the task forces the creation of a
     /// new block, maintaining the continuity and robustness of the leader
     /// election process.
+    /// In addition, if min b
     async fn run(&mut self) {
         let new_round = &mut self.new_round_receiver;
         let new_block = &mut self.new_block_receiver.resubscribe();
         let mut quorum_round: Round = *new_round.borrow_and_update();
-        let mut last_own_round: Option<Round> = None;
-        let mut min_round_delay_timed_out = false;
+        let mut last_own_block_round: Option<Round> = None;
+        let mut min_block_delay_timed_out = false;
         let mut max_leader_round_timed_out = false;
         let timer_start = Instant::now();
-        let min_round_delay_timeout = sleep_until(timer_start + self.min_round_delay);
+        let min_block_delay_timeout = sleep_until(timer_start + self.min_block_delay);
         let max_leader_timeout = sleep_until(timer_start + self.leader_timeout);
 
-        tokio::pin!(min_round_delay_timeout);
+        tokio::pin!(min_block_delay_timeout);
         tokio::pin!(max_leader_timeout);
 
         loop {
@@ -99,9 +100,9 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 // If we already timed out before then, the branch gets disabled so we don't attempt
                 // all the time to produce already produced blocks for that round.
 
-                () = &mut min_round_delay_timeout, if !min_round_delay_timed_out && last_own_round.is_some() => {
-                    let round_to_create_block: Round = last_own_round.expect("We should expect some last own round") + 1;
-                    match self.dispatcher.new_block(round_to_create_block, ReasonToCreateBlock::MinRoundTimeout).await {
+                () = &mut min_block_delay_timeout, if !min_block_delay_timed_out && last_own_block_round.is_some() => {
+                    let round_to_create_block: Round = last_own_block_round.expect("We should expect some last own round") + 1;
+                    match self.dispatcher.new_block(round_to_create_block, ReasonToCreateBlock::MinBlockDelayTimeout).await {
                         Ok(missing_committed_txns) => {
                             if !missing_committed_txns.is_empty() {
                                 debug!(
@@ -123,7 +124,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                             return;
                         }
                     }
-                    min_round_delay_timed_out = true;
+                    min_block_delay_timed_out = true;
                 },
                 // When the max leader timer expires then we attempt to trigger the creation of a new block. This
                 // call is made with `force = true` to bypass any checks that allow to propose immediately if block
@@ -171,14 +172,14 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                     .as_mut()
                     .reset(now + self.leader_timeout);
                 },
-                 // A new block was created ---
+                 // A new block was created. Set a timer in min_block_delay
                 Ok(block) = new_block.recv() => {
-                    last_own_round = Some(block.round());
+                    last_own_block_round = Some(block.round());
 
-                    min_round_delay_timed_out = false;
+                    min_block_delay_timed_out = false;
 
                     let now = Instant::now();
-                    min_round_delay_timeout.as_mut().reset(now + self.min_round_delay);
+                    min_block_delay_timeout.as_mut().reset(now + self.min_block_delay);
                 },
                 _ = &mut self.stop => {
                     debug!("Stop signal has been received, now shutting down");
@@ -212,6 +213,7 @@ mod tests {
         storage::mem_store::MemStore,
         transactions_synchronizer::TransactionsSynchronizer,
     };
+    use crate::core::ReasonToCreateBlock;
 
     #[derive(Default)]
     struct FakeNetworkClient {}
@@ -274,7 +276,7 @@ mod tests {
         let min_round_delay = Duration::from_millis(50);
         let parameters = Parameters {
             leader_timeout,
-            min_round_delay,
+            min_block_delay: min_round_delay,
             ..Default::default()
         };
         let context = Arc::new(context.with_parameters(parameters));
@@ -310,9 +312,9 @@ mod tests {
         let all_calls = dispatcher.get_new_block_calls().await;
         assert_eq!(all_calls.len(), 1);
 
-        let (round, force, timestamp) = all_calls[0];
+        let (round, reason, timestamp) = all_calls[0];
         assert_eq!(round, 10);
-        assert!(!force);
+        assert_eq!(reason, ReasonToCreateBlock::MinBlockDelayTimeout);
         assert!(
             min_round_delay <= timestamp - start,
             "Leader timeout min setting {:?} should be less than actual time difference {:?}",
@@ -347,14 +349,14 @@ mod tests {
         let (context, _signers) = Context::new_for_test(4);
         let dispatcher = Arc::new(MockCoreThreadDispatcher::default());
         let leader_timeout = Duration::from_millis(500);
-        let min_round_delay = Duration::from_millis(50);
+        let min_block_delay = Duration::from_millis(50);
         let parameters = Parameters {
             leader_timeout,
-            min_round_delay,
+            min_block_delay,
             ..Default::default()
         };
         let context = Arc::new(context.with_parameters(parameters));
-        let block_verifier = Arc::new(crate::block_verifier::NoopBlockVerifier {});
+        let block_verifier = Arc::new(NoopBlockVerifier {});
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
             Arc::new(FakeNetworkClient::default()),
@@ -380,24 +382,24 @@ mod tests {
         );
 
         // now send some signals with some small delay between them, but not enough so
-        // every round manages to timeout and call the force new block method.
+        // every round manages to timeout and call the new block method.
         signals.new_round(13);
-        sleep(min_round_delay / 2).await;
+        sleep(min_block_delay / 2).await;
         signals.new_round(14);
-        sleep(min_round_delay / 2).await;
+        sleep(min_block_delay / 2).await;
         signals.new_round(15);
         sleep(2 * leader_timeout).await;
 
         // only the last one should be received
         let all_calls = dispatcher.get_new_block_calls().await;
-        let (round, force, timestamp) = all_calls[0];
+        let (round, reason, timestamp) = all_calls[0];
         assert_eq!(round, 15);
-        assert!(!force);
-        assert!(min_round_delay < timestamp - now);
+        assert_eq!(reason, ReasonToCreateBlock::MinBlockDelayTimeout);
+        assert!(min_block_delay < timestamp - now);
 
-        let (round, force, timestamp) = all_calls[1];
+        let (round, reason, timestamp) = all_calls[1];
         assert_eq!(round, 15);
-        assert!(force);
+        assert_eq!(reason, ReasonToCreateBlock::MaxLeaderTimeout);
         assert!(leader_timeout < timestamp - now);
     }
 }

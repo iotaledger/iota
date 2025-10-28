@@ -28,13 +28,13 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_leader_timeout")]
     pub leader_timeout: Duration,
 
-    /// Minimum delay between rounds, to avoid generating too many rounds when
+    /// Minimum delay between own blocks. This avoids generating too many rounds when
     /// latency is low. This is especially necessary for tests running
     /// locally. If setting a non-default value, it should be set low enough
     /// to avoid reducing round rate and increasing latency in realistic and
     /// distributed configurations.
-    #[serde(default = "Parameters::default_min_round_delay")]
-    pub min_round_delay: Duration,
+    #[serde(default = "Parameters::default_min_block_delay")]
+    pub min_block_delay: Duration,
 
     /// Maximum forward time drift (how far in future) allowed for received
     /// blocks.
@@ -104,8 +104,8 @@ impl Parameters {
         Duration::from_millis(250)
     }
 
-    pub(crate) fn default_min_round_delay() -> Duration {
-        if cfg!(msim) || std::env::var("__TEST_ONLY_CONSENSUS_USE_LONG_MIN_ROUND_DELAY").is_ok() {
+    pub(crate) fn default_min_block_delay() -> Duration {
+        if cfg!(msim) || std::env::var("__TEST_ONLY_CONSENSUS_USE_LONG_MIN_BLOCK_DELAY").is_ok() {
             // Checkpoint building and execution cannot keep up with high commit rate in
             // simtests, leading to long reconfiguration delays. This is because
             // simtest is single threaded, and spending too much time in
@@ -115,6 +115,7 @@ impl Parameters {
             // Avoid excessive CPU, data and logs in tests.
             Duration::from_millis(250)
         } else {
+            // For production, use min delay between block being set to 50ms, reducing the block rate to 20 blocks/sec
             Duration::from_millis(50)
         }
     }
@@ -203,7 +204,7 @@ impl Default for Parameters {
         Self {
             db_path: PathBuf::default(),
             leader_timeout: Parameters::default_leader_timeout(),
-            min_round_delay: Parameters::default_min_round_delay(),
+            min_block_delay: Parameters::default_min_block_delay(),
             max_forward_time_drift: Parameters::default_max_forward_time_drift(),
             max_headers_per_commit_sync_fetch:
                 Parameters::default_max_headers_per_commit_sync_fetch(),

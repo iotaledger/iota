@@ -143,7 +143,7 @@ pub trait CoreThreadDispatcher: Sync + Send + 'static {
     async fn new_block(
         &self,
         round: Round,
-        force: ReasonToCreateBlock,
+        reason: ReasonToCreateBlock,
     ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError>;
 
     async fn get_missing_block_headers(
@@ -501,7 +501,7 @@ pub(crate) mod tests {
         block_headers: Mutex<Vec<VerifiedBlockHeader>>,
         missing_block_headers: parking_lot::Mutex<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
         last_known_proposed_round: Mutex<Vec<Round>>,
-        new_block_calls: Arc<Mutex<Vec<(Round, bool, Instant)>>>,
+        new_block_calls: Arc<Mutex<Vec<(Round, ReasonToCreateBlock, Instant)>>>,
         quorum_subscribers_exists: Mutex<bool>,
     }
 
@@ -536,7 +536,7 @@ pub(crate) mod tests {
             last_known_proposed_round.clone()
         }
 
-        pub(crate) async fn get_new_block_calls(&self) -> Vec<(Round, bool, Instant)> {
+        pub(crate) async fn get_new_block_calls(&self) -> Vec<(Round, ReasonToCreateBlock, Instant)> {
             let mut binding = self.new_block_calls.lock();
             let all_calls = binding.drain(0..);
             all_calls.into_iter().collect()
@@ -616,11 +616,11 @@ pub(crate) mod tests {
         async fn new_block(
             &self,
             round: Round,
-            force: bool,
+            reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             self.new_block_calls
                 .lock()
-                .push((round, force, Instant::now()));
+                .push((round, reason, Instant::now()));
             Ok(BTreeMap::new())
         }
 
