@@ -29,9 +29,5 @@ export function CookieDisclaimer() {
             document.cookie = `${COOKIES_KEY}=false; max-age=31536000`;
         },
     };
-    return (
-        <>
-            <CookieManager configuration={configuration} />
-        </>
-    );
+    return <CookieManager configuration={configuration} />;
 }
