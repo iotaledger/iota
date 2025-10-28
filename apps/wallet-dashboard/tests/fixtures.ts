@@ -65,9 +65,26 @@ export const test = base.extend<{
     ],
 
     extensionUrl: async ({ context }, use) => {
+        if (sharedState.extension.url) {
+            await use(sharedState.extension.url);
+            return;
+        }
+
         let [background] = context.serviceWorkers();
+
         if (!background) {
-            background = await context.waitForEvent('serviceworker');
+            const maxAttempts = 60;
+            const delayMs = 500;
+
+            for (let i = 0; i < maxAttempts; i++) {
+                [background] = context.serviceWorkers();
+                if (background) break;
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+
+            if (!background) {
+                throw new Error('Extension service worker failed to load');
+            }
         }
 
         const extensionId = background.url().split('/')[2];
