@@ -794,7 +794,7 @@ async fn test_congestion_control_debt_tracking() {
         .pop()
         .unwrap();
     if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_1_debt {
-        assert_eq!(debt, 1 * default_tx_gas_budget);
+        assert_eq!(debt, default_tx_gas_budget);
         assert_eq!(commit_round, 5);
     } else {
         panic!("Unexpected debt stored in consensus quarantine.");
