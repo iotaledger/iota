@@ -658,21 +658,6 @@ impl Core {
                 .observe(clock_round.saturating_sub(ancestor.round()).into());
         }
 
-        // Record timestamp drift but don't enforce ancestor timestamp checks.
-        let now = self.context.clock.timestamp_utc_ms();
-        ancestors.iter().for_each(|block| {
-            if block.timestamp_ms() > now {
-                trace!("Ancestor block {block:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {clock_round}.",  block.timestamp_ms());
-                let authority = &self.context.committee.authority(block.author()).hostname;
-                self.context
-                    .metrics
-                    .node_metrics
-                    .proposed_block_ancestors_timestamp_drift_ms
-                    .with_label_values(&[authority])
-                    .inc_by(block.timestamp_ms().saturating_sub(now));
-            }
-        });
-
         // Consume the next transactions to be included. Do not drop the guards yet as
         // this would acknowledge the inclusion of transactions. Just let this
         // be done in the end of the method.
@@ -726,6 +711,21 @@ impl Core {
             .dag_state
             .write()
             .take_commit_votes(MAX_COMMIT_VOTES_PER_BLOCK);
+
+        // Get current timestamp and record drift but don't enforce ancestor timestamp checks.
+        let now = self.context.clock.timestamp_utc_ms();
+        ancestors.iter().for_each(|block| {
+            if block.timestamp_ms() > now {
+                trace!("Ancestor block {block:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {clock_round}.",  block.timestamp_ms());
+                let authority = &self.context.committee.authority(block.author()).hostname;
+                self.context
+                    .metrics
+                    .node_metrics
+                    .proposed_block_ancestors_timestamp_drift_ms
+                    .with_label_values(&[authority])
+                    .inc_by(block.timestamp_ms().saturating_sub(now));
+            }
+        });
 
         // Create the block and insert to storage.
         let block_header = BlockHeader::V1(BlockHeaderV1::new(
