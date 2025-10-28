@@ -597,7 +597,7 @@ impl Core {
         // to a leader timeout, or because we are actually ready to produce the
         // block (leader exists and min delay has passed).
         if !reason.is_forced() {
-            if !self.leader_exist(quorum_round) {
+            if !self.leaders_exist(quorum_round) {
                 return None;
             }
 
