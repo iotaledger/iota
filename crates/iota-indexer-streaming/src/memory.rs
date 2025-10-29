@@ -16,7 +16,7 @@ use std::{
     str::FromStr,
     sync::Arc,
     task::{Context, Poll},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use futures::{Stream, StreamExt, TryFutureExt, stream};
@@ -497,6 +497,8 @@ struct SubscriberStream<T> {
     lagging_subscribers: IntGauge,
     /// Tracks if this subscriber is currently lagged.
     is_lagging: bool,
+    /// Timer to track lag duration.
+    lag_start: Option<Instant>,
 }
 
 impl<T> SubscriberStream<T> {
@@ -515,6 +517,7 @@ impl<T> SubscriberStream<T> {
             active_subscriber_number,
             lagging_subscribers,
             is_lagging: false,
+            lag_start: None,
         }
     }
 }
@@ -524,21 +527,28 @@ impl<T> Drop for SubscriberStream<T> {
         self.active_subscriber_number.dec();
     }
 }
-
 impl<T: Clone + Send + 'static> Stream for SubscriberStream<T> {
     type Item = Result<T, BroadcastStreamRecvError>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // check if we should clear the lag flag (independent of message arrival)
+        if self.is_lagging
+            && self
+                .lag_start
+                .as_ref()
+                .is_some_and(|instant| instant.elapsed() >= Duration::from_secs(1))
+        {
+            self.lagging_subscribers.dec();
+            self.is_lagging = false;
+            self.lag_start = None;
+        }
+
         let poll = Pin::new(&mut self.inner).poll_next(cx);
 
-        if let Poll::Ready(Some(Ok(_))) = poll {
-            if self.is_lagging {
-                self.lagging_subscribers.dec();
-                self.is_lagging = false;
-            }
-        } else if let Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(_)))) = poll {
+        if let Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(_)))) = poll {
             if !self.is_lagging {
                 self.lagging_subscribers.inc();
+                _ = self.lag_start.get_or_insert(Instant::now());
                 self.is_lagging = true;
             }
         }
