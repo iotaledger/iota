@@ -227,7 +227,7 @@ mod tests {
         block_header::{BlockRef, genesis_block_headers, genesis_blocks},
         commit::{CommitRef, PendingSubDag},
         context::Context,
-        dag_state::DagState,
+        dag_state::{DagState, TransactionSource},
         test_dag_builder::DagBuilder,
     };
 
@@ -286,7 +286,10 @@ mod tests {
                 for (i, block) in genesis_blocks.iter().enumerate() {
                     state.accept_block_header(block.verified_block_header.clone());
                     if !excluded_transactions.contains(&(0, i)) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 }
             }
@@ -301,7 +304,10 @@ mod tests {
                 for (i, block) in blocks.iter().enumerate() {
                     state.accept_block_header(block.verified_block_header.clone());
                     if !excluded_transactions.contains(&(round, i)) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 }
             }
@@ -333,12 +339,18 @@ mod tests {
                 if round == 0 {
                     let genesis_blocks = genesis_blocks(&self.context);
                     if let Some(block) = genesis_blocks.get(block_index) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 } else {
                     let blocks = self.dag_builder.blocks(round..=round);
                     if let Some(block) = blocks.get(block_index) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 }
             }

@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress, useUnlockedGuard } from '_hooks';
+import { useActiveAddress, useUnlockedGuard, useShouldOpenInNewTab } from '_hooks';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useNftDetails, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
@@ -10,12 +10,14 @@ import cl from 'clsx';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
+import { openInNewTab } from '_src/shared/utils';
 
 export function NFTDetailsPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const nftId = searchParams.get('objectId');
     const accountAddress = useActiveAddress();
+    const shouldOpenNewTab = useShouldOpenInNewTab();
     const {
         nftDisplayData,
         isLoading,
@@ -45,8 +47,13 @@ export function NFTDetailsPage() {
         window.open(url, '_blank', 'noopener noreferrer');
     }
 
-    function handleSend() {
-        navigate(`/nft-transfer/${nftId}`);
+    async function handleSend() {
+        const destination = `/nft-transfer/${nftId}`;
+        if (shouldOpenNewTab) {
+            openInNewTab(destination);
+        } else {
+            navigate(destination);
+        }
     }
 
     return (

@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use iota_config::local_ip_utils;
-use iota_grpc_api::client::{CheckpointClient, NodeClient};
+use iota_grpc_client::{CheckpointClient, NodeClient};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
 async fn setup_test_cluster_and_client() -> (TestCluster, CheckpointClient) {
@@ -50,7 +50,7 @@ async fn e2e_stream_checkpoints() {
         while let Some(res) = stream.next().await {
             match res {
                 Ok(checkpoint_content) => match checkpoint_content {
-                    iota_grpc_api::client::CheckpointContent::Summary(summary) => match summary {
+                    iota_grpc_client::CheckpointContent::Summary(summary) => match summary {
                         iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(
                             v1_summary,
                         ) => {
@@ -61,7 +61,7 @@ async fn e2e_stream_checkpoints() {
                             }
                         }
                     },
-                    iota_grpc_api::client::CheckpointContent::Data(_) => {
+                    iota_grpc_client::CheckpointContent::Data(_) => {
                         panic!("Expected summary, got data");
                     }
                 },
@@ -109,7 +109,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
         while let Some(res) = stream.next().await {
             match res {
                 Ok(checkpoint_content) => match checkpoint_content {
-                    iota_grpc_api::client::CheckpointContent::Summary(summary) => match summary {
+                    iota_grpc_client::CheckpointContent::Summary(summary) => match summary {
                         iota_grpc_types::checkpoints::CertifiedCheckpointSummary::V1(
                             v1_summary,
                         ) => {
@@ -121,7 +121,7 @@ async fn test_get_epoch_first_checkpoint_sequence_number() {
                             }
                         }
                     },
-                    iota_grpc_api::client::CheckpointContent::Data(_) => {
+                    iota_grpc_client::CheckpointContent::Data(_) => {
                         panic!("Expected summary, got data");
                     }
                 },
@@ -165,14 +165,14 @@ async fn test_stream_full_checkpoint_data() {
         if let Some(res) = stream.next().await {
             match res {
                 Ok(checkpoint_content) => match checkpoint_content {
-                    iota_grpc_api::client::CheckpointContent::Data(checkpoint_data) => {
+                    iota_grpc_client::CheckpointContent::Data(checkpoint_data) => {
                         match checkpoint_data {
                             iota_grpc_types::checkpoints::CheckpointData::V1(v1_data) => {
                                 assert_eq!(v1_data.checkpoint_summary.sequence_number, 2);
                             }
                         }
                     }
-                    iota_grpc_api::client::CheckpointContent::Summary(_) => {
+                    iota_grpc_client::CheckpointContent::Summary(_) => {
                         panic!("Expected data, got summary");
                     }
                 },

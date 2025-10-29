@@ -7,7 +7,7 @@ import {
     isTransactionApprovalRequest,
 } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
 import { useEffect, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Loading } from '_components';
 import { useAppSelector } from '_hooks';
 import { type RootState } from '../../redux/rootReducer';
@@ -17,6 +17,7 @@ import { TransactionRequest } from './transaction-request';
 
 export function ApprovalRequestPage() {
     const { requestID } = useParams();
+    const navigate = useNavigate();
     const requestSelector = useMemo(
         () => (state: RootState) =>
             (requestID && txRequestsSelectors.selectById(state, requestID)) || null,
@@ -26,11 +27,13 @@ export function ApprovalRequestPage() {
     const requestsLoading = useAppSelector(
         ({ transactionRequests }) => !transactionRequests.initialized,
     );
+
     useEffect(() => {
-        if (!requestsLoading && (!request || (request && request.approved !== null))) {
-            window.close();
+        if (!request && !requestsLoading) {
+            navigate('/tokens');
         }
-    }, [requestsLoading, request]);
+    }, [request, requestsLoading]);
+
     return (
         <Loading loading={requestsLoading}>
             {request ? (
