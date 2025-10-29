@@ -89,7 +89,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
         package: ObjectID,
     ) -> Result<BTreeMap<String, NormalizedModule>, Error> {
         let object_read = self.get_state().get_object_read(&package).tap_err(|_| {
-            warn!("Failed to call get_move_modules_by_package for package: {package:?}");
+            warn!("failed to call get_move_modules_by_package for package: {package:?}");
         })?;
 
         match object_read {
@@ -104,7 +104,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
                             &binary_config,
                         )
                         .map_err(|e| {
-                            error!("Failed to call get_move_modules_by_package for package: {package:?}");
+                            error!("failed to call get_move_modules_by_package for package: {package:?}");
                             Error::from(e)
                         })
                     }

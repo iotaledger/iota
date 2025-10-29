@@ -271,7 +271,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
             self.task_name, self.concurrency
         );
         // This channel will be used to send progress data from Workers to WorkerPool
-        // mian loop.
+        // main loop.
         let (progress_sender, mut progress_receiver) = mpsc::channel(MAX_CHECKPOINTS_IN_PROGRESS);
         // This channel will be used to send Workers progress data from WorkerPool to
         // watermark tracking task.
@@ -299,16 +299,17 @@ impl<W: Worker + 'static> WorkerPool<W> {
                     match worker_progress_msg {
                         WorkerStatus::Running((worker_id, checkpoint_number, message)) => {
                             idle.insert(worker_id);
-                            if watermark_sender.send((checkpoint_number, message)).await.is_err() {
-                                break;
-                            }
+                            // Try to send progress to reducer. If it fails (reducer has exited),
+                            // we just continue - we still need to wait for all workers to shutdown.
+                            let _ = watermark_sender.send((checkpoint_number, message)).await;
+
                             // By checking if token was not cancelled we ensure that no
                             // further checkpoints will be sent to the workers.
                             while !token.is_cancelled() && !checkpoints.is_empty() && !idle.is_empty() {
                                 let checkpoint = checkpoints.pop_front().unwrap();
                                 let worker_id = idle.pop_first().unwrap();
                                 if workers[worker_id].send(checkpoint).await.is_err() {
-                                    // The worker channel closing is a sign we need to exit this loop.
+                                    // The worker channel closing is a sign we need to exit this inner loop.
                                     break;
                                 }
                             }
@@ -334,9 +335,10 @@ impl<W: Worker + 'static> WorkerPool<W> {
                         checkpoints.push_back(checkpoint);
                     } else {
                         let worker_id = idle.pop_first().unwrap();
-                        if workers[worker_id].send(checkpoint).await.is_err() {
-                            // The worker channel closing is a sign we need to exit this loop.
-                            break;
+                        // If worker channel is closed, put the checkpoint back in queue
+                        // and continue - we still need to wait for all worker shutdown signals.
+                        if let Err(send_error) = workers[worker_id].send(checkpoint).await {
+                            checkpoints.push_front(send_error.0);
                         };
                     }
                 }
@@ -461,7 +463,7 @@ impl<W: Worker + 'static> WorkerPool<W> {
             // get next backoff duration or panic if max retries exceeded.
             let duration = backoff
                 .next_backoff()
-                .expect("max elapsed time exceeded: checkpoint processing failed for checkpoint");
+                .expect("max elapsed time exceeded: checkpoint processing failed for checkpoint {sequence_number}");
             // if cancellation occurs during backoff wait, exit early with Shutdown.
             // Otherwise (if timeout expires), continue with the next retry attempt.
             if tokio::time::timeout(duration, token.cancelled())

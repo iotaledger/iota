@@ -20,6 +20,7 @@ use crate::{
     commit_syncer::{CommitSyncer, CommitSyncerHandle},
     commit_vote_monitor::CommitVoteMonitor,
     context::{Clock, Context},
+    cordial_knowledge::{CordialKnowledge, CordialKnowledgeHandle},
     core::{Core, CoreSignals},
     core_thread::{ChannelCoreThreadDispatcher, CoreThreadHandle},
     dag_state::DagState,
@@ -43,6 +44,7 @@ pub struct ConsensusAuthority {
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
     shard_reconstructor: Arc<ShardReconstructorHandle>,
+    cordial_knowledge: Arc<CordialKnowledgeHandle>,
     commit_syncer_handle: CommitSyncerHandle,
     leader_timeout_handle: LeaderTimeoutTaskHandle,
     core_thread_handle: CoreThreadHandle,
@@ -57,6 +59,7 @@ impl ConsensusAuthority {
     /// It ensures that the authority node is fully initialized and
     /// ready to participate in the consensus process.
     pub async fn start(
+        epoch_start_timestamp_ms: u64,
         own_index: AuthorityIndex,
         committee: Committee,
         parameters: Parameters,
@@ -65,6 +68,7 @@ impl ConsensusAuthority {
         // kept in Core.
         protocol_keypair: ProtocolKeyPair,
         network_keypair: NetworkKeyPair,
+        clock: Arc<Clock>,
         transaction_verifier: Arc<dyn TransactionVerifier>,
         commit_consumer: CommitConsumer,
         registry: Registry,
@@ -89,12 +93,13 @@ impl ConsensusAuthority {
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
         let context = Arc::new(Context::new(
+            epoch_start_timestamp_ms,
             own_index,
             committee,
             parameters,
             protocol_config,
             initialise_metrics(registry),
-            Arc::new(Clock::new()),
+            clock,
         ));
         let start_time = Instant::now();
 
@@ -113,6 +118,8 @@ impl ConsensusAuthority {
         let store_path = context.parameters.db_path.as_path().to_str().unwrap();
         let store = Arc::new(RocksDBStore::new(store_path));
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
+
+        let cordial_knowledge = CordialKnowledge::start(context.clone(), dag_state.clone());
 
         let highest_known_commit_at_startup = dag_state.read().last_commit_index();
 
@@ -224,6 +231,7 @@ impl ConsensusAuthority {
             dag_state.clone(),
             store,
             shard_reconstructor.transaction_message_sender(),
+            cordial_knowledge.clone(),
         ));
 
         let subscriber = Subscriber::new(
@@ -251,6 +259,7 @@ impl ConsensusAuthority {
             transaction_client: Arc::new(tx_client),
             synchronizer,
             shard_reconstructor,
+            cordial_knowledge,
             transactions_synchronizer,
             commit_consumer_monitor,
             commit_syncer_handle,
@@ -299,6 +308,16 @@ impl ConsensusAuthority {
                 e
             );
         };
+
+        if let Err(e) = self.cordial_knowledge.stop().await {
+            if e.is_panic() {
+                std::panic::resume_unwind(e.into_panic());
+            }
+            warn!(
+                "Failed to stop cordial knowledge manager when shutting down consensus: {:?}",
+                e
+            );
+        }
 
         self.commit_syncer_handle.stop().await;
         self.leader_timeout_handle.stop().await;
@@ -383,12 +402,14 @@ mod tests {
         let commit_consumer = CommitConsumer::new(sender, 0);
 
         let authority = ConsensusAuthority::start(
+            0,
             own_index,
             committee,
             parameters,
             ProtocolConfig::get_for_max_version_UNSAFE(),
             protocol_keypair,
             network_keypair,
+            Arc::new(Clock::default()),
             Arc::new(txn_verifier),
             commit_consumer,
             registry,
@@ -896,12 +917,14 @@ mod tests {
         let consensus_consumer_monitor = commit_consumer.monitor();
 
         let authority = ConsensusAuthority::start(
+            0,
             index,
             committee,
             parameters,
             protocol_config,
             protocol_keypair,
             network_keypair,
+            Arc::new(Clock::default()),
             Arc::new(txn_verifier),
             commit_consumer,
             registry,

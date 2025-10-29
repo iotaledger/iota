@@ -94,6 +94,7 @@ mod checked {
         Ok((gas_status, input_objects.into_checked()))
     }
 
+    #[instrument(level = "trace", skip_all, fields(tx_digest = ?transaction.digest()))]
     pub fn check_transaction_input_with_given_gas(
         protocol_config: &ProtocolConfig,
         reference_gas_price: u64,
@@ -155,6 +156,7 @@ mod checked {
 
     /// WARNING! This should only be used for the dev-inspect transaction. This
     /// transaction type bypasses many of the normal object checks
+    #[instrument(level = "trace", skip_all)]
     pub fn check_dev_inspect_input(
         config: &ProtocolConfig,
         kind: &TransactionKind,

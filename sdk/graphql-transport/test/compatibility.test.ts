@@ -57,8 +57,10 @@ describe('GraphQL IotaClient compatibility', () => {
 
         transactionBlockDigest = result.digest;
 
-        await toolbox.client.waitForTransaction({ digest: transactionBlockDigest });
-        await graphQLClient.waitForTransaction({ digest: transactionBlockDigest });
+        await toolbox.client.waitForTransaction({
+            digest: transactionBlockDigest,
+            waitMode: 'checkpoint',
+        });
     });
 
     test('getRpcApiVersion', async () => {
@@ -90,16 +92,6 @@ describe('GraphQL IotaClient compatibility', () => {
         expect(graphQLCoins).toEqual(rpcCoins);
     });
 
-    test('getBalance', async () => {
-        const rpcCoins = await toolbox.client.getBalance({
-            owner: toolbox.address(),
-        });
-        const graphQLCoins = await graphQLClient!.getBalance({
-            owner: toolbox.address(),
-        });
-
-        expect(graphQLCoins).toEqual(rpcCoins);
-    });
     test('getBalance', async () => {
         const rpcBalance = await toolbox.client.getBalance({
             owner: toolbox.address(),
@@ -626,9 +618,6 @@ describe('GraphQL IotaClient compatibility', () => {
             },
         });
 
-        await toolbox.client.waitForTransaction({ digest: transaction.digest });
-        await graphQLClient.waitForTransaction({ digest: transaction.digest });
-
         const {
             checkpoint: gCheckpoint,
             timestampMs: gTimestampMs,
@@ -820,7 +809,7 @@ describe('GraphQL IotaClient compatibility', () => {
         const [coin] = tx.splitCoins(tx.gas, [1]);
         tx.transferObjects([coin], toolbox.address());
 
-        const transaction = await graphQLClient!.signAndExecuteTransaction({
+        let transaction = await graphQLClient!.signAndExecuteTransaction({
             transaction: tx as Transaction,
             signer: toolbox.keypair,
             options: {
@@ -834,37 +823,24 @@ describe('GraphQL IotaClient compatibility', () => {
             },
         });
 
-        expect(
-            await toolbox.client.isTransactionIndexedOnNode({ digest: transaction.digest }),
-        ).toEqual(false);
-        expect(
-            await graphQLClient.isTransactionIndexedOnNode({ digest: transaction.digest }),
-        ).toEqual(false);
+        transaction = await toolbox.client.waitForTransaction({
+            digest: transaction.digest,
+            waitMode: 'indexed-on-node',
+        });
+        transaction = await graphQLClient.waitForTransaction({
+            digest: transaction.digest,
+            waitMode: 'indexed-on-node',
+        });
 
-        await toolbox.client.waitForTransaction({ digest: transaction.digest });
-
-        let result = null;
-        for (const _ of Array.from({ length: 5 })) {
-            try {
-                result = await toolbox.client.isTransactionIndexedOnNode({
-                    digest: transaction.digest,
-                });
-                if (result) {
-                    break;
-                } else {
-                    await new Promise((r) => {
-                        setTimeout(r, 2000);
-                    });
-                }
-
-                // eslint-disable-next-line no-empty
-            } catch (e) {}
-        }
-        expect(result).toEqual(true);
-
-        await graphQLClient.waitForTransaction({ digest: transaction.digest });
-        expect(
-            await graphQLClient.isTransactionIndexedOnNode({ digest: transaction.digest }),
-        ).toEqual(true);
+        transaction = await toolbox.client.waitForTransaction({
+            digest: transaction.digest,
+            waitMode: 'checkpoint',
+        });
+        expect(transaction.checkpoint).toBeDefined();
+        transaction = await graphQLClient.waitForTransaction({
+            digest: transaction.digest,
+            waitMode: 'checkpoint',
+        });
+        expect(transaction.checkpoint).toBeDefined();
     });
 });

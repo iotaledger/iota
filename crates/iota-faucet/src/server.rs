@@ -85,7 +85,7 @@ pub async fn start_faucet(
     });
 
     let addr = SocketAddr::new(IpAddr::V4(host_ip), port);
-    info!("listening on {}", addr);
+    info!("listening on {addr}");
 
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
     axum::serve(listener, app).await?;
@@ -135,7 +135,7 @@ async fn batch_request_gas(
                 (StatusCode::ACCEPTED, Json(BatchFaucetResponse::from(v)))
             }
             Err(v) => {
-                warn!(uuid =?id, "Failed to request gas: {:?}", v);
+                warn!(uuid =?id, "failed to request gas: {v:?}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(BatchFaucetResponse::from(v)),
@@ -165,7 +165,7 @@ async fn batch_request_gas(
                 (StatusCode::ACCEPTED, Json(BatchFaucetResponse::from(id)))
             }
             Err(v) => {
-                warn!(uuid =?id, "Failed to request gas: {:?}", v);
+                warn!(uuid =?id, "failed to request gas: {v:?}");
                 (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(BatchFaucetResponse::from(v)),
@@ -243,7 +243,7 @@ async fn request_gas(
             (StatusCode::CREATED, Json(FaucetResponse::from(v)))
         }
         Err(v) => {
-            warn!(uuid =?id, "Failed to request gas: {:?}", v);
+            warn!(uuid =?id, "failed to request gas: {v:?}");
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(FaucetResponse::from(v)),
@@ -257,7 +257,7 @@ pub fn create_wallet_context(
     config_dir: PathBuf,
 ) -> Result<WalletContext, anyhow::Error> {
     let wallet_conf = config_dir.join(IOTA_CLIENT_CONFIG);
-    info!("Initialize wallet from config path: {:?}", wallet_conf);
+    info!("Initialize wallet from config path: {wallet_conf:?}");
     WalletContext::new(
         &wallet_conf,
         Some(Duration::from_secs(timeout_secs)),

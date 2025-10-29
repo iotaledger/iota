@@ -70,7 +70,7 @@ impl CheckpointReader {
             } => {
                 _ = exit_sender.send(());
                 handle.await.map_err(|err| IngestionError::Shutdown {
-                    component: "Checkpoint Reader".into(),
+                    component: "checkpoint reader".into(),
                     msg: err.to_string(),
                 })?
             }
@@ -314,7 +314,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                 // Shutdown worker pools
                 for worker_pool in worker_pools {
                     worker_pool.await.map_err(|err| IngestionError::Shutdown {
-                        component: "Worker Pool".into(),
+                        component: "worker pool".into(),
                         msg: err.to_string(),
                     })?;
                 }

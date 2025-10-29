@@ -98,7 +98,7 @@ export async function connectL2Wallet(page: Page, browserContext: BrowserContext
 
     await connectButton.click();
 
-    const metamaskButton = page.getByTestId(/metamask/);
+    const metamaskButton = page.getByRole('button', { name: 'MetaMask', exact: true });
     await metamaskButton.waitFor({ state: 'visible', timeout: 10000 });
 
     const approveDialogPromise = waitForMetaMaskDialog(browserContext, page, 30000);

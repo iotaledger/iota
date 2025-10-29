@@ -6,14 +6,15 @@ use diesel::{BoolExpressionMethods, ExpressionMethods, JoinOnDsl, QueryDsl, Sele
 use fastcrypto::encoding::Base64;
 use iota_indexer::{
     models::transactions::{OptimisticTransaction, StoredTransaction},
-    optimistic_indexing::OptimisticTransactionExecutor,
     schema::{optimistic_transactions, transactions, tx_digests, tx_global_order},
 };
+use iota_json_rpc_api::WriteApiServer;
 use iota_json_rpc_types::IotaTransactionBlockResponseOptions;
 
 use crate::{
     data::{Db, DbConnection, QueryExecutor},
     error::Error,
+    server::builder::get_write_api,
     types::{
         execution_result::ExecutionResult, transaction_block::TransactionBlock,
         transaction_block_effects::TransactionBlockEffects,
@@ -80,31 +81,20 @@ impl Mutation {
     /// that was not possible. A transaction is final when its effects are
     /// guaranteed on chain (it cannot be revoked).
     ///
-    /// There may be a delay between transaction finality and when GraphQL
-    /// requests (including the request that issued the transaction) reflect
-    /// its effects. As a result, queries that depend on indexing the state
-    /// of the chain (e.g. contents of output objects, address-level balance
-    /// information at the time of the transaction), must wait for indexing to
-    /// catch up by polling for the transaction digest using
-    /// `Query.transactionBlock`.
+    /// Transaction effects are now available immediately after execution
+    /// through `Query.transactionBlock`. However, other queries that depend
+    /// on the chain’s indexed state (e.g., address-level balance updates)
+    /// may still lag until the transaction has been checkpointed.
+    /// To confirm that a transaction has been included in a checkpoint, query
+    /// `Query.transactionBlock` and check whether the `effects.checkpoint`
+    /// field is set (or `null` if not yet checkpointed).
     async fn execute_transaction_block(
         &self,
         ctx: &Context<'_>,
         tx_bytes: String,
         signatures: Vec<String>,
     ) -> Result<ExecutionResult> {
-        let optimistic_tx_executor: &Option<OptimisticTransactionExecutor> = ctx
-            .data()
-            .map_err(|_| {
-                Error::Internal("Unable to fetch OptimisticTransactionExecutor".to_string())
-            })
-            .extend()?;
-        let optimistic_tx_executor = optimistic_tx_executor
-            .as_ref()
-            .ok_or_else(|| {
-                Error::Internal("OptimisticTransactionExecutor not initialized".to_string())
-            })
-            .extend()?;
+        let write_api = get_write_api(ctx).extend()?;
         let tx_data = Base64::try_from(tx_bytes)
             .map_err(|e| {
                 Error::Client(format!(
@@ -130,8 +120,8 @@ impl Mutation {
             .with_raw_input()
             .with_raw_effects();
 
-        let result = optimistic_tx_executor
-            .execute_and_index_transaction(tx_data, sigs, Some(options))
+        let result = write_api
+            .execute_transaction_block(tx_data, sigs, Some(options), None)
             .await
             .map_err(|e| Error::Internal(format!("Unable to execute transaction: {e}")))
             .extend()?;

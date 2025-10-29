@@ -185,7 +185,14 @@ def extract_notes(commit_or_pr, seen, is_pr):
         pr = commit_or_pr
         notes = extract_notes_from_pr(pr)
     else:
-        pr, notes = extract_notes_from_commit(commit_or_pr)
+        # Try to get the PR number from the commit message or fallback to the
+        # one returned from the Github API
+        match = RE_PR.match(git("show", "-s", "--format=%B", commit_or_pr))
+        if match:
+            pr = match.group(1)
+            notes = extract_notes_from_pr(pr)
+        else:
+            pr, notes = extract_notes_from_commit(commit_or_pr)
 
     result = {}
 

@@ -440,10 +440,10 @@ async fn get_all_coins() {
         .await
         .unwrap();
 
-    assert!(!rpc_all_coins.data.is_empty(), "Should have some coins");
+    assert!(!rpc_all_coins.data.is_empty(), "should have some coins");
     assert!(
         !rpc_all_coins.has_next_page,
-        "Should not have next page initially"
+        "should not have next page initially"
     );
 
     let fullnode_coins = cluster
@@ -489,10 +489,10 @@ async fn get_all_coins_with_multiple_coin_types() {
             .any(|coin| coin.coin_type.contains(&coin_name))
     );
 
-    assert!(!rpc_all_coins.data.is_empty(), "Should have some coins");
+    assert!(!rpc_all_coins.data.is_empty(), "should have some coins");
     assert!(
         !rpc_all_coins.has_next_page,
-        "Should not have next page initially"
+        "should not have next page initially"
     );
 
     let fullnode_coins = cluster
@@ -519,14 +519,14 @@ async fn get_all_coins_with_limit() {
         .get_all_coins(address, None, Some(2))
         .await
         .unwrap();
-    assert_eq!(2, result_with_limit.data.len(), "Should return 2 coins");
-    assert!(result_with_limit.has_next_page, "Should have next page");
+    assert_eq!(2, result_with_limit.data.len(), "should return 2 coins");
+    assert!(result_with_limit.has_next_page, "should have next page");
 
     let next_page: CoinPage = http_client
         .get_all_coins(address, result_with_limit.next_cursor, Some(2))
         .await
         .unwrap();
-    assert!(!next_page.data.is_empty(), "Next page should have coins");
+    assert!(!next_page.data.is_empty(), "next page should have coins");
 
     // Ensure no duplicate coins between pages
     let first_page_ids = result_with_limit
@@ -544,7 +544,7 @@ async fn get_all_coins_with_limit() {
         first_page_ids
             .iter()
             .all(|id| !second_page_ids.contains(id)),
-        "No coin should appear in both pages"
+        "no coin should appear in both pages"
     );
 }
 
@@ -558,10 +558,10 @@ async fn get_all_coins_with_cursor_and_limit() {
         .get_all_coins(address, None, None)
         .await
         .unwrap();
-    assert!(!rpc_all_coins.data.is_empty(), "Should have some coins");
+    assert!(!rpc_all_coins.data.is_empty(), "should have some coins");
     assert!(
         !rpc_all_coins.has_next_page,
-        "Should not have next page when fetching all"
+        "should not have next page when fetching all"
     );
 
     let collected_coins = PagedFn::collect::<Vec<_>>(async |cursor| {
@@ -573,7 +573,7 @@ async fn get_all_coins_with_cursor_and_limit() {
     assert_eq!(
         rpc_all_coins.data.len(),
         collected_coins.len(),
-        "Paginated results should match total coins"
+        "paginated results should match total coins"
     );
     assert_eq!(rpc_all_coins.data, collected_coins);
 }
@@ -598,7 +598,7 @@ async fn get_all_coins_with_cursor_boundaries() {
         .unwrap();
     assert!(
         result.data.is_empty(),
-        "Should return no coins when cursor is at the last coin"
+        "should return no coins when cursor is at the last coin"
     );
 
     let first_coin = full_result.data.first().unwrap();
@@ -609,7 +609,7 @@ async fn get_all_coins_with_cursor_boundaries() {
     assert_eq!(
         full_result.data.len() - 1,
         result.data.len(),
-        "Should return all coins except the first one"
+        "should return all coins except the first one"
     );
 }
 
@@ -625,7 +625,7 @@ async fn get_all_coins_invalid_cursor() {
 
     assert!(
         invalid_cursor_result.is_err(),
-        "Should error with invalid cursor"
+        "should error with invalid cursor"
     );
 }
 
@@ -681,18 +681,18 @@ async fn get_all_balances() {
 
     // Get all balances
     let balances: Vec<Balance> = http_client.get_all_balances(address).await.unwrap();
-    assert!(!balances.is_empty(), "Should have some balances");
+    assert!(!balances.is_empty(), "should have some balances");
 
     // Check if IOTA balance exists and is correct
     let iota_balance = balances
         .iter()
         .find(|b| b.coin_type == "0x2::iota::IOTA")
-        .expect("IOTA balance should exist");
+        .expect("the IOTA balance should exist");
 
     assert_eq!(
         (DEFAULT_NUMBER_OF_OBJECT_PER_ACCOUNT as u64 * DEFAULT_GAS_AMOUNT) as u128,
         iota_balance.total_balance,
-        "IOTA balance should match expected amount"
+        "the IOTA balance should match expected amount"
     );
 
     let total_amount = 100000;
@@ -703,17 +703,17 @@ async fn get_all_balances() {
     let updated_balances: Vec<Balance> = http_client.get_all_balances(address).await.unwrap();
     assert!(
         updated_balances.len() > balances.len(),
-        "Should have more balance entries after minting new coin"
+        "should have more balance entries after minting new coin"
     );
 
     let new_coin_balance = updated_balances
         .iter()
         .find(|b| b.coin_type.contains(&coin_name))
-        .expect("New coin balance should exist");
+        .expect("new coin balance should exist");
 
     assert_eq!(
         total_amount as u128, new_coin_balance.total_balance,
-        "New coin should have correct balance"
+        "new coin should have correct balance"
     );
 }
 
@@ -726,17 +726,17 @@ async fn get_all_balances_after_zeroing_coins_count() {
 
     // Get all balances
     let balances: Vec<Balance> = http_client.get_all_balances(address).await.unwrap();
-    assert!(!balances.is_empty(), "Should have some balances");
+    assert!(!balances.is_empty(), "should have some balances");
 
     // Check if IOTA balance exists
     let iota_balance = balances
         .iter()
         .find(|b| b.coin_type == "0x2::iota::IOTA")
-        .expect("IOTA balance should exist");
+        .expect("the IOTA balance should exist");
 
     assert!(
         iota_balance.coin_object_count > 0,
-        "There should be more than 0 IOTA coins"
+        "there should be more than 0 IOTA coins"
     );
 
     transfer_all_coins(&cluster, http_client, address, other_address)
@@ -746,7 +746,7 @@ async fn get_all_balances_after_zeroing_coins_count() {
     let updated_balances: Vec<Balance> = http_client.get_all_balances(address).await.unwrap();
     assert!(
         updated_balances.is_empty(),
-        "Should have no balances after sending away all IOTA coins"
+        "should have no balances after sending away all IOTA coins"
     );
 }
 

@@ -26,7 +26,7 @@ impl TestCaseImpl for NativeTransferTest {
     }
 
     fn description(&self) -> &'static str {
-        "Test tranferring IOTA coins natively"
+        "Test transferring IOTA coins natively"
     }
 
     async fn run(&self, ctx: &mut TestContext) -> Result<(), anyhow::Error> {
@@ -86,7 +86,7 @@ impl NativeTransferTest {
         assert_eq!(
             balance_changes.len(),
             2,
-            "Expect 2 balance changes emitted, but got {}",
+            "expect 2 balance changes emitted, but got {}",
             balance_changes.len()
         );
         // Order of balance change is not fixed so need to check who's balance come

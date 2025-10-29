@@ -10,6 +10,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 use starfish_config::AuthorityIndex;
+use tracing::instrument;
 
 use crate::{
     block_header::{BlockHeaderAPI, BlockRef},
@@ -99,6 +100,7 @@ impl ScoringSubdag {
         }
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub(crate) fn add_subdags(&mut self, committed_subdags: Vec<SubDagBase>) {
         let _s = self
             .context

@@ -17,7 +17,7 @@ pub struct IotaRuntimes {
 }
 
 impl IotaRuntimes {
-    pub fn new(_confg: &NodeConfig) -> Self {
+    pub fn new(_config: &NodeConfig) -> Self {
         let iota_node = tokio::runtime::Builder::new_multi_thread()
             .thread_name("iota-node-runtime")
             .enable_all()
