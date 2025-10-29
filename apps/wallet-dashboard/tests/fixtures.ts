@@ -75,7 +75,7 @@ export const test = base.extend<{
             let [background] = context.serviceWorkers();
             if (!background) {
                 background = await context.waitForEvent('serviceworker', {
-                    timeout: isCI ? 120000 : 60000,
+                    timeout: 50000,
                 });
             }
             extensionId = background.url().split('/')[2];

@@ -84,8 +84,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Playwright Browsers (shared for all packages)
-        run: pnpm --filter iota-explorer --filter wallet-dashboard --filter iota-wallet exec playwright install --with-deps chromium
+      - name: Install Explorer Playwright Browsers
+        run: pnpm --filter iota-explorer playwright install --with-deps chromium
 
       - name: Set environment variables
         run: |
@@ -134,6 +134,9 @@ jobs:
         if: (!cancelled()) && (inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')
         run: pnpm turbo --filter wallet-dashboard build
 
+      - name: Install Dashboard Playwright Browsers
+        run: pnpm --filter wallet-dashboard playwright install --with-deps
+
       - name: Run Dashboard e2e tests
         if: (!cancelled()) && (inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')
         run: xvfb-run --auto-servernum --server-args="-screen 0 1280x960x24" -- pnpm --filter wallet-dashboard playwright test
@@ -173,6 +176,10 @@ jobs:
       - name: Build Evm-bridge
         if: (!cancelled()) && (inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK || github.ref_name == 'develop')
         run: pnpm evm-bridge build
+
+      - name: Install Playwright Browsers for Evm-bridge
+        if: (!cancelled()) && (inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK || github.ref_name == 'develop')
+        run: pnpm --filter ./apps/evm-bridge playwright install --with-deps chromium
 
       - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
         if: (!cancelled()) && (inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK || github.ref_name == 'develop')
