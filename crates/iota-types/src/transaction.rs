@@ -2525,7 +2525,7 @@ impl SenderSignedData {
             input_objects_set.extend(move_authenticator.input_objects());
             input_objects_set.extend(move_authenticator.object_to_authenticate().input_objects());
 
-            Ok(input_objects_set.clone().into_iter().collect::<Vec<_>>())
+            Ok(input_objects_set.into_iter().collect::<Vec<_>>())
         } else {
             Ok(self.transaction_data().input_objects()?)
         }
