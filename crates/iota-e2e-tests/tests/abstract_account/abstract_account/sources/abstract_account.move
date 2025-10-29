@@ -3,9 +3,10 @@
 
 module abstract_account::abstract_account;
 
-use abstract_account::gift_asset::Gift;
 use iota::account::{Self, AuthenticatorInfoV1};
+use iota::coin::{Self as coin, Coin};
 use iota::dynamic_field;
+use iota::iota::IOTA;
 
 // === Errors ===
 
@@ -189,11 +190,12 @@ public fun borrow_auth_info_v1(self: &AbstractAccount): &AuthenticatorInfoV1 {
 /// Gated so only the account itself can do it.
 public fun receive_object(
     self: &mut AbstractAccount,
-    sent: transfer::Receiving<Gift>,
+    coin: transfer::Receiving<Coin<IOTA>>,
     ctx: &TxContext,
 ) {
     ensure_tx_sender_is_account(self, ctx);
-    transfer::public_receive(&mut self.id, sent).drop();
+    let received_coin = transfer::public_receive(&mut self.id, coin);
+    transfer::public_transfer(received_coin, self.account_address());
 }
 // === Admin Functions ===
 

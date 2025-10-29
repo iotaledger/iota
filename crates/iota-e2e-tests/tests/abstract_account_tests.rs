@@ -12,7 +12,7 @@
 //! inspired by the `examples/move/iotaccount` implementation. This is needed in
 //! order to not depend on an external folder and to enable easier changes to
 //! the Move code.
-use std::{net::SocketAddr, str::FromStr};
+use std::net::SocketAddr;
 
 use fastcrypto::{
     ed25519::Ed25519Signature,
@@ -41,7 +41,7 @@ use iota_types::{
     },
 };
 use move_command_line_common::error_bitset::ErrorBitset;
-use move_core_types::{ident_str, language_storage::StructTag};
+use move_core_types::ident_str;
 use shared_crypto::intent::Intent;
 use test_cluster::{TestCluster, TestClusterBuilder};
 
@@ -51,8 +51,7 @@ const AA_CREATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
 const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
-const AA_GIFT_ASSET_MODULE_NAME: &str = "gift_asset";
-const AA_AUTHENTICATE_FN_NAME_RECEIVE_GIFT: &str = "authenticate_receive_gift";
+const AA_AUTHENTICATE_FN_NAME_RECEIVE_COIN: &str = "authenticate_receive_coin";
 
 /// Test the creation of an Abstract Account and the issuance of a simple
 /// transaction from it using the Move-based Ed25519 signature authenticator.
@@ -154,7 +153,7 @@ async fn test_authenticate_receiving_object_fails() -> Result<(), anyhow::Error>
     // AA with the invalid authenticator
     let mut test_env = TestEnvironment::new().await;
     test_env
-        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_RECEIVE_GIFT)
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_RECEIVE_COIN)
         .await?;
     let aa_ref = test_env.aa_ref.unwrap();
     let aa_sender: IotaAddress = aa_ref.0.into();
@@ -165,9 +164,10 @@ async fn test_authenticate_receiving_object_fails() -> Result<(), anyhow::Error>
         .test_cluster
         .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
         .await;
-
-    // Prepare Gift sent to AA (so a Receiving<Gift> can reference it)
-    let gift_ref = test_env.mint_and_send_gift_to_aa().await?;
+    let gas_to_send = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(10_000_000), aa_sender)
+        .await;
 
     // Any simple PTB; it won't run if auth fails
     let pt = test_env.craft_aa_simple_ptb()?;
@@ -175,8 +175,8 @@ async fn test_authenticate_receiving_object_fails() -> Result<(), anyhow::Error>
         .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
         .await?;
 
-    // Authenticator that takes `Receiving<Gift>`
-    let aa_sig = test_env.create_move_authenticator_for_receive_gift(gift_ref)?;
+    // Authenticator that takes `Receiving<Coin<IOTA>>`
+    let aa_sig = test_env.create_move_authenticator_for_receive_coin(gas_to_send)?;
     let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
 
     // Expect authentication failure
@@ -203,12 +203,13 @@ async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> 
         .test_cluster
         .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
         .await;
+    let gas_to_send = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(10_000_000), aa_sender)
+        .await;
 
-    // Prepare Gift sent to AA
-    let gift_ref = test_env.mint_and_send_gift_to_aa().await?;
-
-    // Main PTB: actually receive the Gift into the AA
-    let pt = test_env.craft_aa_receive_gift_ptb(gift_ref)?;
+    // Main PTB: actually receive the Gas into the AA
+    let pt = test_env.craft_aa_receive_gas_ptb(gas_to_send)?;
     let tx_data = test_env
         .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
         .await?;
@@ -719,65 +720,12 @@ impl TestEnvironment {
         Ok(())
     }
 
-    /// Mint a Gift and transfer it to the AA object's ID.
-    async fn mint_and_send_gift_to_aa(&self) -> anyhow::Result<ObjectRef> {
-        let (Some(aa_ref), Some(aa_package_id)) = (self.aa_ref, self.aa_package_id) else {
-            anyhow::bail!("Abstract account not created yet");
-        };
-        let aa_addr: IotaAddress = aa_ref.0.into();
-
-        let mut b = ProgrammableTransactionBuilder::new();
-        let gift = b.programmable_move_call(
-            aa_package_id,
-            ident_str!(AA_GIFT_ASSET_MODULE_NAME).to_owned(),
-            ident_str!("mint").to_owned(),
-            vec![],
-            vec![],
-        );
-        let args = vec![gift, b.pure(aa_addr)?];
-        b.programmable_move_call(
-            aa_package_id,
-            ident_str!(AA_GIFT_ASSET_MODULE_NAME).to_owned(),
-            ident_str!("send_to").to_owned(),
-            vec![],
-            args,
-        );
-        let pt = b.finish();
-
-        let tx_data = self
-            .test_cluster
-            .test_transaction_builder()
-            .await
-            .programmable(pt)
-            .build();
-        let tx = self.test_cluster.wallet.sign_transaction(&tx_data);
-        let (effects, _) = self
-            .test_cluster
-            .execute_transaction_return_raw_effects(tx)
-            .await?;
-
-        // The created object now owned by AA's ID is our Gift.
-        let aa_owner = Owner::AddressOwner(aa_addr);
-        let gift_ref = effects
-            .all_changed_objects()
-            .iter()
-            .find_map(|(oref, owner, kind)| {
-                if matches!(kind, WriteKind::Create) && *owner == aa_owner {
-                    Some(*oref)
-                } else {
-                    None
-                }
-            })
-            .ok_or_else(|| anyhow::anyhow!("Gift object not found"))?;
-        Ok(gift_ref)
-    }
-
-    /// PTB to receive the Gift in the main transaction:
-    /// abstract_account::receive_object<Gift>(&mut account, Receiving<Gift>,
-    /// ctx)
-    fn craft_aa_receive_gift_ptb(
+    /// PTB to receive the Gas in the main transaction:
+    /// abstract_account::receive_object<Coin<IOTA>>(&mut account,
+    /// Receiving<Gas>, ctx)
+    fn craft_aa_receive_gas_ptb(
         &self,
-        gift_ref: ObjectRef,
+        gas_ref: ObjectRef,
     ) -> anyhow::Result<ProgrammableTransaction> {
         let (Some(aa_ref), Some(aa_package_id)) = (self.aa_ref, self.aa_package_id) else {
             anyhow::bail!("Abstract account not created yet");
@@ -792,7 +740,7 @@ impl TestEnvironment {
             })?,
             // IMPORTANT: passing an object ref *in the position of* `Receiving<T>`
             // yields a Receiving PTB arg (SDK converts when building the call).
-            b.obj(ObjectArg::Receiving(gift_ref))?,
+            b.obj(ObjectArg::Receiving(gas_ref))?,
         ];
         b.programmable_move_call(
             aa_package_id,
@@ -804,12 +752,12 @@ impl TestEnvironment {
         Ok(b.finish())
     }
 
-    /// Build a MoveAuthenticator for
-    /// `authenticate_receive_gift(&AbstractAccount, Receiving<Gift>,
-    /// &AuthContext, &TxContext)`.
-    fn create_move_authenticator_for_receive_gift(
+    /// Build a MoveAuthenticator for:
+    ///   authenticate_receive_gift(&AbstractAccount, &Receiving<Coin<IOTA>>,
+    /// &AuthContext, &TxContext)
+    fn create_move_authenticator_for_receive_coin(
         &self,
-        gift_ref: ObjectRef,
+        coin_ref: ObjectRef,
     ) -> anyhow::Result<GenericSignature> {
         let Some(aa_ref) = self.aa_ref else {
             anyhow::bail!("Abstract account not created yet");
@@ -819,11 +767,13 @@ impl TestEnvironment {
             initial_shared_version: aa_ref.1,
             mutable: false,
         });
-        // Pass the Gift as an object ref; the VM interprets it as a Receiving<T> at
-        // this position.
-        let gift_arg = CallArg::Object(ObjectArg::Receiving(gift_ref));
+        let receiving_gas_arg = CallArg::Object(ObjectArg::Receiving(coin_ref));
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_for_testing(vec![self_arg.clone(), gift_arg], vec![], self_arg),
+            MoveAuthenticator::new_for_testing(
+                vec![self_arg.clone(), receiving_gas_arg],
+                vec![],
+                self_arg,
+            ),
         ))
     }
 

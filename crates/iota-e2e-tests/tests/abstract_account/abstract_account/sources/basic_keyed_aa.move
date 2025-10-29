@@ -4,13 +4,14 @@
 module abstract_account::basic_keyed_aa;
 
 use abstract_account::abstract_account::{Self, AbstractAccount, ensure_tx_sender_is_account};
-use abstract_account::gift_asset::Gift;
 use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::AuthContext;
+use iota::coin::Coin;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
 use iota::ed25519;
 use iota::hex::decode;
+use iota::iota::IOTA;
 
 // === Errors ===
 
@@ -126,12 +127,12 @@ public fun authenticate_free_access(self: &AbstractAccount, _: &AuthContext, ctx
     ensure_tx_sender_is_account(self, ctx);
 }
 
-/// Test-only authenticator: it accepts a `Receiving<Gift>` argument.
+/// Test-only authenticator: it accepts a `Receiving<Coin<IOTA>>` argument.
 /// Authentication is required to be effect-free; passing a `Receiving<T>` to
 /// the authenticator is disallowed by the AA auth framework and must fail.
-public fun authenticate_receive_gift(
+public fun authenticate_receive_coin(
     account: &AbstractAccount,
-    _sent: &transfer::Receiving<Gift>,
+    _coin: &transfer::Receiving<Coin<IOTA>>,
     _: &AuthContext,
     ctx: &TxContext,
 ) {
