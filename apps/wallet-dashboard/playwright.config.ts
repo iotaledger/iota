@@ -8,11 +8,11 @@ export default defineConfig({
     /* Run tests in files in parallel */
     fullyParallel: true,
     /* Fail the build on CI if you accidentally left test.only in the source code. */
-    forbidOnly: true,
+    forbidOnly: !!process.env.CI,
     /* Retry on CI only */
-    retries: 2,
+    retries: process.env.CI ? 2 : 0,
     /* Opt out of parallel tests on CI. */
-    workers: 1,
+    workers: process.env.CI ? 1 : undefined,
     /* Reporter to use. See https://playwright.dev/docs/test-reporters */
     reporter: 'html',
     /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
@@ -42,19 +42,28 @@ export default defineConfig({
     ],
 
     webServer: [
+        // Localnet:
+        {
+            command:
+                process.env.E2E_RUN_LOCAL_NET_CMD ??
+                'RUST_LOG="consensus=off" cargo run --bin iota start --force-regenesis --with-faucet',
+            port: 9123,
+            timeout: 120 * 1000,
+            reuseExistingServer: !process.env.CI,
+        },
         // Wallet-dashboard:
         {
             command: 'pnpm start',
             port: 3000,
             timeout: 120 * 1000,
-            reuseExistingServer: true,
+            reuseExistingServer: !process.env.CI,
         },
         // Apps-backend:
         {
             command: 'cd ../apps-backend && pnpm run preview',
             port: 3003,
             timeout: 120 * 1000,
-            reuseExistingServer: true,
+            reuseExistingServer: !process.env.CI,
         },
     ],
 });

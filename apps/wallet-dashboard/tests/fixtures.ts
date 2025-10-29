@@ -37,44 +37,44 @@ export const test = base.extend<{
         await use(sharedState);
     },
 
-    context: async ({ sharedState }, use) => {
-        const isCI = !!process.env.CI;
+    context: [
+        async ({ sharedState }, use) => {
+            const isCI = !!process.env.CI;
 
-        if (sharedState.sharedContext) {
-            await use(sharedState.sharedContext);
-            return;
-        }
+            if (sharedState.sharedContext) {
+                await use(sharedState.sharedContext);
+                return;
+            }
 
-        const userDataDir = path.join(os.tmpdir(), `playwright-${Date.now()}`);
+            const userDataDir = path.join(os.tmpdir(), `playwright-${Date.now()}`);
 
-        const launchOptions: Parameters<typeof chromium.launchPersistentContext>[1] = {
-            headless: isCI,
-            viewport: { width: 720, height: 720 },
-            args: [
-                `--disable-extensions-except=${EXTENSION_PATH}`,
-                `--load-extension=${EXTENSION_PATH}`,
-                '--window-position=0,0',
-                '--no-sandbox',
-                '--disable-dev-shm-usage',
-            ],
-        };
+            const launchOptions: Parameters<typeof chromium.launchPersistentContext>[1] = {
+                headless: isCI,
+                viewport: { width: 720, height: 720 },
+                args: [
+                    `--disable-extensions-except=${EXTENSION_PATH}`,
+                    `--load-extension=${EXTENSION_PATH}`,
+                    '--window-position=0,0',
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                ],
+            };
 
-        // Only use chromium channel in CI for headless extension support (Playwright v1.49+)
-        if (isCI) {
-            launchOptions.channel = 'chromium';
-        }
+            // Only use chromium channel in CI for headless extension support (Playwright v1.49+)
+            if (isCI) {
+                launchOptions.channel = 'chromium';
+            }
 
-        const context = await chromium.launchPersistentContext(userDataDir, launchOptions);
+            const context = await chromium.launchPersistentContext(userDataDir, launchOptions);
 
-        sharedState.sharedContext = context;
+            sharedState.sharedContext = context;
 
-        await use(context);
-
-        // Don't close the context here as it will be reused
-    },
+            await use(context);
+        },
+        { scope: 'test' },
+    ],
 
     extensionUrl: async ({ context }, use) => {
-        // Check if we already have the extension URL cached
         if (sharedState.extension.url) {
             await use(sharedState.extension.url);
             return;
