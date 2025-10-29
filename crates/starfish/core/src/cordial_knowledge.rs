@@ -30,7 +30,7 @@ use crate::{
 };
 
 /// Maximum round gap to consider a peer's useful shards/headers as still
-/// relevant. 40 rounds correspond to around 2 seconds
+/// relevant. 40 rounds correspond to at least 2 second due to the minimum block delay
 const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 40;
 
 /// Represents a subset of authorities using a bitmask.
@@ -112,7 +112,7 @@ pub enum CordialKnowledgeMessage {
     /// Evict old rounds globally.
     EvictBelow(Vec<Round>),
     /// Update internal state about shards from which authorities are useful for
-    /// us
+    /// the local node
     UsefulShardsFromPeers(BTreeMap<AuthorityIndex, Round>),
 }
 
