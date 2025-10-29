@@ -53,7 +53,7 @@ export const test = base.extend<{
                     `--load-extension=${EXTENSION_PATH}`,
                     '--user-agent=Playwright',
                     '--window-position=0,0',
-                    ...(isCI ? ['--headless=new', '--disable-gpu'] : []),
+                    ...(isCI ? ['--disable-gpu'] : []),
                 ],
             });
 
@@ -67,7 +67,7 @@ export const test = base.extend<{
     extensionUrl: async ({ context }, use) => {
         let [background] = context.serviceWorkers();
         if (!background) {
-            background = await context.waitForEvent('serviceworker');
+            background = await context.waitForEvent('serviceworker', { timeout: 60000 });
         }
 
         const extensionId = background.url().split('/')[2];

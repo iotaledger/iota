@@ -84,8 +84,8 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Install Explorer Playwright Browsers
-        run: pnpm --filter iota-explorer playwright install --with-deps chromium
+      - name: Install Playwright Browsers (shared for all packages)
+        run: npx playwright install --no-shell
 
       - name: Set environment variables
         run: |
@@ -173,10 +173,6 @@ jobs:
       - name: Build Evm-bridge
         if: (!cancelled()) && (inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK || github.ref_name == 'develop')
         run: pnpm evm-bridge build
-
-      - name: Install Playwright Browsers for Evm-bridge
-        if: (!cancelled()) && (inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK || github.ref_name == 'develop')
-        run: pnpm --filter ./apps/evm-bridge playwright install --with-deps chromium
 
       - name: Prepare evm-bridge e2e tests (downloads wallet artifact dist)
         if: (!cancelled()) && (inputs.isEvmBridge || inputs.isIscSDK || inputs.isTypescriptSDK || github.ref_name == 'develop')
