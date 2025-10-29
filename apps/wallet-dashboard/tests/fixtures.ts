@@ -4,6 +4,7 @@
 /* eslint-disable no-empty-pattern */
 
 import path from 'path';
+import os from 'os';
 import { test as base, chromium, Page, type BrowserContext } from '@playwright/test';
 import { createWallet } from './utils';
 
@@ -36,88 +37,72 @@ export const test = base.extend<{
         await use(sharedState);
     },
 
-    context: [
-        async ({ sharedState }, use) => {
-            const isCI = !!process.env.CI;
+    context: async ({ sharedState }, use) => {
+        const isCI = !!process.env.CI;
 
-            if (sharedState.sharedContext) {
-                await use(sharedState.sharedContext);
-                return;
-            }
+        if (sharedState.sharedContext) {
+            await use(sharedState.sharedContext);
+            return;
+        }
 
-            const context = await chromium.launchPersistentContext('', {
-                headless: isCI,
-                viewport: { width: 720, height: 720 },
-                args: [
-                    `--disable-extensions-except=${EXTENSION_PATH}`,
-                    `--load-extension=${EXTENSION_PATH}`,
-                    '--user-agent=Playwright',
-                    '--window-position=0,0',
-                    '--no-sandbox',
-                    '--disable-dev-shm-usage',
-                    ...(isCI ? ['--headless=new'] : []),
-                ],
-            });
+        const userDataDir = path.join(os.tmpdir(), `playwright-${Date.now()}`);
 
-            sharedState.sharedContext = context;
+        const launchOptions: Parameters<typeof chromium.launchPersistentContext>[1] = {
+            headless: isCI,
+            viewport: { width: 720, height: 720 },
+            args: [
+                `--disable-extensions-except=${EXTENSION_PATH}`,
+                `--load-extension=${EXTENSION_PATH}`,
+                '--window-position=0,0',
+                '--no-sandbox',
+                '--disable-dev-shm-usage',
+            ],
+        };
 
-            await use(context);
-        },
-        { scope: 'test' },
-    ],
+        // Only use chromium channel in CI for headless extension support (Playwright v1.49+)
+        if (isCI) {
+            launchOptions.channel = 'chromium';
+        }
+
+        const context = await chromium.launchPersistentContext(userDataDir, launchOptions);
+
+        sharedState.sharedContext = context;
+
+        await use(context);
+
+        // Don't close the context here as it will be reused
+    },
 
     extensionUrl: async ({ context }, use) => {
-        const isCI = !!process.env.CI;
-        let extensionId: string;
+        // Check if we already have the extension URL cached
+        if (sharedState.extension.url) {
+            await use(sharedState.extension.url);
+            return;
+        }
 
-        // Try to get extension ID from service worker
-        try {
-            let [background] = context.serviceWorkers();
+        let [background] = context.serviceWorkers();
+
+        // If no service worker is available yet, poll for it instead of waitForEvent
+        // This avoids the issue where waitForEvent gets stuck in headless CI mode
+        if (!background) {
+            const maxAttempts = 60;
+            const delayMs = 1000;
+
+            for (let i = 0; i < maxAttempts; i++) {
+                [background] = context.serviceWorkers();
+                if (background) break;
+                await new Promise((resolve) => setTimeout(resolve, delayMs));
+            }
+
             if (!background) {
-                background = await context.waitForEvent('serviceworker', {
-                    timeout: 50000,
-                });
-            }
-            extensionId = background.url().split('/')[2];
-        } catch (error) {
-            // Fallback: Get extension ID from chrome://extensions page
-            // This workaround is needed for headless CI environments where service workers may not initialize
-            console.warn('Service worker not available, using chrome://extensions fallback');
-            const extensionsPage = await context.newPage();
-            await extensionsPage.goto('chrome://extensions/');
-            await extensionsPage.waitForLoadState('domcontentloaded');
-
-            // Enable developer mode if not already enabled
-            const devModeToggle = extensionsPage.locator('#devMode');
-            const isChecked = await devModeToggle.evaluate((el: HTMLInputElement) => el.checked);
-            if (!isChecked) {
-                await devModeToggle.click();
-            }
-
-            // Get the extension ID from the extensions page
-            const extensionCard = extensionsPage.locator('extensions-item').first();
-            extensionId = await extensionCard.evaluate((el: HTMLElement) => el.id);
-            await extensionsPage.close();
-
-            if (!extensionId) {
-                throw new Error('Could not find extension ID from chrome://extensions');
+                throw new Error(
+                    'Extension service worker failed to load after 60 seconds. Make sure the wallet extension is built correctly.',
+                );
             }
         }
 
+        const extensionId = background.url().split('/')[2];
         const extensionUrl = `chrome-extension://${extensionId}/ui.html`;
-
-        // Wait for extension to be fully loaded and accessible
-        const testPage = await context.newPage();
-        try {
-            await testPage.goto(extensionUrl, {
-                waitUntil: 'domcontentloaded',
-                timeout: 30000,
-            });
-            // Wait for the page to be interactive
-            await testPage.waitForLoadState('networkidle', { timeout: 10000 });
-        } finally {
-            await testPage.close();
-        }
 
         sharedState.extension.url = extensionUrl;
 
@@ -125,6 +110,12 @@ export const test = base.extend<{
     },
 
     extensionName: async ({ context, extensionUrl }, use) => {
+        // Check if we already have the extension name cached
+        if (sharedState.extension.name) {
+            await use(sharedState.extension.name);
+            return;
+        }
+
         const extPage = await context.newPage();
         await extPage.goto(extensionUrl);
 
