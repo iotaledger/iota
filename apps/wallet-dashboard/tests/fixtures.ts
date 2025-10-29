@@ -53,7 +53,9 @@ export const test = base.extend<{
                     `--load-extension=${EXTENSION_PATH}`,
                     '--user-agent=Playwright',
                     '--window-position=0,0',
-                    ...(isCI ? ['--disable-gpu'] : []),
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
+                    ...(isCI ? ['--headless=new'] : []),
                 ],
             });
 
@@ -65,13 +67,57 @@ export const test = base.extend<{
     ],
 
     extensionUrl: async ({ context }, use) => {
-        let [background] = context.serviceWorkers();
-        if (!background) {
-            background = await context.waitForEvent('serviceworker', { timeout: 60000 });
+        const isCI = !!process.env.CI;
+        let extensionId: string;
+
+        // Try to get extension ID from service worker
+        try {
+            let [background] = context.serviceWorkers();
+            if (!background) {
+                background = await context.waitForEvent('serviceworker', {
+                    timeout: isCI ? 120000 : 60000,
+                });
+            }
+            extensionId = background.url().split('/')[2];
+        } catch (error) {
+            // Fallback: Get extension ID from chrome://extensions page
+            // This workaround is needed for headless CI environments where service workers may not initialize
+            console.warn('Service worker not available, using chrome://extensions fallback');
+            const extensionsPage = await context.newPage();
+            await extensionsPage.goto('chrome://extensions/');
+            await extensionsPage.waitForLoadState('domcontentloaded');
+
+            // Enable developer mode if not already enabled
+            const devModeToggle = extensionsPage.locator('#devMode');
+            const isChecked = await devModeToggle.evaluate((el: HTMLInputElement) => el.checked);
+            if (!isChecked) {
+                await devModeToggle.click();
+            }
+
+            // Get the extension ID from the extensions page
+            const extensionCard = extensionsPage.locator('extensions-item').first();
+            extensionId = await extensionCard.evaluate((el: HTMLElement) => el.id);
+            await extensionsPage.close();
+
+            if (!extensionId) {
+                throw new Error('Could not find extension ID from chrome://extensions');
+            }
         }
 
-        const extensionId = background.url().split('/')[2];
         const extensionUrl = `chrome-extension://${extensionId}/ui.html`;
+
+        // Wait for extension to be fully loaded and accessible
+        const testPage = await context.newPage();
+        try {
+            await testPage.goto(extensionUrl, {
+                waitUntil: 'domcontentloaded',
+                timeout: 30000,
+            });
+            // Wait for the page to be interactive
+            await testPage.waitForLoadState('networkidle', { timeout: 10000 });
+        } finally {
+            await testPage.close();
+        }
 
         sharedState.extension.url = extensionUrl;
 
