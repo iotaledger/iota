@@ -19,6 +19,7 @@ pub(crate) mod consensus_types;
 pub mod consensus_validator;
 pub mod db_checkpoint_handler;
 pub mod epoch;
+pub mod event_filter;
 pub mod execution_cache;
 mod execution_driver;
 mod fallback_fetch;

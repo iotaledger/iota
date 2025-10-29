@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_json_rpc_types::{
-    EventFilter, Filter, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
+    Filter, IotaTransactionBlockEffects, IotaTransactionBlockEffectsAPI,
     IotaTransactionBlockEvents, IotaTransactionKind, OwnedObjectRef,
 };
 use iota_metrics::monitored_scope;
@@ -13,6 +13,8 @@ use iota_types::{
     transaction::{TransactionData, TransactionDataAPI},
 };
 use serde::{Deserialize, Serialize};
+
+use crate::event_filter::GrpcEventFilter;
 
 #[derive(Clone)]
 pub struct TransactionDataWithEffectsAndEvents {
@@ -52,6 +54,8 @@ pub enum GrpcTransactionFilter {
     /// Query transactions that wrapped or deleted the specified object.
     /// Includes transactions that either created and immediately wrapped
     /// the object or unwrapped and immediately deleted it.
+    /// TODO: @infra: do we need that now that we have the AffectedObject
+    /// filter?
     WrappedOrDeletedObject(ObjectID),
     /// Query for transactions that touch this object.
     AffectedObject(ObjectID),
@@ -64,7 +68,7 @@ pub enum GrpcTransactionFilter {
     },
 
     /// Query transactions that contain events matching the given event filter.
-    Events(EventFilter),
+    Events(GrpcEventFilter),
 }
 
 impl Filter<TransactionDataWithEffectsAndEvents> for GrpcTransactionFilter {
