@@ -2553,8 +2553,7 @@ impl SenderSignedData {
                 .map(|k| {
                     input_objects_map
                         .get(k)
-                        .cloned()
-                        .cloned()
+                        .map(|&r| r.clone())
                         .expect("All transaction input objects are expected to be present")
                 })
                 .collect::<Vec<_>>()
@@ -2566,8 +2565,7 @@ impl SenderSignedData {
                 .map(|k| {
                     input_objects_map
                         .get(k)
-                        .cloned()
-                        .cloned()
+                        .map(|&r| r.clone())
                         .expect("All authenticator input objects are expected to be present")
                 })
                 .collect::<Vec<_>>()
@@ -2580,8 +2578,7 @@ impl SenderSignedData {
                 .map(|k| {
                     input_objects_map
                         .get(k)
-                        .cloned()
-                        .cloned()
+                        .map(|&r| r.clone())
                         .expect("Account object is expected to be present")
                 })
                 .collect::<Vec<_>>();
