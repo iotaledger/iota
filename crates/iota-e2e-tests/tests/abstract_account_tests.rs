@@ -543,7 +543,7 @@ impl TestEnvironment {
                 (_, Owner::Shared { .. }, WriteKind::Create) => Some(change.0),
                 _ => None,
             })
-            .expect(&format!("{:?}", effects)))
+            .expect("Expected a shared object in the transaction response"))
     }
 
     // Create the MoveAuthenticator for the Ed25519 signature authenticator:
