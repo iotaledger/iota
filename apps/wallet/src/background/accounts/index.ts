@@ -284,7 +284,11 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             const { password, accounts } = payload.args;
             for (const aLedgerAccount of accounts) {
                 newSerializedAccounts.push(
-                    await LedgerAccount.createNew({ ...aLedgerAccount, password }),
+                    await LedgerAccount.createNew({
+                        ...aLedgerAccount,
+                        password,
+                        mainPublicKey: payload.args.mainPublicKey,
+                    }),
                 );
             }
         } else if (type === AccountType.KeystoneDerived) {

@@ -174,8 +174,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) sync_last_known_own_block_retries: IntCounter,
     pub(crate) commit_round_advancement_interval: Histogram,
     pub(crate) last_decided_leader_round: IntGauge,
-    pub(crate) leader_timeout_total: IntCounterVec,
-    pub(crate) selection_wait: IntCounter,
+    pub(crate) timeout_expired_total: IntCounterVec,
     pub(crate) missing_blocks_total: IntCounter,
     pub(crate) missing_blocks_after_fetch_total: IntCounter,
     pub(crate) num_of_bad_nodes: IntGauge,
@@ -248,8 +247,8 @@ impl NodeMetrics {
             ).unwrap(),
             proposed_blocks: register_int_counter_vec_with_registry!(
                 "proposed_blocks",
-                "Total number of proposed blocks. If force is true then this block has been created forcefully via a leader timeout event.",
-                &["force"],
+                "Total number of proposed blocks. The reason gives a hint what triggered block creation",
+                &["reason"],
                 registry,
             ).unwrap(),
             proposed_block_size: register_histogram_with_registry!(
@@ -670,15 +669,10 @@ impl NodeMetrics {
                 "The last round where a commit decision was made.",
                 registry,
             ).unwrap(),
-            leader_timeout_total: register_int_counter_vec_with_registry!(
+            timeout_expired_total: register_int_counter_vec_with_registry!(
                 "leader_timeout_total",
-                "Total number of leader timeouts, either when the min round time has passed, or max leader timeout",
+                "Total number of timeouts, either when the min block delay time has passed, or max leader timeout",
                 &["timeout_type"],
-                registry,
-            ).unwrap(),
-            selection_wait: register_int_counter_with_registry!(
-                "selection_wait",
-                "Number of times we waited for ancestor selection.",
                 registry,
             ).unwrap(),
             missing_blocks_total: register_int_counter_with_registry!(
