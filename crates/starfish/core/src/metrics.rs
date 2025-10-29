@@ -140,6 +140,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
     pub(crate) cordial_knowledge_rounds: IntGaugeVec,
     pub(crate) cordial_knowledge_useful_shards: IntGauge,
+    pub(crate) cordial_knowledge_worker_batch_size: Histogram,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) fetch_block_headers_scheduler_inflight: IntGauge,
@@ -458,6 +459,12 @@ impl NodeMetrics {
             "cordial_knowledge_useful_shards",
             "The number of authorities with useful shards",
             registry,
+            ).unwrap(),
+            cordial_knowledge_worker_batch_size: register_histogram_with_registry!(
+                "cordial_knowledge_worker_batch_size",
+                "Number of connection knowledge message batches processed by worker",
+                exponential_buckets(1.0, 1.4, 20).unwrap(),
+                registry,
             ).unwrap(),
             cordial_knowledge_processed_messages: register_int_counter_vec_with_registry!(
                 "cordial_knowledge_processed_messages",

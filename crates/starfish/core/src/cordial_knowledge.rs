@@ -4,6 +4,7 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
+    time::Duration,
 };
 
 use ahash::{AHashMap, AHashSet};
@@ -258,6 +259,7 @@ impl CordialKnowledgeHandle {
 /// CordialKnowledge. One write lock could take 200ns, which results in
 /// 300ms spent only for write locks.
 pub struct DisseminationWorker {
+    context: Arc<Context>,
     /// Each Connection Knowledge corresponds to one peer. Upon reception of a
     /// message from CordialKnowledge, we propagate the respected
     /// information for each connection.
@@ -267,35 +269,68 @@ pub struct DisseminationWorker {
 
 impl DisseminationWorker {
     fn new(
+        context: Arc<Context>,
         connection_knowledges: Vec<Arc<RwLock<ConnectionKnowledge>>>,
         dissemination_receiver: UnboundedReceiver<Vec<Vec<ConnectionKnowledgeMessage>>>,
     ) -> Self {
         Self {
+            context,
             connection_knowledges,
             dissemination_receiver,
         }
     }
+    /// The dissemination worker makes dissemination to ConnectionKnowledge
+    /// structs in batches. It waits for
+    /// TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS, then drain the channel of
+    /// messages and disseminate them. With this approach, one acquire locks
+    /// in a predicted way while loosing some reactiveness. Instead of
+    /// potentially 10000 write locks, it could be up to 1 sec /
+    /// TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS
     async fn run(mut self) {
+        const TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS: Duration = Duration::from_millis(5);
         debug!("Dissemination Worker loop started");
         loop {
-            match self.dissemination_receiver.recv().await {
-                // Upon reception of messages from CordialKnowledge, disseminate them across all
-                // ConnectionKnowledges
-                Some(vec_msgs) => {
-                    for (connection_knowledge, msgs) in
-                        self.connection_knowledges.iter().zip(vec_msgs.into_iter())
-                    {
-                        if !msgs.is_empty() {
-                            let mut connection_knowledge_guard = connection_knowledge.write();
-                            connection_knowledge_guard.process_vec_messages(msgs)
-                        }
-                    }
-                }
+            // Step 1: Wait for the first message in async
+            let first_batch_msgs = match self.dissemination_receiver.recv().await {
+                Some(batch) => batch,
                 None => {
                     debug!("Dissemination channel closed, worker exiting");
                     break;
                 }
+            };
+            let mut num_batches = 1;
+
+            // Step 2: Initialize aggregation and add first batch
+            let mut aggregated: Vec<Vec<ConnectionKnowledgeMessage>> = first_batch_msgs;
+
+            // Step 3: Drain the channel in sync and aggregate messages
+            while let Ok(batch) = self.dissemination_receiver.try_recv() {
+                for (i, msgs) in batch.into_iter().enumerate() {
+                    aggregated[i].extend(msgs);
+                }
+                num_batches += 1;
             }
+
+            self.context
+                .metrics
+                .node_metrics
+                .cordial_knowledge_worker_batch_size
+                .observe(num_batches as f64);
+
+            // Step 4: Process everything
+            for (connection_knowledge, msgs) in self
+                .connection_knowledges
+                .iter()
+                .zip(aggregated.into_iter())
+            {
+                if !msgs.is_empty() {
+                    let mut guard = connection_knowledge.write();
+                    guard.process_vec_messages(msgs);
+                }
+            }
+
+            // Step 5: Sleep for short time before checking again
+            tokio::time::sleep(TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS).await;
         }
     }
 }
@@ -365,8 +400,11 @@ impl CordialKnowledge {
             cordial_knowledge.run().await;
         });
 
-        let dissemination_worker =
-            DisseminationWorker::new(connection_knowledges.clone(), dissemination_receiver);
+        let dissemination_worker = DisseminationWorker::new(
+            context.clone(),
+            connection_knowledges.clone(),
+            dissemination_receiver,
+        );
         let dissemination_handle = tokio::spawn(async move {
             dissemination_worker.run().await;
         });
@@ -1238,7 +1276,7 @@ mod tests {
                 };
                 dag_state.write().add_shard(shard_for_core);
             }
-            sleep(std::time::Duration::from_millis(1)).await; // give some time for cordial knowledge to update
+            sleep(std::time::Duration::from_millis(10)).await; // give some time for cordial knowledge to update
             // By default, for MAX_ROUND_GAP_FOR_USEFUL_PARTS rounds, all unknown
             // shards/headers are useful
             let block_bundle = {
