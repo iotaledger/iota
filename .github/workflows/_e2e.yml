@@ -135,7 +135,7 @@ jobs:
         run: pnpm turbo --filter wallet-dashboard build
 
       - name: Install Dashboard Playwright Browsers
-        run: pnpm --filter wallet-dashboard playwright install --with-deps
+        run: pnpm --filter wallet-dashboard playwright install --with-deps  --only-shell
 
       - name: Run Dashboard e2e tests
         if: (!cancelled()) && (inputs.isWalletDashboard || inputs.isRpc || inputs.isTypescriptSDK || github.ref_name == 'develop')
