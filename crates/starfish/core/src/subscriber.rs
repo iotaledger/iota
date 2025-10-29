@@ -8,7 +8,10 @@ use futures::StreamExt;
 use iota_metrics::spawn_monitored_task;
 use parking_lot::{Mutex, RwLock};
 use starfish_config::AuthorityIndex;
-use tokio::{task::JoinHandle, time::sleep};
+use tokio::{
+    task::JoinHandle,
+    time::{sleep, timeout},
+};
 use tracing::{debug, error, info};
 
 use crate::{
@@ -147,35 +150,49 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
             }
             retries += 1;
 
-            // TODO: https://github.com/iotaledger/iota/issues/8380
-            // Port PR 7292 from consensus crate to starfish
-            let mut block_bundles = match network_client
-                .subscribe_block_bundles(peer, last_received, MAX_RETRY_INTERVAL)
-                .await
-            {
-                Ok(blocks) => {
+            // Wrap subscribe_block_bundles in a timeout and increment metric on timeout
+            let subscribe_future =
+                network_client.subscribe_block_bundles(peer, last_received, MAX_RETRY_INTERVAL);
+            let subscribe_result = timeout(MAX_RETRY_INTERVAL * 5, subscribe_future).await;
+            let mut block_bundles = match subscribe_result {
+                Ok(inner_result) => match inner_result {
+                    Ok(blocks) => {
+                        debug!(
+                            "Subscribed to peer {} {} after {} attempts",
+                            peer, peer_hostname, retries
+                        );
+                        context
+                            .metrics
+                            .node_metrics
+                            .subscriber_connection_attempts
+                            .with_label_values(&[peer_hostname.as_str(), "success"])
+                            .inc();
+                        blocks
+                    }
+                    Err(e) => {
+                        debug!(
+                            "Failed to subscribe to blocks from peer {} {}: {}",
+                            peer, peer_hostname, e
+                        );
+                        context
+                            .metrics
+                            .node_metrics
+                            .subscriber_connection_attempts
+                            .with_label_values(&[peer_hostname.as_str(), "failure"])
+                            .inc();
+                        continue 'subscription;
+                    }
+                },
+                Err(_) => {
                     debug!(
-                        "Subscribed to peer {} {} after {} attempts",
-                        peer, peer_hostname, retries
+                        "Timeout subscribing to blocks from peer {} {}",
+                        peer, peer_hostname
                     );
                     context
                         .metrics
                         .node_metrics
                         .subscriber_connection_attempts
-                        .with_label_values(&[peer_hostname.as_str(), "success"])
-                        .inc();
-                    blocks
-                }
-                Err(e) => {
-                    debug!(
-                        "Failed to subscribe to blocks from peer {} {}: {}",
-                        peer, peer_hostname, e
-                    );
-                    context
-                        .metrics
-                        .node_metrics
-                        .subscriber_connection_attempts
-                        .with_label_values(&[peer_hostname.as_str(), "failure"])
+                        .with_label_values(&[peer_hostname.as_str(), "timeout"])
                         .inc();
                     continue 'subscription;
                 }

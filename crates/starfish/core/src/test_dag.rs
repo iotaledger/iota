@@ -39,7 +39,7 @@ pub(crate) fn build_dag(
             );
             start
         }
-        None => genesis_block_headers(context.clone())
+        None => genesis_block_headers(&context)
             .iter()
             .map(|x| x.reference())
             .collect::<Vec<_>>(),

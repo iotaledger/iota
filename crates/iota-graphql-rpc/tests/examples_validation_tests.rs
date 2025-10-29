@@ -33,11 +33,11 @@ mod tests {
             for entry in entries {
                 let entry = entry.with_context(|| format!("Entry in {}", dir.display()))?;
                 let path = entry.path();
-                let typ_ = entry
+                let type_ = entry
                     .file_type()
                     .with_context(|| format!("Metadata for {}", path.display()))?;
 
-                if typ_.is_dir() {
+                if type_.is_dir() {
                     dirs.push(entry.path());
                     continue;
                 }

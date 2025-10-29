@@ -31,7 +31,7 @@ use crate::{
     connection::ScanConnection,
     data::{self, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
-    server::{builder::get_fullnode_client, watermark_task::Watermark},
+    server::{builder::get_write_api, watermark_task::Watermark},
     types::{
         address::Address,
         base64::Base64,
@@ -266,10 +266,10 @@ impl TransactionBlock {
             // dry-run transactions are never indexed
             return Ok(Some(false));
         };
-        let fullnode_client = get_fullnode_client(ctx)?;
+        let write_api = get_write_api(ctx).extend()?;
         Ok(Some(
-            fullnode_client
-                .http()
+            write_api
+                .fullnode_client()
                 .is_transaction_indexed_on_node(digest)
                 .await?,
         ))
@@ -602,6 +602,20 @@ impl TryFrom<StoredTransaction> for TransactionBlockInner {
             .map_err(|e| Error::Internal(format!("Error deserializing transaction block: {e}")))?;
 
         Ok(TransactionBlockInner::Checkpointed { stored_tx, native })
+    }
+}
+
+impl TryFrom<StoredTransaction> for TransactionBlock {
+    type Error = Error;
+
+    fn try_from(stored_tx: StoredTransaction) -> Result<Self, Error> {
+        let checkpoint_viewed_at = stored_tx.checkpoint_sequence_number as u64;
+        let inner = TransactionBlockInner::try_from(stored_tx)?;
+
+        Ok(TransactionBlock {
+            inner,
+            checkpoint_viewed_at,
+        })
     }
 }
 

@@ -10,7 +10,7 @@ use std::{
 };
 
 use async_graphql::{
-    Context, EmptySubscription, ResultExt, Schema, SchemaBuilder,
+    Context, EmptySubscription, Schema, SchemaBuilder,
     extensions::{ApolloTracing, ExtensionFactory, Tracing},
 };
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
@@ -27,14 +27,18 @@ use chrono::Utc;
 use http::{HeaderValue, Method, Request};
 use iota_graphql_rpc_headers::LIMITS_HEADER;
 use iota_indexer::{
+    apis::{OptimisticWriteApi, WriteApi},
     db::{get_pool_connection, setup_postgres::check_db_migration_consistency},
     metrics::IndexerMetrics,
+    optimistic_indexing::OptimisticTransactionExecutor,
+    read::IndexerReader,
     store::PgIndexerStore,
 };
+use iota_json_rpc_api::CLIENT_SDK_TYPE_HEADER;
 use iota_metrics::spawn_monitored_task;
 use iota_network_stack::callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler};
 use iota_package_resolver::{PackageStoreWithLruCache, Resolver};
-use iota_sdk::{IotaClient, IotaClientBuilder};
+use jsonrpsee::http_client::{HttpClient, HttpClientBuilder};
 use tokio::{join, net::TcpListener, sync::OnceCell};
 use tokio_util::sync::CancellationToken;
 use tower::{Layer, Service};
@@ -443,7 +447,7 @@ impl ServerBuilder {
             // time).
             config.service.limits.request_timeout_ms.into(),
         )
-        .map_err(|e| Error::Internal(format!("Failed to create pg connection pool: {e}")))?;
+        .map_err(|e| Error::ServerInit(format!("Failed to create pg connection pool: {e}")))?;
 
         // DB
         let db = Db::new(
@@ -462,36 +466,12 @@ impl ServerBuilder {
         builder.db_reader = Some(db.clone());
         builder.resolver = Some(resolver.clone());
 
-        // SDK for talking to fullnode. Used for executing transactions only
-        // TODO: fail fast if no url, once we enable mutations fully
-        let (iota_sdk_client, optimistic_tx_executor) = if let Some(url) =
-            &config.tx_exec_full_node.node_rpc_url
-        {
-            let iota_sdk_client = IotaClientBuilder::default()
-                .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
-                .max_concurrent_requests(MAX_CONCURRENT_REQUESTS)
-                .build(url)
-                .await
-                .map_err(|e| {
-                    Error::Internal(format!(
-                        "Failed to connect to fullnode {e}. Is the node server running?"
-                    ))
-                })?;
-            let indexer_store = PgIndexerStore::new(reader.get_pool(), indexer_metrics.clone());
-            let optimistic_tx_executor =
-                iota_indexer::optimistic_indexing::OptimisticTransactionExecutor::new(
-                    url,
-                    reader.clone(),
-                    indexer_store,
-                    indexer_metrics.clone(),
-                );
-            (Some(iota_sdk_client), Some(optimistic_tx_executor))
-        } else {
-            warn!(
-                "No fullnode url found in config. `dryRunTransactionBlock` and `executeTransactionBlock` will not work"
-            );
-            (None, None)
+        let Some(fullnode_url) = config.tx_exec_full_node.node_rpc_url.as_ref() else {
+            return Err(Error::ServerInit(
+                "No fullnode url found in config".to_string(),
+            ));
         };
+        let write_api = build_write_api(fullnode_url, reader, indexer_metrics)?;
 
         builder = builder
             .context_data(config.service.clone())
@@ -499,8 +479,7 @@ impl ServerBuilder {
             .context_data(db)
             .context_data(pg_conn_pool)
             .context_data(resolver)
-            .context_data(iota_sdk_client)
-            .context_data(optimistic_tx_executor)
+            .context_data(write_api)
             .context_data(iota_names_config)
             .context_data(zklogin_config)
             .context_data(metrics.clone())
@@ -550,19 +529,6 @@ fn schema_builder() -> SchemaBuilder<Query, Mutation, EmptySubscription> {
         .register_output_type::<IMoveDatatype>()
 }
 
-pub(crate) fn get_fullnode_client<'ctx>(
-    ctx: &'ctx Context<'_>,
-) -> async_graphql::Result<&'ctx IotaClient> {
-    let iota_sdk_client: &Option<IotaClient> = ctx
-        .data()
-        .map_err(|_| Error::Internal("Unable to fetch IOTA SDK client".to_string()))
-        .extend()?;
-    iota_sdk_client
-        .as_ref()
-        .ok_or_else(|| Error::Internal("IOTA SDK client not initialized".to_string()))
-        .extend()
-}
-
 /// Return the string representation of the schema used by this server.
 pub fn export_schema() -> String {
     schema_builder().finish().sdl()
@@ -599,6 +565,46 @@ async fn graphql_handler(
         extensions.insert(GraphqlErrors(std::sync::Arc::new(result.errors.clone())));
     };
     (extensions, result.into())
+}
+
+pub(crate) fn get_write_api<'ctx>(
+    ctx: &'ctx Context<'_>,
+) -> Result<&'ctx OptimisticWriteApi, Error> {
+    ctx.data_opt()
+        .ok_or_else(|| Error::Internal("Unable to get node execution interface".to_string()))
+}
+
+fn build_write_api(
+    fullnode_url: &str,
+    reader: IndexerReader,
+    metrics: IndexerMetrics,
+) -> Result<OptimisticWriteApi, Error> {
+    let json_rpc_client = build_json_rpc_client(fullnode_url)?;
+    let indexer_store = PgIndexerStore::new(reader.get_pool(), metrics.clone());
+    let optimistic_tx_executor =
+        OptimisticTransactionExecutor::new(fullnode_url, reader.clone(), indexer_store, metrics);
+    Ok(OptimisticWriteApi::new(
+        WriteApi::new(json_rpc_client, reader),
+        optimistic_tx_executor,
+    ))
+}
+
+fn build_json_rpc_client(rpc_client_url: &str) -> Result<HttpClient, Error> {
+    let mut headers = HeaderMap::new();
+    headers.insert(CLIENT_SDK_TYPE_HEADER, HeaderValue::from_static("graphql"));
+
+    let builder = HttpClientBuilder::default()
+        .max_request_size(2 << 30)
+        .set_headers(headers.clone())
+        .request_timeout(RPC_TIMEOUT_ERR_SLEEP_RETRY_PERIOD)
+        .max_concurrent_requests(MAX_CONCURRENT_REQUESTS);
+
+    builder.build(rpc_client_url).map_err(|e| {
+        warn!("Failed to get new Http client with error: {e:?}");
+        Error::Internal(format!(
+            "Failed to initialize fullnode RPC client with error: {e:?}"
+        ))
+    })
 }
 
 #[derive(Clone)]
@@ -729,8 +735,6 @@ pub mod tests {
         Response,
         extensions::{Extension, ExtensionContext, NextExecute},
     };
-    use iota_indexer::optimistic_indexing::OptimisticTransactionExecutor;
-    use iota_sdk::wallet_context::WalletContext;
     use iota_types::transaction::TransactionData;
     use uuid::Uuid;
 
@@ -739,6 +743,7 @@ pub mod tests {
         config::{ConnectionConfig, Limits, ServiceConfig, Version},
         context_data::db_data_provider::PgManager,
         extensions::{query_limits_checker::QueryLimitsChecker, timeout::Timeout},
+        test_infra::cluster::Cluster,
     };
 
     /// Prepares a schema for tests dealing with extensions. Returns a
@@ -807,10 +812,7 @@ pub mod tests {
         Uuid::new_v4()
     }
 
-    pub async fn test_timeout_impl(
-        wallet: &WalletContext,
-        optimistic_tx_executor: &OptimisticTransactionExecutor,
-    ) {
+    pub async fn test_timeout_impl(cluster: &Cluster) {
         struct TimedExecuteExt {
             pub min_req_delay: Duration,
         }
@@ -840,14 +842,14 @@ pub mod tests {
             delay: Duration,
             timeout: Duration,
             query: &str,
-            optimistic_tx_executor: &OptimisticTransactionExecutor,
+            write_api: OptimisticWriteApi,
         ) -> Response {
             let mut cfg = ServiceConfig::default();
             cfg.limits.request_timeout_ms = timeout.as_millis() as u32;
             cfg.limits.mutation_timeout_ms = timeout.as_millis() as u32;
 
             let schema = prep_schema(None, Some(cfg))
-                .context_data(Some(optimistic_tx_executor.clone()))
+                .context_data(write_api)
                 .extension(Timeout)
                 .extension(TimedExecuteExt {
                     min_req_delay: delay,
@@ -857,17 +859,36 @@ pub mod tests {
             schema.execute(query).await
         }
 
-        let query = r#"{ checkpoint(id: {sequenceNumber: 0 }) { digest }}"#;
+        let wallet = &cluster.validator_fullnode_handle.wallet;
+        let store = &cluster.indexer_store;
+        let fn_rpc_url = &cluster.validator_fullnode_handle.fullnode_handle.rpc_url;
+        let indexer_metrics = store.get_metrics();
+        let indexer_reader = iota_indexer::read::IndexerReader::new(store.blocking_cp());
+        let json_rpc_client = build_json_rpc_client(fn_rpc_url).unwrap();
+
+        let optimistic_tx_executor =
+            iota_indexer::optimistic_indexing::OptimisticTransactionExecutor::new(
+                fn_rpc_url,
+                indexer_reader.clone(),
+                store.clone(),
+                indexer_metrics,
+            );
+        let write_api = OptimisticWriteApi::new(
+            WriteApi::new(json_rpc_client, indexer_reader),
+            optimistic_tx_executor,
+        );
+
+        let query = "{ chainIdentifier }";
         let timeout = Duration::from_millis(1000);
         let delay = Duration::from_millis(100);
 
-        test_timeout(delay, timeout, query, optimistic_tx_executor)
+        test_timeout(delay, timeout, query, write_api.clone())
             .await
             .into_result()
             .expect("should complete successfully");
 
         // Should timeout
-        let errs: Vec<_> = test_timeout(delay, delay, query, optimistic_tx_executor)
+        let errs: Vec<_> = test_timeout(delay, delay, query, write_api.clone())
             .await
             .into_result()
             .unwrap_err()
@@ -910,7 +931,7 @@ pub mod tests {
             tx_bytes.encoded(),
             signature_base64.encoded()
         );
-        let errs: Vec<_> = test_timeout(delay, delay, &query, optimistic_tx_executor)
+        let errs: Vec<_> = test_timeout(delay, delay, &query, write_api.clone())
             .await
             .into_result()
             .unwrap_err()

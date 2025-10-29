@@ -74,12 +74,12 @@ where
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
                 .tap_err(|e| {
-                    error!("Error joining move call persist tasks: {:?}", e);
+                    error!("error joining move call persist tasks: {e:?}");
                 })?
                 .into_iter()
                 .collect::<Result<Vec<_>, _>>()
                 .tap_err(|e| {
-                    error!("Error persisting move calls: {:?}", e);
+                    error!("error persisting move calls: {e:?}");
                 })?;
             last_processed_tx_seq += batch_size as i64;
             info!("Persisted move_calls at tx seq: {}", last_processed_tx_seq);

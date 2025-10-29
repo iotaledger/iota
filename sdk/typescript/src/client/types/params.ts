@@ -185,6 +185,16 @@ export interface TryMultiGetPastObjectsParams {
     /** options for specifying the content to be returned */
     options?: RpcTypes.IotaObjectDataOptions | null | undefined;
 }
+/** Calls a move view function. */
+export interface ViewParams {
+    /**
+     * The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.
+     * `0x3::iota_system::get_total_iota_supply`.
+     */
+    functionName: string;
+    typeArgs?: string[] | null | undefined;
+    callArgs: unknown[];
+}
 /** Return the total coin balance for all coin type, owned by the address owner. */
 export interface GetAllBalancesParams {
     /** the owner's IOTA address */

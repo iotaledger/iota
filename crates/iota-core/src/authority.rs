@@ -1619,6 +1619,7 @@ impl AuthorityState {
         self.prepare_certificate(&execution_guard, certificate, input_objects, epoch_store)
     }
 
+    #[instrument("dry_exec_tx", level = "trace", skip_all)]
     #[allow(clippy::type_complexity)]
     pub fn dry_exec_transaction(
         &self,
@@ -1661,6 +1662,7 @@ impl AuthorityState {
         self.dry_exec_transaction_impl(&epoch_store, transaction, transaction_digest)
     }
 
+    #[instrument(level = "trace", skip_all)]
     #[allow(clippy::type_complexity)]
     fn dry_exec_transaction_impl(
         &self,
@@ -1975,6 +1977,7 @@ impl AuthorityState {
     }
 
     /// The object ID for gas can be any object ID, even for an uncreated object
+    #[instrument("dev_inspect_tx", level = "trace", skip_all)]
     pub async fn dev_inspect_transaction_block(
         &self,
         sender: IotaAddress,

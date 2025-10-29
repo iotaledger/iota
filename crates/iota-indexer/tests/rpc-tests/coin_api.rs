@@ -1,7 +1,7 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{path::PathBuf, str::FromStr, sync::Arc};
+use std::str::FromStr;
 
 use fastcrypto::traits::Signer;
 use iota_indexer::store::PgIndexerStore;
@@ -12,10 +12,9 @@ use iota_json_rpc_api::{
 use iota_json_rpc_types::{
     Balance, CoinPage, IotaCoinMetadata, IotaObjectData, IotaObjectDataFilter, IotaObjectRef,
     IotaObjectResponseQuery, IotaTransactionBlockEffectsAPI, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTypeTag, ObjectChange, TransactionBlockBytes,
+    IotaTransactionBlockResponseOptions, IotaTypeTag, TransactionBlockBytes,
 };
 use iota_keys::keystore::AccountKeystore;
-use iota_move_build::BuildConfig;
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, TypeTag,
     balance::Supply,
@@ -30,16 +29,16 @@ use itertools::Itertools;
 use jsonrpsee::http_client::HttpClient;
 use move_core_types::{identifier::Identifier, language_storage::StructTag};
 use test_cluster::TestCluster;
-use tokio::sync::{Mutex, OnceCell};
+use tokio::sync::OnceCell;
 
 use crate::common::{
     ApiTestSetup, execute_tx_and_wait_for_indexer, indexer_wait_for_object,
-    indexer_wait_for_transaction, start_test_cluster_with_read_write_indexer,
+    indexer_wait_for_transaction, publish_test_move_package,
+    start_test_cluster_with_read_write_indexer,
 };
 
 static COMMON_TESTING_ADDR_AND_CUSTOM_COIN_NAME: OnceCell<(IotaAddress, IotaKeyPair, String)> =
     OnceCell::const_new();
-static PACKAGE_PUBLISH_LOCK: OnceCell<Arc<Mutex<i64>>> = OnceCell::const_new();
 
 async fn get_or_init_addr_and_custom_coins(
     cluster: &TestCluster,
@@ -751,7 +750,7 @@ async fn create_trusted_coins(
 ) -> Result<(String, String), anyhow::Error> {
     let http_client = cluster.rpc_client();
 
-    let (package_id, _) = publish_test_move_package(
+    let ((package_id, _, _), _) = publish_test_move_package(
         http_client,
         address,
         account_keypair,
@@ -871,7 +870,7 @@ async fn create_migrated_coin_manager_coins(
     .unwrap();
 
     let http_client = cluster.rpc_client();
-    let (package_id, _) = publish_test_move_package(
+    let ((package_id, _, _), _) = publish_test_move_package(
         http_client,
         address,
         account_keypair,
@@ -996,74 +995,6 @@ async fn create_migrated_coin_manager_coins(
     Ok((coin_name, immutable_metadata_coin_name))
 }
 
-async fn publish_test_move_package(
-    client: &HttpClient,
-    address: IotaAddress,
-    account_keypair: &IotaKeyPair,
-    test_package_name: &str,
-) -> Result<(ObjectID, IotaTransactionBlockResponse), anyhow::Error> {
-    let _lock = PACKAGE_PUBLISH_LOCK
-        .get_or_init(async || Arc::new(tokio::sync::Mutex::new(0)))
-        .await
-        .lock()
-        .await;
-
-    let coins = client
-        .get_coins(address, None, None, Some(1))
-        .await
-        .unwrap()
-        .data;
-    let gas = &coins[0];
-
-    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    path.extend(["tests", "data", test_package_name]);
-
-    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
-    let with_unpublished_deps = false;
-    let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
-    let dependencies = compiled_package.get_dependency_storage_package_ids();
-
-    let transaction_bytes: TransactionBlockBytes = client
-        .publish(
-            address,
-            compiled_modules_bytes,
-            dependencies,
-            Some(gas.coin_object_id),
-            100_000_000.into(),
-        )
-        .await
-        .unwrap();
-
-    let signed_transaction =
-        to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), account_keypair);
-    let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
-
-    let tx_response: IotaTransactionBlockResponse = client
-        .execute_transaction_block(
-            tx_bytes,
-            signatures,
-            Some(
-                IotaTransactionBlockResponseOptions::new()
-                    .with_object_changes()
-                    .with_events(),
-            ),
-            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
-        )
-        .await
-        .unwrap();
-
-    let object_changes = tx_response.object_changes.as_ref().unwrap();
-    let package_id = object_changes
-        .iter()
-        .find_map(|change| match change {
-            ObjectChange::Published { package_id, .. } => Some(package_id),
-            _ => None,
-        })
-        .unwrap();
-
-    Ok((*package_id, tx_response))
-}
-
 async fn create_native_coin_manager_coins(
     cluster: &TestCluster,
     indexer_client: &HttpClient,
@@ -1073,7 +1004,7 @@ async fn create_native_coin_manager_coins(
 ) -> Result<(String, String), anyhow::Error> {
     let http_client = cluster.rpc_client();
 
-    let (package_id, tx_response) =
+    let ((package_id, _, _), tx_response) =
         publish_test_move_package(http_client, address, account_keypair, "coin_manager_coins")
             .await?;
     indexer_wait_for_transaction(tx_response.digest, pg_store, indexer_client).await;

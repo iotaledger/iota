@@ -58,9 +58,10 @@ mod test_dag_parser;
 pub use authority_node::ConsensusAuthority;
 pub use block::{BlockAPI, BlockRef, Round};
 /// Exported API for testing.
-pub use block::{TestBlock, Transaction, VerifiedBlock};
+pub use block::{BlockTimestampMs, TestBlock, Transaction, VerifiedBlock};
 pub use commit::{CommitDigest, CommitIndex, CommitRef, CommittedSubDag};
 pub use commit_consumer::{CommitConsumer, CommitConsumerMonitor};
+pub use context::Clock;
 pub use network::tonic_network::to_socket_addr;
 #[cfg(msim)]
 pub use transaction::NoopTransactionVerifier;
