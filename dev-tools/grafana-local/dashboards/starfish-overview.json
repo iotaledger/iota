@@ -654,7 +654,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
+        "h": 7,
         "w": 11,
         "x": 0,
         "y": 6
@@ -746,7 +746,7 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 5,
+        "h": 7,
         "w": 12,
         "x": 11,
         "y": 6
@@ -843,10 +843,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 11,
         "x": 0,
-        "y": 11
+        "y": 13
       },
       "id": 154,
       "options": {
@@ -939,10 +939,10 @@
         "overrides": []
       },
       "gridPos": {
-        "h": 6,
+        "h": 8,
         "w": 12,
         "x": 11,
-        "y": 11
+        "y": 13
       },
       "id": 155,
       "options": {
@@ -1036,7 +1036,7 @@
         "h": 8,
         "w": 11,
         "x": 0,
-        "y": 17
+        "y": 21
       },
       "id": 72,
       "options": {
@@ -1130,7 +1130,7 @@
         "h": 8,
         "w": 12,
         "x": 11,
-        "y": 17
+        "y": 21
       },
       "id": 197,
       "options": {
@@ -1224,7 +1224,7 @@
         "h": 8,
         "w": 11,
         "x": 0,
-        "y": 25
+        "y": 29
       },
       "id": 188,
       "options": {
@@ -1318,7 +1318,7 @@
         "h": 8,
         "w": 12,
         "x": 11,
-        "y": 25
+        "y": 29
       },
       "id": 187,
       "options": {
@@ -1413,7 +1413,7 @@
         "h": 8,
         "w": 11,
         "x": 0,
-        "y": 33
+        "y": 37
       },
       "id": 198,
       "options": {
@@ -1512,7 +1512,7 @@
         "h": 8,
         "w": 12,
         "x": 11,
-        "y": 33
+        "y": 37
       },
       "id": 199,
       "options": {
@@ -1612,7 +1612,7 @@
         "h": 8,
         "w": 11,
         "x": 0,
-        "y": 41
+        "y": 45
       },
       "id": 195,
       "interval": "1s",
@@ -1714,7 +1714,7 @@
         "h": 8,
         "w": 12,
         "x": 11,
-        "y": 41
+        "y": 45
       },
       "id": 196,
       "interval": "1",
@@ -1758,7 +1758,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 49
+        "y": 53
       },
       "id": 208,
       "panels": [
@@ -1810,8 +1810,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -1907,8 +1906,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -2008,8 +2006,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -2110,8 +2107,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -2207,8 +2203,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -2308,8 +2303,7 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green",
-                    "value": null
+                    "color": "green"
                   },
                   {
                     "color": "red",
@@ -2372,7 +2366,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 50
+        "y": 54
       },
       "id": 214,
       "panels": [
@@ -2440,7 +2434,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 3
+            "y": 55
           },
           "id": 210,
           "options": {
@@ -2475,208 +2469,6 @@
             }
           ],
           "title": "Cordial Knowledge Commands per second",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "description": "Measures the queue of commands in Cordial Knowledge Buffer",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "none"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 12,
-            "y": 3
-          },
-          "id": 216,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "disableTextWrap": false,
-              "editorMode": "code",
-              "exemplar": false,
-              "expr": "consensus_cordial_knowledge_buffer_size",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "instant": false,
-              "legendFormat": "{{host}}",
-              "range": true,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "Buffer Size in Receiver for Cordial Knowledge",
-          "type": "timeseries"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "description": "Measures the average number of rounds in cordial knowledge DAG",
-          "fieldConfig": {
-            "defaults": {
-              "color": {
-                "mode": "palette-classic"
-              },
-              "custom": {
-                "axisCenteredZero": false,
-                "axisColorMode": "text",
-                "axisLabel": "",
-                "axisPlacement": "auto",
-                "barAlignment": 0,
-                "drawStyle": "line",
-                "fillOpacity": 0,
-                "gradientMode": "none",
-                "hideFrom": {
-                  "legend": false,
-                  "tooltip": false,
-                  "viz": false
-                },
-                "insertNulls": false,
-                "lineInterpolation": "linear",
-                "lineWidth": 1,
-                "pointSize": 5,
-                "scaleDistribution": {
-                  "type": "linear"
-                },
-                "showPoints": "auto",
-                "spanNulls": false,
-                "stacking": {
-                  "group": "A",
-                  "mode": "none"
-                },
-                "thresholdsStyle": {
-                  "mode": "off"
-                }
-              },
-              "mappings": [],
-              "thresholds": {
-                "mode": "absolute",
-                "steps": [
-                  {
-                    "color": "green",
-                    "value": null
-                  },
-                  {
-                    "color": "red",
-                    "value": 80
-                  }
-                ]
-              },
-              "unit": "none"
-            },
-            "overrides": []
-          },
-          "gridPos": {
-            "h": 8,
-            "w": 12,
-            "x": 0,
-            "y": 11
-          },
-          "id": 217,
-          "options": {
-            "legend": {
-              "calcs": [],
-              "displayMode": "list",
-              "placement": "bottom",
-              "showLegend": true
-            },
-            "tooltip": {
-              "mode": "single",
-              "sort": "none"
-            }
-          },
-          "targets": [
-            {
-              "datasource": {
-                "type": "prometheus",
-                "uid": "prometheus"
-              },
-              "disableTextWrap": false,
-              "editorMode": "builder",
-              "exemplar": false,
-              "expr": "avg by(authority) (consensus_cordial_knowledge_rounds)",
-              "fullMetaSearch": false,
-              "includeNullMetadata": true,
-              "instant": false,
-              "legendFormat": "{{host}}",
-              "range": true,
-              "refId": "A",
-              "useBackend": false
-            }
-          ],
-          "title": "Average Rounds in Cordial Knowledge DAG",
           "type": "timeseries"
         },
         {
@@ -2743,7 +2535,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 11
+            "y": 55
           },
           "id": 218,
           "options": {
@@ -2779,6 +2571,309 @@
           ],
           "title": "Peers with useful shards",
           "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Measures the average number of rounds in cordial knowledge DAG",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 63
+          },
+          "id": 217,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "disableTextWrap": false,
+              "editorMode": "builder",
+              "exemplar": false,
+              "expr": "avg by(authority) (consensus_cordial_knowledge_rounds)",
+              "fullMetaSearch": false,
+              "includeNullMetadata": true,
+              "instant": false,
+              "legendFormat": "{{host}}",
+              "range": true,
+              "refId": "A",
+              "useBackend": false
+            }
+          ],
+          "title": "Average Rounds in Cordial Knowledge DAG",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Measures the queue of commands in Cordial Knowledge Buffer",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 63
+          },
+          "id": 216,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "consensus_cordial_knowledge_buffer_size",
+              "fullMetaSearch": false,
+              "includeNullMetadata": true,
+              "instant": false,
+              "legendFormat": "{{host}}",
+              "range": true,
+              "refId": "A",
+              "useBackend": false
+            }
+          ],
+          "title": "Buffer Size in Receiver for Cordial Knowledge",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Number of batched commands ",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "none"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 71
+          },
+          "id": 223,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "rate(consensus_cordial_knowledge_worker_batch_size_sum[1m]) / rate(consensus_cordial_knowledge_worker_batch_size_count[1m])",
+              "fullMetaSearch": false,
+              "includeNullMetadata": true,
+              "instant": false,
+              "legendFormat": "{{host}}",
+              "range": true,
+              "refId": "A",
+              "useBackend": false
+            }
+          ],
+          "title": "Batched commands in disseminator worker",
+          "type": "timeseries"
         }
       ],
       "title": "Cordial Knowledge",
@@ -2790,7 +2885,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 51
+        "y": 55
       },
       "id": 107,
       "panels": [
@@ -2857,7 +2952,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 4
+            "y": 56
           },
           "id": 158,
           "options": {
@@ -2952,7 +3047,7 @@
             "h": 8,
             "w": 11,
             "x": 12,
-            "y": 4
+            "y": 56
           },
           "id": 120,
           "options": {
@@ -3047,7 +3142,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 12
+            "y": 64
           },
           "id": 116,
           "options": {
@@ -3146,7 +3241,7 @@
             "h": 8,
             "w": 11,
             "x": 12,
-            "y": 12
+            "y": 64
           },
           "id": 115,
           "options": {
@@ -3184,7 +3279,6 @@
         },
         {
           "datasource": {
-            "default": false,
             "type": "prometheus",
             "uid": "prometheus"
           },
@@ -3244,9 +3338,9 @@
           },
           "gridPos": {
             "h": 8,
-            "w": 11,
-            "x": 1,
-            "y": 20
+            "w": 12,
+            "x": 0,
+            "y": 72
           },
           "id": 135,
           "options": {
@@ -3268,8 +3362,8 @@
                 "uid": "prometheus"
               },
               "disableTextWrap": false,
-              "editorMode": "builder",
-              "expr": "rate(consensus_accepted_blocks{source=\"own\"}[5m])",
+              "editorMode": "code",
+              "expr": "rate(consensus_accepted_blocks{source=\"own\"}[1m]) or rate(consensus_accepted_block_headers{source=\"own\"}[1m])",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -3345,7 +3439,7 @@
             "h": 8,
             "w": 11,
             "x": 12,
-            "y": 20
+            "y": 72
           },
           "id": 111,
           "options": {
@@ -3368,7 +3462,7 @@
               },
               "disableTextWrap": false,
               "editorMode": "code",
-              "expr": "rate(consensus_accepted_blocks{source=\"others\"}[1m])",
+              "expr": "rate(consensus_accepted_blocks{source=\"others\"}[1m]) or rate(consensus_accepted_block_headers{source=\"others\"}[1m])",
               "fullMetaSearch": false,
               "includeNullMetadata": true,
               "instant": false,
@@ -3391,7 +3485,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 52
+        "y": 56
       },
       "id": 179,
       "panels": [
@@ -3971,7 +4065,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 53
+        "y": 57
       },
       "id": 200,
       "panels": [
@@ -4561,7 +4655,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 54
+        "y": 58
       },
       "id": 169,
       "panels": [
@@ -6054,7 +6148,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 55
+        "y": 59
       },
       "id": 95,
       "panels": [
@@ -7796,7 +7890,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 56
+        "y": 60
       },
       "id": 127,
       "panels": [
@@ -8380,7 +8474,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 57
+        "y": 61
       },
       "id": 194,
       "panels": [
@@ -8587,7 +8681,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 58
+        "y": 62
       },
       "id": 67,
       "panels": [
@@ -8892,7 +8986,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 59
+        "y": 63
       },
       "id": 7,
       "panels": [
@@ -10023,7 +10117,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 60
+        "y": 64
       },
       "id": 15,
       "panels": [
@@ -10073,7 +10167,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10089,7 +10184,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 61
+            "y": 13
           },
           "id": 18,
           "options": {
@@ -10167,7 +10262,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10183,7 +10279,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 61
+            "y": 13
           },
           "id": 13,
           "options": {
@@ -10266,7 +10362,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10282,7 +10379,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 61
+            "y": 13
           },
           "id": 16,
           "options": {
@@ -10365,7 +10462,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10381,7 +10479,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 69
+            "y": 21
           },
           "id": 19,
           "options": {
@@ -10459,7 +10557,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10475,7 +10574,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 69
+            "y": 21
           },
           "id": 14,
           "options": {
@@ -10558,7 +10657,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10574,7 +10674,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 69
+            "y": 21
           },
           "id": 17,
           "options": {
@@ -10657,7 +10757,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10673,7 +10774,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 77
+            "y": 29
           },
           "id": 42,
           "options": {
@@ -10751,7 +10852,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10767,7 +10869,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 77
+            "y": 29
           },
           "id": 59,
           "options": {
@@ -10845,7 +10947,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -10861,7 +10964,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 77
+            "y": 29
           },
           "id": 50,
           "options": {
@@ -10902,7 +11005,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 61
+        "y": 65
       },
       "id": 44,
       "panels": [
@@ -10966,7 +11069,7 @@
             "h": 11,
             "w": 24,
             "x": 0,
-            "y": 62
+            "y": 14
           },
           "id": 222,
           "options": {
@@ -11059,7 +11162,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 73
+            "y": 25
           },
           "id": 47,
           "options": {
@@ -11153,7 +11256,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 73
+            "y": 25
           },
           "id": 48,
           "options": {
@@ -11243,7 +11346,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 73
+            "y": 25
           },
           "id": 220,
           "options": {
@@ -11335,7 +11438,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 81
+            "y": 33
           },
           "id": 45,
           "options": {
@@ -11428,7 +11531,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 81
+            "y": 33
           },
           "id": 46,
           "options": {
@@ -11517,7 +11620,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 81
+            "y": 33
           },
           "id": 221,
           "options": {
@@ -11580,6 +11683,6 @@
   "timezone": "Europe/Berlin",
   "title": "IOTA Starfish Overview",
   "uid": "StarfishOverviewsad",
-  "version": 30,
+  "version": 34,
   "weekStart": ""
 }
