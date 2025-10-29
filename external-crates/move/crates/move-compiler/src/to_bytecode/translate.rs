@@ -18,7 +18,6 @@ use move_symbol_pool::Symbol;
 
 use super::{canonicalize_handles, context::*, optimize};
 use crate::{
-    FullyCompiledProgram,
     cfgir::{ast as G, translate::move_value_from_value_},
     compiled_unit::*,
     diag,
@@ -34,16 +33,12 @@ use crate::{
         ModuleName, TargetKind, UnaryOp, UnaryOp_, VariantName,
     },
     shared::{unique_map::UniqueMap, *},
-    to_bytecode::authenticator_attribute::parse_authenticator_version,
+    FullyCompiledProgram,
 };
 
 type CollectedInfos = UniqueMap<FunctionName, CollectedInfo>;
 
-type CollectedInfo = (
-    Vec<(Mutability, Var, H::SingleType)>,
-    Attributes,
-    Option<u8>,
-);
+type CollectedInfo = (Vec<(Mutability, Var, H::SingleType)>, Attributes);
 
 fn extract_decls(
     compilation_env: &CompilationEnv,
@@ -166,8 +161,8 @@ pub fn program(
             units.push(unit)
         }
     }
-    // there are unsafe pointers into this table in the WarningFilters in the AST.
-    // Now that they are gone, the table can safely be dropped.
+    // there are unsafe pointers into this table in the WarningFilters in the AST. Now that they
+    // are gone, the table can safely be dropped.
     drop(warning_filters_table);
     units
 }
@@ -200,8 +195,7 @@ fn module(
     let structs = struct_defs(&mut context, &ident, gstructs);
     let enums = enum_defs(&mut context, &ident, genums);
     let constants = constants(&mut context, &ident, gconstants);
-    let (collected_function_infos, functions) =
-        functions(&mut context, reporter, &ident, gfunctions);
+    let (collected_function_infos, functions) = functions(&mut context, &ident, gfunctions);
 
     let friends = gfriends
         .into_iter()
@@ -327,16 +321,14 @@ fn function_info_map(
         .into_iter()
         .map(|(n, v)| (Symbol::from(n.as_str()), v))
         .collect();
-    let (params, attributes, authenticator_version) = collected_function_infos.get_(&name).unwrap();
+    let (params, attributes) = collected_function_infos.get_(&name).unwrap();
     let parameters = params
         .iter()
         .map(|(_mut, v, ty)| var_info(&local_map, *v, ty.clone()))
         .collect();
-
     let function_info = FunctionInfo {
         parameters,
         attributes: attributes.clone(),
-        authenticator_version: authenticator_version.clone(),
     };
 
     let name_loc = *collected_function_infos.get_loc_(&name).unwrap();
@@ -547,7 +539,6 @@ fn constant(
 
 fn functions(
     context: &mut Context,
-    reporter: &DiagnosticReporter,
     m: &ModuleIdent,
     functions: UniqueMap<FunctionName, G::Function>,
 ) -> (CollectedInfos, Vec<(IR::FunctionName, IR::Function)>) {
@@ -565,7 +556,7 @@ fn functions(
         //             .contains_key_(&fake_natives::FAKE_NATIVE_ATTR)
         // })
         .map(|(f, fdef)| {
-            let (res, info) = function(context, reporter, m, f, fdef);
+            let (res, info) = function(context, m, f, fdef);
             collected_function_infos.add(f, info).unwrap();
             res
         })
@@ -575,7 +566,6 @@ fn functions(
 
 fn function(
     context: &mut Context,
-    reporter: &DiagnosticReporter,
     m: &ModuleIdent,
     f: FunctionName,
     fdef: G::Function,
@@ -619,8 +609,6 @@ fn function(
     let name_loc = f.loc();
     let name = context.function_definition_name(m, f);
 
-    let authenticator_version = parse_authenticator_version(reporter, &attributes);
-
     let ir_function = IR::Function_ {
         loc,
         visibility: v,
@@ -628,10 +616,7 @@ fn function(
         signature,
         body,
     };
-    (
-        (name, sp(name_loc, ir_function)),
-        (parameters, attributes, authenticator_version),
-    )
+    ((name, sp(name_loc, ir_function)), (parameters, attributes))
 }
 
 fn visibility(_context: &mut Context, v: Visibility) -> IR::FunctionVisibility {
@@ -1061,9 +1046,9 @@ fn convert_unpack_type(unpack_type: H::UnpackType) -> IR::UnpackType {
 
 #[growing_stack]
 fn exp(context: &mut Context, code: &mut IR::BytecodeBlock, e: H::Exp) {
+    use Value_ as V;
     use H::UnannotatedExp_ as E;
     use IR::Bytecode_ as B;
-    use Value_ as V;
     let sp!(loc, e_) = e.exp;
     match e_ {
         E::Unreachable => panic!("ICE should not compile dead code"),
@@ -1267,8 +1252,8 @@ fn module_call(
 }
 
 fn unary_op(code: &mut IR::BytecodeBlock, sp!(loc, op_): UnaryOp) {
-    use IR::Bytecode_ as B;
     use UnaryOp_ as O;
+    use IR::Bytecode_ as B;
     code.push(sp(
         loc,
         match op_ {

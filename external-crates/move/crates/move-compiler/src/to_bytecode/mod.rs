@@ -7,5 +7,4 @@ mod canonicalize_handles;
 #[macro_use]
 mod context;
 mod optimize;
-mod authenticator_attribute;
 pub mod translate;

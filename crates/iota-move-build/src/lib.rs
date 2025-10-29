@@ -158,7 +158,7 @@ impl BuildConfig {
             for (_, s, info) in &u.function_infos {
                 let fn_name = s.as_str().to_string();
                 let is_test = mod_is_test || info.attributes.is_test_or_test_only();
-                let authenticator_version = info.authenticator_version;
+                let authenticator_version = info.attributes.get_authenticator();
                 fn_info_map.insert(
                     FnInfoKey { fn_name, mod_addr },
                     FnInfo {

@@ -33,8 +33,8 @@ use move_vm_runtime::{
     session::{SerializedReturnValues, Session},
 };
 use move_vm_test_utils::{
-    InMemoryStorage,
     gas_schedule::{Gas, GasStatus, INITIAL_COST_SCHEDULE},
+    InMemoryStorage,
 };
 #[cfg(feature = "tracing")]
 use move_vm_types::gas::GasMeter;

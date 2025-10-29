@@ -29,12 +29,12 @@
 //! stage.
 //!
 //! Named attributes, which only have an identifier to them.
-//! ```
+//! ```text
 //! #[NamedAttribute]
 //! ....
 //! ```
 //! which can be listed in one unit or separated into more lines:
-//! ```
+//! ```text
 //! #[NamedAttribute1, NamedAttribute2]
 //! ...
 //!
@@ -43,7 +43,7 @@
 //! ...
 //! ```
 //! Assigned attributes, which also have an associated value:
-//! ```
+//! ```text
 //! #[AssignedAttribute = AttributeValue]
 //! ...
 //! ```
@@ -51,7 +51,7 @@
 //!
 //! Parameterized attributes, which can recursively contain
 //! all other types of attributes:
-//! ```
+//! ```text
 //! #[Parameterized(NamedAttribute)]
 //! ...
 //!
