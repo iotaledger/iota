@@ -425,7 +425,7 @@ impl CoreThreadDispatcher for ChannelCoreThreadDispatcher {
         CoreError,
     > {
         for commit in commits.commits() {
-            for block in commit.blocks() {
+            for block in commit.block_headers() {
                 self.highest_received_rounds[block.author()]
                     .fetch_max(block.round(), Ordering::AcqRel);
             }

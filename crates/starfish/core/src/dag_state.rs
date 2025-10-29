@@ -30,6 +30,7 @@ use crate::{
     context::Context,
     cordial_knowledge::CordialKnowledgeMessage,
     leader_scoring::{ReputationScores, ScoringSubdag},
+    network::SerializedTransactions,
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
 };
@@ -98,14 +99,15 @@ pub(crate) struct DagState {
     /// are kept in memory.
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
-    /// Contains recent transactions. It contains
-    /// MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH =
-    /// (protocol_config.gc_depth * 2) from the round of the last consumed
-    /// commit. Note: all transactions in blocks below that round are
-    /// evicted from memory.
-    recent_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
-    /// Contains recent shards with their Merkle proofs.
-    recent_shards: BTreeMap<BlockRef, Bytes>,
+    /// Contains recent verified transactions per authority. To access a transaction with a given block_ref, one
+    /// needs to read first the entry with index block_ref.author.
+    /// Evicted using the minimum between GC round for the last solid leader round
+    /// evicted rounds by authority.
+    recent_transactions_by_authority: Vec<BTreeMap<BlockRef, VerifiedTransactions>>,
+    /// Contains recent own serialized shards with their Merkle proofs per authority. To access own shard for a given block_ref, one
+    /// needs to read first the entry with index block_ref.author.
+    /// Eviction is aligned with headers
+    recent_shards_by_authority: Vec<BTreeMap<BlockRef, Bytes>>,
     /// Indexes recent block headers refs by their authorities.
     /// Vec position corresponds to the authority index.
     recent_headers_refs_by_authority: Vec<BTreeSet<BlockRef>>,
@@ -235,8 +237,8 @@ impl DagState {
             context,
             genesis,
             recent_block_headers: BTreeMap::new(),
-            recent_transactions: BTreeMap::new(),
-            recent_shards: BTreeMap::new(),
+            recent_transactions_by_authority: vec![BTreeMap::new(); num_authorities],
+            recent_shards_by_authority: vec![BTreeMap::new(); num_authorities],
             recent_headers_refs_by_authority: vec![BTreeSet::new(); num_authorities],
             threshold_clock,
             highest_accepted_round: 0,
@@ -368,8 +370,7 @@ impl DagState {
         source: TransactionSource,
     ) {
         let block_ref = transactions.block_ref();
-        if self
-            .recent_transactions
+        if self.recent_transactions_by_authority[block_ref.author]
             .insert(block_ref, transactions.clone())
             .is_none()
         {
@@ -411,8 +412,7 @@ impl DagState {
 
     pub(crate) fn add_shard(&mut self, shard: VerifiedOwnShard) {
         let block_ref = shard.block_ref;
-        if self
-            .recent_shards
+        if self.recent_shards_by_authority[block_ref.author]
             .insert(block_ref, shard.serialized_shard)
             .is_none()
         {
@@ -426,7 +426,15 @@ impl DagState {
         }
     }
 
-    pub fn update_last_solid_commit_leader_round(&mut self, last_solid_commit_leader_round: Round) {
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub(crate) fn last_solid_commit_leader_round(&self) -> Option<Round> {
+        self.last_solid_commit_leader_round
+    }
+
+    pub(crate) fn update_last_solid_commit_leader_round(
+        &mut self,
+        last_solid_commit_leader_round: Round,
+    ) {
         let max_commit_round = self
             .last_committed_rounds
             .iter()
@@ -479,7 +487,7 @@ impl DagState {
     }
 
     fn update_transaction_metadata(&mut self, transaction: &VerifiedTransactions) {
-        self.recent_transactions
+        self.recent_transactions_by_authority[transaction.block_ref().author]
             .insert(transaction.block_ref(), transaction.clone());
     }
 
@@ -500,7 +508,7 @@ impl DagState {
     /// Gets transactions by checking cached recent transactions in memory, then
     /// storage. An element is None when the corresponding transaction is not
     /// found.
-    pub(crate) fn get_transactions(
+    pub(crate) fn get_verified_transactions(
         &self,
         block_refs: &[BlockRef],
     ) -> Vec<Option<VerifiedTransactions>> {
@@ -519,7 +527,9 @@ impl DagState {
                 }
                 continue;
             }
-            if let Some(transaction) = self.recent_transactions.get(block_ref) {
+            if let Some(transaction) =
+                self.recent_transactions_by_authority[block_ref.author].get(block_ref)
+            {
                 transactions[index] = Some(transaction.clone());
                 continue;
             }
@@ -536,13 +546,70 @@ impl DagState {
             .collect::<Vec<_>>();
         let store_results = self
             .store
-            .read_transactions(&missing_refs)
+            .read_verified_transactions(&missing_refs)
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
         self.context
             .metrics
             .node_metrics
             .dag_state_store_read_count
-            .with_label_values(&["get_transactions"])
+            .with_label_values(&["get_verified_transactions"])
+            .inc();
+
+        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
+            transactions[index] = result;
+        }
+
+        transactions
+    }
+
+    /// Gets serialized transactions by checking cached recent transactions in
+    /// memory, then storage. An element is None when the corresponding
+    /// transaction is not found.
+    pub(crate) fn get_serialized_transactions(
+        &self,
+        block_refs: &[BlockRef],
+    ) -> Vec<Option<SerializedTransactions>> {
+        let mut transactions = vec![None; block_refs.len()];
+        let mut missing = Vec::new();
+
+        for (index, block_ref) in block_refs.iter().enumerate() {
+            if block_ref.round == GENESIS_ROUND {
+                // Allow the caller to handle the invalid genesis ancestor error.
+                if let Some(transaction) = self
+                    .genesis
+                    .get(block_ref)
+                    .map(|block| block.verified_transactions.clone())
+                {
+                    transactions[index] = Some(SerializedTransactions::from(transaction));
+                }
+                continue;
+            }
+            if let Some(transaction) =
+                self.recent_transactions_by_authority[block_ref.author].get(block_ref)
+            {
+                transactions[index] = Some(SerializedTransactions::from(transaction.clone()));
+                continue;
+            }
+            missing.push((index, block_ref));
+        }
+
+        if missing.is_empty() {
+            return transactions;
+        }
+
+        let missing_refs = missing
+            .iter()
+            .map(|(_, block_ref)| **block_ref)
+            .collect::<Vec<_>>();
+        let store_results = self
+            .store
+            .read_serialized_transactions(&missing_refs)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+        self.context
+            .metrics
+            .node_metrics
+            .dag_state_store_read_count
+            .with_label_values(&["get_serialized_transactions"])
             .inc();
 
         for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
@@ -639,7 +706,7 @@ impl DagState {
     pub(crate) fn get_cached_shards(&self, block_refs: &[BlockRef]) -> Vec<Option<Bytes>> {
         let mut shards: Vec<Option<Bytes>> = vec![None; block_refs.len()];
         for (index, block_ref) in block_refs.iter().enumerate() {
-            if let Some(shard) = self.recent_shards.get(block_ref) {
+            if let Some(shard) = self.recent_shards_by_authority[block_ref.author].get(block_ref) {
                 shards[index] = Some(shard.clone());
             }
         }
@@ -748,8 +815,7 @@ impl DagState {
                 .recent_block_headers
                 .get(last)
                 .expect("Block header should exist for the most recent blocks");
-            let transactions = self
-                .recent_transactions
+            let transactions = self.recent_transactions_by_authority[last.author]
                 .get(last)
                 .expect("Transactions should exist for the most recent blocks");
             return VerifiedBlock::new(header.clone(), transactions.clone());
@@ -806,7 +872,8 @@ impl DagState {
             Unbounded,
         )) {
             let header_opt = self.recent_block_headers.get(block_ref);
-            let transactions_opt = self.recent_transactions.get(block_ref);
+            let transactions_opt =
+                self.recent_transactions_by_authority[block_ref.author].get(block_ref);
             if let (Some(header), Some(transactions)) = (header_opt, transactions_opt) {
                 blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
             } else {
@@ -1087,7 +1154,7 @@ impl DagState {
                 }
                 continue;
             }
-            if self.recent_transactions.contains_key(&block_ref) {
+            if self.recent_transactions_by_authority[block_ref.author].contains_key(&block_ref) {
                 exist[index] = true;
             } else {
                 missing.push((index, block_ref));
@@ -1277,28 +1344,37 @@ impl DagState {
 
     /// Clean up old shards. Used after flushing.
     pub(crate) fn evict_shards(&mut self) {
-        self.recent_shards
-            .retain(|block_ref, _| block_ref.round > self.evicted_rounds[block_ref.author]);
+        for (authority_index, _) in self.context.committee.authorities() {
+            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+
+            // Evict everything below split_key
+            let split_key =
+                BlockRef::new(eviction_round + 1, authority_index, BlockHeaderDigest::MIN);
+            self.recent_shards_by_authority[authority_index] =
+                self.recent_shards_by_authority[authority_index].split_off(&split_key);
+        }
     }
 
-    /// Function removes stalled transactions that are older than  "last consume
+    /// Function removes stalled transactions that are older than the minimum between  "last solid
     /// leader round minus MAX_TRANSACTIONS_ACK_DEPTH
     /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
-    /// (protocol_config.gc_depth)"
+    /// (protocol_config.gc_depth)" or the eviction round of corresponding authority
     pub(crate) fn evict_transactions(&mut self) {
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
-        let header_eviction_round = self.calculate_authority_eviction_round(self.context.own_index);
-        let transaction_eviction_round = min(transaction_gc_round, header_eviction_round + 1);
-        // Construct a dummy BlockRef with the minimum round to split on.
-        // All entries < dummy will be removed.
-        let lower_bound = BlockRef::new(
-            transaction_eviction_round,
-            AuthorityIndex::ZERO,
-            BlockHeaderDigest::MIN,
-        );
+        for (authority_index, _) in self.context.committee.authorities() {
+            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            // Take minimum between transaction_gc_round and eviction_round
+            let transaction_eviction_round = min(transaction_gc_round, eviction_round + 1);
 
-        // Remove entries with round < min_round
-        self.recent_transactions = self.recent_transactions.split_off(&lower_bound);
+            // Evict everything below split_key
+            let split_key = BlockRef::new(
+                transaction_eviction_round,
+                authority_index,
+                BlockHeaderDigest::MIN,
+            );
+            self.recent_transactions_by_authority[authority_index] =
+                self.recent_transactions_by_authority[authority_index].split_off(&split_key);
+        }
     }
 
     /// Return the garbage collection round with respect to the last solid
@@ -1514,12 +1590,18 @@ impl DagState {
         metrics
             .dag_state_recent_headers
             .set(self.recent_block_headers.len() as i64);
-        metrics
-            .dag_state_recent_shards
-            .set(self.recent_shards.len() as i64);
-        metrics
-            .dag_state_recent_transactions
-            .set(self.recent_transactions.len() as i64);
+        metrics.dag_state_recent_shards.set(
+            self.recent_shards_by_authority
+                .iter()
+                .map(BTreeMap::len)
+                .sum::<usize>() as i64,
+        );
+        metrics.dag_state_recent_transactions.set(
+            self.recent_transactions_by_authority
+                .iter()
+                .map(BTreeMap::len)
+                .sum::<usize>() as i64,
+        );
         metrics.dag_state_recent_refs.set(
             self.recent_headers_refs_by_authority
                 .iter()
@@ -2279,7 +2361,7 @@ mod test {
 
         // All transactions should be found in DagState.
         let result = dag_state
-            .get_transactions(&block_refs)
+            .get_verified_transactions(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -2319,7 +2401,7 @@ mod test {
         // Transactions from the first 5 rounds should be found in DagState.
         let vec_transactions = dag_builder.transactions(1..=5);
         let result = dag_state
-            .get_transactions(&block_refs)
+            .get_verified_transactions(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -2345,7 +2427,7 @@ mod test {
             .collect::<Vec<_>>();
         assert!(retrieved_block_headers.is_empty());
         let retrieved_transactions = dag_state
-            .get_transactions(&block_refs)
+            .get_verified_transactions(&block_refs)
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
@@ -2998,7 +3080,7 @@ mod test {
         let expected_transactions_in_dag = dag_builder.transactions(gc_round + 1..=num_rounds);
         // All transactions should be found in DagState or store.
         let result = dag_state
-            .get_transactions(&block_refs_with_transactions_in_dag)
+            .get_verified_transactions(&block_refs_with_transactions_in_dag)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -3018,7 +3100,7 @@ mod test {
 
         // All transactions should be found in DagState or store.
         let result = dag_state
-            .get_transactions(&block_refs)
+            .get_verified_transactions(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -3030,7 +3112,7 @@ mod test {
                 .metrics
                 .node_metrics
                 .dag_state_store_read_count
-                .with_label_values(&["get_transactions"])
+                .with_label_values(&["get_verified_transactions"])
                 .get(),
             1,
             "dag_state_store_read_count for get_transactions should be one"

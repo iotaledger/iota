@@ -299,7 +299,7 @@ async fn read_and_contain_transactions(
     // Test reading all transactions
     let refs: Vec<_> = written_blocks.iter().map(|b| b.reference()).collect();
     let read_txs = store
-        .read_transactions(&refs)
+        .read_verified_transactions(&refs)
         .expect("Read txs should not fail");
 
     assert_eq!(read_txs.len(), written_blocks.len());
@@ -318,7 +318,7 @@ async fn read_and_contain_transactions(
     // Test reading subset of transactions
     let subset_refs = vec![refs[1], refs[3], refs[5]];
     let read_subset = store
-        .read_transactions(&subset_refs)
+        .read_verified_transactions(&subset_refs)
         .expect("Read subset should not fail");
     assert_eq!(read_subset.len(), 3);
     assert_eq!(
@@ -347,7 +347,7 @@ async fn read_and_contain_transactions(
         BlockHeaderDigest::default(),
     );
     let read_missing = store
-        .read_transactions(&[missing_ref])
+        .read_verified_transactions(&[missing_ref])
         .expect("Read missing should not fail");
     assert_eq!(read_missing.len(), 1);
     assert!(read_missing[0].is_none());

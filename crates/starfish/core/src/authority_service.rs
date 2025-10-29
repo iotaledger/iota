@@ -38,7 +38,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
-        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactions,
+        SerializedBlockBundleParts, SerializedHeaderAndTransactions,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -935,20 +935,20 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // Get the transactions from the dag state
-        let transactions = self.dag_state.read().get_transactions(&block_refs);
+        let transactions = self
+            .dag_state
+            .read()
+            .get_serialized_transactions(&block_refs);
 
         // Return the serialized transactions
         let result = transactions
             .into_iter()
             .flatten()
-            .map(|transaction| {
+            .map(|serialized_transaction| {
                 Bytes::from(
-                    bcs::to_bytes(&SerializedTransactions {
-                        block_ref: transaction.block_ref(),
-                        serialized_transactions: transaction.serialized().clone(),
-                    })
-                    .map_err(ConsensusError::SerializationFailure)
-                    .expect("serialization should succeed"),
+                    bcs::to_bytes(&serialized_transaction)
+                        .map_err(ConsensusError::SerializationFailure)
+                        .expect("serialization should succeed"),
                 )
             })
             .collect::<Vec<_>>();

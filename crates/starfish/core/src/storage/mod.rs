@@ -16,6 +16,7 @@ use crate::{
     block_header::{BlockRef, Round, VerifiedBlock, VerifiedBlockHeader, VerifiedTransactions},
     commit::{CommitInfo, CommitRange, CommitRef, TrustedCommit},
     error::ConsensusResult,
+    network::SerializedTransactions,
 };
 
 /// A common interface for consensus storage.
@@ -35,10 +36,16 @@ pub(crate) trait Store: Send + Sync {
     ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>>;
 
     /// Reads transactions for the given refs.
-    fn read_transactions(
+    fn read_verified_transactions(
         &self,
         refs: &[BlockRef],
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>>;
+
+    /// Reads transactions for the given refs.
+    fn read_serialized_transactions(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<SerializedTransactions>>>;
 
     /// Checks if transactions exist in the store.
     fn contains_transactions(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
@@ -83,7 +90,7 @@ pub(crate) trait Store: Send + Sync {
     ) -> ConsensusResult<Vec<VerifiedTransactions>> {
         let refs = self.scan_references_by_author(author, start_round)?;
         let results = self
-            .read_transactions(refs.as_slice())?
+            .read_verified_transactions(refs.as_slice())?
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();

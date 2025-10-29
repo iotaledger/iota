@@ -21,6 +21,7 @@ use crate::{
         TrustedCommit,
     },
     error::ConsensusResult,
+    network::SerializedTransactions,
 };
 
 /// In-memory storage for testing.
@@ -99,7 +100,7 @@ impl Store for MemStore {
         Ok(())
     }
 
-    fn read_transactions(
+    fn read_verified_transactions(
         &self,
         refs: &[BlockRef],
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
@@ -116,6 +117,24 @@ impl Store for MemStore {
         Ok(transactions)
     }
 
+    fn read_serialized_transactions(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<SerializedTransactions>>> {
+        let inner = self.inner.read();
+        let transactions = refs
+            .iter()
+            .map(|r| {
+                let tx = inner
+                    .transactions
+                    .get(&(r.round, r.author, r.digest))
+                    .cloned();
+                tx.map(SerializedTransactions::from)
+            })
+            .collect();
+        Ok(transactions)
+    }
+
     // TODO: Do we need this method or will DAGState always try to read both headers
     // and transactions separately?
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
@@ -124,7 +143,7 @@ impl Store for MemStore {
         let inner = self.inner.read();
         // Get both headers and transactions for the given references
         let headers = self.read_block_headers(refs)?;
-        let transactions = self.read_transactions(refs)?;
+        let transactions = self.read_verified_transactions(refs)?;
         drop(inner); // Explicitly drop the read lock before combining results
 
         // Combine them into blocks if both parts exist

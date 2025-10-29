@@ -559,16 +559,18 @@ impl CordialKnowledge {
     /// Called when older rounds should be pruned globally.
     fn handle_evict_below(
         &mut self,
-        rounds: Vec<Round>,
+        evicted_rounds: Vec<Round>,
     ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         // Evict locally
         for (index, btree_map) in &mut self.cordial_knowledge.iter_mut().enumerate() {
-            let split_round = rounds[index];
+            // Increase by 1 for splitting as the evicted rounds are gone from memory
+            let split_round = evicted_rounds[index] + 1;
+            // Remove everything strictly below this round
             *btree_map = btree_map.split_off(&split_round);
         }
 
         // Prepare message for per-connection knowledge about eviction
-        self.prepare_evict_msgs(rounds)
+        self.prepare_evict_msgs(evicted_rounds)
     }
     #[inline]
     fn prepare_evict_msgs(
@@ -848,15 +850,15 @@ impl ConnectionKnowledge {
     }
 
     /// Evict all connection knowledge below the given rounds (exclusive)
-    fn evict_below(&mut self, rounds_exclusive: Vec<Round>) {
+    fn evict_below(&mut self, rounds_to_evict_exclusive: Vec<Round>) {
         for (index, map) in self.headers_not_known.iter_mut().enumerate() {
-            let threshold_round = rounds_exclusive[index];
+            let threshold_round = rounds_to_evict_exclusive[index] + 1;
             // Keep only entries >= threshold
             *map = map.split_off(&threshold_round);
         }
 
         for (index, map) in self.shards_not_known.iter_mut().enumerate() {
-            let threshold_round = rounds_exclusive[index];
+            let threshold_round = rounds_to_evict_exclusive[index] + 1;
             *map = map.split_off(&threshold_round);
         }
     }
@@ -967,7 +969,7 @@ impl ConnectionKnowledge {
         //    be marked as known
         let own_index = self.context.own_index;
         let mut rounds = vec![Round::MIN; self.context.committee.size()];
-        rounds[own_index] = round_upper_bound_exclusive + 1; // We are supposed to send own block of this round in a bundle when calling this function with this parameter
+        rounds[own_index] = round_upper_bound_exclusive; // We are supposed to send own block of this round in a bundle when calling this function with this parameter
 
         self.evict_below(rounds);
 

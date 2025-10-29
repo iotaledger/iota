@@ -24,6 +24,7 @@ use crate::{
     },
     commit::{CommitAPI as _, CommitDigest, CommitIndex, CommitRange, CommitRef, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
+    network::SerializedTransactions,
 };
 
 /// Persistent storage with RocksDB.
@@ -264,7 +265,8 @@ impl Store for RocksDBStore {
         Ok(block_headers)
     }
 
-    fn read_transactions(
+    /// Return Verified Transactions by deserializing and computing commitment
+    fn read_verified_transactions(
         &self,
         refs: &[BlockRef],
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
@@ -301,6 +303,33 @@ impl Store for RocksDBStore {
                 );
 
                 result.push(Some(verified_transactions));
+            } else {
+                result.push(None);
+            }
+        }
+        Ok(result)
+    }
+
+    /// Return Serialized Transactions without deserialization and computing
+    /// commitment
+    fn read_serialized_transactions(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<SerializedTransactions>>> {
+        let keys = refs
+            .iter()
+            .map(|r| (r.round, r.author, r.digest))
+            .collect::<Vec<_>>();
+        let serialized_vec_transactions = self.transactions.multi_get(keys.clone())?;
+        let mut result = Vec::with_capacity(refs.len());
+        for (block_ref, serialized_transactions) in refs.iter().zip(serialized_vec_transactions) {
+            if let Some(serialized_transactions) = serialized_transactions {
+                // Build serialized transactions
+                let serialized_transactions = SerializedTransactions {
+                    block_ref: *block_ref,
+                    serialized_transactions,
+                };
+                result.push(Some(serialized_transactions));
             } else {
                 result.push(None);
             }
