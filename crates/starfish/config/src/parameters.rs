@@ -28,13 +28,13 @@ pub struct Parameters {
     #[serde(default = "Parameters::default_leader_timeout")]
     pub leader_timeout: Duration,
 
-    /// Minimum delay between rounds, to avoid generating too many rounds when
-    /// latency is low. This is especially necessary for tests running
+    /// Minimum delay between own blocks. This avoids generating too many rounds
+    /// when latency is low. This is especially necessary for tests running
     /// locally. If setting a non-default value, it should be set low enough
     /// to avoid reducing round rate and increasing latency in realistic and
     /// distributed configurations.
-    #[serde(default = "Parameters::default_min_round_delay")]
-    pub min_round_delay: Duration,
+    #[serde(default = "Parameters::default_min_block_delay")]
+    pub min_block_delay: Duration,
 
     /// Maximum forward time drift (how far in future) allowed for received
     /// blocks.
@@ -59,13 +59,6 @@ pub struct Parameters {
     /// recovery.
     #[serde(default = "Parameters::default_sync_last_known_own_block_timeout")]
     pub sync_last_known_own_block_timeout: Duration,
-
-    /// Proposing new block is stopped when the propagation delay is greater
-    /// than this threshold. Propagation delay is the difference between the
-    /// round of the last proposed block and the highest round from this
-    /// authority that is received by all validators in a quorum.
-    #[serde(default = "Parameters::default_propagation_delay_stop_proposal_threshold")]
-    pub propagation_delay_stop_proposal_threshold: u32,
 
     /// The number of rounds of blocks to be kept in the Dag state cache per
     /// authority. The larger the number the more the blocks that will be
@@ -111,8 +104,8 @@ impl Parameters {
         Duration::from_millis(250)
     }
 
-    pub(crate) fn default_min_round_delay() -> Duration {
-        if cfg!(msim) || std::env::var("__TEST_ONLY_CONSENSUS_USE_LONG_MIN_ROUND_DELAY").is_ok() {
+    pub(crate) fn default_min_block_delay() -> Duration {
+        if cfg!(msim) || std::env::var("__TEST_ONLY_CONSENSUS_USE_LONG_MIN_BLOCK_DELAY").is_ok() {
             // Checkpoint building and execution cannot keep up with high commit rate in
             // simtests, leading to long reconfiguration delays. This is because
             // simtest is single threaded, and spending too much time in
@@ -122,6 +115,8 @@ impl Parameters {
             // Avoid excessive CPU, data and logs in tests.
             Duration::from_millis(250)
         } else {
+            // For production, use min delay between block being set to 50ms, reducing the
+            // block rate to 20 blocks/sec
             Duration::from_millis(50)
         }
     }
@@ -165,10 +160,6 @@ impl Parameters {
             // enough for this given a healthy network.
             Duration::from_secs(5)
         }
-    }
-    pub(crate) fn default_propagation_delay_stop_proposal_threshold() -> u32 {
-        // Propagation delay is usually 0 round in production.
-        if cfg!(msim) { 2 } else { 5 }
     }
 
     pub(crate) fn default_dag_state_cached_rounds() -> u32 {
@@ -214,7 +205,7 @@ impl Default for Parameters {
         Self {
             db_path: PathBuf::default(),
             leader_timeout: Parameters::default_leader_timeout(),
-            min_round_delay: Parameters::default_min_round_delay(),
+            min_block_delay: Parameters::default_min_block_delay(),
             max_forward_time_drift: Parameters::default_max_forward_time_drift(),
             max_headers_per_commit_sync_fetch:
                 Parameters::default_max_headers_per_commit_sync_fetch(),
@@ -223,8 +214,6 @@ impl Default for Parameters {
             max_transactions_per_fetch: Parameters::default_max_transactions_per_fetch(),
             sync_last_known_own_block_timeout:
                 Parameters::default_sync_last_known_own_block_timeout(),
-            propagation_delay_stop_proposal_threshold:
-                Parameters::default_propagation_delay_stop_proposal_threshold(),
             dag_state_cached_rounds: Parameters::default_dag_state_cached_rounds(),
             commit_sync_parallel_fetches: Parameters::default_commit_sync_parallel_fetches(),
             commit_sync_batch_size: Parameters::default_commit_sync_batch_size(),

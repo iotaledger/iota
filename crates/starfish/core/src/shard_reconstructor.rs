@@ -653,6 +653,7 @@ mod tests {
         },
         commit::CertifiedCommits,
         context::Context,
+        core::ReasonToCreateBlock,
         core_thread::{CoreError, CoreThreadDispatcher},
         dag_state::{DagState, TransactionSource},
         encoder::create_encoder,
@@ -741,7 +742,7 @@ mod tests {
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
+            _reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }
