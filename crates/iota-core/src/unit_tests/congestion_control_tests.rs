@@ -372,7 +372,10 @@ async fn test_congestion_control_execution_cancellation() {
         &test_setup.sender,
         &test_setup.sender_key,
         &test_setup.gas_object_id,
-        &[(shared_object_1.0, shared_object_1.1)],
+        &[
+            (shared_object_1.0, shared_object_1.1),
+            (shared_object_2.0, shared_object_2.1),
+        ],
         &authority_state
             .get_object(&owned_object.0)
             .await
