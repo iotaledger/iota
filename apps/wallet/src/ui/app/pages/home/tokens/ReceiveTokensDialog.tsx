@@ -78,7 +78,10 @@ export function ReceiveTokensDialog({ address, open, setOpen }: ReceiveTokensDia
                             )}
 
                             <Panel bgColor="bg-iota-neutral-96 dark:bg-iota-neutral-12">
-                                <div className="px-md--rs py-xs text-title-lg text-iota-neutral-12 dark:text-iota-neutral-96">
+                                <div
+                                    className="px-md--rs py-xs text-title-lg text-iota-neutral-12 dark:text-iota-neutral-96"
+                                    data-testid="receive-address"
+                                >
                                     <Address text={address} />
                                 </div>
                             </Panel>
