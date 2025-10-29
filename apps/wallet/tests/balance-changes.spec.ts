@@ -6,21 +6,7 @@ import { expect, test } from './fixtures';
 import { createWallet, importWallet } from './utils/auth';
 import { generateKeypairFromMnemonic, requestIotaFromFaucet } from './utils/localnet';
 import { SHORT_TIMEOUT, LONG_TIMEOUT } from './constants/timeout.constants';
-
-const receivedAddressMnemonic = [
-    'beef',
-    'beef',
-    'beef',
-    'beef',
-    'beef',
-    'beef',
-    'beef',
-    'beef',
-    'beef',
-    'beef',
-    'beef',
-    'beef',
-];
+import { receiverAddressMnemonic } from './mocks';
 
 const currentWalletMnemonic = [
     'intact',
@@ -53,7 +39,7 @@ test('request IOTA from local faucet', async ({ page, extensionUrl }) => {
 test('send 20 IOTA to an address', async ({ page, extensionUrl }) => {
     // Use long timeout in case apps-backend is not available
     test.setTimeout(LONG_TIMEOUT);
-    const receivedKeypair = await generateKeypairFromMnemonic(receivedAddressMnemonic.join(' '));
+    const receivedKeypair = await generateKeypairFromMnemonic(receiverAddressMnemonic.join(' '));
     const receivedAddress = receivedKeypair.getPublicKey().toIotaAddress();
 
     const originKeypair = await generateKeypairFromMnemonic(currentWalletMnemonic.join(' '));

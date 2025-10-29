@@ -12,7 +12,7 @@
       "name": "Apache-2.0",
       "url": "https://raw.githubusercontent.com/iotaledger/iota/main/LICENSE"
     },
-    "version": "1.10.0-alpha"
+    "version": "1.11.0-alpha"
   },
   "methods": [
     {
@@ -1312,6 +1312,7 @@
                 "consensus_batched_block_sync": false,
                 "consensus_distributed_vote_scoring_strategy": false,
                 "consensus_linearize_subdag_v2": false,
+                "consensus_median_timestamp_with_checkpoint_enforcement": false,
                 "consensus_round_prober": false,
                 "consensus_round_prober_probe_accepted_rounds": false,
                 "consensus_smart_ancestor_selection": false,
@@ -3246,6 +3247,51 @@
           }
         }
       ]
+    },
+    {
+      "name": "iota_view",
+      "tags": [
+        {
+          "name": "Write API"
+        }
+      ],
+      "description": "Calls a move view function.",
+      "params": [
+        {
+          "name": "function_name",
+          "description": "The fully qualified function name `<package_id>::<module_name>::<function_name>`. E.g.  `0x3::iota_system::get_total_iota_supply`.",
+          "required": true,
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "type_args",
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TypeTag"
+            }
+          }
+        },
+        {
+          "name": "call_args",
+          "required": true,
+          "schema": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IotaJsonValue"
+            }
+          }
+        }
+      ],
+      "result": {
+        "name": "IotaMoveViewCallResults",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/IotaMoveViewCallResults"
+        }
+      }
     },
     {
       "name": "iotax_getAllBalances",
@@ -8521,6 +8567,39 @@
             "type": "boolean"
           }
         }
+      },
+      "IotaMoveViewCallResults": {
+        "oneOf": [
+          {
+            "description": "Execution error from executing the move view call",
+            "type": "object",
+            "required": [
+              "executionError"
+            ],
+            "properties": {
+              "executionError": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          {
+            "description": "The return values of the move view function",
+            "type": "object",
+            "required": [
+              "functionReturnValues"
+            ],
+            "properties": {
+              "functionReturnValues": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/MoveValue"
+                }
+              }
+            },
+            "additionalProperties": false
+          }
+        ]
       },
       "IotaMoveVisibility": {
         "type": "string",

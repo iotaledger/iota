@@ -17,7 +17,7 @@
 use fastcrypto::{
     bls12381, ed25519,
     error::FastCryptoError,
-    hash::{Blake2b256, HashFunction},
+    hash::{Digest, HashFunction},
     traits::{KeyPair as _, Signer as _, ToFromBytes as _, VerifyingKey as _},
 };
 use rs_merkle::Hasher;
@@ -169,9 +169,28 @@ impl AuthorityKeyPair {
     }
 }
 
-/// Defines algorithm and format of block and commit digests.
-// TODO: change Blake2b256 to Blake3 when starting optimizations
-pub type DefaultHashFunction = Blake2b256;
+#[derive(Default)]
+pub struct Blake3Hasher {
+    hasher: blake3::Hasher,
+}
+
+impl HashFunction<32> for Blake3Hasher {
+    fn update<Data: AsRef<[u8]>>(&mut self, data: Data) {
+        self.hasher.update(data.as_ref());
+    }
+
+    fn finalize(self) -> Digest<32> {
+        let mut out = [0u8; 32];
+        out.copy_from_slice(self.hasher.finalize().as_bytes());
+        Digest { digest: out }
+    }
+}
+
+/// Fast hash function (Blake3) for consensus-related operations.
+/// Since transactions are encoded, their serializations are increased by
+/// approximately three times, making Blake3’s higher throughput beneficial for
+/// overall performance.
+pub type DefaultHashFunction = Blake3Hasher;
 
 #[derive(Clone)]
 pub struct DefaultHashFunctionWrapper;

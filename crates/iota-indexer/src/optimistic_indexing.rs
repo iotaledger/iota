@@ -51,7 +51,7 @@ type TransactionDataToCommit = (
 #[derive(Clone)]
 pub struct OptimisticTransactionExecutor {
     rpc_client: iota_rest_api::Client,
-    read: IndexerReader,
+    pub(crate) read: IndexerReader,
     store: PgIndexerStore,
     metrics: IndexerMetrics,
 }

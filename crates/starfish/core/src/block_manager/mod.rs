@@ -29,7 +29,7 @@ use crate::{
     },
     block_manager::block_suspender::BlockSuspender,
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, TransactionSource},
 };
 
 /// Block manager suspends incoming blocks until they are connected to the
@@ -143,7 +143,7 @@ impl BlockManager {
         let mut write_guard = self.dag_state.write();
         write_guard.accept_block_headers(block_headers);
         for verified_transaction in transactions {
-            write_guard.add_transactions(verified_transaction, "Block streaming");
+            write_guard.add_transactions(verified_transaction, TransactionSource::BlockStreaming);
         }
     }
 
