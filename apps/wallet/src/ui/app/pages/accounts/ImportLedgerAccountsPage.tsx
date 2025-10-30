@@ -33,10 +33,14 @@ export function ImportLedgerAccountsPage() {
         isError: encounteredDerviceAccountsError,
     } = useDeriveLedgerAccounts({
         numAccountsToDerive: NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT,
-        select: (ledgerAccounts) => {
-            return ledgerAccounts.filter(
-                ({ address }) => !existingAccounts?.some((account) => account.address === address),
-            );
+        select: ({ accounts, mainPublicKey }) => {
+            return {
+                accounts: accounts.filter(
+                    ({ address }) =>
+                        !existingAccounts?.some((account) => account.address === address),
+                ),
+                mainPublicKey,
+            };
         },
     });
 
@@ -61,7 +65,7 @@ export function ImportLedgerAccountsPage() {
         },
         [setSelectedLedgerAccounts],
     );
-    const numImportableAccounts = ledgerAccounts?.length;
+    const numImportableAccounts = ledgerAccounts?.accounts?.length;
     const numSelectedAccounts = selectedLedgerAccounts.size;
     const areAllAccountsImported = numImportableAccounts === 0;
     const isUnlockButtonDisabled = numSelectedAccounts === 0;
@@ -76,7 +80,7 @@ export function ImportLedgerAccountsPage() {
         importLedgerAccountsBody = (
             <div className="max-h-[530px] w-full overflow-auto">
                 <AccountList
-                    accounts={ledgerAccounts}
+                    accounts={ledgerAccounts.accounts}
                     selectedAccounts={selectedLedgerAccounts}
                     onAccountClick={onAccountClick}
                     selectAll={selectAllAccounts}
@@ -88,17 +92,21 @@ export function ImportLedgerAccountsPage() {
     function selectAllAccounts() {
         const areAllAccountsSelected = numSelectedAccounts === numImportableAccounts;
         if (ledgerAccounts && !areAllAccountsSelected) {
-            setSelectedLedgerAccounts(new Set(ledgerAccounts.map((acc) => acc.address)));
+            setSelectedLedgerAccounts(new Set(ledgerAccounts.accounts.map((acc) => acc.address)));
         } else if (areAllAccountsSelected) {
             setSelectedLedgerAccounts(new Set());
         }
     }
 
     function handleNextClick() {
+        if (!ledgerAccounts) {
+            return;
+        }
         setAccountsFormValues({
             type: AccountsFormType.ImportLedger,
+            mainPublicKey: ledgerAccounts.mainPublicKey,
             accounts:
-                ledgerAccounts
+                ledgerAccounts.accounts
                     ?.filter((acc) => selectedLedgerAccounts.has(acc.address))
                     .map(({ address, derivationPath, publicKey }) => ({
                         address,

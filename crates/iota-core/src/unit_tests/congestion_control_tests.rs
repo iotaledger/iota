@@ -30,7 +30,10 @@ use crate::{
             execute_programmable_transaction, send_and_confirm_transaction_,
         },
         move_integration_tests::build_and_publish_test_package,
-        shared_object_congestion_tracker::shared_object_test_utils::new_congestion_tracker_with_initial_value_for_test,
+        shared_object_congestion_tracker::{
+            CongestionPerObjectDebt,
+            shared_object_test_utils::new_congestion_tracker_with_initial_value_for_test,
+        },
         suggested_gas_price_calculator::suggested_gas_price_calculator_test_utils::new_suggested_gas_price_calculator_with_initial_values_for_test,
         test_authority_builder::TestAuthorityBuilder,
     },
@@ -52,7 +55,10 @@ struct TestSetup {
 }
 
 impl TestSetup {
-    async fn new() -> Self {
+    async fn new(
+        max_execution_duration_per_commit: u64,
+        max_congestion_limit_overshoot_per_commit: u64,
+    ) -> Self {
         let (sender, sender_key): (_, AccountKeyPair) = get_key_pair();
 
         let mut protocol_config =
@@ -61,11 +67,11 @@ impl TestSetup {
             PerObjectCongestionControlMode::TotalGasBudget,
         );
 
-        // Set shared object congestion control such that it only allows 1 transaction
-        // to go through.
-        let max_execution_duration_per_commit = TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT;
         protocol_config.set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
             max_execution_duration_per_commit,
+        );
+        protocol_config.set_max_congestion_limit_overshoot_per_commit_for_testing(
+            max_congestion_limit_overshoot_per_commit,
         );
 
         // Set max deferral rounds to 0 to testr cancellation. All deferred transactions
@@ -200,41 +206,58 @@ impl TestSetup {
     }
 }
 
-// Creates a transaction that touches the shared objects `shared_object_1` and
-// `shared_object_2`, and `owned_object`, and executes the transaction in
-// `authority_state`. Returns the transaction and the effects of the execution.
-async fn update_objects(
+// Creates a transaction that touches the shared objects provided and the owned
+// object provided. The transaction is passed through a fake consensus and then
+// the congestion control before being executed.
+async fn commit_and_execute_transaction(
     authority_state: &AuthorityState,
     package: &ObjectRef,
     sender: &IotaAddress,
     sender_key: &AccountKeyPair,
     gas_object_id: &ObjectID,
-    shared_object_1: &(ObjectID, SequenceNumber),
-    shared_object_2: &(ObjectID, SequenceNumber),
+    shared_objects: &[(ObjectID, SequenceNumber)],
     owned_object: &ObjectRef,
+    gas_units: u64,
 ) -> (Transaction, TransactionEffects) {
     let mut txn_builder = ProgrammableTransactionBuilder::new();
-    let arg1 = txn_builder
-        .obj(ObjectArg::SharedObject {
-            id: shared_object_1.0,
-            initial_shared_version: shared_object_1.1,
-            mutable: true,
-        })
-        .unwrap();
-    let arg2 = txn_builder
-        .obj(ObjectArg::SharedObject {
-            id: shared_object_2.0,
-            initial_shared_version: shared_object_2.1,
-            mutable: true,
-        })
-        .unwrap();
-    let arg3 = txn_builder
-        .obj(ObjectArg::ImmOrOwnedObject(*owned_object))
-        .unwrap();
-    move_call! {
-        txn_builder,
-        (package.0)::congestion_control::increment(arg1, arg2, arg3)
-    };
+    let mut args = vec![];
+    for shared_object in shared_objects {
+        args.push(
+            txn_builder
+                .obj(ObjectArg::SharedObject {
+                    id: shared_object.0,
+                    initial_shared_version: shared_object.1,
+                    mutable: true,
+                })
+                .unwrap(),
+        )
+    }
+    args.push(
+        txn_builder
+            .obj(ObjectArg::ImmOrOwnedObject(*owned_object))
+            .unwrap(),
+    );
+    match args.len() {
+        1 => {
+            move_call! {
+                txn_builder,
+                (package.0)::congestion_control::increment_one(args.pop().unwrap())
+            };
+        }
+        2 => {
+            move_call! {
+                txn_builder,
+                (package.0)::congestion_control::increment_two(args.pop().unwrap(), args.pop().unwrap())
+            };
+        }
+        3 => {
+            move_call! {
+                txn_builder,
+                (package.0)::congestion_control::increment_three(args.pop().unwrap(), args.pop().unwrap(), args.pop().unwrap())
+            };
+        }
+        _ => panic!("Unsupported number of shared objects. Maximum supported is 2."),
+    }
     let pt = txn_builder.finish();
     let transaction = build_programmable_transaction(
         authority_state,
@@ -242,7 +265,7 @@ async fn update_objects(
         sender,
         sender_key,
         pt,
-        TEST_ONLY_GAS_UNIT,
+        gas_units,
     )
     .await
     .unwrap();
@@ -265,11 +288,13 @@ async fn update_objects(
 async fn test_congestion_control_execution_cancellation() {
     telemetry_subscribers::init_for_testing();
 
-    // Creates a authority state with 2 shared object and 1 owned object. We use
-    // this setup to initialize two more authority states: one tests
-    // cancellation execution, and one tests executing cancelled transaction
-    // from effect.
-    let test_setup = TestSetup::new().await;
+    // Creates a test setup with a protocol config such that the the congestion
+    // limit is equal to one default transaction's gas budget, and the overshoot
+    // allowed is also equal to one default transaction's gas budget.
+    let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
+    let test_setup = TestSetup::new(default_tx_gas_budget, default_tx_gas_budget).await;
+
+    // Creates 2 shared objects and 1 owned object.
     let shared_object_1 = test_setup.create_shared_object().await;
     let shared_object_2 = test_setup.create_shared_object().await;
     let owned_object = test_setup.create_owned_object().await;
@@ -284,7 +309,8 @@ async fn test_congestion_control_execution_cancellation() {
         .await;
 
     // Creates two authority states with the same genesis objects for the actual
-    // test.
+    // test. One tests cancellation execution, and one tests executing cancelled
+    // transaction from effect.
     let authority_state = TestAuthorityBuilder::new()
         .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
         .with_protocol_config(test_setup.protocol_config.clone())
@@ -302,23 +328,29 @@ async fn test_congestion_control_execution_cancellation() {
         .insert_genesis_objects(&genesis_objects)
         .await;
 
-    // Initialize shared object queue so that any transaction touches
-    // shared_object_1 should result in congestion and cancellation.
+    // The congestion limit, taking overshoot into account is
+    // 2 * TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT. We set the initial debt to be
+    // TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT + 1, so that the next transaction
+    // touching shared_object_1 will be cancelled.
+    let initial_debt = TEST_ONLY_GAS_PRICE * TEST_ONLY_GAS_UNIT + 1;
+
+    // Initialize shared object queue in the tracker and gas price calculator so
+    // that any transaction touches shared_object_1 should result in congestion
+    // and cancellation.
     let congestion_control_min_free_execution_slot = test_setup
         .protocol_config
         .congestion_control_min_free_execution_slot();
     register_fail_point_arg("initial_congestion_tracker", move || {
         Some(new_congestion_tracker_with_initial_value_for_test(
-            &[(shared_object_1.0, 10)],
+            &[(shared_object_1.0, initial_debt)],
             PerObjectCongestionControlMode::TotalGasBudget,
             congestion_control_min_free_execution_slot,
         ))
     });
-
     register_fail_point_arg("initial_suggested_gas_price_calculator", move || {
         Some(
             new_suggested_gas_price_calculator_with_initial_values_for_test(
-                &[(shared_object_1.0, 10, TEST_ONLY_GAS_PRICE)],
+                &[(shared_object_1.0, initial_debt, TEST_ONLY_GAS_PRICE)],
                 PerObjectCongestionControlMode::TotalGasBudget,
                 test_setup
                     .protocol_config
@@ -334,19 +366,22 @@ async fn test_congestion_control_execution_cancellation() {
 
     // Runs a transaction that touches shared_object_1, shared_object_2 and a owned
     // object.
-    let (congested_tx, effects) = update_objects(
+    let (congested_tx, effects) = commit_and_execute_transaction(
         &authority_state,
         &test_setup.package,
         &test_setup.sender,
         &test_setup.sender_key,
         &test_setup.gas_object_id,
-        &(shared_object_1.0, shared_object_1.1),
-        &(shared_object_2.0, shared_object_2.1),
+        &[
+            (shared_object_1.0, shared_object_1.1),
+            (shared_object_2.0, shared_object_2.1),
+        ],
         &authority_state
             .get_object(&owned_object.0)
             .await
             .unwrap()
             .compute_object_reference(),
+        TEST_ONLY_GAS_UNIT,
     )
     .await;
 
@@ -405,4 +440,481 @@ async fn test_congestion_control_execution_cancellation() {
         }
     );
     assert_eq!(&effects, effects_2.data())
+}
+
+// Tests that congestion control and debt tracking work as expected when there
+// is a burst of traffic and overshoot is allowed.
+#[sim_test]
+async fn test_congestion_control_debt_tracking() {
+    telemetry_subscribers::init_for_testing();
+
+    // Creates a test setup with a protocol config such that the the congestion
+    // limit is equal to one default transaction's gas budget, and the overshoot
+    // allowed is twice the default transaction's gas budget.
+    let default_tx_gas_budget = TEST_ONLY_GAS_UNIT * TEST_ONLY_GAS_PRICE;
+    let test_setup = TestSetup::new(default_tx_gas_budget, 2 * default_tx_gas_budget).await;
+
+    // Creates 2 shared objects and 1 owned object.
+    let shared_object_1 = test_setup.create_shared_object().await;
+    let shared_object_2 = test_setup.create_shared_object().await;
+    let owned_object = test_setup.create_owned_object().await;
+
+    // Gets objects that can be used as genesis objects for new authority states.
+    let genesis_objects = test_setup
+        .create_genesis_objects_for_new_authority_state(&[
+            shared_object_1.0,
+            shared_object_2.0,
+            owned_object.0,
+        ])
+        .await;
+
+    // Creates an authority state with the genesis objects.
+    let authority_state = TestAuthorityBuilder::new()
+        .with_reference_gas_price(TEST_ONLY_GAS_PRICE)
+        .with_protocol_config(test_setup.protocol_config.clone())
+        .build()
+        .await;
+    authority_state
+        .insert_genesis_objects(&genesis_objects)
+        .await;
+
+    // Commit 1: a transaction with gas budget 3*default_tx_gas_budget that touches
+    // shared_object_1 and an owned object.
+    // This will result in an overshoot of 2*default_tx_gas_budget, but should be
+    // executed successfully.
+    let (_, effects) = commit_and_execute_transaction(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[(shared_object_1.0, shared_object_1.1)],
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        3 * TEST_ONLY_GAS_UNIT,
+    )
+    .await;
+
+    // Transaction should be a success as overshoot of 2*default_tx_gas_budget is
+    // allowed.
+    assert!(effects.status().is_ok());
+
+    // Check that the debt stored in consensus quarantine is correct.
+    let shared_object_1_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    // Shared object 1 should have a debt of 2*default_tx_gas_budget.
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_1_debt {
+        assert_eq!(debt, 2 * default_tx_gas_budget);
+        assert_eq!(commit_round, 1);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+    // Check that shared object 2 has no debt.
+    let shared_object_2_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    assert!(shared_object_2_debt.is_none());
+
+    // Commit 2: a transaction with gas budget 0.5*default_tx_gas_budget that
+    // touches shared_object_1, shared_object_2 and an owned object.
+    // Due to the debt of 2*default_tx_gas_budget from Commit 1, this will result in
+    // a total overshoot of 1.5*default_tx_gas_budget (overshoot of
+    // default_gas_budget from existing debt, and an extra 0.5*default_gas_budget
+    // from this tx), and should be executed successfully.
+    let (_, effects) = commit_and_execute_transaction(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[
+            (shared_object_1.0, shared_object_1.1),
+            (shared_object_2.0, shared_object_2.1),
+        ],
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        TEST_ONLY_GAS_UNIT / 2,
+    )
+    .await;
+
+    // Transaction should be a success as overshoot of 1.5*default_tx_gas_budget is
+    // allowed.
+    assert!(effects.status().is_ok());
+    // Check that the debt stored in consensus quarantine is correct. Both shared
+    // objects should have a debt of 1.5*default_tx_gas_budget.
+    let shared_object_1_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_1_debt {
+        assert_eq!(debt, 3 * default_tx_gas_budget / 2);
+        assert_eq!(commit_round, 2);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+    let shared_object_2_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_2_debt {
+        assert_eq!(debt, 3 * default_tx_gas_budget / 2);
+        assert_eq!(commit_round, 2);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+
+    // Commit 3: a transaction with gas budget 2*default_tx_gas_budget that
+    // touches shared_object_2 and an owned object.
+    // Due to the debt of 1.5*default_tx_gas_budget for shared_object_2 from Commit
+    // 2, this should result in an overshoot of 2.5*default_tx_gas_budget on
+    // shared_object_2 (initial debt [1.5*default_gas_budget]
+    // + transaction [2*default_gas_budget] - congestion limit
+    // [default_gas_budget]) which exceeds the allowed
+    // overshoot, and should be cancelled.
+    let (_, effects) = commit_and_execute_transaction(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[(shared_object_2.0, shared_object_2.1)],
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        2 * TEST_ONLY_GAS_UNIT,
+    )
+    .await;
+
+    // The expected suggested gas price should be the reference gas price because
+    // there is no transaction responsible for the debt, only the overshoot from
+    // previous commits, and their gas price is irrelevant.
+    let expected_suggested_gas_price = TEST_ONLY_GAS_PRICE;
+
+    // Transaction should be cancelled with `shared_object_2`
+    // as the congested objects, and the suggested gas price should be
+    // `TEST_ONLY_GAS_PRICE`.
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects: CongestedObjects(vec![shared_object_2.0]),
+                suggested_gas_price: expected_suggested_gas_price,
+            },
+            command: None
+        }
+    );
+
+    // Tests shared object versions in effects are set correctly.
+    assert_eq!(
+        effects.input_shared_objects(),
+        vec![InputSharedObject::Cancelled(
+            shared_object_2.0,
+            SequenceNumber::new_congested_with_suggested_gas_price(expected_suggested_gas_price)
+        ),]
+    );
+
+    // Check that the debt stored in consensus quarantine is correct. Shared object
+    // 1 should still have a stored debt of 1.5*default_tx_gas_budget from
+    // commit 2 that has carried over because because it was not updated in commit 3
+    // as there was not transaction touching it. Shared object 2 should have a
+    // debt of 0.5*default_tx_gas_budget from commit 3 because it was updated in
+    // the consensus quarantine even though the execution was cancelled.
+    let shared_object_1_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_1_debt {
+        assert_eq!(debt, 3 * default_tx_gas_budget / 2);
+        assert_eq!(commit_round, 2);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+    let shared_object_2_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_2_debt {
+        assert_eq!(debt, default_tx_gas_budget / 2);
+        assert_eq!(commit_round, 3);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+
+    // Commit 4: a transaction with gas budget 2.5*default_tx_gas_budget that
+    // touches shared_object_1 and an owned object.
+    // The debt of 1.5*default_gas_budget on shared object 1 from commit 2 should be
+    // reduced to 0.5*default_gas_budget for commit round 4 because round 3 was
+    // skipped, reducing it by the congestion limit of default_gas_budget.
+    // Therefore, this transaction should be executed successfully as the total
+    // overshoot will be 2*default_gas_budget (initial debt [0.5*default_gas_budget]
+    // + transaction [2.5*default_gas_budget] - congestion limit
+    // [default_gas_budget]).
+    let (_, effects) = commit_and_execute_transaction(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[(shared_object_1.0, shared_object_1.1)],
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        5 * TEST_ONLY_GAS_UNIT / 2,
+    )
+    .await;
+
+    // Transaction should be executed successfully as overshoot of
+    // 2*default_tx_gas_budget is allowed.
+    assert!(effects.status().is_ok());
+
+    // Check that the debt stored in consensus quarantine is correct. Shared object
+    // 1 should now have a debt of 2*default_tx_gas_budget from commit 4 and shared
+    // object 2 should still have a stored debt of 0.5*default_tx_gas_budget from
+    // commit 3. This debt is effectively worth nothing in commit 5 because it will
+    // be reduced by default_tx_gas_budget due to the skipped round.
+    let shared_object_1_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_1_debt {
+        assert_eq!(debt, 2 * default_tx_gas_budget);
+        assert_eq!(commit_round, 4);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+    let shared_object_2_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_2_debt {
+        assert_eq!(debt, default_tx_gas_budget / 2);
+        assert_eq!(commit_round, 3);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+
+    // Commit 5: a transaction with gas budget of 1.5*default_tx_gas_budget that
+    // touches both shared objects and an owned object. The transaction should be
+    // cancelled because there is an initial debt of 2*default_tx_gas_budget on
+    // shared object 1, resulting in a total overshoot of
+    // 2.5*default_tx_gas_budget.
+    let (_, effects) = commit_and_execute_transaction(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[
+            (shared_object_1.0, shared_object_1.1),
+            (shared_object_2.0, shared_object_2.1),
+        ],
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        3 * TEST_ONLY_GAS_UNIT / 2,
+    )
+    .await;
+
+    // The expected suggested gas price should be the reference gas price because
+    // there is no transaction responsible for the debt, only the overshoot from
+    // previous commits, and their gas price is irrelevant.
+    let expected_suggested_gas_price = TEST_ONLY_GAS_PRICE;
+
+    // Transaction should be cancelled with both shared objects as the congested
+    // objects, and the suggested gas price should be `TEST_ONLY_GAS_PRICE`.
+    assert_eq!(
+        effects.status(),
+        &ExecutionStatus::Failure {
+            error: ExecutionFailureStatus::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                congested_objects: CongestedObjects(vec![shared_object_1.0, shared_object_2.0]),
+                suggested_gas_price: expected_suggested_gas_price,
+            },
+            command: None
+        }
+    );
+
+    // Tests shared object versions in effects are set correctly.
+    assert_eq!(
+        effects.input_shared_objects(),
+        vec![
+            InputSharedObject::Cancelled(
+                shared_object_1.0,
+                SequenceNumber::new_congested_with_suggested_gas_price(
+                    expected_suggested_gas_price
+                )
+            ),
+            InputSharedObject::Cancelled(
+                shared_object_2.0,
+                SequenceNumber::new_congested_with_suggested_gas_price(
+                    expected_suggested_gas_price
+                )
+            )
+        ]
+    );
+
+    // Check that the debt stored in consensus quarantine is correct. Shared object
+    // 1 should now have debt reduced from 2*default_tx_gas_budget to
+    // default_tx_gas_budget. The debt of shared object 1 should be updated in
+    // consensus quarantine because there is a positive debt remaining which
+    // triggers an update. Shared object 2 still has no debt, so no update is made
+    // to consensus quarantine. We should still see the debt of
+    // 0.5*default_tx_gas_budget from commit 3.
+    let shared_object_1_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_1_debt {
+        assert_eq!(debt, default_tx_gas_budget);
+        assert_eq!(commit_round, 5);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+    let shared_object_2_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_2_debt {
+        assert_eq!(debt, default_tx_gas_budget / 2);
+        assert_eq!(commit_round, 3);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+
+    // Commit 6: a transaction with gas budget 3*default_tx_gas_budget that touches
+    // only an owned object. The shared object debt from commit 5 should not have
+    // any impact so this transaction should be executed successfully.
+    let (_, effects) = commit_and_execute_transaction(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[],
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        3 * TEST_ONLY_GAS_UNIT,
+    )
+    .await;
+    // Transaction should be a success as there is no shared object involved.
+    assert!(effects.status().is_ok());
+
+    // The debt on shared object 1 should still be stored as default_tx_gas_budget
+    // from commit 5 as it was not updated in commit 6. The debt on shared
+    // object 2 should still be stored as 0.5*default_tx_gas_budget from commit 3.
+    // Both of these debts are effectively worth nothing in commit 6 because they
+    // will be reduced by default_tx_gas_budget for each skipped round.
+    let shared_object_1_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_1_debt {
+        assert_eq!(debt, default_tx_gas_budget);
+        assert_eq!(commit_round, 5);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+    let shared_object_2_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_2_debt {
+        assert_eq!(debt, default_tx_gas_budget / 2);
+        assert_eq!(commit_round, 3);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+
+    // Commit 7: The effective debt on both shared objects is none, so a transaction
+    // with gas budget of 3*default_tx_gas_budget that touches both of them
+    // and an owned object should be executed successfully.
+    let (_, effects) = commit_and_execute_transaction(
+        &authority_state,
+        &test_setup.package,
+        &test_setup.sender,
+        &test_setup.sender_key,
+        &test_setup.gas_object_id,
+        &[
+            (shared_object_1.0, shared_object_1.1),
+            (shared_object_2.0, shared_object_2.1),
+        ],
+        &authority_state
+            .get_object(&owned_object.0)
+            .await
+            .unwrap()
+            .compute_object_reference(),
+        3 * TEST_ONLY_GAS_UNIT,
+    )
+    .await;
+    // Transaction should be a success as overshoot of 2*default_tx_gas_budget is
+    // allowed.
+    assert!(effects.status().is_ok());
+
+    // The debt on both shared objects should should have been updated in storage to
+    // 2*default_tx_gas_budget.
+    let shared_object_1_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_1.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_1_debt {
+        assert_eq!(debt, 2 * default_tx_gas_budget);
+        assert_eq!(commit_round, 7);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
+    let shared_object_2_debt = authority_state
+        .epoch_store_for_testing()
+        .load_stored_object_debts_for_testing(false, &[shared_object_2.0])
+        .expect("Failed to load initial object debts for testing.")
+        .pop()
+        .unwrap();
+    if let Some(CongestionPerObjectDebt::V1(commit_round, debt)) = shared_object_2_debt {
+        assert_eq!(debt, 2 * default_tx_gas_budget);
+        assert_eq!(commit_round, 7);
+    } else {
+        panic!("Unexpected debt stored in consensus quarantine.");
+    }
 }

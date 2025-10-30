@@ -45,6 +45,7 @@ class Transactions {
                 justSign: true,
                 data: sign.transaction,
                 account: sign.account,
+                chain: sign.chain,
             },
             connection.origin,
             connection.originFavIcon,
