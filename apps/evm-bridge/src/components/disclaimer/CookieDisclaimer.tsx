@@ -1,3 +1,6 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 import { CookieManager, type SKCMConfiguration } from '@boxfish-studio/react-cookie-manager';
 
 const COOKIES_KEY = 'AMP_COOKIES_ACCEPTED';
