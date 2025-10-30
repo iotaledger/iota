@@ -14,7 +14,7 @@ use iota_json_rpc_types::{
 use iota_open_rpc::Module;
 use iota_types::base_types::ObjectID;
 use jsonrpsee::{RpcModule, core::RpcResult};
-use move_binary_format::normalized::Module as NormalizedModule;
+use move_binary_format::normalized;
 
 use crate::read::IndexerReader;
 
@@ -35,9 +35,13 @@ impl MoveUtilsServer for MoveUtilsApi {
         package_id: ObjectID,
     ) -> RpcResult<BTreeMap<String, IotaMoveNormalizedModule>> {
         let resolver_modules = self.inner.get_package(package_id).await?.modules().clone();
+        let pool = &mut normalized::RcPool::new();
         let iota_normalized_modules = resolver_modules
             .into_iter()
-            .map(|(k, v)| (k, NormalizedModule::new(v.bytecode()).into()))
+            .map(|(k, v)| {
+                let m = &normalized::Module::new(pool, v.bytecode(), /* include code */ false);
+                (k, m.into())
+            })
             .collect::<BTreeMap<String, IotaMoveNormalizedModule>>();
         Ok(iota_normalized_modules)
     }

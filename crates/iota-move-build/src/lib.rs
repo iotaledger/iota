@@ -513,9 +513,10 @@ impl CompiledPackage {
     /// SDK) to enable BCS serialization/deserialization of the package's
     /// objects, tx arguments, and events.
     pub fn generate_struct_layouts(&self) -> Registry {
+        let pool = &mut normalized::RcPool::new();
         let mut package_types = BTreeSet::new();
         for m in self.get_modules() {
-            let normalized_m = normalized::Module::new(m);
+            let normalized_m = normalized::Module::new(pool, m, /* include code */ false);
             // 1. generate struct layouts for all declared types
             'structs: for (name, s) in normalized_m.structs {
                 let mut dummy_type_parameters = Vec::new();
@@ -538,15 +539,15 @@ impl CompiledPackage {
                 package_types.insert(StructTag {
                     address: *m.address(),
                     module: m.name().to_owned(),
-                    name,
+                    name: name.as_ident_str().to_owned(),
                     type_params: dummy_type_parameters,
                 });
             }
             // 2. generate struct layouts for all parameters of `entry` funs
             for (_name, f) in normalized_m.functions {
                 if f.is_entry {
-                    for t in f.parameters {
-                        let tag_opt = match t.clone() {
+                    for t in &*f.parameters {
+                        let tag_opt = match &**t {
                             Type::Address
                             | Type::Bool
                             | Type::Signer
@@ -558,8 +559,8 @@ impl CompiledPackage {
                             | Type::U128
                             | Type::U256
                             | Type::Vector(_) => continue,
-                            Type::Reference(t) | Type::MutableReference(t) => t.into_struct_tag(),
-                            s @ Type::Struct { .. } => s.into_struct_tag(),
+                            Type::Reference(_, inner) => inner.to_struct_tag(pool),
+                            Type::Datatype(_) => t.to_struct_tag(pool),
                         };
                         if let Some(tag) = tag_opt {
                             package_types.insert(tag);

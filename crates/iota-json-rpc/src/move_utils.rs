@@ -20,10 +20,7 @@ use iota_types::{
 use jsonrpsee::{RpcModule, core::RpcResult};
 #[cfg(test)]
 use mockall::automock;
-use move_binary_format::{
-    binary_config::BinaryConfig,
-    normalized::{Module as NormalizedModule, Type},
-};
+use move_binary_format::{binary_config::BinaryConfig, normalized};
 use move_core_types::identifier::Identifier;
 use tap::TapFallible;
 use tracing::{error, instrument, warn};
@@ -34,6 +31,9 @@ use crate::{
     error::{Error, IotaRpcInputError},
     logger::FutureWithTracing as _,
 };
+
+type NormalizedModule = normalized::Module<normalized::RcIdentifier>;
+type Type = normalized::Type<normalized::RcIdentifier>;
 
 #[cfg_attr(test, automock)]
 #[async_trait]
@@ -75,9 +75,9 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
         package: ObjectID,
         module_name: String,
     ) -> Result<NormalizedModule, Error> {
-        let normalized = self.get_move_modules_by_package(package).await?;
-        Ok(match normalized.get(&module_name) {
-            Some(module) => Ok(module.clone()),
+        let mut normalized = self.get_move_modules_by_package(package).await?;
+        Ok(match normalized.remove(&module_name) {
+            Some(module) => Ok(module),
             None => Err(IotaRpcInputError::GenericNotFound(format!(
                 "No module found with module name {module_name}"
             ))),
@@ -91,7 +91,7 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
         let object_read = self.get_state().get_object_read(&package).tap_err(|_| {
             warn!("failed to call get_move_modules_by_package for package: {package:?}");
         })?;
-
+        let pool = &mut normalized::RcPool::new();
         match object_read {
             ObjectRead::Exists(_obj_ref, object, _layout) => {
                 match object.into_inner().data {
@@ -100,8 +100,10 @@ impl MoveUtilsInternalTrait for MoveUtilsInternal {
                         // Move binary format
                         let binary_config = BinaryConfig::with_extraneous_bytes_check(false);
                         normalize_modules(
+                            pool,
                             p.serialized_module_map().values(),
                             &binary_config,
+                            /* include code */ false,
                         )
                         .map_err(|e| {
                             error!("failed to call get_move_modules_by_package for package: {package:?}");
@@ -158,7 +160,7 @@ impl MoveUtilsServer for MoveUtils {
             let modules = self.internal.get_move_modules_by_package(package).await?;
             Ok(modules
                 .into_iter()
-                .map(|(name, module)| (name, module.into()))
+                .map(|(name, module)| (name, (&module).into()))
                 .collect::<BTreeMap<String, IotaMoveNormalizedModule>>())
         }
         .trace()
@@ -172,7 +174,7 @@ impl MoveUtilsServer for MoveUtils {
         module_name: String,
     ) -> RpcResult<IotaMoveNormalizedModule> {
         async move {
-            let module = self.internal.get_move_module(package, module_name).await?;
+            let module = &self.internal.get_move_module(package, module_name).await?;
             Ok(module.into())
         }
         .trace()
@@ -192,7 +194,7 @@ impl MoveUtilsServer for MoveUtils {
             let identifier = Identifier::new(struct_name.as_str())
                 .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
             match structs.get(&identifier) {
-                Some(struct_) => Ok(struct_.clone().into()),
+                Some(struct_) => Ok((&**struct_).into()),
                 None => Err(IotaRpcInputError::GenericNotFound(format!(
                     "No struct was found with struct name {struct_name}"
                 )))?,
@@ -215,7 +217,7 @@ impl MoveUtilsServer for MoveUtils {
             let identifier = Identifier::new(function_name.as_str())
                 .map_err(|e| IotaRpcInputError::GenericInvalid(format!("{e}")))?;
             match functions.get(&identifier) {
-                Some(function) => Ok(function.clone().into()),
+                Some(function) => Ok((&**function).into()),
                 None => Err(IotaRpcInputError::GenericNotFound(format!(
                     "No function was found with function name {function_name}",
                 )))?,
@@ -235,14 +237,21 @@ impl MoveUtilsServer for MoveUtils {
         async move {
             let object_read = self.internal.get_object_read(package)?;
 
+            let pool = &mut normalized::RcPool::new();
             let normalized = match object_read {
                 ObjectRead::Exists(_obj_ref, object, _layout) => match object.into_inner().data {
                     Data::Package(p) => {
                         // we are on the read path - it's OK to use VERSION_MAX of the supported
                         // Move binary format
                         let binary_config = BinaryConfig::with_extraneous_bytes_check(false);
-                        normalize_modules(p.serialized_module_map().values(), &binary_config)
-                            .map_err(Error::from)
+                        normalize_modules(
+                            pool,
+                            p.serialized_module_map().values(),
+                            &binary_config,
+                            // include code
+                            false,
+                        )
+                        .map_err(Error::from)
                     }
                     _ => Err(IotaRpcInputError::GenericInvalid(format!(
                         "Object is not a package with ID {package}",
@@ -262,17 +271,12 @@ impl MoveUtilsServer for MoveUtils {
             match parameters {
                 Some(parameters) => Ok(parameters
                     .iter()
-                    .map(|p| match p {
-                        Type::Struct {
-                            address: _,
-                            module: _,
-                            name: _,
-                            type_arguments: _,
-                        } => MoveFunctionArgType::Object(ObjectValueKind::ByValue),
-                        Type::Reference(_) => {
+                    .map(|p| match &**p {
+                        Type::Datatype(_) => MoveFunctionArgType::Object(ObjectValueKind::ByValue),
+                        Type::Reference(/* mut */ false, _) => {
                             MoveFunctionArgType::Object(ObjectValueKind::ByImmutableReference)
                         }
-                        Type::MutableReference(_) => {
+                        Type::Reference(/* mut */ true, _) => {
                             MoveFunctionArgType::Object(ObjectValueKind::ByMutableReference)
                         }
                         _ => MoveFunctionArgType::Pure,
@@ -306,12 +310,24 @@ mod tests {
             let mut mock_internal = MockMoveUtilsInternalTrait::new();
 
             let m = basic_test_module();
-            let normalized_module = NormalizedModule::new(&m);
-            let expected_module: IotaMoveNormalizedModule = normalized_module.clone().into();
+            let normalized_module = &NormalizedModule::new(
+                &mut normalized::RcPool::new(),
+                &m,
+                // include code
+                false,
+            );
+            let expected_module: IotaMoveNormalizedModule = normalized_module.into();
 
             mock_internal
                 .expect_get_move_module()
-                .return_once(move |_package, _module_name| Ok(normalized_module));
+                .return_once(move |_package, _module_name| {
+                    Ok(NormalizedModule::new(
+                        &mut normalized::RcPool::new(),
+                        &m,
+                        // include code
+                        false,
+                    ))
+                });
 
             let move_utils = MoveUtils {
                 internal: Arc::new(mock_internal),

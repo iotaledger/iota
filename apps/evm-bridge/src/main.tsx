@@ -31,6 +31,7 @@ import { Toaster } from './components/index.ts';
 import { IotaGraphQLClientProvider } from '@iota/core';
 import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
+import { getNetwork } from '@iota/iota-sdk/client';
 import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
 
 // We intercept EIP-6963 announcements
@@ -74,6 +75,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                             variables: darkTheme,
                                         },
                                     ]}
+                                    chain={getNetwork(getDefaultNetwork()).chain}
                                 >
                                     <ThemeProvider appId="IOTA-evm-bridge">
                                         <RainbowKit>
