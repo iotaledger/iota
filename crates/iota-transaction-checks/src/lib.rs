@@ -84,6 +84,7 @@ mod checked {
         receiving_objects: &ReceivingObjects,
         metrics: &Arc<BytecodeVerifierMetrics>,
         verifier_signing_config: &VerifierSigningConfig,
+        authentication_gas_budget: u64,
     ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
         let gas_status = check_transaction_input_inner(
             protocol_config,
@@ -91,7 +92,7 @@ mod checked {
             transaction,
             &input_objects,
             &[],
-            0,
+            authentication_gas_budget,
         )?;
         check_receiving_objects(&input_objects, receiving_objects)?;
         // Runs verifier, which could be expensive.
@@ -205,38 +206,15 @@ mod checked {
 
     /// A common function to check the `MoveAuthenticator` inputs for signing.
     ///
-    /// Checks that there is enough gas to pay for the authenticator and
-    /// transaction execution in the transaction inputs. And that the
-    /// authenticator inputs meet the requirements.
-    /// It returns the gas status and the checked authenticator input objects.
+    /// Checks that the authenticator inputs meet the requirements and returns
+    /// the checked authenticator input objects.
     #[instrument(level = "trace", skip_all)]
     pub fn check_move_authenticator_input(
-        protocol_config: &ProtocolConfig,
-        reference_gas_price: u64,
-        gas: &[ObjectRef],
-        authenticator_gas_budget: u64,
-        transaction_gas_budget: u64,
-        gas_price: u64,
         authenticator_input_objects: InputObjects,
-        tx_input_objects: &InputObjects,
-    ) -> IotaResult<(IotaGasStatus, CheckedInputObjects)> {
-        // To be sure that we can cover the Move authenticator + transaction execution
-        // gas cost.
-        let gas_budget = authenticator_gas_budget + transaction_gas_budget;
-
-        let gas_status = check_gas(
-            // Only the transaction input objects are used for gas checks.
-            tx_input_objects,
-            protocol_config,
-            reference_gas_price,
-            gas,
-            gas_budget,
-            gas_price,
-        )?;
-
+    ) -> IotaResult<CheckedInputObjects> {
         check_move_authenticator_objects(&authenticator_input_objects)?;
 
-        Ok((gas_status, authenticator_input_objects.into_checked()))
+        Ok(authenticator_input_objects.into_checked())
     }
 
     /// A function to check the `MoveAuthenticator` inputs for execution and
