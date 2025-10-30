@@ -175,7 +175,10 @@ pub enum TestbedAction {
     Stop,
 
     /// Destroy the testbed and terminate all instances.
-    Destroy,
+    Destroy {
+        #[arg(long, default_value = "")]
+        keep_monitor_instance: Option<String>,
+    },
 }
 
 #[derive(Parser)]
@@ -255,8 +258,10 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             TestbedAction::Stop => testbed.stop().await.wrap_err("Failed to stop testbed")?,
 
             // Destroy the testbed and terminal all instances.
-            TestbedAction::Destroy => testbed
-                .destroy()
+            TestbedAction::Destroy {
+                keep_monitor_instance: monitor_ip,
+            } => testbed
+                .destroy(monitor_ip)
                 .await
                 .wrap_err("Failed to destroy testbed")?,
         },

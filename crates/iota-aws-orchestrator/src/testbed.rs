@@ -153,12 +153,21 @@ impl<C: ServerProviderClient> Testbed<C> {
     }
 
     /// Destroy all instances of the testbed.
-    pub async fn destroy(&mut self) -> TestbedResult<()> {
+    pub async fn destroy(&mut self, monitor_ip: Option<String>) -> TestbedResult<()> {
         display::action("Destroying testbed");
 
-        try_join_all(
+        let instances_to_delete: Vec<_> = if let Some(ip) = monitor_ip {
             self.instances
                 .drain(..)
+                .filter(|instance| instance.main_ip.to_string() != ip)
+                .collect()
+        } else {
+            self.instances.drain(..).collect()
+        };
+
+        try_join_all(
+            instances_to_delete
+                .into_iter()
                 .map(|instance| self.client.delete_instance(instance)),
         )
         .await?;
@@ -287,7 +296,7 @@ mod test {
         let client = TestClient::new(settings.clone());
         let mut testbed = Testbed::new(settings, client).await.unwrap();
 
-        testbed.destroy().await.unwrap();
+        testbed.destroy(None).await.unwrap();
 
         assert_eq!(testbed.instances.len(), 0);
     }
