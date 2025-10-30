@@ -4,10 +4,16 @@
 import { Header, Bridge, Footer } from './components';
 import { DirectionalArrowsSvg } from './components/svgs/DirectionalArrows';
 import { FaucetButton } from './components/FaucetButton';
+import { useEffect } from 'react';
+import { initAmplitude } from './shared/analytics';
 
 const TITLE = 'Seamlessly transfer funds between IOTA & IOTA EVM';
 
 export default function App() {
+    useEffect(() => {
+        initAmplitude();
+    }, []);
+
     return (
         <>
             <div className="relative overflow-x-hidden" id="app">
