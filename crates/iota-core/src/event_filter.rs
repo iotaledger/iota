@@ -5,7 +5,7 @@
 use iota_json_rpc_types::{Filter, IotaEvent};
 use iota_metrics::monitored_scope;
 use iota_types::{
-    base_types::{IotaAddress, ObjectID, TransactionDigest},
+    base_types::{IotaAddress, ObjectID},
     error::IotaResult,
 };
 use move_core_types::{identifier::Identifier, language_storage::StructTag};
@@ -21,58 +21,42 @@ pub enum GrpcEventFilter {
     // Logical NOT of a filter.
     Not(Box<GrpcEventFilter>),
 
-    /// Return events emitted by the given transaction.
-    /// TODO: do we need that filter for streaming?
-    Transaction(
-        /// digest of the transaction, as base-64 encoded string
-        TransactionDigest,
-    ),
-
-    /// Query by sender address.
-    /// TODO: Is the same as the transaction's sender address. Do we need both?
+    /// Filter by sender address.
     Sender(IotaAddress),
 
-    /// Return events emitted in a specified Move package.
-    MovePackage(ObjectID),
-
-    /// Return events emitted in a specified Move module.
-    /// If the event is defined in Module A but emitted in a tx with Module B,
-    /// query `MoveModule` by module B returns the event.
-    /// Query `MoveEventModule` by module A returns the event too.
-    MoveModule {
+    /// Return events emitted in a specified Move package + module (optional).
+    /// If the event is defined in PackageA::ModuleA but emitted in a tx with
+    /// PackageB::ModuleB, filtering `MovePackageAndModule` by PackageB::ModuleB
+    /// returns the event. Filtering `MoveEventPackageAndModule` by
+    /// PackageA::ModuleA returns the event too.
+    MovePackageAndModule {
         /// the Move package ID
         package: ObjectID,
-        /// the module name
-        module: Identifier,
+        /// the module name (optional)
+        module: Option<Identifier>,
     },
-    /// Return events with the given Move module name where the event struct is
-    /// defined. If the event is defined in Module A but emitted in a tx
-    /// with Module B, query `MoveEventModule` by module A returns the
-    /// event. Query `MoveModule` by module B returns the event too.
-    MoveEventModule {
+    /// Return events with the given Move package + module (optional) where the
+    /// event struct is defined. If the event is defined in
+    /// PackageA::ModuleA but emitted in a tx with PackageB::ModuleB, filtering
+    /// `MoveEventPackageAndModule` by PackageA::ModuleA returns the
+    /// event. Filtering `MovePackageAndModule` by PackageB::ModuleB returns the
+    /// event too.
+    MoveEventPackageAndModule {
         /// the Move package ID
         package: ObjectID,
-        /// the module name
-        module: Identifier,
+        /// the module name (optional)
+        module: Option<Identifier>,
     },
     /// Return events with the given Move event struct name (struct tag).
     /// For example, if the event is defined in `0xabcd::MyModule`, and named
     /// `Foo`, then the struct tag is `0xabcd::MyModule::Foo`.
     MoveEventType(StructTag),
     /// Return events whose JSON representation contains the given field path
-    /// with the specified value. The path should be a JSON pointer as
-    /// defined in RFC 6901.
+    /// with the specified value (optional). The path should be a JSON pointer
+    /// as defined in RFC 6901.
     MoveEventField {
         path: String,
-        value: Value,
-    },
-
-    /// Return events emitted in [start_time, end_time] interval
-    TimeRange {
-        /// left endpoint of time interval, milliseconds since epoch, inclusive
-        start_time: u64,
-        /// right endpoint of time interval, milliseconds since epoch, exclusive
-        end_time: u64,
+        value: Option<Value>,
     },
 }
 
@@ -83,31 +67,25 @@ impl GrpcEventFilter {
             GrpcEventFilter::Any(filters) => filters.iter().any(|f| f.matches(item)),
             GrpcEventFilter::Not(filter) => !filter.matches(item),
 
-            GrpcEventFilter::Transaction(digest) => &item.id.tx_digest == digest,
-
             GrpcEventFilter::Sender(sender) => &item.sender == sender,
 
-            GrpcEventFilter::MovePackage(object_id) => &item.package_id == object_id,
-
-            GrpcEventFilter::MoveModule { package, module } => {
-                &item.transaction_module == module && &item.package_id == package
+            GrpcEventFilter::MovePackageAndModule { package, module } => {
+                &item.package_id == package
+                    && (module.is_none()
+                        || matches!(module,  Some(m2) if m2 == &item.transaction_module))
+            }
+            GrpcEventFilter::MoveEventPackageAndModule { package, module } => {
+                &ObjectID::from(item.type_.address) == package
+                    && (module.is_none() || matches!(module,  Some(m2) if m2 == &item.type_.module))
             }
             GrpcEventFilter::MoveEventType(event_type) => &item.type_ == event_type,
-            GrpcEventFilter::MoveEventModule { package, module } => {
-                &item.type_.module == module && &ObjectID::from(item.type_.address) == package
-            }
             GrpcEventFilter::MoveEventField { path, value } => {
-                matches!(item.parsed_json.pointer(path), Some(v) if v == value)
-            }
-
-            GrpcEventFilter::TimeRange {
-                start_time,
-                end_time,
-            } => {
-                if let Some(timestamp) = &item.timestamp_ms {
-                    start_time <= timestamp && end_time > timestamp
+                let json_ptr_value = item.parsed_json.pointer(path);
+                if value.is_none() {
+                    // If no value is specified, just check for the existence of the field.
+                    json_ptr_value.is_some()
                 } else {
-                    false
+                    matches!(json_ptr_value, Some(v) if v == value.as_ref().unwrap())
                 }
             }
         })

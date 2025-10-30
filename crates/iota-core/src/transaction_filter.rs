@@ -38,36 +38,40 @@ pub enum GrpcTransactionFilter {
     // Logical NOT of a filter.
     Not(Box<GrpcTransactionFilter>),
 
-    /// Query transactions of any given kind in the input.
+    /// Filter transactions of any given kind in the input.
     TransactionKind(Vec<IotaTransactionKind>),
 
-    /// Query by sender address.
-    FromAddress(IotaAddress),
-    /// Query by recipient address.
-    ToAddress(IotaAddress),
+    /// Filter by sender address.
+    Sender(IotaAddress),
+    /// Filter by recipient address. The recipient is determined by
+    /// checking the owners of mutated and unwrapped objects.
+    Receiver(IotaAddress),
 
-    /// Query by input object.
+    /// Filter by input object.
     InputObject(ObjectID),
-    /// Query by changed object, including created, mutated and unwrapped
+    /// Filter by changed object, including created, mutated and unwrapped
     /// objects.
     ChangedObject(ObjectID),
-    /// Query transactions that wrapped or deleted the specified object.
+    /// Filter transactions that wrapped or deleted the specified object.
     /// Includes transactions that either created and immediately wrapped
     /// the object or unwrapped and immediately deleted it.
     /// TODO: @infra: do we need that now that we have the AffectedObject
     /// filter?
     WrappedOrDeletedObject(ObjectID),
-    /// Query for transactions that touch this object.
+    /// Filter for transactions that touch this object.
     AffectedObject(ObjectID),
 
-    /// Query by move function.
-    MoveFunction {
+    /// Filter by move package, module (optional) and function (optional).
+    MoveCall {
+        /// the Move package ID
         package: ObjectID,
+        /// the module name
         module: Option<String>,
+        /// the function name
         function: Option<String>,
     },
 
-    /// Query transactions that contain events matching the given event filter.
+    /// Filter transactions that contain events matching the given event filter.
     Events(GrpcEventFilter),
 }
 
@@ -83,8 +87,8 @@ impl Filter<TransactionDataWithEffectsAndEvents> for GrpcTransactionFilter {
                 .iter()
                 .any(|kind| kind == &IotaTransactionKind::from(item.tx_data.kind())),
 
-            GrpcTransactionFilter::FromAddress(a) => &item.tx_data.sender() == a,
-            GrpcTransactionFilter::ToAddress(a) => {
+            GrpcTransactionFilter::Sender(a) => &item.tx_data.sender() == a,
+            GrpcTransactionFilter::Receiver(a) => {
                 let mutated: &[OwnedObjectRef] = item.effects.mutated();
                 mutated.iter().chain(item.effects.unwrapped().iter()).any(|oref: &OwnedObjectRef| {
                     matches!(oref.owner, Owner::AddressOwner(owner) if owner == *a)
@@ -122,7 +126,7 @@ impl Filter<TransactionDataWithEffectsAndEvents> for GrpcTransactionFilter {
                 .chain(item.effects.wrapped().iter())
                 .any(|oref| &oref.object_id == o),
 
-            GrpcTransactionFilter::MoveFunction {
+            GrpcTransactionFilter::MoveCall {
                 package,
                 module,
                 function,
