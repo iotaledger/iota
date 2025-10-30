@@ -5,7 +5,12 @@
 use std::{fs, net::SocketAddr, path::PathBuf};
 
 use crate::{
-    benchmark::{BenchmarkParameters, BenchmarkType}, client::Instance, display, error::{MonitorError, MonitorResult}, protocol::ProtocolMetrics, ssh::{CommandContext, SshConnectionManager}
+    benchmark::{BenchmarkParameters, BenchmarkType},
+    client::Instance,
+    display,
+    error::{MonitorError, MonitorResult},
+    protocol::ProtocolMetrics,
+    ssh::{CommandContext, SshConnectionManager},
 };
 
 pub struct Monitor {
@@ -311,7 +316,6 @@ impl Grafana {
         ]
         .join("\n")
     }
-
 }
 
 /// Bootstrap the grafana with datasource to connect to the given instances.
