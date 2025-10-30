@@ -1301,7 +1301,7 @@
             "name": "Result",
             "value": {
               "minSupportedProtocolVersion": "1",
-              "maxSupportedProtocolVersion": "14",
+              "maxSupportedProtocolVersion": "15",
               "protocolVersion": "6",
               "featureFlags": {
                 "accept_passkey_in_multisig": false,
@@ -1841,6 +1841,7 @@
                 "max_committee_members_count": {
                   "u64": "50"
                 },
+                "max_congestion_limit_overshoot_per_commit": null,
                 "max_deferral_rounds_for_congestion_control": {
                   "u64": "10"
                 },

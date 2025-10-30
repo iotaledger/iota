@@ -1239,7 +1239,7 @@ mod tests {
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
         cordial_knowledge::{ConnectionKnowledgeMessage, CordialKnowledge},
-        core::{Core, CoreSignals},
+        core::{Core, CoreSignals, ReasonToCreateBlock},
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::{DagState, TransactionSource},
         encoder::create_encoder,
@@ -2021,7 +2021,7 @@ mod tests {
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
+            _reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!("Unimplemented")
         }
