@@ -90,6 +90,7 @@ pub enum ConsensusTransactionKey {
     NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
+    RandomBytes(u64),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -124,6 +125,7 @@ impl Debug for ConsensusTransactionKey {
             Self::RandomnessDkgConfirmation(name) => {
                 write!(f, "RandomnessDkgConfirmation({:?})", name.concise())
             }
+            Self::RandomBytes(id) => write!(f, "RandomBytes({:?})", id),
         }
     }
 }
@@ -260,6 +262,8 @@ pub enum ConsensusTransactionKind {
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
     // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
+    // `RandomBytes` contains arbitrary bytes that are passed through consensus but not processed.
+    RandomBytes(Vec<u8>),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -464,6 +468,17 @@ impl ConsensusTransaction {
         }
     }
 
+    pub fn new_random_bytes(bytes: Vec<u8>) -> Self {
+        // Use the first 8 bytes as tracking_id, pad with zeros if shorter
+        let mut tracking_id = [0u8; 8];
+        let copy_len = bytes.len().min(8);
+        tracking_id[..copy_len].copy_from_slice(&bytes[..copy_len]);
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::RandomBytes(bytes),
+        }
+    }
+
     pub fn get_tracking_id(&self) -> u64 {
         (&self.tracking_id[..])
             .read_u64::<BigEndian>()
@@ -506,6 +521,13 @@ impl ConsensusTransaction {
             }
             ConsensusTransactionKind::RandomnessDkgConfirmation(authority, _) => {
                 ConsensusTransactionKey::RandomnessDkgConfirmation(*authority)
+            }
+            ConsensusTransactionKind::RandomBytes(bytes) => {
+                // Use the first 8 bytes as a key, pad with zeros if shorter
+                let mut key_bytes = [0u8; 8];
+                let copy_len = bytes.len().min(8);
+                key_bytes[..copy_len].copy_from_slice(&bytes[..copy_len]);
+                ConsensusTransactionKey::RandomBytes(u64::from_le_bytes(key_bytes))
             }
         }
     }
