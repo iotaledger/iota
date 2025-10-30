@@ -226,12 +226,20 @@ impl CordialKnowledgeHandle {
             .map(|&a| (a, block_round))
             .collect::<BTreeMap<_, _>>();
 
+        tracing::info!("Process bundle from {:?} useful authors:
+        Headers to: {useful_headers_to_peer:?} \\
+        Shards to: {useful_shards_to_peer:?} \\
+        Headers from: {useful_headers_from_peer:?} \\
+        Shards from: {useful_shard_authors:?} \\
+        ", peer
+        );
+
         // Notify connection knowledge about useful headers and shards to/from this peer
         let connection_knowledge_message = ConnectionKnowledgeMessage::UsefulAuthors {
             useful_headers_to_peer,
             useful_shards_to_peer,
             useful_headers_from_peer,
-            useful_shards_from_peers: vec![],
+            useful_shards_from_peer: vec![],
         };
         {
             let mut connection_knowledge_guard = self.connection_knowledges[peer].write();
@@ -359,8 +367,8 @@ impl CordialKnowledge {
 
         let mut connection_knowledges = Vec::with_capacity(num_authorities);
 
-        for _index in 0..num_authorities {
-            let connection_knowledge = ConnectionKnowledge::new(context.clone(), dag_state.clone());
+        for peer in 0..num_authorities {
+            let connection_knowledge = ConnectionKnowledge::new(context.clone(), peer, dag_state.clone());
 
             let connection_knowledge = Arc::new(RwLock::new(connection_knowledge));
 
@@ -523,7 +531,7 @@ impl CordialKnowledge {
                 continue;
             }
             let msg = ConnectionKnowledgeMessage::UsefulAuthors {
-                useful_shards_from_peers: self.last_useful_shards_from_peer_round.clone(),
+                useful_shards_from_peer: self.last_useful_shards_from_peer_round.clone(),
                 useful_headers_from_peer: BTreeMap::new(),
                 useful_headers_to_peer: BTreeMap::new(),
                 useful_shards_to_peer: BTreeMap::new(),
@@ -719,7 +727,7 @@ pub enum ConnectionKnowledgeMessage {
         useful_headers_to_peer: BTreeMap<AuthorityIndex, Round>,
         useful_shards_to_peer: BTreeMap<AuthorityIndex, Round>,
         useful_headers_from_peer: BTreeMap<AuthorityIndex, Round>,
-        useful_shards_from_peers: Vec<Option<Round>>,
+        useful_shards_from_peer: Vec<Option<Round>>,
     },
     /// Global eviction (prune below round)
     EvictBelow(Vec<Round>),
@@ -729,6 +737,7 @@ pub enum ConnectionKnowledgeMessage {
 /// Receives updates from the global cordial knowledge
 pub struct ConnectionKnowledge {
     context: Arc<Context>,
+    peer: usize,
     dag_state: Arc<RwLock<DagState>>,
     /// Keeps track of which headers are not known by the peer yet.
     headers_not_known: Vec<BTreeMap<Round, AHashSet<BlockRef>>>,
@@ -749,11 +758,12 @@ pub struct ConnectionKnowledge {
 }
 
 impl ConnectionKnowledge {
-    pub fn new(context: Arc<Context>, dag_state: Arc<RwLock<DagState>>) -> Self {
+    pub fn new(context: Arc<Context>, peer: usize, dag_state: Arc<RwLock<DagState>>) -> Self {
         let num_authorities = context.committee.size();
 
         Self {
             dag_state,
+            peer,
             last_useful_headers_to_peer_round: vec![None; num_authorities],
             last_useful_shards_to_peer_round: vec![None; num_authorities],
             last_useful_headers_from_peer_round: vec![None; num_authorities],
@@ -897,7 +907,7 @@ impl ConnectionKnowledge {
                 useful_headers_to_peer,
                 useful_shards_to_peer,
                 useful_headers_from_peer,
-                useful_shards_from_peers: useful_shards_from_peer,
+                useful_shards_from_peer,
             } => {
                 self.handle_useful_authors(
                     useful_headers_to_peer,
@@ -982,14 +992,15 @@ impl ConnectionKnowledge {
             .last_useful_headers_to_peer_round
             .iter()
             .enumerate()
-            .filter_map(|(i, &opt_round)| {
-                opt_round
-                    .filter(|&r| {
-                        r.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
-                            >= round_upper_bound_exclusive
-                    })
-                    .map(|_| i)
+            .filter(|(_authority_index, &opt_round)| {
+                if let Some(round) = opt_round {
+                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
+                        >= round_upper_bound_exclusive
+                } else {
+                    false
+                }
             })
+            .map(|(authority_index, _opt_round)| authority_index)
             .collect();
 
         let useful_headers_block_refs_to_peer = self.take_useful_header_block_refs_round(
@@ -1012,15 +1023,17 @@ impl ConnectionKnowledge {
             .last_useful_shards_to_peer_round
             .iter()
             .enumerate()
-            .filter_map(|(i, &opt_round)| {
-                opt_round
-                    .filter(|&r| {
-                        r.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
-                            >= round_upper_bound_exclusive
-                    })
-                    .map(|_| i)
+            .filter(|(_authority_index, &opt_round)| {
+                if let Some(round) = opt_round {
+                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
+                        >= round_upper_bound_exclusive
+                } else {
+                    false
+                }
             })
+            .map(|(authority_index, _opt_round)| authority_index)
             .collect();
+
         let useful_shards_block_refs_to_peer = self.take_useful_shard_block_refs_round(
             round_upper_bound_exclusive,
             &useful_shards_authors_to_peer,
@@ -1042,30 +1055,41 @@ impl ConnectionKnowledge {
             .last_useful_headers_from_peer_round
             .iter()
             .enumerate()
-            .filter_map(|(index, &opt_round)| {
-                opt_round
-                    .filter(|&r| {
-                        r.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
-                            >= round_upper_bound_exclusive
-                    })
-                    .map(|_| AuthorityIndex::from(index as u8))
+            .filter(|(_authority_index, &opt_round)| {
+                if let Some(round) = opt_round {
+                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
+                        >= round_upper_bound_exclusive
+                } else {
+                    false
+                }
             })
+            .map(|(authority_index, _opt_round)| AuthorityIndex::from(authority_index as u8))
             .collect::<BTreeSet<AuthorityIndex>>();
+
 
         // 5. Get useful shard authors from peer
         let useful_shards_authors_from_peer = self
             .last_useful_shards_from_peer_round
             .iter()
             .enumerate()
-            .filter_map(|(index, &opt_round)| {
-                opt_round
-                    .filter(|&r| {
-                        r.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
-                            >= round_upper_bound_exclusive
-                    })
-                    .map(|_| AuthorityIndex::from(index as u8))
+            .filter(|(_authority_index, &opt_round)| {
+                if let Some(round) = opt_round {
+                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
+                        >= round_upper_bound_exclusive
+                } else {
+                    false
+                }
             })
+            .map(|(authority_index, _opt_round)| AuthorityIndex::from(authority_index as u8))
             .collect::<BTreeSet<AuthorityIndex>>();
+
+        tracing::info!("Create bundle for {:?} useful authors: \\
+            Headers to: {useful_headers_to_peer:?} \\
+            Shards to: {useful_shards_to_peer:?} \\
+            Headers from: {useful_headers_authors_from_peer:?} \\
+            Shards from: {useful_shards_authors_from_peer:?}",
+self.peer
+        );
 
         BlockBundle {
             verified_block: block,
@@ -1229,7 +1253,7 @@ mod tests {
                 (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
                 (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
             ]),
-            useful_shards_from_peers: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
+            useful_shards_from_peer: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
         };
         {
             connection_knowledge.write().process_one_message(msg);
@@ -1358,7 +1382,7 @@ mod tests {
                 (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
                 (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
             ]),
-            useful_shards_from_peers: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
+            useful_shards_from_peer: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
         };
         {
             connection_knowledge.write().process_one_message(msg);

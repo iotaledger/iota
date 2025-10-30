@@ -2477,7 +2477,7 @@ mod tests {
                 (AuthorityIndex::new_for_test(1), GENESIS_ROUND),
                 (AuthorityIndex::new_for_test(3), GENESIS_ROUND),
             ]),
-            useful_shards_from_peers: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
+            useful_shards_from_peer: vec![None, Some(GENESIS_ROUND), None, Some(GENESIS_ROUND)],
         };
         {
             connection_knowledge.write().process_one_message(msg);
