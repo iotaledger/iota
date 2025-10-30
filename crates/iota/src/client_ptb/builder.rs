@@ -1017,6 +1017,10 @@ impl<'a> PTBBuilder<'a> {
                 let package_path = Path::new(&package_path)
                     .canonicalize()
                     .map_err(|e| err!(path_loc, "Failed to canonicalize package path: {e}"))?;
+
+                // Save the initial current directory
+                let initial_dir = std::env::current_dir()
+                    .map_err(|e| err!(path_loc, "Failed to get current path: {e}"))?;
                 let build_config =
                     resolve_lock_file_path(build_config.clone(), Some(&package_path))
                         .map_err(|e| err!(path_loc, "{e}"))?;
@@ -1054,6 +1058,10 @@ impl<'a> PTBBuilder<'a> {
                     )
                     .map_err(|e| err!(path_loc, "{e}"))?;
                 }
+
+                // Restore the initial directory so subsequent commands are not affected
+                std::env::set_current_dir(initial_dir)
+                    .map_err(|e| err!(path_loc, "Failed to restore initial path: {e}"))?;
 
                 let package_digest = compiled_package.get_package_digest(false);
                 let package_id = compiled_package
