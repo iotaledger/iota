@@ -19,6 +19,7 @@ test('Should register a passkey account type with platform authenticator', async
     });
 
     await client.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    await client.send('WebAuthn.disable');
     await page.close();
 });
 
@@ -32,6 +33,7 @@ test('Should register a passkey account type with cross-platform authenticator',
     });
 
     await client.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    await client.send('WebAuthn.disable');
     await page.close();
 });
 
@@ -61,6 +63,7 @@ test('Sends funds to another account', async ({ page, extensionUrl }) => {
     await expect(page.getByText('Successfully sent')).toBeVisible();
 
     await client.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    await client.send('WebAuthn.disable');
     await page.close();
 });
 
@@ -99,6 +102,7 @@ test('Creates a passkey account, resets the wallet and logs back in', async ({
     expect(newAddress).toBe(address);
 
     await client.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+    await client.send('WebAuthn.disable');
     await page.close();
 });
 
@@ -125,6 +129,9 @@ test('Fails when a different authenticator tries to log in', async ({ page, exte
     await setPresence(client, authenticatorId, false);
     await setVerified(client, authenticatorId, false);
 
+    // Remove the authenticator before creating a new one (Chrome only supports one virtual authenticator simultaneously)
+    await client.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+
     // Create a new authenticator
     const { authenticatorId: secondAuthenticatorId } = await addVirtualAuthenticator(client, {
         automaticPresenceSimulation: true,
@@ -137,9 +144,9 @@ test('Fails when a different authenticator tries to log in', async ({ page, exte
     );
     await expect(errorLocator).toBeVisible();
 
-    await client.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
     await client.send('WebAuthn.removeVirtualAuthenticator', {
         authenticatorId: secondAuthenticatorId,
     });
+    await client.send('WebAuthn.disable');
     await page.close();
 });
