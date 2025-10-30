@@ -348,7 +348,7 @@ def do_generate(from_, to):
 
         if impacted == "Protocol":
             if protocol_version_from == protocol_version_to:
-                print(f"\n#### This release does not introduce a new protocol version and still runs `{protocol_version_to}`")
+                print(f"\n#### This release does not introduce a new protocol version (current version: `{protocol_version_to}`)")
             else:
                 print(f"\n#### This release introduces protocol version `{protocol_version_to}`")
         print()
