@@ -7,11 +7,13 @@ ARG CARGO_BUILD_FEATURES
 # The GIT_REVISION environment variable is used during build time inside the rust crates
 ARG GIT_REVISION
 ENV GIT_REVISION=$GIT_REVISION
+ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 
 WORKDIR "/iota"
 
 # Install build dependencies, including clang and lld for faster linking
-RUN apt update && apt install -y cmake clang lld protobuf-compiler
+# Install git to allow Cargo to fetch git deps using the CLI (avoids libgit2 SSL issues)
+RUN apt update && apt install -y cmake clang lld protobuf-compiler git
 
 # Configure Rust to use clang and lld as the linker
 RUN mkdir -p ~/.cargo && \
@@ -46,6 +48,7 @@ mv $TARGET_DIR/iota-node ./;
 FROM debian:bookworm-slim AS runtime
 
 ARG WORKDIR="/iota"
+ARG PROFILE=release
 WORKDIR "$WORKDIR"
 
 # Install runtime dependencies and tools
@@ -64,6 +67,12 @@ fi
 
 # Set LD_PRELOAD to the symlinked path
 ENV LD_PRELOAD=/usr/lib/libjemalloc.so
+
+# Copy LibTorch runtime so iota-node can load predictor components
+COPY --from=builder /iota/target/${PROFILE}/build/torch-sys-*/out/libtorch/libtorch/lib/ /opt/libtorch/lib/
+# Set an explicit LD_LIBRARY_PATH without referencing an undefined variable to satisfy linters
+ENV LD_LIBRARY_PATH=/opt/libtorch/lib
+RUN echo "/opt/libtorch/lib" > /etc/ld.so.conf.d/libtorch.conf && ldconfig
 
 COPY --from=builder /iota/iota-node /usr/local/bin
 

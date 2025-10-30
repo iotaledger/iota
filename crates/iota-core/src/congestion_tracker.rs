@@ -19,6 +19,10 @@ use iota_types::{
 };
 use moka::{ops::compute::Op, sync::Cache};
 use serde::Deserialize;
+use crate::model_updater::{
+    build_cp_update_batch, build_train_tx_batch, InNodeModelUpdater, ObjectCheckpointStats,
+    ObjectSnapshot, RawTxItem, ModelUpdater, ModelReader,
+};
 use tracing::info;
 
 use crate::execution_cache::TransactionCacheRead;
@@ -139,9 +143,111 @@ pub struct CongestionTracker {
     reference_gas_price: u64,
     /// Key-value cache for storing congestion info of objects.
     object_congestion_info: Cache<ObjectID, CongestionInfo>,
+    /// HTTP client for posting model updates/training batches.
+    model_updater: InNodeModelUpdater,
+    /// Lock-free reader for per-object tip snapshot.
+    model_reader: ModelReader,
 }
 
 impl CongestionTracker {
+    /// Compose and send model update and training batches for the given checkpoint.
+    fn inform_model(
+        &self,
+        checkpoint: &VerifiedCheckpoint,
+        congestion_txs_data: &[TxData],
+        clearing_txs_data: &[TxData],
+    ) {
+        // 1) Build touched set
+        let mut touched: std::collections::HashSet<ObjectID> = std::collections::HashSet::new();
+        for tx in congestion_txs_data {
+            touched.extend(tx.objects.iter().cloned());
+        }
+        for tx in clearing_txs_data {
+            touched.extend(tx.objects.iter().cloned());
+        }
+
+        // 2) Build snapshots from current cache
+        let mut snapshots: HashMap<ObjectID, ObjectSnapshot> = HashMap::new();
+        for oid in &touched {
+            if let Some(info) = self.get_congestion_info(*oid) {
+                snapshots.insert(
+                    *oid,
+                    ObjectSnapshot {
+                        latest_congestion_time: Some(info.latest_congestion_time),
+                        highest_congestion_gas_price: info.highest_congestion_gas_price,
+                        latest_clearing_time: info.latest_clearing_time,
+                        lowest_clearing_gas_price: info.lowest_clearing_gas_price.unwrap_or(0),
+                        hotness: info.hotness,
+                    },
+                );
+            }
+        }
+
+        // 3) Build per-checkpoint stats
+        let mut stats: HashMap<ObjectID, ObjectCheckpointStats> = HashMap::new();
+        for tx in congestion_txs_data {
+            for oid in &tx.objects {
+                let entry = stats.entry(*oid).or_default();
+                entry.was_congested = true;
+                entry.congested_tx_count += 1;
+            }
+        }
+        for tx in clearing_txs_data {
+            for oid in &tx.objects {
+                let entry = stats.entry(*oid).or_default();
+                entry.was_cleared = true;
+                entry.clearing_tx_count += 1;
+            }
+        }
+
+        // 4) Post update batch
+        let update_batch = build_cp_update_batch(
+            checkpoint.timestamp_ms,
+            self.reference_gas_price,
+            touched.iter().cloned(),
+            &snapshots,
+            &stats,
+        );
+        self.model_updater.post_update(update_batch);
+
+        // 5) Build raw tx items and per-object min clearing for training
+        let mut raw_txs: Vec<RawTxItem> = Vec::with_capacity(
+            congestion_txs_data.len() + clearing_txs_data.len(),
+        );
+        let mut per_obj_min_clearing: HashMap<ObjectID, u64> = HashMap::new();
+        for tx in congestion_txs_data {
+            raw_txs.push(RawTxItem {
+                tx_digest: tx.digest.to_string(),
+                is_congested: true,
+                gas_price: tx.gas_price,
+                gas_price_feedback: tx.gas_price_feedback,
+                touched_objects: tx.objects.clone(),
+            });
+        }
+        for tx in clearing_txs_data {
+            raw_txs.push(RawTxItem {
+                tx_digest: tx.digest.to_string(),
+                is_congested: false,
+                gas_price: tx.gas_price,
+                gas_price_feedback: None,
+                touched_objects: tx.objects.clone(),
+            });
+            for oid in &tx.objects {
+                per_obj_min_clearing
+                    .entry(*oid)
+                    .and_modify(|m| *m = (*m).min(tx.gas_price))
+                    .or_insert(tx.gas_price);
+            }
+        }
+        if let Some(train_batch) = build_train_tx_batch(
+            checkpoint.timestamp_ms,
+            self.reference_gas_price,
+            &raw_txs,
+            &per_obj_min_clearing,
+        ) {
+            self.model_updater.post_train_tx(train_batch);
+        }
+    }
     /// Create a new `CongestionTracker`. The cache capacity will be
     /// set to `CONGESTION_TRACKER_CACHE_CAPACITY`, which is `10_000`.
     pub fn new(reference_gas_price: u64) -> Self {
@@ -154,9 +260,13 @@ impl CongestionTracker {
             let _ = std::fs::remove_dir_all(&results_path);
         }
         let _ = std::fs::create_dir_all(&results_path);
+        let model_updater = InNodeModelUpdater::new();
+        let model_reader = model_updater.reader();
         Self {
             reference_gas_price,
             object_congestion_info: Cache::new(CONGESTION_TRACKER_CACHE_CAPACITY),
+            model_updater,
+            model_reader,
         }
     }
 
@@ -292,6 +402,9 @@ impl CongestionTracker {
             );
         }
 
+        // Inform model right before dumping hotness CSV
+        self.inform_model(checkpoint, &congestion_txs_data, &clearing_txs_data);
+
         if !self.get_all_hotness().is_empty() {
             info!(
                 "Hotness after checkpoint {}: {:?}",
@@ -338,6 +451,28 @@ impl CongestionTracker {
             .unwrap_or((ObjectID::random(), 0.0));
 
         self.reference_gas_price + hotness as u64
+    }
+
+    /// NN-based suggested gas price using in-node model. Returns None if insufficient history.
+    pub fn get_suggested_gas_price_with_nn(&self, transaction: &TransactionData) -> Option<u64> {
+        let objects: Vec<ObjectID> = transaction
+            .shared_input_objects()
+            .into_iter()
+            .filter(|id| id.mutable)
+            .map(|id| id.id)
+            .collect();
+        if objects.is_empty() { return Some(self.reference_gas_price); }
+        Some(
+            self.model_updater
+                .predict_for_objects(&objects, self.reference_gas_price)
+                .unwrap_or(self.reference_gas_price),
+        )
+    }
+
+    /// Alias expected by authority.rs for model prediction.
+    /// Non-blocking: reads from lock-free snapshot of per-object tips.
+    pub fn get_model_prediction(&self, transaction: &TransactionData) -> Option<u64> {
+        Some(self.model_reader.predict_for_tx(transaction, self.reference_gas_price))
     }
 
     /// Returns a map of all objects and their hotness values.
