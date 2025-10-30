@@ -10,7 +10,6 @@ use prometheus::{
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
-
 use crate::network::metrics::NetworkMetrics;
 
 // starts from 1μs, 50μs, 100μs...
@@ -132,6 +131,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) highest_accepted_round: IntGauge,
     pub(crate) accepted_block_time_drift_ms: IntCounterVec,
     pub(crate) accepted_block_headers: IntCounterVec,
+    pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
+    pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
     pub(crate) dag_state_recent_transactions: IntGauge,
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
@@ -139,7 +140,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) cordial_knowledge_buffer_size: IntGauge,
     pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
     pub(crate) cordial_knowledge_rounds: IntGaugeVec,
-    pub(crate) cordial_knowledge_useful_shards: IntGauge,
     pub(crate) cordial_knowledge_worker_batch_size: Histogram,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
@@ -455,11 +455,6 @@ impl NodeMetrics {
                 "Size of the cordial knowledge buffer received",
                 registry,
             ).unwrap(),
-            cordial_knowledge_useful_shards: register_int_gauge_with_registry!(
-            "cordial_knowledge_useful_shards",
-            "The number of authorities with useful shards",
-            registry,
-            ).unwrap(),
             cordial_knowledge_worker_batch_size: register_histogram_with_registry!(
                 "cordial_knowledge_worker_batch_size",
                 "Number of connection knowledge message batches processed by worker",
@@ -504,6 +499,18 @@ impl NodeMetrics {
                 "synchronizer_fetched_blocks_by_peer",
                 "Number of fetched blocks per peer authority via the synchronizer and also by block authority",
                 &["peer", "type"],
+                registry,
+            ).unwrap(),
+            cordial_knowledge_useful_headers_authors: register_int_counter_vec_with_registry!(
+                "cordial_knowledge_useful_header_authors",
+                "Useful authors for pushing headers to the local node",
+                &["peer", "author"],
+                registry,
+            ).unwrap(),
+            cordial_knowledge_useful_shards_authors: register_int_counter_vec_with_registry!(
+                "cordial_knowledge_useful_shards_authors",
+                "Useful authors for pushing shards to the local node",
+                &["author"],
                 registry,
             ).unwrap(),
             synchronizer_requested_blocks_by_peer: register_int_counter_vec_with_registry!(
