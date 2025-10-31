@@ -502,6 +502,10 @@ struct SubscriberStream<T> {
 }
 
 impl<T> SubscriberStream<T> {
+    /// Represents the duration of the lag state of the subscriber, mostly to
+    /// help Prometheus scrape the metric.
+    const LAG_STATE: Duration = Duration::from_secs(1);
+
     pub fn new(
         inner: BroadcastStream<T>,
         label: &'static str,
@@ -520,11 +524,40 @@ impl<T> SubscriberStream<T> {
             lag_start: None,
         }
     }
+
+    /// Marks the subscriber as lagging.
+    fn mark_as_lagging(&mut self) {
+        if !self.is_lagging {
+            self.is_lagging = true;
+            self.lag_start = Some(Instant::now());
+            self.lagging_subscribers.inc();
+        }
+    }
+
+    /// Clears the lag flag if the subscriber has been lagging.
+    ///
+    /// It holds the lagging state for at least [`LAG_STATE`](Self::LAG_STATE)
+    /// second in order for Prometheus to scrape the metric.
+    fn clear_lagging(&mut self) {
+        if self.is_lagging
+            && self
+                .lag_start
+                .as_ref()
+                .is_some_and(|instant| instant.elapsed() >= Self::LAG_STATE)
+        {
+            self.lagging_subscribers.dec();
+            self.is_lagging = false;
+            self.lag_start = None;
+        }
+    }
 }
 
 impl<T> Drop for SubscriberStream<T> {
     fn drop(&mut self) {
         self.active_subscriber_number.dec();
+        if self.is_lagging {
+            self.lagging_subscribers.dec();
+        }
     }
 }
 impl<T: Clone + Send + 'static> Stream for SubscriberStream<T> {
@@ -532,25 +565,12 @@ impl<T: Clone + Send + 'static> Stream for SubscriberStream<T> {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         // check if we should clear the lag flag (independent of message arrival)
-        if self.is_lagging
-            && self
-                .lag_start
-                .as_ref()
-                .is_some_and(|instant| instant.elapsed() >= Duration::from_secs(1))
-        {
-            self.lagging_subscribers.dec();
-            self.is_lagging = false;
-            self.lag_start = None;
-        }
+        self.clear_lagging();
 
         let poll = Pin::new(&mut self.inner).poll_next(cx);
 
         if let Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(_)))) = poll {
-            if !self.is_lagging {
-                self.lagging_subscribers.inc();
-                _ = self.lag_start.get_or_insert(Instant::now());
-                self.is_lagging = true;
-            }
+            self.mark_as_lagging();
         }
 
         poll
