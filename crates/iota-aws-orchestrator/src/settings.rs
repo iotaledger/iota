@@ -13,7 +13,7 @@ use reqwest::Url;
 use serde::{Deserialize, Deserializer, de::Error};
 
 use crate::{
-    client::Instance,
+    client::{Instance, InstanceRole},
     error::{SettingsError, SettingsResult},
 };
 
@@ -64,12 +64,19 @@ pub struct Settings {
     /// specified. the public key defaults the same path as the private key
     /// with an added extension 'pub'.
     pub ssh_public_key_file: Option<PathBuf>,
-    /// The list of cloud provider regions to deploy the testbed.
+    /// The list of cloud provider regions to deploy on the testbed. If the
+    /// metrics server is used, it will be located in the first region in
+    /// the list.
     pub regions: Vec<String>,
-    /// The specs of the instances to deploy. Those are dependent on the cloud
-    /// provider, e.g., specifying 't3.medium' creates instances with 2 vCPU
-    /// and 4GBo of ram on AWS.
-    pub specs: String,
+    /// The specs of the instances to deploy for nodes. Those are dependent
+    /// on the cloud provider, e.g., specifying 't3.medium' creates
+    /// instances with 2 vCPU and 4GB of ram on AWS.
+    pub node_specs: String,
+    /// The list of cloud provider regions to deploy for clients on the
+    /// testbed.
+    pub client_specs: String,
+    /// Region to deploy the metrics instance.
+    pub metrics_specs: String,
     /// The details of the git reposit to deploy.
     pub repository: Repository,
     /// The working directory on the remote instance (containing all
@@ -164,9 +171,26 @@ impl Settings {
     /// Check whether the input instance matches the criteria described in the
     /// settings.
     pub fn filter_instances(&self, instance: &Instance) -> bool {
-        self.regions.contains(&instance.region)
-            && instance.specs.to_lowercase().replace('.', "")
-                == self.specs.to_lowercase().replace('.', "")
+        match &instance.role {
+            InstanceRole::Node => {
+                self.regions.contains(&instance.region)
+                    && instance.specs.to_lowercase().replace('.', "")
+                        == self.node_specs.to_lowercase().replace('.', "")
+            }
+            InstanceRole::Client => {
+                self.regions.contains(&instance.region)
+                    && instance.specs.to_lowercase().replace('.', "")
+                        == self.client_specs.to_lowercase().replace('.', "")
+            }
+            InstanceRole::Metrics => {
+                self.regions
+                    .first()
+                    .expect("At least one region must be present")
+                    == &instance.region
+                    && instance.specs.to_lowercase().replace('.', "")
+                        == self.metrics_specs.to_lowercase().replace('.', "")
+            }
+        }
     }
 
     /// The number of regions specified in the settings.
@@ -192,7 +216,9 @@ impl Settings {
             ssh_private_key_file: "/path/to/private/key/file".into(),
             ssh_public_key_file: Some(path),
             regions: vec!["London".into(), "New York".into()],
-            specs: "small".into(),
+            node_specs: "small".into(),
+            client_specs: "small".into(),
+            metrics_specs: "small".into(),
             repository: Repository {
                 url: Url::parse("https://example.net/author/repo").unwrap(),
                 commit: "main".into(),

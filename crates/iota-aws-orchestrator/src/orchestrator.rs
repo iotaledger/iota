@@ -14,13 +14,13 @@ use tokio::time::{self, Instant};
 
 use crate::{
     benchmark::{BenchmarkParameters, BenchmarkParametersGenerator, BenchmarkType},
-    client::Instance,
+    client::{Instance, InstanceRole},
     display, ensure,
     error::{TestbedError, TestbedResult},
     faults::CrashRecoverySchedule,
     logs::LogsAnalyzer,
     measurement::{Measurement, MeasurementsCollection},
-    monitor::Monitor,
+    monitor::{Monitor, Prometheus},
     protocol::{ProtocolCommands, ProtocolMetrics},
     settings::Settings,
     ssh::{CommandContext, CommandStatus, SshConnectionManager},
@@ -30,9 +30,12 @@ use crate::{
 pub struct Orchestrator<P, T> {
     /// The testbed's settings.
     settings: Settings,
-    /// The state of the testbed (reflecting accurately the state of the
-    /// machines).
-    instances: Vec<Instance>,
+    /// Node instances
+    node_instances: Vec<Instance>,
+    // Dedicated Client instances
+    client_instances: Option<Vec<Instance>>,
+    // Dedicated Metrics instance
+    metrics_instance: Option<Instance>,
     /// The type of the benchmark parameters.
     benchmark_type: PhantomData<T>,
     /// Provider-specific commands to install on the instance.
@@ -70,14 +73,18 @@ impl<P, T> Orchestrator<P, T> {
     /// Make a new orchestrator.
     pub fn new(
         settings: Settings,
-        instances: Vec<Instance>,
+        node_instances: Vec<Instance>,
+        client_instances: Option<Vec<Instance>>,
+        metrics_instance: Option<Instance>,
         instance_setup_commands: Vec<String>,
         protocol_commands: P,
         ssh_manager: SshConnectionManager,
     ) -> Self {
         Self {
             settings,
-            instances,
+            node_instances,
+            client_instances,
+            metrics_instance,
             benchmark_type: PhantomData,
             instance_setup_commands,
             protocol_commands,
@@ -134,6 +141,18 @@ impl<P, T> Orchestrator<P, T> {
         self
     }
 
+    /// Returns all the instances combined
+    pub fn instances(&self) -> Vec<Instance> {
+        let mut instances = self.node_instances.clone();
+        if let Some(client_instances) = &self.client_instances {
+            instances.extend(client_instances.clone());
+        }
+        if let Some(metrics_instance) = &self.metrics_instance {
+            instances.push(metrics_instance.clone());
+        }
+        instances
+    }
+
     /// Select on which instances of the testbed to run the benchmarks. This
     /// function returns two vector of instances; the first contains the
     /// instances on which to run the load generators and the second
@@ -143,36 +162,63 @@ impl<P, T> Orchestrator<P, T> {
         parameters: &BenchmarkParameters<T>,
     ) -> TestbedResult<(Vec<Instance>, Vec<Instance>, Option<Instance>)> {
         // Ensure there are enough active instances.
-        let available_instances: Vec<_> = self.instances.iter().filter(|x| x.is_active()).collect();
-        let minimum_instances = if self.skip_monitoring {
-            parameters.nodes + self.dedicated_clients
-        } else {
-            parameters.nodes + self.dedicated_clients + 1
-        };
+        let available_nodes: Vec<_> = self
+            .node_instances
+            .iter()
+            .filter(|x| x.is_active())
+            .collect();
         ensure!(
-            available_instances.len() >= minimum_instances,
-            TestbedError::InsufficientCapacity(minimum_instances - available_instances.len())
+            available_nodes.len() >= parameters.nodes,
+            TestbedError::InsufficientCapacity(parameters.nodes - available_nodes.len())
         );
+        let mut available_metrics_node = None;
+        if !self.skip_monitoring {
+            ensure!(
+                self.metrics_instance
+                    .as_ref()
+                    .is_some_and(|m| m.is_active()),
+                TestbedError::MetricsServerMissing()
+            );
+            available_metrics_node = self.metrics_instance.clone();
+        }
+        let mut available_dedicated_client_nodes = vec![];
+        if self.dedicated_clients > 0 {
+            ensure!(
+                self.client_instances.as_ref().is_some_and(|m| m
+                    .iter()
+                    .filter(|x| {
+                        if x.is_active() {
+                            available_dedicated_client_nodes.push(*x);
+                            true
+                        } else {
+                            false
+                        }
+                    })
+                    .count()
+                    >= self.dedicated_clients),
+                TestbedError::InsufficientDedicatedClientCapacity(
+                    self.dedicated_clients - available_dedicated_client_nodes.len()
+                )
+            );
+        }
 
-        // Sort the instances by region.
-        let mut instances_by_regions = HashMap::new();
-        for instance in available_instances {
-            instances_by_regions
+        // Sort the node instances by region.
+        let mut node_instances_by_regions = HashMap::new();
+        for instance in available_nodes {
+            node_instances_by_regions
                 .entry(&instance.region)
                 .or_insert_with(VecDeque::new)
                 .push_back(instance);
         }
 
-        // Select the instance to host the monitoring stack.
-        let mut monitoring_instance = None;
-        if !self.skip_monitoring {
-            for region in &self.settings.regions {
-                if let Some(regional_instances) = instances_by_regions.get_mut(region) {
-                    if let Some(instance) = regional_instances.pop_front() {
-                        monitoring_instance = Some(instance.clone());
-                    }
-                    break;
-                }
+        // Sort dedicated client instances by region.
+        let mut client_instances_by_regions = HashMap::new();
+        if self.dedicated_clients > 0 {
+            for instance in available_dedicated_client_nodes {
+                client_instances_by_regions
+                    .entry(&instance.region)
+                    .or_insert_with(VecDeque::new)
+                    .push_back(instance);
             }
         }
 
@@ -182,7 +228,7 @@ impl<P, T> Orchestrator<P, T> {
             if client_instances.len() == self.dedicated_clients {
                 break;
             }
-            if let Some(regional_instances) = instances_by_regions.get_mut(region) {
+            if let Some(regional_instances) = client_instances_by_regions.get_mut(region) {
                 if let Some(instance) = regional_instances.pop_front() {
                     client_instances.push(instance.clone());
                 }
@@ -195,7 +241,7 @@ impl<P, T> Orchestrator<P, T> {
             if nodes_instances.len() == parameters.nodes {
                 break;
             }
-            if let Some(regional_instances) = instances_by_regions.get_mut(region) {
+            if let Some(regional_instances) = node_instances_by_regions.get_mut(region) {
                 if let Some(instance) = regional_instances.pop_front() {
                     nodes_instances.push(instance.clone());
                 }
@@ -208,7 +254,7 @@ impl<P, T> Orchestrator<P, T> {
             client_instances.clone_from(&nodes_instances);
         }
 
-        Ok((client_instances, nodes_instances, monitoring_instance))
+        Ok((client_instances, nodes_instances, available_metrics_node))
     }
 }
 
@@ -280,16 +326,33 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
         let command = [
             &basic_commands[..],
-            &Monitor::dependencies()[..],
+            &Prometheus::install_commands(),
             &cloud_provider_specific_dependencies[..],
             &protocol_dependencies[..],
         ]
         .concat()
         .join(" && ");
 
-        let active = self.instances.iter().filter(|x| x.is_active()).cloned();
         let context = CommandContext::default();
-        self.ssh_manager.execute(active, command, context).await?;
+        let without_metrics = self
+            .instances()
+            .iter()
+            .filter(|i| i.role != InstanceRole::Metrics)
+            .cloned()
+            .collect::<Vec<_>>();
+        self.ssh_manager
+            .execute(without_metrics, command, context.clone())
+            .await?;
+        if !self.skip_monitoring {
+            let metrics_instance = self
+                .metrics_instance
+                .clone()
+                .expect("No metrics instance available");
+            let monitor_command = Monitor::dependencies().join(" && ");
+            self.ssh_manager
+                .execute(vec![metrics_instance], monitor_command, context)
+                .await?;
+        }
 
         display::done();
         Ok(())
@@ -325,30 +388,35 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // to avoid keeping alive many ssh connections for too long.
         let commit = &self.settings.repository.commit;
         let command = [
-            "git fetch -f",
-            &format!("(git checkout -b {commit} {commit} || git checkout -f {commit})"),
-            "(git pull -f || true)",
-            "source $HOME/.cargo/env",
-            "cargo build --release",
+            &format!("git fetch origin {commit} --force"),
+            &format!("(git reset --hard origin/{commit} || git checkout --force {commit})"),
+            "git clean -fd -e target",
+            "source \"$HOME/.cargo/env\"",
+            "cargo build --release --bin iota --bin iota-node --bin stress",
         ]
         .join(" && ");
 
         display::action(format!("update command: {command}"));
-
-        let active = self.instances.iter().filter(|x| x.is_active()).cloned();
 
         let id = "update";
         let repo_name = self.settings.repository_name();
         let context = CommandContext::new()
             .run_background(id.into())
             .with_execute_from_path(repo_name.into());
+        let without_metrics = self
+            .instances()
+            .iter()
+            .filter(|i| i.role != InstanceRole::Metrics)
+            .cloned()
+            .collect::<Vec<_>>();
+
         self.ssh_manager
-            .execute(active.clone(), command, context)
+            .execute(without_metrics.clone(), command, context)
             .await?;
 
         // Wait until the command finished running.
         self.ssh_manager
-            .wait_for_command(active, id, CommandStatus::Terminated)
+            .wait_for_command(without_metrics, id, CommandStatus::Terminated)
             .await?;
 
         display::done();
@@ -392,7 +460,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         let command = command.join(" ; ");
 
         // Execute the deletion on all machines.
-        let active = self.instances.iter().filter(|x| x.is_active()).cloned();
+        let active = self.instances().into_iter().filter(|x| x.is_active());
         let context = CommandContext::default();
         self.ssh_manager.execute(active, command, context).await?;
 

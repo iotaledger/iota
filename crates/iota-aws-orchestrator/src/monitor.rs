@@ -93,6 +93,7 @@ impl Prometheus {
     /// The commands to install prometheus.
     pub fn install_commands() -> Vec<&'static str> {
         vec![
+            "sudo apt-get update",
             "sudo apt-get -y install prometheus",
             "sudo chmod 777 -R /var/lib/prometheus/ /etc/prometheus/",
         ]
@@ -115,9 +116,12 @@ impl Prometheus {
         let mut config = vec![Self::global_configuration()];
 
         // Add configurations to scrape the clients.
+        let mut client_ips = vec![];
         let clients_metrics_path = protocol.clients_metrics_path(clients, parameters);
         for (i, (_, clients_metrics_path)) in clients_metrics_path.into_iter().enumerate() {
             let id = format!("client-{i}");
+            let node_ip = clients_metrics_path.split(":").next().unwrap().to_string();
+            client_ips.push(node_ip);
             let scrape_config = Self::scrape_configuration(&id, &clients_metrics_path);
             config.push(scrape_config);
         }
@@ -131,10 +135,19 @@ impl Prometheus {
             let scrape_config = Self::scrape_configuration(&id, &nodes_metrics_path);
             config.push(scrape_config);
         }
+
+        // Add client prometheus exporter to the config only if dedicated clients are
+        // used
+        if !node_ips.contains(client_ips.first().unwrap()) {
+            let prometheus_client_exporter_config =
+                Self::node_exporter_configuration("prometheus_exporter_clients", client_ips, 9100);
+            config.push(prometheus_client_exporter_config);
+        }
         // Add configuration to scrape prometheus exporter metrics
         let prometheus_exporter_config =
             Self::node_exporter_configuration("prometheus_exporter", node_ips, 9100);
         config.push(prometheus_exporter_config);
+
         // Make the command to configure and restart prometheus.
         [
             &format!(
