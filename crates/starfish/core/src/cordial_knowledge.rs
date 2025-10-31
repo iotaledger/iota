@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    cmp::max,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
     time::Duration,
@@ -73,17 +74,17 @@ impl SubsetAuthorities {
 }
 
 /// Manages the global cordial knowledge state.
-/// Receives high-level updates from DAG state and Authority service and
+/// Receives high-level updates from DagState and AuthorityService and
 /// notifies per-connection tasks.
 pub(crate) struct CordialKnowledge {
     context: Arc<Context>,
     /// Receives high-level updates from DAG state (new headers, new own shards,
-    /// evictions) and Authority Service
+    /// evictions) and AuthorityService
     cordial_knowledge_receiver: UnboundedReceiver<CordialKnowledgeMessage>,
     /// Keeps track of the last round for which each peer's shards were
     /// considered useful to us. This is a global knowledge and is shared with
     /// all connection tasks. Initialized to None for all authorities and
-    /// updated over time once Authority Service reports useful shards from
+    /// updated over time once AuthorityService reports useful shards from
     /// peers.
     last_useful_shards_from_peer_round: Vec<Option<Round>>,
     /// Keeps track of the most recent DAG cordial
@@ -103,7 +104,7 @@ pub(crate) struct CordialKnowledge {
 
 /// High-level messages sent to the CordialKnowledge task.
 /// NewHeader, NewShard, EvictBelow are received from DAG state.
-/// UsefulShardsFromPeers is received from Authority Service.
+/// UsefulShardsFromPeers is received from AuthorityService.
 #[derive(Debug)]
 pub enum CordialKnowledgeMessage {
     /// A new verified block header to integrate into cordial knowledge.
@@ -232,7 +233,7 @@ impl CordialKnowledgeHandle {
             useful_headers_to_peer,
             useful_shards_to_peer,
             useful_headers_from_peer,
-            useful_shards_from_peer: vec![],
+            useful_shards_from_peer: vec![None; self.connection_knowledges.len()],
         };
         {
             let mut connection_knowledge_guard = self.connection_knowledges[peer].write();
@@ -912,13 +913,16 @@ impl ConnectionKnowledge {
         self.handle_useful_shards_from(useful_shards_from_peer);
     }
 
-    /// Update last useful shards from peer rounds by copying the given vector
-    /// from Cordial Knowledge.
+    /// Update last useful shards from peer rounds
     fn handle_useful_shards_from(&mut self, useful_shards_from_peer_round: Vec<Option<Round>>) {
-        // Empty vector is sent from AuthorityService.
-        // We need to handle the information from the global Cordial Knowledge
-        if !useful_shards_from_peer_round.is_empty() {
-            self.last_useful_shards_from_peer_round = useful_shards_from_peer_round;
+        for (index, opt_round) in useful_shards_from_peer_round.into_iter().enumerate() {
+            if let Some(new_round) = opt_round {
+                if let Some(old_round) = &mut self.last_useful_shards_from_peer_round[index] {
+                    *old_round = max(*old_round, new_round);
+                } else {
+                    self.last_useful_shards_from_peer_round[index] = Some(new_round);
+                }
+            }
         }
     }
 
