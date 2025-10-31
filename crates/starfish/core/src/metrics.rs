@@ -496,7 +496,7 @@ impl NodeMetrics {
                 registry,
             ).unwrap(),
             cordial_knowledge_useful_headers_authors: register_int_counter_vec_with_registry!(
-                "cordial_knowledge_useful_header_authors",
+                "cordial_knowledge_useful_headers_authors",
                 "Useful authors for pushing headers to the local node",
                 &["peer", "author"],
                 registry,
