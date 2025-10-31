@@ -4,7 +4,6 @@
 
 use std::{
     collections::{HashMap, HashSet, VecDeque},
-    convert::Infallible,
     mem,
     net::SocketAddr,
     sync::{Arc, Mutex},
@@ -30,7 +29,7 @@ use uuid::Uuid;
 
 use crate::{
     config::{Limits, ServiceConfig},
-    error::{Error, code, graphql_error, graphql_error_at_pos},
+    error::{code, graphql_error, graphql_error_at_pos},
     metrics::Metrics,
 };
 
@@ -320,199 +319,6 @@ impl<'a> LimitsTraversal<'a> {
                 self.tx_payload_budget -= cost as u32;
             }
         }
-        Ok(())
-    }
-
-    /// Test that inputs to `executeTransactionBlock` and
-    /// `dryRunTransactionBlock` take up less space than the service's
-    /// transaction payload limit, cumulatively.
-    ///
-    /// This check must be done after the input limit check, because it relies
-    /// on the query depth being bounded to protect it from recursing too
-    /// deeply.
-    fn check_tx_payload(&mut self, op: &'a Positioned<OperationDefinition>) -> ServerResult<()> {
-        // FOR EACH operation in the DOCUMENT
-        //     FOR EACH selection in the selection set of the operation
-        //         FOR argument_budget in selection.budget()
-        //             ASSERT argument_budget >= available_budget
-        //
-        //  selection.budget() -> impl Iterator<Item<u64>> {
-        //
-        //  }
-        for item in &op.node.selection_set.node.items {
-            self.traverse_selection_for_tx_payload(item)?;
-        }
-        Ok(())
-    }
-
-    /// Look for `executeTransactionBlock` and `dryRunTransactionBlock` nodes
-    /// among the query selections, and check their argument sizes are under
-    /// the service limits.
-    fn traverse_selection_for_tx_payload(
-        &mut self,
-        item: &'a Positioned<Selection>,
-    ) -> ServerResult<()> {
-        match &item.node {
-            Selection::Field(f) => {
-                let name = &f.node.name.node;
-                if name == DRY_RUN_TX_BLOCK || name == EXECUTE_TX_BLOCK {
-                    for (_name, value) in &f.node.arguments {
-                        self.check_tx_arg(value)?;
-                    }
-                }
-            }
-
-            Selection::InlineFragment(f) => {
-                for selection in &f.node.selection_set.node.items {
-                    self.traverse_selection_for_tx_payload(selection)?;
-                }
-            }
-
-            Selection::FragmentSpread(fs) => {
-                let name = &fs.node.fragment_name.node;
-                let def = self
-                    .fragments
-                    .get(name)
-                    .ok_or_else(|| self.reporter.fragment_not_found_error(name, fs.pos))?;
-
-                for selection in &def.node.selection_set.node.items {
-                    self.traverse_selection_for_tx_payload(selection)?;
-                }
-            }
-        }
-        Ok(())
-    }
-
-    /// Deduct the size of the transaction argument's `value` from the
-    /// transaction payload budget. This operation resolves variables and
-    /// deducts their size from the budget as well, as long as they have not
-    /// already been encountered in some previous transaction payload.
-    ///
-    /// Fails if there is insufficient remaining budget.
-    fn check_tx_arg(&mut self, value: &'a Positioned<Value>) -> ServerResult<()> {
-        use Value as V;
-
-        let mut stack = vec![&value.node];
-        while let Some(value) = stack.pop() {
-            match value {
-                V::Variable(name) => self.check_tx_var(name)?,
-
-                V::String(s) => {
-                    // Pay for the string, plus the quotes around it.
-                    let debit = s.len() + 2;
-                    if debit > self.tx_payload_budget as usize {
-                        return Err(self.tx_payload_size_error());
-                    } else {
-                        // SAFETY: We know that debit <= self.tx_payload_budget, which is a u32, so
-                        // the cast and subtraction are both safe.
-                        self.tx_payload_budget -= debit as u32;
-                    }
-                }
-
-                V::List(vs) => {
-                    // Pay for the opening and closing brackets and every comma up-front so that
-                    // deeply nested lists are not free.
-                    let debit = vs.len().saturating_sub(1) + 2;
-                    if debit > self.tx_payload_budget as usize {
-                        return Err(self.tx_payload_size_error());
-                    } else {
-                        // SAFETY: We know that debit <= self.tx_payload_budget, which is a u32, so
-                        // the cast and subtraction are both safe.
-                        self.tx_payload_budget -= debit as u32;
-                        stack.extend(vs)
-                    }
-                }
-
-                V::Null
-                | V::Number(_)
-                | V::Boolean(_)
-                | V::Binary(_)
-                | V::Enum(_)
-                | V::Object(_) => {
-                    // Transaction payloads cannot be any of these types, so
-                    // this request is destined to fail.
-                    // Ignore these values for now, so that it can fail later on
-                    // with a more legible error message.
-                    //
-                    // From a limits perspective, it is safe to ignore these
-                    // values here, because they will still
-                    // be counted as part of the query payload (and so are still
-                    // subject to a limit).
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn resolve_const_value(&mut self, name: &'a Name) -> Option<&ConstValue> {
-        // Already used in a transaction, don't double count.
-        if !self.tx_variables_used.insert(name) {
-            return None;
-        }
-
-        // Can't find the variable, so it can't count towards the transaction payload.
-        self.variables.get(name)
-    }
-
-    /// Deduct the size of the value that variable `name` resolve to from the
-    /// transaction payload budget, if it has not already been encountered
-    /// in a previous transaction payload.
-    ///
-    /// Fails if there is insufficient remaining budget.
-    fn check_tx_var(&mut self, name: &'a Name) -> ServerResult<()> {
-        use ConstValue as CV;
-
-        // Already used in a transaction, don't double count.
-        if !self.tx_variables_used.insert(name) {
-            return Ok(());
-        }
-
-        // Can't find the variable, so it can't count towards the transaction payload.
-        let Some(value) = self.variables.get(name) else {
-            return Ok(());
-        };
-
-        let mut stack = vec![value];
-        while let Some(value) = stack.pop() {
-            match &value {
-                CV::String(s) => {
-                    // Pay for the string, plus the quotes around it.
-                    let debit = s.len() + 2;
-                    if debit > self.tx_payload_budget as usize {
-                        return Err(self.tx_payload_size_error());
-                    } else {
-                        // SAFETY: We know that debit <= self.tx_payload_budget, which is a u32, so
-                        // the cast and subtraction are both safe.
-                        self.tx_payload_budget -= debit as u32;
-                    }
-                }
-
-                CV::List(vs) => {
-                    // Pay for the opening and closing brackets and every comma up-front so that
-                    // deeply nested lists are not free.
-                    let debit = vs.len().saturating_sub(1) + 2;
-                    if debit > self.tx_payload_budget as usize {
-                        return Err(self.tx_payload_size_error());
-                    } else {
-                        // SAFETY: We know that debit <= self.tx_payload_budget, which is a u32, so
-                        // the cast and subtraction are both safe.
-                        self.tx_payload_budget -= debit as u32;
-                        stack.extend(vs)
-                    }
-                }
-
-                CV::Null
-                | CV::Number(_)
-                | CV::Boolean(_)
-                | CV::Binary(_)
-                | CV::Enum(_)
-                | CV::Object(_) => {
-                    // As in `check_tx_arg`, these are safe to ignore.
-                }
-            }
-        }
-
         Ok(())
     }
 
