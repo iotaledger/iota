@@ -10,6 +10,7 @@ use prometheus::{
     register_int_counter_vec_with_registry, register_int_counter_with_registry,
     register_int_gauge_vec_with_registry, register_int_gauge_with_registry,
 };
+
 use crate::network::metrics::NetworkMetrics;
 
 // starts from 1μs, 50μs, 100μs...
@@ -139,7 +140,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_refs: IntGauge,
     pub(crate) cordial_knowledge_buffer_size: IntGauge,
     pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
-    pub(crate) cordial_knowledge_rounds: IntGaugeVec,
     pub(crate) cordial_knowledge_worker_batch_size: Histogram,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
@@ -465,12 +465,6 @@ impl NodeMetrics {
                 "cordial_knowledge_processed_messages",
                 "Number of Cordial Knowledge messages processed",
                 &["type"],
-                registry,
-            ).unwrap(),
-            cordial_knowledge_rounds: register_int_gauge_vec_with_registry!(
-                "cordial_knowledge_rounds",
-                "Number of rounds in DAG of Cordial Knowledge stored per authority",
-                &["authority"],
                 registry,
             ).unwrap(),
             dag_state_store_read_count: register_int_counter_vec_with_registry!(

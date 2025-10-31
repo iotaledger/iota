@@ -22,7 +22,7 @@ use tracing::debug;
 
 use crate::{
     BlockHeaderAPI, BlockRef, Round, VerifiedBlockHeader,
-    block_header::{BlockHeaderDigest, GENESIS_ROUND, VerifiedBlock},
+    block_header::{BlockHeaderDigest, VerifiedBlock},
     context::Context,
     dag_state::DagState,
     error::{ConsensusError, ConsensusResult},
@@ -564,30 +564,6 @@ impl CordialKnowledge {
         for (index, btree_map) in &mut self.cordial_knowledge.iter_mut().enumerate() {
             let split_round = rounds[index];
             *btree_map = btree_map.split_off(&split_round);
-            self.context
-                .metrics
-                .node_metrics
-                .cordial_knowledge_rounds
-                .with_label_values(&[&index.to_string()])
-                .set(btree_map.len() as i64);
-        }
-        let largest_round = self.cordial_knowledge[self.context.own_index]
-            .keys()
-            .max()
-            .cloned()
-            .unwrap_or(GENESIS_ROUND);
-        for (peer_index, opt_round) in  self.last_useful_shards_from_peer_round.iter().enumerate() {
-            if let Some(round) = opt_round {
-                if round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS) >= largest_round {
-                    let hostname = self.context.authority_hostname(AuthorityIndex::from(peer_index as u8));
-                    self.context
-                        .metrics
-                        .node_metrics
-                        .cordial_knowledge_useful_shards_authors
-                        .with_label_values(&[hostname])
-                        .inc();
-                }
-            }
         }
 
         // Prepare message for per-connection knowledge about eviction
@@ -755,7 +731,11 @@ pub struct ConnectionKnowledge {
 }
 
 impl ConnectionKnowledge {
-    pub fn new(context: Arc<Context>, peer: AuthorityIndex, dag_state: Arc<RwLock<DagState>>) -> Self {
+    pub fn new(
+        context: Arc<Context>,
+        peer: AuthorityIndex,
+        dag_state: Arc<RwLock<DagState>>,
+    ) -> Self {
         let num_authorities = context.committee.size();
 
         Self {
@@ -1082,14 +1062,28 @@ impl ConnectionKnowledge {
             })
             .map(|(authority_index, _opt_round)| AuthorityIndex::from(authority_index as u8))
             .collect::<BTreeSet<AuthorityIndex>>();
-        
+
         // Report useful authors
         let peer_hostname = self.context.authority_hostname(self.peer);
         for author in &useful_headers_authors_from_peer {
-            let author_hostname= self.context.authority_hostname(*author);
-            self.context.metrics.node_metrics.cordial_knowledge_useful_headers_authors.with_label_values(&[peer_hostname, author_hostname]).inc();    
+            let author_hostname = self.context.authority_hostname(*author);
+            self.context
+                .metrics
+                .node_metrics
+                .cordial_knowledge_useful_headers_authors
+                .with_label_values(&[peer_hostname, author_hostname])
+                .inc();
         }
-        
+
+        for author in &useful_shards_authors_from_peer {
+            let author_hostname = self.context.authority_hostname(*author);
+            self.context
+                .metrics
+                .node_metrics
+                .cordial_knowledge_useful_shards_authors
+                .with_label_values(&[author_hostname])
+                .inc();
+        }
 
         BlockBundle {
             verified_block: block,
