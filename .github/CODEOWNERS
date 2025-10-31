@@ -55,6 +55,7 @@
 /crates/iota-node/ @iotaledger/node
 /crates/iota-open-rpc/ @iotaledger/dev-tools
 /crates/iota-open-rpc-macros/ @iotaledger/dev-tools
+/crates/iota-package-alt/ @iotaledger/vm-language
 /crates/iota-package-dump/ @iotaledger/infrastructure
 /crates/iota-package-management/ @iotaledger/vm-language
 /crates/iota-package-resolver/ @iotaledger/vm-language

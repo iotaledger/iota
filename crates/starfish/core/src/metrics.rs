@@ -132,14 +132,15 @@ pub(crate) struct NodeMetrics {
     pub(crate) highest_accepted_round: IntGauge,
     pub(crate) accepted_block_time_drift_ms: IntCounterVec,
     pub(crate) accepted_block_headers: IntCounterVec,
+    pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
+    pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
     pub(crate) dag_state_recent_transactions: IntGauge,
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
     pub(crate) cordial_knowledge_buffer_size: IntGauge,
     pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
-    pub(crate) cordial_knowledge_rounds: IntGaugeVec,
-    pub(crate) cordial_knowledge_useful_shards: IntGauge,
+    pub(crate) cordial_knowledge_worker_batch_size: Histogram,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) fetch_block_headers_scheduler_inflight: IntGauge,
@@ -174,8 +175,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) sync_last_known_own_block_retries: IntCounter,
     pub(crate) commit_round_advancement_interval: Histogram,
     pub(crate) last_decided_leader_round: IntGauge,
-    pub(crate) leader_timeout_total: IntCounterVec,
-    pub(crate) selection_wait: IntCounter,
+    pub(crate) timeout_expired_total: IntCounterVec,
     pub(crate) missing_blocks_total: IntCounter,
     pub(crate) missing_blocks_after_fetch_total: IntCounter,
     pub(crate) num_of_bad_nodes: IntGauge,
@@ -248,8 +248,8 @@ impl NodeMetrics {
             ).unwrap(),
             proposed_blocks: register_int_counter_vec_with_registry!(
                 "proposed_blocks",
-                "Total number of proposed blocks. If force is true then this block has been created forcefully via a leader timeout event.",
-                &["force"],
+                "Total number of proposed blocks. The reason gives a hint what triggered block creation",
+                &["reason"],
                 registry,
             ).unwrap(),
             proposed_block_size: register_histogram_with_registry!(
@@ -455,21 +455,16 @@ impl NodeMetrics {
                 "Size of the cordial knowledge buffer received",
                 registry,
             ).unwrap(),
-            cordial_knowledge_useful_shards: register_int_gauge_with_registry!(
-            "cordial_knowledge_useful_shards",
-            "The number of authorities with useful shards",
-            registry,
+            cordial_knowledge_worker_batch_size: register_histogram_with_registry!(
+                "cordial_knowledge_worker_batch_size",
+                "Number of connection knowledge message batches processed by worker",
+                exponential_buckets(1.0, 1.4, 20).unwrap(),
+                registry,
             ).unwrap(),
             cordial_knowledge_processed_messages: register_int_counter_vec_with_registry!(
                 "cordial_knowledge_processed_messages",
                 "Number of Cordial Knowledge messages processed",
                 &["type"],
-                registry,
-            ).unwrap(),
-            cordial_knowledge_rounds: register_int_gauge_vec_with_registry!(
-                "cordial_knowledge_rounds",
-                "Number of rounds in DAG of Cordial Knowledge stored per authority",
-                &["authority"],
                 registry,
             ).unwrap(),
             dag_state_store_read_count: register_int_counter_vec_with_registry!(
@@ -498,6 +493,18 @@ impl NodeMetrics {
                 "synchronizer_fetched_blocks_by_peer",
                 "Number of fetched blocks per peer authority via the synchronizer and also by block authority",
                 &["peer", "type"],
+                registry,
+            ).unwrap(),
+            cordial_knowledge_useful_headers_authors: register_int_counter_vec_with_registry!(
+                "cordial_knowledge_useful_headers_authors",
+                "Useful authors for pushing headers to the local node",
+                &["peer", "author"],
+                registry,
+            ).unwrap(),
+            cordial_knowledge_useful_shards_authors: register_int_counter_vec_with_registry!(
+                "cordial_knowledge_useful_shards_authors",
+                "Useful authors for pushing shards to the local node",
+                &["author"],
                 registry,
             ).unwrap(),
             synchronizer_requested_blocks_by_peer: register_int_counter_vec_with_registry!(
@@ -670,15 +677,10 @@ impl NodeMetrics {
                 "The last round where a commit decision was made.",
                 registry,
             ).unwrap(),
-            leader_timeout_total: register_int_counter_vec_with_registry!(
+            timeout_expired_total: register_int_counter_vec_with_registry!(
                 "leader_timeout_total",
-                "Total number of leader timeouts, either when the min round time has passed, or max leader timeout",
+                "Total number of timeouts, either when the min block delay time has passed, or max leader timeout",
                 &["timeout_type"],
-                registry,
-            ).unwrap(),
-            selection_wait: register_int_counter_with_registry!(
-                "selection_wait",
-                "Number of times we waited for ancestor selection.",
                 registry,
             ).unwrap(),
             missing_blocks_total: register_int_counter_with_registry!(
