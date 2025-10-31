@@ -40,6 +40,7 @@ exclude = [
   "external-crates/move/crates/move-model",
   "external-crates/move/crates/move-model-2",
   "external-crates/move/crates/move-package",
+  "external-crates/move/crates/move-package-alt",
   "external-crates/move/crates/move-proc-macros",
   "external-crates/move/crates/move-stackless-bytecode",
   "external-crates/move/crates/move-stdlib",
@@ -121,6 +122,7 @@ members = [
   "crates/iota-node",
   "crates/iota-open-rpc",
   "crates/iota-open-rpc-macros",
+  "crates/iota-package-alt",
   "crates/iota-package-dump",
   "crates/iota-package-management",
   "crates/iota-package-resolver",
@@ -176,6 +178,9 @@ members = [
 [workspace.package]
 # This version string will be inherited by iota-core, iota-faucet, iota-node, iota-tools, iota-sdk, iota-move-build, and iota crates.
 version = "1.11.0-alpha"
+
+[workspace.metadata.cargo-udeps.ignore]
+normal = ["move-package-alt"]
 
 [profile.release]
 # debug = 1 means line charts only, which is minimum needed for good stack traces
@@ -335,6 +340,7 @@ scopeguard = "1.1"
 serde = { version = "1.0.144", features = ["derive", "rc"] }
 serde-reflection = "0.4"
 serde_json = { version = "1.0.95", features = ["preserve_order"] }
+serde_spanned = "0.6.8"
 serde_with = "3.8"
 serde_yaml = "0.8.26"
 shellexpand = "3.1.0"
@@ -477,6 +483,7 @@ move-core-types = { path = "external-crates/move/crates/move-core-types" }
 move-disassembler = { path = "external-crates/move/crates/move-disassembler" }
 move-ir-types = { path = "external-crates/move/crates/move-ir-types" }
 move-package = { path = "external-crates/move/crates/move-package" }
+move-package-alt = { path = "external-crates/move/crates/move-package-alt" }
 move-stackless-bytecode = { path = "external-crates/move/crates/move-stackless-bytecode" }
 move-symbol-pool = { path = "external-crates/move/crates/move-symbol-pool" }
 move-trace-format = { path = "external-crates/move/crates/move-trace-format" }

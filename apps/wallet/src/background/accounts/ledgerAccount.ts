@@ -14,6 +14,7 @@ import {
 
 export interface LedgerAccountSerialized extends SerializedAccount {
     type: AccountType.LedgerDerived;
+    mainPublicKey?: string;
     derivationPath: string;
     // just used for authentication nothing is stored here at the moment
     encrypted: string;
@@ -22,6 +23,7 @@ export interface LedgerAccountSerialized extends SerializedAccount {
 export interface LedgerAccountSerializedUI extends SerializedUIAccount {
     type: AccountType.LedgerDerived;
     derivationPath: string;
+    mainPublicKey?: string;
 }
 
 export function isLedgerAccountSerializedUI(
@@ -45,11 +47,13 @@ export class LedgerAccount
         publicKey,
         password,
         derivationPath,
+        mainPublicKey,
     }: {
         address: string;
         publicKey: string | null;
         password: string;
         derivationPath: string;
+        mainPublicKey?: string;
     }): Promise<Omit<LedgerAccountSerialized, 'id'>> {
         return {
             type: AccountType.LedgerDerived,
@@ -57,6 +61,7 @@ export class LedgerAccount
             publicKey,
             encrypted: await encrypt(password, {}),
             derivationPath,
+            mainPublicKey,
             lastUnlockedOn: null,
             selected: false,
             nickname: null,
@@ -97,7 +102,7 @@ export class LedgerAccount
     }
 
     async toUISerialized(): Promise<LedgerAccountSerializedUI> {
-        const { address, type, publicKey, derivationPath, selected, nickname } =
+        const { address, type, publicKey, derivationPath, selected, nickname, mainPublicKey } =
             await this.getStoredData();
         return {
             id: this.id,
@@ -106,6 +111,7 @@ export class LedgerAccount
             isLocked: await this.isLocked(),
             publicKey,
             derivationPath,
+            mainPublicKey,
             lastUnlockedOn: await this.lastUnlockedOn,
             selected,
             nickname,
