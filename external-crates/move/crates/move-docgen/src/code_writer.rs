@@ -25,7 +25,7 @@ pub struct CodeWriter {
     label_map: BTreeMap<ByteIndex, ByteIndex>,
 }
 
-#[allow(unused)]
+#[expect(unused)]
 pub struct CodeWriterRefCell(pub RefCell<CodeWriter>);
 
 impl CodeWriter {
