@@ -10,7 +10,8 @@ mod tests {
     use fastcrypto::encoding::{Base58, Base64, Encoding};
     use iota_graphql_rpc::{
         client::{ClientError, simple_client::GraphqlQueryVariable},
-        config::ConnectionConfig,
+        config::{ConnectionConfig, Limits, ServiceConfig},
+        server::builder::tests::*,
         test_infra::cluster::{DEFAULT_INTERNAL_DATA_SOURCE_PORT, ExecutorCluster},
     };
     use iota_graphql_rpc_client::{response::GraphqlResponse, simple_client::SimpleClient};
@@ -113,9 +114,12 @@ mod tests {
             .with_env()
             .init();
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         cluster
             .wait_for_checkpoint_catchup(0, Duration::from_secs(10))
@@ -362,9 +366,12 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_transaction_is_indexed_on_node() {
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         let tx = cluster.build_transfer_iota_for_test().await;
         let signed_tx = cluster.sign_transaction(&tx);
@@ -396,9 +403,12 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_transaction_not_indexed_on_node() {
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
         let digest = TransactionDigest::generate(StdRng::from_seed([12; 32])).to_string();
 
         assert!(
@@ -409,9 +419,12 @@ mod tests {
     #[tokio::test]
     #[serial]
     async fn test_transaction_execution() {
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
         let sender = addresses[0];
@@ -553,9 +566,12 @@ mod tests {
             .with_env()
             .init();
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         let test_cluster = &cluster.validator_fullnode_handle;
         test_cluster.wait_for_epoch_all_nodes(1).await;
@@ -669,9 +685,12 @@ mod tests {
             .with_env()
             .init();
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         let tx = cluster.build_transfer_iota_for_test().await;
         let tx_bytes = Base64::encode(bcs::to_bytes(&tx).unwrap());
@@ -757,9 +776,12 @@ mod tests {
             .with_env()
             .init();
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
 
@@ -827,9 +849,12 @@ mod tests {
             .with_env()
             .init();
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         let addresses = cluster.validator_fullnode_handle.wallet.get_addresses();
 
@@ -915,9 +940,12 @@ mod tests {
             .with_env()
             .init();
 
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         cluster.validator_fullnode_handle.force_new_epoch().await;
 
@@ -952,14 +980,15 @@ mod tests {
         );
     }
 
-    use iota_graphql_rpc::server::builder::tests::*;
-
     #[tokio::test]
     #[serial]
     async fn test_timeout() {
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
-                .await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            ConnectionConfig::default(),
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
         cluster
             .wait_for_checkpoint_catchup(0, Duration::from_secs(10))
             .await;
@@ -1004,8 +1033,12 @@ mod tests {
             .with_env()
             .init();
         let connection_config = ConnectionConfig::ci_integration_test_cfg();
-        let cluster =
-            iota_graphql_rpc::test_infra::cluster::start_cluster(connection_config, None).await;
+        let cluster = iota_graphql_rpc::test_infra::cluster::start_cluster(
+            connection_config,
+            None,
+            ServiceConfig::test_defaults(),
+        )
+        .await;
 
         cluster
             .wait_for_checkpoint_catchup(0, Duration::from_secs(10))
