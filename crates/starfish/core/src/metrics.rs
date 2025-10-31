@@ -99,8 +99,9 @@ pub(crate) fn test_metrics() -> Arc<Metrics> {
 
 pub(crate) struct NodeMetrics {
     pub(crate) delay_in_sending_blocks: Histogram,
-    pub(crate) block_commit_latency: Histogram,
+    pub(crate) block_header_commit_latency: Histogram,
     pub(crate) proposed_blocks: IntCounterVec,
+    pub(crate) proposed_block_header_size: Histogram,
     pub(crate) proposed_block_size: Histogram,
     pub(crate) proposed_block_transactions: Histogram,
     pub(crate) proposed_block_ancestors: Histogram,
@@ -118,6 +119,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) block_timestamp_drift_ms: IntCounterVec,
     pub(crate) blocks_per_commit_count: Histogram,
     pub(crate) core_add_blocks_batch_size: Histogram,
+    pub(crate) core_add_block_headers_batch_size: Histogram,
     pub(crate) core_lock_dequeued: IntCounter,
     pub(crate) reconstruction_jobs_started: IntCounter,
     pub(crate) reconstruction_jobs_finished: IntCounter,
@@ -130,7 +132,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) core_skipped_proposals: IntCounterVec,
     pub(crate) highest_accepted_authority_round: IntGaugeVec,
     pub(crate) highest_accepted_round: IntGauge,
-    pub(crate) accepted_block_time_drift_ms: IntCounterVec,
+    pub(crate) accepted_block_header_time_drift_ms: IntCounterVec,
     pub(crate) accepted_block_headers: IntCounterVec,
     pub(crate) cordial_knowledge_useful_headers_authors: IntCounterVec,
     pub(crate) cordial_knowledge_useful_shards_authors: IntCounterVec,
@@ -143,19 +145,18 @@ pub(crate) struct NodeMetrics {
     pub(crate) cordial_knowledge_worker_batch_size: Histogram,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
-    pub(crate) fetch_block_headers_scheduler_inflight: IntGauge,
-    pub(crate) fetch_blocks_scheduler_skipped: IntCounterVec,
-    pub(crate) synchronizer_fetched_blocks_by_peer: IntCounterVec,
-    pub(crate) synchronizer_requested_blocks_by_peer: IntCounterVec,
-    pub(crate) synchronizer_missing_blocks_by_authority: IntCounterVec,
-    pub(crate) synchronizer_current_missing_blocks_by_authority: IntGaugeVec,
-    pub(crate) synchronizer_fetched_blocks_by_authority: IntCounterVec,
-    pub(crate) synchronizer_requested_blocks_by_authority: IntCounterVec,
+    pub(crate) synchronizer_fetch_block_headers_scheduler_inflight: IntGauge,
+    pub(crate) synchronizer_fetch_block_headers_scheduler_skipped: IntCounterVec,
+    pub(crate) synchronizer_fetched_block_headers_by_peer: IntCounterVec,
+    pub(crate) synchronizer_requested_block_headers_by_peer: IntCounterVec,
+    pub(crate) synchronizer_missing_block_headers_by_authority: IntCounterVec,
+    pub(crate) synchronizer_current_missing_block_headers_by_authority: IntGaugeVec,
+    pub(crate) synchronizer_fetched_block_headers_by_authority: IntCounterVec,
+    pub(crate) synchronizer_requested_block_headers_by_authority: IntCounterVec,
     pub(crate) synchronizer_fetch_failures_by_peer: IntCounterVec,
     pub(crate) synchronizer_process_fetched_failures_by_peer: IntCounterVec,
-    pub(crate) invalid_block_headers: IntCounterVec,
+    pub(crate) bundles_with_invalid_headers: IntCounterVec,
     pub(crate) invalid_transactions: IntCounterVec,
-    pub(crate) invalid_headers_in_bundles: IntCounterVec,
     pub(crate) valid_headers_in_bundles: IntCounterVec,
     pub(crate) filtered_headers_in_bundles: IntCounterVec,
     pub(crate) received_unique_headers_from_bundles: IntCounterVec,
@@ -234,9 +235,9 @@ impl NodeMetrics {
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
-            block_commit_latency: register_histogram_with_registry!(
-                "block_commit_latency",
-                "The time taken between block creation and block commit.",
+            block_header_commit_latency: register_histogram_with_registry!(
+                "block_header_commit_latency",
+                "The time taken between block creation and commit of block header.",
                 LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
@@ -251,6 +252,12 @@ impl NodeMetrics {
                 "Total number of proposed blocks. The reason gives a hint what triggered block creation",
                 &["reason"],
                 registry,
+            ).unwrap(),
+            proposed_block_header_size: register_histogram_with_registry!(
+                "proposed_block_header_size",
+                "The size (in bytes) of proposed block headers",
+                SIZE_BUCKETS.to_vec(),
+                registry
             ).unwrap(),
             proposed_block_size: register_histogram_with_registry!(
                 "proposed_block_size",
@@ -298,13 +305,13 @@ impl NodeMetrics {
             ).unwrap(),
             highest_verified_authority_round: register_int_gauge_vec_with_registry!(
                 "highest_verified_authority_round",
-                "The highest round of verified block for the corresponding authority",
+                "The highest round of received verified block for the corresponding authority",
                 &["authority"],
                 registry,
             ).unwrap(),
             lowest_verified_authority_round: register_int_gauge_vec_with_registry!(
                 "lowest_verified_authority_round",
-                "The lowest round of verified block for the corresponding authority",
+                "The lowest round of received verified block for the corresponding authority",
                 &["authority"],
                 registry,
             ).unwrap(),
@@ -347,6 +354,12 @@ impl NodeMetrics {
             core_add_blocks_batch_size: register_histogram_with_registry!(
                 "core_add_blocks_batch_size",
                 "The number of blocks received from Core for processing on a single batch",
+                NUM_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            core_add_block_headers_batch_size: register_histogram_with_registry!(
+                "core_add_block_headers_batch_size",
+                "The number of block headers received from Core for processing on a single batch",
                 NUM_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
@@ -394,18 +407,18 @@ impl NodeMetrics {
             ).unwrap(),
             highest_accepted_authority_round: register_int_gauge_vec_with_registry!(
                 "highest_accepted_authority_round",
-                "The highest round where a block has been accepted per authority. Resets on restart.",
+                "The highest round where a block header has been accepted per authority. Resets on restart.",
                 &["authority"],
                 registry,
             ).unwrap(),
             highest_accepted_round: register_int_gauge_with_registry!(
                 "highest_accepted_round",
-                "The highest round where a block has been accepted. Resets on restart.",
+                "The highest round where a block header has been accepted. Resets on restart.",
                 registry,
             ).unwrap(),
-            accepted_block_time_drift_ms: register_int_counter_vec_with_registry!(
-                "accepted_block_time_drift_ms",
-                "The time drift in ms of an accepted block compared to local time",
+            accepted_block_header_time_drift_ms: register_int_counter_vec_with_registry!(
+                "accepted_block_header_time_drift_ms",
+                "The time drift in ms of an accepted block header compared to local time",
                 &["authority"],
                 registry,
             ).unwrap(),
@@ -478,20 +491,20 @@ impl NodeMetrics {
                 "Number of times DagState needs to write to store",
                 registry,
             ).unwrap(),
-            fetch_block_headers_scheduler_inflight: register_int_gauge_with_registry!(
-                "fetch_blocks_scheduler_inflight",
-                "Designates whether the synchronizer scheduler task to fetch blocks is currently running",
+            synchronizer_fetch_block_headers_scheduler_inflight: register_int_gauge_with_registry!(
+                "synchronizer_fetch_block_headers_scheduler_inflight",
+                "Designates whether the synchronizer scheduler task to fetch block headers is currently running",
                 registry,
             ).unwrap(),
-            fetch_blocks_scheduler_skipped: register_int_counter_vec_with_registry!(
-                "fetch_blocks_scheduler_skipped",
-                "Number of times the scheduler skipped fetching blocks",
+            synchronizer_fetch_block_headers_scheduler_skipped: register_int_counter_vec_with_registry!(
+                "synchronizer_fetch_block_headers_scheduler_skipped",
+                "Number of times the scheduler skipped fetching block headers",
                 &["reason"],
                 registry
             ).unwrap(),
-            synchronizer_fetched_blocks_by_peer: register_int_counter_vec_with_registry!(
-                "synchronizer_fetched_blocks_by_peer",
-                "Number of fetched blocks per peer authority via the synchronizer and also by block authority",
+            synchronizer_fetched_block_headers_by_peer: register_int_counter_vec_with_registry!(
+                "synchronizer_fetched_block_headers_by_peer",
+                "Number of fetched block headers per peer authority via the synchronizer and also by block authority",
                 &["peer", "type"],
                 registry,
             ).unwrap(),
@@ -507,21 +520,21 @@ impl NodeMetrics {
                 &["author"],
                 registry,
             ).unwrap(),
-            synchronizer_requested_blocks_by_peer: register_int_counter_vec_with_registry!(
-                "synchronizer_requested_blocks_by_peer",
-                "Number of requested blocks per peer authority via the synchronizer and also by block authority",
+            synchronizer_requested_block_headers_by_peer: register_int_counter_vec_with_registry!(
+                "synchronizer_requested_block_headers_by_peer",
+                "Number of requested block headers per peer authority via the synchronizer and also by block authority",
                 &["peer", "type"],
                 registry,
             ).unwrap(),
-            synchronizer_missing_blocks_by_authority: register_int_counter_vec_with_registry!(
-                "synchronizer_missing_blocks_by_authority",
-                "Number of missing blocks per block author, as observed by the synchronizer during periodic sync.",
+            synchronizer_missing_block_headers_by_authority: register_int_counter_vec_with_registry!(
+                "synchronizer_missing_block_headers_by_authority",
+                "Number of missing block headers per block author, as observed by the synchronizer during periodic sync.",
                 &["authority"],
                 registry,
             ).unwrap(),
-            synchronizer_current_missing_blocks_by_authority: register_int_gauge_vec_with_registry!(
-                "synchronizer_current_missing_blocks_by_authority",
-                "Current number of missing blocks per block author, as observed by the synchronizer during periodic sync.",
+            synchronizer_current_missing_block_headers_by_authority: register_int_gauge_vec_with_registry!(
+                "synchronizer_current_missing_block_headers_by_authority",
+                "Current number of missing block headers per block author, as observed by the synchronizer during periodic sync.",
                 &["authority"],
                 registry,
             ).unwrap(),
@@ -537,15 +550,15 @@ impl NodeMetrics {
                 &["peer", "type"],
                 registry,
             ).unwrap(),
-            synchronizer_fetched_blocks_by_authority: register_int_counter_vec_with_registry!(
-                "synchronizer_fetched_blocks_by_authority",
-                "Number of fetched blocks per block author via the synchronizer",
+            synchronizer_fetched_block_headers_by_authority: register_int_counter_vec_with_registry!(
+                "synchronizer_fetched_block_headers_by_authority",
+                "Number of fetched block headers per block author via the synchronizer",
                 &["authority", "type"],
                 registry,
             ).unwrap(),
-            synchronizer_requested_blocks_by_authority: register_int_counter_vec_with_registry!(
-                "synchronizer_requested_blocks_by_authority",
-                "Number of requested blocks per block author via the synchronizer",
+            synchronizer_requested_block_headers_by_authority: register_int_counter_vec_with_registry!(
+                "synchronizer_requested_block_headers_by_authority",
+                "Number of requested block headers per block author via the synchronizer",
                 &["authority", "type"],
                 registry,
             ).unwrap(),
@@ -565,22 +578,15 @@ impl NodeMetrics {
                 NUM_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
-            // TODO: add a short status label.
-            invalid_block_headers: register_int_counter_vec_with_registry!(
-                "invalid_blocks",
-                "Number of invalid blocks per peer authority",
-                &["authority", "source", "error"],
-                registry,
-            ).unwrap(),
-            invalid_headers_in_bundles: register_int_counter_vec_with_registry!(
-                "invalid_headers_in_bundles",
-                "Number of block bundles that contain invalid header per sender authority",
+            bundles_with_invalid_headers: register_int_counter_vec_with_registry!(
+                "bundles_with_invalid_headers",
+                "Number of bundles that contain invalid header per sender",
                 &["authority", "source", "error"],
                 registry,
             ).unwrap(),
             valid_headers_in_bundles: register_int_counter_vec_with_registry!(
                 "valid_headers_in_bundles",
-                "Number of valid block headers received from block bundles per sender authority",
+                "Number of valid block headers received from block bundles per sender",
                 &["authority", "source"],
                 registry,
             ).unwrap(),

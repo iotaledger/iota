@@ -373,7 +373,7 @@ impl Core {
         self.context
             .metrics
             .node_metrics
-            .core_add_blocks_batch_size
+            .core_add_block_headers_batch_size
             .observe(block_headers.len() as f64);
         let (accepted_block_headers, missing_block_refs) =
             self.block_manager.try_accept_block_headers(block_headers);
@@ -755,8 +755,13 @@ impl Core {
         self.context
             .metrics
             .node_metrics
-            .proposed_block_size
+            .proposed_block_header_size
             .observe(serialized_signed_block_header.len() as f64);
+        self.context
+            .metrics
+            .node_metrics
+            .proposed_block_size
+            .observe((serialized_signed_block_header.len() + serialized_transactions.len()) as f64);
         // Own blocks are assumed to be valid.
         let verified_block_header =
             VerifiedBlockHeader::new_verified(signed_block_header, serialized_signed_block_header);

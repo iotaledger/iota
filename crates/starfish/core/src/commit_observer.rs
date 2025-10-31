@@ -351,7 +351,7 @@ impl CommitObserver {
                     .checked_sub(header.timestamp_ms())
                     .unwrap_or_default();
                 metrics
-                    .block_commit_latency
+                    .block_header_commit_latency
                     .observe(Duration::from_millis(latency_ms).as_secs_f64());
             }
         }
