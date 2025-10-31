@@ -532,12 +532,6 @@ impl Core {
     )> {
         let _scope = monitored_scope("Core::new_block");
         if self.last_proposed_round() < round {
-            self.context
-                .metrics
-                .node_metrics
-                .timeout_expired_total
-                .with_label_values(&[&reason.label()])
-                .inc();
             let result = self.try_propose(reason);
             // The threshold clock round may have advanced, so a signal needs to be sent.
             self.try_signal_new_round();

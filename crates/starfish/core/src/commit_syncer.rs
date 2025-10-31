@@ -359,7 +359,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .authority(block_ref.author)
                             .hostname;
                         metrics
-                            .commit_sync_fetch_missing_blocks
+                            .commit_sync_fetch_missing_block_headers
                             .with_label_values(&[hostname])
                             .inc();
                     }
@@ -593,7 +593,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
         //    returned commit,
         // and the returned commits are chained by digest, so earlier commits are
         // certified as well.
-        let (commits, voting_block_headers) = Handle::current()
+        let (commits, _voting_block_headers) = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
                 move || {
@@ -678,27 +678,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             }
         }
 
-        // 8. Record timestamp drift metric
-        for block_header in voting_block_headers
-            .iter()
-            .chain(fetched_block_headers.values())
-        {
-            let now_ms = inner.context.clock.timestamp_utc_ms();
-            let forward_drift = block_header.timestamp_ms().saturating_sub(now_ms);
-            if forward_drift == 0 {
-                continue;
-            };
-            let peer_hostname = &inner.context.committee.authority(target_authority).hostname;
-            inner
-                .context
-                .metrics
-                .node_metrics
-                .block_timestamp_drift_ms
-                .with_label_values(&[peer_hostname.as_str(), "commit_syncer"])
-                .inc_by(forward_drift);
-        }
-
-        // 9. Now create the Certified commits by assigning the block headers to each
+        // 8. Now create the Certified commits by assigning the block headers to each
         //    commit and retaining the commit votes history.
         let mut certified_commits = Vec::new();
         for commit in &commits {

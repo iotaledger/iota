@@ -657,7 +657,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
         context
             .metrics
             .node_metrics
-            .missing_blocks_after_fetch_total
+            .missing_block_headers_after_fetch_total
             .inc_by(missing_blocks.len() as u64);
 
         if !missing_committed_txns.is_empty() {
@@ -916,7 +916,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                     }
 
                     retries += 1;
-                    context.metrics.node_metrics.sync_last_known_own_block_retries.inc();
+                    context.metrics.node_metrics.sync_last_known_own_block_header_retries.inc();
                     warn!("Not enough stake: {} out of {} total stake returned acceptable results for our own last block header with highest round {}. Will now retry {retries}.", total_stake, context.committee.total_stake(), highest_round);
 
                     sleep(retry_delay_step).await;
@@ -926,7 +926,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 }
 
                 // Update the Core with the highest detected round
-                context.metrics.node_metrics.last_known_own_block_round.set(highest_round as i64);
+                context.metrics.node_metrics.last_known_own_block_header_round.set(highest_round as i64);
 
                 if let Err(err) = core_dispatcher.set_last_known_proposed_round(highest_round) {
                     warn!("Error received while calling dispatcher, probably dispatcher is shutting down, will now exit: {err:?}");
@@ -2319,7 +2319,7 @@ mod tests {
             context
                 .metrics
                 .node_metrics
-                .sync_last_known_own_block_retries
+                .sync_last_known_own_block_header_retries
                 .get(),
             1
         );
@@ -2329,7 +2329,7 @@ mod tests {
             context
                 .metrics
                 .node_metrics
-                .last_known_own_block_round
+                .last_known_own_block_header_round
                 .get(),
             10
         );
