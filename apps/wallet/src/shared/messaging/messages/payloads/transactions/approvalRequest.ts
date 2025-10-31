@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { type SignedTransaction } from '_src/ui/app/walletSigner';
-import type { IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
+import type { ChainType, IotaTransactionBlockResponse } from '@iota/iota-sdk/client';
 import {
     type IotaSignAndExecuteTransactionInput,
     type IotaSignPersonalMessageOutput,
@@ -13,6 +13,7 @@ export type TransactionDataType = {
     type: 'transaction';
     data: string;
     account: string;
+    chain?: ChainType;
     justSign?: boolean;
     options?: IotaSignAndExecuteTransactionInput['options'];
 };

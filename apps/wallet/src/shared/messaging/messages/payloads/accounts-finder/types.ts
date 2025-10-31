@@ -22,6 +22,7 @@ export type SourceStrategyToPersist =
     | {
           type: 'ledger';
           password: string;
+          mainPublicKey: string;
           addresses: {
               address: string;
               derivationPath: string;
