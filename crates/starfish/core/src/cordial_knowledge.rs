@@ -1162,6 +1162,7 @@ mod tests {
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
     };
+    use crate::block_header::GENESIS_ROUND;
 
     /// Test that cordial knowledge correctly tracks blocks from a byzantine
     /// validator that does not disseminate its blocks until a certain round.
