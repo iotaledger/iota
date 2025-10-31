@@ -7,15 +7,16 @@ module spending_limit::account_tests;
 use generic_keyed_authentication::owner_public_key;
 use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::{Self, AuthContext};
-use iota::coin;
+use iota::programmable_transaction;
 use iota::hex;
-use iota::iota::IOTA;
 use iota::test_scenario::{Self, Scenario};
 use iotaccount::iotaccount;
 use spending_limit::account as spending_limit;
 use spending_limit::spending_limit as limit;
 use std::ascii;
 use std::unit_test::assert_eq;
+
+
 
 // --------------------------------------- Spending limit account ---------------------------------------
 
@@ -48,17 +49,14 @@ fun account_fails_verification() {
     let scenario = &mut scenario_val;
     let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
     let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
-    let coin_500 = coin::mint_for_testing<IOTA>(500, scenario.ctx());
-    let coins = vector[coin_500];
     scenario.next_tx(account_address);
     {
         let account = scenario.take_shared<spending_limit::SpendLimit>();
 
         let signature: vector<u8> = b"32";
-        let auth_context = create_auth_context_for_testing();
+        let auth_context = create_auth_context_for_testing(account_address, 500, scenario.ctx());
         spending_limit::authenticate(
             &account,
-            &coins,
             hex::encode(signature),
             &auth_context,
             scenario.ctx(),
@@ -67,7 +65,7 @@ fun account_fails_verification() {
         test_scenario::return_shared(account);
     };
 
-    destroy_coins(coins);
+    
 
     test_scenario::end(scenario_val);
 }
@@ -78,24 +76,22 @@ fun only_account_can_authenticate() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    create_spending_limit_for_testing(scenario, 1000, public_key);
-    let coin_500 = coin::mint_for_testing<IOTA>(500, scenario.ctx());
-    let coins = vector[coin_500];
+    let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
+    let test_ctx = tx_context::new(@0x9999, x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3", 0, 0, 0);
     scenario.next_tx(@0x0);
     {
         let account = scenario.take_shared<spending_limit::SpendLimit>();
 
         let signature: vector<u8> = b"32";
-        let auth_context = create_auth_context_for_testing();
+        let auth_context = create_auth_context_for_testing(account_address, 1001, &test_ctx);
         spending_limit::authenticate(
             &account,
-            &coins,
             hex::encode(signature),
             &auth_context,
             scenario.ctx(),
         );
 
-        destroy_coins(coins);
+        
 
         test_scenario::return_shared(account);
     };
@@ -119,19 +115,17 @@ fun account_spending_limit_exceeded() {
 
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
-        let auth_context = create_auth_context_for_testing();
-        let coin_1001 = coin::mint_for_testing<IOTA>(1001, scenario.ctx());
-        let coins = vector[coin_1001];
+        let auth_context = create_auth_context_for_testing(account_address, 1001, &test_ctx);
+
         // Try to spend 1001, which exceeds limit of 1000
         spending_limit::authenticate(
             &account,
-            &coins,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
 
-        destroy_coins(coins);
+        
 
         test_scenario::return_shared(account);
     };
@@ -159,22 +153,19 @@ fun account_within_spending_limit() {
             0,
             0,
         );
-        let coin_1000 = coin::mint_for_testing<IOTA>(1000, scenario.ctx());
-        let coins = vector[coin_1000];
 
         let signature =
             x"474686f447a998ccc6824bb05e69133de41b59999944e494a3ff5504abd9af86403aa7c240ac51d1d48e0b34a560ca7ee4542e25cfd7b090e4652dfb53941a04";
-        let auth_context = create_auth_context_for_testing();
+        let auth_context = create_auth_context_for_testing(account_address, 1000, &test_ctx);
 
         spending_limit::authenticate(
             &account,
-            &coins,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
 
-        destroy_coins(coins);
+        
 
         test_scenario::return_shared(account);
     };
@@ -197,17 +188,15 @@ fun account_zero_spending() {
 
         let signature =
             x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
-        let auth_context = create_auth_context_for_testing();
-        let coins: vector<coin::Coin<IOTA>> = vector[];
+        let auth_context = create_auth_context_for_testing(account_address, 0, &test_ctx);
         // Spend 0 (should always pass)
         spending_limit::authenticate(
             &account,
-            &coins,
             hex::encode(signature),
             &auth_context,
             &test_ctx,
         );
-        destroy_coins(coins);
+        
 
         test_scenario::return_shared(account);
     };
@@ -216,107 +205,8 @@ fun account_zero_spending() {
 }
 
 #[test]
-fun account_within_spending_limit_with_coins() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    let account_address = create_spending_limit_for_testing(scenario, 1000, public_key);
-
-    scenario.next_tx(account_address);
-    {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
-
-        // Create actual coin objects to prove spending amount
-        let coin = coin::mint_for_testing<IOTA>(800, scenario.ctx());
-        let coins = vector[coin];
-        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-        let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
-        let signature =
-            x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
-        let auth_context = create_auth_context_for_testing();
-
-        // Now validates actual coin value (800), not a fake parameter
-        spending_limit::authenticate(
-            &account,
-            &coins,
-            hex::encode(signature),
-            &auth_context,
-            &test_ctx,
-        );
-        destroy_coins(coins);
-
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-fun test_many_small_coins_within_limit() {
-    let mut scenario_val = test_scenario::begin(@0x0);
-    let scenario = &mut scenario_val;
-    let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
-    let account_address = create_spending_limit_for_testing(scenario, 726, public_key);
-
-    scenario.next_tx(account_address);
-    {
-        let account = scenario.take_shared<spending_limit::SpendLimit>();
-        let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
-        let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
-
-        // Create many small coins totaling 725 (within limit of 726)
-        let mut coins = vector[];
-
-        // Add 10 coins of 50 each = 500
-        let mut i = 0;
-        while (i < 10) {
-            let coin = coin::mint_for_testing<IOTA>(50, scenario.ctx());
-            coins.push_back(coin);
-            i = i + 1;
-        };
-
-        // Add 5 coins of 25 each = 125
-        i = 0;
-        while (i < 5) {
-            let coin = coin::mint_for_testing<IOTA>(25, scenario.ctx());
-            coins.push_back(coin);
-            i = i + 1;
-        };
-
-        // Add 5 coins of 20 each = 100
-        i = 0;
-        while (i < 5) {
-            let coin = coin::mint_for_testing<IOTA>(20, scenario.ctx());
-            coins.push_back(coin);
-            i = i + 1;
-        };
-
-        // Total: 20 coins summing to 725 IOTA
-        let calculated_sum = spending_limit::calculate_coin_sum(&coins);
-        assert_eq!(calculated_sum, 725);
-
-        let signature =
-            x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
-        let auth_context = create_auth_context_for_testing();
-
-        // Should authenticate successfully with 20 coins totaling 725
-        spending_limit::authenticate(
-            &account,
-            &coins,
-            hex::encode(signature),
-            &auth_context,
-            &test_ctx,
-        );
-
-        destroy_coins(coins);
-        test_scenario::return_shared(account);
-    };
-
-    test_scenario::end(scenario_val);
-}
-
-#[test]
-fun test_edge_case_exact_limit_with_varied_coins() {
+#[expected_failure(abort_code = spending_limit::EUnauthorizedWithdrawCall)]
+fun test_missing_withdraw_call() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
@@ -328,33 +218,13 @@ fun test_edge_case_exact_limit_with_varied_coins() {
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
-        // Create coins with varied amounts that total exactly 1000
-        let mut coins = vector[];
+        let signature = x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
+        
+        // AuthContext without withdraw_call
+        let auth_context = auth_context::new_with_tx_inputs(*test_ctx.digest(), vector[], vector[]);
 
-        coins.push_back(coin::mint_for_testing<IOTA>(5, scenario.ctx()));
-        coins.push_back(coin::mint_for_testing<IOTA>(5, scenario.ctx()));
-        coins.push_back(coin::mint_for_testing<IOTA>(90, scenario.ctx()));
-        coins.push_back(coin::mint_for_testing<IOTA>(100, scenario.ctx()));
-        coins.push_back(coin::mint_for_testing<IOTA>(250, scenario.ctx()));
-        coins.push_back(coin::mint_for_testing<IOTA>(550, scenario.ctx()));
+        spending_limit::authenticate(&account, hex::encode(signature), &auth_context, &test_ctx);
 
-        // Total: 6 coins summing to exactly 1000 IOTA
-        let calculated_sum = spending_limit::calculate_coin_sum(&coins);
-        assert_eq!(calculated_sum, 1000);
-
-        let signature =
-            x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
-        let auth_context = create_auth_context_for_testing();
-
-        spending_limit::authenticate(
-            &account,
-            &coins,
-            hex::encode(signature),
-            &auth_context,
-            &test_ctx,
-        );
-
-        destroy_coins(coins);
         test_scenario::return_shared(account);
     };
 
@@ -362,8 +232,8 @@ fun test_edge_case_exact_limit_with_varied_coins() {
 }
 
 #[test]
-#[expected_failure(abort_code = limit::EOverspend)]
-fun test_many_tiny_coins_exceeding_limit() {
+#[expected_failure(abort_code = spending_limit::EUnauthorizedWithdrawCall)]
+fun test_withdraw_call_wrong_account() {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let public_key = x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88";
@@ -375,31 +245,14 @@ fun test_many_tiny_coins_exceeding_limit() {
         let digest = x"315f5bdb76d078c43b8ac0064e4a0164612b1fce77c869345bfc94c75894edd3";
         let test_ctx = tx_context::new(account_address, digest, 0, 0, 0);
 
-        // Create 101 coins of 10 each = 1010 (exceeds limit by 10)
-        let mut coins = vector[];
-        let mut i = 0;
-        while (i < 101) {
-            let coin = coin::mint_for_testing<IOTA>(10, scenario.ctx());
-            coins.push_back(coin);
-            i = i + 1;
-        };
+        let signature = x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
 
-        let calculated_sum = spending_limit::calculate_coin_sum(&coins);
-        assert_eq!(calculated_sum, 1010);
+        // Create auth_context with a wrong account as the first argument
+        let wrong_address = @0x9999;
+        let auth_context = create_auth_context_for_testing(wrong_address, 500, &test_ctx);
 
-        let signature =
-            x"cce72947906dbae4c166fc01fd096432784032be43db540909bc901dbc057992b4d655ca4f4355cf0868e1266baacf6919902969f063e74162f8f04bc4056105";
-        let auth_context = create_auth_context_for_testing();
+        spending_limit::authenticate(&account, hex::encode(signature), &auth_context, &test_ctx);
 
-        spending_limit::authenticate(
-            &account,
-            &coins,
-            hex::encode(signature),
-            &auth_context,
-            &test_ctx,
-        );
-
-        destroy_coins(coins);
         test_scenario::return_shared(account);
     };
 
@@ -437,15 +290,36 @@ fun create_spending_limit_for_testing(
     account_address
 }
 
-fun create_auth_context_for_testing(): AuthContext {
-    auth_context::new_with_tx_inputs(vector::empty(), vector::empty(), vector::empty())
-}
-
-/// Helper function to destroy test coins
-fun destroy_coins(mut coins: vector<coin::Coin<IOTA>>) {
-    while (!coins.is_empty()) {
-        let coin_obj = coins.pop_back();
-        coin::burn_for_testing(coin_obj);
-    };
-    coins.destroy_empty();
+fun create_auth_context_for_testing(
+    account_address: address,
+    amount: u64,
+    ctx: &TxContext,
+): AuthContext {
+    // Input 0: account (shared object)
+    let account_id = object::id_from_address(account_address);
+    let account_obj_arg = programmable_transaction::new_shared_object(account_id, 0, true);
+    let account_call_arg = programmable_transaction::new_object(account_obj_arg);
+    
+    // Input 1: amount (pure u64)
+    let amount_bytes = iota::bcs::to_bytes(&amount);
+    let amount_call_arg = programmable_transaction::new_pure(amount_bytes);
+    
+    let inputs = vector[account_call_arg, amount_call_arg];
+    
+    // Comando: withdraw_from_balance_reserve<IOTA>(Input(0), Input(1))
+    let move_call = programmable_transaction::new_programmable_move_call(
+        object::id_from_address(@spending_limit),
+        ascii::string(b"account"),
+        ascii::string(b"withdraw_from_balance_reserve"),
+        vector[], // type args
+        vector[
+            programmable_transaction::new_input_argument(0), // account
+            programmable_transaction::new_input_argument(1), // amount
+        ],
+    );
+    
+    let command = programmable_transaction::new_move_call(move_call);
+    let commands = vector[command];
+    
+    auth_context::new_with_tx_inputs(*ctx.digest(), inputs, commands)
 }
