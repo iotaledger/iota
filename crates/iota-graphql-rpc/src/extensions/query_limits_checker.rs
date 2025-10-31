@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{HashMap, HashSet, VecDeque},
     convert::Infallible,
     mem,
     net::SocketAddr,
@@ -30,7 +30,7 @@ use uuid::Uuid;
 
 use crate::{
     config::{Limits, ServiceConfig},
-    error::{code, graphql_error, graphql_error_at_pos},
+    error::{Error, code, graphql_error, graphql_error_at_pos},
     metrics::Metrics,
 };
 
@@ -147,7 +147,7 @@ impl<'a> Reporter<'a> {
 /// environments for looking up variables and fragments, limits, and the
 /// remainder of the limit that can be used.
 struct LimitsTraversal<'a> {
-    // Environments for resolving lookups in the document
+    /// Environments for resolving lookups in the document
     fragments: &'a HashMap<Name, Positioned<FragmentDefinition>>,
     variables: &'a Variables,
 
@@ -161,7 +161,7 @@ struct LimitsTraversal<'a> {
     /// contents should not be double-counted.
     tx_variables_used: HashSet<&'a Name>,
 
-    // Remaining budget for the traversal
+    /// Remaining budget for the traversal
     tx_payload_budget: u32,
     input_budget: u32,
     output_budget: u32,
@@ -182,93 +182,6 @@ struct Usage {
 impl ShowUsage {
     pub(crate) fn name() -> &'static HeaderName {
         &LIMITS_HEADER
-    }
-}
-
-pub enum TxArgValue<'a> {
-    /// An unresolved GraphQL [`Value`].
-    GraphQL(&'a Value),
-    /// A resolved value in a GraphQL query.
-    Resolved(&'a ConstValue),
-}
-
-enum Children<'a> {
-    GraphQL(&'a [Value]),
-    Resolved(&'a [ConstValue]),
-}
-
-impl<'a> TxArgValue<'a> {
-    pub fn debit(&self) -> usize {
-        use ConstValue as CV;
-        use Value as V;
-        match self {
-            Self::GraphQL(V::String(s)) | Self::Resolved(CV::String(s)) => {
-                // Pay for the string, plus the quotes around it.
-                s.len() + 2
-            }
-            Self::GraphQL(V::List(vs)) => {
-                // Pay for the opening and closing brackets and every comma up-front so that
-                // deeply nested lists are not free.
-                vs.len().saturating_sub(1) + 2
-            }
-            Self::Resolved(CV::List(vs)) => {
-                // Pay for the opening and closing brackets and every comma up-front so that
-                // deeply nested lists are not free.
-                vs.len().saturating_sub(1) + 2
-            }
-            Self::GraphQL(V::Variable(v)) => 0,
-            _ => {
-                // Transaction payloads cannot be any of these types, so
-                // this request is destined to fail.
-                // Ignore these values for now, so that it can fail later on
-                // with a more legible error message.
-                //
-                // From a limits perspective, it is safe to ignore these
-                // values here, because they will still
-                // be counted as part of the query payload (and so are still
-                // subject to a limit).
-                0
-            }
-        }
-    }
-
-    pub fn children(&'a self) -> Option<Children<'a>> {
-        use ConstValue as CV;
-        use Value as V;
-        match self {
-            Self::GraphQL(V::List(vs)) => Some(Children::GraphQL(vs.as_slice())),
-            Self::Resolved(CV::List(vs)) => Some(Children::Resolved(vs.as_slice())),
-            _ => None,
-        }
-    }
-}
-
-struct TransactionPathTraversal<'a> {
-    arguments: &'a [(Positioned<Name>, Positioned<Value>)],
-    variables: &'a Variables,
-    tx_variables_used: HashSet<&'a Name>,
-}
-
-struct TxArgIter<'a> {
-    nodes: Vec<TxArgValue<'a>>,
-    path: TransactionPathTraversal<'a>,
-}
-
-impl<'a> TransactionPathTraversal<'a> {
-    fn iter(&'a mut self) -> impl Iterator<Item = TxArgValue<'a>> {
-        self.arguments
-            .iter()
-            .filter(|(name, _)| self.tx_variables_used.insert(&name.node))
-            .map(|(_, value)| match &value.node {
-                Value::Variable(name) => {
-                    if let Some(resolved) = self.variables.get(name) {
-                        TxArgValue::Resolved(resolved)
-                    } else {
-                        TxArgValue::GraphQL(&value.node)
-                    }
-                }
-                v => TxArgValue::GraphQL(v),
-            })
     }
 }
 
@@ -390,6 +303,42 @@ impl<'a> LimitsTraversal<'a> {
     /// on the query depth being bounded to protect it from recursing too
     /// deeply.
     fn check_tx_payload(&mut self, op: &'a Positioned<OperationDefinition>) -> ServerResult<()> {
+        let tx_arg_values = op
+            .node
+            .selection_set
+            .node
+            .items
+            .iter()
+            .flat_map(|selection| {
+                TxArgValueIter::new(&selection.node, self.fragments, self.reporter)
+            });
+        for value in tx_arg_values {
+            let cost = value?.cost(self.variables, &mut self.tx_variables_used);
+            if cost > self.tx_payload_budget as usize {
+                return Err(self.tx_payload_size_error());
+            } else {
+                self.tx_payload_budget -= cost as u32;
+            }
+        }
+        Ok(())
+    }
+
+    /// Test that inputs to `executeTransactionBlock` and
+    /// `dryRunTransactionBlock` take up less space than the service's
+    /// transaction payload limit, cumulatively.
+    ///
+    /// This check must be done after the input limit check, because it relies
+    /// on the query depth being bounded to protect it from recursing too
+    /// deeply.
+    fn check_tx_payload(&mut self, op: &'a Positioned<OperationDefinition>) -> ServerResult<()> {
+        // FOR EACH operation in the DOCUMENT
+        //     FOR EACH selection in the selection set of the operation
+        //         FOR argument_budget in selection.budget()
+        //             ASSERT argument_budget >= available_budget
+        //
+        //  selection.budget() -> impl Iterator<Item<u64>> {
+        //
+        //  }
         for item in &op.node.selection_set.node.items {
             self.traverse_selection_for_tx_payload(item)?;
         }
@@ -771,6 +720,203 @@ impl<'a> LimitsTraversal<'a> {
             fragments: self.fragments.len() as u32,
             query_payload,
         }
+    }
+}
+
+#[derive(Debug)]
+enum ParsedValue<'a> {
+    /// An unresolved GraphQL [`Value`].
+    GraphQL(&'a Value),
+    /// A resolved value in a GraphQL query.
+    Resolved(&'a ConstValue),
+}
+
+struct VariableUsage {
+    /// Cost of a single use of the variable.
+    cost: usize,
+    /// Number of times a variable is used in a parsed value.
+    count: usize,
+}
+
+impl VariableUsage {
+    fn new(cost: usize) -> Self {
+        Self { cost, count: 1 }
+    }
+
+    fn increase_count(&mut self) {
+        self.count += 1;
+    }
+}
+
+/// Cost report for a parsed value.
+#[derive(Default)]
+struct ValueCostReport<'a> {
+    /// Total cost before deducting reused variables.
+    gross: usize,
+    /// Variable usage while parsing the value.
+    variables_used: HashMap<&'a Name, VariableUsage>,
+}
+
+impl<'a> ValueCostReport<'a> {
+    fn new(cost: usize) -> Self {
+        Self {
+            gross: cost,
+            variables_used: HashMap::new(),
+        }
+    }
+
+    fn add_variable(&mut self, name: &'a Name, cost: usize) {
+        self.variables_used
+            .entry(name)
+            .and_modify(|usage| usage.increase_count())
+            .or_insert_with(|| VariableUsage::new(cost));
+    }
+
+    fn merge_report(&mut self, other: ValueCostReport<'a>) {
+        self.gross += other.gross;
+        for (name, usage) in other.variables_used {
+            self.variables_used
+                .entry(name)
+                .and_modify(|existing| {
+                    existing.count += usage.count;
+                })
+                .or_insert(usage);
+        }
+    }
+}
+
+/// A parsed transaction argument value.
+struct TxArgValue<'a>(ParsedValue<'a>);
+
+impl<'a> TxArgValue<'a> {
+    /// Cost of the value after deducting reused variables
+    fn cost(
+        self,
+        document_variables: &'a Variables,
+        used_variables: &mut HashSet<&'a Name>,
+    ) -> usize {
+        let cost_report = self.cost_report(document_variables);
+        let mut net_cost = cost_report.gross;
+        for (name, VariableUsage { cost, count }) in &cost_report.variables_used {
+            if used_variables.insert(name) {
+                // variable not used before, deduct only repeated uses
+                net_cost -= (count - 1) * cost
+            } else {
+                // variable already used, deduct all uses
+                net_cost -= count * cost
+            }
+        }
+        net_cost
+    }
+
+    /// Evaluate the cost report for transaction argument values.
+    fn cost_report(self, variables: &'a Variables) -> ValueCostReport<'a> {
+        use ConstValue as CV;
+        use ParsedValue::{GraphQL, Resolved};
+        use Value as V;
+
+        match self.0 {
+            GraphQL(V::String(s)) | Resolved(CV::String(s)) => {
+                // Pay for the string, plus the quotes around it.
+                ValueCostReport::new(s.len() + 2)
+            }
+            GraphQL(V::List(vs)) => {
+                // Pay for the opening and closing brackets and every comma up-front so that
+                // deeply nested lists are not free.
+                let mut cost = ValueCostReport::new(vs.len().saturating_sub(1) + 2);
+                for value in vs {
+                    cost.merge_report(Self(ParsedValue::GraphQL(value)).cost_report(variables));
+                }
+                cost
+            }
+            Resolved(CV::List(vs)) => {
+                // Follows the `GraphQL` list evaluation.
+                let mut cost = ValueCostReport::new(vs.len().saturating_sub(1) + 2);
+                for value in vs {
+                    cost.merge_report(Self(ParsedValue::Resolved(value)).cost_report(variables));
+                }
+                cost
+            }
+            GraphQL(V::Variable(name)) => {
+                if let Some(value) = variables.get(name) {
+                    let mut cost = Self(ParsedValue::Resolved(value)).cost_report(variables);
+                    cost.add_variable(name, cost.gross);
+                    return cost;
+                }
+                Default::default()
+            }
+            _ => {
+                // Transaction payloads cannot be any of these types.
+                //
+                // From a limits perspective, it is safe to ignore these
+                // values here, because they will still
+                // be counted as part of the query payload (and so are still
+                // subject to a limit).
+                Default::default()
+            }
+        }
+    }
+}
+
+/// Iterator over transaction argument values.
+///
+/// Traverses a selection on the `dryRunTransactionBlock` or
+/// `executeTransactionBlock` query paths to find all argument values.
+struct TxArgValueIter<'a> {
+    selections: VecDeque<&'a Selection>,
+    arguments: VecDeque<TxArgValue<'a>>,
+    fragments: &'a HashMap<Name, Positioned<FragmentDefinition>>,
+    reporter: &'a Reporter<'a>,
+}
+
+impl<'a> TxArgValueIter<'a> {
+    fn new(
+        selection: &'a Selection,
+        fragments: &'a HashMap<Name, Positioned<FragmentDefinition>>,
+        reporter: &'a Reporter<'a>,
+    ) -> Self {
+        Self {
+            selections: VecDeque::from([selection]),
+            arguments: VecDeque::new(),
+            fragments,
+            reporter,
+        }
+    }
+}
+
+impl<'a> Iterator for TxArgValueIter<'a> {
+    type Item = Result<TxArgValue<'a>, ServerError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(value) = self.arguments.pop_front() {
+            return Some(Ok(value));
+        }
+        let selection = self.selections.pop_front()?;
+        match selection {
+            Selection::Field(f) => {
+                let name = &f.node.name.node;
+                if name == DRY_RUN_TX_BLOCK || name == EXECUTE_TX_BLOCK {
+                    for (_name, value) in &f.node.arguments {
+                        self.arguments
+                            .push_back(TxArgValue(ParsedValue::GraphQL(&value.node)));
+                    }
+                }
+            }
+            Selection::InlineFragment(f) => {
+                self.selections
+                    .extend(f.node.selection_set.node.items.iter().map(|s| &s.node));
+            }
+
+            Selection::FragmentSpread(fs) => {
+                let name = &fs.node.fragment_name.node;
+                let Some(def) = self.fragments.get(name) else {
+                    return Some(Err(self.reporter.fragment_not_found_error(name, fs.pos)));
+                };
+                self.selections
+                    .extend(def.node.selection_set.node.items.iter().map(|s| &s.node));
+            }
+        }
+        self.next()
     }
 }
 

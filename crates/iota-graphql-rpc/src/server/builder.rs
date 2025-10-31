@@ -1226,7 +1226,7 @@ pub mod tests {
                 .into()
             )
             .await,
-            "Query part too large: 322 bytes. Requests are limited to 400 bytes or fewer on \
+            "Query part too large: 354 bytes. Requests are limited to 400 bytes or fewer on \
              transaction payloads (all inputs to executeTransactionBlock or \
              dryRunTransactionBlock) and the rest of the request (the query part) must be 10 \
              bytes or fewer."
@@ -1652,8 +1652,8 @@ pub mod tests {
         // Test that when variables are re-used as execution params, the size of the
         // variable is only counted once.
 
-        // First, check that `eror_passed_tx_checks` is working, by submitting a request
-        // that will fail the initial payload check.
+        // First, check that `error_passed_tx_checks` is working, by submitting a
+        // request that will fail the initial payload check.
         assert!(!passed_tx_checks(
             &execute_for_error(
                 Limits {
@@ -1706,11 +1706,10 @@ pub mod tests {
 
         // Then check that a request that introduces an extra signature, but without
         // re-using the variable fails the transaction limit.
-        assert!(!passed_tx_checks(
-            &execute_for_error(
-                limits.clone(),
-                Request::new(
-                    r#"
+        let execution_result = execute_for_error(
+            limits.clone(),
+            Request::new(
+                r#"
                     mutation ($sig: String!) {
                         executeTransactionBlock(txBytes: "AAABBBCCC", signatures: [$sig, "BBB"]) {
                             effects {
@@ -1719,21 +1718,20 @@ pub mod tests {
                         }
                     }
                     "#,
-                )
-                .variables(Variables::from_json(json!({
-                    "sig": "BBB"
-                })))
             )
-            .await
-        ));
+            .variables(Variables::from_json(json!({
+                "sig": "BBB"
+            }))),
+        )
+        .await;
+        assert!(!passed_tx_checks(&execution_result), "{execution_result}");
 
         // And then when that use is replaced by re-using the variable, we should be
         // under the transaction payload limit again.
-        assert!(passed_tx_checks(
-            &execute_for_error(
-                limits,
-                Request::new(
-                    r#"
+        let execution_result = execute_for_error(
+            limits,
+            Request::new(
+                r#"
                     mutation ($sig: String!) {
                         executeTransactionBlock(txBytes: "AAABBBCCC", signatures: [$sig, $sig]) {
                             effects {
@@ -1742,13 +1740,13 @@ pub mod tests {
                         }
                     }
                     "#,
-                )
-                .variables(Variables::from_json(json!({
-                    "sig": "BBB"
-                })))
             )
-            .await
-        ));
+            .variables(Variables::from_json(json!({
+                "sig": "BBB"
+            }))),
+        )
+        .await;
+        assert!(passed_tx_checks(&execution_result), "{execution_result}");
     }
 
     pub async fn test_payload_reusing_vars_dry_run_impl() {
