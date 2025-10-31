@@ -12,16 +12,12 @@ use crate::{
     diagnostics::{Diagnostic, DiagnosticReporter, Diagnostics, warning_filters::WarningFilters},
     editions::Flavor,
     expansion::ast::{AbilitySet, Attribute_, Fields, ModuleIdent, Mutability, Visibility},
-    iota_mode::*,
+    iota_mode::{known_attributes as iota_known_attributes, *},
     naming::ast::{
         self as N, BuiltinTypeName_, FunctionSignature, StructFields, Type, Type_, TypeName_, Var,
     },
     parser::ast::{Ability_, DatatypeName, DocComment, FunctionName, TargetKind},
-    shared::{
-        CompilationEnv, Identifier,
-        known_attributes::{self},
-        program_info::TypingProgramInfo,
-    },
+    shared::{CompilationEnv, Identifier, program_info::TypingProgramInfo},
     typing::{
         ast::{self as T, ModuleCall},
         core::{Subst, ability_not_satisfied_tips, error_format, error_format_},
@@ -311,7 +307,7 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
         entry_signature(context, *entry_loc, name, signature);
     }
     if let Some(sp!(authenticator_loc, authenticator_value)) =
-        attributes.get_(&known_attributes::AuthenticatorAttribute.into())
+        attributes.get_(&iota_known_attributes::AuthenticatorAttribute.into())
     {
         authenticator_attribute(context, authenticator_loc, authenticator_value);
     }

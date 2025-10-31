@@ -86,6 +86,8 @@ use std::{collections::BTreeSet, fmt};
 
 use once_cell::sync::Lazy;
 
+use crate::editions::Flavor;
+
 /// All the code positions at which an attribute may be placed
 /// at in code.
 ///
@@ -118,7 +120,7 @@ pub enum KnownAttribute {
     Syntax(SyntaxAttribute),
     Error(ErrorAttribute),
     Deprecation(DeprecationAttribute),
-    Authenticator(AuthenticatorAttribute),
+    Flavored(FlavoredAttribute),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -170,7 +172,10 @@ pub struct ErrorAttribute;
 pub struct DeprecationAttribute;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub struct AuthenticatorAttribute;
+pub struct FlavoredAttribute {
+    pub name: &'static str,
+    pub expected_positions: &'static BTreeSet<AttributePosition>,
+}
 
 impl AttributePosition {
     const ALL: &'static [Self] = &[
@@ -186,24 +191,25 @@ impl AttributePosition {
 }
 
 impl KnownAttribute {
-    pub fn resolve(attribute_str: impl AsRef<str>) -> Option<Self> {
-        Some(match attribute_str.as_ref() {
-            TestingAttribute::TEST => TestingAttribute::Test.into(),
-            TestingAttribute::TEST_ONLY => TestingAttribute::TestOnly.into(),
-            TestingAttribute::EXPECTED_FAILURE => TestingAttribute::ExpectedFailure.into(),
-            TestingAttribute::RAND_TEST => TestingAttribute::RandTest.into(),
-            VerificationAttribute::VERIFY_ONLY => VerificationAttribute::VerifyOnly.into(),
-            NativeAttribute::BYTECODE_INSTRUCTION => NativeAttribute::BytecodeInstruction.into(),
-            DiagnosticAttribute::ALLOW => DiagnosticAttribute::Allow.into(),
-            DiagnosticAttribute::LINT_ALLOW => DiagnosticAttribute::LintAllow.into(),
-            DefinesPrimitive::DEFINES_PRIM => DefinesPrimitive.into(),
-            ExternalAttribute::EXTERNAL => ExternalAttribute.into(),
-            SyntaxAttribute::SYNTAX => SyntaxAttribute::Syntax.into(),
-            ErrorAttribute::ERROR => ErrorAttribute.into(),
-            DeprecationAttribute::DEPRECATED => DeprecationAttribute.into(),
-            AuthenticatorAttribute::AUTHENTICATOR => AuthenticatorAttribute.into(),
-            _ => return None,
-        })
+    pub fn resolve(attribute_str: impl AsRef<str>, flavor: Flavor) -> Option<Self> {
+        match attribute_str.as_ref() {
+            TestingAttribute::TEST => Some(TestingAttribute::Test.into()),
+            TestingAttribute::TEST_ONLY => Some(TestingAttribute::TestOnly.into()),
+            TestingAttribute::EXPECTED_FAILURE => Some(TestingAttribute::ExpectedFailure.into()),
+            TestingAttribute::RAND_TEST => Some(TestingAttribute::RandTest.into()),
+            VerificationAttribute::VERIFY_ONLY => Some(VerificationAttribute::VerifyOnly.into()),
+            NativeAttribute::BYTECODE_INSTRUCTION => {
+                Some(NativeAttribute::BytecodeInstruction.into())
+            }
+            DiagnosticAttribute::ALLOW => Some(DiagnosticAttribute::Allow.into()),
+            DiagnosticAttribute::LINT_ALLOW => Some(DiagnosticAttribute::LintAllow.into()),
+            DefinesPrimitive::DEFINES_PRIM => Some(DefinesPrimitive.into()),
+            ExternalAttribute::EXTERNAL => Some(ExternalAttribute.into()),
+            SyntaxAttribute::SYNTAX => Some(SyntaxAttribute::Syntax.into()),
+            ErrorAttribute::ERROR => Some(ErrorAttribute.into()),
+            DeprecationAttribute::DEPRECATED => Some(DeprecationAttribute.into()),
+            _ => flavor.resolve_known_attribute(attribute_str),
+        }
     }
 
     pub const fn name(&self) -> &str {
@@ -217,7 +223,7 @@ impl KnownAttribute {
             Self::Syntax(a) => a.name(),
             Self::Error(a) => a.name(),
             Self::Deprecation(a) => a.name(),
-            Self::Authenticator(a) => a.name(),
+            Self::Flavored(a) => a.name(),
         }
     }
 
@@ -232,7 +238,7 @@ impl KnownAttribute {
             Self::Syntax(a) => a.expected_positions(),
             Self::Error(a) => a.expected_positions(),
             Self::Deprecation(a) => a.expected_positions(),
-            Self::Authenticator(a) => a.expected_positions(),
+            Self::Flavored(a) => a.expected_positions(),
         }
     }
 }
@@ -452,18 +458,13 @@ impl DeprecationAttribute {
     }
 }
 
-impl AuthenticatorAttribute {
-    pub const AUTHENTICATOR: &'static str = "authenticator";
-    pub const VERSION: &'static str = "version";
-
+impl FlavoredAttribute {
     pub const fn name(&self) -> &str {
-        Self::AUTHENTICATOR
+        self.name
     }
 
     pub fn expected_positions(&self) -> &'static BTreeSet<AttributePosition> {
-        static AUTHENTICATOR_POSITIONS: Lazy<BTreeSet<AttributePosition>> =
-            Lazy::new(|| BTreeSet::from([AttributePosition::Function]));
-        &AUTHENTICATOR_POSITIONS
+        self.expected_positions
     }
 }
 
@@ -499,7 +500,7 @@ impl fmt::Display for KnownAttribute {
             Self::Syntax(a) => a.fmt(f),
             Self::Error(a) => a.fmt(f),
             Self::Deprecation(a) => a.fmt(f),
-            Self::Authenticator(a) => a.fmt(f),
+            Self::Flavored(a) => a.fmt(f),
         }
     }
 }
@@ -558,7 +559,7 @@ impl fmt::Display for DeprecationAttribute {
     }
 }
 
-impl fmt::Display for AuthenticatorAttribute {
+impl fmt::Display for FlavoredAttribute {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.name())
     }
@@ -613,8 +614,8 @@ impl From<DeprecationAttribute> for KnownAttribute {
         Self::Deprecation(a)
     }
 }
-impl From<AuthenticatorAttribute> for KnownAttribute {
-    fn from(a: AuthenticatorAttribute) -> Self {
-        Self::Authenticator(a)
+impl From<FlavoredAttribute> for KnownAttribute {
+    fn from(a: FlavoredAttribute) -> Self {
+        Self::Flavored(a)
     }
 }
