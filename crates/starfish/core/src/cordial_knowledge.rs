@@ -1155,14 +1155,13 @@ mod tests {
     use super::*;
     use crate::{
         TestBlockHeader,
-        block_header::{VerifiedBlock, VerifiedOwnShard},
+        block_header::{GENESIS_ROUND, VerifiedBlock, VerifiedOwnShard},
         context::Context,
         dag_state::DagState,
         storage::mem_store::MemStore,
         test_dag_builder::DagBuilder,
         test_dag_parser::parse_dag,
     };
-    use crate::block_header::GENESIS_ROUND;
 
     /// Test that cordial knowledge correctly tracks blocks from a byzantine
     /// validator that does not disseminate its blocks until a certain round.
