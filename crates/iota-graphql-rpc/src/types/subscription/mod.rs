@@ -6,8 +6,9 @@ use std::sync::Arc;
 use async_graphql::{Context, OutputType, SimpleObject, Subscription, Union};
 use futures::{Stream, StreamExt, TryStreamExt, future};
 use iota_indexer::read::IndexerReader;
-use iota_indexer_streaming::memory::InMemory;
+use iota_indexer_streaming::{memory::InMemory, metrics::InMemoryStreamMetrics};
 use iota_json_rpc_types::Filter;
+use prometheus::Registry;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tracing::warn;
 
@@ -90,10 +91,19 @@ pub(crate) struct GraphQLStream {
 }
 
 impl GraphQLStream {
-    pub(crate) async fn new(db_url: &str, indexer_reader: IndexerReader) -> Result<Self, Error> {
-        let streamer = InMemory::new(db_url, Default::default(), indexer_reader)
-            .await
-            .map_err(|e| Error::Internal(format!("failed to connect to postgres: {e}")))?;
+    pub(crate) async fn new(
+        db_url: &str,
+        indexer_reader: IndexerReader,
+        registry: &Registry,
+    ) -> Result<Self, Error> {
+        let streamer = InMemory::new(
+            db_url,
+            Default::default(),
+            indexer_reader,
+            InMemoryStreamMetrics::new(registry),
+        )
+        .await
+        .map_err(|e| Error::Internal(format!("failed to connect to postgres: {e}")))?;
         Ok(Self {
             streamer: Arc::new(streamer),
         })

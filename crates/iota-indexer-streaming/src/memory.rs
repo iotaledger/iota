@@ -12,8 +12,11 @@
 use std::{
     fmt::Debug,
     num::{NonZeroI64, NonZeroUsize},
+    pin::Pin,
     str::FromStr,
-    time::Instant,
+    sync::Arc,
+    task::{Context, Poll},
+    time::{Duration, Instant},
 };
 
 use futures::{Stream, StreamExt, TryFutureExt, stream};
@@ -25,6 +28,7 @@ use iota_indexer::{
     read::IndexerReader,
 };
 use iota_types::event::Event;
+use prometheus::IntGauge;
 use serde::Deserialize;
 use tokio::sync::broadcast;
 use tokio_postgres::{
@@ -33,7 +37,10 @@ use tokio_postgres::{
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 use tracing::{debug, error};
 
-use crate::error::{IndexerStreamingError, IndexerStreamingResult};
+use crate::{
+    error::{IndexerStreamingError, IndexerStreamingResult},
+    metrics::{InMemoryStreamMetrics, METRICS_EVENT_LABEL, METRICS_TRANSACTION_LABEL},
+};
 
 /// Postgres NOTIFY channel name.
 const CHANNEL_NAME: &str = "checkpoint_committed";
@@ -139,6 +146,7 @@ impl Default for Config {
 pub struct InMemory {
     event_tx: broadcast::Sender<StoredEvent>,
     transaction_tx: broadcast::Sender<StoredTransaction>,
+    metrics: Arc<InMemoryStreamMetrics>,
     // to receive notifications from the database we must keep the client alive.
     _client: Client,
 }
@@ -154,7 +162,10 @@ impl InMemory {
         db_url: &str,
         config: Config,
         indexer_reader: IndexerReader,
+        metrics: impl Into<Arc<InMemoryStreamMetrics>>,
     ) -> IndexerStreamingResult<Self> {
+        let metrics = metrics.into();
+
         let (client, connection) = PostgresConfig::from_str(db_url)
             .map_err(|e| {
                 IndexerStreamingError::Postgres(format!("failed to parse Postgresdb url: {e}"))
@@ -169,6 +180,7 @@ impl InMemory {
         // communicate with the database.
         tokio::spawn({
             Self::process_checkpoint_notifications(
+                metrics.clone(),
                 config,
                 connection,
                 indexer_reader,
@@ -186,6 +198,7 @@ impl InMemory {
         Ok(Self {
             event_tx,
             transaction_tx,
+            metrics,
             _client: client,
         })
     }
@@ -217,7 +230,8 @@ impl InMemory {
     pub fn subscribe_events(
         &self,
     ) -> impl Stream<Item = Result<StoredEvent, BroadcastStreamRecvError>> {
-        BroadcastStream::new(self.event_tx.subscribe())
+        let stream = BroadcastStream::new(self.event_tx.subscribe());
+        SubscriberStream::new(stream, METRICS_EVENT_LABEL, self.metrics.clone())
     }
 
     /// Subscribe to a stream of [`StoredTransaction`].
@@ -246,7 +260,8 @@ impl InMemory {
     pub fn subscribe_transactions(
         &self,
     ) -> impl Stream<Item = Result<StoredTransaction, BroadcastStreamRecvError>> {
-        BroadcastStream::new(self.transaction_tx.subscribe())
+        let stream = BroadcastStream::new(self.transaction_tx.subscribe());
+        SubscriberStream::new(stream, METRICS_TRANSACTION_LABEL, self.metrics.clone())
     }
 
     /// Listens for database notifications and processes them.
@@ -258,6 +273,7 @@ impl InMemory {
     /// - fetches the transactions within the batch bounds and sends them to
     ///   subscribers alongside extracted events.
     async fn process_checkpoint_notifications(
+        metrics: Arc<InMemoryStreamMetrics>,
         config: Config,
         mut connection: Connection<Socket, NoTlsStream>,
         indexer_reader: IndexerReader,
@@ -269,9 +285,20 @@ impl InMemory {
             .ready_chunks(config.notification_chunk_size.get());
 
         while let Some(messages) = stream.next().await {
+            // auto-records duration on drop (after each iteration).
+            let _record_processed_checkpoint_notifications =
+                metrics.process_notification_batch_latency.start_timer();
+
             if let Some((min_tx_sequence_number, max_tx_sequence_number)) =
-                Self::resolve_tx_bounds(messages)?
+                Self::resolve_tx_bounds(&metrics, messages)?
             {
+                metrics
+                    .notified_tx_seq_num_start_range
+                    .set(min_tx_sequence_number);
+                metrics
+                    .notified_tx_seq_num_end_range
+                    .set(max_tx_sequence_number);
+
                 let mut start = min_tx_sequence_number;
 
                 while start <= max_tx_sequence_number {
@@ -279,6 +306,7 @@ impl InMemory {
                         .min(max_tx_sequence_number);
 
                     Self::process_transaction_batch(
+                        &metrics,
                         start,
                         end,
                         &indexer_reader,
@@ -297,9 +325,10 @@ impl InMemory {
     /// Resolves the transaction sequence number bounds from the given messages
     /// batch.
     fn resolve_tx_bounds(
+        metrics: &InMemoryStreamMetrics,
         messages: Vec<Result<AsyncMessage, tokio_postgres::Error>>,
     ) -> IndexerStreamingResult<Option<(i64, i64)>> {
-        let mut filtered_messages = Self::filter_checkpoint_notifications(messages);
+        let mut filtered_messages = Self::filter_checkpoint_notifications(metrics, messages);
 
         let first = filtered_messages.next().transpose()?;
         let last = filtered_messages.last().transpose()?;
@@ -316,34 +345,55 @@ impl InMemory {
     /// publish them to subscribers alongside extracted events from every
     /// transaction.
     async fn process_transaction_batch(
+        metrics: &InMemoryStreamMetrics,
         start: i64,
         end: i64,
         indexer_reader: &IndexerReader,
         event_tx: &broadcast::Sender<StoredEvent>,
         transaction_tx: &broadcast::Sender<StoredTransaction>,
     ) -> IndexerStreamingResult<()> {
-        let instant = Instant::now();
+        // auto-records duration on drop (function return).
+        let _record_function_execution_latency =
+            metrics.process_transaction_batch_latency.start_timer();
+        let db_query_timer = metrics.query_tx_from_indexer_db_latency.start_timer();
+
         let transactions: Vec<StoredTransaction> = indexer_reader
             .spawn_blocking(move |this| {
                 this.multi_get_transactions_by_sequence_numbers_range(start, end)
             })
             .await?;
 
+        let elapsed = db_query_timer.stop_and_record();
         debug!(
             "transactions query took: {:?}, tx: {}",
-            instant.elapsed(),
+            Duration::from_secs_f64(elapsed),
             transactions.len()
         );
 
-        let instant = Instant::now();
-        Self::publish_tx_and_events(transactions, event_tx, transaction_tx).await?;
-        debug!("broadcast data took: {:?}", instant.elapsed());
+        let publish_data_to_subscribers_timer = metrics
+            .broadcast_tx_and_ev_to_subscribers_latency
+            .start_timer();
 
+        Self::publish_tx_and_events(metrics, transactions, event_tx, transaction_tx).await?;
+
+        let elapsed = publish_data_to_subscribers_timer.stop_and_record();
+        debug!(
+            "broadcast data took: {:?}",
+            Duration::from_secs_f64(elapsed)
+        );
+
+        metrics
+            .broadcasted_to_subscribers_tx_seq_num_start_range
+            .set(start);
+        metrics
+            .broadcasted_to_subscribers_tx_seq_num_end_range
+            .set(end);
         Ok(())
     }
 
     /// Publishes transactions and extracted events from them to subscribers.
     async fn publish_tx_and_events(
+        metrics: &InMemoryStreamMetrics,
         transactions: Vec<StoredTransaction>,
         event_tx: &broadcast::Sender<StoredEvent>,
         transaction_tx: &broadcast::Sender<StoredTransaction>,
@@ -356,19 +406,38 @@ impl InMemory {
             }
             _ = transaction_tx.send(tx);
         }
+
+        // we sacrifice per-event/transaction granularity to avoid degrading
+        // performance from frequent metric updates in a hot path.
+        metrics
+            .channel_pending_messages
+            .with_label_values(&[METRICS_EVENT_LABEL])
+            .set(event_tx.len() as i64);
+
+        metrics
+            .channel_pending_messages
+            .with_label_values(&[METRICS_TRANSACTION_LABEL])
+            .set(transaction_tx.len() as i64);
         Ok(())
     }
 
     /// Filters and parses database notifications into
     /// [`CheckpointCommitNotification`] from PostgreSQL messages.
-    fn filter_checkpoint_notifications(
+    fn filter_checkpoint_notifications<'a>(
+        metrics: &'a InMemoryStreamMetrics,
         messages: Vec<Result<AsyncMessage, tokio_postgres::Error>>,
-    ) -> impl Iterator<Item = IndexerStreamingResult<CheckpointCommitNotification>> {
+    ) -> impl Iterator<Item = IndexerStreamingResult<CheckpointCommitNotification>> + use<'a> {
         messages.into_iter().filter_map(|msg_result| {
             match msg_result {
                 Ok(AsyncMessage::Notification(n)) => {
                     match serde_json::from_str::<CheckpointCommitNotification>(n.payload()) {
-                        Ok(notification) => Some(Ok(notification)),
+                        Ok(notification) => {
+                            metrics
+                                .notified_checkpoint_sequence_number
+                                .set(notification.checkpoint_sequence_number);
+
+                            Some(Ok(notification))
+                        }
                         Err(_) => None,
                     }
                 }
@@ -407,5 +476,103 @@ impl InMemory {
             })
             .collect();
         Ok(stored)
+    }
+}
+
+/// A [`Stream`] wrapper that provides metrics capabilities for the
+/// [`BroadcastStream`].
+///
+/// It counts internally the total numbers of subscribers by incrementing the
+/// value every time the [`new`](Self::new) constructor is invoked and
+/// decrementing it when the stream is dropped.
+///
+/// Also the provides a way to track the lagging status of
+/// the subscriber.
+struct SubscriberStream<T> {
+    /// The inner stream implementation we want to wrap.
+    inner: BroadcastStream<T>,
+    /// Tracks if the subscriber is active.
+    active_subscriber_number: IntGauge,
+    /// Tracks if the subscriber is lagging.
+    lagging_subscribers: IntGauge,
+    /// Tracks if this subscriber is currently lagged.
+    is_lagging: bool,
+    /// Timer to track lag duration.
+    lag_start: Option<Instant>,
+}
+
+impl<T> SubscriberStream<T> {
+    /// Represents the duration of the lag state of the subscriber, mostly to
+    /// help Prometheus scrape the metric.
+    const LAG_STATE: Duration = Duration::from_secs(1);
+
+    pub fn new(
+        inner: BroadcastStream<T>,
+        label: &'static str,
+        metrics: Arc<InMemoryStreamMetrics>,
+    ) -> Self {
+        let active_subscriber_number = metrics.active_subscriber_number.with_label_values(&[label]);
+        let lagging_subscribers = metrics.lagging_subscribers.with_label_values(&[label]);
+
+        active_subscriber_number.inc();
+
+        Self {
+            inner,
+            active_subscriber_number,
+            lagging_subscribers,
+            is_lagging: false,
+            lag_start: None,
+        }
+    }
+
+    /// Marks the subscriber as lagging.
+    fn mark_as_lagging(&mut self) {
+        if !self.is_lagging {
+            self.is_lagging = true;
+            self.lag_start = Some(Instant::now());
+            self.lagging_subscribers.inc();
+        }
+    }
+
+    /// Clears the lag flag if the subscriber has been lagging.
+    ///
+    /// It holds the lagging state for at least [`LAG_STATE`](Self::LAG_STATE)
+    /// second in order for Prometheus to scrape the metric.
+    fn clear_lagging(&mut self) {
+        if self.is_lagging
+            && self
+                .lag_start
+                .as_ref()
+                .is_some_and(|instant| instant.elapsed() >= Self::LAG_STATE)
+        {
+            self.lagging_subscribers.dec();
+            self.is_lagging = false;
+            self.lag_start = None;
+        }
+    }
+}
+
+impl<T> Drop for SubscriberStream<T> {
+    fn drop(&mut self) {
+        self.active_subscriber_number.dec();
+        if self.is_lagging {
+            self.lagging_subscribers.dec();
+        }
+    }
+}
+impl<T: Clone + Send + 'static> Stream for SubscriberStream<T> {
+    type Item = Result<T, BroadcastStreamRecvError>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // check if we should clear the lag flag (independent of message arrival)
+        self.clear_lagging();
+
+        let poll = Pin::new(&mut self.inner).poll_next(cx);
+
+        if let Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(_)))) = poll {
+            self.mark_as_lagging();
+        }
+
+        poll
     }
 }
