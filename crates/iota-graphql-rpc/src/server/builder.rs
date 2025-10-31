@@ -483,8 +483,9 @@ impl ServerBuilder {
                 "No fullnode url found in config".to_string(),
             ));
         };
-        let graphql_streams = GraphQLStream::new(&config.connection.db_url, reader.clone()).await?;
 
+        let graphql_streams =
+            GraphQLStream::new(&config.connection.db_url, reader.clone(), &registry).await?;
         let write_api = build_write_api(fullnode_url, reader, indexer_metrics)?;
 
         builder = builder
