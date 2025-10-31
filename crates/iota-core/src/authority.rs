@@ -901,11 +901,23 @@ impl AuthorityState {
             self.get_backing_package_store().as_ref(),
         )?;
 
+        // Load all transaction-related input objects.
+        // Authenticator input objects and the account object are loaded in the same
+        // call if there is a sender `MoveAuthenticator` signature present in the
+        // transaction.
         let (tx_input_objects, tx_receiving_objects, auth_input_objects, account_object) =
             self.read_objects_for_signing(&transaction, epoch)?;
 
+        // Get the sender `MoveAuthenticator`, if any.
+        // Only one `MoveAuthenticator` signature is possible, since it is not
+        // implemented for the sponsor at the moment.
         let move_authenticator = transaction.sender_move_authenticator();
 
+        // Check the inputs for signing.
+        // If there is a sender `MoveAuthenticator` signature, its input objects and the
+        // account object are also checked and must be provided.
+        // It is also checked if there is enough gas to execute the transaction and its
+        // authenticators.
         let (gas_status, tx_checked_input_objects, auth_checked_input_objects, authenticator_info) =
             self.check_transaction_inputs_for_signing(
                 protocol_config,
