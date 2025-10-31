@@ -49,3 +49,33 @@
         }
     }
 }
+
+.cookie-policy-page {
+    #skcm-cookie-library {
+        h4,
+        p,
+        td,
+        label {
+            @apply text-iota-neutral-10;
+        }
+    }
+    #skcm-cookie-library__preferences__button {
+        @apply bg-iota-primary-30;
+    }
+}
+
+.dark-theme.dark {
+    .cookie-policy-page {
+        #skcm-cookie-library {
+            h4,
+            p,
+            td,
+            label {
+                @apply text-iota-neutral-92;
+            }
+        }
+        #skcm-cookie-library__preferences__button {
+            @apply bg-iota-primary-30;
+        }
+    }
+}
