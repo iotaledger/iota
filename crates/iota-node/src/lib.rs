@@ -156,6 +156,7 @@ use crate::metrics::{GrpcMetrics, IotaNodeMetrics};
 pub mod admin;
 mod handle;
 pub mod metrics;
+pub mod spammer;
 
 pub struct ValidatorComponents {
     validator_server_spawn_handle: SpawnOnce,
@@ -1705,6 +1706,14 @@ impl IotaNode {
 
     pub fn state(&self) -> Arc<AuthorityState> {
         self.state.clone()
+    }
+
+    pub async fn consensus_adapter(&self) -> Option<Arc<ConsensusAdapter>> {
+        self.validator_components
+            .lock()
+            .await
+            .as_ref()
+            .map(|vc| vc.consensus_adapter.clone())
     }
 
     // Only used for testing because of how epoch store is loaded.

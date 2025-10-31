@@ -4,6 +4,7 @@
 
 use std::{net::SocketAddr, str::FromStr, sync::Arc};
 
+use arc_swap::ArcSwapOption;
 use axum::{
     Router,
     extract::{Query, State},
@@ -81,10 +82,14 @@ const NODE_CONFIG: &str = "/node-config";
 const RANDOMNESS_PARTIAL_SIGS_ROUTE: &str = "/randomness-partial-sigs";
 const RANDOMNESS_INJECT_PARTIAL_SIGS_ROUTE: &str = "/randomness-inject-partial-sigs";
 const RANDOMNESS_INJECT_FULL_SIG_ROUTE: &str = "/randomness-inject-full-sig";
+const SPAMMER_START_ROUTE: &str = "/spammer/start";
+const SPAMMER_STOP_ROUTE: &str = "/spammer/stop";
+const SPAMMER_STATUS_ROUTE: &str = "/spammer/status";
 
 struct AppState {
     node: Arc<IotaNode>,
     tracing_handle: TracingHandle,
+    spammer: ArcSwapOption<crate::spammer::SpammerService>,
 }
 
 pub async fn run_admin_server(
@@ -97,6 +102,7 @@ pub async fn run_admin_server(
     let app_state = AppState {
         node,
         tracing_handle,
+        spammer: ArcSwapOption::empty(),
     };
 
     let app = Router::new()
@@ -124,6 +130,9 @@ pub async fn run_admin_server(
             RANDOMNESS_INJECT_FULL_SIG_ROUTE,
             post(randomness_inject_full_sig),
         )
+        .route(SPAMMER_START_ROUTE, post(spammer_start))
+        .route(SPAMMER_STOP_ROUTE, post(spammer_stop))
+        .route(SPAMMER_STATUS_ROUTE, get(spammer_status))
         .with_state(Arc::new(app_state));
 
     info!(
@@ -449,5 +458,111 @@ async fn randomness_inject_full_sig(
         Ok(Ok(())) => (StatusCode::OK, "full signature injected\n".to_string()),
         Ok(Err(e)) => (StatusCode::BAD_REQUEST, e.to_string()),
         Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+    }
+}
+
+#[derive(Deserialize)]
+struct SpammerStartParams {
+    tps: u64,
+    mean_size: usize,
+    std_dev_size: Option<usize>,
+}
+
+async fn spammer_start(
+    State(state): State<Arc<AppState>>,
+    params: Query<SpammerStartParams>,
+) -> (StatusCode, String) {
+    let Query(SpammerStartParams {
+        tps,
+        mean_size,
+        std_dev_size,
+    }) = params;
+
+    // Check if node is a validator by checking if consensus_adapter is available
+    let consensus_adapter = match state.node.consensus_adapter().await {
+        Some(ca) => ca,
+        None => {
+            return (
+                StatusCode::BAD_REQUEST,
+                "Spammer is only available on validator nodes.\n".to_string(),
+            );
+        }
+    };
+
+    // Get or create the spammer service
+    let spammer = match state.spammer.load().as_ref() {
+        Some(s) => s.clone(),
+        None => {
+            // Create a new spammer service
+            let new_spammer = Arc::new(crate::spammer::SpammerService::new(
+                state.node.state(),
+                consensus_adapter,
+            ));
+            // Spawn the background task
+            new_spammer.clone().spawn_spammer_loop();
+            state.spammer.store(Some(new_spammer.clone()));
+            new_spammer
+        }
+    };
+
+    // Create config
+    let config = crate::spammer::SpammerConfig::new(tps, mean_size, std_dev_size);
+
+    // Start the spammer
+    spammer.start(config).await;
+
+    (
+        StatusCode::OK,
+        format!(
+            "Spammer started: tps={}, mean_size={}, std_dev_size={}\n",
+            tps,
+            mean_size,
+            std_dev_size.unwrap_or(mean_size / 10)
+        ),
+    )
+}
+
+async fn spammer_stop(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
+    // Get the spammer service
+    let spammer = match state.spammer.load().as_ref() {
+        Some(spammer) => spammer.clone(),
+        None => {
+            return (
+                StatusCode::NOT_FOUND,
+                "Spammer service not running.\n".to_string(),
+            );
+        }
+    };
+
+    // Stop the spammer
+    spammer.stop().await;
+
+    (StatusCode::OK, "Spammer stopped\n".to_string())
+}
+
+async fn spammer_status(State(state): State<Arc<AppState>>) -> (StatusCode, String) {
+    // Get the spammer service
+    let status = match state.spammer.load().as_ref() {
+        Some(spammer) => spammer.get_status().await,
+        None => {
+            // Return default disabled status
+            crate::spammer::SpammerStatus {
+                enabled: false,
+                tps: 0,
+                mean_size: 0,
+                std_dev_size: 0,
+                submitted: 0,
+                errors: 0,
+            }
+        }
+    };
+
+    // Serialize to JSON
+    match serde_json::to_string_pretty(&status) {
+        Ok(json) => (StatusCode::OK, format!("{}\n", json)),
+        Err(e) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Failed to serialize status: {}\n", e),
+        ),
     }
 }
