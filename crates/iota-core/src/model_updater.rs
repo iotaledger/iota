@@ -11,7 +11,7 @@ use std::{
 use iota_types::base_types::ObjectID;
 
 /// Default base URL for the predictor service.
-pub const DEFAULT_PREDICTOR_BASE_URL: &str = "http://predictor:9666";
+pub const DEFAULT_PREDICTOR_BASE_URL: &str = "http://predictor:9666"; // docker-compose private network only; without compose use http://0.0.0.0:9666
 /// Default JSONL audit log path (created/appended in current working dir).
 pub const AUDIT_LOG_PATH: &str = "congestion_audit.jsonl";
 /// Minimum reference gas price used in required-price lower bound.
