@@ -4,11 +4,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{BTreeMap, BTreeSet, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::{Debug, Display, Formatter, Write},
     hash::Hash,
-    iter,
-    iter::once,
+    iter::{self, once},
     sync::Arc,
 };
 
@@ -2512,6 +2511,92 @@ impl SenderSignedData {
                 Err(_) => false,
             })
     }
+
+    /// Returns all input objects including those from the sender
+    /// `MoveAuthenticator` if any.
+    pub fn collect_all_inputs(&self) -> IotaResult<Vec<InputObjectKind>> {
+        if let Some(move_authenticator) = self.sender_move_authenticator() {
+            let mut input_objects_set = self
+                .transaction_data()
+                .input_objects()?
+                .into_iter()
+                .collect::<HashSet<_>>();
+
+            input_objects_set.extend(move_authenticator.input_objects());
+            input_objects_set.extend(move_authenticator.object_to_authenticate().input_objects());
+
+            Ok(input_objects_set.into_iter().collect::<Vec<_>>())
+        } else {
+            Ok(self.transaction_data().input_objects()?)
+        }
+    }
+
+    /// Splits the provided input objects into three groups:
+    /// 1. Input objects required by the transaction itself.
+    /// 2. Input objects required by the sender `MoveAuthenticator`.
+    /// 3. The object to authenticate from the sender `MoveAuthenticator`, if
+    ///    any.
+    pub fn split_inputs_into_groups(
+        &self,
+        input_objects: InputObjects,
+    ) -> IotaResult<(InputObjects, Option<InputObjects>, Option<ObjectReadResult>)> {
+        if let Some(move_authenticator) = self.sender_move_authenticator() {
+            let input_objects_map = input_objects
+                .iter()
+                .map(|o| (&o.input_object_kind, o))
+                .collect::<HashMap<_, _>>();
+
+            let tx_input_objects = self
+                .transaction_data()
+                .input_objects()?
+                .iter()
+                .map(|k| {
+                    input_objects_map
+                        .get(k)
+                        .map(|&r| r.clone())
+                        .expect("All transaction input objects are expected to be present")
+                })
+                .collect::<Vec<_>>()
+                .into();
+
+            let auth_input_objects = move_authenticator
+                .input_objects()
+                .iter()
+                .map(|k| {
+                    input_objects_map
+                        .get(k)
+                        .map(|&r| r.clone())
+                        .expect("All authenticator input objects are expected to be present")
+                })
+                .collect::<Vec<_>>()
+                .into();
+
+            let account_objects = move_authenticator
+                .object_to_authenticate()
+                .input_objects()
+                .iter()
+                .map(|k| {
+                    input_objects_map
+                        .get(k)
+                        .map(|&r| r.clone())
+                        .expect("Account object is expected to be present")
+                })
+                .collect::<Vec<_>>();
+
+            debug_assert!(
+                account_objects.len() == 1,
+                "Only one account object must be loaded"
+            );
+
+            Ok((
+                tx_input_objects,
+                Some(auth_input_objects),
+                account_objects.into_iter().next(),
+            ))
+        } else {
+            Ok((input_objects, None, None))
+        }
+    }
 }
 
 impl Message for SenderSignedData {
@@ -3337,6 +3422,11 @@ impl InputObjects {
             .filter(|x| !self.objects.contains(x))
             .collect();
         self.objects.extend(new_objects);
+    }
+
+    // If it contains then it returns the ObjectReadResult
+    pub fn find_object_id_mut(&mut self, object_id: ObjectID) -> Option<&mut ObjectReadResult> {
+        self.objects.iter_mut().find(|o| o.id() == object_id)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &ObjectReadResult> {
