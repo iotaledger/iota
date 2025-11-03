@@ -15,9 +15,8 @@ use codespan_reporting::{
 };
 use thiserror::Error;
 
-use crate::package::PackageName;
-
 use super::FileHandle;
+use crate::package::PackageName;
 
 #[derive(Error, Debug)]
 #[error("Invalid manifest: {kind}")]

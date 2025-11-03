@@ -3,10 +3,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::Path;
+
 use move_command_line_common::testing::insta_assert;
 use move_unit_test::{self, UnitTestingConfig};
 use regex::RegexBuilder;
-use std::path::Path;
 
 // Runs all tests under the test/test_sources directory.
 fn run_test_impl(path: &Path) -> anyhow::Result<()> {

@@ -11,19 +11,18 @@ use std::{
 use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 
+use super::*;
 use crate::{
     dependency::ManifestDependencyInfo,
-    errors::{with_file, FileHandle, Located, ManifestError, ManifestErrorKind, PackageResult},
+    errors::{FileHandle, Located, ManifestError, ManifestErrorKind, PackageResult, with_file},
     flavor::{MoveFlavor, Vanilla},
 };
 
-use super::*;
-
 const ALLOWED_EDITIONS: &[&str] = &["2024", "2024.beta", "legacy"];
 
-// Note: [Manifest] objects are immutable and should not implement [serde::Serialize]; any tool
-// writing these files should use [toml_edit] to set / preserve the formatting, since these are
-// user-editable files
+// Note: [Manifest] objects are immutable and should not implement
+// [serde::Serialize]; any tool writing these files should use [toml_edit] to
+// set / preserve the formatting, since these are user-editable files
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 #[serde(deny_unknown_fields)]

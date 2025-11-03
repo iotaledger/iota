@@ -334,10 +334,10 @@ pub enum IotaClientCommands {
         #[command(flatten)]
         processing: TxProcessingArgs,
     },
-    /// Pay IOTA coins to recipients following following specified amounts, with
-    /// input coins. Length of recipients must be the same as that of
-    /// amounts. The input coins also include the coin for gas payment, so
-    /// no extra gas coin is required.
+    /// Pay IOTA coins to recipients following specified amounts, with input
+    /// coins. Length of recipients must be the same as that of amounts.
+    /// The input coins also include the coin for gas payment, so no extra gas
+    /// coin is required.
     PayIota {
         /// The input coins to be used for pay recipients, including the gas
         /// coin. If not provided, coins will be selected automatically which

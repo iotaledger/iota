@@ -50,10 +50,10 @@ use move_bytecode_source_map::{mapping::SourceMapping, source_map::SourceMap};
 use move_command_line_common::files::FileHash;
 use move_core_types::{
     account_address::AccountAddress,
+    identifier::{IdentStr, Identifier},
     language_storage,
     language_storage::StructTag,
     parsing::address::NumericalAddress,
-    identifier::{IdentStr, Identifier},
     runtime_value::MoveValue,
 };
 use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
@@ -161,13 +161,15 @@ pub type MoveIrLoc = move_ir_types::location::Loc;
 //
 // Identifiers are opaque values used to reference entities in the environment.
 //
-// We have two kinds of ids: those based on an index, and those based on a symbol. We use
-// the symbol based ids where we do not have control of the definition index order in bytecode
-// (i.e. we do not know in which order move-compiler enters functions and structs into file format),
-// and index based ids where we do have control (for modules, SpecFun and SpecVar).
+// We have two kinds of ids: those based on an index, and those based on a
+// symbol. We use the symbol based ids where we do not have control of the
+// definition index order in bytecode (i.e. we do not know in which order
+// move-compiler enters functions and structs into file format), and index based
+// ids where we do have control (for modules, SpecFun and SpecVar).
 //
-// In any case, ids are opaque in the sense that if someone has a StructId or similar in hand,
-// it is known to be defined in the environment, as it has been obtained also from the environment.
+// In any case, ids are opaque in the sense that if someone has a StructId or
+// similar in hand, it is known to be defined in the environment, as it has been
+// obtained also from the environment.
 
 /// Raw index type used in ids. 16 bits are sufficient currently.
 pub type RawIndex = u16;
@@ -1230,7 +1232,6 @@ impl GlobalEnv {
     /// Attempt to compute a struct tag for (`mid`, `sid`, `ts`). Returns `Some`
     /// if all types in `ts` are closed, `None` otherwise
     pub fn get_struct_tag(&self, mid: ModuleId, sid: DatatypeId, ts: &[Type]) -> Option<StructTag> {
-
         let menv = self.get_module(mid);
         let name = menv
             .find_struct(sid.symbol())

@@ -3,8 +3,9 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Defines the [Vanilla] implementation of the [MoveFlavor] trait. This implementation supports no
-//! flavor-specific resolvers and stores no additional metadata in the lockfile.
+//! Defines the [Vanilla] implementation of the [MoveFlavor] trait. This
+//! implementation supports no flavor-specific resolvers and stores no
+//! additional metadata in the lockfile.
 
 use std::{
     collections::{self, BTreeMap},
@@ -14,17 +15,16 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::dependency::PinnedDependencyInfo;
+use super::MoveFlavor;
 use crate::{
-    dependency::{Pinned, Unpinned},
+    dependency::{Pinned, PinnedDependencyInfo, Unpinned},
     errors::PackageResult,
     package::PackageName,
 };
 
-use super::MoveFlavor;
-
-/// The [Vanilla] implementation of the [MoveFlavor] trait. This implementation supports no
-/// flavor-specific resolvers and stores no additional metadata in the lockfile.
+/// The [Vanilla] implementation of the [MoveFlavor] trait. This implementation
+/// supports no flavor-specific resolvers and stores no additional metadata in
+/// the lockfile.
 #[derive(Debug)]
 pub struct Vanilla;
 

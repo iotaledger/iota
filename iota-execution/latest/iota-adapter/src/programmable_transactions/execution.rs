@@ -758,8 +758,7 @@ mod checked {
         let mut new_normalized = normalize_deserialized_modules(
             pool,
             upgrading_modules.iter(),
-            // include code
-            true,
+            true, // include code
         );
         for (name, cur_module) in current_normalized {
             let Some(new_module) = new_normalized.remove(&name) else {

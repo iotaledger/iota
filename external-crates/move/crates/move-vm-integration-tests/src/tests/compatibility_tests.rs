@@ -16,7 +16,7 @@ fn compile(prog: &str) -> normalized::Module<normalized::RcIdentifier> {
     normalized::Module::new(
         &mut normalized::RcPool::new(),
         &compiled_module,
-        /* include code */ true,
+        true, // include code
     )
 }
 
@@ -29,7 +29,8 @@ fn compile(prog: &str) -> normalized::Module<normalized::RcIdentifier> {
 // * [x] Rename field in existing variant (never)
 // * [x] Change type of existing field in variant (never)
 // * [x] Add new variant at beginning (w/out disallow_new_variants) (never)
-// * [x] Add new variant at end (w/out disallow_new_variants, equal and subset inclusions)
+// * [x] Add new variant at end (w/out disallow_new_variants, equal and subset
+//   inclusions)
 //   - Allowed if `disallow_new_variants = false` or `InclusionCheck::Subset`
 // * [x] Change abilities on type
 
@@ -232,9 +233,9 @@ fn test_enum_upgrade_add_variant_at_end() {
     assert!(compat.check(&old, &new).is_err());
     // Allow adding new variants at the end of the enum
     assert!(InclusionCheck::Equal.check(&old, &new).is_err());
-    // NOTE: We currently restrict all enums (even in subset mode) so that new enum variants are not
-    // allowed. This assertion will fail when we allow new enum variants in subset mode and should
-    // be updated at that time.
+    // NOTE: We currently restrict all enums (even in subset mode) so that new enum
+    // variants are not allowed. This assertion will fail when we allow new enum
+    // variants in subset mode and should be updated at that time.
     assert!(InclusionCheck::Subset.check(&old, &new).is_err());
 }
 

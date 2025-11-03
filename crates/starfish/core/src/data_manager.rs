@@ -587,7 +587,7 @@ mod tests {
             .build();
 
         // The first attempt should fail due to a missing block
-        let (committed, missing) = manager.try_commit(&[subdag.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag));
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
 
@@ -722,14 +722,14 @@ mod tests {
             .build();
 
         // First submit subdag2 (index 2)
-        let (committed, missing) = manager.try_commit(&[subdag2.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag2));
         assert!(committed.is_empty());
         assert!(missing.is_empty());
         assert!(manager.pending_subdags.contains_key(&2));
         assert_eq!(manager.last_committed_index, 0);
 
         // Then submit subdag1 (index 1) - should commit both
-        let (committed, missing) = manager.try_commit(&[subdag1.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag1));
         assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
         assert!(manager.pending_subdags.is_empty());
@@ -768,17 +768,17 @@ mod tests {
             .build();
 
         // Initial commit attempts
-        let (committed, missing) = manager.try_commit(&[subdag3.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag3));
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
         assert_eq!(manager.pending_subdags.len(), 1);
 
-        let (committed, missing) = manager.try_commit(&[subdag2.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag2));
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
         assert_eq!(manager.pending_subdags.len(), 2);
 
-        let (committed, missing) = manager.try_commit(&[subdag1.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag1));
         assert!(missing.is_empty());
         assert_eq!(committed.len(), 1); // subdag1 can commit
         assert_eq!(committed[0].commit_ref, subdag1.commit_ref);

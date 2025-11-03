@@ -8,6 +8,7 @@ publish = false
 description = "Tool for generating tests for the bytecode verifier and Move VM runtime"
 
 [dependencies]
+# external dependencies
 clap.workspace = true
 crossbeam-channel.workspace = true
 getrandom.workspace = true
@@ -19,6 +20,7 @@ rand.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 
+# internal dependencies
 module-generation.workspace = true
 move-binary-format = { workspace = true, features = ["fuzzing"] }
 move-bytecode-verifier.workspace = true
