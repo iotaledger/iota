@@ -324,6 +324,9 @@ importers:
       '@amplitude/analytics-browser':
         specifier: ^1.10.3
         version: 1.13.6
+      '@boxfish-studio/react-cookie-manager':
+        specifier: ^1.0.5
+        version: 1.0.5
       '@growthbook/growthbook':
         specifier: ^1.0.0
         version: 1.2.0
