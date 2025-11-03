@@ -735,7 +735,7 @@ impl<S> Constant<S> {
 
 impl<S> Struct<S> {
     /// Create a `Struct` for `StructDefinition` `def` in module `m`. Panics if
-    /// `def` is a a native struct definition.
+    /// `def` is a native struct definition.
     fn new<Pool: StringPool<String = S>>(
         pool: &mut Pool,
         m: &CompiledModule,

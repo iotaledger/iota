@@ -559,7 +559,7 @@ pub fn get_struct_instantiation_for_state(
 
 /// Determine if a struct (of the given signature) is at the top of the stack
 /// The `struct_index` can be `Some(index)` to check for a particular struct,
-/// or `None` to just check that there is a a struct.
+/// or `None` to just check that there is a struct.
 pub fn stack_has_struct(state: &AbstractState, struct_index: StructDefinitionIndex) -> bool {
     if state.stack_len() > 0 {
         if let Some(struct_value) = state.stack_peek(0) {
