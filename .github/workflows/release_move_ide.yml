@@ -72,7 +72,7 @@ jobs:
       - name: Cargo build for ${{ matrix.os }} platform
         shell: bash
         run: |
-          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build --bin move-analyzer --release
+          [ -f ~/.cargo/env ] && source ~/.cargo/env ; cargo build -p iota-move-lsp --bin move-analyzer --release
 
       # Filenames need to match external-crates/move/crates/move-analyzer/editors/code/scripts/create_from_local.sh
       - name: Rename binaries for ${{ matrix.os }}

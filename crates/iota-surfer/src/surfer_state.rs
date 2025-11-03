@@ -21,12 +21,14 @@ use iota_types::{
     storage::WriteKind,
     transaction::{CallArg, ObjectArg, TEST_ONLY_GAS_UNIT_FOR_PUBLISH, TransactionData},
 };
-use move_binary_format::{file_format::Visibility, normalized::Type};
-use move_core_types::language_storage::StructTag;
+use move_binary_format::{file_format::Visibility, normalized};
+use move_core_types::{identifier::IdentStr, language_storage::StructTag};
 use rand::rngs::StdRng;
 use test_cluster::TestCluster;
 use tokio::sync::RwLock;
 use tracing::{debug, error, info};
+
+type Type = normalized::Type<normalized::ArcIdentifier>;
 
 #[derive(Debug, Clone)]
 pub struct EntryFunction {
@@ -109,6 +111,7 @@ pub type ImmObjects = Arc<RwLock<HashMap<StructTag, Vec<ObjectRef>>>>;
 pub type SharedObjects = Arc<RwLock<HashMap<StructTag, Vec<(ObjectID, SequenceNumber)>>>>;
 
 pub struct SurferState {
+    pub pool: Arc<RwLock<normalized::ArcPool>>,
     pub id: usize,
     pub cluster: Arc<TestCluster>,
     pub rng: StdRng,
@@ -136,6 +139,7 @@ impl SurferState {
         entry_functions: Arc<RwLock<Vec<EntryFunction>>>,
     ) -> Self {
         Self {
+            pool: Arc::new(RwLock::new(normalized::ArcPool::new())),
             id,
             cluster,
             rng,
@@ -276,8 +280,9 @@ impl SurferState {
         let proto_version = self.cluster.highest_protocol_version();
         let config = ProtocolConfig::get_for_version(proto_version, Chain::Unknown);
         let binary_config = to_binary_config(&config);
+        let pool: &mut normalized::ArcPool = &mut *self.pool.write().await;
         let entry_functions: Vec<_> = move_package
-            .normalize(&binary_config)
+            .normalize(pool, &binary_config, /* include code */ false)
             .unwrap()
             .into_iter()
             .flat_map(|(module_name, module)| {
@@ -298,7 +303,7 @@ impl SurferState {
                         if !func.type_parameters.is_empty() {
                             return None;
                         }
-                        let mut parameters = func.parameters;
+                        let mut parameters = (*func.parameters).clone();
                         if let Some(last_param) = parameters.last().as_ref() {
                             if is_type_tx_context(last_param) {
                                 parameters.pop();
@@ -308,7 +313,10 @@ impl SurferState {
                             package: package_id,
                             module: module_name.clone(),
                             function: func_name.to_string(),
-                            parameters,
+                            parameters: parameters
+                                .into_iter()
+                                .map(|rc_ty| (*rc_ty).clone())
+                                .collect(),
                         })
                     })
                     .collect::<Vec<_>>()
@@ -404,17 +412,12 @@ impl SurferState {
 
 fn is_type_tx_context(ty: &Type) -> bool {
     match ty {
-        Type::Reference(inner) | Type::MutableReference(inner) => match inner.as_ref() {
-            Type::Struct {
-                address,
-                module,
-                name,
-                type_arguments,
-            } => {
-                address == &IOTA_FRAMEWORK_ADDRESS
-                    && module == &Identifier::new("tx_context").unwrap()
-                    && name == &Identifier::new("TxContext").unwrap()
-                    && type_arguments.is_empty()
+        Type::Reference(_, inner) => match inner.as_ref() {
+            Type::Datatype(dt) => {
+                dt.module.address == IOTA_FRAMEWORK_ADDRESS
+                    && dt.module.name.as_ident_str() == IdentStr::new("tx_context").unwrap()
+                    && dt.name.as_ident_str() == IdentStr::new("TxContext").unwrap()
+                    && dt.type_arguments.is_empty()
             }
             _ => false,
         },

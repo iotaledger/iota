@@ -67,14 +67,6 @@ pub(crate) struct Core {
     /// there is not enough subscribers, because new proposed blocks will
     /// not be sufficiently propagated to the network.
     quorum_subscribers_exists: bool,
-    /// Estimated delay by round for propagating blocks to a quorum.
-    /// Because of the nature of TCP and block streaming, propagation delay is
-    /// expected to be 0 in most cases, even when the actual latency of
-    /// broadcasting blocks is high. When this value is higher than the
-    /// `propagation_delay_stop_proposal_threshold`, most likely this
-    /// validator cannot broadcast  blocks to the network at all. Core stops
-    /// proposing new blocks in this case.
-    propagation_delay: Round,
 
     /// Used to make commit decisions for leader blocks in the dag.
     committer: UniversalCommitter,
@@ -114,6 +106,45 @@ pub(crate) struct Core {
     last_known_proposed_round: Option<Round>,
     /// Encoder is used to encode transactions into a longer vector of shards
     encoder: Box<dyn ShardEncoder + Send + Sync>,
+}
+
+#[derive(Eq, PartialEq, Copy, Clone, Debug)]
+pub(crate) enum ReasonToCreateBlock {
+    MinBlockDelayTimeout,
+    AddBlock,
+    AddBlockHeader,
+    MaxLeaderTimeout,
+    Recover,
+    QuorumSubscribersExist,
+    KnownLastBlock,
+}
+
+impl ReasonToCreateBlock {
+    fn label(&self) -> &'static str {
+        match self {
+            ReasonToCreateBlock::MinBlockDelayTimeout => "MinBlockDelayTimeout",
+            ReasonToCreateBlock::AddBlock => "AddBlock",
+            ReasonToCreateBlock::MaxLeaderTimeout => "MaxLeaderTimeout",
+            ReasonToCreateBlock::AddBlockHeader => "AddBlockHeader",
+            ReasonToCreateBlock::Recover => "Recover",
+            ReasonToCreateBlock::QuorumSubscribersExist => "QuorumSubscribersExist",
+            ReasonToCreateBlock::KnownLastBlock => "KnownLastBlock",
+        }
+    }
+
+    // Some reason are forcing block creation, bypassing several checks such as
+    // existence of a leader in quorum round and min timeout
+    fn is_forced(&self) -> bool {
+        match self {
+            ReasonToCreateBlock::MinBlockDelayTimeout => false,
+            ReasonToCreateBlock::AddBlock => false,
+            ReasonToCreateBlock::MaxLeaderTimeout => true,
+            ReasonToCreateBlock::AddBlockHeader => false,
+            ReasonToCreateBlock::Recover => true,
+            ReasonToCreateBlock::QuorumSubscribersExist => true,
+            ReasonToCreateBlock::KnownLastBlock => true,
+        }
+    }
 }
 
 impl Core {
@@ -176,7 +207,6 @@ impl Core {
             transaction_consumer,
             block_manager,
             quorum_subscribers_exists,
-            propagation_delay: 0,
             committer,
             commit_observer,
             signals,
@@ -219,7 +249,7 @@ impl Core {
         // refs can be ignored as the missing transactions will be fetched by the
         // periodic transactions' synchronizer.
         self.try_commit().unwrap();
-        let last_proposed_block = match self.try_propose(true).unwrap() {
+        let last_proposed_block = match self.try_propose(ReasonToCreateBlock::Recover).unwrap() {
             (Some(block), _) => Some(block),
             (None, _) => {
                 let last_proposed_block = self.dag_state.read().recover_last_own_block();
@@ -295,7 +325,7 @@ impl Core {
             let (_subdags, new_missing_committed_txns) = self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
-            self.try_propose(false)?;
+            self.try_propose(ReasonToCreateBlock::AddBlock)?;
 
             // Now set up leader timeout if needed.
             // This needs to be called after try_commit() and try_propose(), which may
@@ -357,7 +387,7 @@ impl Core {
             let (_subdags, new_missing_committed_txns) = self.try_commit()?;
 
             // Try to propose now since there are new blocks accepted.
-            self.try_propose(false)?;
+            self.try_propose(ReasonToCreateBlock::AddBlockHeader)?;
 
             // Now set up leader timeout if needed.
             // This needs to be called after try_commit() and try_propose(), which may
@@ -484,14 +514,14 @@ impl Core {
             .set(new_clock_round as i64);
     }
 
-    /// Creating a new block for the dictated round. This is used when a leader
-    /// timeout occurs, either when the min timeout expires or max. When
-    /// `force = true`, then any checks like previous round
-    /// leader existence will get skipped.
+    /// Creating a new block for the dictated round. This is used when either
+    /// the min block delay timeout expires or max leader timeout expires. In
+    /// the latter case, any checks like previous round leader existence
+    /// will get skipped.
     pub(crate) fn new_block(
         &mut self,
         round: Round,
-        force: bool,
+        reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
         BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
@@ -501,10 +531,10 @@ impl Core {
             self.context
                 .metrics
                 .node_metrics
-                .leader_timeout_total
-                .with_label_values(&[&format!("{force}")])
+                .timeout_expired_total
+                .with_label_values(&[&reason.label()])
                 .inc();
-            let result = self.try_propose(force);
+            let result = self.try_propose(reason);
             // The threshold clock round may have advanced, so a signal needs to be sent.
             self.try_signal_new_round();
             return result;
@@ -514,10 +544,10 @@ impl Core {
 
     // Attempts to create a new block, persist and propose it to all peers.
     // When force is true, ignore if leader from the last round exists among
-    // ancestors and if the minimum round delay has passed.
+    // ancestors and if the minimum block delay has passed.
     fn try_propose(
         &mut self,
-        force: bool,
+        reason: ReasonToCreateBlock,
     ) -> ConsensusResult<(
         Option<VerifiedBlock>,
         BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
@@ -525,7 +555,7 @@ impl Core {
         if !self.should_propose() {
             return Ok((None, BTreeMap::new()));
         }
-        if let Some(verified_block) = self.try_new_block(force) {
+        if let Some(verified_block) = self.try_new_block(reason) {
             self.signals.new_block(verified_block.clone())?;
 
             fail_point!("consensus-after-propose");
@@ -541,7 +571,7 @@ impl Core {
     /// already proposed for latest or earlier round, then no block is
     /// created and None is returned.
     #[instrument(level = "trace", skip_all)]
-    fn try_new_block(&mut self, force: bool) -> Option<VerifiedBlock> {
+    fn try_new_block(&mut self, reason: ReasonToCreateBlock) -> Option<VerifiedBlock> {
         let _s = self
             .context
             .metrics
@@ -566,7 +596,7 @@ impl Core {
         // Create a new block either because we want to "forcefully" propose a block due
         // to a leader timeout, or because we are actually ready to produce the
         // block (leader exists and min delay has passed).
-        if !force {
+        if !reason.is_forced() {
             if !self.leaders_exist(quorum_round) {
                 return None;
             }
@@ -576,24 +606,15 @@ impl Core {
                     .clock
                     .timestamp_utc_ms()
                     .saturating_sub(self.last_proposed_timestamp_ms()),
-            ) < self.context.parameters.min_round_delay
+            ) < self.context.parameters.min_block_delay
             {
                 return None;
             }
         }
 
-        // Determine the ancestors to be included in proposal.
-        let ancestors = self.ancestors_to_propose(clock_round, !force);
-
-        // If we did not find enough good ancestors to propose, continue to wait before
-        // proposing.
-        if ancestors.is_empty() {
-            assert!(
-                !force,
-                "Ancestors should have been returned if force is true!"
-            );
-            return None;
-        }
+        // Determine the ancestors to be included in proposal. A quorum of ancestor must
+        // exist due to a threshold clock
+        let ancestors = self.ancestors_to_propose(clock_round);
 
         // Update the last included ancestor block refs
         for ancestor in &ancestors {
@@ -636,21 +657,6 @@ impl Core {
                 .with_label_values(&[authority])
                 .observe(clock_round.saturating_sub(ancestor.round()).into());
         }
-
-        // Record timestamp drift but don't enforce ancestor timestamp checks.
-        let now = self.context.clock.timestamp_utc_ms();
-        ancestors.iter().for_each(|block| {
-            if block.timestamp_ms() > now {
-                trace!("Ancestor block {block:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {clock_round}.",  block.timestamp_ms());
-                let authority = &self.context.committee.authority(block.author()).hostname;
-                self.context
-                    .metrics
-                    .node_metrics
-                    .proposed_block_ancestors_timestamp_drift_ms
-                    .with_label_values(&[authority])
-                    .inc_by(block.timestamp_ms().saturating_sub(now));
-            }
-        });
 
         // Consume the next transactions to be included. Do not drop the guards yet as
         // this would acknowledge the inclusion of transactions. Just let this
@@ -705,6 +711,22 @@ impl Core {
             .dag_state
             .write()
             .take_commit_votes(MAX_COMMIT_VOTES_PER_BLOCK);
+
+        // Get current timestamp and record drift but don't enforce ancestor timestamp
+        // checks.
+        let now = self.context.clock.timestamp_utc_ms();
+        ancestors.iter().for_each(|block| {
+            if block.timestamp_ms() > now {
+                trace!("Ancestor block {block:?} has timestamp {}, greater than current timestamp {now}. Proposing for round {clock_round}.",  block.timestamp_ms());
+                let authority = &self.context.committee.authority(block.author()).hostname;
+                self.context
+                    .metrics
+                    .node_metrics
+                    .proposed_block_ancestors_timestamp_drift_ms
+                    .with_label_values(&[authority])
+                    .inc_by(block.timestamp_ms().saturating_sub(now));
+            }
+        });
 
         // Create the block and insert to storage.
         let block_header = BlockHeader::V1(BlockHeaderV1::new(
@@ -782,7 +804,7 @@ impl Core {
             .metrics
             .node_metrics
             .proposed_blocks
-            .with_label_values(&[&force.to_string()])
+            .with_label_values(&[&reason.label()])
             .inc();
 
         Some(verified_block)
@@ -985,25 +1007,6 @@ impl Core {
             return false;
         }
 
-        if self.propagation_delay
-            > self
-                .context
-                .parameters
-                .propagation_delay_stop_proposal_threshold
-        {
-            debug!(
-                "Skip proposing for round {clock_round}, high propagation delay {} > {}.",
-                self.propagation_delay,
-                self.context
-                    .parameters
-                    .propagation_delay_stop_proposal_threshold
-            );
-            core_skipped_proposals
-                .with_label_values(&["high_propagation_delay"])
-                .inc();
-            return false;
-        }
-
         let Some(last_known_proposed_round) = self.last_known_proposed_round else {
             debug!(
                 "Skip proposing for round {clock_round}, last known proposed round has not been synced yet."
@@ -1027,22 +1030,9 @@ impl Core {
     }
 
     /// Retrieves the next ancestors to propose to form a block at `clock_round`
-    /// round. If force=false and the stake of available ancestors is not big
-    /// enough, then this function will wait. It force=true and stake is not
-    /// big enough then the function will panic, because it means that there is
-    /// a bug somewhere
-    fn ancestors_to_propose(
-        &mut self,
-        clock_round: Round,
-        force: bool,
-    ) -> Vec<VerifiedBlockHeader> {
-        let node_metrics = &self.context.metrics.node_metrics;
-        let _s = node_metrics
-            .scope_processing_time
-            .with_label_values(&["Core::ancestors_to_propose"])
-            .start_timer();
-
-        // Now take the ancestors before the clock_round (excluded) for each authority.
+    /// round.
+    fn ancestors_to_propose(&mut self, clock_round: Round) -> Vec<VerifiedBlockHeader> {
+        // Take the ancestors before the clock_round (excluded) for each authority.
         let all_ancestors = self
             .dag_state
             .read()
@@ -1074,21 +1064,14 @@ impl Core {
 
         let mut parent_round_quorum = StakeAggregator::<QuorumThreshold>::new();
 
-        // Check total stake of high scoring parent round ancestors
+        // Make a sanity check that the total stake of quorum clock round ancestors is
+        // above a quorum threshold. This must be guaranteed by a threshold
+        // clock component that advanced the round.
         for ancestor in included_ancestors
             .iter()
             .filter(|a| a.round() == quorum_round)
         {
             parent_round_quorum.add(ancestor.author(), &self.context.committee);
-        }
-
-        if !force && !parent_round_quorum.reached_threshold(&self.context.committee) {
-            node_metrics.selection_wait.inc();
-            debug!(
-                "Only found {} stake of ancestors to include for round {clock_round}, will wait for more.",
-                parent_round_quorum.stake()
-            );
-            return vec![];
         }
 
         assert!(
@@ -1099,10 +1082,7 @@ impl Core {
         included_ancestors
     }
 
-    /// Checks whether all the leaders of the round exist.
-    /// TODO: we can leverage some additional signal here in order to more
-    /// cleverly manipulate later the leader timeout Ex if we already have
-    /// one leader - the first in order - we might don't want to wait as much.
+    /// Checks whether the leaders of the round exist.
     fn leaders_exist(&self, round: Round) -> bool {
         let dag_state = self.dag_state.read();
         for leader in self.leaders(round) {
@@ -1731,11 +1711,15 @@ mod test {
 
         // Try to propose again - with or without ignore leaders check, it will not
         // return any block
-        let (new_block_opt, missing_committed_txns) = core.try_propose(false).unwrap();
+        let (new_block_opt, missing_committed_txns) = core
+            .try_propose(ReasonToCreateBlock::MinBlockDelayTimeout)
+            .unwrap();
         assert!(new_block_opt.is_none());
         assert!(missing_committed_txns.is_empty());
 
-        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        let (new_block_opt, missing_committed_txns) = core
+            .try_propose(ReasonToCreateBlock::MaxLeaderTimeout)
+            .unwrap();
         assert!(new_block_opt.is_none());
         assert!(missing_committed_txns.is_empty());
         // Check no commits have been persisted to dag_state & store
@@ -1792,24 +1776,26 @@ mod test {
         // Adding one block now will trigger the creation of new block for round 1
         let verified_block = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 1).build());
         expected_ancestors.insert(verified_block.reference());
-        // Wait for min round delay to allow blocks to be proposed.
-        sleep(context.parameters.min_round_delay).await;
+        // Wait for min block delay to allow blocks to be proposed.
+        sleep(context.parameters.min_block_delay).await;
         // add blocks to trigger proposal.
         _ = core.add_blocks(vec![verified_block]);
 
         assert_eq!(core.last_proposed_round(), 1);
         expected_ancestors.insert(core.last_proposed_block_header().reference());
         // attempt to create a block - none will be produced.
-        let (new_block_opt, missing_committed_txns) = core.try_propose(false).unwrap();
+        let (new_block_opt, missing_committed_txns) = core
+            .try_propose(ReasonToCreateBlock::MinBlockDelayTimeout)
+            .unwrap();
         assert!(new_block_opt.is_none());
         assert!(missing_committed_txns.is_empty());
 
         // Adding another block now forms a quorum for round 1, so block at round 2 will
-        // proposed
+        // be proposed
         let block_3 = VerifiedBlock::new_for_test(TestBlockHeader::new(1, 2).build());
         expected_ancestors.insert(block_3.reference());
-        // Wait for min round delay to allow blocks to be proposed.
-        sleep(context.parameters.min_round_delay).await;
+        // Wait for min block delay to allow blocks to be proposed.
+        sleep(context.parameters.min_block_delay).await;
         // add blocks to trigger proposal.
         _ = core.add_blocks(vec![block_3]);
 
@@ -1883,7 +1869,9 @@ mod test {
         );
 
         // Trying to explicitly propose a block will not produce anything
-        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        let (new_block_opt, missing_committed_txns) = core
+            .try_propose(ReasonToCreateBlock::MaxLeaderTimeout)
+            .unwrap();
         assert!(new_block_opt.is_none());
         assert!(missing_committed_txns.is_empty());
 
@@ -1900,7 +1888,9 @@ mod test {
         assert!(missing_committed_txns.is_empty());
 
         // Try to propose - no block should be produced.
-        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        let (new_block_opt, missing_committed_txns) = core
+            .try_propose(ReasonToCreateBlock::MaxLeaderTimeout)
+            .unwrap();
         assert!(new_block_opt.is_none());
         assert!(missing_committed_txns.is_empty());
 
@@ -1908,7 +1898,9 @@ mod test {
         // the network informed us that we do have proposed a block about.
         core.set_last_known_proposed_round(10);
 
-        let (new_block_opt, missing_committed_txns) = core.try_propose(true).expect("No error");
+        let (new_block_opt, missing_committed_txns) = core
+            .try_propose(ReasonToCreateBlock::KnownLastBlock)
+            .expect("No error");
         assert!(missing_committed_txns.is_empty());
 
         let block = new_block_opt.unwrap();
@@ -1975,9 +1967,11 @@ mod test {
                 if let Some(r) = last_round_blocks.first().map(|b| b.round()) {
                     assert_eq!(round - 1, r);
                     if core_fixture.core.last_proposed_round() == r {
-                        // Force propose new block regardless of min round delay.
-                        let (new_block_opt, missing_committed_txns) =
-                            core_fixture.core.try_propose(true).unwrap();
+                        // Force propose new block regardless of min block delay.
+                        let (new_block_opt, missing_committed_txns) = core_fixture
+                            .core
+                            .try_propose(ReasonToCreateBlock::MaxLeaderTimeout)
+                            .unwrap();
                         assert!(missing_committed_txns.is_empty());
                         new_block_opt.unwrap_or_else(|| {
                             panic!("Block should have been proposed for round {round}")
@@ -2003,16 +1997,21 @@ mod test {
                 .core
                 .add_block_headers(last_round_blocks.clone())
                 .unwrap();
-            let (new_block_opt, missing_committed_txns) =
-                core_fixture.core.try_propose(false).unwrap();
+            let (new_block_opt, missing_committed_txns) = core_fixture
+                .core
+                .try_propose(ReasonToCreateBlock::AddBlockHeader)
+                .unwrap();
             assert!(new_block_opt.is_none());
             assert!(missing_committed_txns.is_empty());
         }
 
         // Now try to create the blocks for round 4 via the leader timeout method which
-        // should ignore any leader checks or min round delay.
+        // should ignore any leader checks or min block delay.
         for core_fixture in cores.iter_mut() {
-            let (new_block, missing_committed_txns) = core_fixture.core.new_block(4, true).unwrap();
+            let (new_block, missing_committed_txns) = core_fixture
+                .core
+                .new_block(4, ReasonToCreateBlock::MaxLeaderTimeout)
+                .unwrap();
             assert!(missing_committed_txns.is_empty());
             assert!(new_block.is_some());
 
@@ -2086,7 +2085,9 @@ mod test {
         );
 
         // There is no proposal even with forced proposing.
-        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        let (new_block_opt, missing_committed_txns) = core
+            .try_propose(ReasonToCreateBlock::MaxLeaderTimeout)
+            .unwrap();
         assert!(new_block_opt.is_none());
         assert!(missing_committed_txns.is_empty());
 
@@ -2094,7 +2095,9 @@ mod test {
         core.set_quorum_subscribers_exists(true);
 
         // Proposing now would succeed.
-        let (new_block_opt, missing_committed_txns) = core.try_propose(true).unwrap();
+        let (new_block_opt, missing_committed_txns) = core
+            .try_propose(ReasonToCreateBlock::QuorumSubscribersExist)
+            .unwrap();
         assert!(new_block_opt.is_some());
         assert!(missing_committed_txns.is_empty());
     }
@@ -2114,8 +2117,8 @@ mod test {
         for round in 1..=30 {
             let mut this_round_block_headers = Vec::new();
 
-            // Wait for min round delay to allow blocks to be proposed.
-            sleep(default_params.min_round_delay).await;
+            // Wait for min block delay to allow blocks to be proposed.
+            sleep(default_params.min_block_delay).await;
 
             for core_fixture in &mut cores {
                 // add the blocks from last round
@@ -2333,8 +2336,8 @@ mod test {
         let mut last_round_block_headers = Vec::new();
         for round in 1..=33 {
             let mut this_round_block_headers = Vec::new();
-            // Wait for min round delay to allow blocks to be proposed.
-            sleep(default_params.min_round_delay).await;
+            // Wait for min block delay to allow blocks to be proposed.
+            sleep(default_params.min_block_delay).await;
             for core_fixture in &mut cores {
                 // add the blocks from last round
                 // this will trigger a block creation for the round and a signal should be
@@ -2464,8 +2467,8 @@ mod test {
         for round in 1..=10 {
             let mut this_round_block_headers = Vec::new();
 
-            // Wait for min round delay to allow blocks to be proposed.
-            sleep(default_params.min_round_delay).await;
+            // Wait for min block delay to allow blocks to be proposed.
+            sleep(default_params.min_block_delay).await;
 
             for core_fixture in &mut cores {
                 // add the blocks from last round
@@ -2571,7 +2574,10 @@ mod test {
                     .core
                     .add_block_headers(last_round_block_headers.clone())
                     .unwrap();
-                core_fixture.core.new_block(round, true).unwrap();
+                core_fixture
+                    .core
+                    .new_block(round, ReasonToCreateBlock::MaxLeaderTimeout)
+                    .unwrap();
 
                 let block_header = core_fixture.core.last_proposed_block_header();
                 assert_eq!(block_header.round(), round);
@@ -2585,13 +2591,13 @@ mod test {
         }
 
         // Now send all the produced blocks to core of authority 3. It should produce a
-        // new block. If no compression would be applied the we should expect
+        // new block. If no compression is applied then we should expect
         // all the previous blocks to be referenced from round 0..=10. However, since
         // compression is applied only the last round's (10) blocks should be
         // referenced + the authority's block of round 0.
         let core_fixture = &mut cores[excluded_authority];
-        // Wait for min round delay to allow blocks to be proposed.
-        sleep(default_params.min_round_delay).await;
+        // Wait for min block delay to allow blocks to be proposed.
+        sleep(default_params.min_block_delay).await;
         // add blocks to trigger proposal.
         core_fixture
             .core

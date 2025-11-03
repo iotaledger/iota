@@ -24,21 +24,22 @@ pub struct NativeContextExtensions<'a> {
     map: HashMap<TypeId, Box<dyn Tid<'a>>>,
 }
 
-/// A marker trait that is used to identify a native extension. We use this as opposed to `TidAble`
-/// since TidAble has auto implementations for various wrappers around a `TidAbles` which we don't
-/// want. This must be implemented on the _exact_ type that is being added to the extensions
-/// otherwise it will fail statically.
+/// A marker trait that is used to identify a native extension. We use this as
+/// opposed to `TidAble` since TidAble has auto implementations for various
+/// wrappers around a `TidAbles` which we don't want. This must be implemented
+/// on the _exact_ type that is being added to the extensions otherwise it will
+/// fail statically.
 pub trait NativeExtensionMarker<'a>: Tid<'a> {}
 
 impl<'a> NativeContextExtensions<'a> {
-   pub fn add<T: NativeExtensionMarker<'a>>(&mut self, ext: T) {
+    pub fn add<T: NativeExtensionMarker<'a>>(&mut self, ext: T) {
         assert!(
             self.map.insert(T::id(), Box::new(ext)).is_none(),
             "multiple extensions of the same type not allowed"
         )
     }
 
-    pub fn get<T: NativeExtensionMarker<'a>>(&self) -> PartialVMResult<&T> {        
+    pub fn get<T: NativeExtensionMarker<'a>>(&self) -> PartialVMResult<&T> {
         self.map
             .get(&T::id())
             .ok_or_else(|| {
@@ -53,7 +54,7 @@ impl<'a> NativeContextExtensions<'a> {
             })
     }
 
-    pub fn get_mut<T: NativeExtensionMarker<'a>>(&mut self) -> PartialVMResult<&mut T> {        
+    pub fn get_mut<T: NativeExtensionMarker<'a>>(&mut self) -> PartialVMResult<&mut T> {
         self.map
             .get_mut(&T::id())
             .ok_or_else(|| {

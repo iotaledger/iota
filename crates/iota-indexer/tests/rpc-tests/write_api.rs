@@ -1286,13 +1286,15 @@ fn move_view_function_call() {
         indexer_wait_for_checkpoint(store, 1).await;
         let (address, keypair) = get_key_pair();
         let keypair = IotaKeyPair::Ed25519(keypair);
-        cluster
+        let (gas_id, gas_seq, _) = cluster
             .fund_address_and_return_gas(
                 cluster.get_reference_gas_price().await,
                 Some(NANOS_PER_IOTA),
                 address,
             )
             .await;
+        indexer_wait_for_object(client, gas_id, gas_seq).await;
+
         let ((package_id, _, _), transaction_response) =
             publish_test_move_package(client, address, &keypair, "wat_counter")
                 .await

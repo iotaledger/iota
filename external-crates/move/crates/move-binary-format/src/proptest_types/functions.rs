@@ -10,9 +10,9 @@ use std::{
 
 use move_core_types::u256::U256;
 use proptest::{
-    collection::{vec, SizeRange},
+    collection::{SizeRange, vec},
     prelude::*,
-    sample::{select, Index as PropIndex},
+    sample::{Index as PropIndex, select},
 };
 
 use crate::{
@@ -32,9 +32,8 @@ use crate::{
     },
     internals::ModuleIndex,
     proptest_types::{
-        prop_index_avoid,
+        TableSize, prop_index_avoid,
         signature::{AbilitySetGen, SignatureGen, SignatureTokenGen},
-        TableSize,
     },
 };
 
@@ -611,7 +610,8 @@ impl CodeUnitGen {
             }
         }
 
-        // If the code is empty then we can't jump to anything so remove any jump tables.
+        // If the code is empty then we can't jump to anything so remove any jump
+        // tables.
         if code.is_empty() {
             jump_tables = vec![];
         }

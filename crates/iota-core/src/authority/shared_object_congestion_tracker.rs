@@ -4,12 +4,13 @@
 
 use std::{cmp::Ordering, collections::HashMap};
 
-use iota_protocol_config::PerObjectCongestionControlMode;
+use iota_protocol_config::{PerObjectCongestionControlMode, ProtocolConfig};
 use iota_types::{
     base_types::{CommitRound, ObjectID},
     executable_transaction::VerifiedExecutableTransaction,
     transaction::{SharedInputObject, TransactionDataAPI},
 };
+use serde::{Deserialize, Serialize};
 use tracing::instrument;
 
 use super::{
@@ -220,13 +221,58 @@ pub(crate) struct SharedObjectCongestionTracker {
 }
 
 impl SharedObjectCongestionTracker {
-    pub fn new(mode: PerObjectCongestionControlMode, assign_min_free_execution_slot: bool) -> Self {
+    pub fn new(
+        initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
+        protocol_config: &ProtocolConfig,
+    ) -> Self {
+        let object_execution_slots = initial_object_debts
+            .into_iter()
+            .map(|(object_id, debt)| {
+                let mut slots = ObjectExecutionSlots::new();
+                if debt > 0 {
+                    // If there is an initial debt, remove the occupied slot from time 0 to
+                    // debt.
+                    slots.remove(ExecutionSlot::new(0, debt));
+                }
+
+                (object_id, slots)
+            })
+            .collect::<HashMap<_, _>>();
         Self {
-            object_execution_slots: HashMap::new(),
+            object_execution_slots,
+            mode: protocol_config.per_object_congestion_control_mode(),
+            assign_min_free_execution_slot: protocol_config
+                .congestion_control_min_free_execution_slot(),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn new_for_test(
+        initial_object_debts: impl IntoIterator<Item = (ObjectID, u64)>,
+        mode: PerObjectCongestionControlMode,
+        assign_min_free_execution_slot: bool,
+    ) -> Self {
+        let object_execution_slots = initial_object_debts
+            .into_iter()
+            .map(|(object_id, debt)| {
+                let mut slots = ObjectExecutionSlots::new();
+                if debt > 0 {
+                    // If there is an initial debt, remove the occupied slot from time 0 to
+                    // debt.
+                    slots.remove(ExecutionSlot::new(0, debt));
+                }
+
+                (object_id, slots)
+            })
+            .collect::<HashMap<_, _>>();
+
+        Self {
+            object_execution_slots,
             mode,
             assign_min_free_execution_slot,
         }
     }
+
     // initialize the free execution slots for the objects that are not in the
     // tracker.
     pub fn initialize_object_execution_slots(
@@ -382,6 +428,7 @@ impl SharedObjectCongestionTracker {
         &self,
         cert: &VerifiedExecutableTransaction,
         max_execution_duration_per_commit: u64,
+        max_overshoot_per_commit: u64,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
@@ -401,11 +448,13 @@ impl SharedObjectCongestionTracker {
             // This is an owned object only transaction. No need to defer.
             return SequencingResult::Schedule(0);
         }
+        let congestion_limit =
+            max_execution_duration_per_commit.saturating_add(max_overshoot_per_commit);
         // Try to compute a scheduling start time for the transaction.
         if let Some(start_time) = self.compute_tx_start_time(&shared_input_objects, tx_duration) {
             // `compute_tx_start_time` returns None if the transaction cannot be scheduled,
             // so no need to check for overflow when adding `tx_duration` here.
-            if start_time + tx_duration <= max_execution_duration_per_commit {
+            if start_time + tx_duration <= congestion_limit {
                 // schedule this transaction and return the start time.
                 return SequencingResult::Schedule(start_time);
             }
@@ -429,7 +478,7 @@ impl SharedObjectCongestionTracker {
                         .expect("object should have been inserted before.")
                         .max_object_occupied_slot_end_time()
                         .overflowing_add(tx_duration);
-                    overflow || end_time > max_execution_duration_per_commit
+                    overflow || end_time > congestion_limit
                 })
                 .map(|obj| obj.id)
                 .collect()
@@ -488,6 +537,39 @@ impl SharedObjectCongestionTracker {
             .map(|slots| slots.max_object_occupied_slot_end_time())
             .max()
             .unwrap_or(0)
+    }
+
+    // Returns accumulated debts for objects whose budgets have been exceeded over
+    // the course of the commit. Consumes the tracker object, since this should
+    // only be called once after all txs have been processed.
+    pub fn accumulated_debts(self, max_execution_duration_per_commit: u64) -> Vec<(ObjectID, u64)> {
+        self.object_execution_slots
+            .into_iter()
+            .filter_map(|(obj_id, slots)| {
+                let debt = slots
+                    .max_object_occupied_slot_end_time()
+                    .saturating_sub(max_execution_duration_per_commit);
+                if debt > 0 { Some((obj_id, debt)) } else { None }
+            })
+            .collect()
+    }
+}
+
+/// Stores per-object debts from a given consensus commit.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub enum CongestionPerObjectDebt {
+    V1(CommitRound, u64),
+}
+
+impl CongestionPerObjectDebt {
+    pub fn new(round: CommitRound, debt: u64) -> Self {
+        Self::V1(round, debt)
+    }
+
+    pub fn into_v1(self) -> (CommitRound, u64) {
+        match self {
+            Self::V1(round, debt) => (round, debt),
+        }
     }
 }
 
@@ -681,6 +763,7 @@ pub mod shared_object_test_utils {
         shared_object_congestion_tracker: &mut SharedObjectCongestionTracker,
         cert: &VerifiedExecutableTransaction,
         max_execution_duration_per_commit: u64,
+        max_overshoot_per_commit: u64,
         previously_deferred_tx_digests: &PreviouslyDeferredTransactions,
         commit_round: CommitRound,
     ) -> SequencingResult {
@@ -695,6 +778,7 @@ pub mod shared_object_test_utils {
         shared_object_congestion_tracker.try_schedule(
             cert,
             max_execution_duration_per_commit,
+            max_overshoot_per_commit,
             previously_deferred_tx_digests,
             commit_round,
         )
@@ -705,57 +789,11 @@ pub mod shared_object_test_utils {
         mode: PerObjectCongestionControlMode,
         assign_min_free_execution_slot: bool,
     ) -> SharedObjectCongestionTracker {
-        let mut shared_object_congestion_tracker =
-            SharedObjectCongestionTracker::new(mode, assign_min_free_execution_slot);
-        // add initial values for each transaction
-        for (object_id, duration) in init_values {
-            match mode {
-                PerObjectCongestionControlMode::None => {}
-                PerObjectCongestionControlMode::TotalGasBudget => {
-                    let transaction =
-                        build_transaction(&[(*object_id, true)], *duration, TEST_ONLY_GAS_PRICE);
-                    let start_time = initialize_tracker_and_compute_tx_start_time(
-                        &mut shared_object_congestion_tracker,
-                        &transaction
-                            .data()
-                            .inner()
-                            .intent_message()
-                            .value
-                            .shared_input_objects(),
-                        *duration,
-                    )
-                    .expect(
-                        "initial value should be fit within the available range of slots \
-                                in the tracker",
-                    );
-                    shared_object_congestion_tracker
-                        .bump_object_execution_slots(&transaction, start_time);
-                }
-                PerObjectCongestionControlMode::TotalTxCount => {
-                    for _ in 0..*duration {
-                        let transaction =
-                            build_transaction(&[(*object_id, true)], 1, TEST_ONLY_GAS_PRICE);
-                        let start_time = initialize_tracker_and_compute_tx_start_time(
-                            &mut shared_object_congestion_tracker,
-                            &transaction
-                                .data()
-                                .inner()
-                                .intent_message()
-                                .value
-                                .shared_input_objects(),
-                            1,
-                        )
-                        .expect(
-                            "initial value should be fit within the available range of \
-                                    slots in the tracker",
-                        );
-                        shared_object_congestion_tracker
-                            .bump_object_execution_slots(&transaction, start_time);
-                    }
-                }
-            }
-        }
-        shared_object_congestion_tracker
+        SharedObjectCongestionTracker::new_for_test(
+            init_values.iter().map(|(id, debt)| (*id, *debt)),
+            mode,
+            assign_min_free_execution_slot,
+        )
     }
 
     pub fn construct_shared_input_objects(objects: &[(ObjectID, bool)]) -> Vec<SharedInputObject> {
@@ -967,73 +1005,82 @@ mod object_cost_tests {
         let shared_obj_0 = ObjectID::random();
         let shared_obj_1 = ObjectID::random();
 
-        let tx_gas_budget = 5;
-
-        // Set max_execution_duration_per_commit to only allow 1 transaction
-        // to go through.
-        let max_execution_duration_per_commit = match mode {
+        let (max_execution_duration_per_commit, max_overshoot_per_commit) = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
-            PerObjectCongestionControlMode::TotalGasBudget => 12,
-            PerObjectCongestionControlMode::TotalTxCount => 3,
+            PerObjectCongestionControlMode::TotalGasBudget => (12, 0),
+            PerObjectCongestionControlMode::TotalTxCount => (3, 0),
         };
 
-        let mut shared_object_congestion_tracker = match mode {
+        let (initial_debt_obj_0, initial_debt_obj_1) = match mode {
             PerObjectCongestionControlMode::None => unreachable!(),
             PerObjectCongestionControlMode::TotalGasBudget => {
-                // Construct object execution slots as follows
+                // Initial debts for TotalGasBudget mode are set such that
+                // the object execution slots are constructed as follows:
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
                 // 1| xxxxxxxx     |
                 // ::::::::::::::::::::::::::
                 // 8| xxxxxxxx     |
                 // 9|              |
-                new_congestion_tracker_with_initial_value_for_test(
-                    &[(shared_obj_0, 9), (shared_obj_1, 1)],
-                    mode,
-                    assign_min_free_execution_slot,
-                )
+                (9, 1)
             }
             PerObjectCongestionControlMode::TotalTxCount => {
-                // Construct object execution slots as follows
+                // Initial debts for TotalTxCount mode are set such that
+                // the object execution slots are constructed as follows:
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
                 // 1| xxxxxxxx     |
                 // 2|              |
-                new_congestion_tracker_with_initial_value_for_test(
-                    &[(shared_obj_0, 2), (shared_obj_1, 1)],
-                    mode,
-                    assign_min_free_execution_slot,
-                )
+                (2, 1)
             }
         };
-        // add a transaction that writes to object 0 and 1.
+        let mut shared_object_congestion_tracker =
+            new_congestion_tracker_with_initial_value_for_test(
+                &[
+                    (shared_obj_0, initial_debt_obj_0),
+                    (shared_obj_1, initial_debt_obj_1),
+                ],
+                mode,
+                assign_min_free_execution_slot,
+            );
+        // add a transaction with gas budget 1 that writes to object 0 and 1.
+        // We don't test the scheduling result here, we just want to update the
+        // tracker's object execution slots.
+        let tx_gas_budget = 1;
         let tx = build_transaction(
             &[(shared_obj_0, true), (shared_obj_1, true)],
-            1,
+            tx_gas_budget,
             TEST_ONLY_GAS_PRICE,
         );
         shared_object_congestion_tracker.bump_object_execution_slots(
             &tx,
             match mode {
                 PerObjectCongestionControlMode::None => unreachable!(),
-                // in gas budget mode, the object execution slots becomes:
+                // in TotalGasBudget mode, the object execution slots becomes:
+                //    object 0       object 1
+                //  0| xxxxxxxx     | xxxxxxxx
+                //  1| xxxxxxxx     |
+                //  ::::::::::::::::::::::::::
+                //  8| xxxxxxxx     |
+                //  9| xxxxxxxx     | xxxxxxxx
+                // 10|              |
+                // 11|______________|____________ max_execution_duration_per_commit = 12
+                // 12|              |
+                // 13|              |
+                PerObjectCongestionControlMode::TotalGasBudget => 9,
+                // in TotalTxCount mode, the object execution slots becomes:
                 //    object 0       object 1
                 // 0| xxxxxxxx     | xxxxxxxx
                 // 1| xxxxxxxx     |
-                // ::::::::::::::::::::::::::
-                // 8| xxxxxxxx     |
-                // 9| xxxxxxxx     | xxxxxxxx
-                PerObjectCongestionControlMode::TotalGasBudget => 10,
-                // in tx count mode, the object execution slots becomes:
-                //    object 0       object 1
-                // 0| xxxxxxxx     | xxxxxxxx
-                // 1| xxxxxxxx     |
-                // 2| xxxxxxxx     | xxxxxxxx
+                // 2| xxxxxxxx_____|_xxxxxxxx____ max_execution_duration_per_commit = 3
+                // 3|              |
+                // 4|              |
                 PerObjectCongestionControlMode::TotalTxCount => 2,
             },
         );
 
         // Read/write to object 0 should be deferred.
+        let tx_gas_budget = 5;
         for mutable in [true, false].iter() {
             let tx = build_transaction(
                 &[(shared_obj_0, *mutable)],
@@ -1041,7 +1088,13 @@ mod object_cost_tests {
                 TEST_ONLY_GAS_PRICE,
             );
             if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
-                .try_schedule(&tx, max_execution_duration_per_commit, &HashMap::new(), 0)
+                .try_schedule(
+                    &tx,
+                    max_execution_duration_per_commit,
+                    max_overshoot_per_commit,
+                    &HashMap::new(),
+                    0,
+                )
             {
                 assert_eq!(congested_objects.len(), 1);
                 assert_eq!(congested_objects[0], shared_obj_0);
@@ -1062,6 +1115,7 @@ mod object_cost_tests {
                 &mut shared_object_congestion_tracker,
                 &tx,
                 max_execution_duration_per_commit,
+                max_overshoot_per_commit,
                 &HashMap::new(),
                 0,
             );
@@ -1089,6 +1143,7 @@ mod object_cost_tests {
                         &mut shared_object_congestion_tracker,
                         &tx,
                         max_execution_duration_per_commit,
+                        max_overshoot_per_commit,
                         &HashMap::new(),
                         0,
                     )
@@ -1116,7 +1171,9 @@ mod object_cost_tests {
         let tx = build_transaction(&[(shared_obj_0, true)], 100, TEST_ONLY_GAS_PRICE);
         // Make try_schedule always defers transactions.
         let max_execution_duration_per_commit = 0;
-        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new(mode, false);
+        let max_overshoot_per_commit = 0;
+        let mut shared_object_congestion_tracker =
+            new_congestion_tracker_with_initial_value_for_test(&[], mode, false);
 
         // Insert a random pre-existing transaction.
         let mut previously_deferred_tx_digests = PreviouslyDeferredTransactions::new();
@@ -1142,6 +1199,7 @@ mod object_cost_tests {
             &mut shared_object_congestion_tracker,
             &tx,
             max_execution_duration_per_commit,
+            max_overshoot_per_commit,
             &previously_deferred_tx_digests,
             10,
         ) {
@@ -1174,6 +1232,7 @@ mod object_cost_tests {
             &mut shared_object_congestion_tracker,
             &tx,
             max_execution_duration_per_commit,
+            max_overshoot_per_commit,
             &previously_deferred_tx_digests,
             10,
         ) {
@@ -1207,6 +1266,7 @@ mod object_cost_tests {
             &mut shared_object_congestion_tracker,
             &tx,
             max_execution_duration_per_commit,
+            max_overshoot_per_commit,
             &previously_deferred_tx_digests,
             10,
         ) {
@@ -1389,6 +1449,7 @@ mod object_cost_tests {
         let object_id_2 = ObjectID::random();
         // edge case: max value is saturated
         let max_execution_duration_per_commit = u64::MAX;
+        let max_overshoot_per_commit = u64::MAX;
 
         // case 1: large initial duration, small tx duration
         // the initial object execution slots is as follows:
@@ -1411,6 +1472,7 @@ mod object_cost_tests {
             &mut shared_object_congestion_tracker,
             &tx,
             max_execution_duration_per_commit,
+            max_overshoot_per_commit,
             &HashMap::new(),
             0,
         ) {
@@ -1452,6 +1514,7 @@ mod object_cost_tests {
             &mut shared_object_congestion_tracker,
             &tx,
             max_execution_duration_per_commit,
+            max_overshoot_per_commit,
             &HashMap::new(),
             0,
         ) {
@@ -1507,6 +1570,7 @@ mod object_cost_tests {
             &mut shared_object_congestion_tracker,
             &tx,
             max_execution_duration_per_commit,
+            max_overshoot_per_commit,
             &HashMap::new(),
             0,
         ) {
@@ -1558,6 +1622,7 @@ mod object_cost_tests {
             &mut shared_object_congestion_tracker,
             &tx,
             max_execution_duration_per_commit,
+            max_overshoot_per_commit,
             &HashMap::new(),
             0,
         ) {
@@ -1580,5 +1645,220 @@ mod object_cost_tests {
             )
             .is_none()
         );
+    }
+
+    #[rstest]
+    fn test_try_schedule_allow_overshoot(
+        #[values(
+            PerObjectCongestionControlMode::TotalGasBudget,
+            PerObjectCongestionControlMode::TotalTxCount
+        )]
+        mode: PerObjectCongestionControlMode,
+        #[values(true, false)] assign_min_free_execution_slot: bool,
+    ) {
+        let shared_obj_0 = ObjectID::random();
+        let shared_obj_1 = ObjectID::random();
+
+        let tx_gas_budget = 100;
+
+        let max_execution_duration_per_commit = match mode {
+            PerObjectCongestionControlMode::None => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => 100,
+            PerObjectCongestionControlMode::TotalTxCount => 2,
+        };
+
+        let max_overshoot_per_commit = match mode {
+            PerObjectCongestionControlMode::None => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => 200,
+            PerObjectCongestionControlMode::TotalTxCount => 2,
+        };
+
+        // instantiate the tracker with some initial debts such that 1 transaction
+        // touching object 1 can be scheduled with some overshoot, but nothing touching
+        // object 0 can be scheduled.
+        let shared_object_congestion_tracker = match mode {
+            PerObjectCongestionControlMode::None => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => {
+                // Construct object execution cost as following
+                //          object 0    object 1
+                //       0| xxxxxxxx   | xxxxxxxx
+                // :::::::::::::::::::::::::::
+                //      99| xxxxxxxx   | xxxxxxxx _____ max_execution_duration_per_commit = 100
+                //     100| xxxxxxxx   | xxxxxxxx
+                // :::::::::::::::::::::::::::
+                //     198| xxxxxxxx   | xxxxxxxx
+                //     199| xxxxxxxx   |
+                // :::::::::::::::::::::::::::
+                //     299| xxxxxxxx   |          _____ 100 + max_overshoot_per_commit = 300
+                //     300| xxxxxxxx   |
+                //     301|            |
+                SharedObjectCongestionTracker::new_for_test(
+                    [(shared_obj_0, 301), (shared_obj_1, 199)],
+                    mode,
+                    assign_min_free_execution_slot,
+                )
+            }
+            PerObjectCongestionControlMode::TotalTxCount => {
+                // Construct object execution cost as following
+                //           object 0    object 1
+                //        0| xxxxxxxx   | xxxxxxxx
+                //        1| xxxxxxxx   | xxxxxxxx _____ max_execution_duration_per_commit = 2
+                //        2| xxxxxxxx   | xxxxxxxx
+                //        3| xxxxxxxx   |          _____ 2 + max_overshoot_per_commit = 4
+                //        4|            |
+                SharedObjectCongestionTracker::new_for_test(
+                    [(shared_obj_0, 4), (shared_obj_1, 3)],
+                    mode,
+                    assign_min_free_execution_slot,
+                )
+            }
+        };
+
+        // Read/write to object 0 should be deferred.
+        for mutable in [true, false].iter() {
+            let tx = build_transaction(
+                &[(shared_obj_0, *mutable)],
+                tx_gas_budget,
+                TEST_ONLY_GAS_PRICE,
+            );
+            if let SequencingResult::Defer(_, congested_objects) = shared_object_congestion_tracker
+                .try_schedule(
+                    &tx,
+                    max_execution_duration_per_commit,
+                    max_overshoot_per_commit,
+                    &HashMap::new(),
+                    0,
+                )
+            {
+                assert_eq!(congested_objects.len(), 1);
+                assert_eq!(congested_objects[0], shared_obj_0);
+            } else {
+                panic!("should defer");
+            }
+        }
+
+        // Read/write to object 1 should go through even though the per-commit limit is
+        // exceeded even before the cost of this tx is considered.
+        for mutable in [true, false].iter() {
+            let tx = build_transaction(
+                &[(shared_obj_1, *mutable)],
+                tx_gas_budget,
+                TEST_ONLY_GAS_PRICE,
+            );
+            if let SequencingResult::Schedule(_) = shared_object_congestion_tracker.try_schedule(
+                &tx,
+                max_execution_duration_per_commit,
+                max_overshoot_per_commit,
+                &HashMap::new(),
+                0,
+            ) {
+                // pass
+            } else {
+                panic!("should schedule");
+            }
+        }
+
+        // Transactions touching both objects should be deferred, with object 0 as the
+        // congested object, or both objects as congested when
+        // `assign_min_free_execution_slot` is true.
+        for mutable_0 in [true, false].iter() {
+            for mutable_1 in [true, false].iter() {
+                let tx = build_transaction(
+                    &[(shared_obj_0, *mutable_0), (shared_obj_1, *mutable_1)],
+                    tx_gas_budget,
+                    1,
+                );
+                if let SequencingResult::Defer(_, congested_objects) =
+                    shared_object_congestion_tracker.try_schedule(
+                        &tx,
+                        max_execution_duration_per_commit,
+                        max_overshoot_per_commit,
+                        &HashMap::new(),
+                        0,
+                    )
+                {
+                    if assign_min_free_execution_slot {
+                        assert_eq!(congested_objects.len(), 2);
+                    } else {
+                        assert_eq!(congested_objects.len(), 1);
+                        assert_eq!(congested_objects[0], shared_obj_0);
+                    }
+                } else {
+                    panic!("should defer");
+                }
+            }
+        }
+    }
+
+    #[rstest]
+    fn test_accumulated_debts(
+        #[values(
+            PerObjectCongestionControlMode::TotalGasBudget,
+            PerObjectCongestionControlMode::TotalTxCount
+        )]
+        mode: PerObjectCongestionControlMode,
+        #[values(true, false)] assign_min_free_execution_slot: bool,
+    ) {
+        // Creates two shared objects to operate on them in transactions.
+        let shared_obj_0 = ObjectID::random();
+        let shared_obj_1 = ObjectID::random();
+
+        let tx_gas_budget = 100;
+
+        // Set max_accumulated_txn_cost_per_object_in_commit  and initial_object_debt
+        // such that a single transaction will cause an overshoot.
+        let max_execution_duration_per_commit = match mode {
+            PerObjectCongestionControlMode::None => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => 90,
+            PerObjectCongestionControlMode::TotalTxCount => 2,
+        };
+
+        let initial_object_debt = match mode {
+            PerObjectCongestionControlMode::None => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => 70,
+            PerObjectCongestionControlMode::TotalTxCount => 2,
+        };
+
+        let mut shared_object_congestion_tracker = SharedObjectCongestionTracker::new_for_test(
+            [
+                (shared_obj_0, initial_object_debt),
+                (shared_obj_1, initial_object_debt),
+            ],
+            mode,
+            assign_min_free_execution_slot,
+        );
+
+        // Verify that accumulated_debts is empty initially.
+        let accumulated_debts = shared_object_congestion_tracker
+            .clone()
+            .accumulated_debts(max_execution_duration_per_commit);
+        assert!(accumulated_debts.is_empty());
+
+        // Simulate transactions on object 0 that exceed the per-commit limit,
+        // taking into account the initial debt.
+        // We simulate both read and write access, but the read transaction should not
+        // result in any change to the tracker state.
+        for mutable in [true, false].iter() {
+            let tx = build_transaction(
+                &[(shared_obj_0, *mutable)],
+                tx_gas_budget,
+                TEST_ONLY_GAS_PRICE,
+            );
+            shared_object_congestion_tracker.bump_object_execution_slots(&tx, initial_object_debt);
+        }
+
+        // Verify that accumulated_debts reports the debt for object 0.
+        let accumulated_debts =
+            shared_object_congestion_tracker.accumulated_debts(max_execution_duration_per_commit);
+        assert_eq!(accumulated_debts.len(), 1);
+        match mode {
+            PerObjectCongestionControlMode::None => unreachable!(),
+            PerObjectCongestionControlMode::TotalGasBudget => {
+                assert_eq!(accumulated_debts[0], (shared_obj_0, 80)); // overshoot = initial_debt (70) + tx_duration (100) - max_execution_duration_per_commit (90) = 80
+            }
+            PerObjectCongestionControlMode::TotalTxCount => {
+                assert_eq!(accumulated_debts[0], (shared_obj_0, 1)); // overshoot = initial_debt (2) + tx_duration (1) - max_execution_duration_per_commit (2) = 1
+            }
+        }
     }
 }

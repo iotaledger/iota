@@ -10,10 +10,14 @@ use move_binary_format::{
 };
 use move_ir_to_bytecode::{compiler::compile_module, parser::parse_module};
 
-fn compile(prog: &str) -> normalized::Module {
+fn compile(prog: &str) -> normalized::Module<normalized::RcIdentifier> {
     let prog = parse_module(prog).unwrap();
     let (compiled_module, _) = compile_module(prog, vec![]).unwrap();
-    normalized::Module::new(&compiled_module)
+    normalized::Module::new(
+        &mut normalized::RcPool::new(),
+        &compiled_module,
+        true, // include code
+    )
 }
 
 // Things to test for enum upgrades
@@ -25,7 +29,8 @@ fn compile(prog: &str) -> normalized::Module {
 // * [x] Rename field in existing variant (never)
 // * [x] Change type of existing field in variant (never)
 // * [x] Add new variant at beginning (w/out disallow_new_variants) (never)
-// * [x] Add new variant at end (w/out disallow_new_variants, equal and subset inclusions)
+// * [x] Add new variant at end (w/out disallow_new_variants, equal and subset
+//   inclusions)
 //   - Allowed if `disallow_new_variants = false` or `InclusionCheck::Subset`
 // * [x] Change abilities on type
 
@@ -228,9 +233,9 @@ fn test_enum_upgrade_add_variant_at_end() {
     assert!(compat.check(&old, &new).is_err());
     // Allow adding new variants at the end of the enum
     assert!(InclusionCheck::Equal.check(&old, &new).is_err());
-    // NOTE: We currently restrict all enums (even in subset mode) so that new enum variants are not
-    // allowed. This assertion will fail when we allow new enum variants in subset mode and should
-    // be updated at that time.
+    // NOTE: We currently restrict all enums (even in subset mode) so that new enum
+    // variants are not allowed. This assertion will fail when we allow new enum
+    // variants in subset mode and should be updated at that time.
     assert!(InclusionCheck::Subset.check(&old, &new).is_err());
 }
 

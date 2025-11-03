@@ -1073,6 +1073,7 @@ mod tests {
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange},
         context::Context,
+        core::ReasonToCreateBlock,
         core_thread::CoreError,
         dag_state::DagState,
         network::{BlockBundleStream, NetworkClient, SerializedTransactions},
@@ -2106,7 +2107,7 @@ mod tests {
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
+            _reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }
