@@ -207,14 +207,21 @@ mod checked {
     /// A common function to check the `MoveAuthenticator` inputs for signing.
     ///
     /// Checks that the authenticator inputs meet the requirements and returns
-    /// the checked authenticator input objects.
+    /// the union of the checked authenticator input objects and the account
+    /// object.
     #[instrument(level = "trace", skip_all)]
-    pub fn check_move_authenticator_input(
+    pub fn check_move_authenticator_input_for_signing(
+        account_object: CheckedInputObjects,
         authenticator_input_objects: InputObjects,
     ) -> IotaResult<CheckedInputObjects> {
         check_move_authenticator_objects(&authenticator_input_objects)?;
 
-        Ok(authenticator_input_objects.into_checked())
+        let auth_input_objects_union = checked_input_objects_union(
+            authenticator_input_objects.into_checked(),
+            &account_object,
+        )?;
+
+        Ok(auth_input_objects_union)
     }
 
     /// A function to check the `MoveAuthenticator` inputs for execution and
@@ -232,6 +239,7 @@ mod checked {
     pub fn check_certificate_and_move_authenticator_input(
         cert: &VerifiedExecutableTransaction,
         tx_input_objects: InputObjects,
+        account_object: CheckedInputObjects,
         authenticator_input_objects: InputObjects,
         authenticator_gas_budget: u64,
         protocol_config: &ProtocolConfig,
@@ -257,6 +265,8 @@ mod checked {
             tx_input_objects.into_checked(),
             &authenticator_input_objects,
         )?;
+        let input_objects_union =
+            checked_input_objects_union(input_objects_union, &account_object)?;
 
         Ok((gas_status, authenticator_input_objects, input_objects_union))
     }

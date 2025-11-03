@@ -918,17 +918,21 @@ impl AuthorityState {
         // account object are also checked and must be provided.
         // It is also checked if there is enough gas to execute the transaction and its
         // authenticators.
-        let (gas_status, tx_checked_input_objects, auth_checked_input_objects, authenticator_info) =
-            self.check_transaction_inputs_for_signing(
-                protocol_config,
-                reference_gas_price,
-                tx_data,
-                tx_input_objects,
-                &tx_receiving_objects,
-                move_authenticator,
-                auth_input_objects,
-                account_object,
-            )?;
+        let (
+            gas_status,
+            tx_checked_input_objects,
+            auth_checked_input_objects_union,
+            authenticator_info,
+        ) = self.check_transaction_inputs_for_signing(
+            protocol_config,
+            reference_gas_price,
+            tx_data,
+            tx_input_objects,
+            &tx_receiving_objects,
+            move_authenticator,
+            auth_input_objects,
+            account_object,
+        )?;
 
         check_coin_deny_list_v1_during_signing(
             tx_data.sender(),
@@ -941,7 +945,7 @@ impl AuthorityState {
             // It is supposed that `MoveAuthenticator` availability is checked in
             // `SenderSignedData::validity_check`.
 
-            let auth_checked_input_objects = auth_checked_input_objects
+            let auth_checked_input_objects_union = auth_checked_input_objects_union
                 .expect("MoveAuthenticator input objects must be provided");
             let authenticator_info =
                 authenticator_info.expect("AuthenticatorInfoV1 object must be provided");
@@ -961,7 +965,7 @@ impl AuthorityState {
                 gas_status,
                 move_authenticator.to_owned(),
                 authenticator_info,
-                auth_checked_input_objects,
+                auth_checked_input_objects_union,
                 kind,
                 signer,
                 transaction.digest().to_owned(),
@@ -1730,7 +1734,7 @@ impl AuthorityState {
             // that the account object is loaded.
             let account_object = account_object.expect("Account object must be provided");
 
-            let authenticator_info = self.check_move_account(
+            let (checked_account_object, authenticator_info) = self.check_move_account(
                 auth_account_object_id,
                 auth_account_object_seq_number,
                 auth_account_object_digest,
@@ -1754,6 +1758,7 @@ impl AuthorityState {
             ) = iota_transaction_checks::check_certificate_and_move_authenticator_input(
                 certificate,
                 tx_input_objects,
+                checked_account_object,
                 move_authenticator_input_objects,
                 authenticator_gas_budget,
                 protocol_config,
@@ -5329,24 +5334,24 @@ impl AuthorityState {
         auth_account_object_id: ObjectID,
         auth_account_object_seq_number: Option<SequenceNumber>,
         auth_account_object_digest: Option<ObjectDigest>,
-        account_object: ObjectReadResult,
+        account_object_read_result: ObjectReadResult,
         signer: &IotaAddress,
-    ) -> IotaResult<AuthenticatorInfoV1> {
-        let account_object = match account_object.object {
+    ) -> IotaResult<(CheckedInputObjects, AuthenticatorInfoV1)> {
+        let account_object = match &account_object_read_result.object {
             ObjectReadResultKind::Object(object) => Ok(object),
             ObjectReadResultKind::DeletedSharedObject(version, digest) => {
                 Err(UserInputError::AccountObjectDeleted {
-                    account_id: account_object.id(),
-                    account_version: version,
-                    transaction_digest: digest,
+                    account_id: account_object_read_result.id(),
+                    account_version: version.to_owned(),
+                    transaction_digest: digest.to_owned(),
                 })
             }
             // It is impossible to check the account object because it is used in a canceled
             // transaction and is not loaded.
             ObjectReadResultKind::CancelledTransactionSharedObject(version) => {
                 Err(UserInputError::AccountObjectInCanceledTransaction {
-                    account_id: account_object.id(),
-                    account_version: version,
+                    account_id: account_object_read_result.id(),
+                    account_version: version.to_owned(),
                 })
             }
         }?;
@@ -5430,7 +5435,12 @@ impl AuthorityState {
                     }
                 })?;
 
-            Ok(field.value)
+            let checked_account_object =
+                CheckedInputObjects::new_with_checked_transaction_inputs(InputObjects::from(vec![
+                    account_object_read_result,
+                ]));
+
+            Ok((checked_account_object, field.value))
         } else {
             Err(UserInputError::MoveAuthenticatorNotFound {
                 authenticator_info_id: authenticator_info_field_id,
@@ -5486,7 +5496,7 @@ impl AuthorityState {
         Option<CheckedInputObjects>,
         Option<AuthenticatorInfoV1>,
     )> {
-        let (auth_checked_input_objects, authenticator_info, authenticator_gas_budget) =
+        let (auth_checked_input_objects_union, authenticator_info, authenticator_gas_budget) =
             if let Some(move_authenticator) = move_authenticator {
                 let auth_input_objects =
                     auth_input_objects.expect("MoveAuthenticator input objects must be provided");
@@ -5500,7 +5510,7 @@ impl AuthorityState {
                 ) = move_authenticator.object_to_authenticate_components()?;
 
                 // Make sure the sender is a Move account.
-                let authenticator_info = self.check_move_account(
+                let (checked_account_object, authenticator_info) = self.check_move_account(
                     auth_account_object_id,
                     auth_account_object_seq_number,
                     auth_account_object_digest,
@@ -5509,15 +5519,18 @@ impl AuthorityState {
                 )?;
 
                 // Check the MoveAuthenticator input objects.
-                let auth_checked_input_objects =
-                    iota_transaction_checks::check_move_authenticator_input(auth_input_objects)?;
+                let auth_checked_input_objects_union =
+                    iota_transaction_checks::check_move_authenticator_input_for_signing(
+                        checked_account_object,
+                        auth_input_objects,
+                    )?;
 
                 // `max_auth_gas` is used here as a Move authenticator gas budget until it is
                 // not a part of the transaction data.
                 let authenticator_gas_budget = protocol_config.max_auth_gas();
 
                 (
-                    Some(auth_checked_input_objects),
+                    Some(auth_checked_input_objects_union),
                     Some(authenticator_info),
                     authenticator_gas_budget,
                 )
@@ -5541,7 +5554,7 @@ impl AuthorityState {
         Ok((
             gas_status,
             tx_checked_input_objects,
-            auth_checked_input_objects,
+            auth_checked_input_objects_union,
             authenticator_info,
         ))
     }

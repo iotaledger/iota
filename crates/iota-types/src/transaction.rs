@@ -3016,7 +3016,7 @@ impl InputObjectKind {
 /// The result of reading an object for execution. Because shared objects may be
 /// deleted, one possible result of reading a shared object is that
 /// ObjectReadResultKind::Deleted is returned.
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct ObjectReadResult {
     pub input_object_kind: InputObjectKind,
     pub object: ObjectReadResultKind,
@@ -3413,15 +3413,6 @@ impl InputObjects {
 
     pub fn push(&mut self, object: ObjectReadResult) {
         self.objects.push(object);
-    }
-
-    pub fn extend_no_duplicates(&mut self, other: Self) {
-        let new_objects: Vec<_> = other
-            .objects
-            .into_iter()
-            .filter(|x| !self.objects.contains(x))
-            .collect();
-        self.objects.extend(new_objects);
     }
 
     // If it contains then it returns the ObjectReadResult
