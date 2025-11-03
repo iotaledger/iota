@@ -51,7 +51,7 @@ impl SnapshotPipelineBuilder {
         let watermark = writer
             .get_watermark_hi()
             .await?
-            .map(|w| w.cp)
+            .map(|w| w.checkpoint_hi_inclusive)
             .unwrap_or_default();
         Ok(SnapshotPipelineBuilder {
             writer,

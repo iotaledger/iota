@@ -405,10 +405,10 @@ impl PgIndexerStore {
                 .select((
                     watermarks::epoch_hi_inclusive,
                     watermarks::checkpoint_hi_inclusive,
-                    watermarks::tx_hi_inclusive,
+                    watermarks::tx_hi,
                 ))
                 .filter(
-                    watermarks::entity
+                    watermarks::pipeline
                         .eq(ObjectsSnapshotHandlerTables::ObjectsSnapshot.to_string()),
                 )
                 .first::<(i64, i64, i64)>(conn)
@@ -416,9 +416,9 @@ impl PgIndexerStore {
                 .optional()
                 .map(|v| {
                     v.map(|(epoch, cp, tx)| CommitterWatermark {
-                        epoch: epoch as u64,
-                        cp: cp as u64,
-                        tx: tx as u64,
+                        epoch_hi_inclusive: epoch as u64,
+                        checkpoint_hi_inclusive: cp as u64,
+                        tx_hi: tx as u64,
                     })
                 })
         })
@@ -1590,13 +1590,13 @@ impl PgIndexerStore {
             |conn| {
                 diesel::insert_into(watermarks::table)
                     .values(&upper_bound_updates)
-                    .on_conflict(watermarks::entity)
+                    .on_conflict(watermarks::pipeline)
                     .do_update()
                     .set((
                         watermarks::epoch_hi_inclusive.eq(excluded(watermarks::epoch_hi_inclusive)),
                         watermarks::checkpoint_hi_inclusive
                             .eq(excluded(watermarks::checkpoint_hi_inclusive)),
-                        watermarks::tx_hi_inclusive.eq(excluded(watermarks::tx_hi_inclusive)),
+                        watermarks::tx_hi.eq(excluded(watermarks::tx_hi)),
                     ))
                     .execute(conn)
                     .map_err(IndexerError::from)
@@ -1671,7 +1671,7 @@ impl PgIndexerStore {
             |conn| {
                 diesel::insert_into(watermarks::table)
                     .values(&lower_bound_updates)
-                    .on_conflict(watermarks::entity)
+                    .on_conflict(watermarks::pipeline)
                     .do_update()
                     .set((
                         watermarks::reader_lo.eq(excluded(watermarks::reader_lo)),

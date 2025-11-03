@@ -62,7 +62,7 @@ impl Writer<TransactionObjectChangesToCommit> for ObjectSnapshotWriter {
             .await?;
         self.metrics
             .latest_object_snapshot_sequence_number
-            .set(watermark.cp as i64);
+            .set(watermark.checkpoint_hi_inclusive as i64);
         Ok(())
     }
 
