@@ -160,7 +160,7 @@ pub fn build_train_tx_batch(
     checkpoint_ms: u64,
     reference_gas_price: u64,
     raw_txs: &[RawTxItem],
-    per_object_min_clearing_in_cp: &HashMap<ObjectID, u64>,
+    per_object_required_in_cp: &HashMap<ObjectID, u64>,
 ) -> Option<TrainTxBatch> {
     let mut items = Vec::new();
     for tx in raw_txs {
@@ -174,12 +174,13 @@ pub fn build_train_tx_batch(
                 .unwrap_or(tx.gas_price)
                 .max(MIN_REFERENCE_GAS_PRICE)
         } else {
+            // For non-congested txs, use the per-object required price in this checkpoint
+            // (lowest clearing if present, otherwise highest congestion for that object),
+            // falling back to MIN_REFERENCE_GAS_PRICE if absent.
             let mut req = MIN_REFERENCE_GAS_PRICE;
             for oid in &tx.touched_objects {
-                if let Some(min_clear) = per_object_min_clearing_in_cp.get(oid) {
-                    if *min_clear > MIN_REFERENCE_GAS_PRICE {
-                        req = req.max(*min_clear);
-                    }
+                if let Some(val) = per_object_required_in_cp.get(oid) {
+                    req = req.max(*val);
                 }
             }
             req

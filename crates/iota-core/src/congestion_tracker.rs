@@ -164,6 +164,7 @@ impl CongestionTracker {
         let mut raw_txs: Vec<RawTxItem> =
             Vec::with_capacity(congestion_txs_data.len() + clearing_txs_data.len());
         let mut per_obj_min_clearing: HashMap<ObjectID, u64> = HashMap::new();
+        let mut per_obj_max_congestion: HashMap<ObjectID, u64> = HashMap::new();
 
         for (is_congested, tx) in congestion_txs_data
             .iter()
@@ -202,6 +203,26 @@ impl CongestionTracker {
                         .and_modify(|m| *m = (*m).min(tx.gas_price))
                         .or_insert(tx.gas_price);
                 }
+            } else {
+                // Track per-object max congestion (using feedback if present, otherwise gas price)
+                let cong_req = tx.gas_price_feedback.unwrap_or(tx.gas_price);
+                for oid in &tx.objects {
+                    per_obj_max_congestion
+                        .entry(*oid)
+                        .and_modify(|m| *m = (*m).max(cong_req))
+                        .or_insert(cong_req);
+                }
+            }
+        }
+
+        // Build per-object required price in checkpoint:
+        // - prefer lowest clearing if present; otherwise use highest congestion observed.
+        let mut per_obj_required_in_cp: HashMap<ObjectID, u64> = HashMap::new();
+        for oid in &touched {
+            if let Some(c) = per_obj_min_clearing.get(oid) {
+                per_obj_required_in_cp.insert(*oid, *c);
+            } else if let Some(max_cong) = per_obj_max_congestion.get(oid) {
+                per_obj_required_in_cp.insert(*oid, *max_cong);
             }
         }
 
@@ -239,7 +260,7 @@ impl CongestionTracker {
             checkpoint.timestamp_ms,
             self.reference_gas_price,
             &raw_txs,
-            &per_obj_min_clearing,
+            &per_obj_required_in_cp,
         ) {
             self.model_updater.post_train_tx(train_batch);
         }
