@@ -25,6 +25,7 @@ maintain consistency and ease of maintenance.
   --ifm-color-primary-dark: #2b91ff;
   --ifm-color-primary-darker: #1a88ff;
   --ifm-color-primary-darkest: #006fe8;
+  --ifm-color-primary-head-darkest: #0101ff;
   --ifm-color-primary-light: #6db3ff;
   --ifm-color-primary-lighter: #7ebcff;
   --ifm-color-primary-lightest: #afd6ff;
@@ -101,6 +102,11 @@ maintain consistency and ease of maintenance.
   --iota-warning-dark: #8d6e15;
   --iota-warning-light: #fff8e2;
   --iota-white: #f7f7f8;
+  --iota-home-card-bg: #e4eaf6;
+  --iota-home-card-title: #111827;
+  --iota-hero-container: #1a1e23;
+  --iota-card-link: #374151;
+  --iota-cta-button: #0c5ac8fc;
 }
 
 /* 

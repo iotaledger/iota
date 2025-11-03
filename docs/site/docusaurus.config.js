@@ -335,7 +335,7 @@ const config = {
         content:
           'Discover <a target="_blank" rel="noopener noreferrer" href="/developer/iota-notarization">IOTA Notarization Alpha</a> a toolkit for creating and managing tamper-proof records.',
         isCloseable: true,
-        backgroundColor: "var(--ifm-color-primary-darkest)",
+        backgroundColor: "var(--ifm-color-primary-head-darkest)",
         textColor: "var(--iota-white)",
       },
       navbar: {

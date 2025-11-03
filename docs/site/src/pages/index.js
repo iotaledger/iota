@@ -7,40 +7,55 @@ import React from "react";
 import Layout from "@theme/Layout";
 import Link from "@docusaurus/Link";
 import styles from "./index.module.css";
-import heroCardBg from "@site/static/img/index/heroCardBg.png";
-import heroCardBg1 from "@site/static/img/index/heroCardBg1.png";
-import heroCardBg2 from "@site/static/img/index/heroCardBg2.png";
-export default function Home() {
-  const HomeCard = (props) => {
-    const { title, children, heroCardBg } = props;
 
+const ArrowIcon = () => (
+  <svg
+    width="16"
+    height="16"
+    viewBox="0 0 16 16"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    className={styles.CardLinkArrow}
+  >
+    <path
+      d="M4 12L12 4M12 4H5.6M12 4V10.4"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+  </svg>
+);
+
+export default function Home() {
+const HomeCard = (props) => {
+    const { title, children } = props;
     return (
-      <div className={`p-px col-span-3 w-[350px]`}>
-        <div
-          className={styles.card}
-          style={{
-            backgroundImage: `url(${heroCardBg})`,
-            backgroundPosition:"top",
-            backgroundRepeat: "no-repeat",
-          }}
-        >
-          {title && <h4 className="h4 text-white font-extrabold">{title}</h4>}
-          <div className={styles.cardLinksContainer}>{children}</div>
+    <div className={`p-px w-full`}>
+        <div className={styles.Card}>
+          {title && (
+            <Link to="#" className={styles.CardTitle}> 
+              {title}
+            </Link>
+          )}
+          <div className={styles.CardLinksContainer}>{children}</div>
         </div>
       </div>
     );
   };
-  const HomeCardCTA = (props) => {
-    const { children } = props;
+const HomeCardCTA = () => {
     return (
-      <div className={`p-px col-span-3 w-[350px]`}>
-        <div
-          className={styles.cardCTA}
-          style={{
-            backgroundImage: `url(${heroCardBg})`,
-          }}
-        >
-          <div className={styles.cardLinksContainer}>{children}</div>
+      <div className={`p-px w-full`}>
+        <div className={styles.CardCTA}>
+          <h3 className={styles.CardCTATitle}>
+            Build your dApp on IOTA
+          </h3>
+          <Link
+            className={styles.ctaButton}
+            to="/developer/getting-started"
+          >
+            Start now
+          </Link>
         </div>
       </div>
     );
@@ -54,138 +69,79 @@ export default function Home() {
     >
       {" "}
       <div className="dark:bg-iota-black overflow-hidden">
-        <div className={styles.backgroundImage}>
-          <div className="w-full mt-24 mb-12 mx-auto">
-            <div className={styles.heroText}>
-              <div className={styles.heroTitle}>
-              <h1 className="text-5xl center-text text-black dark:text-white">
-                IOTA Documentation
-              </h1>
-              </div>
-               <div className={styles.heroSubtitle}>
-              <h2
-                className="h2 text-gray-800 center-text h3 dark:text-gray-400"
-                style={{ fontSize: "16px" }}
-              >
-                Discover the power of IOTA through examples, guides, and
-                explanations.
-              </h2>
-              </div>
-            </div>
+       <div className={styles.HeroContainer}>
+          <div className={styles.HeroText}>
+            <h1 className="text-5xl center-text text-black dark:text-white">
+              IOTA Documentation
+            </h1>
+            <h2
+              className="text-xl text-gray-600 center-text dark:text-gray-400"
+            >
+              Discover the power of IOTA through examples, guides, and
+              explanations.
+            </h2>
           </div>
-          <hr className="absolute mt-10 bottom-0 left-0 w-full border-t dark:hidden z-10"
-          style={{ bottom: '-12px'}}
-          />
         </div>
 
       
-        <div className="flex flex-row flex-wrap justify-center gap-2 max-w-[1066px] mx-auto">
-          <HomeCard title="About IOTA" heroCardBg={heroCardBg}>
-            <Link className={styles.cardLink} to="./about-iota/tokenomics">
-              Tokenomics
+        <div className={styles.CardGrid}>
+          <HomeCard title="About IOTA">
+            <Link className={styles.CardLink} to="./about-iota/tokenomics">
+              Tokenomics <ArrowIcon />
             </Link>
-            <Link className={styles.cardLink} to="./developer/cryptography">
-              Cryptography
+            <Link className={styles.CardLink} to="./developer/cryptography">
+              Cryptography <ArrowIcon />
             </Link>
-            <Link className={styles.cardLink} to="./developer/standards">
-              Standards
-            </Link>
-          </HomeCard>
-          <HomeCard title="Developers" heroCardBg={heroCardBg1}>
-            <Link
-              className={styles.cardLink}
-              to="./developer/getting-started"
-            >
-              Getting started
-            </Link>
-            <Link className={styles.cardLink} to="./developer/iota-101">
-              IOTA Developer Basics
-            </Link>
-            <Link
-              className={styles.cardLink}
-              to="./developer/iota-101/move-overview/"
-            >
-              Move
+            <Link className={styles.CardLink} to="./developer/standards">
+              Standards <ArrowIcon />
             </Link>
           </HomeCard>
-          <HomeCard
-            title="Validators and Node operators"
-            heroCardBg={heroCardBg2}
-          >
-            <Link
-              className={styles.cardLink}
-              to="./operator/validator-node/configuration"
-            >
-              Validator configuration
+          <HomeCard title="Developers">
+            <Link className={styles.CardLink} to="./developer/getting-started"> 
+              Getting started <ArrowIcon /> 
             </Link>
-            <Link
-              className={styles.cardLink}
-              to="./operator/full-node/overview"
-            >
-              Run an IOTA Full node
-              <span className="block bg-auto bg-[url(/img/index/right-arrow.svg)]"></span>
+            <Link className={styles.CardLink} to="./developer/iota-101"> 
+              IOTA Developer Basics <ArrowIcon /> 
+            </Link>
+            <Link className={styles.CardLink} to="./developer/iota-101/move-overview/"> 
+              Move <ArrowIcon /> 
             </Link>
           </HomeCard>
-          <HomeCard title="References" aux heroCardBg={heroCardBg1}>
-            <Link
-              className={styles.cardLink}
-              to="/developer/ts-sdk/dapp-kit/"
-            >
-              IOTA dApp Kit
+          <HomeCard title="Validators & Node operators"> 
+            <Link className={styles.CardLink} to="./operator/validator-node/configuration"> 
+              Validator configuration <ArrowIcon /> 
             </Link>
-            <Link className={styles.cardLink} to="/developer/references/iota-api">
-              IOTA API
-            </Link>
-            <Link
-              className={styles.cardLink}
-              to="https://github.com/iotaledger/iota/tree/develop/crates/iota-framework/docs"
-            >
-              IOTA framework (GitHub)
-            </Link>
-            <Link
-              className={styles.cardLink}
-              to="https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk"
-            >
-              Rust SDK (GitHub)
+            <Link className={styles.CardLink} to="./operator/full-node/overview"> 
+              Run an IOTA Full node <ArrowIcon /> 
+             
             </Link>
           </HomeCard>
-          <HomeCard title="Resources" aux heroCardBg={heroCardBg2}>
-            <Link
-              className={styles.cardLink}
-              to="https://iota.directory/?_project_type=api%2Cdeveloper-tools%2Cinfrastructure%2Csdk"
-            >
-              IOTA ecosystem directory
+          <HomeCard title="References">
+            <Link className={styles.CardLink} to="/developer/ts-sdk/dapp-kit/"> 
+              IOTA dApp Kit <ArrowIcon />
             </Link>
-            <Link className={styles.cardLink} to="https://blog.iota.org//">
-              IOTA blog
+            <Link className={styles.CardLink} to="/developer/references/iota-api"> 
+              IOTA API <ArrowIcon /> 
             </Link>
-            <Link
-              className={styles.cardLink}
-              to="developer/dev-cheat-sheet"
-            >
-              IOTA dev cheat sheet
+            <Link className={styles.CardLink} to="https://github.com/iotaledger/iota/tree/develop/crates/iota-framework/docs"> 
+              IOTA framework (GitHub) <ArrowIcon />
+            </Link>
+            <Link className={styles.CardLink} to="https://github.com/iotaledger/iota/tree/develop/crates/iota-sdk"> 
+              Rust SDK (GitHub) <ArrowIcon /> 
             </Link>
           </HomeCard>
-          <HomeCardCTA>
-            <Link
-              className={styles.cardCTALink}
-              to="/developer/getting-started/create-a-package"
-            >
-              <span>Build your dApp on IOTA</span>
-              <svg
-                width="11"
-                height="11"
-                viewBox="0 0 11 11"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M6.01312 0.5L5.05102 1.45391L8.39164 4.80332L0 4.80332L0 6.19668L8.39164 6.19668L5.05102 9.54073L6.01312 10.5L11 5.5L6.01312 0.5Z"
-                  className="fill-black dark:fill-iota-blue"
-                />
-              </svg>
+          <HomeCard title="Resources"> 
+            <Link className={styles.CardLink} to="https://iota.directory/?_project_type=api%2Cdeveloper-tools%2Cinfrastructure%2Csdk"> 
+              IOTA ecosystem directory <ArrowIcon /> 
             </Link>
-          </HomeCardCTA>
+            <Link className={styles.CardLink} to="https://blog.iota.org//"> 
+              IOTA blog <ArrowIcon /> 
+            </Link>
+            <Link className={styles.CardLink} to="developer/dev-cheat-sheet"> 
+              IOTA dev cheat sheet <ArrowIcon /> 
+            </Link>
+          </HomeCard>
+          <HomeCardCTA />
         </div>
 
         <div className={styles.sectionHeader}>
