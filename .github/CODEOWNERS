@@ -60,6 +60,7 @@
 /crates/iota-package-management/ @iotaledger/vm-language
 /crates/iota-package-resolver/ @iotaledger/vm-language
 /crates/iota-proc-macros/ @iotaledger/dev-tools
+/crates/iota-proto-build/ @iotaledger/node
 /crates/iota-protocol-config/ @iotaledger/node @iotaledger/sc-platform
 /crates/iota-protocol-config-macros/ @iotaledger/node @iotaledger/sc-platform
 /crates/iota-proxy/ @iotaledger/node

@@ -127,6 +127,7 @@ members = [
   "crates/iota-package-management",
   "crates/iota-package-resolver",
   "crates/iota-proc-macros",
+  "crates/iota-proto-build",
   "crates/iota-protocol-config",
   "crates/iota-protocol-config-macros",
   "crates/iota-proxy",
@@ -324,6 +325,7 @@ prometheus = "0.14.0"
 proptest = "1.6.0"
 proptest-derive = "0.5.1"
 prost = "0.13"
+prost-types = "0.14"
 protobuf = { version = "3.7.2", features = ["with-bytes"] }
 quinn-proto = "0.11.7"
 quote = "1.0.23"
@@ -441,6 +443,7 @@ iota-package-dump = { path = "crates/iota-package-dump" }
 iota-package-management = { path = "crates/iota-package-management" }
 iota-package-resolver = { path = "crates/iota-package-resolver" }
 iota-proc-macros = { path = "crates/iota-proc-macros" }
+iota-proto-build = { path = "crates/iota-proto-build" }
 iota-protocol-config = { path = "crates/iota-protocol-config" }
 iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
 iota-replay = { path = "crates/iota-replay" }

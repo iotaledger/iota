@@ -16,7 +16,7 @@ message EventStreamRequest {
 }
 
 message Event {
-  EventID event_id = 1;
+  EventId event_id = 1;
   iota.grpc.v0.common.Address package_id = 2;
   string transaction_module = 3;
   iota.grpc.v0.common.Address sender = 4;
@@ -26,7 +26,7 @@ message Event {
   iota.grpc.v0.common.BcsData event_data = 8;  
 }
 
-message EventID {
+message EventId {
   uint64 event_seq = 1;
   iota.grpc.v0.common.TransactionDigest tx_digest = 2;
 }
