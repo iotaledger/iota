@@ -70,7 +70,11 @@ use crate::IotaNode;
 // Inject a full signature from another node, bypassing validity checks.
 //
 //  $ curl 'http://127.0.0.1:1337/randomness-inject-full-sig?round=123&sigs=base64encodedsig'
-
+//
+// Start the transaction spammer with specified parameters.
+//
+//  $ curl -X POST 'http://127.0.0.1:1337/spammer/start?tps=10&mean_size=1000&std_dev_size=100'
+//
 const LOGGING_ROUTE: &str = "/logging";
 const TRACING_ROUTE: &str = "/enable-tracing";
 const TRACING_RESET_ROUTE: &str = "/reset-tracing";
