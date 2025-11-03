@@ -1388,10 +1388,11 @@ impl IndexStore {
         let starting_coin_type =
             coin_type_tag.unwrap_or_else(|| String::from_utf8([0u8].to_vec()).unwrap());
         Ok(coin_index
-            .iter_with_bounds(
+            .safe_iter_with_bounds(
                 Some((owner, starting_coin_type.clone(), ObjectID::ZERO)),
                 None,
             )
+            .map(|result| result.expect("iterator db error"))
             .take_while(move |((addr, coin_type, _), _)| {
                 if addr != &owner {
                     return false;
@@ -1415,10 +1416,11 @@ impl IndexStore {
         Ok(self
             .tables
             .coin_index
-            .iter_with_bounds(
+            .safe_iter_with_bounds(
                 Some((owner, starting_coin_type.clone(), starting_object_id)),
                 None,
             )
+            .map(|result| result.expect("iterator db error"))
             .filter(move |((_, _, obj_id), _)| obj_id != &starting_object_id)
             .enumerate()
             .take_while(move |(index, ((addr, coin_type, _), _))| {
@@ -1449,7 +1451,8 @@ impl IndexStore {
             .tables
             .owner_index
             // The object id 0 is the smallest possible
-            .iter_with_bounds(Some((owner, starting_object_id)), None)
+            .safe_iter_with_bounds(Some((owner, starting_object_id)), None)
+            .map(|result| result.expect("iterator db error"))
             .skip(usize::from(starting_object_id != ObjectID::ZERO))
             .take_while(move |((address_owner, _), _)| address_owner == &owner)
             .filter(move |(_, o)| {
