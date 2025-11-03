@@ -52,8 +52,10 @@ impl Writer<TransactionObjectChangesToCommit> for ObjectSnapshotWriter {
         Ok(())
     }
 
-    async fn get_watermark_hi(&self) -> IndexerResult<Option<CommitterWatermark>> {
-        self.store.get_latest_object_snapshot_watermark().await
+    async fn get_watermark_hi(&self) -> IndexerResult<Option<u64>> {
+        self.store
+            .get_latest_object_snapshot_checkpoint_sequence_number()
+            .await
     }
 
     async fn set_watermark_hi(&self, watermark: CommitterWatermark) -> IndexerResult<()> {

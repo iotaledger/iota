@@ -38,6 +38,10 @@ pub trait IndexerStore: Any + Clone + Sync + Send + 'static {
         &self,
     ) -> Result<Option<CommitterWatermark>, IndexerError>;
 
+    async fn get_latest_object_snapshot_checkpoint_sequence_number(
+        &self,
+    ) -> Result<Option<u64>, IndexerError>;
+
     async fn get_chain_identifier(&self) -> Result<Option<Vec<u8>>, IndexerError>;
 
     fn persist_protocol_configs_and_feature_flags(

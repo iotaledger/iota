@@ -33,7 +33,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
     async fn persist(&self, batch: Vec<T>) -> IndexerResult<()>;
 
     /// Reads high watermark of the table DB.
-    async fn get_watermark_hi(&self) -> IndexerResult<Option<CommitterWatermark>>;
+    async fn get_watermark_hi(&self) -> IndexerResult<Option<u64>>;
 
     /// Sets high watermark of the table DB, also update metrics.
     async fn set_watermark_hi(&self, watermark_hi: CommitterWatermark) -> IndexerResult<()>;
@@ -85,7 +85,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
         let mut next_cp_to_process = self
             .get_watermark_hi()
             .await?
-            .map(|watermark| watermark.checkpoint_hi_inclusive.saturating_add(1))
+            .map(|watermark| watermark.saturating_add(1))
             .unwrap_or_default();
 
         loop {
