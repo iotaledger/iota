@@ -3239,7 +3239,7 @@ mod tests {
             all_block_headers.push(dag_builder.block_headers(round..=round));
         }
 
-        let block_refs_to_request_first_batch: Vec<BlockRef> = (1..=rounds)
+        let mut block_refs_to_request_first_batch: Vec<BlockRef> = (1..=rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
@@ -3261,6 +3261,7 @@ mod tests {
             .await
             .expect("We should expect a correct return of serialized transactions");
 
+        block_refs_to_request_first_batch.truncate(context.parameters.max_transactions_per_fetch);
         // Verify that we received the correct number of requested transactions
         assert_eq!(
             serialized_transactions.len(),
