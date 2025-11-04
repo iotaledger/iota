@@ -1935,7 +1935,7 @@ impl AuthorityPerEpochStore {
         // Defer transaction if it uses randomness but we aren't generating any this
         // round. Don't defer if DKG has permanently failed; in that case we
         // need to ignore.
-        if !dkg_failed && !generating_randomness && cert.transaction_data().uses_randomness() {
+        if !dkg_failed && !generating_randomness && cert.uses_randomness() {
             let deferred_from_round = previously_deferred_tx_digests
                 .get(cert.digest())
                 .map(|previous_key_suggested_gas_price_pair| {
@@ -3803,7 +3803,7 @@ impl AuthorityPerEpochStore {
                         Ok(deferral_result)
                     }
                     SchedulingResult::Schedule(start_time) => {
-                        if dkg_failed && certificate.transaction_data().uses_randomness() {
+                        if dkg_failed && certificate.uses_randomness() {
                             debug!(
                                 "Canceling randomness-using certificate for transaction {:?} because DKG failed",
                                 certificate.digest(),

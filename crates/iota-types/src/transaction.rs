@@ -2597,27 +2597,6 @@ impl SenderSignedData {
             Ok((input_objects, None, None))
         }
     }
-}
-
-impl Message for SenderSignedData {
-    type DigestType = TransactionDigest;
-    const SCOPE: IntentScope = IntentScope::SenderSignedTransaction;
-
-    /// Computes the tx digest that encodes the Rust type prefix from Signable
-    /// trait.
-    fn digest(&self) -> Self::DigestType {
-        self.intent_message().value.digest()
-    }
-}
-
-impl<S> Envelope<SenderSignedData, S> {
-    pub fn sender_address(&self) -> IotaAddress {
-        self.data().intent_message().value.sender()
-    }
-
-    pub fn gas(&self) -> &[ObjectRef] {
-        self.data().intent_message().value.gas()
-    }
 
     pub fn contains_shared_object(&self) -> bool {
         self.shared_input_objects().next().is_some()
@@ -2640,14 +2619,39 @@ impl<S> Envelope<SenderSignedData, S> {
                 Vec::new().into_iter()
             };
 
-        self.data()
-            .inner()
+        self.inner()
             .intent_message
             .value
             .shared_input_objects()
             .into_iter()
             .chain(authenticator_shared_objects)
             .unique()
+    }
+
+    pub fn uses_randomness(&self) -> bool {
+        self.shared_input_objects()
+            .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
+    }
+}
+
+impl Message for SenderSignedData {
+    type DigestType = TransactionDigest;
+    const SCOPE: IntentScope = IntentScope::SenderSignedTransaction;
+
+    /// Computes the tx digest that encodes the Rust type prefix from Signable
+    /// trait.
+    fn digest(&self) -> Self::DigestType {
+        self.intent_message().value.digest()
+    }
+}
+
+impl<S> Envelope<SenderSignedData, S> {
+    pub fn sender_address(&self) -> IotaAddress {
+        self.data().intent_message().value.sender()
+    }
+
+    pub fn gas(&self) -> &[ObjectRef] {
+        self.data().intent_message().value.gas()
     }
 
     // Returns the primary key for this transaction.

@@ -158,7 +158,7 @@ impl TransactionHandler {
                 .input_objects()
                 .expect("Input objects must be valid")
                 .len() as u64,
-            shared_input: txn_data.shared_input_objects().len() as u64,
+            shared_input: transaction.shared_input_objects().count() as u64,
             gas_coins: txn_data.gas().len() as u64,
             created: effects.created().len() as u64,
             mutated: (effects.mutated().len() + effects.unwrapped().len()) as u64,
