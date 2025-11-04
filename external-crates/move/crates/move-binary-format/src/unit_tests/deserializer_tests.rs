@@ -8,8 +8,8 @@ use move_core_types::{metadata::Metadata, vm_status::StatusCode};
 use crate::{
     binary_config::BinaryConfig,
     file_format::{
-        basic_test_module, basic_test_module_with_enum, Bytecode, CodeUnit, CompiledModule,
-        SignatureIndex, VariantJumpTableIndex,
+        Bytecode, CodeUnit, CompiledModule, SignatureIndex, VariantJumpTableIndex,
+        basic_test_module, basic_test_module_with_enum,
     },
     file_format_common::*,
 };
@@ -242,13 +242,13 @@ fn deserialize_trailing_bytes() {
         // ok with flag false
         CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(false),
+            &BinaryConfig::with_extraneous_bytes_check(false, true),
         )
         .unwrap();
         // error with flag true
         let status_code = CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(true),
+            &BinaryConfig::with_extraneous_bytes_check(true, true),
         )
         .unwrap_err()
         .major_status();
@@ -288,13 +288,13 @@ fn no_metadata() {
         // ok with flag false
         CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(false),
+            &BinaryConfig::with_extraneous_bytes_check(false, true),
         )
         .unwrap();
         // error with flag true
         let status_code = CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(true),
+            &BinaryConfig::with_extraneous_bytes_check(true, true),
         )
         .unwrap_err()
         .major_status();
@@ -338,6 +338,72 @@ fn no_metadata() {
 }
 
 #[test]
+fn iota_metadata() {
+    let test_success = |bytes| {
+        CompiledModule::deserialize_with_config(
+            bytes,
+            &BinaryConfig::with_extraneous_bytes_check(true, true),
+        )
+        .unwrap();
+    };
+    let test_fail = |bytes| {
+        // error with flag true
+        let status_code = CompiledModule::deserialize_with_config(
+            bytes,
+            &BinaryConfig::with_extraneous_bytes_check(true, true),
+        )
+        .unwrap_err()
+        .major_status();
+        assert_eq!(status_code, StatusCode::MALFORMED);
+    };
+
+    // empty metadata
+    let mut module = basic_test_module();
+    module.metadata.push(Metadata {
+        key: vec![],
+        value: vec![],
+    });
+    let test2 = {
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    test_fail(&test2);
+
+    // malformed key metadata
+    let mut module = basic_test_module();
+    module.metadata.push(Metadata {
+        key: IOTA_METADATA_KEY.to_ascii_uppercase().to_vec(),
+        value: vec![],
+    });
+    let test2 = {
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    test_fail(&test2);
+
+    // iota metadata
+    let metadata_bytes = {
+        let module = basic_test_module();
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    let mut module = basic_test_module();
+    module.metadata.push(Metadata {
+        key: IOTA_METADATA_KEY.to_vec(),
+        value: metadata_bytes.clone(),
+    });
+    let test2 = {
+        let mut v = vec![];
+        module.serialize(&mut v).unwrap();
+        v
+    };
+    test_success(&test2);
+}
+
+#[test]
 fn deserialize_below_min_version() {
     let mut module = basic_test_module();
     module.version = VERSION_MIN;
@@ -363,7 +429,7 @@ fn enum_version_lie() {
     let test = |bytes, expected_status| {
         let status_code = CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(true),
+            &BinaryConfig::with_extraneous_bytes_check(true, true),
         )
         .unwrap_err()
         .major_status();
@@ -410,8 +476,11 @@ fn deserialize_empty_enum_fails() {
     module.enum_defs[0].variants = vec![];
     let mut bin = vec![];
     module.serialize(&mut bin).unwrap();
-    CompiledModule::deserialize_with_config(&bin, &BinaryConfig::with_extraneous_bytes_check(true))
-        .unwrap_err();
+    CompiledModule::deserialize_with_config(
+        &bin,
+        &BinaryConfig::with_extraneous_bytes_check(true, true),
+    )
+    .unwrap_err();
 }
 
 #[test]

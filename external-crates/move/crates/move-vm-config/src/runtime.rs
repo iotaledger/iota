@@ -54,7 +54,7 @@ impl Default for VMConfig {
             check_no_extraneous_bytes_during_deserialization: false,
             profiler_config: None,
             error_execution_state: true,
-            binary_config: BinaryConfig::with_extraneous_bytes_check(false),
+            binary_config: BinaryConfig::with_extraneous_bytes_check(false, true),
             rethrow_serialization_type_layout_errors: false,
             max_type_to_layout_nodes: Some(512),
             variant_nodes: true,
