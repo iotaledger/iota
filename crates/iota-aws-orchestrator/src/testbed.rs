@@ -92,8 +92,8 @@ impl<C: ServerProviderClient> Testbed<C> {
 
     /// Print the current status of the testbed.
     pub fn status(&self) {
-        let instances = self.instances();
-        let filtered = instances
+        let filtered = self
+            .instances()
             .iter()
             .filter(|instance| self.settings.filter_instances(instance));
         let sorted: Vec<(_, Vec<_>)> = self
