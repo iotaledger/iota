@@ -23,8 +23,8 @@ use iota_types::{
     error::{IotaError, IotaResult},
     is_system_package,
     move_package::{
-        FnInfo, FnInfoKey, FnInfoMap, MovePackage, RuntimeModuleMetadata,
-        RuntimeModuleMetadataWrapper,
+        FnInfo, FnInfoKey, FnInfoMap, IotaAttribute, MovePackage, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper, get_authenticator_version_from_fun,
     },
 };
 use iota_verifier::verifier as iota_bytecode_verifier;
@@ -360,26 +360,24 @@ fn collect_bytecode_deps(
 }
 
 /// Fill metadata
-fn fill_metadata(package: &mut MoveCompiledPackage, _fn_info_map: &FnInfoMap) -> IotaResult<()> {
+fn fill_metadata(package: &mut MoveCompiledPackage, fn_info_map: &FnInfoMap) -> IotaResult<()> {
     for module in package
         .root_compiled_units
         .iter_mut()
         .map(|unit| &mut unit.unit.module)
     {
-        let runtime_metadata = RuntimeModuleMetadata::default();
-        // for fn_def in &module.function_defs {
-        //    let fn_handle = module.function_handle_at(fn_def.function);
-        //    let fn_name = module.identifier_at(fn_handle.name);
-        //    fill metadata with custom logic
-        //    if let Some(version) =
-        //    get_attribute(fn_name, module, fn_info_map)
-        //.   {
-        //       runtime_metadata.add_function_attribute(
-        //           fn_name.to_string(),
-        //           IotaAttribute::attribute(version),
-        //       );
-        //    };
-        // }
+        let mut runtime_metadata = RuntimeModuleMetadata::default();
+        for fn_def in &module.function_defs {
+            let fn_handle = module.function_handle_at(fn_def.function);
+            let fn_name = module.identifier_at(fn_handle.name);
+            if let Some(version) = get_authenticator_version_from_fun(fn_name, module, fn_info_map)
+            {
+                runtime_metadata.add_function_attribute(
+                    fn_name.to_string(),
+                    IotaAttribute::authenticator_attribute(version),
+                );
+            };
+        }
         if !runtime_metadata.is_empty() {
             module.metadata.push(move_core_types::metadata::Metadata {
                 key: IOTA_METADATA_KEY.to_vec(),
