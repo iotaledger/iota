@@ -840,3 +840,34 @@ fn build_upgraded_type_origin_table(
         Ok(new_table)
     }
 }
+
+/// The list of iota attribute types recognized by the compiler.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub enum IotaAttribute {
+    // Attribute(Attribute),
+}
+
+/// V1 of IOTA specific metadata attached to the metadata section of
+/// file_format.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RuntimeModuleMetadataV1 {
+    /// Attributes attached to functions, by definition index.
+    pub fun_attributes: BTreeMap<String, Vec<IotaAttribute>>,
+}
+
+impl RuntimeModuleMetadataV1 {
+    pub fn add_function_attribute(&mut self, function_name: String, attribute: IotaAttribute) {
+        self.fun_attributes
+            .entry(function_name)
+            .or_default()
+            .push(attribute);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.fun_attributes.is_empty()
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        bcs::to_bytes(&self).unwrap()
+    }
+}
