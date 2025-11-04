@@ -1020,7 +1020,7 @@ impl<'a> PTBBuilder<'a> {
 
                 // Save the initial current directory
                 let initial_dir = std::env::current_dir()
-                    .map_err(|e| err!(path_loc, "Failed to get current path: {e}"))?;
+                    .map_err(|e| err!(path_loc, "Failed to get current directory: {e}"))?;
                 let build_config =
                     resolve_lock_file_path(build_config.clone(), Some(&package_path))
                         .map_err(|e| err!(path_loc, "{e}"))?;
@@ -1061,7 +1061,7 @@ impl<'a> PTBBuilder<'a> {
 
                 // Restore the initial directory so subsequent commands are not affected
                 std::env::set_current_dir(initial_dir)
-                    .map_err(|e| err!(path_loc, "Failed to restore initial path: {e}"))?;
+                    .map_err(|e| err!(path_loc, "Failed to restore initial directory: {e}"))?;
 
                 let package_digest = compiled_package.get_package_digest(false);
                 let package_id = compiled_package
