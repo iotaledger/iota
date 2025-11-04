@@ -55,7 +55,6 @@ public fun create(
 ///
 /// Specific authenticate function for the `TimeLocked` account, not
 /// callable by general move code.
-#[authenticator]
 public fun authenticate(
     account: &TimeLocked,
     clock: &Clock,
