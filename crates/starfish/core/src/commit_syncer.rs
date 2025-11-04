@@ -593,7 +593,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
         //    returned commit,
         // and the returned commits are chained by digest, so earlier commits are
         // certified as well.
-        let (commits, _voting_block_headers) = Handle::current()
+        let commits = Handle::current()
             .spawn_blocking({
                 let inner = inner.clone();
                 move || {
@@ -752,7 +752,7 @@ impl<C: NetworkClient> Inner<C> {
         commit_range: CommitRange,
         serialized_commits: Vec<Bytes>,
         serialized_vote_blocks_headers: Vec<Bytes>,
-    ) -> ConsensusResult<(Vec<TrustedCommit>, Vec<VerifiedBlockHeader>)> {
+    ) -> ConsensusResult<Vec<TrustedCommit>> {
         // Parse and verify commits.
         let mut commits = Vec::new();
         for serialized in &serialized_commits {
@@ -795,7 +795,6 @@ impl<C: NetworkClient> Inner<C> {
         // Parse and verify blocks. Then accumulate votes on the end commit.
         let end_commit_ref = CommitRef::new(end_commit.index(), *end_commit_digest);
         let mut stake_aggregator = StakeAggregator::<QuorumThreshold>::new();
-        let mut vote_block_headers = Vec::new();
         for serialized_block_header in serialized_vote_blocks_headers.into_iter() {
             let signed_block_header: SignedBlockHeader = bcs::from_bytes(&serialized_block_header)
                 .map_err(ConsensusError::MalformedHeader)?;
@@ -806,10 +805,6 @@ impl<C: NetworkClient> Inner<C> {
                     stake_aggregator.add(signed_block_header.author(), &self.context.committee);
                 }
             }
-            vote_block_headers.push(VerifiedBlockHeader::new_verified(
-                signed_block_header,
-                serialized_block_header,
-            ));
         }
 
         // Check if the end commit has enough votes.
@@ -826,7 +821,7 @@ impl<C: NetworkClient> Inner<C> {
             .zip(serialized_commits)
             .map(|((_d, c), s)| TrustedCommit::new_trusted(c, s))
             .collect();
-        Ok((trusted_commits, vote_block_headers))
+        Ok(trusted_commits)
     }
 }
 
