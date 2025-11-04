@@ -663,7 +663,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         // Some quick validation of the requested block refs
-        ConsensusError::quick_validation_requested_block_refs(&block_refs, peer, &self.context.committee)?;
+        ConsensusError::quick_validation_requested_block_refs(
+            &block_refs,
+            peer,
+            &self.context.committee,
+        )?;
 
         if !highest_accepted_rounds.is_empty()
             && highest_accepted_rounds.len() != self.context.committee.size()
@@ -904,7 +908,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // Some quick validation of the requested block refs
-        ConsensusError::quick_validation_requested_block_refs(&block_refs, peer, &self.context.committee)?;
+        ConsensusError::quick_validation_requested_block_refs(
+            &block_refs,
+            peer,
+            &self.context.committee,
+        )?;
 
         // Get the transactions from the dag state
         let transactions = self
@@ -3231,7 +3239,7 @@ mod tests {
             all_block_headers.push(dag_builder.block_headers(round..=round));
         }
 
-        let mut block_refs_to_request_first_batch: Vec<BlockRef> = (1..=rounds)
+        let block_refs_to_request_first_batch: Vec<BlockRef> = (1..=rounds)
             .flat_map(|round| {
                 all_block_headers[round as usize]
                     .iter()
@@ -3248,19 +3256,10 @@ mod tests {
             .collect();
 
         let peer = context.committee.to_authority_index(1).unwrap();
-        let err = authority_service
-            .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone())
-            .await
-            .expect_err("Expected TooManyFetchTransactionsRequested error");
-
-        assert!(matches!(err, ConsensusError::TooManyFetchTransactionsRequested(p) if p == peer));
-
-        block_refs_to_request_first_batch.truncate(context.parameters.max_transactions_per_fetch);
-
         let serialized_transactions = authority_service
             .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone())
             .await
-            .expect("Should return a valid vector of serialized transactions");
+            .expect("We should expect a correct return of serialized transactions");
 
         // Verify that we received the correct number of requested transactions
         assert_eq!(

@@ -23,7 +23,6 @@ use crate::{
     commit::CommitVote,
     context::Context,
     encoder::ShardEncoder,
-    ensure,
     error::{ConsensusError, ConsensusResult},
 };
 
@@ -653,7 +652,10 @@ impl SignedBlockHeader {
     /// the full block header should be done via BlockHeaderVerifier.
     pub(crate) fn verify_signature(&self, context: &Context) -> ConsensusResult<()> {
         let block_header = &self.inner;
-        ConsensusError::quick_validation_authority_indices(&[block_header.author()], &context.committee)?;
+        ConsensusError::quick_validation_authority_indices(
+            &[block_header.author()],
+            &context.committee,
+        )?;
         let authority = context.committee.authority(block_header.author());
         verify_block_header_signature(block_header, self.signature(), &authority.protocol_key)
     }
