@@ -36,6 +36,7 @@ use crate::{
     dag_state::DagState,
     encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::HeaderSynchronizerHandle,
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
         SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactions,
@@ -43,7 +44,6 @@ use crate::{
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
-    synchronizer::SynchronizerHandle,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -98,7 +98,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     context: Arc<Context>,
     commit_vote_monitor: Arc<CommitVoteMonitor>,
     block_verifier: Arc<dyn BlockVerifier>,
-    synchronizer: Arc<SynchronizerHandle>,
+    synchronizer: Arc<HeaderSynchronizerHandle>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     core_dispatcher: Arc<C>,
     rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
@@ -124,7 +124,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         context: Arc<Context>,
         block_verifier: Arc<dyn BlockVerifier>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
-        synchronizer: Arc<SynchronizerHandle>,
+        header_synchronizer: Arc<HeaderSynchronizerHandle>,
         transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         core_dispatcher: Arc<C>,
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
@@ -142,7 +142,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             context,
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            synchronizer: header_synchronizer,
             transactions_synchronizer,
             core_dispatcher,
             rx_block_broadcaster,
@@ -1218,6 +1218,7 @@ mod tests {
         dag_state::{DagState, TransactionSource},
         encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
+        header_synchronizer::HeaderSynchronizer,
         leader_schedule::LeaderSchedule,
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
@@ -1225,7 +1226,6 @@ mod tests {
             SerializedTransactions,
         },
         storage::{Store, mem_store::MemStore},
-        synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
         transactions_synchronizer::TransactionsSynchronizer,
@@ -1307,7 +1307,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1322,7 +1322,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -1385,7 +1385,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1400,7 +1400,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -1474,7 +1474,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1489,7 +1489,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -1554,7 +1554,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1569,7 +1569,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -1692,7 +1692,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1707,7 +1707,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -1819,7 +1819,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -1835,7 +1835,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -2086,7 +2086,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2100,7 +2100,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -2242,7 +2242,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2256,7 +2256,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -2414,7 +2414,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2430,7 +2430,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -2730,7 +2730,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2746,7 +2746,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -2872,7 +2872,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2888,7 +2888,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -3035,7 +3035,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -3051,7 +3051,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -3220,7 +3220,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -3236,7 +3236,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,

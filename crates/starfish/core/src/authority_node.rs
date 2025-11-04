@@ -24,6 +24,7 @@ use crate::{
     core::{Core, CoreSignals},
     core_thread::{ChannelCoreThreadDispatcher, CoreThreadHandle},
     dag_state::DagState,
+    header_synchronizer::{HeaderSynchronizer, HeaderSynchronizerHandle},
     leader_schedule::LeaderSchedule,
     leader_timeout::{LeaderTimeoutTask, LeaderTimeoutTaskHandle},
     metrics::initialise_metrics,
@@ -31,7 +32,6 @@ use crate::{
     shard_reconstructor::{ShardReconstructor, ShardReconstructorHandle},
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
-    synchronizer::{Synchronizer, SynchronizerHandle},
     transaction::{TransactionClient, TransactionConsumer, TransactionVerifier},
     transactions_synchronizer::{TransactionsSynchronizer, TransactionsSynchronizerHandle},
 };
@@ -40,7 +40,7 @@ pub struct ConsensusAuthority {
     context: Arc<Context>,
     start_time: Instant,
     transaction_client: Arc<TransactionClient>,
-    synchronizer: Arc<SynchronizerHandle>,
+    header_synchronizer: Arc<HeaderSynchronizerHandle>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
     shard_reconstructor: Arc<ShardReconstructorHandle>,
@@ -197,7 +197,7 @@ impl ConsensusAuthority {
 
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -224,7 +224,7 @@ impl ConsensusAuthority {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer.clone(),
+            header_synchronizer.clone(),
             transactions_synchronizer.clone(),
             core_dispatcher,
             signals_receivers.block_broadcast_receiver(),
@@ -257,7 +257,7 @@ impl ConsensusAuthority {
             context,
             start_time,
             transaction_client: Arc::new(tx_client),
-            synchronizer,
+            header_synchronizer,
             shard_reconstructor,
             cordial_knowledge,
             transactions_synchronizer,
@@ -279,7 +279,7 @@ impl ConsensusAuthority {
         );
 
         // First shutdown components calling into Core.
-        if let Err(e) = self.synchronizer.stop().await {
+        if let Err(e) = self.header_synchronizer.stop().await {
             if e.is_panic() {
                 std::panic::resume_unwind(e.into_panic());
             }
