@@ -1,4 +1,5 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod _field_impls {
@@ -7,13 +8,13 @@ mod _field_impls {
     use crate::field::MessageFields;
     use crate::field::MessageField;
     #[allow(unused_imports)]
-    use crate::v0::common::BcsData;
-    #[allow(unused_imports)]
-    use crate::v0::common::BcsDataFieldPathBuilder;
-    #[allow(unused_imports)]
     use crate::v0::common::Address;
     #[allow(unused_imports)]
     use crate::v0::common::AddressFieldPathBuilder;
+    #[allow(unused_imports)]
+    use crate::v0::common::BcsData;
+    #[allow(unused_imports)]
+    use crate::v0::common::BcsDataFieldPathBuilder;
     #[allow(unused_imports)]
     use crate::v0::common::TransactionDigest;
     #[allow(unused_imports)]

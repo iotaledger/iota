@@ -77,7 +77,7 @@ fn main() {
             let content = std::fs::read_to_string(&path).unwrap();
             if !content.starts_with("// Copyright") {
                 let new_content = format!(
-                    "// Copyright (c) 2025 IOTA Stiftung\n// SPDX-License-Identifier: Apache-2.0\n\n{content}"
+                    "// Copyright (c) Mysten Labs, Inc.\n// Modifications Copyright (c) 2025 IOTA Stiftung\n// SPDX-License-Identifier: Apache-2.0\n\n{content}"
                 );
                 std::fs::write(&path, new_content).unwrap();
             }

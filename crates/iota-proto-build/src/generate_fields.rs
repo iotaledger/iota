@@ -66,6 +66,10 @@ pub(crate) fn generate_field_info(packages: &HashMap<String, FileDescriptorSet>,
             }
         }
 
+        // Sort external types by name
+        let mut external_types: Vec<String> = external_types.into_iter().collect();
+        external_types.sort();
+
         // Generate imports for external types
         let mut imports = TokenStream::new();
         for ext_type in &external_types {
@@ -100,7 +104,8 @@ pub(crate) fn generate_field_info(packages: &HashMap<String, FileDescriptorSet>,
         let code = prettyplease::unparse(&ast);
 
         // Add IOTA license header
-        buf.push_str("// Copyright (c) 2025 IOTA Stiftung\n");
+        buf.push_str("// Copyright (c) Mysten Labs, Inc.\n");
+        buf.push_str("// Modifications Copyright (c) 2025 IOTA Stiftung\n");
         buf.push_str("// SPDX-License-Identifier: Apache-2.0\n");
         buf.push('\n');
         buf.push_str(&code);
