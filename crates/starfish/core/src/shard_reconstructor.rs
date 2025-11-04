@@ -505,7 +505,9 @@ impl<C: CoreThreadDispatcher> ShardReconstructor<C> {
                 let mut to_stay_transactions = BTreeMap::new();
                 let block_headers_opt = {
                     let block_refs: Vec<BlockRef> = transactions_map.keys().copied().collect();
-                    self.dag_state.read().get_block_headers(&block_refs)
+                    self.dag_state
+                        .read()
+                        .get_verified_block_headers(&block_refs)
                 };
                 for (block_header_opt, (block_ref, transactions)) in block_headers_opt
                     .into_iter()

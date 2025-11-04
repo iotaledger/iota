@@ -32,7 +32,7 @@ use starfish_config::AuthorityIndex;
 
 use crate::{
     Round, VerifiedBlockHeader,
-    block_header::{BlockRef, VerifiedBlock, VerifiedTransactions},
+    block_header::{BlockRef, VerifiedBlock},
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
@@ -385,15 +385,6 @@ impl TryFrom<BlockBundle> for SerializedBlockBundle {
 pub(crate) struct SerializedTransactions {
     pub(crate) block_ref: BlockRef,
     pub(crate) serialized_transactions: Bytes,
-}
-
-impl SerializedTransactions {
-    pub fn from(verified_transactions: VerifiedTransactions) -> Self {
-        Self {
-            block_ref: verified_transactions.block_ref(),
-            serialized_transactions: verified_transactions.serialized().clone(),
-        }
-    }
 }
 
 #[cfg(test)]

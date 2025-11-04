@@ -621,7 +621,7 @@ pub fn load_pending_subdag_from_store(
 ) -> PendingSubDag {
     let mut leader_block_idx = None;
     let commit_block_headers = store
-        .read_block_headers(commit.blocks())
+        .read_verified_block_headers(commit.blocks())
         .expect("We should have the block referenced in the commit data");
     let block_headers = commit_block_headers
         .into_iter()

@@ -71,7 +71,7 @@ async fn read_and_contain_block_headers(
     // Test basic header read
     let refs = vec![written_blocks[0].reference()];
     let read_headers = store
-        .read_block_headers(&refs)
+        .read_verified_block_headers(&refs)
         .expect("Read headers should not fail");
     assert_eq!(read_headers.len(), 1);
     assert_eq!(
@@ -86,7 +86,7 @@ async fn read_and_contain_block_headers(
         written_blocks[1].reference(),
     ];
     let read_headers = store
-        .read_block_headers(&refs)
+        .read_verified_block_headers(&refs)
         .expect("Read headers should not fail");
     assert_eq!(read_headers.len(), 3);
     assert_eq!(
@@ -113,7 +113,7 @@ async fn read_and_contain_block_headers(
         written_blocks[2].reference(),
     ];
     let read_headers = store
-        .read_block_headers(&refs)
+        .read_verified_block_headers(&refs)
         .expect("Read headers should not fail");
     assert_eq!(read_headers.len(), 3);
     assert_eq!(

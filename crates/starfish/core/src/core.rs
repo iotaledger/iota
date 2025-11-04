@@ -2359,7 +2359,7 @@ mod test {
             core_catch_up
                 .dag_state
                 .read()
-                .get_block_headers(&[first_missing_transaction_from_skipped])[0]
+                .get_verified_block_headers(&[first_missing_transaction_from_skipped])[0]
                 .is_none()
         );
         let last_solid_commit_round = core_catch_up

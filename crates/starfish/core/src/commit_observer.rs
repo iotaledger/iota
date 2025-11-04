@@ -479,7 +479,7 @@ mod tests {
                 .collect::<Vec<_>>();
             let blocks = dag_state
                 .read()
-                .get_block_headers(&block_refs)
+                .get_verified_block_headers(&block_refs)
                 .into_iter()
                 .map(|block_opt| block_opt.expect("We should have all blocks in dag state."));
             let calculated_ts =

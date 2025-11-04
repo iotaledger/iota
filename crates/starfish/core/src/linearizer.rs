@@ -34,7 +34,7 @@ impl BlockStoreAPI
     for parking_lot::lock_api::RwLockReadGuard<'_, parking_lot::RawRwLock, DagState>
 {
     fn get_block_headers(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
-        DagState::get_block_headers(self, refs)
+        DagState::get_verified_block_headers(self, refs)
     }
 }
 

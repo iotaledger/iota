@@ -38,7 +38,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
-        SerializedBlockBundleParts, SerializedHeaderAndTransactions,
+        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactions,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
@@ -708,12 +708,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             block_refs.truncate(max_fetch_size);
         }
 
-        // Get requested blocks from store.
-        let blocks = if commit_sync_handle {
+        // Get requested block headers from store.
+        let serialized_headers = if commit_sync_handle {
             // For commit sync, we respond with all blocks from the store
             self.dag_state
                 .read()
-                .get_block_headers(&block_refs)
+                .get_serialized_block_headers(&block_refs)
                 .into_iter()
                 .flatten()
                 .collect()
@@ -723,8 +723,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             block_refs.sort();
             block_refs.dedup();
             let dag_state = self.dag_state.read();
-            let mut blocks = dag_state
-                .get_block_headers(&block_refs)
+            let mut headers = dag_state
+                .get_serialized_block_headers(&block_refs)
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>();
@@ -733,7 +733,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             // available in cache. Compute the lowest missing round per
             // requested authority.
             let mut lowest_missing_rounds = BTreeMap::<AuthorityIndex, Round>::new();
-            for block_ref in blocks.iter().map(|b| b.reference()) {
+            for block_ref in block_refs.iter() {
                 let entry = lowest_missing_rounds
                     .entry(block_ref.author)
                     .or_insert(block_ref.round);
@@ -754,30 +754,29 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     continue;
                 }
 
-                let missing_blocks = dag_state.get_cached_block_headers_in_range(
+                let missing_headers = dag_state.get_cached_block_headers_in_range(
                     authority,
                     highest_accepted_round + 1,
                     lowest_missing_round,
                     self.context
                         .parameters
                         .max_headers_per_regular_sync_fetch
-                        .saturating_sub(blocks.len()),
+                        .saturating_sub(headers.len()),
                 );
-                blocks.extend(missing_blocks);
-                if blocks.len() >= self.context.parameters.max_headers_per_regular_sync_fetch {
-                    blocks.truncate(self.context.parameters.max_headers_per_regular_sync_fetch);
+                let serialized_missing_headers: Vec<_> = missing_headers
+                    .into_iter()
+                    .map(|header| header.serialized().clone())
+                    .collect();
+                headers.extend(serialized_missing_headers);
+                if headers.len() >= self.context.parameters.max_headers_per_regular_sync_fetch {
+                    headers.truncate(self.context.parameters.max_headers_per_regular_sync_fetch);
                     break;
                 }
             }
 
-            blocks
+            headers
         };
-        // Return the serialized blocks
-        let bytes = blocks
-            .into_iter()
-            .map(|block| block.serialized().clone())
-            .collect::<Vec<_>>();
-        Ok(bytes)
+        Ok(serialized_headers)
     }
 
     async fn handle_fetch_commits(
@@ -824,7 +823,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
         let certifier_block_headers = self
             .store
-            .read_block_headers(&certifier_block_refs)?
+            .read_verified_block_headers(&certifier_block_refs)?
             .into_iter()
             .flatten()
             .collect();
@@ -941,17 +940,22 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .get_serialized_transactions(&block_refs);
 
         // Return the serialized transactions
-        let result = transactions
+        let result: Vec<_> = transactions
             .into_iter()
-            .flatten()
-            .map(|serialized_transaction| {
-                Bytes::from(
-                    bcs::to_bytes(&serialized_transaction)
+            .zip(block_refs)
+            .filter_map(|(opt_serialized_tx, block_ref)| {
+                opt_serialized_tx.map(|serialized_tx| {
+                    Bytes::from(
+                        bcs::to_bytes(&SerializedTransactions {
+                            block_ref,
+                            serialized_transactions: serialized_tx,
+                        })
                         .map_err(ConsensusError::SerializationFailure)
                         .expect("serialization should succeed"),
-                )
+                    )
+                })
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         Ok(result)
     }
