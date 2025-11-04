@@ -8,9 +8,8 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use crate::compiled::{self, ModuleId, QualifiedMemberId, TModuleId};
 use indexmap::IndexMap;
-use move_binary_format::{file_format, CompiledModule};
+use move_binary_format::{CompiledModule, file_format};
 use move_bytecode_source_map::source_map::SourceMap;
 use move_compiler::{
     self,
@@ -18,15 +17,16 @@ use move_compiler::{
     expansion::ast::{self as E, ModuleIdent_},
     naming::ast as N,
     shared::{
+        NumericalAddress,
         files::MappedFiles,
         program_info::{ConstantInfo, FunctionInfo, ModuleInfo, TypingProgramInfo},
-        NumericalAddress,
     },
 };
 use move_core_types::account_address::AccountAddress;
-use move_ir_types::ast as IR;
-use move_ir_types::location::Spanned;
+use move_ir_types::{ast as IR, location::Spanned};
 use move_symbol_pool::Symbol;
+
+use crate::compiled::{self, ModuleId, QualifiedMemberId, TModuleId};
 
 //**************************************************************************************************
 // Types
@@ -259,8 +259,9 @@ impl<const HAS_SOURCE: SourceKind> Model<HAS_SOURCE> {
         self.maybe_package(addr).unwrap()
     }
 
-    /// The name of the package corresponds to the name for the address in the root package's
-    /// named address map. This is not the name of the package in the Move.toml file.
+    /// The name of the package corresponds to the name for the address in the
+    /// root package's named address map. This is not the name of the
+    /// package in the Move.toml file.
     pub fn package_by_name<'a>(&'a self, name: &Symbol) -> Option<Package<'a, HAS_SOURCE>> {
         let addr = self.root_named_address_map.get(name)?;
         self.maybe_package(addr)
@@ -361,8 +362,9 @@ impl<'a, const HAS_SOURCE: SourceKind> Package<'a, HAS_SOURCE> {
         self.addr
     }
 
-    /// The name of the package corresponds to the name for the address in the root package's
-    /// named address map. This is not the name of the package in the Move.toml file.
+    /// The name of the package corresponds to the name for the address in the
+    /// root package's named address map. This is not the name of the
+    /// package in the Move.toml file.
     pub fn name(&self) -> Option<Symbol> {
         self.data.name
     }
@@ -744,12 +746,14 @@ impl<'a, const HAS_SOURCE: SourceKind> Function<'a, HAS_SOURCE> {
         self.module
     }
 
-    /// Returns the compiled function if it exists. This will be `None` for `macro`s.
+    /// Returns the compiled function if it exists. This will be `None` for
+    /// `macro`s.
     pub fn maybe_compiled(&self) -> Option<&'a compiled::Function> {
         self.compiled
     }
 
-    /// Returns an the functions called by this function. This will be empty for `macro`s.
+    /// Returns an the functions called by this function. This will be empty for
+    /// `macro`s.
     pub fn calls(&self) -> &'a BTreeSet<QualifiedMemberId> {
         match self.compiled {
             Some(f) => &f.calls,
@@ -757,7 +761,8 @@ impl<'a, const HAS_SOURCE: SourceKind> Function<'a, HAS_SOURCE> {
         }
     }
 
-    /// Returns the functions that call this function. This will be empty for `macro`s.
+    /// Returns the functions that call this function. This will be empty for
+    /// `macro`s.
     pub fn called_by(&self) -> &'a BTreeSet<QualifiedMemberId> {
         match self.compiled {
             Some(f) => &f.called_by,
@@ -850,8 +855,8 @@ impl<T: TModuleId> TModuleId for Spanned<T> {
 // Internals
 //**************************************************************************************************
 
-// The *Data structs are not used currently, but if we need extra source information these provide
-// a place to store it.
+// The *Data structs are not used currently, but if we need extra source
+// information these provide a place to store it.
 struct PackageData<const HAS_SOURCE: SourceKind> {
     // Based on the root packages named address map
     name: Option<Symbol>,

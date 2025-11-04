@@ -2,14 +2,10 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::file_format::{
-    self, AbilitySet, Bytecode as FBytecode, CodeOffset, CompiledModule, DatatypeHandleIndex,
-    DatatypeTyParameter, EnumDefinition, EnumDefinitionIndex, FieldDefinition, FieldHandleIndex,
-    FieldInstantiationIndex, FunctionDefinition, FunctionHandleIndex, FunctionInstantiationIndex,
-    JumpTableInner, LocalIndex, SignatureIndex, SignatureToken, StructDefInstantiationIndex,
-    StructDefinition, StructDefinitionIndex, StructFieldInformation, TypeParameterIndex,
-    VariantDefinition, VariantHandleIndex, VariantInstantiationHandleIndex, VariantTag, Visibility,
+use std::{
+    borrow::Borrow, collections::HashSet, fmt::Debug, hash::Hash, ops::Deref, rc::Rc, sync::Arc,
 };
+
 use indexmap::IndexMap;
 use move_core_types::{
     account_address::AccountAddress,
@@ -17,8 +13,14 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize};
-use std::{
-    borrow::Borrow, collections::HashSet, fmt::Debug, hash::Hash, ops::Deref, rc::Rc, sync::Arc,
+
+use crate::file_format::{
+    self, AbilitySet, Bytecode as FBytecode, CodeOffset, CompiledModule, DatatypeHandleIndex,
+    DatatypeTyParameter, EnumDefinition, EnumDefinitionIndex, FieldDefinition, FieldHandleIndex,
+    FieldInstantiationIndex, FunctionDefinition, FunctionHandleIndex, FunctionInstantiationIndex,
+    JumpTableInner, LocalIndex, SignatureIndex, SignatureToken, StructDefInstantiationIndex,
+    StructDefinition, StructDefinitionIndex, StructFieldInformation, TypeParameterIndex,
+    VariantDefinition, VariantHandleIndex, VariantInstantiationHandleIndex, VariantTag, Visibility,
 };
 
 pub trait StringPool {
@@ -35,11 +37,12 @@ pub struct ModuleId<S> {
     pub name: S,
 }
 
-// Defines normalized representations of Move types, fields, kinds, structs, functions, and
-// modules. These representations are useful in situations that require require comparing
-// functions, resources, and types across modules. This arises in linking, compatibility checks
-// (e.g., "is it safe to deploy this new module without updating its dependents and/or restarting
-// genesis?"), defining schemas for resources stored on-chain, and (possibly in the future)
+// Defines normalized representations of Move types, fields, kinds, structs,
+// functions, and modules. These representations are useful in situations that
+// require require comparing functions, resources, and types across modules.
+// This arises in linking, compatibility checks (e.g., "is it safe to deploy
+// this new module without updating its dependents and/or restarting genesis?"),
+// defining schemas for resources stored on-chain, and (possibly in the future)
 // allowing module updates transactions.
 
 /// A normalized version of `SignatureToken`, a type expression appearing in
@@ -93,8 +96,8 @@ struct Tables<S> {
     enum_defs: Vec<Rc<Enum<S>>>,
 }
 
-/// Normalized version of a `CompiledModule`: its address, name, struct declarations, and public
-/// function declarations.
+/// Normalized version of a `CompiledModule`: its address, name, struct
+/// declarations, and public function declarations.
 #[cfg_attr(test, derive(Clone))]
 #[derive(Debug)]
 pub struct Module<S: Hash + Eq> {
@@ -130,10 +133,11 @@ pub struct Struct<S> {
     pub fields: Vec<Rc<Field<S>>>,
 }
 
-/// Normalized version of a `FieldDefinition`. The `name` is included even though it is
-/// metadata that it is ignored by the VM. The reason: names are important to clients. We would
-/// want a change from `Account { bal: u64, seq: u64 }` to `Account { seq: u64, bal: u64 }` to be
-/// marked as incompatible. Not safe to compare without an enclosing `Struct`.
+/// Normalized version of a `FieldDefinition`. The `name` is included even
+/// though it is metadata that it is ignored by the VM. The reason: names are
+/// important to clients. We would want a change from `Account { bal: u64, seq:
+/// u64 }` to `Account { seq: u64, bal: u64 }` to be marked as incompatible. Not
+/// safe to compare without an enclosing `Struct`.
 #[cfg_attr(test, derive(Clone))]
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Field<S> {
@@ -310,7 +314,7 @@ pub enum Bytecode<S> {
     MoveToDeprecated(Box<StructRef<S>>),
 }
 
-   impl<S> ModuleId<S> {
+impl<S> ModuleId<S> {
     pub fn new<Pool: StringPool<String = S>>(
         pool: &mut Pool,
         id: &move_core_types::language_storage::ModuleId,
@@ -333,7 +337,7 @@ pub enum Bytecode<S> {
 
 impl<S> Type<S> {
     /// Create a normalized `Type` for `SignatureToken` `s` in module `m`.
-  pub fn new<Pool: StringPool<String = S>>(
+    pub fn new<Pool: StringPool<String = S>>(
         pool: &mut Pool,
         m: &CompiledModule,
         s: &SignatureToken,
@@ -376,7 +380,7 @@ impl<S> Type<S> {
             .map(|t| Rc::new(Type::new(pool, m, t)))
             .collect();
         Rc::new(tys)
-     }
+    }
 
     pub fn to_type_tag<Pool: StringPool<String = S>>(&self, pool: &Pool) -> Option<TypeTag> {
         use Type as T;
@@ -400,17 +404,17 @@ impl<S> Type<S> {
             )),
             T::Datatype(dt) => TypeTag::Struct(Box::new(dt.to_struct_tag(pool))),
             T::TypeParameter(_) => unreachable!(),
-         })
+        })
     }
 
-pub fn to_struct_tag<Pool: StringPool<String = S>>(&self, pool: &Pool) -> Option<StructTag> {
+    pub fn to_struct_tag<Pool: StringPool<String = S>>(&self, pool: &Pool) -> Option<StructTag> {
         match self.to_type_tag(pool)? {
             TypeTag::Struct(s) => Some(*s),
             _ => None,
         }
     }
 
-pub fn from_type_tag<Pool: StringPool<String = S>>(pool: &mut Pool, ty: &TypeTag) -> Self {
+    pub fn from_type_tag<Pool: StringPool<String = S>>(pool: &mut Pool, ty: &TypeTag) -> Self {
         use Type as T;
         match ty {
             TypeTag::Bool => T::Bool,
@@ -451,7 +455,7 @@ pub fn from_type_tag<Pool: StringPool<String = S>>(pool: &mut Pool, ty: &TypeTag
 
     pub fn subst(&self, type_args: &[Type<S>]) -> Self
     where
-       S: Clone,
+        S: Clone,
     {
         use Type as T;
         match self {
@@ -561,8 +565,7 @@ impl<S> Datatype<S> {
             name: name.clone(),
             type_arguments,
         }
-
-}
+    }
 }
 
 impl<S> Tables<S> {
@@ -609,10 +612,10 @@ impl<S> Tables<S> {
 }
 
 impl<S: Hash + Eq> Module<S> {
-    /// Extract a normalized module from a `CompiledModule`. The module `m` should be verified,
-    /// particularly with regards to correct offsets and bounds.
-    /// If `include_code` is `false`, the bodies of the functions are not included but the
-    /// signatures will still be present.
+    /// Extract a normalized module from a `CompiledModule`. The module `m`
+    /// should be verified, particularly with regards to correct offsets and
+    /// bounds. If `include_code` is `false`, the bodies of the functions
+    /// are not included but the signatures will still be present.
     pub fn new<Pool: StringPool<String = S>>(
         pool: &mut Pool,
         m: &CompiledModule,
@@ -677,7 +680,8 @@ impl<S: Hash + Eq> Module<S> {
     }
 
     /// Panics if called with `include_code` set to `false`.
-    /// Note this checks the order of functions, structs, and enums in the module.
+    /// Note this checks the order of functions, structs, and enums in the
+    /// module.
     pub fn equals(&self, other: &Self) -> bool {
         fn function_equals<S: Hash + Eq>(
             functions: &IndexMap<S, Rc<Function<S>>>,
@@ -731,8 +735,8 @@ impl<S> Constant<S> {
 
 impl<S> Struct<S> {
     /// Create a `Struct` for `StructDefinition` `def` in module `m`. Panics if
-    /// `def` is a a native struct definition.
-   fn new<Pool: StringPool<String = S>>(
+    /// `def` is a native struct definition.
+    fn new<Pool: StringPool<String = S>>(
         pool: &mut Pool,
         m: &CompiledModule,
         def: &StructDefinition,
@@ -748,13 +752,13 @@ impl<S> Struct<S> {
                 .map(|f| Rc::new(Field::new(pool, m, f)))
                 .collect(),
         };
-       let name = pool.intern(m.identifier_at(handle.name));
-       Struct {
-           name,
-           abilities: handle.abilities,
-           type_parameters: handle.type_parameters.clone(),
-           fields,
-       }
+        let name = pool.intern(m.identifier_at(handle.name));
+        Struct {
+            name,
+            abilities: handle.abilities,
+            type_parameters: handle.type_parameters.clone(),
+            fields,
+        }
     }
 
     pub fn type_param_constraints(&self) -> impl ExactSizeIterator<Item = &AbilitySet> {
@@ -827,7 +831,8 @@ impl<S> Function<S> {
         &self.code
     }
 
-    /// Should not be called if `code_included` is `false`--will panic in debug builds.
+    /// Should not be called if `code_included` is `false`--will panic in debug
+    /// builds.
     pub fn equals(&self, other: &Self) -> bool
     where
         S: Eq,

@@ -540,7 +540,7 @@ async fn transaction_manager_receiving_object_ready_notifications() {
 
     // Notify TM that the receiving object 0 is available.
     transaction_manager.objects_available(
-        get_input_keys(&[receiving_object_new0.clone()]),
+        get_input_keys(std::slice::from_ref(&receiving_object_new0)),
         &state.epoch_store_for_testing(),
     );
 
@@ -550,7 +550,7 @@ async fn transaction_manager_receiving_object_ready_notifications() {
 
     // Notify TM that the receiving object 0 is available.
     transaction_manager.objects_available(
-        get_input_keys(&[receiving_object_new1.clone()]),
+        get_input_keys(std::slice::from_ref(&receiving_object_new1)),
         &state.epoch_store_for_testing(),
     );
 
@@ -642,7 +642,7 @@ async fn transaction_manager_receiving_object_ready_notifications_multiple_of_sa
 
     // Notify TM that the receiving object 0 is available.
     transaction_manager.objects_available(
-        get_input_keys(&[receiving_object_new0.clone()]),
+        get_input_keys(std::slice::from_ref(&receiving_object_new0)),
         &state.epoch_store_for_testing(),
     );
 
@@ -664,7 +664,7 @@ async fn transaction_manager_receiving_object_ready_notifications_multiple_of_sa
 
     // Notify TM that the receiving object 0 is available.
     transaction_manager.objects_available(
-        get_input_keys(&[receiving_object_new1.clone()]),
+        get_input_keys(std::slice::from_ref(&receiving_object_new1)),
         &state.epoch_store_for_testing(),
     );
 

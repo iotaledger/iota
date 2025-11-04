@@ -3,21 +3,21 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{bail, Result};
+use std::collections::BTreeMap;
+
+use anyhow::{Result, bail};
 use codespan_reporting::{
     diagnostic::{Diagnostic, Label},
     files::SimpleFiles,
     term::{
-        emit,
+        Config, emit,
         termcolor::{ColorChoice, StandardStream},
-        Config,
     },
 };
 use move_command_line_common::character_sets::is_permitted_chars;
 use move_core_types::account_address::AccountAddress;
 use move_ir_to_bytecode_syntax::syntax::{self, ParseError};
 use move_ir_types::{ast, location::*};
-use std::collections::BTreeMap;
 
 // We restrict strings to only ascii visual characters (0x20 <= c <= 0x7E) or a
 // permitted newline character--\r--,--\n--or a tab--\t. Checking each character

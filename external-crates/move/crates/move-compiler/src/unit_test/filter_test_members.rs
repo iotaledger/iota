@@ -5,7 +5,7 @@
 
 use std::sync::Arc;
 
-use move_ir_types::location::{sp, Loc};
+use move_ir_types::location::{Loc, sp};
 use move_symbol_pool::Symbol;
 
 use crate::{
@@ -14,9 +14,9 @@ use crate::{
     diagnostics::DiagnosticReporter,
     parser::{
         ast::{self as P, DocComment, NamePath, PathEntry},
-        filter::{filter_program, FilterContext},
+        filter::{FilterContext, filter_program},
     },
-    shared::{known_attributes, CompilationEnv},
+    shared::{CompilationEnv, known_attributes},
 };
 
 struct Context<'env> {
@@ -166,11 +166,11 @@ fn check_has_unit_test_module(
     true
 }
 
-/// If a module is being compiled in test mode, create a dummy function that calls a native
-/// function `0x1::unit_test::poison` that only exists if the VM is being run
-/// with the "unit_test" feature flag set. This will then cause the module to fail to link if
-/// an attempt is made to publish a module that has been compiled in test mode on a VM that is not
-/// running in test mode.
+/// If a module is being compiled in test mode, create a dummy function that
+/// calls a native function `0x1::unit_test::poison` that only exists if the VM
+/// is being run with the "unit_test" feature flag set. This will then cause the
+/// module to fail to link if an attempt is made to publish a module that has
+/// been compiled in test mode on a VM that is not running in test mode.
 fn create_test_poison(mloc: Loc) -> P::ModuleMember {
     let signature = P::FunctionSignature {
         type_parameters: vec![],

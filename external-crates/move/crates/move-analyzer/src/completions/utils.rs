@@ -4,12 +4,6 @@
 
 use std::path::PathBuf;
 
-use crate::symbols::{
-    compute_symbols_parsed_program, compute_symbols_pre_process, mod_ident_to_ide_string,
-    ret_type_to_ide_str, type_args_to_ide_string, type_list_to_ide_string, AutoImportInsertionInfo,
-    AutoImportInsertionKind, CompiledPkgInfo, CursorContext, DefInfo, ModuleDefs, Symbols,
-    SymbolsComputationData,
-};
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, InsertTextFormat, Position,
     Range, TextEdit,
@@ -23,6 +17,13 @@ use move_compiler::{
 use move_ir_types::location::sp;
 use move_symbol_pool::Symbol;
 use once_cell::sync::Lazy;
+
+use crate::symbols::{
+    AutoImportInsertionInfo, AutoImportInsertionKind, CompiledPkgInfo, CursorContext, DefInfo,
+    ModuleDefs, Symbols, SymbolsComputationData, compute_symbols_parsed_program,
+    compute_symbols_pre_process, mod_ident_to_ide_string, ret_type_to_ide_str,
+    type_args_to_ide_string, type_list_to_ide_string,
+};
 
 /// List of completion items of Move's primitive types.
 pub static PRIMITIVE_TYPE_COMPLETIONS: Lazy<Vec<CompletionItem>> = Lazy::new(|| {
@@ -83,8 +84,8 @@ pub fn auto_import_text_edit(
     }
 }
 
-/// Returns an iterator over module identifiers and function names defined in these modules.
-/// Filters out all functions that should not be imported.
+/// Returns an iterator over module identifiers and function names defined in
+/// these modules. Filters out all functions that should not be imported.
 pub fn all_mod_functions_to_import<'a>(
     symbols: &'a Symbols,
     cursor: &'a CursorContext,
@@ -111,8 +112,8 @@ pub fn all_mod_functions_to_import<'a>(
     }))
 }
 
-/// Returns an iterator over module identifiers and struct names defined in these modules.
-/// Filters out all structs that should not be imported.
+/// Returns an iterator over module identifiers and struct names defined in
+/// these modules. Filters out all structs that should not be imported.
 pub fn all_mod_structs_to_import<'a>(
     symbols: &'a Symbols,
     cursor: &'a CursorContext,
@@ -139,8 +140,8 @@ pub fn all_mod_structs_to_import<'a>(
     }))
 }
 
-/// Returns an iterator over module identifiers and enum names defined in these modules.
-/// Filters out all enums that should not be imported.
+/// Returns an iterator over module identifiers and enum names defined in these
+/// modules. Filters out all enums that should not be imported.
 pub fn all_mod_enums_to_import<'a>(
     symbols: &'a Symbols,
     cursor: &'a CursorContext,
@@ -167,8 +168,8 @@ pub fn all_mod_enums_to_import<'a>(
     }))
 }
 
-/// Returns an iterator over module identifiers and constant names defined in these modules.
-/// Filters out all constants that should not be imported.
+/// Returns an iterator over module identifiers and constant names defined in
+/// these modules. Filters out all constants that should not be imported.
 pub fn all_mod_consts_to_import<'a>(
     symbols: &'a Symbols,
     cursor: &'a CursorContext,
@@ -247,12 +248,20 @@ pub fn call_completion_item(
 ) -> CompletionItem {
     let sig_string = format!(
         "fun {}({}){}",
-        type_args_to_ide_string(type_args, /* separate_lines */ false, /* verbose */ false),
-        type_list_to_ide_string(arg_types, /* separate_lines */ false, /* verbose */ false),
+        type_args_to_ide_string(
+            type_args, // separate_lines
+            false,     // verbose
+            false
+        ),
+        type_list_to_ide_string(
+            arg_types, // separate_lines
+            false,     // verbose
+            false
+        ),
         ret_type_to_ide_str(ret_type, /* verbose */ false)
     );
-    // if it's a method call we omit the first argument which is guaranteed to be there as this is a
-    // method and needs a receiver
+    // if it's a method call we omit the first argument which is guaranteed to be
+    // there as this is a method and needs a receiver
     let omitted_arg_count = if method_name_opt.is_some() { 1 } else { 0 };
     let mut snippet_idx = 0;
     let arg_snippet = arg_names
@@ -315,8 +324,9 @@ pub fn compute_cursor(
     let cursor_info = Some((cursor_path, cursor_pos));
     let mut symbols_computation_data = SymbolsComputationData::new();
     let mut symbols_computation_data_deps = SymbolsComputationData::new();
-    // we only compute cursor context and tag it on the existing symbols to avoid spending time
-    // recomputing all symbols (saves quite a bit of time when running the test suite)
+    // we only compute cursor context and tag it on the existing symbols to avoid
+    // spending time recomputing all symbols (saves quite a bit of time when
+    // running the test suite)
     let mut cursor_context = compute_symbols_pre_process(
         &mut symbols_computation_data,
         &mut symbols_computation_data_deps,

@@ -17,9 +17,9 @@ use move_analyzer::{
     completions::{compute_completions_with_symbols, utils::compute_cursor},
     inlay_hints::inlay_hints_internal,
     symbols::{
-        compute_symbols, compute_symbols_parsed_program, compute_symbols_pre_process,
-        def_info_doc_string, get_compiled_pkg, maybe_convert_for_guard, CompiledPkgInfo, Symbols,
-        SymbolsComputationData, UseDefMap,
+        CompiledPkgInfo, Symbols, SymbolsComputationData, UseDefMap, compute_symbols,
+        compute_symbols_parsed_program, compute_symbols_pre_process, def_info_doc_string,
+        get_compiled_pkg, maybe_convert_for_guard,
     },
 };
 use move_command_line_common::testing::insta_assert;
@@ -298,8 +298,8 @@ impl HintTest {
         let inlay_hints = inlay_hints_internal(
             symbols,
             use_file_path.to_path_buf(),
-            /* type_hints */ true,
-            /* param_hints */ true,
+            true, // type_hints
+            true, // param_hints
         )
         .unwrap();
         let lsp_line = self.use_line - 1; // 0th-based
@@ -690,8 +690,8 @@ fn move_ide_testsuite(test_path: &Path) -> datatest_stable::Result<()> {
 
 datatest_stable::harness!(move_ide_testsuite, "tests/", r".*\.ide$");
 
-/// Generates cursor tests as json -- useful for making a new batch of tests. Update this list,
-/// set `harness = true` for this file in `Cargo.toml`,
+/// Generates cursor tests as json -- useful for making a new batch of tests.
+/// Update this list, set `harness = true` for this file in `Cargo.toml`,
 /// and run `cargo nextest run generate_cursor_tests`.
 #[allow(unused)]
 #[test]

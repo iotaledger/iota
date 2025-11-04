@@ -3,7 +3,8 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Types and methods related to local dependencies (of the form `{ local = "<path>" }`)
+//! Types and methods related to local dependencies (of the form `{ local =
+//! "<path>" }`)
 
 use std::path::{Path, PathBuf};
 
@@ -12,8 +13,8 @@ use serde_spanned::Spanned;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LocalDependency {
-    /// The path on the filesystem, relative to the location of the containing file (which is
-    /// stored in the `Located` wrapper)
+    /// The path on the filesystem, relative to the location of the containing
+    /// file (which is stored in the `Located` wrapper)
     local: PathBuf,
 }
 

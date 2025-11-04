@@ -3,42 +3,43 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{bail, Context, Result};
-use move_command_line_common::files::{
-    extension_equals, find_filenames, find_move_filenames, FileHash, MOVE_COMPILED_EXTENSION,
-};
-use move_compiler::command_line::DEFAULT_OUTPUT_DIR;
-use move_compiler::editions::Edition;
-use move_compiler::{diagnostics::warning_filters::WarningFiltersBuilder, shared::PackageConfig};
-use move_core_types::account_address::AccountAddress;
-use move_symbol_pool::Symbol;
-use std::fs::File;
-use std::str::FromStr;
 use std::{
     collections::{BTreeMap, BTreeSet},
     fs,
+    fs::File,
     io::Write,
     path::{Path, PathBuf},
+    str::FromStr,
 };
-use treeline::Tree;
 
-use crate::lock_file::schema::ManagedPackage;
-use crate::package_hooks::{custom_resolve_pkg_id, PackageIdentifier};
-use crate::source_package::parsed_manifest as PM;
-use crate::{
-    source_package::{
-        layout::SourcePackageLayout,
-        manifest_parser::parse_move_manifest_from_file,
-        parsed_manifest::{
-            FileName, NamedAddress, PackageDigest, PackageName, SourceManifest, SubstOrRename,
-        },
-    },
-    BuildConfig,
+use anyhow::{Context, Result, bail};
+use move_command_line_common::files::{
+    FileHash, MOVE_COMPILED_EXTENSION, extension_equals, find_filenames, find_move_filenames,
 };
+use move_compiler::{
+    command_line::DEFAULT_OUTPUT_DIR, diagnostics::warning_filters::WarningFiltersBuilder,
+    editions::Edition, shared::PackageConfig,
+};
+use move_core_types::account_address::AccountAddress;
+use move_symbol_pool::Symbol;
+use treeline::Tree;
 
 use super::{
     dependency_cache::DependencyCache, dependency_graph as DG, digest::compute_digest, local_path,
     resolving_table::ResolvingTable,
+};
+use crate::{
+    BuildConfig,
+    lock_file::schema::ManagedPackage,
+    package_hooks::{PackageIdentifier, custom_resolve_pkg_id},
+    source_package::{
+        layout::SourcePackageLayout,
+        manifest_parser::parse_move_manifest_from_file,
+        parsed_manifest as PM,
+        parsed_manifest::{
+            FileName, NamedAddress, PackageDigest, PackageName, SourceManifest, SubstOrRename,
+        },
+    },
 };
 
 /// The graph after resolution in which all named addresses have been assigned a

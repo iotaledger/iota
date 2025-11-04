@@ -8,13 +8,14 @@ use std::{
     rc::Rc,
 };
 
+use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
+use proptest::prelude::*;
+
 use crate::{
     compatibility::{Compatibility, InclusionCheck, Mark, compare_ord_iters},
     file_format::*,
     normalized::{self, RcIdentifier, RcPool, Type},
 };
-use move_core_types::{account_address::AccountAddress, ident_str, identifier::Identifier};
-use proptest::prelude::*;
 
 type NormalizedModule = normalized::Module<RcIdentifier>;
 

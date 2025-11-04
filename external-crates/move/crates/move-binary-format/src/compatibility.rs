@@ -3,8 +3,9 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::vm_status::StatusCode;
 use std::collections::BTreeMap;
+
+use move_core_types::vm_status::StatusCode;
 
 use crate::{
     compatibility_mode::{CompatibilityMode, ExecutionCompatibilityMode},

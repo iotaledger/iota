@@ -18,6 +18,7 @@ use move_symbol_pool::Symbol;
 
 use super::{canonicalize_handles, context::*, optimize};
 use crate::{
+    FullyCompiledProgram,
     cfgir::{ast as G, translate::move_value_from_value_},
     compiled_unit::*,
     diag,
@@ -33,7 +34,6 @@ use crate::{
         ModuleName, TargetKind, UnaryOp, UnaryOp_, VariantName,
     },
     shared::{unique_map::UniqueMap, *},
-    FullyCompiledProgram,
 };
 
 type CollectedInfos = UniqueMap<FunctionName, CollectedInfo>;
@@ -160,8 +160,8 @@ pub fn program(
             units.push(unit)
         }
     }
-    // there are unsafe pointers into this table in the WarningFilters in the AST. Now that they
-    // are gone, the table can safely be dropped.
+    // there are unsafe pointers into this table in the WarningFilters in the AST.
+    // Now that they are gone, the table can safely be dropped.
     drop(warning_filters_table);
     units
 }
@@ -1044,9 +1044,9 @@ fn convert_unpack_type(unpack_type: H::UnpackType) -> IR::UnpackType {
 
 #[growing_stack]
 fn exp(context: &mut Context, code: &mut IR::BytecodeBlock, e: H::Exp) {
-    use Value_ as V;
     use H::UnannotatedExp_ as E;
     use IR::Bytecode_ as B;
+    use Value_ as V;
     let sp!(loc, e_) = e.exp;
     match e_ {
         E::Unreachable => panic!("ICE should not compile dead code"),
@@ -1250,8 +1250,8 @@ fn module_call(
 }
 
 fn unary_op(code: &mut IR::BytecodeBlock, sp!(loc, op_): UnaryOp) {
-    use UnaryOp_ as O;
     use IR::Bytecode_ as B;
+    use UnaryOp_ as O;
     code.push(sp(
         loc,
         match op_ {

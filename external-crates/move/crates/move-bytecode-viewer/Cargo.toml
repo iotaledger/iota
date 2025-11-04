@@ -8,12 +8,14 @@ publish = false
 description = "Explore Move bytecode and how the source code compiles to it"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 clap.workspace = true
 crossterm.workspace = true
 ratatui.workspace = true
 regex.workspace = true
 
+# internal dependencies
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
 move-disassembler.workspace = true

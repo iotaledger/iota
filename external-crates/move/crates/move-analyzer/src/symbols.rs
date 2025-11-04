@@ -59,24 +59,6 @@
 //! (DefLoc) to a set of use locations (UseLoc).
 #![allow(clippy::non_canonical_partial_ord_impl)]
 
-use crate::{
-    analysis::{parsing_analysis, typing_analysis},
-    compiler_info::CompilerInfo,
-    context::Context,
-    diagnostics::{lsp_diagnostics, lsp_empty_diagnostics},
-    utils::{loc_start_to_lsp_position_opt, lsp_position_to_loc},
-};
-
-use anyhow::{anyhow, Result};
-use crossbeam::channel::Sender;
-use im::ordmap::OrdMap;
-use lsp_server::{Message, Request, RequestId, Response};
-use lsp_types::{
-    request::GotoTypeDefinitionParams, Diagnostic, DocumentSymbol, DocumentSymbolParams,
-    GotoDefinitionParams, Hover, HoverContents, HoverParams, Location, MarkupContent, MarkupKind,
-    Position, Range, ReferenceParams, SymbolKind,
-};
-use sha2::{Digest, Sha256};
 use std::{
     cmp,
     collections::{BTreeMap, BTreeSet},
@@ -87,39 +69,42 @@ use std::{
     time::Instant,
     vec,
 };
-use tempfile::tempdir;
-use url::Url;
-use vfs::{
-    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
-    VfsPath,
-};
 
+use anyhow::{Result, anyhow};
+use crossbeam::channel::Sender;
+use im::ordmap::OrdMap;
+use lsp_server::{Message, Request, RequestId, Response};
+use lsp_types::{
+    Diagnostic, DocumentSymbol, DocumentSymbolParams, GotoDefinitionParams, Hover, HoverContents,
+    HoverParams, Location, MarkupContent, MarkupKind, Position, Range, ReferenceParams, SymbolKind,
+    request::GotoTypeDefinitionParams,
+};
 use move_command_line_common::files::FileHash;
 use move_compiler::{
-    command_line::compiler::{construct_pre_compiled_lib, FullyCompiledProgram},
+    PASS_CFGIR, PASS_PARSER, PASS_TYPING,
+    command_line::compiler::{FullyCompiledProgram, construct_pre_compiled_lib},
     editions::{Edition, FeatureGate, Flavor},
     expansion::{
         ast::{self as E, AbilitySet, ModuleIdent, ModuleIdent_, Value, Value_, Visibility},
         name_validation::{
-            ModuleMemberKind, IMPLICIT_STD_MEMBERS, IMPLICIT_STD_MODULES, IMPLICIT_IOTA_MEMBERS,
-            IMPLICIT_IOTA_MODULES,
+            IMPLICIT_IOTA_MEMBERS, IMPLICIT_IOTA_MODULES, IMPLICIT_STD_MEMBERS,
+            IMPLICIT_STD_MODULES, ModuleMemberKind,
         },
     },
     linters::LintLevel,
     naming::ast::{
-        DatatypeTypeParameter, Neighbor, StructFields, Type, TypeName_, Type_, VariantFields,
+        DatatypeTypeParameter, Neighbor, StructFields, Type, Type_, TypeName_, VariantFields,
     },
     parser::ast::{self as P, DocComment},
     shared::{
-        files::MappedFiles, unique_map::UniqueMap, Identifier, Name, NamedAddressMap,
-        NamedAddressMaps,
+        Identifier, Name, NamedAddressMap, NamedAddressMaps, files::MappedFiles,
+        unique_map::UniqueMap,
     },
     typing::{
         ast::{Exp, ExpListItem, ModuleDefinition, SequenceItem, SequenceItem_, UnannotatedExp_},
         visitor::TypingVisitorContext,
     },
     unit_test::filter_test_members::UNIT_TEST_POISON_FUN_NAME,
-    PASS_CFGIR, PASS_PARSER, PASS_TYPING,
 };
 use move_core_types::{account_address::AccountAddress, parsing::address::NumericalAddress};
 use move_ir_types::location::*;
@@ -129,6 +114,21 @@ use move_package::{
     source_package::parsed_manifest::Dependencies,
 };
 use move_symbol_pool::Symbol;
+use sha2::{Digest, Sha256};
+use tempfile::tempdir;
+use url::Url;
+use vfs::{
+    VfsPath,
+    impls::{memory::MemoryFS, overlay::OverlayFS, physical::PhysicalFS},
+};
+
+use crate::{
+    analysis::{parsing_analysis, typing_analysis},
+    compiler_info::CompilerInfo,
+    context::Context,
+    diagnostics::{lsp_diagnostics, lsp_empty_diagnostics},
+    utils::{loc_start_to_lsp_position_opt, lsp_position_to_loc},
+};
 
 const MANIFEST_FILE_NAME: &str = "Move.toml";
 const STD_LIB_PKG_ADDRESS: &str = "0x1";
@@ -796,15 +796,12 @@ impl fmt::Display for DefInfo {
                 //   (modulo primitive types of course, but I think we can live with that)
                 let type_args_str = type_args_to_ide_string(
                     type_args,
-                    // separate_lines
-                    type_args.len() > SINGLE_LINE_TYPE_ARGS_NUM,
-                    // verbose
-                    true,
+                    type_args.len() > SINGLE_LINE_TYPE_ARGS_NUM, // separate_lines
+                    true,                                        // verbose
                 );
                 let args_str = typed_id_list_to_ide_string(
-                    arg_names, arg_types, '(', ')',  // separate_lines
+                    arg_names, arg_types, '(', ')', true, // separate_lines
                     true, // verbose
-                    true,
                 );
                 let ret_type_str = ret_type_to_ide_str(ret_type, /* verbose */ true);
                 write!(
@@ -856,10 +853,8 @@ impl fmt::Display for DefInfo {
                             field_types,
                             '{',
                             '}',
-                            // separate_lines
-                            true,
-                            // verbose
-                            true
+                            true, // separate_lines
+                            true  // verbose
                         ),
                     )
                 }
@@ -909,10 +904,8 @@ impl fmt::Display for DefInfo {
                         name,
                         type_list_to_ide_string(
                             field_types,
-                            // separate_lines
-                            false,
-                            // verbose
-                            true
+                            false, // separate_lines
+                            true   // verbose
                         )
                     )
                 } else {
@@ -927,10 +920,8 @@ impl fmt::Display for DefInfo {
                             field_types,
                             '{',
                             '}',
-                            // separate_lines
-                            false,
-                            // verbose
-                            true,
+                            false, // separate_lines
+                            true,  // verbose
                         ),
                     )
                 }
@@ -1991,8 +1982,8 @@ fn merge_user_programs(
     // incremental compilation as only function bodies are omitted
     parsed_program_cached.named_address_maps = parsed_program_new.named_address_maps;
     // remove modules from user code that belong to modified files (use new
-    // file hashes - if cached module's hash is on the list of new file hashes, it means
-    // that nothing changed)
+    // file hashes - if cached module's hash is on the list of new file hashes, it
+    // means that nothing changed)
     parsed_program_cached.source_definitions.retain(|pkg_def| {
         !is_parsed_pkg_modified(pkg_def, &files_to_compile, file_hashes_new.clone())
     });
@@ -2003,8 +1994,8 @@ fn merge_user_programs(
         }
     }
     typed_modules_cached = typed_modules_cached_filtered;
-    // add new modules from user code (use cached file hashes - if new module's hash is on the list of
-    // cached file hashes, it means that nothing' changed)
+    // add new modules from user code (use cached file hashes - if new module's hash
+    // is on the list of cached file hashes, it means that nothing' changed)
     for pkg_def in parsed_program_new.source_definitions {
         if is_parsed_pkg_modified(&pkg_def, &files_to_compile, file_hashes_cached.clone()) {
             parsed_program_cached.source_definitions.push(pkg_def);
