@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use typed_store_error::TypedStoreError;
 
+#[expect(unused)]
 #[derive(Serialize, Deserialize, Clone, Eq, PartialEq, Hash, Debug, Error)]
 pub(crate) struct RocksErrorDef {
     message: String,
@@ -21,6 +22,7 @@ impl Display for RocksErrorDef {
     }
 }
 
+#[expect(unused)]
 #[derive(Serialize, Deserialize, Clone, Hash, Eq, PartialEq, Debug, Error)]
 pub(crate) enum BincodeErrorDef {
     Io(String),
