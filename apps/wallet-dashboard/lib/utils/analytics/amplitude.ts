@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as amplitude from '@amplitude/analytics-browser';
-import { LogLevel, TransportType, type UserSession } from '@amplitude/analytics-types';
-import { PersistableStorage } from '@iota/core';
+import { LogLevel, type UserSession } from '@amplitude/analytics-types';
+import { PersistableStorage, consentBufferPlugin } from '@iota/core';
 
 import { ampli } from './ampli';
 
@@ -19,14 +19,20 @@ export async function initAmplitude() {
         disabled: !IS_PROD_ENV,
         client: {
             configuration: {
-                cookieStorage: persistableStorage,
-                logLevel: IS_PROD_ENV ? LogLevel.Warn : amplitude.Types.LogLevel.Debug,
+                optOut: false,
+                logLevel: IS_PROD_ENV ? LogLevel.Warn : LogLevel.None,
             },
         },
-    });
+    }).promise;
+
+    // Add consent buffer plugin to Amplitude
+    // This plugin queues events in localStorage before user consent
+    if (ampli.client) {
+        await ampli.client.add(consentBufferPlugin).promise;
+    }
 
     window.addEventListener('pagehide', () => {
-        amplitude.setTransport(TransportType.SendBeacon);
+        amplitude.setTransport('beacon');
         amplitude.flush();
     });
 }

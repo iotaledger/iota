@@ -2,12 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { CookieManager, type SKCMConfiguration } from '@boxfish-studio/react-cookie-manager';
-import { useCookiesManager } from './useCookiesManager';
-
-const COOKIES_KEY = 'AMP_COOKIES_ACCEPTED';
+import { AMP_COOKIES_KEY, handleConsentAccepted, handleConsentDeclined } from '@iota/core';
+import { ampli } from '../../shared/analytics';
 
 export function CookieDisclaimer() {
-    const { onAcceptCookies, onDeclineCookies } = useCookiesManager();
     const configuration: SKCMConfiguration = {
         disclaimer: {
             title: undefined,
@@ -18,7 +16,7 @@ export function CookieDisclaimer() {
         services: {
             customNecessaryCookies: [
                 {
-                    name: COOKIES_KEY,
+                    name: AMP_COOKIES_KEY,
                     purpose:
                         'Flag indicating that Amplitude analytics cookies may be created after consent',
                     expiry: '1 year',
@@ -27,8 +25,8 @@ export function CookieDisclaimer() {
                 },
             ],
         },
-        onAcceptCookies,
-        onDeclineCookies,
+        onAcceptCookies: () => handleConsentAccepted(ampli.client),
+        onDeclineCookies: () => handleConsentDeclined(ampli.client),
     };
     return (
         <>

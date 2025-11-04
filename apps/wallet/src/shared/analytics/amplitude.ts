@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import * as amplitude from '@amplitude/analytics-browser';
-import { LogLevel, TransportType, type UserSession } from '@amplitude/analytics-types';
+import { LogLevel, type UserSession } from '@amplitude/analytics-types';
 import { PersistableStorage, getCustomNetwork } from '@iota/core';
 import { getNetwork, type Network } from '@iota/iota-sdk/client';
 
@@ -25,14 +25,14 @@ export async function initAmplitude() {
         client: {
             apiKey: IS_PROD_ENV ? ApiKey.production : ApiKey.development,
             configuration: {
-                cookieStorage: persistableStorage,
+                // TODO add consentBufferPlugin in the next iteration
                 logLevel: IS_PROD_ENV ? LogLevel.Warn : LogLevel.Debug,
             },
         },
     });
 
     window.addEventListener('pagehide', () => {
-        amplitude.setTransport(TransportType.SendBeacon);
+        amplitude.setTransport('beacon');
         amplitude.flush();
     });
 }
