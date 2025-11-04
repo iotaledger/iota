@@ -81,7 +81,7 @@ struct BlocksGuard {
 
 impl Drop for BlocksGuard {
     fn drop(&mut self) {
-        self.map.unlock_blocks(&self.block_refs, self.peer);
+        self.map.unlock_headers(&self.block_refs, self.peer);
     }
 }
 
@@ -101,19 +101,20 @@ impl InflightBlockHeadersMap {
         })
     }
 
-    /// Locks the blocks to be fetched for the assigned `peer_index`. We want to
-    /// avoid re-fetching the missing blocks from too many authorities at
-    /// the same time, thus we limit the concurrency per block by attempting
-    /// to lock per block. If a block is already fetched by the maximum allowed
-    /// number of authorities, then the block ref will not be included in the
-    /// returned set. The method returns all the block refs that have been
-    /// successfully locked and allowed to be fetched.
-    fn lock_blocks(
+    /// Locks the block headers to be fetched for the assigned `peer_index`. We
+    /// want to avoid re-fetching the missing block headers from too many
+    /// authorities at the same time, thus we limit the concurrency per
+    /// block by attempting to lock per block. If a header is already
+    /// fetched by the maximum allowed number of authorities, then the block
+    /// ref will not be included in the returned set. The method returns all
+    /// the block refs that have been successfully locked and allowed to be
+    /// fetched.
+    fn lock_headers(
         self: &Arc<Self>,
         missing_block_refs: BTreeSet<BlockRef>,
         peer: AuthorityIndex,
     ) -> Option<BlocksGuard> {
-        let mut blocks = BTreeSet::new();
+        let mut block_refs = BTreeSet::new();
         let mut inner = self.inner.lock();
 
         for block_ref in missing_block_refs {
@@ -125,16 +126,16 @@ impl InflightBlockHeadersMap {
                 && authorities.get(&peer).is_none()
             {
                 assert!(authorities.insert(peer));
-                blocks.insert(block_ref);
+                block_refs.insert(block_ref);
             }
         }
 
-        if blocks.is_empty() {
+        if block_refs.is_empty() {
             None
         } else {
             Some(BlocksGuard {
                 map: self.clone(),
-                block_refs: blocks,
+                block_refs,
                 peer,
             })
         }
@@ -144,11 +145,11 @@ impl InflightBlockHeadersMap {
     /// unlocking is strict, meaning that if this method is called for a
     /// specific block ref and peer more times than the corresponding lock
     /// has been called, it will panic.
-    fn unlock_blocks(self: &Arc<Self>, block_refs: &BTreeSet<BlockRef>, peer: AuthorityIndex) {
+    fn unlock_headers(self: &Arc<Self>, block_refs: &BTreeSet<BlockRef>, peer: AuthorityIndex) {
         // Now mark all the blocks as fetched from the map
-        let mut blocks_to_fetch = self.inner.lock();
+        let mut headers_to_fetch = self.inner.lock();
         for block_ref in block_refs {
-            let authorities = blocks_to_fetch
+            let authorities = headers_to_fetch
                 .get_mut(block_ref)
                 .expect("Should have found a non empty map");
 
@@ -156,7 +157,7 @@ impl InflightBlockHeadersMap {
 
             // if the last one then just clean up
             if authorities.is_empty() {
-                blocks_to_fetch.remove(block_ref);
+                headers_to_fetch.remove(block_ref);
             }
         }
     }
@@ -176,11 +177,11 @@ impl InflightBlockHeadersMap {
         drop(blocks_guard);
 
         // Now create new guard
-        self.lock_blocks(block_refs, peer)
+        self.lock_headers(block_refs, peer)
     }
 
     #[cfg(test)]
-    fn num_of_locked_blocks(self: &Arc<Self>) -> usize {
+    fn num_of_locked_headers(self: &Arc<Self>) -> usize {
         let inner = self.inner.lock();
         inner.len()
     }
@@ -196,12 +197,12 @@ enum Command {
     KickOffScheduler,
 }
 
-pub(crate) struct SynchronizerHandle {
+pub(crate) struct HeaderSynchronizerHandle {
     commands_sender: Sender<Command>,
     tasks: tokio::sync::Mutex<JoinSet<()>>,
 }
 
-impl SynchronizerHandle {
+impl HeaderSynchronizerHandle {
     /// Explicitly asks from the synchronizer to fetch block headers - provided
     /// the block_refs set - from the peer authority.
     pub(crate) async fn fetch_headers(
@@ -267,7 +268,7 @@ impl SynchronizerHandle {
 /// Additionally to the above, the synchronizer can synchronize and fetch the
 /// last own proposed header from the network peers as best effort approach to
 /// recover node from amnesia and avoid making the node equivocate.
-pub(crate) struct Synchronizer<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> {
+pub(crate) struct HeaderSynchronizer<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> {
     context: Arc<Context>,
     commands_receiver: Receiver<Command>,
     fetch_block_senders: BTreeMap<AuthorityIndex, Sender<BlocksGuard>>,
@@ -283,9 +284,9 @@ pub(crate) struct Synchronizer<C: NetworkClient, V: BlockVerifier, D: CoreThread
     commands_sender: Sender<Command>,
 }
 
-impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C, V, D> {
-    /// Starts the synchronizer, which is responsible for fetching blocks from
-    /// other authorities and managing block synchronization tasks.
+impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchronizer<C, V, D> {
+    /// Starts the synchronizer, which is responsible for fetching block headers
+    /// from other authorities and managing block synchronization tasks.
     pub fn start(
         network_client: Arc<C>,
         context: Arc<Context>,
@@ -295,7 +296,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
         sync_last_known_own_block: bool,
-    ) -> Arc<SynchronizerHandle> {
+    ) -> Arc<HeaderSynchronizerHandle> {
         let (commands_sender, commands_receiver) =
             channel("consensus_synchronizer_commands", 1_000);
         let inflight_block_headers_map = InflightBlockHeadersMap::new();
@@ -355,7 +356,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             s.run().await;
         }));
 
-        Arc::new(SynchronizerHandle {
+        Arc::new(HeaderSynchronizerHandle {
             commands_sender,
             tasks: tokio::sync::Mutex::new(tasks),
         })
@@ -388,7 +389,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 .take(self.context.parameters.max_headers_per_regular_sync_fetch)
                                 .collect();
 
-                            let blocks_guard = self.inflight_block_headers_map.lock_blocks(missing_block_refs, peer_index);
+                            let blocks_guard = self.inflight_block_headers_map.lock_headers(missing_block_refs, peer_index);
                             let Some(blocks_guard) = blocks_guard else {
                                 result.send(Ok(())).ok();
                                 continue;
@@ -1276,7 +1277,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
             // Lock the block headers to be fetched. If no lock can be acquired for any of
             // the block headers then don't bother.
-            if let Some(blocks_guard) = inflight_block_headers.lock_blocks(block_refs.clone(), peer)
+            if let Some(blocks_guard) =
+                inflight_block_headers.lock_headers(block_refs.clone(), peer)
             {
                 info!(
                     "Periodic sync of {} missing block headers from peer {} {}: {}",
@@ -1422,12 +1424,12 @@ mod tests {
         core_thread::{CoreError, CoreThreadDispatcher, tests::MockCoreThreadDispatcher},
         dag_state::{DagState, TransactionSource},
         error::{ConsensusError, ConsensusResult},
+        header_synchronizer::{
+            FETCH_BLOCK_HEADERS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, HeaderSynchronizer,
+            InflightBlockHeadersMap,
+        },
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
-        synchronizer::{
-            FETCH_BLOCK_HEADERS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, InflightBlockHeadersMap,
-            Synchronizer,
-        },
         transactions_synchronizer::TransactionsSynchronizer,
     };
 
@@ -1585,14 +1587,14 @@ mod tests {
             for i in 1..=3 {
                 let authority = AuthorityIndex::new_for_test(i);
 
-                let guard = map.lock_blocks(missing_block_refs.clone(), authority);
+                let guard = map.lock_headers(missing_block_refs.clone(), authority);
                 let guard = guard.expect("Guard should be created");
                 assert_eq!(guard.block_refs.len(), 4);
 
                 all_guards.push(guard);
 
                 // trying to acquire any of them again will not succeed
-                let guard = map.lock_blocks(missing_block_refs.clone(), authority);
+                let guard = map.lock_headers(missing_block_refs.clone(), authority);
                 assert!(guard.is_none());
             }
 
@@ -1600,14 +1602,14 @@ mod tests {
             // number of allowed peers
             let authority_4 = AuthorityIndex::new_for_test(4);
 
-            let guard = map.lock_blocks(missing_block_refs.clone(), authority_4);
+            let guard = map.lock_headers(missing_block_refs.clone(), authority_4);
             assert!(guard.is_none());
 
             // Explicitly drop the guard of authority 1 and try for authority 4 again - it
             // will now succeed
             drop(all_guards.remove(0));
 
-            let guard = map.lock_blocks(missing_block_refs.clone(), authority_4);
+            let guard = map.lock_headers(missing_block_refs.clone(), authority_4);
             let guard = guard.expect("Guard should be successfully acquired");
 
             assert_eq!(guard.block_refs, missing_block_refs);
@@ -1616,7 +1618,7 @@ mod tests {
             drop(guard);
             drop(all_guards);
 
-            assert_eq!(map.num_of_locked_blocks(), 0);
+            assert_eq!(map.num_of_locked_headers(), 0);
         }
 
         // Swap locks
@@ -1624,7 +1626,7 @@ mod tests {
             // acquire a lock for authority 1
             let authority_1 = AuthorityIndex::new_for_test(1);
             let guard = map
-                .lock_blocks(missing_block_refs.clone(), authority_1)
+                .lock_headers(missing_block_refs.clone(), authority_1)
                 .unwrap();
 
             // Now swap the locks for authority 2
@@ -1638,13 +1640,13 @@ mod tests {
             // authorities 3 & 4, but not for 5
             for i in 3..=4 {
                 let authority = AuthorityIndex::new_for_test(i);
-                let guard = map.lock_blocks(missing_block_refs.clone(), authority);
+                let guard = map.lock_headers(missing_block_refs.clone(), authority);
                 let guard = guard.expect("Guard should be created");
                 assert_eq!(guard.block_refs.len(), 4);
                 all_guards.push(guard);
             }
             let authority = AuthorityIndex::new_for_test(5);
-            let guard = map.lock_blocks(missing_block_refs.clone(), authority);
+            let guard = map.lock_headers(missing_block_refs.clone(), authority);
             assert!(guard.is_none());
         }
     }
@@ -1669,7 +1671,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let handle = Synchronizer::start(
+        let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
             core_dispatcher.clone(),
@@ -1738,7 +1740,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let handle = Synchronizer::start(
+        let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
             core_dispatcher.clone(),
@@ -1875,7 +1877,7 @@ mod tests {
             .await;
 
         // WHEN start the synchronizer and wait for a couple of seconds
-        let handle = Synchronizer::start(
+        let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context,
             core_dispatcher.clone(),
@@ -2020,7 +2022,7 @@ mod tests {
 
         // Start the synchronizer and wait for a couple of seconds where normally
         // the synchronizer should have kicked in.
-        let handle = Synchronizer::start(
+        let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -2129,7 +2131,7 @@ mod tests {
 
         // Start the synchronizer and wait for a couple of seconds where normally
         // the synchronizer should have kicked in.
-        let handle = Synchronizer::start(
+        let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -2283,7 +2285,7 @@ mod tests {
             .await;
 
         // WHEN start the synchronizer and wait for a couple of seconds
-        let handle = Synchronizer::start(
+        let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -2476,15 +2478,18 @@ mod tests {
 
             // 4) Invoke knowledge-based fetch and random fallback selection
             //    deterministically
-            let results = Synchronizer::<MockNetworkClient, NoopBlockVerifier, SyncMockDispatcher>
-            ::fetch_block_headers_from_authorities_periodic(
+            let results = HeaderSynchronizer::<
+                MockNetworkClient,
+                NoopBlockVerifier,
+                SyncMockDispatcher,
+            >::fetch_block_headers_from_authorities_periodic(
                 context.clone(),
                 inflight.clone(),
                 network_client.clone(),
                 missing_blocks,
                 dag_state.clone(),
             )
-                .await;
+            .await;
 
             // 5) Knowledge-based fetches should go to 2 and 3, additional random requests
             //    go to 1 (only one authority because in additional requests we ask
@@ -2639,7 +2644,7 @@ mod tests {
             .await;
 
         // 5) Execute the fetch logic
-        let results = Synchronizer::<
+        let results = HeaderSynchronizer::<
             MockNetworkClient,
             NoopBlockVerifier,
             SyncMockDispatcher,
@@ -2720,7 +2725,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let handle = Synchronizer::start(
+        let handle = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),

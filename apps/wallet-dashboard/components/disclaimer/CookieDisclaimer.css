@@ -1,5 +1,7 @@
 #skcm-cookie-disclaimer#skcm-cookie-disclaimer {
-    @apply bg-iota-neutral-100;
+    @apply dark:bg-iota-neutral-10;
+    @apply bg-iota-primary-100;
+    @apply border-iota-neutral-4;
     @apply w-full max-w-none;
     @apply flex flex-col;
     @apply px-8 py-6;
@@ -49,18 +51,6 @@
     }
 }
 
-:root.dark {
-    #skcm-cookie-disclaimer#skcm-cookie-disclaimer {
-        @apply bg-iota-neutral-4;
-
-        #skcm-cookie-disclaimer__body {
-            #skcm-body {
-                @apply text-iota-neutral-92;
-            }
-        }
-    }
-}
-
 .cookie-policy-page {
     #skcm-cookie-library {
         h4,
@@ -75,7 +65,7 @@
     }
 }
 
-:root.dark {
+html.dark {
     .cookie-policy-page {
         #skcm-cookie-library {
             h4,
