@@ -186,12 +186,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.context
                 .metrics
                 .node_metrics
-                .bundles_with_invalid_headers
-                .with_label_values(&[
-                    peer_hostname.as_str(),
-                    "handle_subscribed_block_bundle",
-                    "UnexpectedAuthority",
-                ])
+                .bundles_with_invalid_parts
+                .with_label_values(&[peer_hostname.as_str(), "header", "UnexpectedAuthority"])
                 .inc();
             let e = ConsensusError::UnexpectedAuthority(signed_block_header.author(), peer);
             info!("Block with wrong authority from {}: {}", peer, e);
@@ -202,12 +198,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             self.context
                 .metrics
                 .node_metrics
-                .bundles_with_invalid_headers
-                .with_label_values(&[
-                    peer_hostname.as_str(),
-                    "handle_subscribed_block_bundle",
-                    e.clone().name(),
-                ])
+                .bundles_with_invalid_parts
+                .with_label_values(&[peer_hostname.as_str(), "header", e.clone().name()])
                 .inc();
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
@@ -291,10 +283,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 self.context
                     .metrics
                     .node_metrics
-                    .bundles_with_invalid_headers
+                    .bundles_with_invalid_parts
                     .with_label_values(&[
                         peer_hostname.as_str(),
-                        "handle_subscribed_block_bundle",
+                        "header",
                         "invalid round in header",
                     ])
                     .inc();
@@ -310,12 +302,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 self.context
                     .metrics
                     .node_metrics
-                    .bundles_with_invalid_headers
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "handle_subscribed_block_bundle",
-                        e.clone().name(),
-                    ])
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname.as_str(), "header", e.clone().name()])
                     .inc();
                 info!("Invalid additional block header from {}: {}", peer, e);
                 return Err(e);
@@ -360,12 +348,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 self.context
                     .metrics
                     .node_metrics
-                    .bundles_with_invalid_shards
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "handle_subscribed_block_bundle",
-                        e.clone().name(),
-                    ])
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname.as_str(), "shard", e.clone().name()])
                     .inc();
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
@@ -386,12 +370,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 self.context
                     .metrics
                     .node_metrics
-                    .bundles_with_invalid_shards
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "handle_subscribed_block_bundle",
-                        e.clone().name(),
-                    ])
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname.as_str(), "shard", e.clone().name()])
                     .inc();
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);

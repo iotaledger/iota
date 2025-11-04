@@ -155,13 +155,13 @@ pub(crate) struct NodeMetrics {
     pub(crate) synchronizer_requested_block_headers_by_authority: IntCounterVec,
     pub(crate) synchronizer_fetch_failures_by_peer: IntCounterVec,
     pub(crate) synchronizer_process_fetched_failures_by_peer: IntCounterVec,
-    pub(crate) bundles_with_invalid_headers: IntCounterVec,
+    pub(crate) synchronizer_invalid_block_headers: IntCounterVec,
+    pub(crate) bundles_with_invalid_parts: IntCounterVec,
     pub(crate) invalid_transactions: IntCounterVec,
     pub(crate) valid_headers_in_bundles: IntCounterVec,
     pub(crate) filtered_headers_in_bundles: IntCounterVec,
     pub(crate) received_unique_headers_from_bundles: IntCounterVec,
     pub(crate) processed_duplicated_headers_in_bundles: IntCounterVec,
-    pub(crate) bundles_with_invalid_shards: IntCounterVec,
     pub(crate) valid_shards_in_bundles: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) skipped_empty_transaction_acknowledgments: IntCounterVec,
@@ -549,6 +549,12 @@ impl NodeMetrics {
                 &["peer", "type"],
                 registry,
             ).unwrap(),
+            synchronizer_invalid_block_headers: register_int_counter_vec_with_registry!(
+                "synchronizer_invalid_block_headers",
+                "Number of invalid headers received from each peer",
+                &["peer", "source", "error"],
+                registry,
+            ).unwrap(),
             synchronizer_fetched_block_headers_by_authority: register_int_counter_vec_with_registry!(
                 "synchronizer_fetched_block_headers_by_authority",
                 "Number of fetched block headers per block author via the synchronizer",
@@ -577,10 +583,10 @@ impl NodeMetrics {
                 NUM_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
-            bundles_with_invalid_headers: register_int_counter_vec_with_registry!(
-                "bundles_with_invalid_headers",
-                "Number of bundles that contain invalid header per sender",
-                &["authority", "source", "error"],
+            bundles_with_invalid_parts: register_int_counter_vec_with_registry!(
+                "bundles_with_invalid_parts",
+                "Number of bundles that contain invalid parts per peer",
+                &["authority", "invalid_part", "error"],
                 registry,
             ).unwrap(),
             valid_headers_in_bundles: register_int_counter_vec_with_registry!(
@@ -605,12 +611,6 @@ impl NodeMetrics {
                 "processed_duplicated_headers_in_bundles",
                 "Number of times block headers from bundles were not filtered and processed extra time (i.e. deserialized and verified) per sender authority",
                 &["authority", "source"],
-                registry,
-            ).unwrap(),
-            bundles_with_invalid_shards: register_int_counter_vec_with_registry!(
-                "bundles_with_invalid_shards",
-                "Number of block bundles that contain invalid shards per sender authority",
-                &["authority", "source", "error"],
                 registry,
             ).unwrap(),
             valid_shards_in_bundles: register_int_counter_vec_with_registry!(

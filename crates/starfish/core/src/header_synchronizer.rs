@@ -714,7 +714,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 context
                     .metrics
                     .node_metrics
-                    .bundles_with_invalid_headers
+                    .synchronizer_invalid_block_headers
                     .with_label_values(&[hostname.as_str(), "synchronizer", e.clone().name()])
                     .inc();
                 warn!("Invalid block received from {}: {}", peer_index, e);
@@ -828,7 +828,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                                             context
                                                 .metrics
                                                 .node_metrics
-                                                .bundles_with_invalid_headers
+                                                .synchronizer_invalid_block_headers
                                                 .with_label_values(&[hostname.as_str(), "synchronizer_own_block_header", err.clone().name()])
                                                 .inc();
                                             warn!("Invalid block header received from {}: {}", authority_index, err);
