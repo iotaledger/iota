@@ -13,8 +13,9 @@ use append_only_vec::AppendOnlyVec;
 
 use super::PackageResult;
 
-/// A collection that holds a file path and its contents. This is used for when parsing the
-/// manifest and lockfiles to enable nice reporting throughout the system.
+/// A collection that holds a file path and its contents. This is used for when
+/// parsing the manifest and lockfiles to enable nice reporting throughout the
+/// system.
 static FILES: AppendOnlyVec<(PathBuf, String)> = AppendOnlyVec::new();
 
 /// A cheap handle into a global collection of files
@@ -27,8 +28,8 @@ pub struct FileHandle {
 impl FileHandle {
     /// Reads the file located at [path] into the file cache and returns its ID
     pub fn new(path: PathBuf) -> PackageResult<Self> {
-        // SAFETY: only fails if lock is poisoned which indicates another thread has panicked
-        // already
+        // SAFETY: only fails if lock is poisoned which indicates another thread has
+        // panicked already
         let name = path.to_string_lossy().to_string();
         let source = fs::read_to_string(&path)?;
 

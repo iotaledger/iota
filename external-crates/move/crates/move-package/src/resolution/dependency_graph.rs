@@ -2,38 +2,36 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::{bail, Context, Result};
-use colored::Colorize;
-use move_symbol_pool::Symbol;
-use petgraph::{algo, prelude::DiGraphMap, visit::Dfs, Direction};
-
-use std::io::BufRead;
 use std::{
-    collections::{btree_map::Entry, BTreeMap, BTreeSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque, btree_map::Entry},
     fmt,
     fs::File,
-    io::{BufReader, Read, Write},
+    io::{BufRead, BufReader, Read, Write},
     path::{Path, PathBuf},
     process::Command,
 };
 
-use crate::source_package::parsed_manifest::Dependencies;
+use anyhow::{Context, Result, bail};
+use colored::Colorize;
+use move_symbol_pool::Symbol;
+use petgraph::{Direction, algo, prelude::DiGraphMap, visit::Dfs};
+
+use super::{
+    dependency_cache::DependencyCache,
+    digest::{digest_str, hashed_files_digest},
+    local_path,
+};
 use crate::{
-    lock_file::{schema, LockFile},
-    package_hooks::{custom_resolve_pkg_id, resolve_version, PackageIdentifier},
+    lock_file::{LockFile, schema},
+    package_hooks::{PackageIdentifier, custom_resolve_pkg_id, resolve_version},
     source_package::{
         layout::SourcePackageLayout,
         manifest_parser::{
             parse_dependency, parse_move_manifest_string, parse_source_manifest, parse_substitution,
         },
         parsed_manifest as PM,
+        parsed_manifest::Dependencies,
     },
-};
-
-use super::{
-    dependency_cache::DependencyCache,
-    digest::{digest_str, hashed_files_digest},
-    local_path,
 };
 
 /// A representation of the transitive dependency graph of a Move package.  If
@@ -199,9 +197,10 @@ pub enum DependencyMode {
     DevOnly,
 }
 
-/// Wrapper struct to display a package as an inline table in the lock file (matching the
-/// convention in the source manifest).  This is necessary because the `toml` crate does not
-/// currently support serializing types as inline tables.
+/// Wrapper struct to display a package as an inline table in the lock file
+/// (matching the convention in the source manifest).  This is necessary because
+/// the `toml` crate does not currently support serializing types as inline
+/// tables.
 struct PackageTOML<'a>(&'a Package);
 struct PackageWithResolverTOML<'a>(&'a Package);
 struct DependencyTOML<'a>(PackageIdentifier, &'a Dependency);
@@ -245,14 +244,16 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
         }
     }
 
-    /// Get a new graph by either reading it from Move.lock file (if this file is up-to-date, in
-    /// which case also return false) or by computing a new graph based on the content of the
-    /// Move.toml (manifest) file (in which case also return true).
+    /// Get a new graph by either reading it from Move.lock file (if this file
+    /// is up-to-date, in which case also return false) or by computing a
+    /// new graph based on the content of the Move.toml (manifest) file (in
+    /// which case also return true).
     ///
-    /// Additional dependencies on [self.implicit_dependencies] are added to all nodes of the
-    /// returned graph, except for nodes that are themselves in [self.implicit_dependencies] or
-    /// that have an explicit dependency on one of the implicit packages (note that having just one
-    /// explicit dep from a node disables all implicit deps for that node!)
+    /// Additional dependencies on [self.implicit_dependencies] are added to all
+    /// nodes of the returned graph, except for nodes that are themselves in
+    /// [self.implicit_dependencies] or that have an explicit dependency on
+    /// one of the implicit packages (note that having just one explicit dep
+    /// from a node disables all implicit deps for that node!)
     pub fn get_graph(
         &mut self,
         parent: &PM::DependencyKind,
@@ -297,7 +298,11 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
                 disabled for your package because you have explicitly included dependencies on {}. Consider \
                 removing these dependencies from {}.",
                 "note".bold().yellow(),
-                move_compiler::format_oxford_list!("and", "{}", self.implicit_deps.keys().collect::<Vec<_>>()),
+                move_compiler::format_oxford_list!(
+                    "and",
+                    "{}",
+                    self.implicit_deps.keys().collect::<Vec<_>>()
+                ),
                 move_compiler::format_oxford_list!("and", "{}", explicit_implicits),
                 SourcePackageLayout::Manifest.location_str(),
             );
@@ -337,7 +342,8 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
                 root_manifest.dev_dependencies.clone(),
             )?;
 
-        // compute new digests and return early if the manifest and deps digests are unchanged
+        // compute new digests and return early if the manifest and deps digests are
+        // unchanged
         let dev_dep_lock_files = dev_dep_graphs
             .values()
             // write_to_lock should create a fresh lockfile for computing the dependency digest,
@@ -364,7 +370,8 @@ impl<Progress: Write> DependencyGraphBuilder<Progress> {
             _ => (new_manifest_digest, new_deps_digest),
         };
 
-        // combine the subgraphs for the dependencies into a single graph for the root package
+        // combine the subgraphs for the dependencies into a single graph for the root
+        // package
         dep_graphs.extend(dev_dep_graphs);
         dep_names.extend(dev_dep_names);
 
@@ -1034,14 +1041,17 @@ impl DependencyGraph {
                     pkg.kind.reroot(parent)?;
                     entry.insert(pkg);
                 }
-                self.package_graph
-                    .add_edge(self.root_package_id, dep_pkg_id, Dependency {
+                self.package_graph.add_edge(
+                    self.root_package_id,
+                    dep_pkg_id,
+                    Dependency {
                         mode,
                         subst: subst.clone(),
                         digest: *digest,
                         dep_override: *dep_override,
                         dep_name,
-                    });
+                    },
+                );
                 Ok(true)
             }
             PM::Dependency::External(_) => {
@@ -1646,8 +1656,8 @@ impl DependencyGraph {
         }
     }
 
-    /// Add all transitive dependencies of `start` node to a mutable `list`. Note that this keeps
-    /// the initial start node in the list.
+    /// Add all transitive dependencies of `start` node to a mutable `list`.
+    /// Note that this keeps the initial start node in the list.
     pub fn add_transitive_dependencies(&self, start: &Symbol, list: &mut BTreeSet<Symbol>) {
         let mut dfs = Dfs::new(&self.package_graph, *start);
 

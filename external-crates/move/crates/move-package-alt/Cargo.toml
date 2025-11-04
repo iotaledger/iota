@@ -18,8 +18,11 @@ toml.workspace = true
 toml_edit.workspace = true
 
 [dev-dependencies]
+# external dependencies
 datatest-stable.workspace = true
 insta.workspace = true
+
+# internal dependencies
 move-command-line-common.workspace = true
 
 [[test]]

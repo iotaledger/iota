@@ -2,17 +2,10 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    completions::utils::{
-        addr_to_ide_string, all_mod_enums_to_import, all_mod_functions_to_import,
-        all_mod_structs_to_import, auto_import_text_edit, compute_cursor, import_insertion_info,
-    },
-    context::Context,
-    symbols::{
-        get_compiled_pkg, ChainInfo, CompiledPkgInfo, CursorContext, PrecomputedPkgInfo,
-        SymbolicatorRunner, Symbols,
-    },
-    utils::loc_start_to_lsp_position_opt,
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    path::PathBuf,
+    sync::{Arc, Mutex},
 };
 
 use lsp_server::{Message, Request, Response};
@@ -20,17 +13,6 @@ use lsp_types::{
     CodeAction, CodeActionKind, CodeActionParams, Diagnostic, Position, Range, TextEdit,
     WorkspaceEdit,
 };
-use move_symbol_pool::Symbol;
-use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    path::PathBuf,
-    sync::{Arc, Mutex},
-};
-use strum::IntoEnumIterator;
-use strum_macros::EnumIter;
-use url::Url;
-use vfs::VfsPath;
-
 use move_compiler::{
     expansion::ast::ModuleIdent,
     linters::LintLevel,
@@ -38,6 +20,24 @@ use move_compiler::{
     shared::{Identifier, Name},
 };
 use move_package::source_package::parsed_manifest::Dependencies;
+use move_symbol_pool::Symbol;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
+use url::Url;
+use vfs::VfsPath;
+
+use crate::{
+    completions::utils::{
+        addr_to_ide_string, all_mod_enums_to_import, all_mod_functions_to_import,
+        all_mod_structs_to_import, auto_import_text_edit, compute_cursor, import_insertion_info,
+    },
+    context::Context,
+    symbols::{
+        ChainInfo, CompiledPkgInfo, CursorContext, PrecomputedPkgInfo, SymbolicatorRunner, Symbols,
+        get_compiled_pkg,
+    },
+    utils::loc_start_to_lsp_position_opt,
+};
 
 // The following reflects prefixes of error messages for
 // problems with a single-element access chain that are

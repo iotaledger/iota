@@ -21,13 +21,12 @@ use smallvec::smallvec;
 use crate::helpers::make_module_natives;
 
 /// ****************************************************************************
-/// ********************* native fun sha2_256
+/// native fun sha2_256
 ///
 ///   gas cost: base_cost + unit_cost * max(input_length_in_bytes,
 /// legacy_min_input_len)
 ///
 /// ****************************************************************************
-/// *******************
 #[derive(Debug, Clone)]
 pub struct Sha2_256GasParameters {
     pub base: InternalGas,
@@ -72,13 +71,12 @@ pub fn make_native_sha2_256(gas_params: Sha2_256GasParameters) -> NativeFunction
 }
 
 /// ****************************************************************************
-/// ********************* native fun sha3_256
+/// native fun sha3_256
 ///
 ///   gas cost: base_cost + unit_cost * max(input_length_in_bytes,
 /// legacy_min_input_len)
 ///
 /// ****************************************************************************
-/// *******************
 #[derive(Debug, Clone)]
 pub struct Sha3_256GasParameters {
     pub base: InternalGas,
@@ -123,9 +121,8 @@ pub fn make_native_sha3_256(gas_params: Sha3_256GasParameters) -> NativeFunction
 }
 
 /// ****************************************************************************
-/// ********************* module
+/// module
 /// ****************************************************************************
-/// *******************
 #[derive(Debug, Clone)]
 pub struct GasParameters {
     pub sha2_256: Sha2_256GasParameters,

@@ -248,8 +248,7 @@ impl MoveUtilsServer for MoveUtils {
                             pool,
                             p.serialized_module_map().values(),
                             &binary_config,
-                            // include code
-                            false,
+                            false, // include code
                         )
                         .map_err(Error::from)
                     }
@@ -313,8 +312,7 @@ mod tests {
             let normalized_module = &NormalizedModule::new(
                 &mut normalized::RcPool::new(),
                 &m,
-                // include code
-                false,
+                false, // include code
             );
             let expected_module: IotaMoveNormalizedModule = normalized_module.into();
 
@@ -324,8 +322,7 @@ mod tests {
                     Ok(NormalizedModule::new(
                         &mut normalized::RcPool::new(),
                         &m,
-                        // include code
-                        false,
+                        false, // include code
                     ))
                 });
 

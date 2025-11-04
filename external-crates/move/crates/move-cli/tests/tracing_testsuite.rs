@@ -9,15 +9,16 @@ use std::path::Path;
 fn run_all(args_path: &Path) -> datatest_stable::Result<()> {
     #[cfg(feature = "tracing")]
     {
-        use move_cli::sandbox::commands::test;
         use std::path::PathBuf;
+
+        use move_cli::sandbox::commands::test;
         let cli_exe = env!("CARGO_BIN_EXE_move");
         let use_temp_dir = !args_path.parent().unwrap().join("NO_TEMPDIR").exists();
         test::run_one(
             args_path,
             &PathBuf::from(cli_exe),
-            /* use_temp_dir */ use_temp_dir,
-            /* track_cov */ false,
+            use_temp_dir,
+            false, // track_cov
         )?;
     }
     Ok(())

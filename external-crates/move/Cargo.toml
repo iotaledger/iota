@@ -1,6 +1,5 @@
 [workspace]
 resolver = "2"
-
 members = [
   "crates/*",
   # "move-execution/$CUT/crates/bytecode-verifier-tests",
@@ -13,6 +12,7 @@ members = [
 
 # Dependencies that should be kept in sync through the whole workspace
 [workspace.dependencies]
+# external dependencies
 aes-gcm = "0.8.0"
 anyhow = "1.0.52"
 append-only-vec = "0.1.7"
@@ -125,6 +125,7 @@ whoami = { version = "1.2.1" }
 x25519-dalek = { version = "0.1.0", package = "x25519-dalek-fiat", default-features = false, features = ["std", "u64_backend"] }
 z3tracer = "0.8.0"
 
+# internal dependencies
 bytecode-interpreter-crypto = { path = "crates/bytecode-interpreter-crypto" }
 enum-compat-util = { path = "crates/enum-compat-util" }
 invalid-mutations = { path = "crates/invalid-mutations" }
@@ -182,7 +183,7 @@ opt-level = 3
 
 # use release settings to reduce memory pressure in the linking step in CI
 [profile.ci]
-inherits = "test"
+codegen-units = 16
 debug = 0 # for saving disk space during linking
 incremental = false
-codegen-units = 16
+inherits = "test"

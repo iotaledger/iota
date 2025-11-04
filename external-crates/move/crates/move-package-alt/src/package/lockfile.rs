@@ -15,17 +15,16 @@ use derive_where::derive_where;
 use serde::{Deserialize, Serialize};
 use serde_spanned::Spanned;
 use toml_edit::{
-    visit_mut::{visit_table_like_kv_mut, visit_table_mut, VisitMut},
     DocumentMut, InlineTable, Item, KeyMut, Table, Value,
-};
-
-use crate::{
-    dependency::{ManifestDependencyInfo, PinnedDependencyInfo},
-    errors::{with_file, Located, LockfileError, PackageError, PackageResult},
-    flavor::MoveFlavor,
+    visit_mut::{VisitMut, visit_table_like_kv_mut, visit_table_mut},
 };
 
 use super::{EnvironmentName, PackageName};
+use crate::{
+    dependency::{ManifestDependencyInfo, PinnedDependencyInfo},
+    errors::{Located, LockfileError, PackageError, PackageResult, with_file},
+    flavor::MoveFlavor,
+};
 
 #[derive(fmt::Debug, Serialize, Deserialize)]
 #[derive_where(Clone, Default)]
@@ -68,8 +67,9 @@ struct UnpublishedDependencies<F: MoveFlavor + fmt::Debug> {
 }
 
 impl<F: MoveFlavor + fmt::Debug> Lockfile<F> {
-    /// Read `Move.lock` and all `Move.<env>.lock` files from the directory at `path`.
-    /// Returns a new empty [Lockfile] if `path` doesn't contain a `Move.lock`.
+    /// Read `Move.lock` and all `Move.<env>.lock` files from the directory at
+    /// `path`. Returns a new empty [Lockfile] if `path` doesn't contain a
+    /// `Move.lock`.
     pub fn read_from(path: impl AsRef<Path>) -> PackageResult<Self> {
         // Parse `Move.lock`
         let lockfile_name = path.as_ref().join("Move.lock");
@@ -110,9 +110,10 @@ impl<F: MoveFlavor + fmt::Debug> Lockfile<F> {
 
     /// Serialize [self] into `Move.lock` and `Move.<env>.lock`.
     ///
-    /// The [PublishedMetadata] in `self.published.<env>` are partitioned: if `env` is in [envs]
-    /// then it is saved to `Move.lock` (and `Move.<env>.lock` is deleted), otherwise the metadata
-    /// is stored in `Move.<env>.lock`.
+    /// The [PublishedMetadata] in `self.published.<env>` are partitioned: if
+    /// `env` is in [envs] then it is saved to `Move.lock` (and
+    /// `Move.<env>.lock` is deleted), otherwise the metadata is stored in
+    /// `Move.<env>.lock`.
     pub fn write_to(
         &self,
         path: impl AsRef<Path>,
@@ -146,9 +147,10 @@ impl<F: MoveFlavor + fmt::Debug> Lockfile<F> {
         let mut toml = toml_edit::ser::to_document(self).expect("toml serialization succeeds");
 
         expand_toml(&mut toml);
-        // TODO: maybe this could be more concise and not duplicated in [PublishedMetadata.render]
-        // by making the flattener smarter (e.g. it knows to fold anything called pinned, unpinned,
-        // or dependencies, or something like that)
+        // TODO: maybe this could be more concise and not duplicated in
+        // [PublishedMetadata.render] by making the flattener smarter (e.g. it
+        // knows to fold anything called pinned, unpinned, or dependencies, or
+        // something like that)
         flatten_toml(&mut toml["unpublished"]["dependencies"]["pinned"]);
         flatten_toml(&mut toml["unpublished"]["dependencies"]["unpinned"]);
         flatten_toml(&mut toml["unpublished"]["dependencies"]["unpinned"]);
@@ -186,8 +188,8 @@ impl<F: MoveFlavor + fmt::Debug> Publication<F> {
     }
 }
 
-/// Replace every inline table in [toml] with an implicit standard table (implicit tables are not
-/// included if they have no keys directly inside them)
+/// Replace every inline table in [toml] with an implicit standard table
+/// (implicit tables are not included if they have no keys directly inside them)
 fn expand_toml(toml: &mut DocumentMut) {
     struct Expander;
 

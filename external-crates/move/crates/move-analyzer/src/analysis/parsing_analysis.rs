@@ -2,48 +2,49 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::collections::BTreeMap;
+
+use lsp_types::Position;
+use move_compiler::{
+    parser::ast as P,
+    shared::{Identifier, Name, NamedAddressMap, NamedAddressMaps, files::MappedFiles},
+};
+use move_ir_types::location::*;
+
 use crate::{
     symbols::{
-        add_member_use_def, ignored_function, parsed_address,
-        parsing_leading_and_mod_names_to_map_key, parsing_mod_def_to_map_key,
         AutoImportInsertionInfo, AutoImportInsertionKind, CallInfo, CursorContext,
         CursorDefinition, CursorPosition, DefMap, ModuleDefs, References, UseDef, UseDefMap,
+        add_member_use_def, ignored_function, parsed_address,
+        parsing_leading_and_mod_names_to_map_key, parsing_mod_def_to_map_key,
     },
     utils::{loc_end_to_lsp_position_opt, loc_start_to_lsp_position_opt},
 };
 
-use lsp_types::Position;
-
-use std::collections::BTreeMap;
-
-use move_compiler::{
-    parser::ast as P,
-    shared::{files::MappedFiles, Identifier, Name, NamedAddressMap, NamedAddressMaps},
-};
-use move_ir_types::location::*;
-
 pub struct ParsingAnalysisContext<'a> {
-    /// Outermost definitions in a module (structs, consts, functions), keyd on a ModuleIdent
-    /// string so that we can access it regardless of the ModuleIdent representation
-    /// (e.g., in the parsing AST or in the typing AST)
+    /// Outermost definitions in a module (structs, consts, functions), keyd on
+    /// a ModuleIdent string so that we can access it regardless of the
+    /// ModuleIdent representation (e.g., in the parsing AST or in the
+    /// typing AST)
     pub mod_outer_defs: &'a mut BTreeMap<String, ModuleDefs>,
     /// Mapped file information for translating locations into positions
     pub files: &'a MappedFiles,
-    /// Associates uses for a given definition to allow displaying all references
+    /// Associates uses for a given definition to allow displaying all
+    /// references
     pub references: &'a mut References,
     /// Additional information about definitions
     pub def_info: &'a mut DefMap,
-    /// A UseDefMap for a given module (needs to be appropriately set before the module
-    /// processing starts)
+    /// A UseDefMap for a given module (needs to be appropriately set before the
+    /// module processing starts)
     pub use_defs: UseDefMap,
-    /// Current module identifier string (needs to be appropriately set before the module
-    /// processing starts)
+    /// Current module identifier string (needs to be appropriately set before
+    /// the module processing starts)
     pub current_mod_ident_str: Option<String>,
-    /// Module name lengths in access paths for a given module (needs to be appropriately
-    /// set before the module processing starts)
+    /// Module name lengths in access paths for a given module (needs to be
+    /// appropriately set before the module processing starts)
     pub alias_lengths: BTreeMap<Position, usize>,
-    /// A per-package mapping from package names to their addresses (needs to be appropriately set
-    /// before the package processint starts)
+    /// A per-package mapping from package names to their addresses (needs to be
+    /// appropriately set before the package processint starts)
     pub pkg_addresses: &'a NamedAddressMap,
     /// Cursor contextual information, computed as part of the traversal.
     pub cursor: Option<&'a mut CursorContext>,
@@ -143,7 +144,8 @@ impl<'a> ParsingAnalysisContext<'a> {
                 earliest_loc
             }
         }
-        // parsing symbolicator is currently only responsible for processing use declarations
+        // parsing symbolicator is currently only responsible for processing use
+        // declarations
         let Some(mod_ident_str) = parsing_mod_def_to_map_key(self.pkg_addresses, mod_def) else {
             return;
         };
@@ -702,7 +704,8 @@ impl<'a> ParsingAnalysisContext<'a> {
         }
     }
 
-    /// Get symbols for a module member in the use declaration (can be a struct or a function)
+    /// Get symbols for a module member in the use declaration (can be a struct
+    /// or a function)
     fn use_decl_member_symbols(
         &mut self,
         mod_ident_str: String,
@@ -878,8 +881,9 @@ impl<'a> ParsingAnalysisContext<'a> {
     }
 }
 
-/// Produces module ident string of the form pkg::module to be used as a map key.
-/// It's important that these are consistent between parsing AST and typed AST,
+/// Produces module ident string of the form pkg::module to be used as a map
+/// key. It's important that these are consistent between parsing AST and typed
+/// AST,
 fn parsing_mod_ident_to_map_key(
     pkg_addresses: &NamedAddressMap,
     mod_ident: &P::ModuleIdent_,

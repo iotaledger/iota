@@ -7,9 +7,8 @@ use std::path::Path;
 
 use codespan_reporting::{
     files::SimpleFiles,
-    term::{self, termcolor::Buffer, Config},
+    term::{self, Config, termcolor::Buffer},
 };
-
 use move_command_line_common::insta_assert;
 use move_package_alt::{
     flavor::Vanilla,

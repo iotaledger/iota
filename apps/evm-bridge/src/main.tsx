@@ -4,6 +4,7 @@ import './globals.css';
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import {
     getDefaultConfig,
     darkTheme as rainbowDarkTheme,
@@ -13,6 +14,7 @@ import {
 } from '@rainbow-me/rainbowkit';
 import { darkTheme, IotaClientProvider, lightTheme, WalletProvider } from '@iota/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { CookieDisclaimer } from './components/disclaimer/CookieDisclaimer';
 import App from './App.tsx';
 import { ThemeProvider } from './providers/ThemeProvider.tsx';
 import { WagmiProvider } from 'wagmi';
@@ -77,8 +79,11 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                 >
                                     <ThemeProvider appId="IOTA-evm-bridge">
                                         <RainbowKit>
-                                            <App />
-                                            <Toaster />
+                                            <CookieManagerProvider>
+                                                <App />
+                                                <Toaster />
+                                                <CookieDisclaimer />
+                                            </CookieManagerProvider>
                                         </RainbowKit>
                                     </ThemeProvider>
                                 </WalletProvider>
