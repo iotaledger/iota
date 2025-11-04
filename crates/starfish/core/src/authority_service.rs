@@ -663,17 +663,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         // Some quick validation of the requested block refs
-        for block in &block_refs {
-            if !self.context.committee.is_valid_index(block.author) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: block.author,
-                    max: self.context.committee.size(),
-                });
-            }
-            if block.round == GENESIS_ROUND {
-                return Err(ConsensusError::UnexpectedGenesisHeaderRequested);
-            }
-        }
+        ConsensusError::quick_validation_requested_block_refs(&block_refs, peer, &self.context.committee)?;
 
         if !highest_accepted_rounds.is_empty()
             && highest_accepted_rounds.len() != self.context.committee.size()
@@ -842,14 +832,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // Ensure that those are valid authorities
-        for authority in &authorities {
-            if !self.context.committee.is_valid_index(*authority) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: *authority,
-                    max: self.context.committee.size(),
-                });
-            }
-        }
+        ConsensusError::quick_validation_authority_indices(&authorities, &self.context.committee)?;
 
         // Read from the dag state to find the latest block headers.
         // TODO: at the moment we don't look into the block manager for suspended
@@ -908,7 +891,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        mut block_refs: Vec<BlockRef>,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
@@ -917,21 +900,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         if block_refs.len() > self.context.parameters.max_transactions_per_fetch {
-            return Err(ConsensusError::TooManyFetchTransactionsRequested(peer));
+            block_refs.truncate(self.context.parameters.max_transactions_per_fetch);
         }
 
         // Some quick validation of the requested block refs
-        for block in &block_refs {
-            if !self.context.committee.is_valid_index(block.author) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: block.author,
-                    max: self.context.committee.size(),
-                });
-            }
-            if block.round == GENESIS_ROUND {
-                return Err(ConsensusError::UnexpectedGenesisTransactionsRequested);
-            }
-        }
+        ConsensusError::quick_validation_requested_block_refs(&block_refs, peer, &self.context.committee)?;
 
         // Get the transactions from the dag state
         let transactions = self
