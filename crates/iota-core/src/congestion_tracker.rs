@@ -324,39 +324,34 @@ impl CongestionTracker {
                 continue;
             }
 
-            // Compute the set of mutated shared objects for this transaction once,
-            // and only use those for congestion/clearing accounting and model input.
-            let mutated_objects: Vec<ObjectID> = effects
-                .input_shared_objects()
-                .into_iter()
-                .filter_map(|object| match object {
-                    InputSharedObject::Mutate((id, _, _)) => Some(id),
-                    _ => None,
-                })
-                .collect();
-
-            if let Some(CongestedObjects(_congested_objects)) =
+            if let Some(CongestedObjects(congested_objects)) =
                 effects.status().get_congested_objects()
             {
-                // Only consider transactions that actually mutate shared objects.
-                if !mutated_objects.is_empty() {
-                    congestion_txs_data.push(TxData {
-                        checkpoint: checkpoint.sequence_number,
-                        digest: *effects.transaction_digest(),
-                        objects: mutated_objects.clone(),
-                        gas_price,
-                        gas_price_feedback: Some(
-                            effects
-                                .status()
-                                .get_feedback_suggested_gas_price()
-                                .unwrap_or(self.reference_gas_price),
-                        ),
-                        sui_prediction: sui_prediction,
-                        ogd_prediction: ogd_prediction,
-                        cleread: false,
-                    });
-                }
+                congestion_txs_data.push(TxData {
+                    checkpoint: checkpoint.sequence_number,
+                    digest: *effects.transaction_digest(),
+                    objects: congested_objects.clone(),
+                    gas_price,
+                    gas_price_feedback: Some(
+                        effects
+                            .status()
+                            .get_feedback_suggested_gas_price()
+                            .unwrap_or(self.reference_gas_price),
+                    ),
+                    sui_prediction: sui_prediction,
+                    ogd_prediction: ogd_prediction,
+                    cleread: false,
+                });
             } else {
+                let mutated_objects: Vec<ObjectID> = effects
+                    .input_shared_objects()
+                    .into_iter()
+                    .filter_map(|object| match object {
+                        InputSharedObject::Mutate((id, _, _)) => Some(id),
+                        _ => None,
+                    })
+                    .collect();
+
                 // Only push to clearing_txs_data if there are mutated objects
                 if !mutated_objects.is_empty() {
                     clearing_txs_data.push(TxData {
