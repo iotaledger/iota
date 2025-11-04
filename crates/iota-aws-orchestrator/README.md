@@ -126,7 +126,7 @@ cargo run --bin iota-aws-orchestrator -- testbed destroy
 
 ### Note:
 
-Use the `--leave-monitoring` command to skip destruction of the metrics instance.
+Use the `--keep-monitoring` command to skip destruction of the metrics instance.
 
 that will terminate all the deployed EC2 instances. Keep in mind that AWS is not immediately deleting the terminated instances - this could take a few hours - so in case you want to immediately deploy a new testbed it would be advised
 to use a different `testbed_id` in the `settings.json` to avoid any later conflicts (see the FAQ section for more information).

@@ -104,8 +104,12 @@ pub trait ServerProviderClient: Display {
     /// The username used to connect to the instances.
     const USERNAME: &'static str;
 
-    /// List all existing instances (regardless of their status).
-    async fn list_instances(&self, role: InstanceRole) -> CloudProviderResult<Vec<Instance>>;
+    /// List all existing instances (regardless of their status) filtered by
+    /// role.
+    async fn list_instances_by_role(
+        &self,
+        role: InstanceRole,
+    ) -> CloudProviderResult<Vec<Instance>>;
 
     async fn list_instances_by_region_and_ids(
         &self,
@@ -179,7 +183,10 @@ pub mod test_client {
     impl ServerProviderClient for TestClient {
         const USERNAME: &'static str = "root";
 
-        async fn list_instances(&self, _role: InstanceRole) -> CloudProviderResult<Vec<Instance>> {
+        async fn list_instances_by_role(
+            &self,
+            _role: InstanceRole,
+        ) -> CloudProviderResult<Vec<Instance>> {
             let guard = self.instances.lock().unwrap();
             Ok(guard.clone())
         }

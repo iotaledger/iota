@@ -36,9 +36,9 @@ impl<C: ServerProviderClient> Testbed<C> {
     pub async fn new(settings: Settings, client: C) -> TestbedResult<Self> {
         let public_key = settings.load_ssh_public_key()?;
         client.register_ssh_public_key(public_key).await?;
-        let node_instances = client.list_instances(InstanceRole::Node).await?;
-        let client_instances = client.list_instances(InstanceRole::Client).await?;
-        let metrics_instance = client.list_instances(InstanceRole::Metrics).await?;
+        let node_instances = client.list_instances_by_role(InstanceRole::Node).await?;
+        let client_instances = client.list_instances_by_role(InstanceRole::Client).await?;
+        let metrics_instance = client.list_instances_by_role(InstanceRole::Metrics).await?;
 
         Ok(Self {
             settings,
@@ -94,7 +94,7 @@ impl<C: ServerProviderClient> Testbed<C> {
     pub fn status(&self) {
         let filtered = self
             .instances()
-            .iter()
+            .into_iter()
             .filter(|instance| self.settings.filter_instances(instance));
         let sorted: Vec<(_, Vec<_>)> = self
             .settings
@@ -206,7 +206,7 @@ impl<C: ServerProviderClient> Testbed<C> {
             (_, 0) => vec![],
             (Some(x), _) => {
                 try_join_all(
-                    (0..quantity)
+                    (0..dedicated_clients)
                         .map(|_| self.client.create_instance(x.clone(), InstanceRole::Client)),
                 )
                 .await?
@@ -228,9 +228,18 @@ impl<C: ServerProviderClient> Testbed<C> {
         if cfg!(not(test)) {
             self.wait_until_reachable(instances.iter()).await?;
         }
-        let node_instances = self.client.list_instances(InstanceRole::Node).await?;
-        let client_instances = self.client.list_instances(InstanceRole::Client).await?;
-        let metrics_instance = self.client.list_instances(InstanceRole::Metrics).await?;
+        let node_instances = self
+            .client
+            .list_instances_by_role(InstanceRole::Node)
+            .await?;
+        let client_instances = self
+            .client
+            .list_instances_by_role(InstanceRole::Client)
+            .await?;
+        let metrics_instance = self
+            .client
+            .list_instances_by_role(InstanceRole::Metrics)
+            .await?;
         self.node_instances = node_instances;
         self.client_instances = if client_instances.is_empty() {
             None
@@ -244,13 +253,13 @@ impl<C: ServerProviderClient> Testbed<C> {
     }
 
     /// Destroy all instances of the testbed.
-    pub async fn destroy(&mut self, leave_monitoring: bool) -> TestbedResult<()> {
+    pub async fn destroy(&mut self, keep_monitoring: bool) -> TestbedResult<()> {
         display::action("Destroying testbed");
 
         try_join_all(
             self.instances()
                 .iter()
-                .filter(|i| !(leave_monitoring && i.role == InstanceRole::Metrics))
+                .filter(|i| !(keep_monitoring && i.role == InstanceRole::Metrics))
                 .map(|instance| self.client.delete_instance(instance.clone())),
         )
         .await?;
@@ -331,9 +340,18 @@ impl<C: ServerProviderClient> Testbed<C> {
         if cfg!(not(test)) {
             self.wait_until_reachable(available.iter()).await?;
         }
-        let node_instances = self.client.list_instances(InstanceRole::Node).await?;
-        let client_instances = self.client.list_instances(InstanceRole::Client).await?;
-        let metrics_instance = self.client.list_instances(InstanceRole::Metrics).await?;
+        let node_instances = self
+            .client
+            .list_instances_by_role(InstanceRole::Node)
+            .await?;
+        let client_instances = self
+            .client
+            .list_instances_by_role(InstanceRole::Client)
+            .await?;
+        let metrics_instance = self
+            .client
+            .list_instances_by_role(InstanceRole::Metrics)
+            .await?;
         self.node_instances = node_instances;
         self.client_instances = if client_instances.is_empty() {
             None
@@ -347,23 +365,34 @@ impl<C: ServerProviderClient> Testbed<C> {
     }
 
     /// Stop all instances of the testbed.
-    pub async fn stop(&mut self, leave_monitoring: bool) -> TestbedResult<()> {
+    pub async fn stop(&mut self, keep_monitoring: bool) -> TestbedResult<()> {
         display::action("Stopping instances");
 
         // Stop all instances.
         self.client
-            .stop_instances(self.instances().iter().filter(|i| {
-                i.is_active() && !(i.role == InstanceRole::Metrics && leave_monitoring)
-            }))
+            .stop_instances(
+                self.instances().iter().filter(|i| {
+                    i.is_active() && !(i.role == InstanceRole::Metrics && keep_monitoring)
+                }),
+            )
             .await?;
 
         // Wait until the instances are stopped.
         loop {
-            let mut instances = self.client.list_instances(InstanceRole::Node).await?;
-            let client_instances = self.client.list_instances(InstanceRole::Client).await?;
+            let mut instances = self
+                .client
+                .list_instances_by_role(InstanceRole::Node)
+                .await?;
+            let client_instances = self
+                .client
+                .list_instances_by_role(InstanceRole::Client)
+                .await?;
             instances.extend(client_instances);
-            if !leave_monitoring {
-                let metrics_instance = self.client.list_instances(InstanceRole::Metrics).await?;
+            if !keep_monitoring {
+                let metrics_instance = self
+                    .client
+                    .list_instances_by_role(InstanceRole::Metrics)
+                    .await?;
                 instances.extend(metrics_instance);
             }
 

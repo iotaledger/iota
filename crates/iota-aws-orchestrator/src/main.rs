@@ -189,16 +189,16 @@ pub enum TestbedAction {
 
     /// Stop an existing testbed (without destroying the instances).
     Stop {
-        /// Leaves the monitoring instance running
+        /// Keeps the monitoring instance running
         #[arg(long, action, default_value = "false", global = true)]
-        leave_monitoring: bool,
+        keep_monitoring: bool,
     },
 
     /// Destroy the testbed and terminate all instances.
     Destroy {
-        /// Leaves the monitoring instance running
+        /// Keeps the monitoring instance running
         #[arg(long, action, default_value = "false", global = true)]
-        leave_monitoring: bool,
+        keep_monitoring: bool,
     },
 }
 
@@ -285,14 +285,14 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 .wrap_err("Failed to start testbed")?,
 
             // Stop an existing testbed.
-            TestbedAction::Stop { leave_monitoring } => testbed
-                .stop(leave_monitoring)
+            TestbedAction::Stop { keep_monitoring } => testbed
+                .stop(keep_monitoring)
                 .await
                 .wrap_err("Failed to stop testbed")?,
 
             // Destroy the testbed and terminal all instances.
-            TestbedAction::Destroy { leave_monitoring } => testbed
-                .destroy(leave_monitoring)
+            TestbedAction::Destroy { keep_monitoring } => testbed
+                .destroy(keep_monitoring)
                 .await
                 .wrap_err("Failed to destroy testbed")?,
         },

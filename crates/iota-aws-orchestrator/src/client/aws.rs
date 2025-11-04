@@ -274,7 +274,10 @@ impl AwsClient {
 impl ServerProviderClient for AwsClient {
     const USERNAME: &'static str = "ubuntu";
 
-    async fn list_instances(&self, role: InstanceRole) -> CloudProviderResult<Vec<Instance>> {
+    async fn list_instances_by_role(
+        &self,
+        role: InstanceRole,
+    ) -> CloudProviderResult<Vec<Instance>> {
         let filter_name = Filter::builder()
             .name("tag:Name")
             .values(self.settings.testbed_id.clone())
