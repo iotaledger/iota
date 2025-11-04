@@ -65,6 +65,9 @@ echo "build date:                 $BUILD_DATE"
 echo "git revision:               $GIT_REVISION"
 echo
 
+# Enable BuildKit for cache mount support
+export DOCKER_BUILDKIT=1
+
 docker build -f "$DOCKERFILE" "$REPO_ROOT" \
 	-t ${IMAGE_TAG} \
 	--build-arg RUST_IMAGE_VERSION="${RUST_IMAGE_VERSION}" \
