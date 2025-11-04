@@ -295,14 +295,19 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
             .with_label_values(&[&leader_author.to_string()])
             .inc();
 
+        for (authority_index, number_of_committed_headers) in
+            consensus_output.number_of_headers_in_commit_by_authority()
+        {
+            self.last_consensus_stats
+                .stats
+                .inc_num_messages(authority_index as usize, number_of_committed_headers);
+        }
+
         {
             let span = trace_span!("process_consensus_certs");
             let _guard = span.enter();
             for (authority_index, authority_transactions) in consensus_output.transactions() {
                 // TODO: consider only messages within 1~3 rounds of the leader?
-                self.last_consensus_stats
-                    .stats
-                    .inc_num_messages(authority_index as usize);
                 for (transaction, serialized_len) in authority_transactions {
                     let kind = classify(&transaction);
                     self.metrics
