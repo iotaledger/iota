@@ -850,15 +850,15 @@ impl ConnectionKnowledge {
     }
 
     /// Evict all connection knowledge below the given rounds (exclusive)
-    fn evict_below(&mut self, rounds_to_evict_exclusive: Vec<Round>) {
+    fn evict_below(&mut self, evicted_rounds: Vec<Round>) {
         for (index, map) in self.headers_not_known.iter_mut().enumerate() {
-            let threshold_round = rounds_to_evict_exclusive[index] + 1;
+            let threshold_round = evicted_rounds[index] + 1;
             // Keep only entries >= threshold
             *map = map.split_off(&threshold_round);
         }
 
         for (index, map) in self.shards_not_known.iter_mut().enumerate() {
-            let threshold_round = rounds_to_evict_exclusive[index] + 1;
+            let threshold_round = evicted_rounds[index] + 1;
             *map = map.split_off(&threshold_round);
         }
     }
@@ -964,12 +964,12 @@ impl ConnectionKnowledge {
     /// Used by AuthorityService to create a block bundle
     /// to send to the peer.
     pub fn create_bundle(&mut self, block: VerifiedBlock) -> BlockBundle {
-        let round_upper_bound_exclusive = block.round();
+        let block_round = block.round();
         // 1. Own headers and shards for round up to round_upper_bound_exclusive should
         //    be marked as known
         let own_index = self.context.own_index;
         let mut rounds = vec![Round::MIN; self.context.committee.size()];
-        rounds[own_index] = round_upper_bound_exclusive; // We are supposed to send own block of this round in a bundle when calling this function with this parameter
+        rounds[own_index] = block_round; // We are supposed to send own block of this round in a bundle when calling this function with this parameter
 
         self.evict_below(rounds);
 
@@ -981,8 +981,7 @@ impl ConnectionKnowledge {
             .enumerate()
             .filter(|(_authority_index, &opt_round)| {
                 if let Some(round) = opt_round {
-                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
-                        >= round_upper_bound_exclusive
+                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS) >= block_round
                 } else {
                     false
                 }
@@ -990,10 +989,8 @@ impl ConnectionKnowledge {
             .map(|(authority_index, _opt_round)| authority_index)
             .collect();
 
-        let useful_headers_block_refs_to_peer = self.take_useful_header_block_refs_round(
-            round_upper_bound_exclusive,
-            &useful_headers_authors_to_peer,
-        );
+        let useful_headers_block_refs_to_peer =
+            self.take_useful_header_block_refs_round(block_round, &useful_headers_authors_to_peer);
 
         let useful_headers_to_peer: Vec<VerifiedBlockHeader> = {
             let dag_state_read = self.dag_state.read();
@@ -1012,8 +1009,7 @@ impl ConnectionKnowledge {
             .enumerate()
             .filter(|(_authority_index, &opt_round)| {
                 if let Some(round) = opt_round {
-                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
-                        >= round_upper_bound_exclusive
+                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS) >= block_round
                 } else {
                     false
                 }
@@ -1021,10 +1017,8 @@ impl ConnectionKnowledge {
             .map(|(authority_index, _opt_round)| authority_index)
             .collect();
 
-        let useful_shards_block_refs_to_peer = self.take_useful_shard_block_refs_round(
-            round_upper_bound_exclusive,
-            &useful_shards_authors_to_peer,
-        );
+        let useful_shards_block_refs_to_peer =
+            self.take_useful_shard_block_refs_round(block_round, &useful_shards_authors_to_peer);
         let useful_shards_to_peer: Vec<Bytes> = {
             let dag_state_read = self.dag_state.read();
             dag_state_read
@@ -1044,8 +1038,7 @@ impl ConnectionKnowledge {
             .enumerate()
             .filter(|(_authority_index, &opt_round)| {
                 if let Some(round) = opt_round {
-                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
-                        >= round_upper_bound_exclusive
+                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS) >= block_round
                 } else {
                     false
                 }
@@ -1060,8 +1053,7 @@ impl ConnectionKnowledge {
             .enumerate()
             .filter(|(_authority_index, &opt_round)| {
                 if let Some(round) = opt_round {
-                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS)
-                        >= round_upper_bound_exclusive
+                    round.saturating_add(MAX_ROUND_GAP_FOR_USEFUL_PARTS) >= block_round
                 } else {
                     false
                 }
