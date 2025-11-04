@@ -108,7 +108,7 @@ cargo run --bin iota-aws-orchestrator -- benchmark --committee 10 fixed-load --l
 ### Note
 
 - Use the `--skip-monitoring` command to skip the use of a metrics instance.
-- Use the `--dedicated-clietns N` command to use dedicated load generator machines `N` in total.
+- Use the `--dedicated-clients N` command to use dedicated load generator machines `N` in total.
 
 In a network of 10 validators, each with a corresponding load generator, each load generator submits a fixed load of 20 tx/s. Performance measurements are collected by regularly scraping the Prometheus metrics exposed by the load generators. The `iota-aws-orchestrator` binary provides additional commands to run a specific number of load generators on separate machines.
 
