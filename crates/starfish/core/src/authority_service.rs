@@ -23,8 +23,8 @@ use tracing::{debug, info, warn};
 use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
-        SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND,
+        ShardWithProof, SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
         VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
@@ -154,29 +154,17 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             cordial_knowledge,
         }
     }
-}
-
-#[async_trait]
-impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
-    async fn handle_subscribed_block_bundle(
+    fn create_verified_block_and_shard(
         &self,
         peer: AuthorityIndex,
-        serialized_block_bundle: SerializedBlockBundle,
+        peer_hostname: &str,
+        serialized_block: Bytes,
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
-    ) -> ConsensusResult<()> {
-        fail_point_async!("consensus-rpc-response");
-
-        let peer_hostname = &self.context.committee.authority(peer).hostname;
-        let mut serialized_block_bundle_parts =
-            SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
-
-        // 1. Create a verified block and make some preliminary checks
+    ) -> ConsensusResult<(VerifiedBlock, Option<ShardWithProof>)> {
         let SerializedHeaderAndTransactions {
             serialized_block_header,
             serialized_transactions,
-        } = SerializedHeaderAndTransactions::try_from(SerializedBlock {
-            serialized_block: serialized_block_bundle_parts.serialized_block.clone(),
-        })?;
+        } = SerializedHeaderAndTransactions::try_from(SerializedBlock { serialized_block })?;
 
         let signed_block_header: SignedBlockHeader =
             bcs::from_bytes(&serialized_block_header).map_err(ConsensusError::MalformedHeader)?;
@@ -187,23 +175,23 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .metrics
                 .node_metrics
                 .bundles_with_invalid_parts
-                .with_label_values(&[peer_hostname.as_str(), "header", "UnexpectedAuthority"])
+                .with_label_values(&[peer_hostname, "header", "UnexpectedAuthority"])
                 .inc();
             let e = ConsensusError::UnexpectedAuthority(signed_block_header.author(), peer);
             info!("Block with wrong authority from {}: {}", peer, e);
             return Err(e);
         }
-
         if let Err(e) = self.block_verifier.verify(&signed_block_header) {
             self.context
                 .metrics
                 .node_metrics
                 .bundles_with_invalid_parts
-                .with_label_values(&[peer_hostname.as_str(), "header", e.clone().name()])
+                .with_label_values(&[peer_hostname, "header", e.clone().name()])
                 .inc();
             info!("Invalid block header from {}: {}", peer, e);
             return Err(e);
         }
+
         let (transaction_commitment, our_shard, proof_for_shard) = TransactionsCommitment::compute_merkle_root_shard_and_proof(
             &serialized_transactions,
             &self.context,
@@ -234,10 +222,44 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         );
         let has_transactions = verified_transactions.has_transactions();
         let verified_block = VerifiedBlock::new(verified_block_header, verified_transactions);
-
         let block_ref = verified_block.reference();
         debug!("Received block {} via stream block bundle.", block_ref);
+        let shard_for_core = if has_transactions {
+            Some(ShardWithProof {
+                shard: our_shard,
+                transaction_commitment,
+                proof: proof_for_shard,
+                block_ref,
+            })
+        } else {
+            None
+        };
+        Ok((verified_block, shard_for_core))
+    }
+}
 
+#[async_trait]
+impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
+    async fn handle_subscribed_block_bundle(
+        &self,
+        peer: AuthorityIndex,
+        serialized_block_bundle: SerializedBlockBundle,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+    ) -> ConsensusResult<()> {
+        fail_point_async!("consensus-rpc-response");
+
+        let peer_hostname = &self.context.committee.authority(peer).hostname;
+        let mut serialized_block_bundle_parts =
+            SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
+
+        // 1. Create a verified block and make some preliminary checks
+        let (verified_block, shard_for_core) = self.create_verified_block_and_shard(
+            peer,
+            peer_hostname,
+            serialized_block_bundle_parts.serialized_block.clone(),
+            encoder,
+        )?;
+        let block_ref = verified_block.reference();
         // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
         let now = self.context.clock.timestamp_utc_ms();
         let forward_time_drift =
@@ -249,8 +271,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(forward_time_drift.as_millis() as u64);
 
-        // 4. Create block headers from bytes from a bundle
-        // 4.a. Truncate headers in bundle to max_headers_per_bundle
+        // 3. Create block headers from bytes from a bundle
+        // 3.a. Truncate headers in a bundle to max_headers_per_bundle
         let mut serialized_headers =
             std::mem::take(&mut serialized_block_bundle_parts.serialized_headers);
         if serialized_headers.len() > self.context.parameters.max_headers_per_bundle {
@@ -506,13 +528,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 12. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions
-        if has_transactions {
-            let shard_for_core = ShardWithProof {
-                shard: our_shard,
-                transaction_commitment,
-                proof: proof_for_shard,
-                block_ref,
-            };
+        if shard_for_core.is_some() {
+            let shard_for_core = shard_for_core.unwrap();
             let serialized_shard_for_core: Bytes = bcs::to_bytes(&shard_for_core)
                 .map_err(ConsensusError::SerializationFailure)?
                 .into();
