@@ -380,6 +380,35 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .inc_by(verified_shards.len() as u64);
         Ok(verified_shards)
     }
+    fn ensure_commit_lag_within_threshold(&self, block_ref: BlockRef) -> ConsensusResult<()> {
+        let last_commit_index = self.dag_state.read().last_commit_index();
+        let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
+        // The threshold to ignore block should be larger than commit_sync_batch_size,
+        // to avoid excessive block rejections and synchronizations.
+
+        if last_commit_index
+            + self.context.parameters.commit_sync_batch_size * COMMIT_LAG_MULTIPLIER
+            < quorum_commit_index
+        {
+            self.context
+                .metrics
+                .node_metrics
+                .rejected_blocks
+                .with_label_values(&["commit_lagging"])
+                .inc();
+            debug!(
+                "Block {:?} is rejected because last commit index is lagging quorum commit index too much ({} < {})",
+                block_ref, last_commit_index, quorum_commit_index,
+            );
+            return Err(ConsensusError::BlockRejected {
+                block_ref,
+                reason: format!(
+                    "Last commit index is lagging quorum commit index too much ({last_commit_index} < {quorum_commit_index})",
+                ),
+            });
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -433,46 +462,19 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let verified_shards =
             self.extract_shards_from_bundle(peer, peer_hostname, serialized_shards, block_ref)?;
 
-        // 6. Observe headers and the block for the commit votes. When local commit is
+        // 5. Observe headers and the block for the commit votes. When local commit is
         // lagging too much, commit sync loop will trigger fetching.
         for block_header in additional_block_headers.iter() {
             self.commit_vote_monitor.observe_block(block_header);
         }
         self.commit_vote_monitor.observe_block(&verified_block);
 
-        // 7. Reject blocks when local commit index is lagging too far from quorum
-        //    commit
-        // index.
+        // 6. Reject blocks when local commit index is lagging too far from quorum
+        //    commit index.
         //
         // IMPORTANT: this must be done after observing votes from the block, otherwise
         // observed quorum commit will no longer progress.
-
-        let last_commit_index = self.dag_state.read().last_commit_index();
-        let quorum_commit_index = self.commit_vote_monitor.quorum_commit_index();
-        // The threshold to ignore block should be larger than commit_sync_batch_size,
-        // to avoid excessive block rejections and synchronizations.
-
-        if last_commit_index
-            + self.context.parameters.commit_sync_batch_size * COMMIT_LAG_MULTIPLIER
-            < quorum_commit_index
-        {
-            self.context
-                .metrics
-                .node_metrics
-                .rejected_blocks
-                .with_label_values(&["commit_lagging"])
-                .inc();
-            debug!(
-                "Block {:?} is rejected because last commit index is lagging quorum commit index too much ({} < {})",
-                block_ref, last_commit_index, quorum_commit_index,
-            );
-            return Err(ConsensusError::BlockRejected {
-                block_ref,
-                reason: format!(
-                    "Last commit index is lagging quorum commit index too much ({last_commit_index} < {quorum_commit_index})",
-                ),
-            });
-        }
+        self.ensure_commit_lag_within_threshold(block_ref)?;
 
         self.context
             .metrics
@@ -481,7 +483,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname])
             .inc();
 
-        // 8. Add digests to filter. Exclude from the vector those that are already
+        // 7. Add digests to filter. Exclude from the vector those that are already
         //    inserted
         let mut digests_to_add_to_filter = vec![];
         for block_header in additional_block_headers.iter() {
