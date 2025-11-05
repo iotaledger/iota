@@ -807,46 +807,6 @@ impl From<ChangeEpochV4> for IotaChangeEpochV4 {
     }
 }
 
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaChangeEpochV4 {
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch: EpochId,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub storage_charge: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub computation_charge: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub computation_charge_burned: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub storage_rebate: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch_start_timestamp_ms: u64,
-    #[schemars(with = "Vec<BigInt<u64>>")]
-    #[serde_as(as = "Vec<BigInt<u64>>")]
-    pub scores: Vec<u64>,
-}
-
-impl From<ChangeEpochV4> for IotaChangeEpochV4 {
-    fn from(e: ChangeEpochV4) -> Self {
-        Self {
-            epoch: e.epoch,
-            storage_charge: e.storage_charge,
-            computation_charge: e.computation_charge,
-            computation_charge_burned: e.computation_charge_burned,
-            storage_rebate: e.storage_rebate,
-            epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
-            scores: e.scores,
-        }
-    }
-}
-
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Clone, PartialEq, Eq)]
 #[enum_dispatch(IotaTransactionBlockEffectsAPI)]
 #[serde(

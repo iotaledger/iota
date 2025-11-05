@@ -297,6 +297,9 @@ pub struct ChangeEpochV4 {
     /// will be upgraded to, their modules in serialized form (which include
     /// their package ID), and a list of their transitive dependencies.
     pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+    /// Vector of active validator indices eligible to take part in committee
+    /// selection because they support the new, target protocol version.
+    pub eligible_active_validators: Vec<u64>,
     /// Scores relative to the previous epoch. Each value corresponds to one
     /// authority, using the same index that in the last epoch's committee.
     pub scores: Vec<u64>,
@@ -501,6 +504,8 @@ impl EndOfEpochTransactionKind {
         non_refundable_storage_fee: u64,
         epoch_start_timestamp_ms: u64,
         system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+        eligible_active_validators: Vec<u64>,
+
         scores: Vec<u64>,
     ) -> Self {
         Self::ChangeEpochV4(ChangeEpochV4 {
@@ -513,6 +518,7 @@ impl EndOfEpochTransactionKind {
             non_refundable_storage_fee,
             epoch_start_timestamp_ms,
             system_packages,
+            eligible_active_validators,
             scores,
         })
     }
@@ -635,11 +641,6 @@ impl EndOfEpochTransactionKind {
                         "selecting committee only among validators supporting the protocol version required".to_string(),
                     ));
                 }
-            }
-            Self::ChangeEpochV4(_) => {
-                return Err(UserInputError::Unsupported(
-                    "ChangeEpochV4 is not yet supported".to_string(),
-                ));
             }
             Self::ChangeEpochV4(_) => {
                 return Err(UserInputError::Unsupported(

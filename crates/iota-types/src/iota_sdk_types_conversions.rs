@@ -663,6 +663,7 @@ impl From<crate::transaction::EndOfEpochTransactionKind> for EndOfEpochTransacti
                             dependencies: dependencies.into_iter().map(Into::into).collect(),
                         })
                         .collect(),
+                    eligible_active_validators: change_epoch_v4.eligible_active_validators,
                     scores: change_epoch_v4.scores,
                 })
             }
@@ -774,6 +775,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
                             )
                         })
                         .collect(),
+                    eligible_active_validators: change_epoch_v4.eligible_active_validators,
                     scores: change_epoch_v4.scores,
                 })
             }
@@ -1430,9 +1432,6 @@ impl From<ExecutionError> for crate::execution_status::ExecutionFailureStatus {
                         }
                         CommandArgumentError::SharedObjectOperationNotAllowed => {
                             InternalCmdArgErr::SharedObjectOperationNotAllowed
-                        }
-                        CommandArgumentError::InvalidArgumentArity => {
-                            InternalCmdArgErr::InvalidArgumentArity
                         }
                     },
                 }
