@@ -1,0 +1,22 @@
+[package]
+name = "iota-proto-build"
+version.workspace = true
+authors = ["IOTA Foundation <info@iota.org>"]
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+prettyplease = "0.2"
+proc-macro2.workspace = true
+prost.workspace = true
+prost-types.workspace = true
+protox = "0.9"
+quote.workspace = true
+syn = { version = "2.0", features = ["full"] }
+tonic-build.workspace = true
+tonic-prost-build.workspace = true
+walkdir = "2.5"
