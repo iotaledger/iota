@@ -354,13 +354,6 @@ impl Cluster {
         wait_for_graphql_checkpoint_pruned(&self.graphql_client, checkpoint, base_timeout).await
     }
 
-    /// Sends a cancellation signal to the graphql and indexer services and
-    /// waits for them to shutdown.
-    pub async fn cleanup_resources(self) {
-        self.cancellation_token.cancel();
-        let _ = join!(self.graphql_server_join_handle, self.indexer_join_handle);
-    }
-
     /// Builds a transaction that transfers IOTA for testing.
     pub async fn build_transfer_iota_for_test(&self) -> TransactionData {
         let addresses = self.validator_fullnode_handle.wallet.get_addresses();

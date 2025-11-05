@@ -36,6 +36,7 @@ use crate::{
     dag_state::DagState,
     encoder::ShardEncoder,
     error::{ConsensusError, ConsensusResult},
+    header_synchronizer::HeaderSynchronizerHandle,
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
         SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactions,
@@ -43,7 +44,6 @@ use crate::{
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
-    synchronizer::SynchronizerHandle,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
@@ -98,7 +98,7 @@ pub(crate) struct AuthorityService<C: CoreThreadDispatcher> {
     context: Arc<Context>,
     commit_vote_monitor: Arc<CommitVoteMonitor>,
     block_verifier: Arc<dyn BlockVerifier>,
-    synchronizer: Arc<SynchronizerHandle>,
+    synchronizer: Arc<HeaderSynchronizerHandle>,
     transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     core_dispatcher: Arc<C>,
     rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
@@ -124,7 +124,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         context: Arc<Context>,
         block_verifier: Arc<dyn BlockVerifier>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
-        synchronizer: Arc<SynchronizerHandle>,
+        header_synchronizer: Arc<HeaderSynchronizerHandle>,
         transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         core_dispatcher: Arc<C>,
         rx_block_broadcaster: broadcast::Receiver<VerifiedBlock>,
@@ -142,7 +142,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             context,
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            synchronizer: header_synchronizer,
             transactions_synchronizer,
             core_dispatcher,
             rx_block_broadcaster,
@@ -663,17 +663,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         fail_point_async!("consensus-rpc-response");
 
         // Some quick validation of the requested block refs
-        for block in &block_refs {
-            if !self.context.committee.is_valid_index(block.author) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: block.author,
-                    max: self.context.committee.size(),
-                });
-            }
-            if block.round == GENESIS_ROUND {
-                return Err(ConsensusError::UnexpectedGenesisHeaderRequested);
-            }
-        }
+        ConsensusError::quick_validation_requested_block_refs(
+            &block_refs,
+            peer,
+            &self.context.committee,
+        )?;
 
         if !highest_accepted_rounds.is_empty()
             && highest_accepted_rounds.len() != self.context.committee.size()
@@ -708,12 +702,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             block_refs.truncate(max_fetch_size);
         }
 
-        // Get requested blocks from store.
-        let blocks = if commit_sync_handle {
+        // Get requested block headers from store.
+        let serialized_headers = if commit_sync_handle {
             // For commit sync, we respond with all blocks from the store
             self.dag_state
                 .read()
-                .get_block_headers(&block_refs)
+                .get_serialized_block_headers(&block_refs)
                 .into_iter()
                 .flatten()
                 .collect()
@@ -723,8 +717,8 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             block_refs.sort();
             block_refs.dedup();
             let dag_state = self.dag_state.read();
-            let mut blocks = dag_state
-                .get_block_headers(&block_refs)
+            let mut headers = dag_state
+                .get_serialized_block_headers(&block_refs)
                 .into_iter()
                 .flatten()
                 .collect::<Vec<_>>();
@@ -733,7 +727,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             // available in cache. Compute the lowest missing round per
             // requested authority.
             let mut lowest_missing_rounds = BTreeMap::<AuthorityIndex, Round>::new();
-            for block_ref in blocks.iter().map(|b| b.reference()) {
+            for block_ref in block_refs.iter() {
                 let entry = lowest_missing_rounds
                     .entry(block_ref.author)
                     .or_insert(block_ref.round);
@@ -754,30 +748,29 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     continue;
                 }
 
-                let missing_blocks = dag_state.get_cached_block_headers_in_range(
+                let missing_headers = dag_state.get_cached_block_headers_in_range(
                     authority,
                     highest_accepted_round + 1,
                     lowest_missing_round,
                     self.context
                         .parameters
                         .max_headers_per_regular_sync_fetch
-                        .saturating_sub(blocks.len()),
+                        .saturating_sub(headers.len()),
                 );
-                blocks.extend(missing_blocks);
-                if blocks.len() >= self.context.parameters.max_headers_per_regular_sync_fetch {
-                    blocks.truncate(self.context.parameters.max_headers_per_regular_sync_fetch);
+                let serialized_missing_headers: Vec<_> = missing_headers
+                    .into_iter()
+                    .map(|header| header.serialized().clone())
+                    .collect();
+                headers.extend(serialized_missing_headers);
+                if headers.len() >= self.context.parameters.max_headers_per_regular_sync_fetch {
+                    headers.truncate(self.context.parameters.max_headers_per_regular_sync_fetch);
                     break;
                 }
             }
 
-            blocks
+            headers
         };
-        // Return the serialized blocks
-        let bytes = blocks
-            .into_iter()
-            .map(|block| block.serialized().clone())
-            .collect::<Vec<_>>();
-        Ok(bytes)
+        Ok(serialized_headers)
     }
 
     async fn handle_fetch_commits(
@@ -824,7 +817,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
         let certifier_block_headers = self
             .store
-            .read_block_headers(&certifier_block_refs)?
+            .read_verified_block_headers(&certifier_block_refs)?
             .into_iter()
             .flatten()
             .collect();
@@ -843,14 +836,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // Ensure that those are valid authorities
-        for authority in &authorities {
-            if !self.context.committee.is_valid_index(*authority) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: *authority,
-                    max: self.context.committee.size(),
-                });
-            }
-        }
+        ConsensusError::quick_validation_authority_indices(&authorities, &self.context.committee)?;
 
         // Read from the dag state to find the latest block headers.
         // TODO: at the moment we don't look into the block manager for suspended
@@ -909,7 +895,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        mut block_refs: Vec<BlockRef>,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
@@ -918,40 +904,39 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         if block_refs.len() > self.context.parameters.max_transactions_per_fetch {
-            return Err(ConsensusError::TooManyFetchTransactionsRequested(peer));
+            block_refs.truncate(self.context.parameters.max_transactions_per_fetch);
         }
 
         // Some quick validation of the requested block refs
-        for block in &block_refs {
-            if !self.context.committee.is_valid_index(block.author) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: block.author,
-                    max: self.context.committee.size(),
-                });
-            }
-            if block.round == GENESIS_ROUND {
-                return Err(ConsensusError::UnexpectedGenesisTransactionsRequested);
-            }
-        }
+        ConsensusError::quick_validation_requested_block_refs(
+            &block_refs,
+            peer,
+            &self.context.committee,
+        )?;
 
         // Get the transactions from the dag state
-        let transactions = self.dag_state.read().get_transactions(&block_refs);
+        let transactions = self
+            .dag_state
+            .read()
+            .get_serialized_transactions(&block_refs);
 
         // Return the serialized transactions
-        let result = transactions
+        let result: Vec<_> = transactions
             .into_iter()
-            .flatten()
-            .map(|transaction| {
-                Bytes::from(
-                    bcs::to_bytes(&SerializedTransactions {
-                        block_ref: transaction.block_ref(),
-                        serialized_transactions: transaction.serialized().clone(),
-                    })
-                    .map_err(ConsensusError::SerializationFailure)
-                    .expect("serialization should succeed"),
-                )
+            .zip(block_refs)
+            .filter_map(|(opt_serialized_tx, block_ref)| {
+                opt_serialized_tx.map(|serialized_tx| {
+                    Bytes::from(
+                        bcs::to_bytes(&SerializedTransactions {
+                            block_ref,
+                            serialized_transactions: serialized_tx,
+                        })
+                        .map_err(ConsensusError::SerializationFailure)
+                        .expect("serialization should succeed"),
+                    )
+                })
             })
-            .collect::<Vec<_>>();
+            .collect();
 
         Ok(result)
     }
@@ -1214,6 +1199,7 @@ mod tests {
         dag_state::{DagState, TransactionSource},
         encoder::create_encoder,
         error::{ConsensusError, ConsensusResult},
+        header_synchronizer::HeaderSynchronizer,
         leader_schedule::LeaderSchedule,
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
@@ -1221,7 +1207,6 @@ mod tests {
             SerializedTransactions,
         },
         storage::{Store, mem_store::MemStore},
-        synchronizer::Synchronizer,
         test_dag_builder::DagBuilder,
         transaction::TransactionConsumer,
         transactions_synchronizer::TransactionsSynchronizer,
@@ -1303,7 +1288,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1318,7 +1303,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -1381,7 +1366,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1396,7 +1381,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -1470,7 +1455,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1485,7 +1470,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -1550,7 +1535,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1565,7 +1550,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -1688,7 +1673,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
@@ -1703,7 +1688,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -1815,7 +1800,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -1831,7 +1816,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -2082,7 +2067,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2096,7 +2081,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -2238,7 +2223,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2252,7 +2237,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -2410,7 +2395,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2426,7 +2411,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -2726,7 +2711,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2742,7 +2727,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -2868,7 +2853,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -2884,7 +2869,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -3031,7 +3016,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -3047,7 +3032,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -3216,7 +3201,7 @@ mod tests {
             dag_state.clone(),
         );
 
-        let synchronizer = Synchronizer::start(
+        let header_synchronizer = HeaderSynchronizer::start(
             network_client,
             context.clone(),
             core_dispatcher.clone(),
@@ -3232,7 +3217,7 @@ mod tests {
             context.clone(),
             block_verifier,
             commit_vote_monitor,
-            synchronizer,
+            header_synchronizer,
             transactions_synchronizer,
             core_dispatcher.clone(),
             rx_block_broadcast,
@@ -3271,20 +3256,12 @@ mod tests {
             .collect();
 
         let peer = context.committee.to_authority_index(1).unwrap();
-        let err = authority_service
-            .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone())
-            .await
-            .expect_err("Expected TooManyFetchTransactionsRequested error");
-
-        assert!(matches!(err, ConsensusError::TooManyFetchTransactionsRequested(p) if p == peer));
-
-        block_refs_to_request_first_batch.truncate(context.parameters.max_transactions_per_fetch);
-
         let serialized_transactions = authority_service
             .handle_fetch_transactions(peer, block_refs_to_request_first_batch.clone())
             .await
-            .expect("Should return a valid vector of serialized transactions");
+            .expect("We should expect a correct return of serialized transactions");
 
+        block_refs_to_request_first_batch.truncate(context.parameters.max_transactions_per_fetch);
         // Verify that we received the correct number of requested transactions
         assert_eq!(
             serialized_transactions.len(),

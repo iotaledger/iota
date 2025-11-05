@@ -187,7 +187,8 @@ impl DataManager {
     ) -> Result<CommittedSubDag, Vec<BlockRef>> {
         let dag_state = self.dag_state.read();
         // Get transactions and check if any are missing
-        let transaction_results = dag_state.get_transactions(&subdag.committed_transaction_refs);
+        let transaction_results =
+            dag_state.get_verified_transactions(&subdag.committed_transaction_refs);
         let mut missing = Vec::new();
         for (i, tx_opt) in transaction_results.iter().enumerate() {
             if tx_opt.is_none() {
@@ -204,7 +205,7 @@ impl DataManager {
 
             Ok(CommittedSubDag::new(
                 subdag.leader,
-                subdag.base.blocks.clone(),
+                subdag.base.headers.clone(),
                 transactions,
                 subdag.timestamp_ms,
                 subdag.commit_ref,

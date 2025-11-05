@@ -28,10 +28,10 @@ mod network;
 #[cfg(msim)]
 pub mod network;
 
+mod header_synchronizer;
 mod stake_aggregator;
 mod storage;
 mod subscriber;
-mod synchronizer;
 mod threshold_clock;
 #[cfg(not(msim))]
 mod transaction;

@@ -261,9 +261,9 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .iter()
             .fold((0, 0), |(blocks, bytes), c| {
                 (
-                    blocks + c.blocks().len(),
+                    blocks + c.block_headers().len(),
                     bytes
-                        + c.blocks()
+                        + c.block_headers()
                             .iter()
                             .map(|b| b.serialized().len())
                             .sum::<usize>() as u64,
@@ -328,7 +328,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 commits
                     .commits()
                     .iter()
-                    .flat_map(|c| c.blocks())
+                    .flat_map(|c| c.block_headers())
                     .map(|b| b.reference().to_string())
                     .join(","),
             );

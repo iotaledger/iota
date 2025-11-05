@@ -9,6 +9,7 @@ pub(crate) mod rocksdb_store;
 #[cfg(test)]
 mod store_tests;
 
+use bytes::Bytes;
 use starfish_config::AuthorityIndex;
 
 use crate::{
@@ -28,17 +29,29 @@ pub(crate) trait Store: Send + Sync {
     #[cfg_attr(not(test), expect(dead_code))]
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>>;
 
-    /// Reads block headers for the given refs.
-    fn read_block_headers(
+    /// Read and get verified block headers for the given refs.
+    fn read_verified_block_headers(
         &self,
         refs: &[BlockRef],
     ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>>;
 
-    /// Reads transactions for the given refs.
-    fn read_transactions(
+    /// Read and get serialized block headers for the given refs.
+    fn read_serialized_block_headers(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<Bytes>>>;
+
+    /// Read and get verified transactions for the given refs.
+    fn read_verified_transactions(
         &self,
         refs: &[BlockRef],
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>>;
+
+    /// Read and get serialized transactions for the given refs.
+    fn read_serialized_transactions(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<Bytes>>>;
 
     /// Checks if transactions exist in the store.
     fn contains_transactions(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<bool>>;
@@ -83,7 +96,7 @@ pub(crate) trait Store: Send + Sync {
     ) -> ConsensusResult<Vec<VerifiedTransactions>> {
         let refs = self.scan_references_by_author(author, start_round)?;
         let results = self
-            .read_transactions(refs.as_slice())?
+            .read_verified_transactions(refs.as_slice())?
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
@@ -95,7 +108,7 @@ pub(crate) trait Store: Send + Sync {
         start_round: Round,
     ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
         let refs = self.scan_references_by_author(author, start_round)?;
-        let results = self.read_block_headers(refs.as_slice())?;
+        let results = self.read_verified_block_headers(refs.as_slice())?;
         let mut block_headers = Vec::with_capacity(refs.len());
         for (r, block) in refs.into_iter().zip(results.into_iter()) {
             block_headers.push(
