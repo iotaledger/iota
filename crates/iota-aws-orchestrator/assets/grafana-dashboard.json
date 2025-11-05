@@ -24,7 +24,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -108,7 +108,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "sum(rate(latency_s_count[$__rate_interval]))",
@@ -123,7 +123,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -207,7 +207,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg(latency_s_sum/latency_s_count)",
@@ -222,7 +222,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -306,7 +306,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg(histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket[$__rate_interval]))))",
@@ -321,7 +321,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -405,7 +405,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg(histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket[$__rate_interval]))))",
@@ -420,7 +420,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -504,7 +504,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "rate(latency_s_count[$__rate_interval])",
@@ -520,7 +520,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -604,7 +604,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "latency_s_sum/latency_s_count",
@@ -620,7 +620,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -704,7 +704,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-0\"}[$__rate_interval])))",
@@ -715,7 +715,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-1\"}[$__rate_interval])))",
@@ -727,7 +727,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-2\"}[$__rate_interval])))",
@@ -739,7 +739,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-3\"}[$__rate_interval])))",
@@ -751,7 +751,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-4\"}[$__rate_interval])))",
@@ -763,7 +763,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-5\"}[$__rate_interval])))",
@@ -775,7 +775,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-6\"}[$__rate_interval])))",
@@ -787,7 +787,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-7\"}[$__rate_interval])))",
@@ -799,7 +799,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-8\"}[$__rate_interval])))",
@@ -811,7 +811,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-9\"}[$__rate_interval])))",
@@ -827,7 +827,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -911,7 +911,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-0\"}[$__rate_interval])))",
@@ -922,7 +922,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-1\"}[$__rate_interval])))",
@@ -934,7 +934,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-2\"}[$__rate_interval])))",
@@ -946,7 +946,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-3\"}[$__rate_interval])))",
@@ -958,7 +958,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-4\"}[$__rate_interval])))",
@@ -970,7 +970,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-5\"}[$__rate_interval])))",
@@ -982,7 +982,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-6\"}[$__rate_interval])))",
@@ -994,7 +994,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-7\"}[$__rate_interval])))",
@@ -1006,7 +1006,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-8\"}[$__rate_interval])))",
@@ -1018,7 +1018,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-9\"}[$__rate_interval])))",
@@ -1030,7 +1030,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "expr": "",
           "hide": false,
