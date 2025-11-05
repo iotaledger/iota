@@ -5,11 +5,7 @@
 use std::{fs, net::SocketAddr, path::PathBuf};
 
 use crate::{
-    benchmark::{BenchmarkParameters, BenchmarkType},
-    client::Instance,
-    error::{MonitorError, MonitorResult},
-    protocol::ProtocolMetrics,
-    ssh::{CommandContext, SshConnectionManager},
+    benchmark::{BenchmarkParameters, BenchmarkType}, client::Instance, display, error::{MonitorError, MonitorResult}, protocol::ProtocolMetrics, ssh::{CommandContext, SshConnectionManager}
 };
 
 pub struct Monitor {
@@ -67,6 +63,7 @@ impl Monitor {
         // Configure and reload grafana.
         let instance = std::iter::once(self.instance.clone());
         let commands = Grafana::setup_commands();
+        display::action(commands.clone());
         self.ssh_manager
             .execute(instance, commands, CommandContext::default())
             .await?;
@@ -187,6 +184,8 @@ impl Prometheus {
             "    static_configs:",
             "      - targets:",
             &format!("        - {ip}:{port}"),
+            "        labels:",
+            &format!("          host: {id}"),
         ]
         .join("\n")
     }
@@ -257,8 +256,15 @@ impl Grafana {
                 Self::DASHBOARDS_PATH
             ),
             &format!(
-                "sudo echo '{}' > {}/cluster-dashboard.json",
-                include_str!("../../../dev-tools/grafana-local/dashboards/cluster-status-dashboard.json"),
+                "sudo cp -f iota/dev-tools/grafana-local/dashboards/cluster-status-dashboard.json {}",
+                Self::DASHBOARDS_PATH
+            ),
+            &format!(
+                "sudo cp -f iota/dev-tools/grafana-local/dashboards/consensus-overview.json {}",
+                Self::DASHBOARDS_PATH
+            ),
+            &format!(
+                "sudo cp -f iota/dev-tools/grafana-local/dashboards/starfish-overview.json {}",
                 Self::DASHBOARDS_PATH
             ),
             "sudo service grafana-server restart",
@@ -281,7 +287,7 @@ impl Grafana {
             "    orgId: 1",
             &format!("    url: http://localhost:{}", Prometheus::DEFAULT_PORT),
             "    editable: true",
-            "    uid: Fixed-UID-testbed",
+            "    uid: prometheus",
         ]
         .join("\n")
     }
