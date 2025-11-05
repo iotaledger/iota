@@ -546,7 +546,7 @@ mod tests {
 
     #[tokio::test]
     #[serial]
-    async fn test_multi_transaction_blocks() {
+    async fn test_transaction_blocks_by_digests() {
         let cluster =
             iota_graphql_rpc::test_infra::cluster::start_cluster(ConnectionConfig::default(), None)
                 .await;
@@ -581,7 +581,7 @@ mod tests {
         let query = format!(
             r#"
                 {{
-                    multiTransactionBlocks(digests: ["{digest1}", "{digest2}", "{fake_digest}"]){{
+                    transactionBlocksByDigests(digests: ["{digest1}", "{digest2}", "{fake_digest}"]){{
                         digest
                         sender {{
                             address
@@ -597,7 +597,7 @@ mod tests {
             .await
             .unwrap()
             .response_body_json();
-        let transactions = response_body["data"]["multiTransactionBlocks"]
+        let transactions = response_body["data"]["transactionBlocksByDigests"]
             .as_array()
             .unwrap();
 
