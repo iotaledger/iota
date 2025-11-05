@@ -1220,6 +1220,5 @@ mod tests {
             .unwrap();
 
         assert!(res.errors().is_empty());
-        cluster.cleanup_resources().await
     }
 }
