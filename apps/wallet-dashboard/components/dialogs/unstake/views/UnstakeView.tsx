@@ -70,6 +70,10 @@ export function UnstakeView({
             unstake: true,
         });
 
+    const [totalStakeFormatted] = useFormatCoin({
+        balance: totalStakeOriginal,
+    });
+
     const { isLoading: loadingValidators, error: errorValidators } = systemDataResult;
     const {
         isLoading: isLoadingDelegatedStakeData,
@@ -96,6 +100,7 @@ export function UnstakeView({
                     onSuccess(tx);
 
                     ampli.unstakedIota({
+                        stakedAmount: Number(totalStakeFormatted),
                         validatorAddress: extendedStake.validatorAddress,
                     });
                 },

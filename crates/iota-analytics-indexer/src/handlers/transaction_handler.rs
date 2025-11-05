@@ -131,12 +131,12 @@ impl TransactionHandler {
                 }
             } else {
                 error!(
-                    "Transaction kind [{kind}] is not programmable transaction and not a system transaction"
+                    "transaction kind [{kind}] is not programmable transaction and not a system transaction"
                 );
             }
             if move_calls_count != move_calls {
                 error!(
-                    "Mismatch in move calls count: commands {move_calls_count} != {move_calls} calls"
+                    "mismatch in move calls count: commands {move_calls_count} != {move_calls} calls"
                 );
             }
         }
@@ -156,7 +156,7 @@ impl TransactionHandler {
             execution_success: effects.status().is_ok(),
             input: txn_data
                 .input_objects()
-                .expect("Input objects must be valid")
+                .expect("input objects must be valid")
                 .len() as u64,
             shared_input: txn_data.shared_input_objects().len() as u64,
             gas_coins: txn_data.gas().len() as u64,

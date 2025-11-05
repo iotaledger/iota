@@ -2,12 +2,12 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, env};
+use std::{collections::HashMap, env, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use iota_data_ingestion_core::{
-    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
+    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_types::messages_checkpoint::CheckpointSequenceNumber;
@@ -15,17 +15,23 @@ use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
 
+use crate::ingestion::common::persist::Writer;
+
+/// Timeout for waiting for tasks to shutdown gracefully after cancellation
+const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+
 use crate::{
     build_json_rpc_server,
     config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::ConnectionPool,
     errors::IndexerError,
-    handlers::{
-        checkpoint_handler::new_handlers, objects_snapshot_handler::start_objects_snapshot_handler,
-        optimistic_pruner::OptimisticPruner, pruner::Pruner,
+    ingestion::{
+        primary::orchestration::{setup_primary, start_primary_writer_task},
+        snapshot::orchestration::setup_snapshot,
     },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
+    pruning::{optimistic_pruner::OptimisticPruner, pruner::Pruner},
     read::IndexerReader,
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
 };
@@ -52,7 +58,7 @@ impl Indexer {
         let primary_watermark = store
             .get_latest_checkpoint_sequence_number()
             .await
-            .expect("Failed to get latest tx checkpoint sequence number from DB")
+            .expect("failed to get latest tx checkpoint sequence number from DB")
             .map(|seq| seq + 1)
             .unwrap_or_default();
         let extra_reader_options = ReaderOptions {
@@ -64,13 +70,18 @@ impl Indexer {
 
         // Start objects snapshot processor, which is a separate pipeline with its
         // ingestion pipeline.
-        let (object_snapshot_worker, object_snapshot_watermark) = start_objects_snapshot_handler(
-            store.clone(),
-            metrics.clone(),
-            snapshot_config,
-            cancel.clone(),
-        )
-        .await?;
+        let (object_snapshot_worker_pool, object_snapshot_writer, object_snapshot_receiver) =
+            setup_snapshot(
+                store.clone(),
+                metrics.clone(),
+                snapshot_config,
+                config.checkpoint_download_queue_size,
+            )
+            .await?;
+        let object_snapshot_watermark = object_snapshot_writer
+            .get_watermark_hi()
+            .await?
+            .unwrap_or_default();
 
         if let Some(retention_config) = retention_config {
             let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
@@ -108,26 +119,30 @@ impl Indexer {
             DataIngestionMetrics::new(&Registry::new()),
             cancel.child_token(),
         );
-        let worker = new_handlers(store, metrics, primary_watermark, cancel.clone()).await?;
-        let worker_pool = WorkerPool::new(
-            worker,
-            "primary".to_string(),
+        let (primary_worker_pool, primary_writer) = setup_primary(
+            store.clone(),
+            metrics.clone(),
             config.checkpoint_download_queue_size,
-            Default::default(),
+        )
+        .await?;
+        executor.register(primary_worker_pool).await?;
+        let cancel_clone = cancel.clone();
+        spawn_monitored_task!(start_primary_writer_task(
+            primary_writer,
+            primary_watermark,
+            cancel_clone
+        ));
+
+        executor.register(object_snapshot_worker_pool).await?;
+        let object_snapshot_cancel = cancel.clone();
+        let mut object_snapshot_task_handle = spawn_monitored_task!(
+            object_snapshot_writer
+                .persist_sequentially(object_snapshot_receiver, object_snapshot_cancel)
         );
 
-        executor.register(worker_pool).await?;
-
-        let worker_pool = WorkerPool::new(
-            object_snapshot_worker,
-            "object_snapshot".to_string(),
-            config.checkpoint_download_queue_size,
-            Default::default(),
-        );
-        executor.register(worker_pool).await?;
         info!("Starting data ingestion executor...");
-        executor
-            .run(
+        let mut executor_handle = tokio::spawn(
+            executor.run(
                 config
                     .sources
                     .data_ingestion_path
@@ -140,8 +155,34 @@ impl Indexer {
                     .map(|url| url.as_str().to_owned()),
                 vec![],
                 extra_reader_options,
-            )
-            .await?;
+            ),
+        );
+
+        tokio::select! {
+            executor_result = &mut executor_handle => {
+                // Executor completed first - cancel snapshot task and check result
+                cancel.cancel();
+                let snapshot_result = tokio::time::timeout(
+                    SHUTDOWN_TIMEOUT,
+                    object_snapshot_task_handle
+                ).await
+                .context("timeout waiting for snapshot task to shutdown");
+                executor_result.context("failed to join data ingestion executor")?.context("data ingestion executor failed")?;
+                snapshot_result?.context("failed to join snapshot task during shutdown")?.context("snapshot task failed during shutdown")?;
+            },
+            snapshot_result = &mut object_snapshot_task_handle => {
+                // Snapshot task completed first - cancel executor and check result
+                cancel.cancel();
+                let executor_result = tokio::time::timeout(
+                    SHUTDOWN_TIMEOUT,
+                    executor_handle
+                ).await
+                .context("timeout waiting for executor to shutdown");
+                snapshot_result.context("failed to join snapshot task")?.context("snapshot task failed")?;
+                executor_result?.context("failed to join data ingestion executor during shutdown")?.context("data ingestion executor failed during shutdown")?;
+            }
+        };
+
         Ok(())
     }
 
@@ -159,10 +200,10 @@ impl Indexer {
         let read = IndexerReader::new(connection_pool);
         let handle = build_json_rpc_server(store, registry, read, config, metrics)
             .await
-            .expect("Json rpc server should not run into errors upon start.");
+            .expect("json rpc server should not run into errors upon start.");
         tokio::spawn(async move { handle.stopped().await })
             .await
-            .expect("Rpc server task failed");
+            .expect("rpc server task failed");
 
         Ok(())
     }

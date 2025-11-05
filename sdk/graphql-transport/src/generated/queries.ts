@@ -828,14 +828,13 @@ export type Coin = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -1076,14 +1075,13 @@ export type CoinMetadata = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -1887,7 +1885,16 @@ export type IObject = {
   previousTransactionBlock?: Maybe<TransactionBlock>;
   /** The transaction blocks that sent objects to this object. */
   receivedTransactionBlocks: TransactionBlockConnection;
-  /** The current status of the object as read from the off-chain store. The possible states are: NOT_INDEXED, the object is loaded from serialized data, such as the contents of a genesis or system package upgrade transaction. LIVE, the version returned is the most recent for the object, and it is not deleted or wrapped at that version. HISTORICAL, the object was referenced at a specific version or checkpoint, so is fetched from historical tables and may not be the latest version of the object. WRAPPED_OR_DELETED, the object is deleted or wrapped and only partial information can be loaded. */
+  /**
+   * The current status of the object as read from the off-chain store. The
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
+   */
   status: ObjectKind;
   storageRebate?: Maybe<Scalars['BigInt']['output']>;
   version: Scalars['UInt53']['output'];
@@ -2438,7 +2445,7 @@ export type MoveModuleEdge = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObject = IMoveObject & IObject & IOwner & {
@@ -2562,14 +2569,13 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -2584,7 +2590,7 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectBalanceArgs = {
@@ -2594,7 +2600,7 @@ export type MoveObjectBalanceArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectBalancesArgs = {
@@ -2607,7 +2613,7 @@ export type MoveObjectBalancesArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectCoinsArgs = {
@@ -2621,7 +2627,7 @@ export type MoveObjectCoinsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicFieldArgs = {
@@ -2631,7 +2637,7 @@ export type MoveObjectDynamicFieldArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicFieldsArgs = {
@@ -2644,7 +2650,7 @@ export type MoveObjectDynamicFieldsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicObjectFieldArgs = {
@@ -2654,7 +2660,7 @@ export type MoveObjectDynamicObjectFieldArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectIotaNamesDefaultNameArgs = {
@@ -2664,7 +2670,7 @@ export type MoveObjectIotaNamesDefaultNameArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectIotaNamesRegistrationsArgs = {
@@ -2677,7 +2683,7 @@ export type MoveObjectIotaNamesRegistrationsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectObjectsArgs = {
@@ -2691,7 +2697,7 @@ export type MoveObjectObjectsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectReceivedTransactionBlocksArgs = {
@@ -2706,7 +2712,7 @@ export type MoveObjectReceivedTransactionBlocksArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectStakedIotasArgs = {
@@ -2872,14 +2878,13 @@ export type MovePackage = IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -3191,6 +3196,23 @@ export type MoveValue = {
 };
 
 /**
+ * The result of a move-view function call.
+ *
+ * Execution errors are captured in the `error` field, in which
+ * case the `results` field will be `None`.
+ *
+ * On success, the `results` field will contain the return values of the
+ * move view function, and the `error` field will be `None`.
+ */
+export type MoveViewResult = {
+  __typename?: 'MoveViewResult';
+  /** Execution error from executing the move view call. */
+  error?: Maybe<Scalars['String']['output']>;
+  /** The return values of the move view function. */
+  results?: Maybe<Array<Scalars['JSON']['output']>>;
+};
+
+/**
  * The visibility modifier describes which modules can access this module
  * member. By default, a module member can be called only within the same
  * module.
@@ -3224,13 +3246,13 @@ export type Mutation = {
    * that was not possible. A transaction is final when its effects are
    * guaranteed on chain (it cannot be revoked).
    *
-   * There may be a delay between transaction finality and when GraphQL
-   * requests (including the request that issued the transaction) reflect
-   * its effects. As a result, queries that depend on indexing the state
-   * of the chain (e.g. contents of output objects, address-level balance
-   * information at the time of the transaction), must wait for indexing to
-   * catch up by polling for the transaction digest using
-   * `Query.transactionBlock`.
+   * Transaction effects are now available immediately after execution
+   * through `Query.transactionBlock`. However, other queries that depend
+   * on the chain’s indexed state (e.g., address-level balance updates)
+   * may still lag until the transaction has been checkpointed.
+   * To confirm that a transaction has been included in a checkpoint, query
+   * `Query.transactionBlock` and check whether the `effects.checkpoint`
+   * field is set (or `null` if not yet checkpointed).
    */
   executeTransactionBlock: ExecutionResult;
 };
@@ -3367,14 +3389,13 @@ export type NameRegistration = IMoveObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -3603,14 +3624,13 @@ export type Object = IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -4358,6 +4378,7 @@ export type Query = {
    * its original ID with the package at `address`.
    */
   latestPackage?: Maybe<MovePackage>;
+  moveViewCall: MoveViewResult;
   /**
    * The object corresponding to the given address at the (optionally) given
    * version. When no version is given, the latest version is returned.
@@ -4547,6 +4568,13 @@ export type QueryIsTransactionIndexedOnNodeArgs = {
 
 export type QueryLatestPackageArgs = {
   address: Scalars['IotaAddress']['input'];
+};
+
+
+export type QueryMoveViewCallArgs = {
+  arguments?: InputMaybe<Array<Scalars['JSON']['input']>>;
+  functionName: Scalars['String']['input'];
+  typeArgs?: InputMaybe<Array<Scalars['String']['input']>>;
 };
 
 
@@ -5023,14 +5051,13 @@ export type StakedIota = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -6218,6 +6245,15 @@ export type PaginateTransactionBlockListsQuery = { __typename?: 'Query', transac
 export type Paginate_Transaction_ListsFragment = { __typename?: 'TransactionBlock', effects?: { __typename?: 'TransactionBlockEffects', events?: { __typename?: 'EventConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Event', json: any, bcs: any, timestamp?: any | null, sendingModule?: { __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } } | null, sender?: { __typename?: 'Address', address: any } | null, type: { __typename?: 'MoveType', repr: string } }> }, balanceChanges?: { __typename?: 'BalanceChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'BalanceChange', amount?: any | null, coinType?: { __typename?: 'MoveType', repr: string } | null, owner?: { __typename?: 'Owner', asObject?: { __typename?: 'Object', address: any } | null, asAddress?: { __typename?: 'Address', address: any } | null } | null }> }, objectChanges?: { __typename?: 'ObjectChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'ObjectChange', address: any, inputState?: { __typename?: 'Object', version: any, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null } | null, outputState?: { __typename?: 'Object', asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null, asMovePackage?: { __typename?: 'MovePackage', modules?: { __typename?: 'MoveModuleConnection', nodes: Array<{ __typename?: 'MoveModule', name: string }> } | null } | null } | null }> } } | null };
 
 export type Rpc_Transaction_FieldsFragment = { __typename?: 'TransactionBlock', digest?: string | null, signatures?: Array<any> | null, rawTransaction?: any | null, sender?: { __typename?: 'Address', address: any } | null, effects?: { __typename?: 'TransactionBlockEffects', bcs?: any, timestamp?: any | null, events?: { __typename?: 'EventConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Event', json: any, bcs: any, timestamp?: any | null, sendingModule?: { __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } } | null, sender?: { __typename?: 'Address', address: any } | null, type: { __typename?: 'MoveType', repr: string } }> }, checkpoint?: { __typename?: 'Checkpoint', sequenceNumber: any } | null, balanceChanges?: { __typename?: 'BalanceChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'BalanceChange', amount?: any | null, coinType?: { __typename?: 'MoveType', repr: string } | null, owner?: { __typename?: 'Owner', asObject?: { __typename?: 'Object', address: any } | null, asAddress?: { __typename?: 'Address', address: any } | null } | null }> }, objectChanges?: { __typename?: 'ObjectChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'ObjectChange', address: any, inputState?: { __typename?: 'Object', version: any, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null } | null, outputState?: { __typename?: 'Object', asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null, asMovePackage?: { __typename?: 'MovePackage', modules?: { __typename?: 'MoveModuleConnection', nodes: Array<{ __typename?: 'MoveModule', name: string }> } | null } | null } | null }> } } | null };
+
+export type ViewQueryVariables = Exact<{
+  functionName: Scalars['String']['input'];
+  typeArgs?: InputMaybe<Array<Scalars['String']['input']> | Scalars['String']['input']>;
+  arguments?: InputMaybe<Array<Scalars['JSON']['input']> | Scalars['JSON']['input']>;
+}>;
+
+
+export type ViewQuery = { __typename?: 'Query', moveViewCall: { __typename?: 'MoveViewResult', error?: string | null, results?: Array<any> | null } };
 
 export class TypedDocumentString<TResult, TVariables>
   extends String
@@ -9090,3 +9126,15 @@ fragment PAGINATE_TRANSACTION_LISTS on TransactionBlock {
     }
   }
 }`) as unknown as TypedDocumentString<PaginateTransactionBlockListsQuery, PaginateTransactionBlockListsQueryVariables>;
+export const ViewDocument = new TypedDocumentString(`
+    query View($functionName: String!, $typeArgs: [String!], $arguments: [JSON!]) {
+  moveViewCall(
+    functionName: $functionName
+    typeArgs: $typeArgs
+    arguments: $arguments
+  ) {
+    error
+    results
+  }
+}
+    `) as unknown as TypedDocumentString<ViewQuery, ViewQueryVariables>;

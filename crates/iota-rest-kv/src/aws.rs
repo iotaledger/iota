@@ -291,7 +291,7 @@ impl KvStoreClient {
             Ok(response) => {
                 // Get bytes from the response
                 let data = response.bytes().await.map_err(|err| {
-                    anyhow::anyhow!("Failed to read data from remote store: {err}")
+                    anyhow::anyhow!("failed to read data from remote store: {err}")
                 })?;
 
                 Ok(Some(data))

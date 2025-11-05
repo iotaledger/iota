@@ -203,6 +203,8 @@ pub enum UserInputError {
     BlockedMoveFunction,
     #[error("Empty input coins for Pay related transaction")]
     EmptyInputCoins,
+    #[error("Invalid Move View Function call: {error:?}")]
+    InvalidMoveViewFunction { error: String },
 
     #[error(
         "IOTA payment transactions use first input coin for gas payment, but found a different gas object"
@@ -442,6 +444,7 @@ pub enum IotaError {
     #[error("Signatures in a certificate must form a quorum")]
     CertificateRequiresQuorum,
     #[error("Transaction certificate processing failed: {err}")]
+    // DEPRECATED: "local execution" was removed from fullnodes
     ErrorWhileProcessingCertificate { err: String },
     #[error(
         "Failed to get a quorum of signed effects when processing transaction: {effects_map:?}"

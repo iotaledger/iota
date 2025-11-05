@@ -151,6 +151,7 @@ impl<D: CoreThreadDispatcher> LeaderTimeoutTask<D> {
                 Ok(_) = new_round.changed() => {
                     leader_round = *new_round.borrow_and_update();
                     debug!("New round has been received {leader_round}, resetting timer");
+                    let _span = tracing::trace_span!("new_consensus_round_received", round = ?leader_round).entered();
 
                     min_leader_round_timed_out = false;
                     max_leader_round_timed_out = false;
