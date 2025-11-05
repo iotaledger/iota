@@ -50,7 +50,9 @@ Create a file called `settings.json` that contains all the configuration paramet
     "ap-southeast-1",
     "ap-southeast-2"
   ],
-  "specs": "m5d.8xlarge",
+  "node_specs": "m5d.8xlarge",
+  "client_specs": "m5d.2xlarge",
+  "metrics_specs": "m5d.4xlarge",
   "repository": {
     "url": "https://github.com/iotaledger/iota.git",
     "commit": "main"
@@ -73,11 +75,16 @@ If you're working with a private GitHub repository, you can include a [private a
 
 ## Step 3. Create a testbed
 
-The `iota-aws-orchestrator` binary provides various functionalities for creating, starting, stopping, and destroying instances. You can use the following command to boot 2 instances per region (if the settings file specifies 10 regions, as shown in the example above, a total of 20 instances will be created):
+The `iota-aws-orchestrator` binary provides various functionalities for creating, starting, stopping, and destroying instances. You can use the following command to boot 2 node and 2 dedicated client instances per region (if the settings file specifies 10 regions, as shown in the example above, a total of 20 instances will be created):
 
 ```bash
-cargo run --bin iota-aws-orchestrator -- testbed deploy --instances 2
+cargo run --bin iota-aws-orchestrator -- testbed deploy --instances 2 --dedicated-clients 2
 ```
+
+### Note:
+
+- Use the `--skip-monitoring` command to skip deployment of a dedicated metrics instance.
+- Use the `--dedicated-clietns N` command to deploy dedicated client machines `N` per region.
 
 To check the current status of the testbed instances, use the following command:
 
@@ -98,6 +105,11 @@ Running benchmarks involves installing the specified version of the codebase on 
 cargo run --bin iota-aws-orchestrator -- benchmark --committee 10 fixed-load --loads 200 --duration 180
 ```
 
+### Note
+
+- Use the `--skip-monitoring` command to skip the use of a metrics instance.
+- Use the `--dedicated-clients N` command to use dedicated load generator machines `N` in total.
+
 In a network of 10 validators, each with a corresponding load generator, each load generator submits a fixed load of 20 tx/s. Performance measurements are collected by regularly scraping the Prometheus metrics exposed by the load generators. The `iota-aws-orchestrator` binary provides additional commands to run a specific number of load generators on separate machines.
 
 ## Step 5. Monitoring
@@ -111,6 +123,10 @@ After you have found yourself that you don't need the deployed testbed anymore y
 ```
 cargo run --bin iota-aws-orchestrator -- testbed destroy
 ```
+
+### Note:
+
+Use the `--keep-monitoring` command to skip destruction of the metrics instance.
 
 that will terminate all the deployed EC2 instances. Keep in mind that AWS is not immediately deleting the terminated instances - this could take a few hours - so in case you want to immediately deploy a new testbed it would be advised
 to use a different `testbed_id` in the `settings.json` to avoid any later conflicts (see the FAQ section for more information).
@@ -141,8 +157,7 @@ In the common case to successfully run a benchmark we need to have enough instan
 
 for example when running the command `cargo run --bin iota-aws-orchestrator -- benchmark --committee 4 fixed-load --loads 500 --duration 500`, we'll need the following amount of instances available:
 
-- `4 instances` to run the validators (since we set `--committee 4`)
-- `1 instance` to run the grafana dashboard (by default only 1 is needed)
+- `4 node instances` to run the validators (since we set `--committee 4`)
+- `1 instance` to run the grafana dashboard (by default only 1 is needed), 0 if `--skip-monitoring` command is used
+- 'N of client instances' where N is the number passed by the `--dedicated-clients N` command
 - no additional instances to run the benchmarking clients, as those will be co-deployed on the validator nodes
-
-so in total we must have deployed a testbed of at least `5 instances`. If we attempt to run with fewer, then the above error will be thrown.
