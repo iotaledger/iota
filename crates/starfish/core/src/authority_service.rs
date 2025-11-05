@@ -409,6 +409,48 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         }
         Ok(())
     }
+    async fn add_digests_to_filter(
+        &self,
+        peer_hostname: &str,
+        additional_block_headers: &mut Vec<VerifiedBlockHeader>,
+        block_ref: BlockRef,
+    ) {
+        let mut digests_to_add_to_filter = vec![];
+        for block_header in additional_block_headers.iter() {
+            digests_to_add_to_filter.push(block_header.digest())
+        }
+        digests_to_add_to_filter.push(block_ref.digest);
+        let digests_to_exclude = self
+            .received_block_headers
+            .add_batch(digests_to_add_to_filter)
+            .await;
+        // Exclude digests that are already in the filter from the additional headers
+        // We rely on the fact that digests_to_exclude is a subsequence of
+        // additional_block_headers
+        let mut index = 0;
+        additional_block_headers.retain(|block_header| {
+            if index < digests_to_exclude.len()
+                && block_header.digest() == digests_to_exclude[index]
+            {
+                index += 1;
+                false
+            } else {
+                true
+            }
+        });
+        self.context
+            .metrics
+            .node_metrics
+            .received_unique_headers_from_bundles
+            .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
+            .inc_by(additional_block_headers.len() as u64);
+        self.context
+            .metrics
+            .node_metrics
+            .processed_duplicated_headers_in_bundles
+            .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
+            .inc_by(digests_to_exclude.len() as u64);
+    }
 }
 
 #[async_trait]
@@ -485,43 +527,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
 
         // 7. Add digests to filter. Exclude from the vector those that are already
         //    inserted
-        let mut digests_to_add_to_filter = vec![];
-        for block_header in additional_block_headers.iter() {
-            digests_to_add_to_filter.push(block_header.digest())
-        }
-        digests_to_add_to_filter.push(verified_block.digest());
-        let digests_to_exclude = self
-            .received_block_headers
-            .add_batch(digests_to_add_to_filter)
+        self.add_digests_to_filter(peer_hostname, &mut additional_block_headers, block_ref)
             .await;
-        // Exclude digests that are already in the filter from the additional headers
-        // We rely on the fact that digests_to_exclude is a subsequence of
-        // additional_block_headers
-        let mut index = 0;
-        additional_block_headers.retain(|block_header| {
-            if index < digests_to_exclude.len()
-                && block_header.digest() == digests_to_exclude[index]
-            {
-                index += 1;
-                false
-            } else {
-                true
-            }
-        });
-        self.context
-            .metrics
-            .node_metrics
-            .received_unique_headers_from_bundles
-            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
-            .inc_by(additional_block_headers.len() as u64);
-        self.context
-            .metrics
-            .node_metrics
-            .processed_duplicated_headers_in_bundles
-            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
-            .inc_by(digests_to_exclude.len() as u64);
 
-        // 9. Prepare transaction messages for shard reconstructor and send them
+        // 8. Prepare transaction messages for shard reconstructor and send them
         let transaction_messages = TransactionMessage::create_transaction_messages(
             &verified_block,
             &verified_shards,
