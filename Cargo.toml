@@ -129,6 +129,7 @@ members = [
   "crates/iota-package-management",
   "crates/iota-package-resolver",
   "crates/iota-proc-macros",
+  "crates/iota-proto-build",
   "crates/iota-protocol-config",
   "crates/iota-protocol-config-macros",
   "crates/iota-proxy",
@@ -444,6 +445,7 @@ iota-package-dump = { path = "crates/iota-package-dump" }
 iota-package-management = { path = "crates/iota-package-management" }
 iota-package-resolver = { path = "crates/iota-package-resolver" }
 iota-proc-macros = { path = "crates/iota-proc-macros" }
+iota-proto-build = { path = "crates/iota-proto-build" }
 iota-protocol-config = { path = "crates/iota-protocol-config" }
 iota-protocol-config-macros = { path = "crates/iota-protocol-config-macros" }
 iota-replay = { path = "crates/iota-replay" }
