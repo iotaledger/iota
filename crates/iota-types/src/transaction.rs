@@ -1985,7 +1985,8 @@ impl TransactionData {
 
     /// Checks if the transaction data contains the `Random` object as an
     /// input.
-    /// This function does not check shared objects associated with
+    ///
+    /// IMPORTANT: This function does not check shared objects associated with
     /// `MoveAuthenticator` signatures. To check those objects as well, use the
     /// corresponding function from `SenderSignedData`.
     pub fn uses_randomness(&self) -> bool {
@@ -2030,13 +2031,15 @@ pub trait TransactionDataAPI {
     fn expiration(&self) -> &TransactionExpiration;
 
     /// Checks if the transaction data contains at least one shared object.
-    /// This function does not check shared objects associated with
+    ///
+    /// IMPORTANT: This function does not check shared objects associated with
     /// `MoveAuthenticator` signatures. To check those objects as well, use the
     /// corresponding function from `SenderSignedData`.
     fn contains_shared_object(&self) -> bool;
 
     /// Returns a list of the transaction data shared input objects.
-    /// This function does not return shared objects associated with
+    ///
+    /// IMPORTANT: This function does not return shared objects associated with
     /// `MoveAuthenticator` signatures. To check those objects as well, use the
     /// corresponding function from `SenderSignedData`.
     fn shared_input_objects(&self) -> Vec<SharedInputObject>;
