@@ -603,15 +603,24 @@ mod tests {
 
         assert_eq!(
             transactions.len(),
-            2,
-            "2 real transactions should be present in the response, fake transaction should be skipped"
+            3,
+            "3 results should be present in the response (2 real transactions and 1 null for fake digest)"
         );
-        let returned_digests: Vec<String> = transactions
-            .iter()
-            .map(|tx| tx["digest"].as_str().unwrap().to_string())
-            .collect();
-        assert!(returned_digests.contains(&digest1.to_string()));
-        assert!(returned_digests.contains(&digest2.to_string()));
+
+        assert_eq!(
+            transactions[0]["digest"].as_str().unwrap(),
+            digest1.to_string(),
+            "First transaction should match digest1 (preserve input order)"
+        );
+        assert_eq!(
+            transactions[1]["digest"].as_str().unwrap(),
+            digest2.to_string(),
+            "Second transaction should match digest2 (preserve input order)"
+        );
+        assert!(
+            transactions[2].is_null(),
+            "Third transaction should be null for the fake digest"
+        );
         cluster.cleanup_resources().await;
     }
 

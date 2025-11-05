@@ -393,14 +393,18 @@ impl Query {
         &self,
         ctx: &Context<'_>,
         digests: Vec<Digest>,
-    ) -> Result<Vec<TransactionBlock>> {
+    ) -> Result<Vec<Option<TransactionBlock>>> {
         let Watermark { checkpoint, .. } = *ctx.data()?;
-        let result = TransactionBlock::multi_query(ctx, digests, checkpoint)
+        let mut result = TransactionBlock::multi_query(ctx, digests.clone(), checkpoint)
             .await
             .extend()?;
 
-        // Return only found transactions, omit missing ones
-        Ok(result.into_values().collect())
+        // Map each input digest to Some(transaction) if found, None otherwise
+        // This maintains the same order and length as the input vector
+        Ok(digests
+            .into_iter()
+            .map(|digest| result.remove(&digest))
+            .collect())
     }
 
     /// The coin objects that exist in the network.

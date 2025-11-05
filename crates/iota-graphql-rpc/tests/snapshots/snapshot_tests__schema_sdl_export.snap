@@ -3688,7 +3688,7 @@ type Query {
 	"""
 	Fetch multiple transaction blocks by their digests.
 	"""
-	multiTransactionBlocks(digests: [String!]!): [TransactionBlock!]!
+	multiTransactionBlocks(digests: [String!]!): [TransactionBlock]!
 	"""
 	The coin objects that exist in the network.
 	
