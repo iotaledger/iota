@@ -129,7 +129,7 @@ pub async fn update_lock_file_with_package_id(
             env.alias(),
             lock_file::schema::ManagedAddressUpdate::Upgraded {
                 latest_id: original_id.to_string(),
-                version: version.into(),
+                version,
             },
         ),
     }?;
