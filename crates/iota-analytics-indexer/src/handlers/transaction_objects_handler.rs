@@ -93,10 +93,12 @@ impl TransactionObjectsHandler {
         state: &mut State,
     ) {
         let transaction = &checkpoint_transaction.transaction;
+        let input_object_tracker = InputObjectTracker::new(transaction.data());
+        let object_status_tracker = ObjectStatusTracker::new(effects);
+
         let transaction_digest = transaction.digest().base58_encode();
         let txn_data = transaction.transaction_data();
-        let input_object_tracker = InputObjectTracker::new(txn_data);
-        let object_status_tracker = ObjectStatusTracker::new(effects);
+
         // input
         txn_data
             .input_objects()

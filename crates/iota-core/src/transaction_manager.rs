@@ -869,9 +869,7 @@ impl TransactionManager {
 
         for (object_id, queue_len, txn_age) in self.objects_queue_len_and_age(
             tx_data
-                .transaction_data()
                 .shared_input_objects()
-                .into_iter()
                 .filter_map(|r| r.mutable.then_some(r.id))
                 .collect(),
         ) {

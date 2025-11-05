@@ -14,7 +14,7 @@ use iota_types::{
     storage::{
         ObjectKey, transaction_non_shared_input_object_keys, transaction_receiving_object_keys,
     },
-    transaction::{SenderSignedData, SharedInputObject, TransactionDataAPI, TransactionKey},
+    transaction::{SenderSignedData, SharedInputObject, TransactionKey},
 };
 use tracing::{debug, trace};
 
@@ -267,12 +267,7 @@ fn get_or_init_versions<'a>(
     generate_randomness: bool,
 ) -> IotaResult<HashMap<ObjectID, SequenceNumber>> {
     let mut shared_input_objects: Vec<_> = transactions
-        .flat_map(|tx| {
-            tx.transaction_data()
-                .shared_input_objects()
-                .into_iter()
-                .map(|so| so.into_id_and_version())
-        })
+        .flat_map(|tx| tx.shared_input_objects().map(|so| so.into_id_and_version()))
         .collect();
 
     if generate_randomness {
