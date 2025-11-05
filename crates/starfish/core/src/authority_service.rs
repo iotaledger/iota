@@ -23,8 +23,8 @@ use tracing::{debug, info, warn};
 use crate::{
     CommitIndex, Round, Transaction, VerifiedBlockHeader,
     block_header::{
-        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND,
-        ShardWithProof, SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, GENESIS_ROUND, ShardWithProof,
+        SignedBlockHeader, TransactionsCommitment, VerifiedBlock, VerifiedOwnShard,
         VerifiedTransactions,
     },
     block_verifier::BlockVerifier,
@@ -236,6 +236,87 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
         };
         Ok((verified_block, shard_for_core))
     }
+
+    fn extract_additional_block_headers_from_bundle(
+        &self,
+        peer: AuthorityIndex,
+        peer_hostname: &str,
+        mut serialized_headers: Vec<Bytes>,
+        block_ref: BlockRef,
+    ) -> ConsensusResult<Vec<VerifiedBlockHeader>> {
+        let block_round = block_ref.round;
+        if serialized_headers.len() > self.context.parameters.max_headers_per_bundle {
+            warn!("BlockBundle: {block_ref} exceeds max_headers_per_bundle.");
+            serialized_headers.truncate(self.context.parameters.max_headers_per_bundle);
+        };
+
+        let mut additional_block_headers = vec![];
+        for serialized_header in serialized_headers {
+            let digest = VerifiedBlockHeader::compute_digest(&serialized_header);
+            if self.received_block_headers.contains(&digest) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .filtered_headers_in_bundles
+                    .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
+                    .inc();
+                continue;
+            }
+
+            let signed_block_header: SignedBlockHeader =
+                bcs::from_bytes(&serialized_header).map_err(ConsensusError::MalformedHeader)?;
+
+            let header_round = signed_block_header.round();
+            if header_round >= block_round {
+                let e = Err(ConsensusError::TooBigHeaderRoundInABundle {
+                    header_round,
+                    block_round,
+                });
+                self.context
+                    .metrics
+                    .node_metrics
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[
+                        peer_hostname,
+                        "header",
+                        "invalid round in header",
+                    ])
+                    .inc();
+                info!(
+                    "Invalid additional block header from {}: {}",
+                    peer,
+                    e.as_ref().unwrap_err()
+                );
+                return e;
+            }
+
+            if let Err(e) = self.block_verifier.verify(&signed_block_header) {
+                self.context
+                    .metrics
+                    .node_metrics
+                    .bundles_with_invalid_parts
+                    .with_label_values(&[peer_hostname.as_str(), "header", e.clone().name()])
+                    .inc();
+                info!("Invalid additional block header from {}: {}", peer, e);
+                return Err(e);
+            }
+
+            let verified_block_header = VerifiedBlockHeader::new_verified_with_digest(
+                signed_block_header,
+                serialized_header,
+                digest,
+            );
+
+            additional_block_headers.push(verified_block_header);
+        }
+        self.context
+            .metrics
+            .node_metrics
+            .valid_headers_in_bundles
+            .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
+            .inc_by(additional_block_headers.len() as u64);
+        Ok(additional_block_headers)
+    }
 }
 
 #[async_trait]
@@ -272,83 +353,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .inc_by(forward_time_drift.as_millis() as u64);
 
         // 3. Create block headers from bytes from a bundle
-        // 3.a. Truncate headers in a bundle to max_headers_per_bundle
-        let mut serialized_headers =
+
+        let serialized_headers =
             std::mem::take(&mut serialized_block_bundle_parts.serialized_headers);
-        if serialized_headers.len() > self.context.parameters.max_headers_per_bundle {
-            warn!("BlockBundle: {block_ref} exceeds max_headers_per_bundle.");
-            serialized_headers.truncate(self.context.parameters.max_headers_per_bundle);
-        };
+        let mut additional_block_headers = self.extract_additional_block_headers_from_bundle(
+            peer,
+            peer_hostname,
+            serialized_headers,
+            block_ref,
+        )?;
 
-        let mut additional_block_headers = vec![];
-        for serialized_header in serialized_headers {
-            let digest = VerifiedBlockHeader::compute_digest(&serialized_header);
-            if self.received_block_headers.contains(&digest) {
-                self.context
-                    .metrics
-                    .node_metrics
-                    .filtered_headers_in_bundles
-                    .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
-                    .inc();
-                continue;
-            }
-
-            let signed_block_header: SignedBlockHeader =
-                bcs::from_bytes(&serialized_header).map_err(ConsensusError::MalformedHeader)?;
-
-            let header_round = signed_block_header.round();
-            if header_round >= verified_block.round() {
-                let e = Err(ConsensusError::TooBigHeaderRoundInABundle {
-                    header_round,
-                    block_round: verified_block.round(),
-                });
-                self.context
-                    .metrics
-                    .node_metrics
-                    .bundles_with_invalid_parts
-                    .with_label_values(&[
-                        peer_hostname.as_str(),
-                        "header",
-                        "invalid round in header",
-                    ])
-                    .inc();
-                info!(
-                    "Invalid additional block header from {}: {}",
-                    peer,
-                    e.as_ref().unwrap_err()
-                );
-                return e;
-            }
-
-            if let Err(e) = self.block_verifier.verify(&signed_block_header) {
-                self.context
-                    .metrics
-                    .node_metrics
-                    .bundles_with_invalid_parts
-                    .with_label_values(&[peer_hostname.as_str(), "header", e.clone().name()])
-                    .inc();
-                info!("Invalid additional block header from {}: {}", peer, e);
-                return Err(e);
-            }
-
-            let verified_block_header = VerifiedBlockHeader::new_verified_with_digest(
-                signed_block_header,
-                serialized_header,
-                digest,
-            );
-
-            additional_block_headers.push(verified_block_header);
-        }
-        self.context
-            .metrics
-            .node_metrics
-            .valid_headers_in_bundles
-            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
-            .inc_by(additional_block_headers.len() as u64);
-
-        // 5. Collect shards from a bundle and check their proofs.
-        // 5.a. Truncate shards in bundle to max_shards_per_bundle.
-
+        // 4. Collect shards from a bundle and check their proofs.
+        let block_round = verified_block.round();
         let mut serialized_shards =
             std::mem::take(&mut serialized_block_bundle_parts.serialized_shards);
 
@@ -362,10 +378,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             let shard: ShardWithProof =
                 bcs::from_bytes(serialized_shard).map_err(ConsensusError::MalformedShard)?;
 
-            if shard.block_ref.round >= verified_block.round() {
+            if shard.block_ref.round >= block_round {
                 let e = ConsensusError::TooBigShardRoundInABundle {
                     shard_round: shard.block_ref.round,
-                    block_round: verified_block.round(),
+                    block_round,
                 };
                 self.context
                     .metrics
@@ -516,7 +532,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .map_err(|_| ConsensusError::Shutdown)?;
 
         // 11. Add the block to dag, add its missing ancestors to the set
-        let block_round = verified_block.round();
         let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
             .add_blocks(vec![verified_block])
