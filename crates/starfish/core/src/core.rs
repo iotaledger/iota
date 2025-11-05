@@ -26,6 +26,10 @@ use tokio::{
 use tracing::{debug, info, instrument, trace, warn};
 
 #[cfg(test)]
+use crate::storage::Store;
+#[cfg(test)]
+use crate::storage::rocksdb_store::RocksDBStore;
+#[cfg(test)]
 use crate::{CommitConsumer, CommittedSubDag, TransactionClient, storage::mem_store::MemStore};
 use crate::{
     Transaction,
@@ -482,7 +486,7 @@ impl Core {
         let block_headers = certified_commits
             .commits()
             .iter()
-            .flat_map(|commit| commit.blocks())
+            .flat_map(|commit| commit.block_headers())
             .cloned()
             .collect::<Vec<_>>();
 
@@ -1216,7 +1220,13 @@ pub(crate) fn create_cores(context: Context, authorities: Vec<Stake>) -> Vec<Cor
 
     for index in 0..authorities.len() {
         let own_index = AuthorityIndex::new_for_test(index as u8);
-        let core = CoreTextFixture::new(context.clone(), authorities.clone(), own_index, false);
+        let core = CoreTextFixture::new(
+            context.clone(),
+            authorities.clone(),
+            own_index,
+            false,
+            false,
+        );
         cores.push(core);
     }
     cores
@@ -1227,9 +1237,8 @@ pub(crate) struct CoreTextFixture {
     pub core: Core,
     pub signal_receivers: CoreSignalsReceivers,
     pub block_receiver: broadcast::Receiver<VerifiedBlock>,
-    #[expect(unused)]
     pub commit_receiver: UnboundedReceiver<CommittedSubDag>,
-    pub store: Arc<MemStore>,
+    pub store: Arc<dyn Store>,
 }
 
 #[cfg(test)]
@@ -1239,6 +1248,7 @@ impl CoreTextFixture {
         authorities: Vec<Stake>,
         own_index: AuthorityIndex,
         sync_last_known_own_block: bool,
+        with_rocksdb: bool,
     ) -> Self {
         let (committee, mut signers) = local_committee_and_keys(0, authorities.clone());
         let mut context = context.clone();
@@ -1250,7 +1260,12 @@ impl CoreTextFixture {
             .set_consensus_bad_nodes_stake_threshold_for_testing(33);
 
         let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
+        let store: Arc<dyn Store> = if !with_rocksdb {
+            Arc::new(MemStore::new())
+        } else {
+            let store_path = context.parameters.db_path.as_path().to_str().unwrap();
+            Arc::new(RocksDBStore::new(store_path))
+        };
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store.clone())));
 
         let block_manager = BlockManager::new(context.clone(), dag_state.clone());
@@ -1300,7 +1315,10 @@ impl CoreTextFixture {
 
 #[cfg(test)]
 mod test {
-    use std::{collections::BTreeSet, time::Duration};
+    use std::{
+        collections::{BTreeSet, HashSet},
+        time::Duration,
+    };
 
     use futures::{StreamExt, stream::FuturesUnordered};
     use iota_metrics::monitored_mpsc::unbounded_channel;
@@ -2227,6 +2245,175 @@ mod test {
     }
 
     #[tokio::test]
+    async fn test_sequenced_transactions_no_headers() {
+        telemetry_subscribers::init_for_testing();
+        let committee_size = 10;
+        let (context, _key_pairs) = Context::new_for_test(committee_size);
+        let own_index = AuthorityIndex::new_for_test(0);
+        let core_fixture_own = CoreTextFixture::new(
+            context.clone(),
+            vec![1; committee_size],
+            own_index,
+            true,
+            false,
+        );
+        // create a DAG of 2*gc_depth rounds
+        let mut dag_builder = DagBuilder::new(Arc::new(context.clone()));
+        let gc_depth = context.protocol_config.gc_depth();
+        let cached_rounds = core_fixture_own
+            .core
+            .context
+            .parameters
+            .dag_state_cached_rounds;
+        // One authority will try to catch up, so it does not create any block
+        let catch_up_index = AuthorityIndex::new_for_test((committee_size - 1) as u8);
+        let core_fixture_catch_up = CoreTextFixture::new(
+            context.clone(),
+            vec![1; committee_size],
+            catch_up_index,
+            true,
+            true,
+        );
+        let active_authorities = (0..(committee_size - 1) as u8)
+            .map(AuthorityIndex::new_for_test)
+            .collect::<Vec<_>>();
+        // Blocks of one authority will not be referenced, but acknowledged
+        let authority_to_skip = AuthorityIndex::new_for_test((committee_size - 2) as u8);
+        let authorities_to_skip_ancestors = vec![authority_to_skip, catch_up_index];
+
+        let num_rounds_with_skip_ancestors = cached_rounds + gc_depth;
+        let total_rounds = 2 * num_rounds_with_skip_ancestors;
+        dag_builder
+            .layers(1..=num_rounds_with_skip_ancestors)
+            .authorities(active_authorities.clone())
+            .skip_ancestor_links(authorities_to_skip_ancestors)
+            .build();
+        let authorities_to_skip_ancestors = vec![catch_up_index];
+        dag_builder
+            .layers(num_rounds_with_skip_ancestors + 1..=total_rounds)
+            .authorities(active_authorities)
+            .skip_ancestor_links(authorities_to_skip_ancestors)
+            .build();
+        let sub_dags_and_commits = dag_builder.get_sub_dag_and_certified_commits(1..=total_rounds);
+
+        let (mut core_own, mut commit_receiver_own) =
+            (core_fixture_own.core, core_fixture_own.commit_receiver);
+        let _ = core_own.add_blocks(dag_builder.blocks(1..=total_rounds));
+        let mut existing_headers = HashSet::new();
+        let mut all_traversed_headers = Vec::new();
+        let mut all_sequenced_transactions = Vec::new();
+        // Check the commits that are produced after processing blocks.
+        // Record traversed headers and sequenced transactions
+        while let Some(sub_dag) = commit_receiver_own.recv().await {
+            let sub_dag_leader_round = sub_dag.leader.round;
+            let CommittedSubDag { base, transactions } = sub_dag;
+
+            for header in &base.headers {
+                existing_headers.insert(header.reference());
+            }
+            all_traversed_headers.extend(base.headers.clone());
+            for transaction in &transactions {
+                // Transactions from all authors except authority_to_skip should also have a
+                // corresponding block_ref being traversed in the committed sub_dag
+                // Same after num_rounds_with_skip_ancestors
+                if transaction.block_ref().author != authority_to_skip
+                    || transaction.block_ref().round >= num_rounds_with_skip_ancestors
+                {
+                    assert!(
+                        existing_headers.contains(&transaction.block_ref()),
+                        "{}",
+                        transaction.block_ref()
+                    );
+                } else {
+                    assert!(
+                        !existing_headers.contains(&transaction.block_ref()),
+                        "{}",
+                        transaction.block_ref()
+                    );
+                }
+            }
+            all_sequenced_transactions.extend(transactions);
+            if sub_dag_leader_round == total_rounds - 2 {
+                break;
+            }
+        }
+        // Now the node that tries to catch up will sync the certified commits
+        // The commits contains only the headers
+        let certified_commits = sub_dags_and_commits
+            .iter()
+            .map(|(_, c)| c.clone())
+            .collect::<Vec<_>>();
+        let mut core_catch_up = core_fixture_catch_up.core;
+        let (missing_references, missing_transactions) = core_catch_up
+            .add_certified_commits(CertifiedCommits::new(certified_commits))
+            .expect("We should not fail with certified commits");
+        assert!(missing_references.is_empty());
+        let first_missing_transaction_from_skipped = *missing_transactions
+            .iter()
+            .find(|(a, _)| a.author == authority_to_skip)
+            .unwrap()
+            .0;
+        // Ensure that the block header corresponding to the
+        // first_missing_transaction_from_skipped is not in dag_state
+        assert!(
+            core_catch_up
+                .dag_state
+                .read()
+                .get_verified_block_headers(&[first_missing_transaction_from_skipped])[0]
+                .is_none()
+        );
+        let last_solid_commit_round = core_catch_up
+            .dag_state
+            .read()
+            .last_solid_commit_leader_round()
+            .unwrap();
+        // Latest solid (with all transactions being locally available) leader round is
+        // 2 as only transactions from round 0 could be sequenced at this point.
+        // All other transactions are not yet synced
+        assert_eq!(last_solid_commit_round, 2u32);
+        // Now assume that the missing transactions were synced by the transaction
+        // synchronizer
+        let missing_verified_transactions: Vec<_> = all_sequenced_transactions
+            .into_iter()
+            .filter(|tx| missing_transactions.contains_key(&tx.block_ref()))
+            .collect();
+        core_catch_up
+            .add_transactions(
+                missing_verified_transactions,
+                crate::dag_state::TransactionSource::TransactionSynchronizer,
+            )
+            .unwrap();
+
+        let last_commit_round = core_catch_up.dag_state.read().last_commit_round();
+        let last_solid_commit_round = core_catch_up
+            .dag_state
+            .read()
+            .last_solid_commit_leader_round()
+            .unwrap();
+        // Latest solid (with all transactions being locally available) leader round
+        // coincides now with last_commit_round
+        assert_eq!(last_solid_commit_round, last_commit_round);
+        // Flush to evict verified transactions from first rounds;
+        core_catch_up.dag_state.write().flush();
+        // Try to get a verified transaction from skipped authority. It should be
+        // impossible with get_verified_transactions() method since the header
+        // is not available
+        let opt_verified_transaction = core_catch_up
+            .dag_state
+            .read()
+            .get_verified_transactions(&[first_missing_transaction_from_skipped]);
+        assert!(opt_verified_transaction[0].is_none());
+        // Try to get a serialized transaction from skipped authority. It should now be
+        // impossible with get_serialized_transactions() method since it just
+        // reads bytes from storage
+        let opt_serialized_transaction = core_catch_up
+            .dag_state
+            .read()
+            .get_serialized_transactions(&[first_missing_transaction_from_skipped]);
+        assert!(opt_serialized_transaction[0].is_some());
+    }
+
+    #[tokio::test]
     async fn test_add_certified_commits() {
         telemetry_subscribers::init_for_testing();
 
@@ -2237,7 +2424,7 @@ mod test {
         });
 
         let authority_index = AuthorityIndex::new_for_test(0);
-        let core = CoreTextFixture::new(context, vec![1, 1, 1, 1], authority_index, true);
+        let core = CoreTextFixture::new(context, vec![1, 1, 1, 1], authority_index, true, false);
         let store = core.store.clone();
         let mut core = core.core;
 

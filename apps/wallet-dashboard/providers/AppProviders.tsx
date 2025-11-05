@@ -9,6 +9,7 @@ import { getAllNetworks, getDefaultNetwork, getNetwork } from '@iota/iota-sdk/cl
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState } from 'react';
+import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import {
     KioskClientProvider,
     StardustIndexerClientProvider,
@@ -21,6 +22,7 @@ import {
 import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
 import { createIotaClient } from '@/lib/utils/defaultRpcClient';
+import { CookieDisclaimer } from '@/components/disclaimer/CookieDisclaimer';
 
 growthbook.init();
 
@@ -66,8 +68,11 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                                     >
                                         <ClipboardPasteSafetyWrapper>
                                             <ThemeProvider appId="iota-dashboard">
-                                                {children}
-                                                <Toaster containerClassName="!right-8" />
+                                                <CookieManagerProvider>
+                                                    {children}
+                                                    <Toaster containerClassName="!right-8" />
+                                                    <CookieDisclaimer />
+                                                </CookieManagerProvider>
                                             </ThemeProvider>
                                         </ClipboardPasteSafetyWrapper>
                                     </WalletProvider>

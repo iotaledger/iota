@@ -30,5 +30,9 @@ export function CookieDisclaimer() {
         onAcceptCookies,
         onDeclineCookies,
     };
-    return <CookieManager configuration={configuration} />;
+    return (
+        <>
+            <CookieManager configuration={configuration} />
+        </>
+    );
 }
