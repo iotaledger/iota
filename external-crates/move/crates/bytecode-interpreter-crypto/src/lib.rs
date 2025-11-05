@@ -15,10 +15,10 @@
 
 use std::cmp::Ordering;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use ed25519_dalek::{
-    PublicKey as Ed25519PublicKey, Signature as Ed25519Signature,
-    PUBLIC_KEY_LENGTH as ED25519_PUBLIC_KEY_LENGTH, SIGNATURE_LENGTH as ED25519_SIGNATURE_LENGTH,
+    PUBLIC_KEY_LENGTH as ED25519_PUBLIC_KEY_LENGTH, PublicKey as Ed25519PublicKey,
+    SIGNATURE_LENGTH as ED25519_SIGNATURE_LENGTH, Signature as Ed25519Signature,
 };
 use sha2::{Digest, Sha256};
 use sha3::Sha3_256;

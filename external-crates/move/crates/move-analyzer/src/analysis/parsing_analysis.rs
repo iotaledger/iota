@@ -2,48 +2,49 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    symbols::{
-        add_member_use_def, ignored_function, parsed_address,
-        parsing_leading_and_mod_names_to_map_key, parsing_mod_def_to_map_key, CallInfo,
-        CursorContext, CursorDefinition, CursorPosition, DefMap, ModuleDefs, References, UseDef,
-        UseDefMap,
-    },
-    utils::loc_start_to_lsp_position_opt,
-};
-
-use lsp_types::Position;
-
 use std::collections::BTreeMap;
 
+use lsp_types::Position;
 use move_compiler::{
     parser::ast as P,
-    shared::{files::MappedFiles, Identifier, Name, NamedAddressMap, NamedAddressMaps},
+    shared::{Identifier, Name, NamedAddressMap, NamedAddressMaps, files::MappedFiles},
 };
 use move_ir_types::location::*;
 
+use crate::{
+    symbols::{
+        AutoImportInsertionInfo, AutoImportInsertionKind, CallInfo, CursorContext,
+        CursorDefinition, CursorPosition, DefMap, ModuleDefs, References, UseDef, UseDefMap,
+        add_member_use_def, ignored_function, parsed_address,
+        parsing_leading_and_mod_names_to_map_key, parsing_mod_def_to_map_key,
+    },
+    utils::{loc_end_to_lsp_position_opt, loc_start_to_lsp_position_opt},
+};
+
 pub struct ParsingAnalysisContext<'a> {
-    /// Outermost definitions in a module (structs, consts, functions), keyd on a ModuleIdent
-    /// string so that we can access it regardless of the ModuleIdent representation
-    /// (e.g., in the parsing AST or in the typing AST)
+    /// Outermost definitions in a module (structs, consts, functions), keyd on
+    /// a ModuleIdent string so that we can access it regardless of the
+    /// ModuleIdent representation (e.g., in the parsing AST or in the
+    /// typing AST)
     pub mod_outer_defs: &'a mut BTreeMap<String, ModuleDefs>,
     /// Mapped file information for translating locations into positions
     pub files: &'a MappedFiles,
-    /// Associates uses for a given definition to allow displaying all references
+    /// Associates uses for a given definition to allow displaying all
+    /// references
     pub references: &'a mut References,
     /// Additional information about definitions
     pub def_info: &'a mut DefMap,
-    /// A UseDefMap for a given module (needs to be appropriately set before the module
-    /// processing starts)
+    /// A UseDefMap for a given module (needs to be appropriately set before the
+    /// module processing starts)
     pub use_defs: UseDefMap,
-    /// Current module identifier string (needs to be appropriately set before the module
-    /// processing starts)
+    /// Current module identifier string (needs to be appropriately set before
+    /// the module processing starts)
     pub current_mod_ident_str: Option<String>,
-    /// Module name lengths in access paths for a given module (needs to be appropriately
-    /// set before the module processing starts)
+    /// Module name lengths in access paths for a given module (needs to be
+    /// appropriately set before the module processing starts)
     pub alias_lengths: BTreeMap<Position, usize>,
-    /// A per-package mapping from package names to their addresses (needs to be appropriately set
-    /// before the package processint starts)
+    /// A per-package mapping from package names to their addresses (needs to be
+    /// appropriately set before the package processint starts)
     pub pkg_addresses: &'a NamedAddressMap,
     /// Cursor contextual information, computed as part of the traversal.
     pub cursor: Option<&'a mut CursorContext>,
@@ -129,7 +130,22 @@ impl<'a> ParsingAnalysisContext<'a> {
         mod_use_defs: &mut BTreeMap<String, UseDefMap>,
         mod_to_alias_lengths: &mut BTreeMap<String, BTreeMap<Position, usize>>,
     ) {
-        // parsing symbolicator is currently only responsible for processing use declarations
+        fn latest_loc(latest_loc: Loc, new_loc: Loc) -> Loc {
+            if new_loc.end() > latest_loc.end() {
+                new_loc
+            } else {
+                latest_loc
+            }
+        }
+        fn earliest_loc(earliest_loc: Loc, new_loc: Loc) -> Loc {
+            if new_loc.start() < earliest_loc.start() {
+                new_loc
+            } else {
+                earliest_loc
+            }
+        }
+        // parsing symbolicator is currently only responsible for processing use
+        // declarations
         let Some(mod_ident_str) = parsing_mod_def_to_map_key(self.pkg_addresses, mod_def) else {
             return;
         };
@@ -146,6 +162,10 @@ impl<'a> ParsingAnalysisContext<'a> {
             .iter()
             .for_each(|sp!(_, attrs)| attrs.iter().for_each(|a| self.attr_symbols(a.clone())));
 
+        // location of the latest use declaration (if any)
+        let mut latest_use_loc = Loc::new(mod_def.loc.file_hash(), 0, 0);
+        // location of the earliest member (if any)
+        let mut earliest_member_loc = Loc::new(mod_def.loc.file_hash(), u32::MAX, u32::MAX);
         for m in &mod_def.members {
             use P::ModuleMember as MM;
             match m {
@@ -153,7 +173,8 @@ impl<'a> ParsingAnalysisContext<'a> {
                     if ignored_function(fun.name.value()) {
                         continue;
                     }
-
+                    earliest_member_loc =
+                        earliest_loc(earliest_member_loc, fun.doc.loc().unwrap_or(fun.loc));
                     // Unit returns span the entire function signature, so we process them first
                     // for cursor ordering.
                     self.type_symbols(&fun.signature.return_type);
@@ -190,6 +211,8 @@ impl<'a> ParsingAnalysisContext<'a> {
                     };
                 }
                 MM::Struct(sdef) => {
+                    earliest_member_loc =
+                        earliest_loc(earliest_member_loc, sdef.doc.loc().unwrap_or(sdef.loc));
                     // If the cursor is in this item, mark that down.
                     // This may be overridden by the recursion below.
                     if let Some(cursor) = &mut self.cursor {
@@ -218,6 +241,8 @@ impl<'a> ParsingAnalysisContext<'a> {
                     }
                 }
                 MM::Enum(edef) => {
+                    earliest_member_loc =
+                        earliest_loc(earliest_member_loc, edef.doc.loc().unwrap_or(edef.loc));
                     // If the cursor is in this item, mark that down.
                     // This may be overridden by the recursion below.
                     if let Some(cursor) = &mut self.cursor {
@@ -249,9 +274,17 @@ impl<'a> ParsingAnalysisContext<'a> {
                         }
                     }
                 }
-                MM::Use(use_decl) => self.use_decl_symbols(use_decl),
-                MM::Friend(fdecl) => self.chain_symbols(&fdecl.friend),
+                MM::Use(use_decl) => {
+                    latest_use_loc = latest_loc(latest_use_loc, use_decl.loc);
+                    self.use_decl_symbols(use_decl)
+                }
+                MM::Friend(fdecl) => {
+                    earliest_member_loc = earliest_loc(earliest_member_loc, fdecl.loc);
+                    self.chain_symbols(&fdecl.friend)
+                }
                 MM::Constant(c) => {
+                    earliest_member_loc =
+                        earliest_loc(earliest_member_loc, c.doc.loc().unwrap_or(c.loc));
                     // If the cursor is in this item, mark that down.
                     // This may be overridden by the recursion below.
                     if let Some(cursor) = &mut self.cursor {
@@ -271,14 +304,62 @@ impl<'a> ParsingAnalysisContext<'a> {
                     self.type_symbols(&c.signature);
                     self.exp_symbols(&c.value);
                 }
-                MM::Spec(_) => (),
+                MM::Spec(s) => {
+                    earliest_member_loc = earliest_loc(earliest_member_loc, s.loc);
+                }
             }
         }
+        self.add_import_insert_info(latest_use_loc, earliest_member_loc);
+
         self.current_mod_ident_str = None;
         let processed_defs = std::mem::replace(&mut self.use_defs, old_defs);
         mod_use_defs.insert(mod_ident_str.clone(), processed_defs);
         let processed_alias_lengths = std::mem::replace(&mut self.alias_lengths, old_alias_lengths);
         mod_to_alias_lengths.insert(mod_ident_str, processed_alias_lengths);
+    }
+
+    fn add_import_insert_info(&mut self, latest_use_loc: Loc, earliest_member_loc: Loc) {
+        let Some(mod_defs) = self
+            .mod_outer_defs
+            .get_mut(&self.current_mod_ident_str.clone().unwrap())
+        else {
+            return;
+        };
+        mod_defs.import_insert_info = if latest_use_loc.end() > 0 {
+            // imports exist, auto-imports position is at the end of the last
+            // auto import
+            if let Some(use_start) = loc_start_to_lsp_position_opt(self.files, &latest_use_loc) {
+                loc_end_to_lsp_position_opt(self.files, &latest_use_loc).map(|pos| {
+                    AutoImportInsertionInfo {
+                        kind: AutoImportInsertionKind::AfterLastImport,
+                        pos,
+                        tabulation: use_start.character as usize,
+                    }
+                })
+            } else {
+                None
+            }
+        } else if earliest_member_loc.start() < u32::MAX {
+            // Imports don't exist, but some members do, and auto-imports position
+            // is at the beginning of the line where the first member starts, with
+            // the intention to insert auto-imports on the same line pushing
+            // the member down. The reason why we don't insert auto-imports
+            // on the previous line is that if we are unlucky, we may
+            // hit a curly starting module or module declaration itself.
+            loc_start_to_lsp_position_opt(self.files, &earliest_member_loc).map(|pos| {
+                AutoImportInsertionInfo {
+                    kind: AutoImportInsertionKind::BeforeFirstMember,
+                    pos,
+                    tabulation: pos.character as usize,
+                }
+            })
+        } else {
+            // Otherwise it's unclear where to insert auto-imports.
+            // We could speculate here but this should not really happen
+            // since for auto-import to make sense we need some code
+            // in the module.
+            None
+        }
     }
 
     /// Get symbols for a sequence item
@@ -623,7 +704,8 @@ impl<'a> ParsingAnalysisContext<'a> {
         }
     }
 
-    /// Get symbols for a module member in the use declaration (can be a struct or a function)
+    /// Get symbols for a module member in the use declaration (can be a struct
+    /// or a function)
     fn use_decl_member_symbols(
         &mut self,
         mod_ident_str: String,
@@ -799,8 +881,9 @@ impl<'a> ParsingAnalysisContext<'a> {
     }
 }
 
-/// Produces module ident string of the form pkg::module to be used as a map key.
-/// It's important that these are consistent between parsing AST and typed AST,
+/// Produces module ident string of the form pkg::module to be used as a map
+/// key. It's important that these are consistent between parsing AST and typed
+/// AST,
 fn parsing_mod_ident_to_map_key(
     pkg_addresses: &NamedAddressMap,
     mod_ident: &P::ModuleIdent_,

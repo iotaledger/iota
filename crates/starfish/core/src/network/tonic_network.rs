@@ -1149,18 +1149,6 @@ pub(crate) struct SubscribeBlockBundlesResponse {
 }
 
 #[derive(Clone, prost::Message)]
-pub(crate) struct SubscribeBlocksRequest {
-    #[prost(uint32, tag = "1")]
-    last_received_round: Round,
-}
-
-#[derive(Clone, prost::Message)]
-pub(crate) struct SubscribeBlocksResponse {
-    #[prost(bytes = "bytes", tag = "1")]
-    vec_serialized_blocks: Bytes,
-}
-
-#[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlockHeadersRequest {
     #[prost(bytes = "vec", repeated, tag = "1")]
     block_refs: Vec<Vec<u8>>,
@@ -1176,6 +1164,7 @@ pub(crate) struct FetchBlockHeadersResponse {
     vec_serialized_block_header: Vec<Bytes>,
 }
 
+#[allow(unused)]
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlocksRequest {
     #[prost(bytes = "vec", repeated, tag = "1")]
@@ -1186,6 +1175,7 @@ pub(crate) struct FetchBlocksRequest {
     highest_accepted_rounds: Vec<Round>,
 }
 
+#[allow(unused)]
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlocksResponse {
     #[prost(bytes = "bytes", repeated, tag = "1")]

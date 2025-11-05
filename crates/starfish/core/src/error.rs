@@ -3,13 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use fastcrypto::error::FastCryptoError;
-use starfish_config::{AuthorityIndex, Epoch, Stake};
+use starfish_config::{AuthorityIndex, Committee, Epoch, Stake};
 use strum_macros::IntoStaticStr;
 use thiserror::Error;
 use typed_store::TypedStoreError;
 
 use crate::{
-    block_header::{BlockRef, Round},
+    block_header::{BlockRef, GENESIS_ROUND, Round},
     commit::{Commit, CommitIndex},
 };
 
@@ -53,11 +53,8 @@ pub(crate) enum ConsensusError {
     #[error("Genesis block headers should only be generated from Committee!")]
     UnexpectedGenesisHeader,
 
-    #[error("Genesis transactions should not be queried!")]
-    UnexpectedGenesisTransactionsRequested,
-
-    #[error("Genesis block headers should not be queried!")]
-    UnexpectedGenesisHeaderRequested,
+    #[error("Genesis block headers or transactions are requested from {peer}!")]
+    UnexpectedGenesisRequested { peer: AuthorityIndex },
 
     #[error(
         "Expected {requested} but received {received_headers} block headers from authority {authority}"
@@ -84,9 +81,6 @@ pub(crate) enum ConsensusError {
     #[error("Too many block headers have been rteurned from authority {0}")]
     TooManyFetchedHeadersReturned(AuthorityIndex),
 
-    #[error("Too many transaction bundles have been requested from authority {0}")]
-    TooManyFetchTransactionsRequested(AuthorityIndex),
-
     #[error("Too many authorities have been provided from authority {0}")]
     TooManyAuthoritiesProvided(AuthorityIndex),
 
@@ -97,6 +91,13 @@ pub(crate) enum ConsensusError {
 
     #[error("Invalid authority index: {index} > {max}")]
     InvalidAuthorityIndex { index: AuthorityIndex, max: usize },
+
+    #[error("Invalid authority index: {index} > {max} from peer {peer}")]
+    InvalidAuthorityIndexRequested {
+        index: AuthorityIndex,
+        max: usize,
+        peer: AuthorityIndex,
+    },
 
     #[error("Failed to deserialize signature: {0}")]
     MalformedSignature(FastCryptoError),
@@ -249,10 +250,46 @@ pub(crate) enum ConsensusError {
 }
 
 impl ConsensusError {
-    /// Returns the error name - only the enun name without any parameters - as
+    /// Returns the error name - only the enum name without any parameters - as
     /// a static string.
     pub fn name(&self) -> &'static str {
         self.into()
+    }
+
+    pub fn quick_validation_requested_block_refs(
+        block_refs: &[BlockRef],
+        peer: AuthorityIndex,
+        committee: &Committee,
+    ) -> ConsensusResult<()> {
+        for block in block_refs {
+            if !committee.is_valid_index(block.author) {
+                return Err(ConsensusError::InvalidAuthorityIndexRequested {
+                    index: block.author,
+                    max: committee.size(),
+                    peer,
+                });
+            }
+            if block.round == GENESIS_ROUND {
+                return Err(ConsensusError::UnexpectedGenesisRequested { peer });
+            }
+        }
+        Ok(())
+    }
+
+    pub fn quick_validation_authority_indices(
+        authorities: &[AuthorityIndex],
+        committee: &Committee,
+    ) -> ConsensusResult<()> {
+        // Ensure that those are valid authorities
+        for authority in authorities {
+            if !committee.is_valid_index(*authority) {
+                return Err(ConsensusError::InvalidAuthorityIndex {
+                    index: *authority,
+                    max: committee.size(),
+                });
+            }
+        }
+        Ok(())
     }
 }
 

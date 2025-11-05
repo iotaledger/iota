@@ -6,13 +6,13 @@
 use std::{
     clone::Clone,
     collections::{
-        hash_map::Entry::{Occupied, Vacant},
         BTreeSet, HashMap, HashSet,
+        hash_map::Entry::{Occupied, Vacant},
     },
     fmt::Write,
 };
 
-use anyhow::{bail, format_err, Result};
+use anyhow::{Result, bail, format_err};
 use move_binary_format::{
     file_format::{
         Ability, AbilitySet, Bytecode, CodeOffset, CodeUnit, CompiledModule, Constant,
@@ -413,10 +413,11 @@ pub fn compile_module<'a>(
     }
 
     for ir_constant in module.constants {
-        // If the constant is an error constant in the source, then add the error constant's name
-        // look up the constant's name, as a constant value -- this may be present already,
-        // e.g., in the case of something like `const Foo: vector<u8> = b"Foo"` in which case the
-        // new index will not be added and the previous index will be used.
+        // If the constant is an error constant in the source, then add the error
+        // constant's name look up the constant's name, as a constant value --
+        // this may be present already, e.g., in the case of something like
+        // `const Foo: vector<u8> = b"Foo"` in which case the new index will not
+        // be added and the previous index will be used.
         if ir_constant.is_error_constant {
             // Will add if not present, and will return the index, or will just return
             // index if already present.
