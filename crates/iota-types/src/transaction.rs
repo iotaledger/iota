@@ -1983,6 +1983,11 @@ impl TransactionData {
         )
     }
 
+    /// Checks if the transaction data contains the `Random` object as an
+    /// input.
+    /// This function does not check shared objects associated with
+    /// `MoveAuthenticator` signatures. To check those objects as well, use the
+    /// corresponding function from `SenderSignedData`.
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .iter()
@@ -2024,8 +2029,16 @@ pub trait TransactionDataAPI {
 
     fn expiration(&self) -> &TransactionExpiration;
 
+    /// Checks if the transaction data contains at least one shared object.
+    /// This function does not check shared objects associated with
+    /// `MoveAuthenticator` signatures. To check those objects as well, use the
+    /// corresponding function from `SenderSignedData`.
     fn contains_shared_object(&self) -> bool;
 
+    /// Returns a list of the transaction data shared input objects.
+    /// This function does not return shared objects associated with
+    /// `MoveAuthenticator` signatures. To check those objects as well, use the
+    /// corresponding function from `SenderSignedData`.
     fn shared_input_objects(&self) -> Vec<SharedInputObject>;
 
     fn move_calls(&self) -> Vec<(&ObjectID, &str, &str)>;
@@ -2598,6 +2611,8 @@ impl SenderSignedData {
         }
     }
 
+    /// Checks if `SenderSignedData` contains at least one shared object.
+    /// This function checks shared objects from the `MoveAuthenticator` if any.
     pub fn contains_shared_object(&self) -> bool {
         self.shared_input_objects().next().is_some()
     }
@@ -2628,6 +2643,9 @@ impl SenderSignedData {
             .unique()
     }
 
+    /// Checks if `SenderSignedData` contains the `Random` object as an
+    /// input.
+    /// This function checks shared objects from the `MoveAuthenticator` if any.
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
