@@ -544,7 +544,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             warn!("Failed to send transaction messages to shard reconstructor: {e}");
         }
 
-        // 10. Add additional headers from bundle to dag, receive missing ancestors for
+        // 9. Add additional headers from bundle to dag, receive missing ancestors for
         // them. Normally, there should be no missing ancestors, as the headers are
         // sent in order of increasing rounds.
         let (mut missing_ancestors, mut missing_committed_txns) = self
@@ -553,7 +553,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
-        // 11. Add the block to dag, add its missing ancestors to the set
+        // 10. Add the block to dag, add its missing ancestors to the set
         let (missing_block_ancestors, missing_block_committed_transactions) = self
             .core_dispatcher
             .add_blocks(vec![verified_block])
@@ -563,7 +563,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         missing_ancestors.extend(missing_block_ancestors);
         missing_committed_txns.extend(missing_block_committed_transactions);
 
-        // 12. Add our shard from the received block and its proof to the dag_state
+        // 11. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions
         if shard_for_core.is_some() {
             let shard_for_core = shard_for_core.unwrap();
@@ -580,7 +580,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .map_err(|_| ConsensusError::Shutdown)?;
         }
 
-        // 13. Report useful info for cordial and connection knowledge
+        // 12. Report useful info for cordial and connection knowledge
         let block_round = block_ref.round;
         self.cordial_knowledge.report_useful_authors(
             peer,
@@ -590,7 +590,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             block_round,
         )?;
 
-        // 14. schedule the fetching of missing ancestors (if any) from this peer
+        // 13. schedule the fetching of missing ancestors (if any) from this peer
         if !missing_ancestors.is_empty() {
             if let Err(err) = self
                 .synchronizer
@@ -601,7 +601,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             }
         }
 
-        // 16. schedule the fetching of missing committed transactions (if any)
+        // 14. schedule the fetching of missing committed transactions (if any)
         if !missing_committed_txns.is_empty() {
             if let Err(err) = self
                 .transactions_synchronizer
