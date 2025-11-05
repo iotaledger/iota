@@ -257,7 +257,10 @@ fn verify_immutable_reference(
                     "Invalid immutable reference. A datatype instantiation must NOT be a receiving struct, offending argument: {param:?}"
                 ))
             } else {
-                verify_immutable_reference(module, &type_args[0])
+                for type_arg in type_args.iter() {
+                    verify_immutable_reference(module, type_arg)?
+                }
+                Ok(())
             }
         }
         Signer => Err(format!(

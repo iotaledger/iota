@@ -175,7 +175,8 @@ fail::{
     vector_by_mutable_ref,
     option_immutable_ref,
     option_by_value,
-    option_by_mutable_ref
+    option_by_mutable_ref,
+    datatype_inst_immutable_ref
 });
 
 tests_in_module!(

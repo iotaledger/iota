@@ -5,6 +5,7 @@ module authenticate::receiving;
 
 use iota::auth_context::AuthContext;
 use iota::transfer::Receiving;
+use iota::vec_map::VecMap;
 
 // Receiving
 
@@ -97,3 +98,12 @@ public fun option_by_value(
         transfer::public_share_object(object);
     });
 }
+
+// Receiving and datatype instantiation
+
+// FAIL
+public fun datatype_inst_immutable_ref(
+    _to_receive: &VecMap<u8, Receiving<Object>>,
+    _auth_ctx: &AuthContext,
+    _ctx: &TxContext,
+) {}
