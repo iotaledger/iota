@@ -317,57 +317,14 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
             .inc_by(additional_block_headers.len() as u64);
         Ok(additional_block_headers)
     }
-}
-
-#[async_trait]
-impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
-    async fn handle_subscribed_block_bundle(
+    fn extract_shards_from_bundle(
         &self,
         peer: AuthorityIndex,
-        serialized_block_bundle: SerializedBlockBundle,
-        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
-    ) -> ConsensusResult<()> {
-        fail_point_async!("consensus-rpc-response");
-
-        let peer_hostname = &self.context.committee.authority(peer).hostname;
-        let mut serialized_block_bundle_parts =
-            SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
-
-        // 1. Create a verified block and make some preliminary checks
-        let (verified_block, shard_for_core) = self.create_verified_block_and_shard(
-            peer,
-            peer_hostname,
-            serialized_block_bundle_parts.serialized_block.clone(),
-            encoder,
-        )?;
-        let block_ref = verified_block.reference();
-        // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
-        let now = self.context.clock.timestamp_utc_ms();
-        let forward_time_drift =
-            Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
-        self.context
-            .metrics
-            .node_metrics
-            .block_timestamp_drift_ms
-            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
-            .inc_by(forward_time_drift.as_millis() as u64);
-
-        // 3. Create block headers from bytes from a bundle
-
-        let serialized_headers =
-            std::mem::take(&mut serialized_block_bundle_parts.serialized_headers);
-        let mut additional_block_headers = self.extract_additional_block_headers_from_bundle(
-            peer,
-            peer_hostname,
-            serialized_headers,
-            block_ref,
-        )?;
-
-        // 4. Collect shards from a bundle and check their proofs.
-        let block_round = verified_block.round();
-        let mut serialized_shards =
-            std::mem::take(&mut serialized_block_bundle_parts.serialized_shards);
-
+        peer_hostname: &str,
+        mut serialized_shards: Vec<Bytes>,
+        block_ref: BlockRef,
+    ) -> ConsensusResult<Vec<ShardWithProof>> {
+        let block_round = block_ref.round;
         if serialized_shards.len() > self.context.parameters.max_shards_per_bundle {
             warn!("BlockBundle: {block_ref} exceeds max_shards_per_bundle.");
             serialized_shards.truncate(self.context.parameters.max_shards_per_bundle);
@@ -419,8 +376,62 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .metrics
             .node_metrics
             .valid_shards_in_bundles
-            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .with_label_values(&[peer_hostname, "handle_subscribed_block_bundle"])
             .inc_by(verified_shards.len() as u64);
+        Ok(verified_shards)
+    }
+}
+
+#[async_trait]
+impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
+    async fn handle_subscribed_block_bundle(
+        &self,
+        peer: AuthorityIndex,
+        serialized_block_bundle: SerializedBlockBundle,
+        encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
+    ) -> ConsensusResult<()> {
+        fail_point_async!("consensus-rpc-response");
+
+        let peer_hostname = &self.context.committee.authority(peer).hostname;
+        let mut serialized_block_bundle_parts =
+            SerializedBlockBundleParts::try_from(serialized_block_bundle)?;
+
+        // 1. Create a verified block and make some preliminary checks
+        let (verified_block, shard_for_core) = self.create_verified_block_and_shard(
+            peer,
+            peer_hostname,
+            serialized_block_bundle_parts.serialized_block.clone(),
+            encoder,
+        )?;
+        let block_ref = verified_block.reference();
+        // 2. Record timestamp drift metric (NEW mode - no waiting or rejection)
+        let now = self.context.clock.timestamp_utc_ms();
+        let forward_time_drift =
+            Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
+        self.context
+            .metrics
+            .node_metrics
+            .block_timestamp_drift_ms
+            .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
+            .inc_by(forward_time_drift.as_millis() as u64);
+
+        // 3. Create block headers from bytes from a bundle
+
+        let serialized_headers =
+            std::mem::take(&mut serialized_block_bundle_parts.serialized_headers);
+        let mut additional_block_headers = self.extract_additional_block_headers_from_bundle(
+            peer,
+            peer_hostname,
+            serialized_headers,
+            block_ref,
+        )?;
+
+        // 4. Collect shards from a bundle and check their proofs.
+
+        let serialized_shards =
+            std::mem::take(&mut serialized_block_bundle_parts.serialized_shards);
+        let verified_shards =
+            self.extract_shards_from_bundle(peer, peer_hostname, serialized_shards, block_ref)?;
 
         // 6. Observe headers and the block for the commit votes. When local commit is
         // lagging too much, commit sync loop will trigger fetching.
@@ -559,6 +570,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         }
 
         // 13. Report useful info for cordial and connection knowledge
+        let block_round = block_ref.round;
         self.cordial_knowledge.report_useful_authors(
             peer,
             &serialized_block_bundle_parts,
