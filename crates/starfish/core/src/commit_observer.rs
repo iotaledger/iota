@@ -379,6 +379,19 @@ impl CommitObserver {
                     .map(|x| x.transactions().len())
                     .sum::<usize>() as f64,
             );
+            // Report the number of blocks committed with transactions per commit
+            metrics
+                .non_empty_blocks_per_commit_count
+                .observe(commit.transactions.len() as f64);
+            // Report the number of blocks committed with transactions per authority
+            for verified_transaction in &commit.transactions {
+                let authority_index = verified_transaction.block_ref().author;
+                let hostname = &self.context.committee.authority(authority_index).hostname;
+                metrics
+                    .committed_non_empty_blocks_per_authority
+                    .with_label_values(&[hostname])
+                    .inc();
+            }
 
             let block_refs_for_committed_txs = commit
                 .transactions

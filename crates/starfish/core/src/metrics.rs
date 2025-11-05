@@ -181,6 +181,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) num_of_bad_nodes: IntGauge,
     pub(crate) quorum_receive_latency: Histogram,
     pub(crate) transactions_per_commit_count: Histogram,
+    pub(crate) non_empty_blocks_per_commit_count: Histogram,
+    pub(crate) committed_non_empty_blocks_per_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_fetched_transactions_by_peer: IntCounterVec,
     pub(crate) transactions_synchronizer_fetched_transactions_by_authority: IntCounterVec,
     pub(crate) transactions_synchronizer_missing_transactions_by_authority: IntCounterVec,
@@ -581,6 +583,18 @@ impl NodeMetrics {
                 "transactions_per_commit_count",
                 "The number of transactions per commit.",
                 NUM_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            non_empty_blocks_per_commit_count: register_histogram_with_registry!(
+                "non_empty_blocks_per_commit_count",
+                "The number of non-empty blocks per commit.",
+                NUM_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
+            committed_non_empty_blocks_per_authority: register_int_counter_vec_with_registry!(
+                "committed_non_empty_blocks_per_authority",
+                "Number of blocks committed with transactions per block author",
+                &["authority"],
                 registry,
             ).unwrap(),
             bundles_with_invalid_parts: register_int_counter_vec_with_registry!(
