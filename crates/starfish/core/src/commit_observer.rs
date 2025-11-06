@@ -333,7 +333,7 @@ impl CommitObserver {
                 "Pending subdag {} with leader {} has {} blocks",
                 commit.commit_ref,
                 commit.leader,
-                commit.blocks.len()
+                commit.headers.len()
             );
 
             metrics
@@ -344,11 +344,11 @@ impl CommitObserver {
                 .set(commit.commit_ref.index as i64);
             metrics
                 .blocks_per_commit_count
-                .observe(commit.blocks.len() as f64);
+                .observe(commit.headers.len() as f64);
 
-            for block in &commit.blocks {
+            for header in &commit.headers {
                 let latency_ms = utc_now
-                    .checked_sub(block.timestamp_ms())
+                    .checked_sub(header.timestamp_ms())
                     .unwrap_or_default();
                 metrics
                     .block_commit_latency
@@ -479,7 +479,7 @@ mod tests {
                 .collect::<Vec<_>>();
             let blocks = dag_state
                 .read()
-                .get_block_headers(&block_refs)
+                .get_verified_block_headers(&block_refs)
                 .into_iter()
                 .map(|block_opt| block_opt.expect("We should have all blocks in dag state."));
             let calculated_ts =
@@ -494,13 +494,13 @@ mod tests {
             if idx == 0 {
                 // First subdag includes the leader block plus all ancestor blocks
                 // of the leader minus the genesis round blocks
-                assert_eq!(subdag.blocks.len(), 1);
+                assert_eq!(subdag.headers.len(), 1);
             } else {
                 // Every subdag after will be missing the leader block from the previous
                 // committed subdag
-                assert_eq!(subdag.blocks.len(), num_authorities);
+                assert_eq!(subdag.headers.len(), num_authorities);
             }
-            for block_header in subdag.blocks.iter() {
+            for block_header in subdag.headers.iter() {
                 expected_stored_refs.push(block_header.reference());
                 assert!(block_header.round() <= leaders[idx].round());
             }

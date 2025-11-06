@@ -1,7 +1,6 @@
 import { Close, MenuIcon } from '@iota/apps-ui-icons';
 import { IOTABridgeLogo, ThemeSwitcher } from '..';
-import { ConnectButton } from '@iota/dapp-kit';
-import { ConnectButtonL2 } from './connect-buttons';
+import { ConnectButtonL1, ConnectButtonL2 } from './connect-buttons';
 import { useState } from 'react';
 import { Button, ButtonType, Divider } from '@iota/apps-ui-kit';
 import clsx from 'clsx';
@@ -22,8 +21,7 @@ export function Header(): React.JSX.Element {
                     <ThemeSwitcher />
 
                     <div className="hidden md:flex flex-row gap-xs items-center">
-                        <ConnectButton
-                            data-testid="connect-l1-wallet"
+                        <ConnectButtonL1
                             className="text-label-lg h-10"
                             connectText="Connect L1 Wallet"
                             size="md"
@@ -48,8 +46,7 @@ export function Header(): React.JSX.Element {
                 )}
             >
                 <div className="flex flex-col gap-md items-end p-lg">
-                    <ConnectButton
-                        data-testid="connect-l1-wallet"
+                    <ConnectButtonL1
                         className="text-label-lg h-10"
                         connectText="Connect L1 Wallet"
                         size="md"

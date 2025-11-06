@@ -5,8 +5,8 @@ use std::collections::HashSet;
 
 use iota_json_rpc_api::MoveUtilsClient;
 use iota_json_rpc_types::{
-    IotaMoveAbility, IotaMoveNormalizedType, IotaMoveVisibility, MoveFunctionArgType,
-    ObjectValueKind,
+    IotaMoveAbility, IotaMoveNormalizedStructType, IotaMoveNormalizedType, IotaMoveVisibility,
+    MoveFunctionArgType, ObjectValueKind,
 };
 use iota_macros::sim_test;
 use iota_types::{IOTA_FRAMEWORK_ADDRESS, base_types::ObjectID};
@@ -247,13 +247,14 @@ async fn get_normalized_move_struct() -> Result<(), anyhow::Error> {
         id_field.type_,
         IotaMoveNormalizedType::Struct { .. }
     ));
-    if let IotaMoveNormalizedType::Struct {
-        address,
-        module,
-        name,
-        type_arguments,
-    } = &id_field.type_
-    {
+    if let IotaMoveNormalizedType::Struct { inner } = &id_field.type_ {
+        let IotaMoveNormalizedStructType {
+            address,
+            module,
+            name,
+            type_arguments,
+        } = &**inner;
+
         assert_eq!(*address, IOTA_FRAMEWORK_ADDRESS.to_hex_literal());
         assert_eq!(module, "object");
         assert_eq!(name, "UID");
@@ -265,13 +266,13 @@ async fn get_normalized_move_struct() -> Result<(), anyhow::Error> {
         balance_field.type_,
         IotaMoveNormalizedType::Struct { .. }
     ));
-    if let IotaMoveNormalizedType::Struct {
-        address,
-        module,
-        name,
-        type_arguments,
-    } = &balance_field.type_
-    {
+    if let IotaMoveNormalizedType::Struct { inner } = &balance_field.type_ {
+        let IotaMoveNormalizedStructType {
+            address,
+            module,
+            name,
+            type_arguments,
+        } = &**inner;
         assert_eq!(*address, IOTA_FRAMEWORK_ADDRESS.to_hex_literal());
         assert_eq!(module, "balance");
         assert_eq!(name, "Balance");
@@ -346,13 +347,13 @@ async fn get_normalized_move_function() -> Result<(), anyhow::Error> {
             unboxed_type,
             IotaMoveNormalizedType::Struct { .. }
         ));
-        if let IotaMoveNormalizedType::Struct {
-            address,
-            module,
-            name,
-            type_arguments,
-        } = unboxed_type
-        {
+        if let IotaMoveNormalizedType::Struct { inner } = unboxed_type {
+            let IotaMoveNormalizedStructType {
+                address,
+                module,
+                name,
+                type_arguments,
+            } = &**inner;
             assert_eq!(*address, IOTA_FRAMEWORK_ADDRESS.to_hex_literal());
             assert_eq!(module, "coin");
             assert_eq!(name, "Coin");
@@ -376,13 +377,13 @@ async fn get_normalized_move_function() -> Result<(), anyhow::Error> {
             unboxed_type,
             IotaMoveNormalizedType::Struct { .. }
         ));
-        if let IotaMoveNormalizedType::Struct {
-            address,
-            module,
-            name,
-            type_arguments,
-        } = unboxed_type
-        {
+        if let IotaMoveNormalizedType::Struct { inner } = unboxed_type {
+            let IotaMoveNormalizedStructType {
+                address,
+                module,
+                name,
+                type_arguments,
+            } = &**inner;
             assert_eq!(*address, IOTA_FRAMEWORK_ADDRESS.to_hex_literal());
             assert_eq!(module, "tx_context");
             assert_eq!(name, "TxContext");
@@ -394,13 +395,13 @@ async fn get_normalized_move_function() -> Result<(), anyhow::Error> {
     assert_eq!(return_types.len(), 1);
     let return_type = &return_types[0];
     assert!(matches!(return_type, IotaMoveNormalizedType::Struct { .. }));
-    if let IotaMoveNormalizedType::Struct {
-        address,
-        module,
-        name,
-        type_arguments,
-    } = return_type
-    {
+    if let IotaMoveNormalizedType::Struct { inner } = return_type {
+        let IotaMoveNormalizedStructType {
+            address,
+            module,
+            name,
+            type_arguments,
+        } = &**inner;
         assert_eq!(*address, IOTA_FRAMEWORK_ADDRESS.to_hex_literal());
         assert_eq!(module, "coin");
         assert_eq!(name, "Coin");

@@ -4,11 +4,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{btree_map, BTreeMap},
+    collections::{BTreeMap, btree_map},
     fmt::Debug,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use move_core_types::{
     account_address::AccountAddress,
     effects::{AccountChangeSet, ChangeSet, Op},
@@ -124,8 +124,8 @@ fn apply_changes<K, V>(
 where
     K: Ord + Debug,
 {
-    use btree_map::Entry::*;
     use Op::*;
+    use btree_map::Entry::*;
 
     for (k, op) in changes.into_iter() {
         match (map.entry(k), op) {

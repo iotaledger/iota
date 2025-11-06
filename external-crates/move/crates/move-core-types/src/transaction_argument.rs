@@ -5,7 +5,7 @@
 
 use std::{convert::TryFrom, fmt};
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{Error, Result, anyhow};
 use move_proc_macros::test_variant_order;
 use serde::{Deserialize, Serialize};
 

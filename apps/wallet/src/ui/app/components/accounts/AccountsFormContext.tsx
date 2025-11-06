@@ -40,6 +40,7 @@ export type AccountsFormValues =
       }
     | {
           type: AccountsFormType.ImportLedger;
+          mainPublicKey: string;
           accounts: { publicKey: string; derivationPath: string; address: string }[];
       }
     | {

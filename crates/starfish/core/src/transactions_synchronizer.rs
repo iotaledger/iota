@@ -904,7 +904,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     .iter()
                     .cloned()
                     .collect();
-                let block_headers_vec = dag_state.read().get_block_headers(&block_refs);
+                let block_headers_vec = dag_state.read().get_verified_block_headers(&block_refs);
                 let mut block_headers_map = BTreeMap::new();
                 for block_header_opt in block_headers_vec.into_iter() {
                     let block_header = block_header_opt
@@ -1073,6 +1073,7 @@ mod tests {
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange},
         context::Context,
+        core::ReasonToCreateBlock,
         core_thread::CoreError,
         dag_state::DagState,
         network::{BlockBundleStream, NetworkClient, SerializedTransactions},
@@ -2106,7 +2107,7 @@ mod tests {
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
+            _reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }

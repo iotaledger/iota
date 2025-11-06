@@ -19,7 +19,7 @@ use aws_sdk_ec2::{
 use aws_smithy_runtime_api::client::{behavior_version::BehaviorVersion, result::SdkError};
 use serde::Serialize;
 
-use super::{Instance, ServerProviderClient};
+use super::{Instance, InstanceRole, ServerProviderClient};
 use crate::{
     error::{CloudProviderError, CloudProviderResult},
     settings::Settings,
@@ -95,7 +95,13 @@ impl AwsClient {
         }
         Ok(())
     }
-
+    fn get_tag_value(instance: &aws_sdk_ec2::types::Instance, key: &str) -> Option<String> {
+        instance
+            .tags()
+            .iter()
+            .find(|tag| tag.key().is_some_and(|k| k == key))
+            .and_then(|tag| tag.value().map(|v| v.to_string()))
+    }
     /// Convert an AWS instance into an orchestrator instance (used in the rest
     /// of the codebase).
     fn make_instance(
@@ -103,6 +109,10 @@ impl AwsClient {
         region: String,
         aws_instance: &aws_sdk_ec2::types::Instance,
     ) -> Instance {
+        let role: InstanceRole = Self::get_tag_value(aws_instance, "Role")
+            .expect("AWS instance should have a role")
+            .as_str()
+            .into();
         Instance {
             id: aws_instance
                 .instance_id()
@@ -134,6 +144,7 @@ impl AwsClient {
                     .name()
                     .expect("AWS status should have a name")
             ),
+            role,
         }
     }
 
@@ -242,7 +253,7 @@ impl AwsClient {
         // Request storage details for the instance type specified in the settings.
         let request = client
             .describe_instance_types()
-            .instance_types(self.settings.specs.as_str().into());
+            .instance_types(self.settings.node_specs.as_str().into());
 
         // Send the request.
         let response = request.send().await?;
@@ -263,16 +274,62 @@ impl AwsClient {
 impl ServerProviderClient for AwsClient {
     const USERNAME: &'static str = "ubuntu";
 
-    async fn list_instances(&self) -> CloudProviderResult<Vec<Instance>> {
-        let filter = Filter::builder()
+    async fn list_instances_by_role(
+        &self,
+        role: InstanceRole,
+    ) -> CloudProviderResult<Vec<Instance>> {
+        let filter_name = Filter::builder()
             .name("tag:Name")
             .values(self.settings.testbed_id.clone())
+            .build();
+        let filter_role = Filter::builder()
+            .name("tag:Role")
+            .values(role.to_string())
+            .build();
+        let filter_state = Filter::builder()
+            .name("instance-state-name")
+            .values("pending")
+            .values("running")
+            .values("stopping")
+            .values("stopped")
             .build();
 
         let mut instances = Vec::new();
         for (region, client) in &self.clients {
-            let request = client.describe_instances().filters(filter.clone());
-            for reservation in request.send().await?.reservations() {
+            let request = client.describe_instances().set_filters(Some(vec![
+                filter_name.clone(),
+                filter_role.clone(),
+                filter_state.clone(),
+            ]));
+            let response = request.send().await?;
+            for reservation in response.reservations() {
+                for instance in reservation.instances() {
+                    instances.push(self.make_instance(region.clone(), instance));
+                }
+            }
+        }
+
+        Ok(instances)
+    }
+
+    async fn list_instances_by_region_and_ids(
+        &self,
+        regions_and_ids: Vec<(String, String)>,
+    ) -> CloudProviderResult<Vec<Instance>> {
+        let mut instances = Vec::new();
+        let ids_by_region: HashMap<String, Vec<String>> =
+            regions_and_ids
+                .into_iter()
+                .fold(HashMap::new(), |mut acc, (k, v)| {
+                    acc.entry(k).or_default().push(v);
+                    acc
+                });
+        for (region, client) in &self.clients {
+            let request = client
+                .describe_instances()
+                .set_instance_ids(ids_by_region.get(region).cloned());
+            let response = request.send().await?;
+            for reservation in response.reservations() {
                 for instance in reservation.instances() {
                     instances.push(self.make_instance(region.clone(), instance));
                 }
@@ -328,7 +385,11 @@ impl ServerProviderClient for AwsClient {
         Ok(())
     }
 
-    async fn create_instance<S>(&self, region: S) -> CloudProviderResult<Instance>
+    async fn create_instance<S>(
+        &self,
+        region: S,
+        role: InstanceRole,
+    ) -> CloudProviderResult<Instance>
     where
         S: Into<String> + Serialize + Send,
     {
@@ -350,6 +411,7 @@ impl ServerProviderClient for AwsClient {
         let tags = TagSpecification::builder()
             .resource_type(ResourceType::Instance)
             .tags(Tag::builder().key("Name").value(testbed_id).build())
+            .tags(Tag::builder().key("Role").value(role.to_string()).build())
             .build();
 
         let storage = BlockDeviceMapping::builder()
@@ -362,11 +424,15 @@ impl ServerProviderClient for AwsClient {
                     .build(),
             )
             .build();
-
+        let instance_type = match role {
+            InstanceRole::Node => &self.settings.node_specs,
+            InstanceRole::Metrics => &self.settings.metrics_specs,
+            InstanceRole::Client => &self.settings.client_specs,
+        };
         let request = client
             .run_instances()
             .image_id(image_id)
-            .instance_type(self.settings.specs.as_str().into())
+            .instance_type(instance_type.as_str().into())
             .key_name(testbed_id)
             .min_count(1)
             .max_count(1)
@@ -416,5 +482,11 @@ impl ServerProviderClient for AwsClient {
         } else {
             Ok(Vec::new())
         }
+    }
+    #[cfg(test)]
+    fn instances(&self) -> Vec<Instance> {
+        // Only used under testing by the TestClient, unreachable cause no test
+        // should use AwsClient.
+        unreachable!()
     }
 }

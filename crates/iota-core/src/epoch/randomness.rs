@@ -934,7 +934,7 @@ mod tests {
             }
         }
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new();
+            let mut output = ConsensusCommitOutput::new(0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 0,
@@ -971,7 +971,7 @@ mod tests {
             }
         }
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new();
+            let mut output = ConsensusCommitOutput::new(0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 1,
@@ -1084,7 +1084,7 @@ mod tests {
             }
         }
         for i in 0..randomness_managers.len() {
-            let mut output = ConsensusCommitOutput::new();
+            let mut output = ConsensusCommitOutput::new(0);
             output.record_consensus_commit_stats(ExecutionIndicesWithStats {
                 index: ExecutionIndices {
                     last_committed_round: 0,
