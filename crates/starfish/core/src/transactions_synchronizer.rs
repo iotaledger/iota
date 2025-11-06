@@ -56,9 +56,8 @@ const PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY: usize = 4;
 const MAX_CONCURRENT_REQUESTS_PER_AUTHORITY: usize = 2;
 
 /// The maximum number of assigned peers per one call of transaction fetch
-/// It allows to globally limit the number of spawned tasks by the transaction
-/// synchronizer: LIVE_FETCH_TRANSACTIONS_CONCURRENCY *
-/// PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY *
+/// It allows to globally limit the number of spawned tasks by
+/// (LIVE_FETCH_TRANSACTIONS_CONCURRENCY + PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY) *
 /// MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH
 const MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH: usize = 4;
 
@@ -105,10 +104,12 @@ impl LastFailureByPeer {
         inner[peer] = Some(new_instant);
     }
 
+    /// Determine which authorities are less reliable to fetch transactions. Leave at least f+1
+    /// authorities.
     fn get_excluded_authorities(self: &Arc<Self>) -> BTreeSet<AuthorityIndex> {
         let last_round_by_peer = { self.inner.lock().clone() };
 
-        // Determine which authorities to exclude
+
         let mut indexed_rounds: Vec<(AuthorityIndex, Instant)> = last_round_by_peer
             .iter()
             .enumerate()
@@ -119,8 +120,8 @@ impl LastFailureByPeer {
 
         indexed_rounds.sort_by_key(|&(_, instant)| std::cmp::Reverse(instant));
 
-        // Exclude 2/3 of authorities with latest failures
-        let exclude_count = 2 * last_round_by_peer.len() / 3;
+        // Exclude at most 2/3 of authorities with latest failures
+        let exclude_count = 2 * (last_round_by_peer.len() - 1 ) / 3;
         let excluded_authorities: BTreeSet<AuthorityIndex> = indexed_rounds
             .into_iter()
             .take(exclude_count)
@@ -131,7 +132,7 @@ impl LastFailureByPeer {
     }
 }
 
-/// Tracks the number of concurrent requests to each peer. Counts the number of
+/// Tracks the number of concurrent transaction fetch requests to each peer. Counts the number of
 /// fetch requests separately for periodic and live transaction synchronizer as
 /// they serve different purposes.
 struct InflightActiveRequests {
