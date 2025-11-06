@@ -307,7 +307,7 @@ fn function(context: &mut Context, name: FunctionName, fdef: &T::Function) {
         entry_signature(context, *entry_loc, name, signature);
     }
     if let Some(sp!(authenticator_loc, authenticator_value)) =
-        attributes.get_(&iota_known_attributes::AuthenticatorAttribute.into())
+        attributes.get_(&iota_known_attributes::authenticator::AuthenticatorAttribute.into())
     {
         authenticator_attribute(context, authenticator_loc, authenticator_value);
     }

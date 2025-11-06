@@ -1,9 +1,9 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! IOTA Known Attributes
+//! IOTA Authenticator Attribute
 
-use std::{collections::BTreeSet, fmt};
+use std::collections::BTreeSet;
 
 use move_core_types::u256::U256;
 use move_ir_types::location::Loc;
@@ -17,38 +17,8 @@ use crate::{
     },
 };
 
-/// The list of attribute types recognized by the compiler.
-///
-/// These variants not necessarily specify a single attribute
-/// , but a whole class of them like [KnownAttribute::Testing].
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum KnownAttribute {
-    Authenticator(AuthenticatorAttribute),
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct AuthenticatorAttribute;
-
-impl KnownAttribute {
-    pub fn resolve(attribute_str: impl AsRef<str>) -> Option<MoveKnownAttribute> {
-        Some(match attribute_str.as_ref() {
-            AuthenticatorAttribute::AUTHENTICATOR => AuthenticatorAttribute.into(),
-            _ => return None,
-        })
-    }
-
-    pub const fn name(&self) -> &str {
-        match self {
-            Self::Authenticator(a) => a.name(),
-        }
-    }
-
-    pub fn expected_positions(&self) -> &'static BTreeSet<AttributePosition> {
-        match self {
-            Self::Authenticator(a) => a.expected_positions(),
-        }
-    }
-}
 
 impl AuthenticatorAttribute {
     pub const AUTHENTICATOR: &'static str = "authenticator";
@@ -62,24 +32,6 @@ impl AuthenticatorAttribute {
         static AUTHENTICATOR_POSITIONS: Lazy<BTreeSet<AttributePosition>> =
             Lazy::new(|| BTreeSet::from([AttributePosition::Function]));
         &AUTHENTICATOR_POSITIONS
-    }
-}
-
-//**************************************************************************************************
-// Display
-//**************************************************************************************************
-
-impl fmt::Display for KnownAttribute {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Authenticator(a) => a.fmt(f),
-        }
-    }
-}
-
-impl fmt::Display for AuthenticatorAttribute {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.name())
     }
 }
 
