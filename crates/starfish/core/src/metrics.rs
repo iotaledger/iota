@@ -364,12 +364,6 @@ impl NodeMetrics {
                 NUM_BUCKETS.to_vec(),
                 registry,
             ).unwrap(),
-            core_add_block_headers_batch_size: register_histogram_with_registry!(
-                "core_add_block_headers_batch_size",
-                "The number of block headers received from Core for processing on a single batch",
-                NUM_BUCKETS.to_vec(),
-                registry,
-            ).unwrap(),
             gap_to_available_commit: register_int_gauge_with_registry!(
                 "gap_to_available_commit",
                 "Gap in rounds between last pending commit and last available commit",
