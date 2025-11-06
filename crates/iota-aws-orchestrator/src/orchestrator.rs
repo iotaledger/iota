@@ -334,14 +334,8 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         .join(" && ");
 
         let context = CommandContext::default();
-        let without_metrics = self
-            .instances()
-            .iter()
-            .filter(|i| i.role != InstanceRole::Metrics)
-            .cloned()
-            .collect::<Vec<_>>();
         self.ssh_manager
-            .execute(without_metrics, command, context.clone())
+            .execute(self.instances(), command, context.clone())
             .await?;
         if !self.skip_monitoring {
             let metrics_instance = self
@@ -383,38 +377,56 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
     pub async fn update(&self) -> TestbedResult<()> {
         display::action("Updating all instances");
 
-        // Update all active instances. This requires compiling the codebase in release
-        // (which may take a long time) so we run the command in the background
-        // to avoid keeping alive many ssh connections for too long.
+        // Update all active instances.
         let commit = &self.settings.repository.commit;
-        let command = [
+        let git_update_command = [
             &format!("git fetch origin {commit} --force"),
             &format!("(git reset --hard origin/{commit} || git checkout --force {commit})"),
             "git clean -fd -e target",
-            "source \"$HOME/.cargo/env\"",
-            "cargo build --release --bin iota --bin iota-node --bin stress",
         ]
         .join(" && ");
 
-        display::action(format!("update command: {command}"));
-
-        let id = "update";
+        let id = "git update";
         let repo_name = self.settings.repository_name();
         let context = CommandContext::new()
             .run_background(id.into())
-            .with_execute_from_path(repo_name.into());
+            .with_execute_from_path(repo_name.clone().into());
+
+        // Execute and wait for the git update command on all instances (including
+        // metrics)
+        display::action(format!("update command: {git_update_command}"));
+        self.ssh_manager
+            .execute(self.instances(), git_update_command, context)
+            .await?;
+        self.ssh_manager
+            .wait_for_command(self.instances(), id, CommandStatus::Terminated)
+            .await?;
+
+        // Execute and wait for the cargo build command on all instances except the
+        // metrics one. This requires compiling the codebase in release
+        // (which may take a long time) so we run the command in the background
+        // to avoid keeping alive many ssh connections for too long.
+        let build_command = [
+            "source \"$HOME/.cargo/env\"".to_string(),
+            "cargo build --release --bin iota --bin iota-node --bin stress".to_string(),
+        ]
+        .join(" && ");
+
+        display::action(format!("build command: {build_command}"));
         let without_metrics = self
             .instances()
             .iter()
             .filter(|i| i.role != InstanceRole::Metrics)
             .cloned()
             .collect::<Vec<_>>();
+        let id = "cargo build";
+        let context = CommandContext::new()
+            .run_background(id.into())
+            .with_execute_from_path(repo_name.into());
 
         self.ssh_manager
-            .execute(without_metrics.clone(), command, context)
+            .execute(without_metrics.clone(), build_command, context)
             .await?;
-
-        // Wait until the command finished running.
         self.ssh_manager
             .wait_for_command(without_metrics, id, CommandStatus::Terminated)
             .await?;
