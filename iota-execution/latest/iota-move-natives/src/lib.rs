@@ -792,6 +792,11 @@ pub fn all_natives(silent: bool, protocol_config: &ProtocolConfig) -> NativeFunc
             "check_auth_info_v1",
             make_native!(account::check_auth_info_v1),
         ),
+        (
+            "account",
+            "native_check_auth_info_v1_compatibility",
+            make_native!(account::check_auth_info_v1_compatibility),
+        ),
         ("address", "from_bytes", make_native!(address::from_bytes)),
         ("address", "to_u256", make_native!(address::to_u256)),
         ("address", "from_u256", make_native!(address::from_u256)),

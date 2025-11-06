@@ -14,19 +14,31 @@ public struct TestAccount has key {
     id: UID,
 }
 
+fun id(self: &TestAccount): &UID {
+    &self.id
+}
+
+fun id_mut(self: &mut TestAccount): &mut UID {
+    &mut self.id
+}
+
 #[test]
 fun authenticator_info_v1_happy_path() {
-    account_test_mut!(|_, account_id| {
+    account_test_mut!(|_, account| {
         let default_authenticator_info = create_default_authenticator_info_v1_for_testing();
 
         // Check that there is no an attached `AuthenticatorInfoV1` just after creation.
-        assert_eq(account::has_auth_info_v1(account_id), false);
+        assert_eq(account::has_auth_info_v1(account.id()), false);
 
         // Attach an `AuthenticatorInfoV1` instance to the account.
-        account::attach_auth_info_v1(account_id, default_authenticator_info);
+        let compatibility_proof = account::check_auth_info_v1_compatibility(
+            account,
+            default_authenticator_info,
+        );
+        account::attach_auth_info_v1(account.id_mut(), compatibility_proof);
 
-        assert_eq(account::has_auth_info_v1(account_id), true);
-        assert_ref_eq(account::borrow_auth_info_v1(account_id), &default_authenticator_info);
+        assert_eq(account::has_auth_info_v1(account.id()), true);
+        assert_ref_eq(account::borrow_auth_info_v1(account.id()), &default_authenticator_info);
 
         // Rotate the `AuthenticatorInfoV1` instance.
         let updated_authenticator_info = account::create_auth_info_v1_for_testing(
@@ -35,22 +47,26 @@ fun authenticator_info_v1_happy_path() {
             ascii::string(b"function2"),
         );
 
-        let previous_authenticator_info = account::rotate_auth_info_v1(
-            account_id,
+        let compatibility_proof = account::check_auth_info_v1_compatibility(
+            account,
             updated_authenticator_info,
+        );
+        let previous_authenticator_info = account::rotate_auth_info_v1(
+            account.id_mut(),
+            compatibility_proof,
         );
 
         assert_eq(previous_authenticator_info, default_authenticator_info);
 
-        assert_eq(account::has_auth_info_v1(account_id), true);
-        assert_ref_eq(account::borrow_auth_info_v1(account_id), &updated_authenticator_info);
+        assert_eq(account::has_auth_info_v1(account.id()), true);
+        assert_ref_eq(account::borrow_auth_info_v1(account.id()), &updated_authenticator_info);
     });
 }
 
 #[test]
 #[expected_failure(abort_code = account::EAuthenticatorInfoV1AlreadyAttached)]
 fun authenticator_info_v1_double_attach() {
-    account_test_mut!(|_, account_id| {
+    account_test_mut!(|_, account| {
         let authenticator_info_1 = create_default_authenticator_info_v1_for_testing();
         let authenticator_info_2 = account::create_auth_info_v1_for_testing(
             @0x2,
@@ -58,9 +74,17 @@ fun authenticator_info_v1_double_attach() {
             ascii::string(b"function2"),
         );
 
-        account::attach_auth_info_v1(account_id, authenticator_info_1);
+        let compatibility_proof_1 = account::check_auth_info_v1_compatibility(
+            account,
+            authenticator_info_1,
+        );
+        account::attach_auth_info_v1(account.id_mut(), compatibility_proof_1);
         // Attach another `AuthenticatorInfoV1` instance that is forbidden.
-        account::attach_auth_info_v1(account_id, authenticator_info_2);
+        let compatibility_proof_2 = account::check_auth_info_v1_compatibility(
+            account,
+            authenticator_info_2,
+        );
+        account::attach_auth_info_v1(account.id_mut(), compatibility_proof_2);
     });
 }
 
@@ -76,11 +100,15 @@ fun authenticator_info_v1_borrow_non_existent() {
 #[test]
 #[expected_failure(abort_code = account::EAuthenticatorInfoV1NotAttached)]
 fun authenticator_info_v1_rotate_non_existent() {
-    account_test_mut!(|_, account_id| {
+    account_test_mut!(|_, account| {
         let authenticator_info = create_default_authenticator_info_v1_for_testing();
 
         // Rotate a non-existing `AuthenticatorInfoV1` instance.
-        account::rotate_auth_info_v1(account_id, authenticator_info);
+        let compatibility_proof = account::check_auth_info_v1_compatibility(
+            account,
+            authenticator_info,
+        );
+        account::rotate_auth_info_v1(account.id_mut(), compatibility_proof);
     });
 }
 
@@ -108,12 +136,12 @@ macro fun account_test($f: |&mut Scenario, &UID|) {
     test_scenario::end(scenario_val);
 }
 
-macro fun account_test_mut($f: |&mut Scenario, &mut UID|) {
+macro fun account_test_mut($f: |&mut Scenario, &mut TestAccount|) {
     let mut scenario_val = test_scenario::begin(@0x0);
     let scenario = &mut scenario_val;
     let mut account = create_test_account(scenario);
 
-    $f(scenario, &mut account.id);
+    $f(scenario, &mut account);
 
     test_utils::destroy(account);
 

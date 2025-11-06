@@ -1324,7 +1324,13 @@ AuthenticatorInfoV1Key
 AuthenticatorInfoV1
 	public struct
 	0x2::account
+AuthenticatorInfoV1CompatibilityProof
+	public struct
+	0x2::account
 create_auth_info_v1
+	public fun
+	0x2::account
+check_auth_info_v1_compatibility
 	public fun
 	0x2::account
 attach_auth_info_v1
@@ -1343,6 +1349,9 @@ auth_info_v1_key
 	fun
 	0x2::account
 check_auth_info_v1
+	fun
+	0x2::account
+native_check_auth_info_v1_compatibility
 	fun
 	0x2::account
 ProgrammableMoveCall

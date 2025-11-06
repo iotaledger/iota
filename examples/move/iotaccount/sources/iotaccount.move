@@ -49,7 +49,11 @@ public fun builder(authenticator: AuthenticatorInfoV1, ctx: &mut TxContext): IOT
         account: IOTAccount { id: object::new(ctx) },
     };
 
-    account::attach_auth_info_v1(&mut builder.account.id, authenticator);
+    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
+        &builder.account,
+        authenticator,
+    );
+    account::attach_auth_info_v1(&mut builder.account.id, authenticator_compatibility_proof);
     builder
 }
 
@@ -148,7 +152,11 @@ public fun rotate_auth_info_v1(
 ): AuthenticatorInfoV1 {
     ensure_tx_sender_is_account(self, ctx);
 
-    account::rotate_auth_info_v1(&mut self.id, authenticator)
+    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
+        self,
+        authenticator,
+    );
+    account::rotate_auth_info_v1(&mut self.id, authenticator_compatibility_proof)
 }
 
 // === Public-View Functions ===

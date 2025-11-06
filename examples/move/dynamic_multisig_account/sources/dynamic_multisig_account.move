@@ -62,11 +62,18 @@ public fun create(
     // Add all the data as dynamic fields.
     dynamic_field::add(&mut id, members_key(), members);
     dynamic_field::add(&mut id, threshold_key(), threshold);
-    account::attach_auth_info_v1(&mut id, authenticator);
     dynamic_field::add(&mut id, transactions_key(), transactions::create(ctx));
 
+    let mut account = DynamicMultisigAccount { id };
+
+    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
+        &account,
+        authenticator,
+    );
+    account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
+
     // Create a mutable shared account object.
-    iota::transfer::share_object(DynamicMultisigAccount { id });
+    iota::transfer::share_object(account);
 }
 
 // --------------------------------------- View Functions ---------------------------------------
@@ -186,12 +193,17 @@ public fun update_account_data(
     // Verify the provided data consistency.
     verify_threshold(&members, threshold);
 
+    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
+        self,
+        authenticator,
+    );
+
     let account_id = &mut self.id;
 
     // Update the dynamic fields. It is expected that the fields already exist.
     update_dynamic_field(account_id, members_key(), members);
     update_dynamic_field(account_id, threshold_key(), threshold);
-    account::rotate_auth_info_v1(account_id, authenticator);
+    account::rotate_auth_info_v1(account_id, authenticator_compatibility_proof);
 }
 
 /// A transaction authenticator.
