@@ -42,7 +42,12 @@ jobs:
         run: which yarn
 
       - name: Uninstall yarn # https://github.com/postmanlabs/postman-code-generators/issues/792
-        run: corepack disable yarn
+        run: |
+          YARN_PATH=$(which yarn || true)
+          if [ -n "$YARN_PATH" ]; then
+            echo "Removing Yarn at $YARN_PATH"
+            sudo rm -f "$YARN_PATH"
+          fi
 
       - name: what2
         run: which yarn
