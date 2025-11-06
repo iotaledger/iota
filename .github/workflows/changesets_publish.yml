@@ -29,6 +29,8 @@ jobs:
           cache: "pnpm"
       - name: Update npm
         run: npm install -g npm@latest
+      - name: Uninstall yarn # https://github.com/postmanlabs/postman-code-generators/issues/792
+        run: npm uninstall -g yarn || true
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Build packages
