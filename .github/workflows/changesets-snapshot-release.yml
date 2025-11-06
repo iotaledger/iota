@@ -42,7 +42,7 @@ jobs:
         run: which yarn
 
       - name: Uninstall yarn # https://github.com/postmanlabs/postman-code-generators/issues/792
-        run: apt remove yarn -y
+        run: sudo apt remove yarn -y
 
       - name: what2
         run: which yarn
