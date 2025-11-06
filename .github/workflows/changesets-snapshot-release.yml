@@ -14,6 +14,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.ta
 env:
   IOTA_NETWORKS: ${{ secrets.CHANGESETS_IOTA_NETWORKS }}
   DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
+  NPM_TOKEN: ''
 
 permissions:
   id-token: write
