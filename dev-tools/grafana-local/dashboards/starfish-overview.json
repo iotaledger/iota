@@ -2160,7 +2160,7 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
-          "description": "Measures the number of ancestors in the proposed blokcs",
+          "description": "Measures the number of ancestors in the proposed blocks",
           "fieldConfig": {
             "defaults": {
               "color": {
