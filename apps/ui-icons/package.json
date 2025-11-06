@@ -1,6 +1,7 @@
 {
     "name": "@iota/apps-ui-icons",
     "version": "0.5.0",
+    "repository": "https://github.com/iotaledger/iota",
     "main": "dist/index.js",
     "module": "dist/index.mjs",
     "types": "dist/index.d.ts",

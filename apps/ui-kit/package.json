@@ -2,10 +2,7 @@
     "name": "@iota/apps-ui-kit",
     "version": "0.7.4",
     "sideEffects": false,
-    "repository": {
-        "type": "git",
-        "url": "github.com:iotaledger/iota.git"
-    },
+    "repository": "https://github.com/iotaledger/iota",
     "license": "Apache-2.0",
     "files": [
         "CHANGELOG.md",

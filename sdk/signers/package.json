@@ -37,10 +37,7 @@
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix",
         "test": "echo 'No tests specified for sdk/signers package yet.'"
     },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/iotaledger/iota.git"
-    },
+    "repository": "https://github.com/iotaledger/iota",
     "bugs": {
         "url": "https://github.com/iotaledger/iota/issues"
     },
