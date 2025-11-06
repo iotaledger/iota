@@ -30,7 +30,6 @@ mod network;
 #[cfg(msim)]
 pub mod network;
 
-mod scorer;
 mod stake_aggregator;
 mod storage;
 mod subscriber;
@@ -54,6 +53,8 @@ mod test_dag;
 mod test_dag_builder;
 #[cfg(test)]
 mod test_dag_parser;
+
+pub mod scoring_metrics_store;
 
 /// Exported consensus API.
 pub use authority_node::ConsensusAuthority;
