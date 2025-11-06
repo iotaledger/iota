@@ -78,7 +78,6 @@ async function buildCJS(
         entryPoints,
         outdir: 'dist/cjs',
         sourcemap: true,
-        outbase: 'src',
         define: await embedIotaEnvVars(),
         ...buildOptions,
     });
@@ -111,7 +110,6 @@ async function buildESM(
         entryPoints,
         outdir: 'dist/esm',
         sourcemap: true,
-        outbase: 'src',
         define: await embedIotaEnvVars(),
         ...buildOptions,
     });
@@ -133,7 +131,15 @@ async function buildESM(
 }
 
 async function buildTypes(config: string) {
-    return execSync(`pnpm tsc --project ${config}`);
+  try {
+    execSync(`pnpm tsc --build ${config}`, {
+      stdio: 'inherit',
+      cwd: process.cwd(),
+    });
+  } catch (err: any) {
+    console.error('Error:', err.message);
+    throw err;
+  }
 }
 
 async function buildImportDirectories({ exports, sideEffects }: PackageJSON) {
