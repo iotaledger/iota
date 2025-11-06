@@ -30,6 +30,7 @@ mod network;
 #[cfg(msim)]
 pub mod network;
 
+mod scorer;
 mod stake_aggregator;
 mod storage;
 mod subscriber;
