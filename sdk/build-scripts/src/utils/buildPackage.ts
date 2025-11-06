@@ -133,10 +133,7 @@ async function buildESM(
 }
 
 async function buildTypes(config: string) {
-    execSync(`pnpm tsc --build ${config}`, {
-        stdio: 'inherit',
-        cwd: process.cwd(),
-    });
+    return execSync(`pnpm tsc --project ${config}`);
 }
 
 async function buildImportDirectories({ exports, sideEffects }: PackageJSON) {

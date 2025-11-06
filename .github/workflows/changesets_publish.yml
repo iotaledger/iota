@@ -80,14 +80,26 @@ jobs:
           fi
           pnpm --filter @iota/iota-sdk codegen:version
 
-      - name: Publish packages
+      - name: Publish packages (DRY RUN)
         if: steps.check-changes.outputs.has-changes == 'true'
         run: |
+          echo "DRY RUN: Skipping actual publish for testing"
+          # Attempt a dry-run of changeset publish if supported, but never actually publish.
+          # Use || true to avoid failing the workflow if --dry-run is unsupported.
           if [ "${{ github.event.inputs.create_snapshot }}" = "true" ]; then
-            pnpm changeset publish --snapshot --tag ${{ github.event.inputs.tag }}
+            pnpm changeset publish --snapshot --tag "${{ github.event.inputs.tag }}" --dry-run || true
           else
-            pnpm changeset publish
+            pnpm changeset publish --dry-run || true
           fi
+
+      # - name: Publish packages
+      #   if: steps.check-changes.outputs.has-changes == 'true'
+      #   run: |
+      #     if [ "${{ github.event.inputs.create_snapshot }}" = "true" ]; then
+      #       pnpm changeset publish --snapshot --tag ${{ github.event.inputs.tag }}
+      #     else
+      #       pnpm changeset publish
+      #     fi
 
       - name: Create summary
         if: steps.check-changes.outputs.has-changes == 'true'
@@ -118,4 +130,4 @@ jobs:
           echo "## No Pending Changesets" >> $GITHUB_STEP_SUMMARY
           echo "No pending changesets found. Snapshot release skipped." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To create a changeset, run \`pnpm changeset\` and select the packages you want to release." >> $GITHUB_STEP_SUMMARY
+          echo "To create a changeset, run \`pnpm changeset\` and select the packages you want to release."
