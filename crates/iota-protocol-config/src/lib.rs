@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 15;
+pub const MAX_PROTOCOL_VERSION: u64 = 16;
 
 // Record history of protocol version allocations here:
 //
@@ -86,6 +86,7 @@ pub const MAX_PROTOCOL_VERSION: u64 = 15;
 //             AuthorityCapabilities notification in testnet.
 // Version 15: Enable shared object transaction bursts of 10 times average load
 //             on devnet.
+// Version 16: TO DO
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -364,6 +365,10 @@ struct FeatureFlags {
     // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
     #[serde(skip_serializing_if = "is_false")]
     consensus_median_timestamp_with_checkpoint_enforcement: bool,
+
+    // If true, validators will use the committee's score to calculate rewards.
+    #[serde(skip_serializing_if = "is_false")]
+    score_based_rewards: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1433,6 +1438,10 @@ impl ProtocolConfig {
         );
         res
     }
+
+    pub fn score_based_rewards(&self) -> bool {
+        self.feature_flags.score_based_rewards
+    }
 }
 
 #[cfg(not(msim))]
@@ -2293,6 +2302,10 @@ impl ProtocolConfig {
                         // load set by `max_accumulated_txn_cost_per_object_in_mysticeti_commit`.
                         cfg.max_congestion_limit_overshoot_per_commit = Some(100);
                     }
+                }
+                16 => {
+                    // Enables score based rewards.
+                    cfg.feature_flags.score_based_rewards = true;
                 }
                 // Use this template when making changes:
                 //
