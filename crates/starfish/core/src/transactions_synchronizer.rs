@@ -57,7 +57,8 @@ const MAX_CONCURRENT_REQUESTS_PER_AUTHORITY: usize = 2;
 
 /// The maximum number of assigned peers per one call of transaction fetch
 /// It allows to globally limit the number of spawned tasks by
-/// (LIVE_FETCH_TRANSACTIONS_CONCURRENCY + PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY) *
+/// (LIVE_FETCH_TRANSACTIONS_CONCURRENCY +
+/// PERIODIC_FETCH_TRANSACTIONS_CONCURRENCY) *
 /// MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH
 const MAX_ASSIGNED_AUTHORITIES_PER_TRANSACTION_FETCH: usize = 4;
 
@@ -104,11 +105,10 @@ impl LastFailureByPeer {
         inner[peer] = Some(new_instant);
     }
 
-    /// Determine which authorities are less reliable to fetch transactions. Leave at least f+1
-    /// authorities.
+    /// Determine which authorities are less reliable to fetch transactions.
+    /// Leave at least f+1 authorities.
     fn get_excluded_authorities(self: &Arc<Self>) -> BTreeSet<AuthorityIndex> {
         let last_round_by_peer = { self.inner.lock().clone() };
-
 
         let mut indexed_rounds: Vec<(AuthorityIndex, Instant)> = last_round_by_peer
             .iter()
@@ -121,7 +121,7 @@ impl LastFailureByPeer {
         indexed_rounds.sort_by_key(|&(_, instant)| std::cmp::Reverse(instant));
 
         // Exclude at most 2/3 of authorities with latest failures
-        let exclude_count = 2 * (last_round_by_peer.len() - 1 ) / 3;
+        let exclude_count = 2 * (last_round_by_peer.len() - 1) / 3;
         let excluded_authorities: BTreeSet<AuthorityIndex> = indexed_rounds
             .into_iter()
             .take(exclude_count)
@@ -132,9 +132,9 @@ impl LastFailureByPeer {
     }
 }
 
-/// Tracks the number of concurrent transaction fetch requests to each peer. Counts the number of
-/// fetch requests separately for periodic and live transaction synchronizer as
-/// they serve different purposes.
+/// Tracks the number of concurrent transaction fetch requests to each peer.
+/// Counts the number of fetch requests separately for periodic and live
+/// transaction synchronizer as they serve different purposes.
 struct InflightActiveRequests {
     inner: Mutex<BTreeMap<(AuthorityIndex, SyncMethod), usize>>,
 }
@@ -199,8 +199,8 @@ impl InflightTransactionsMap {
     /// authorities at the same time, thus we limit the concurrency per
     /// transaction by attempting to lock per block_ref. In addition, we check
     /// whether a given `peer` has many concurrent requests. If so, we will
-    /// not lock transactions. The method return optionally two guards. One for the fetched transactions
-    /// and one for active fetch request.
+    /// not lock transactions. The method return optionally two guards. One for
+    /// the fetched transactions and one for active fetch request.
     fn lock_transactions_and_active_request(
         self: &Arc<Self>,
         missing_block_refs: BTreeSet<BlockRef>,
