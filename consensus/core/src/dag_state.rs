@@ -248,8 +248,8 @@ impl DagState {
 
         // Initialize scoring metrics according to the metrics in store and the blocks
         // that were loaded to cache.
-        let recovered_scoring_metrics = state.store.scan_metrics().expect("Database error");
-        state.context.metrics.initialize_scoring_metrics(
+        let recovered_scoring_metrics = state.store.scan_scoring_metrics().expect("Database error");
+        state.context.scorer.initialize_scoring_metrics(
             recovered_scoring_metrics,
             &state.recent_refs_by_authority,
             state.threshold_clock_round(),
@@ -1057,15 +1057,15 @@ impl DagState {
         for (authority_index, authority) in self.context.committee.authorities() {
             let last_eviction_round = self.evicted_rounds[authority_index];
             let current_eviction_round = self.calculate_authority_eviction_round(authority_index);
-            let metrics_to_write_from_authority =
-                self.context.metrics.update_scoring_metrics_on_eviction(
-                    authority_index,
-                    authority.hostname.as_str(),
-                    &self.recent_refs_by_authority[authority_index],
-                    current_eviction_round,
-                    last_eviction_round,
-                    threshold_clock_round,
-                );
+            let metrics_to_write_from_authority = self.context.scorer.update_score(
+                authority_index,
+                authority.hostname.as_str(),
+                &self.recent_refs_by_authority[authority_index],
+                current_eviction_round,
+                last_eviction_round,
+                threshold_clock_round,
+                &self.context.metrics.node_metrics,
+            );
             if let Some(metrics_to_write_from_authority) = metrics_to_write_from_authority {
                 metrics_to_write.push((authority_index, metrics_to_write_from_authority));
             }
