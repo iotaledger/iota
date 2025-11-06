@@ -38,9 +38,6 @@ jobs:
       - name: Update npm
         run: npm install -g npm@latest
 
-      - name: what
-        run: which yarn
-
       - name: Uninstall yarn # https://github.com/postmanlabs/postman-code-generators/issues/792
         run: |
           YARN_PATH=$(which yarn || true)
@@ -48,9 +45,6 @@ jobs:
             echo "Removing Yarn at $YARN_PATH"
             sudo rm -f "$YARN_PATH"
           fi
-
-      - name: what2
-        run: which yarn
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
