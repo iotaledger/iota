@@ -34,6 +34,7 @@ jobs:
         with:
           node-version: "20"
           cache: "pnpm"
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Update npm
         run: npm install -g npm@latest
