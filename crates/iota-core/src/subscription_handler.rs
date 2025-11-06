@@ -16,7 +16,10 @@ use prometheus::{
 use tokio_stream::Stream;
 use tracing::{error, instrument, trace};
 
-use crate::streamer::Streamer;
+use crate::{
+    streamer::Streamer,
+    transaction_filter::{GrpcTransactionFilter, TransactionDataWithEffectsAndEvents},
+};
 
 #[cfg(test)]
 #[path = "unit_tests/subscription_handler_tests.rs"]
@@ -70,6 +73,11 @@ pub struct SubscriptionHandler {
     event_streamer: Streamer<IotaEvent, IotaEvent, EventFilter>,
     transaction_streamer:
         Streamer<EffectsWithInput, IotaTransactionBlockEffects, TransactionFilter>,
+    grpc_transaction_streamer: Streamer<
+        TransactionDataWithEffectsAndEvents,
+        IotaTransactionBlockEffects,
+        GrpcTransactionFilter,
+    >,
 }
 
 impl SubscriptionHandler {
@@ -77,7 +85,16 @@ impl SubscriptionHandler {
         let metrics = Arc::new(SubscriptionMetrics::new(registry));
         Self {
             event_streamer: Streamer::spawn(EVENT_DISPATCH_BUFFER_SIZE, metrics.clone(), "event"),
-            transaction_streamer: Streamer::spawn(EVENT_DISPATCH_BUFFER_SIZE, metrics, "tx"),
+            transaction_streamer: Streamer::spawn(
+                EVENT_DISPATCH_BUFFER_SIZE,
+                metrics.clone(),
+                "tx",
+            ),
+            grpc_transaction_streamer: Streamer::spawn(
+                EVENT_DISPATCH_BUFFER_SIZE,
+                metrics,
+                "grpc_tx",
+            ),
         }
     }
 }
@@ -95,6 +112,17 @@ impl SubscriptionHandler {
             tx_digest =? effects.transaction_digest(),
             "Processing tx/event subscription"
         );
+
+        if let Err(e) =
+            self.grpc_transaction_streamer
+                .try_send(TransactionDataWithEffectsAndEvents {
+                    tx_data: input.clone(),
+                    effects: effects.clone(),
+                    events: events.clone(),
+                })
+        {
+            error!(error =? e, "Failed to send transaction to grpc dispatch");
+        }
 
         if let Err(e) = self.transaction_streamer.try_send(EffectsWithInput {
             input: input.clone(),
@@ -122,5 +150,12 @@ impl SubscriptionHandler {
         filter: TransactionFilter,
     ) -> impl Stream<Item = IotaTransactionBlockEffects> {
         self.transaction_streamer.subscribe(filter)
+    }
+
+    pub fn subscribe_grpc_transactions(
+        &self,
+        filter: GrpcTransactionFilter,
+    ) -> impl Stream<Item = IotaTransactionBlockEffects> {
+        self.grpc_transaction_streamer.subscribe(filter)
     }
 }
