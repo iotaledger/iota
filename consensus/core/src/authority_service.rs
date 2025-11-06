@@ -960,7 +960,7 @@ pub(crate) mod tests {
     }
 
     #[derive(Default)]
-    struct FakeNetworkClient {}
+    pub(crate) struct FakeNetworkClient {}
 
     #[async_trait]
     impl NetworkClient for FakeNetworkClient {
