@@ -53,13 +53,15 @@ use iota_types::{
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
+    move_authenticator::MoveAuthenticator,
     move_package::MovePackage,
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    signature::GenericSignature,
     storage::{ObjectStore, ReadStore, RestStateReader},
     transaction::{
-        Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
-        TransactionKind, VerifiedTransaction,
+        Argument, CallArg, Command, ObjectArg, ProgrammableTransaction, Transaction,
+        TransactionData, TransactionKind, VerifiedTransaction,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
 };
@@ -76,7 +78,7 @@ use move_core_types::{
     ident_str,
     identifier::IdentStr,
     language_storage::{ModuleId, TypeTag},
-    parsing::address::ParsedAddress,
+    parsing::{address::ParsedAddress, values::ParsedValue},
 };
 use move_symbol_pool::Symbol;
 use move_transactional_test_runner::{
@@ -794,42 +796,8 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 if dry_run && dev_inspect {
                     bail!("Cannot set both dev-inspect and dry-run");
                 }
+                let (inputs, commands) = self.prepare_ptb_data(data, inputs)?;
 
-                let inputs = self.compiled_state().resolve_args(inputs)?;
-                let inputs: Vec<CallArg> = inputs
-                    .into_iter()
-                    .map(|arg| arg.into_call_arg(self))
-                    .collect::<anyhow::Result<_>>()?;
-                let file = data.ok_or_else(|| {
-                    anyhow::anyhow!("Missing commands for programmable transaction")
-                })?;
-                let contents = std::fs::read_to_string(file.path())?;
-                let commands = ParsedCommand::parse_vec(&contents)?;
-                let staged = &self.staged_modules;
-                let state = &self.compiled_state;
-                let commands = commands
-                    .into_iter()
-                    .map(|c| {
-                        c.into_command(
-                            &|p| {
-                                let modules = staged
-                                    .get(&Symbol::from(p))?
-                                    .modules
-                                    .iter()
-                                    .map(|m| {
-                                        let mut buf = vec![];
-                                        m.module
-                                            .serialize_with_version(m.module.version, &mut buf)
-                                            .unwrap();
-                                        buf
-                                    })
-                                    .collect();
-                                Some(modules)
-                            },
-                            &|s| Some(state.resolve_named_address(s)),
-                        )
-                    })
-                    .collect::<anyhow::Result<Vec<Command>>>()?;
                 let summary = if !dev_inspect && !dry_run {
                     let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                     let gas_price = gas_price.unwrap_or(self.gas_price);
@@ -1188,6 +1156,52 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 .await?;
                 Ok(merge_output(None, None))
             }
+            IotaSubcommand::AbstractTransaction(AbstractTransactionCommand {
+                gas_budget,
+                gas_price,
+                gas_payment,
+                ptb_inputs,
+                authenticator_inputs,
+            }) => {
+                // 1) Parse and resolve ptb, auth inputs.
+                // Build MoveAuthenticator.
+                // Parse pth commands.
+                // Extract Abstract Account address.
+                let (ptb_inputs, ptb_commands) = self.prepare_ptb_data(data, ptb_inputs)?;
+
+                let (aa_sender_address, move_authenticator) =
+                    self.prepare_move_authenticator_data(authenticator_inputs)?;
+
+                // 2) Gas payments
+                let payments: Vec<ObjectRef> = gas_payment
+                    .into_iter()
+                    .map(|fid| {
+                        let obj_id = self.fake_to_real_object_id(fid).ok_or_else(|| {
+                            anyhow::anyhow!(format!("abstract: unknown gas-payment object({fid})"))
+                        })?;
+                        Ok(self.get_object(&obj_id, None)?.compute_object_reference())
+                    })
+                    .collect::<anyhow::Result<_>>()?;
+
+                // 3) Build TransactionData with MoveAuthenticator & execute
+                let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
+                let gas_price = gas_price.unwrap_or(self.gas_price);
+                let tx_data = TransactionData::new_programmable(
+                    aa_sender_address,
+                    payments,
+                    ProgrammableTransaction {
+                        inputs: ptb_inputs,
+                        commands: ptb_commands,
+                    },
+                    gas_budget,
+                    gas_price,
+                );
+
+                let tx = Transaction::from_generic_sig_data(tx_data, vec![move_authenticator]);
+                let summary = self.execute_txn(tx).await?;
+                let output = self.object_summary_output(&summary, /* summarize */ false);
+                Ok(output)
+            }
         }
     }
 
@@ -1243,6 +1257,96 @@ impl IotaTestAdapter {
 
     pub fn into_executor(self) -> Box<dyn TransactionalAdapter> {
         self.executor
+    }
+
+    fn prepare_ptb_data(
+        &mut self,
+        ptb_data: Option<NamedTempFile>,
+        ptb_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    ) -> anyhow::Result<(Vec<CallArg>, Vec<Command>)> {
+        let ptb_inputs = self
+            .compiled_state()
+            .resolve_args(ptb_inputs)?
+            .into_iter()
+            .map(|arg| arg.into_call_arg(self))
+            .collect::<anyhow::Result<Vec<CallArg>>>()?;
+
+        let ptb_cmds = {
+            let file = ptb_data
+                .ok_or_else(|| anyhow::anyhow!("Missing commands for programmable transaction"))?;
+            let contents = std::fs::read_to_string(file.path())?;
+            let commands = ParsedCommand::parse_vec(&contents)?;
+            let staged = &self.staged_modules;
+            let state = &self.compiled_state;
+            commands
+                .into_iter()
+                .map(|c| {
+                    c.into_command(
+                        &|p| {
+                            let modules = staged
+                                .get(&Symbol::from(p))?
+                                .modules
+                                .iter()
+                                .map(|m| {
+                                    let mut buf = vec![];
+                                    m.module
+                                        .serialize_with_version(m.module.version, &mut buf)
+                                        .unwrap();
+                                    buf
+                                })
+                                .collect();
+                            Some(modules)
+                        },
+                        &|s| Some(state.resolve_named_address(s)),
+                    )
+                })
+                .collect::<anyhow::Result<Vec<Command>>>()?
+        };
+        Ok((ptb_inputs, ptb_cmds))
+    }
+
+    /// Build a MoveAuthenticator; forces the AA argument to be immutable
+    /// (&AbstractAccount).
+    /// Returns the AA address and MoveAuthenticator.
+    fn prepare_move_authenticator_data(
+        &mut self,
+        authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    ) -> anyhow::Result<(IotaAddress, GenericSignature)> {
+        // Resolve authenticator inputs
+        let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
+        let mut auth_inputs: Vec<CallArg> = auth_inputs_resolved
+            .into_iter()
+            .map(|arg| arg.into_call_arg(self))
+            .collect::<anyhow::Result<_>>()?;
+
+        // Ensure first arg is AA shared (and set mutable: false)
+        let aa_arg = auth_inputs.get(0).ok_or_else(|| {
+            anyhow::anyhow!(
+                "abstract: authenticator inputs must contain at least one value for the AA call"
+            )
+        })?;
+        let aa_shared_objects = aa_arg.shared_objects();
+        let aa_shared_object = aa_shared_objects.first().ok_or_else(|| {
+            anyhow::anyhow!("abstract: authenticator input must be a shared object representing the abstract account")
+        })?;
+        let aa_sender_addr = aa_shared_object.id.into();
+        let aa_arg_immutable = CallArg::Object(ObjectArg::SharedObject {
+            id: aa_shared_object.id,
+            initial_shared_version: aa_shared_object.initial_shared_version,
+            mutable: false,
+        });
+
+        // Replace first argument with the immutable variant of Abstract Account
+        auth_inputs[0] = aa_arg_immutable.clone();
+
+        Ok((
+            aa_sender_addr,
+            GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
+                auth_inputs,
+                vec![],
+                aa_arg_immutable,
+            )),
+        ))
     }
 
     fn named_variables(&self) -> BTreeMap<String, String> {

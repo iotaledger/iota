@@ -142,6 +142,30 @@ pub struct ProgrammableTransactionCommand {
 }
 
 #[derive(Debug, clap::Parser)]
+pub struct AbstractTransactionCommand {
+    #[arg(long = "gas-budget")]
+    pub gas_budget: Option<u64>,
+    #[arg(long)]
+    pub gas_price: Option<u64>,
+    #[clap(long = "gas-payment", value_parser = parse_fake_id)]
+    pub gas_payment: Vec<FakeID>,
+    #[arg(
+        long = "ptb-inputs",
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+        num_args(1..),
+        action = clap::ArgAction::Append,
+    )]
+    pub ptb_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    #[arg(
+        long = "auth-inputs",
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+        num_args(1..),
+        action = clap::ArgAction::Append,
+    )]
+    pub authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+}
+
+#[derive(Debug, clap::Parser)]
 pub struct UpgradePackageCommand {
     #[arg(long)]
     pub package: String,
@@ -234,6 +258,7 @@ pub enum IotaSubcommand<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> {
     ViewCheckpoint,
     RunGraphql(RunGraphqlCommand),
     Bench(RunCommand<ExtraValueArgs>, ExtraRunArgs),
+    AbstractTransaction(AbstractTransactionCommand),
 }
 
 impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
@@ -254,6 +279,9 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::FromArgMatches
             }
             Some(("programmable", matches)) => IotaSubcommand::ProgrammableTransaction(
                 ProgrammableTransactionCommand::from_arg_matches(matches)?,
+            ),
+            Some(("abstract", matches)) => IotaSubcommand::AbstractTransaction(
+                AbstractTransactionCommand::from_arg_matches(matches)?,
             ),
             Some(("upgrade", matches)) => {
                 IotaSubcommand::UpgradePackage(UpgradePackageCommand::from_arg_matches(matches)?)
@@ -308,6 +336,7 @@ impl<ExtraValueArgs: ParsableValue, ExtraRunArgs: Parser> clap::CommandFactory
             .subcommand(TransferObjectCommand::command().name("transfer-object"))
             .subcommand(ConsensusCommitPrologueCommand::command().name("consensus-commit-prologue"))
             .subcommand(ProgrammableTransactionCommand::command().name("programmable"))
+            .subcommand(AbstractTransactionCommand::command().name("abstract"))
             .subcommand(UpgradePackageCommand::command().name("upgrade"))
             .subcommand(StagePackageCommand::command().name("stage-package"))
             .subcommand(SetAddressCommand::command().name("set-address"))
