@@ -115,7 +115,7 @@ macro_rules! gen_simtest_expect_fail {
         async fn $function_name() {
             let env = TestEnvironment::new().await;
             let (effects, _) = env
-                .create_auth_info_using("signature", "at_least_two_args")
+                .create_auth_info_using(stringify!($module_name), stringify!($function_name))
                 .await
                 .unwrap();
             assert!(effects.status().is_err());
@@ -162,6 +162,21 @@ fail::{
     template_object_mutable_reference,
     templated_object_by_value,
     templated_object_mutable_ref
+});
+
+tests_in_module!(
+receiving;
+fail::{
+    immutable_ref,
+    by_value,
+    by_mutable_ref,
+    vector_immutable_ref,
+    vector_by_value,
+    vector_by_mutable_ref,
+    option_immutable_ref,
+    option_by_value,
+    option_by_mutable_ref,
+    datatype_inst_immutable_ref
 });
 
 tests_in_module!(

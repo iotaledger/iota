@@ -17,6 +17,7 @@ use iota_types::{
     },
     error::ExecutionError,
     id::RESOLVED_IOTA_ID,
+    transfer::RESOLVED_RECEIVING_STRUCT,
 };
 use move_binary_format::{
     CompiledModule,
@@ -234,9 +235,50 @@ fn verify_pure_input_type(
     }
 }
 
+/// Verify that the parameter type when it is an immutable reference.
+/// An immutable reference is valid for an authenticate function in any case
+/// except for the `iota::transfer::Receiving` struct
+fn verify_immutable_reference(
+    module: &CompiledModule,
+    param: &SignatureToken,
+) -> Result<(), String> {
+    use SignatureToken::*;
+
+    match param {
+        U8 | U16 | U32 | U64 | U128 | U256 | Bool | Address | Datatype(_) | TypeParameter(_) => {
+            Ok(())
+        }
+        Vector(inner) => verify_immutable_reference(module, inner),
+        DatatypeInstantiation(datatype_instance) => {
+            let (idx, type_args) = &**datatype_instance;
+            let resolved_struct = resolve_struct(module, *idx);
+            if resolved_struct == RESOLVED_RECEIVING_STRUCT {
+                Err(format!(
+                    "Invalid immutable reference. A datatype instantiation must NOT be a receiving struct, offending argument: {param:?}"
+                ))
+            } else {
+                for type_arg in type_args.iter() {
+                    verify_immutable_reference(module, type_arg)?
+                }
+                Ok(())
+            }
+        }
+        Signer => Err(format!(
+            "Invalid immutable reference. Signer cannot be immutably referenced, offending argument: {param:?}"
+        )),
+        Reference(_) => Err(format!(
+            "Invalid immutable reference. Reference cannot be immutably referenced, offending argument: {param:?}"
+        )),
+        MutableReference(_) => Err(format!(
+            "Invalid immutable reference. MutableReference cannot be immutably referenced, offending argument: {param:?}"
+        )),
+    }
+}
+
 /// Verify that the parameter type is a valid type for an `authenticate`
 /// function The parameter type can be:
-/// - an immutable reference
+/// - an immutable reference to anything but a receiving object (see
+///   [verify_immutable_reference])
 /// - a pure input type (see [verify_pure_input_type])
 fn verify_authenticate_param_type(
     module: &CompiledModule,
@@ -246,10 +288,7 @@ fn verify_authenticate_param_type(
     use SignatureToken::*;
 
     match param {
-        Reference(_) => Ok(()),
-        // This mutable reference could be allowed to enable a smother authenticate() function
-        // composition, but its usage must be checked before being enabled:
-        // MutableReference(inner) => verify_pure_input_type(module, function_type_args, inner),
+        Reference(ref_param) => verify_immutable_reference(module, ref_param),
         _ => verify_pure_input_type(module, function_type_args, param),
     }
 }
