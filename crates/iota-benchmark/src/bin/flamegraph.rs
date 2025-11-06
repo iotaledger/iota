@@ -1,0 +1,25 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+#[tokio::main]
+async fn main() {
+    use iota_test_transaction_builder::make_transfer_iota_transaction;
+    use test_cluster::TestClusterBuilder;
+    use tracing::Instrument as _;
+
+    let sub = telemetry_subscribers::FlameSub::new();
+    tracing::subscriber::set_global_default(sub.clone()).unwrap();
+
+    async {
+        let test_cluster = TestClusterBuilder::new().build().await;
+        let tx = make_transfer_iota_transaction(&test_cluster.wallet, None, None).await;
+        test_cluster.execute_transaction(tx).await;
+    }
+    .instrument(tracing::trace_span!("iota_benchmark::flamegraph"))
+    .await;
+
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&sub.get_nested_sets()).unwrap()
+    );
+}
