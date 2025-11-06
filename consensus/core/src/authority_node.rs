@@ -29,6 +29,7 @@ use crate::{
     metrics::initialise_metrics,
     network::{NetworkClient as _, NetworkManager, tonic_network::TonicManager},
     round_prober::{RoundProber, RoundProberHandle},
+    scorer::Scorer,
     storage::rocksdb_store::RocksDBStore,
     subscriber::Subscriber,
     synchronizer::{Synchronizer, SynchronizerHandle},
@@ -184,14 +185,15 @@ where
         );
         info!("Consensus parameters: {:?}", parameters);
         info!("Consensus committee: {:?}", committee);
-        let committee_size = committee.size();
+        let scorer = Arc::new(Scorer::new(committee.size()));
         let context = Arc::new(Context::new(
             epoch_start_timestamp_ms,
             own_index,
             committee,
             parameters,
             protocol_config,
-            initialise_metrics(registry, committee_size),
+            initialise_metrics(registry),
+            scorer,
             clock,
         ));
         let start_time = Instant::now();
