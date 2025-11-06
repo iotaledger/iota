@@ -269,9 +269,9 @@ pub struct ChangeEpochV3 {
     /// selection because they support the new, target protocol version.
     pub eligible_active_validators: Vec<u64>,
 }
-// System transaction for advancing the epoch.
-// This version includes the scores field for when
-// the scorer is enabled in the protocol config.
+/// System transaction for advancing the epoch.
+/// This version includes the scores field for when the score based rewards are
+/// enabled in the protocol config.
 #[derive(Debug, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
 pub struct ChangeEpochV4 {
     /// The next (to become) epoch ID.
@@ -300,8 +300,8 @@ pub struct ChangeEpochV4 {
     /// Vector of active validator indices eligible to take part in committee
     /// selection because they support the new, target protocol version.
     pub eligible_active_validators: Vec<u64>,
-    /// Scores relative to the previous epoch. Each value corresponds to one
-    /// authority, using the same index that in the last epoch's committee.
+    /// Scores relative to the epoch being finalized. Each value corresponds to
+    /// an authority, ordered by the ending epoch's AuthorityIndex.
     pub scores: Vec<u64>,
 }
 
@@ -505,7 +505,6 @@ impl EndOfEpochTransactionKind {
         epoch_start_timestamp_ms: u64,
         system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
         eligible_active_validators: Vec<u64>,
-
         scores: Vec<u64>,
     ) -> Self {
         Self::ChangeEpochV4(ChangeEpochV4 {
@@ -643,9 +642,21 @@ impl EndOfEpochTransactionKind {
                 }
             }
             Self::ChangeEpochV4(_) => {
-                return Err(UserInputError::Unsupported(
-                    "ChangeEpochV4 is not yet supported".to_string(),
-                ));
+                if !config.protocol_defined_base_fee() {
+                    return Err(UserInputError::Unsupported(
+                        "protocol defined base fee required".to_string(),
+                    ));
+                }
+                if !config.select_committee_from_eligible_validators() {
+                    return Err(UserInputError::Unsupported(
+                        "selecting committee only among validators supporting the protocol version required".to_string(),
+                    ));
+                }
+                if !config.score_based_rewards() {
+                    return Err(UserInputError::Unsupported(
+                        "score based rewards not enabled".to_string(),
+                    ));
+                }
             }
             Self::AuthenticatorStateCreate | Self::AuthenticatorStateExpire(_) => {
                 if !config.enable_jwk_consensus_updates() {

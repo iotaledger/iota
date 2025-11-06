@@ -169,8 +169,8 @@ pub(crate) struct ChangeEpochTransactionV4 {
     /// Vector of active validator indices eligible to take part in committee
     /// selection because they support the new, target protocol version.
     pub eligible_active_validators: Option<Vec<u64>>,
-    /// Scores relative to the previous epoch. Each value corresponds to one
-    /// authority, using the same index that in the last epoch's committee.
+    /// Scores relative to the epoch being finalized. Each value corresponds to
+    /// an authority, ordered by the ending epoch's AuthorityIndex.
     pub scores: Vec<u64>,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
@@ -571,7 +571,7 @@ impl ChangeEpochTransactionV4 {
         Ok(connection)
     }
 
-    /// The validator scores at the end of the epoch.
+    // The validator scores at the end of the epoch.
     async fn scores(&self) -> Vec<BigInt> {
         self.scores.iter().map(|s| BigInt::from(*s)).collect()
     }
