@@ -2,6 +2,7 @@
     "name": "@iota/iota-sdk",
     "author": "IOTA Foundation <info@iota.org>",
     "description": "IOTA TypeScript API",
+    "repository": "https://github.com/iotaledger/iota",
     "homepage": "https://docs.iota.org/developer/ts-sdk/typescript/",
     "version": "1.7.0",
     "license": "Apache-2.0",
