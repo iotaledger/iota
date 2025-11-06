@@ -197,9 +197,10 @@ impl InflightTransactionsMap {
     /// Locks the transactions to be fetched for the assigned `peer`. We
     /// want to avoid re-fetching the missing transactions from too many
     /// authorities at the same time, thus we limit the concurrency per
-    /// transaction by attempting to lock per block. In addition, we check
+    /// transaction by attempting to lock per block_ref. In addition, we check
     /// whether a given `peer` has many concurrent requests. If so, we will
-    /// not lock transactions. The method return
+    /// not lock transactions. The method return optionally two guards. One for the fetched transactions
+    /// and one for active fetch request.
     fn lock_transactions_and_active_request(
         self: &Arc<Self>,
         missing_block_refs: BTreeSet<BlockRef>,
