@@ -276,11 +276,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
-                    .with_label_values(&[
-                        peer_hostname,
-                        "header",
-                        "invalid round in header",
-                    ])
+                    .with_label_values(&[peer_hostname, "header", "invalid round in header"])
                     .inc();
                 info!(
                     "Invalid additional block header from {}: {}",
@@ -295,7 +291,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
-                    .with_label_values(&[peer_hostname.as_str(), "header", e.clone().name()])
+                    .with_label_values(&[peer_hostname, "header", e.clone().name()])
                     .inc();
                 info!("Invalid additional block header from {}: {}", peer, e);
                 return Err(e);
@@ -344,7 +340,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
-                    .with_label_values(&[peer_hostname.as_str(), "shard", e.clone().name()])
+                    .with_label_values(&[peer_hostname, "shard", e.clone().name()])
                     .inc();
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
@@ -366,7 +362,7 @@ impl<C: CoreThreadDispatcher> AuthorityService<C> {
                     .metrics
                     .node_metrics
                     .bundles_with_invalid_parts
-                    .with_label_values(&[peer_hostname.as_str(), "shard", e.clone().name()])
+                    .with_label_values(&[peer_hostname, "shard", e.clone().name()])
                     .inc();
                 info!("Invalid shard from {}: {}", peer, e);
                 return Err(e);
