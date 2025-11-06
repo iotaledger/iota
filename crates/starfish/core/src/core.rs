@@ -483,6 +483,22 @@ impl Core {
         BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_certified_commits");
+
+        // First, collect and add all transactions from certified commits.
+        // Transactions must be added before processing commits to ensure they are
+        // available when creating new commits.
+        let all_transactions: Vec<VerifiedTransactions> = certified_commits
+            .commits()
+            .iter()
+            .flat_map(|commit| commit.transactions())
+            .cloned()
+            .collect();
+
+        if !all_transactions.is_empty() {
+            self.add_transactions(all_transactions, TransactionSource::TransactionSynchronizer)?;
+        }
+
+        // Then collect and add block headers.
         let block_headers = certified_commits
             .commits()
             .iter()
