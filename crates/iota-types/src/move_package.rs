@@ -954,7 +954,7 @@ pub enum IotaAttribute {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct AuthenticatorAttribute {
-    version: u8,
+    pub version: u8,
 }
 
 impl IotaAttribute {

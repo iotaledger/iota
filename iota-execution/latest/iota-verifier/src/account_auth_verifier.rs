@@ -37,7 +37,7 @@ use crate::verification_failure;
 /// - the last two arguments in order are AuthContext and TxContext
 /// - AuthContext has to be an immutable reference
 /// - TxContext has to be an immutable reference
-pub fn verify_authenticate_func(
+pub fn verify_authenticate_func_v1(
     module: &CompiledModule,
     function_identifier: Identifier,
     account_type: &TypeTag,
