@@ -17,7 +17,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.ta
 env:
   IOTA_NETWORKS: ${{ secrets.CHANGESETS_IOTA_NETWORKS }}
   DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
-  NPM_TOKEN: ''
+  NPM_TOKEN: ""
 
 permissions:
   id-token: write
@@ -38,7 +38,7 @@ jobs:
         with:
           node-version: "20"
           cache: "pnpm"
-          registry-url: 'https://registry.npmjs.org'
+          registry-url: "https://registry.npmjs.org"
 
       - name: Update npm
         run: npm install -g npm@latest
