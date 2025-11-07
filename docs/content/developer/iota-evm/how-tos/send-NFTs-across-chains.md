@@ -13,7 +13,7 @@ teams:
 
 ## Introduction
 
-[LayerZero ONFT V1FV](https://docs.layerzero.network/V1) enables cross-chain transfers of existing ERC721 tokens. For
+[LayerZero ONFT V1FV](https://docs.layerzero.network/v1) enables cross-chain transfers of existing ERC721 tokens. For
 testing purposes, the IOTA EVM Testnet is chosen as the source chain, while the BNB Testnet is chosen as the destination
 chain.
 
