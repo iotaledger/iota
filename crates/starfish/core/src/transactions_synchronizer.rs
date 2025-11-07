@@ -447,7 +447,8 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
     }
 
     // The main loop to listen for the submitted commands.
-    #[cfg_attr(test,tracing::instrument(skip_all, name ="",fields(authority = %self.context.own_index)))]
+    #[cfg_attr(test, tracing::instrument(skip_all, name = "", fields(authority = %self.context.own_index
+    )))]
     async fn run(&mut self) {
         // We want the transactions synchronizer to run periodically to
         // fetch any missing transactions.
@@ -1070,9 +1071,14 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
             // Step 2: Get the block header and verify that the transactions commitment
             // matches. This ensures the transactions we received are exactly
             // the ones that were included in the block when it was created.
-            let block_header = block_headers_map
-                .get(&serialized_transactions.block_ref)
-                .expect("header for fetched transactions must exist");
+            let Some(block_header) = block_headers_map.get(&serialized_transactions.block_ref)
+            else {
+                warn!(
+                    "Received transactions for unknown block ref {:?} from peer {}",
+                    serialized_transactions.block_ref, peer_index
+                );
+                continue;
+            };
 
             let mut encoder = create_encoder(&context);
             if block_header.transactions_commitment()

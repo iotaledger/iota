@@ -126,7 +126,7 @@ pub(crate) struct DagState {
     /// Highest round of blocks accepted.
     highest_accepted_round: Round,
 
-    /// Last consensus commit of the dag.
+    /// Last pending consensus commit of the dag.
     last_commit: Option<TrustedCommit>,
 
     /// Last wall time when commit round advanced. Does not persist across
