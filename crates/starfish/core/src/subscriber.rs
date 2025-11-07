@@ -212,7 +212,7 @@ impl<C: NetworkClient, S: NetworkService> Subscriber<C, S> {
                         context
                             .metrics
                             .node_metrics
-                            .subscribed_blocks
+                            .subscribed_block_bundles
                             .with_label_values(&[peer_hostname])
                             .inc();
                         let result = authority_service

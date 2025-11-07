@@ -7,7 +7,6 @@ use std::{fs, net::SocketAddr, path::PathBuf};
 use crate::{
     benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
-    display,
     error::{MonitorError, MonitorResult},
     protocol::ProtocolMetrics,
     ssh::{CommandContext, SshConnectionManager},
@@ -68,7 +67,6 @@ impl Monitor {
         // Configure and reload grafana.
         let instance = std::iter::once(self.instance.clone());
         let commands = Grafana::setup_commands();
-        display::action(commands.clone());
         self.ssh_manager
             .execute(instance, commands, CommandContext::default())
             .await?;

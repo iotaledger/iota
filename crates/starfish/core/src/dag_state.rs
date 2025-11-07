@@ -331,7 +331,7 @@ impl DagState {
         self.context
             .metrics
             .node_metrics
-            .accepted_block_time_drift_ms
+            .accepted_block_header_time_drift_ms
             .with_label_values(&[hostname])
             .inc_by(block_header.timestamp_ms().saturating_sub(now));
 
