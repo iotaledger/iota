@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { ReactNode } from 'react';
+import { ampli } from '_src/shared/analytics/ampli';
 
 export interface ExternalLinkProps {
     href: string;
@@ -13,6 +14,11 @@ export interface ExternalLinkProps {
 }
 
 export function ExternalLink({ href, className, children, title, onClick }: ExternalLinkProps) {
+    const handleClick = () => {
+        ampli.openedLink({ url: href });
+        onClick?.();
+    };
+
     return (
         <a
             href={href}
@@ -20,7 +26,7 @@ export function ExternalLink({ href, className, children, title, onClick }: Exte
             className={className}
             rel="noreferrer noopener"
             title={title}
-            onClick={onClick}
+            onClick={handleClick}
         >
             {children}
         </a>

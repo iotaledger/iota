@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod generator;
@@ -9,7 +9,7 @@ mod padding;
 mod utils;
 
 pub use generator::{
-    generate_module, generate_modules, generate_verified_modules, ModuleGenerator,
+    ModuleGenerator, generate_module, generate_modules, generate_verified_modules,
 };
 pub use options::ModuleGeneratorOptions;
 pub use padding::Pad;

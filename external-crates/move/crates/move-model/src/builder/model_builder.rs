@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Translates and validates specification language fragments as they are output
@@ -32,8 +32,8 @@ pub(crate) struct ModelBuilder<'env> {
     pub env: &'env mut GlobalEnv,
     /// A symbol table for datatypes.
     pub datatype_table: BTreeMap<QualifiedSymbol, DatatypeEntry>,
-    /// A reverse mapping from ModuleId/DatatypeId pairs to QualifiedSymbol. This
-    /// is used for visualization of types in error messages.
+    /// A reverse mapping from ModuleId/DatatypeId pairs to QualifiedSymbol.
+    /// This is used for visualization of types in error messages.
     pub reverse_datatype_table: BTreeMap<(ModuleId, DatatypeId), QualifiedSymbol>,
     /// A symbol table for functions.
     pub fun_table: BTreeMap<QualifiedSymbol, FunEntry>,

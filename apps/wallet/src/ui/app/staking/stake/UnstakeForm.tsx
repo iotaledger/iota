@@ -9,7 +9,6 @@ import {
     useTimeAgo,
     GAS_SYMBOL,
     useNewUnstakeTransaction,
-    CoinFormat,
     useGetDelegatedStake,
     DELEGATED_STAKES_QUERY_STALE_TIME,
     DELEGATED_STAKES_QUERY_REFETCH_INTERVAL,
@@ -40,6 +39,7 @@ import { ampli } from '_src/shared/analytics/ampli';
 import { getSignerOperationErrorMessage } from '../../helpers';
 import { Info, Loader } from '@iota/apps-ui-icons';
 import { type IotaTransactionBlockResponse, type StakeObject } from '@iota/iota-sdk/client';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import { ValidatorFormDetail } from './ValidatorFormDetail';
 
 export interface StakeFromProps {
@@ -76,7 +76,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
         (stakeData as Extract<StakeObject, { estimatedReward: string }>)?.estimatedReward || '0';
     const [rewards, rewardSymbol] = useFormatCoin({ balance: iotaEarned });
     const [totalIota] = useFormatCoin({ balance: BigInt(iotaEarned || 0) + totalTokenBalance });
-    const [tokenBalance] = useFormatCoin({ balance: totalTokenBalance });
+    const [tokenBalanceFormatted] = useFormatCoin({ balance: totalTokenBalance });
 
     const {
         data: unstakeData,
@@ -88,7 +88,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
 
     const [formattedGas, gasSymbol] = useFormatCoin({
         balance: unstakeData?.gasSummary?.totalGas,
-        format: CoinFormat.FULL,
+        format: CoinFormat.Full,
     });
     const { data: currentEpochEndTime } = useGetTimeBeforeEpochNumber(epoch + 1 || 0);
     const currentEpochEndTimeAgo = useTimeAgo({
@@ -135,6 +135,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
             },
             onSuccess: () => {
                 ampli.unstakedIota({
+                    stakedAmount: Number(tokenBalanceFormatted),
                     validatorAddress: validatorAddress!,
                 });
             },
@@ -177,7 +178,7 @@ export function UnStakeForm({ stakedIotaId, validatorAddress, epoch, onSuccess }
                         <Divider />
                         <KeyValueInfo
                             keyText="Your Stake"
-                            value={tokenBalance}
+                            value={tokenBalanceFormatted}
                             supportingLabel={GAS_SYMBOL}
                             fullwidth
                         />

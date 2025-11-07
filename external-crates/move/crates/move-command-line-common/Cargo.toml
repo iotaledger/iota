@@ -8,19 +8,20 @@ publish = false
 description = "Move shared command line and file tools"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 bcs.workspace = true
 dirs-next.workspace = true
 hex.workspace = true
 insta = { workspace = true, features = ["serde"] }
-num-bigint = "0.4"
 once_cell.workspace = true
+packed_struct.workspace = true
 serde.workspace = true
 sha2.workspace = true
-similar.workspace = true
 vfs.workspace = true
 walkdir.workspace = true
 
+# internal dependencies
 move-binary-format.workspace = true
 move-core-types.workspace = true
 

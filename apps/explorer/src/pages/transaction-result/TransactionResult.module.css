@@ -11,11 +11,11 @@
 }
 
 .eventtitle {
-    @apply pl-2 text-neutral-50;
+    @apply pl-2 text-iota-neutral-50;
 }
 
 .eventtitle:hover {
-    @apply cursor-pointer bg-neutral-92;
+    @apply cursor-pointer bg-iota-neutral-92;
 
     border-radius: 6px;
 }
@@ -72,7 +72,7 @@
 }
 
 .itemviewcontentvalue {
-    @apply inline-flex content-center items-baseline text-sm text-neutral-40 md:block;
+    @apply inline-flex content-center items-baseline text-sm text-iota-neutral-40 md:block;
 
     line-break: anywhere;
 }

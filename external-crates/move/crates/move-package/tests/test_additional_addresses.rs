@@ -1,20 +1,23 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, path::PathBuf};
 
 use move_core_types::account_address::AccountAddress;
 use move_package::{
-    resolution::{dependency_graph as DG, resolution_graph as RG},
-    source_package::{layout::SourcePackageLayout, parsed_manifest as PM},
     BuildConfig,
+    resolution::{dependency_graph as DG, resolution_graph as RG},
+    source_package::{
+        layout::SourcePackageLayout,
+        parsed_manifest::{self as PM, Dependencies},
+    },
 };
 use tempfile::tempdir;
 
 #[test]
-fn test_additonal_addresses() {
+fn test_additional_addresses() {
     let path: PathBuf = [
         "tests",
         "test_sources",
@@ -31,6 +34,7 @@ fn test_additonal_addresses() {
         true,
         std::io::sink(),
         tempdir().unwrap().path().to_path_buf(),
+        Dependencies::default(), // implicit_deps
     );
     let (dg, _) = dep_graph_builder
         .get_graph(
@@ -82,7 +86,7 @@ fn test_additonal_addresses() {
 }
 
 #[test]
-fn test_additonal_addresses_already_assigned_same_value() {
+fn test_additional_addresses_already_assigned_same_value() {
     let path: PathBuf = ["tests", "test_sources", "basic_no_deps_address_assigned"]
         .into_iter()
         .collect();
@@ -95,6 +99,7 @@ fn test_additonal_addresses_already_assigned_same_value() {
         true,
         std::io::sink(),
         tempdir().unwrap().path().to_path_buf(),
+        Dependencies::default(), // implicit_deps
     );
     let (dg, _) = dep_graph_builder
         .get_graph(
@@ -132,7 +137,7 @@ fn test_additonal_addresses_already_assigned_same_value() {
 }
 
 #[test]
-fn test_additonal_addresses_already_assigned_different_value() {
+fn test_additional_addresses_already_assigned_different_value() {
     let path: PathBuf = ["tests", "test_sources", "basic_no_deps_address_assigned"]
         .into_iter()
         .collect();
@@ -145,6 +150,7 @@ fn test_additonal_addresses_already_assigned_different_value() {
         true,
         std::io::sink(),
         tempdir().unwrap().path().to_path_buf(),
+        Dependencies::default(), // implicit_deps
     );
     let (dg, _) = dep_graph_builder
         .get_graph(

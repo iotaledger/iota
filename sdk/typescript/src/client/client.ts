@@ -1,7 +1,7 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-import { toB64 } from '@iota/bcs';
+import { toBase64 } from '@iota/bcs';
 
 import type { Signer } from '../cryptography/index.js';
 import type { Transaction } from '../transactions/index.js';
@@ -94,6 +94,13 @@ import type {
     ParticipationMetrics,
     IotaCirculatingSupply,
     GetDynamicFieldObjectV2Params,
+    IotaNamesLookupParams,
+    IotaNameRecord,
+    IotaNamesReverseLookupParams,
+    IotaNamesFindAllRegistrationNFTsParams,
+    IsTransactionIndexedOnNodeParams,
+    IotaMoveViewCallResults,
+    ViewParams,
 } from './types/index.js';
 
 export interface PaginationArguments<Cursor> {
@@ -432,7 +439,9 @@ export class IotaClient {
         const result: IotaTransactionBlockResponse = await this.transport.request({
             method: 'iota_executeTransactionBlock',
             params: [
-                typeof transactionBlock === 'string' ? transactionBlock : toB64(transactionBlock),
+                typeof transactionBlock === 'string'
+                    ? transactionBlock
+                    : toBase64(transactionBlock),
                 Array.isArray(signature) ? signature : [signature],
                 options,
             ],
@@ -676,7 +685,7 @@ export class IotaClient {
         let devInspectTxBytes;
         if (isTransaction(input.transactionBlock)) {
             input.transactionBlock.setSenderIfNotSet(input.sender);
-            devInspectTxBytes = toB64(
+            devInspectTxBytes = toBase64(
                 await input.transactionBlock.build({
                     client: this,
                     onlyTransactionKind: true,
@@ -685,7 +694,7 @@ export class IotaClient {
         } else if (typeof input.transactionBlock === 'string') {
             devInspectTxBytes = input.transactionBlock;
         } else if (input.transactionBlock instanceof Uint8Array) {
-            devInspectTxBytes = toB64(input.transactionBlock);
+            devInspectTxBytes = toBase64(input.transactionBlock);
         } else {
             throw new Error('Unknown transaction block format.');
         }
@@ -707,7 +716,7 @@ export class IotaClient {
             params: [
                 typeof input.transactionBlock === 'string'
                     ? input.transactionBlock
-                    : toB64(input.transactionBlock),
+                    : toBase64(input.transactionBlock),
             ],
         });
     }
@@ -727,8 +736,20 @@ export class IotaClient {
 
     /**
      * Return the dynamic field object information for a specified object
+     * Uses the V2.
      */
-    async getDynamicFieldObject(input: GetDynamicFieldObjectParams): Promise<IotaObjectResponse> {
+    async getDynamicFieldObject(input: GetDynamicFieldObjectV2Params): Promise<IotaObjectResponse> {
+        return await this.transport.request({
+            method: 'iotax_getDynamicFieldObjectV2',
+            params: [input.parentObjectId, input.name, input.options],
+        });
+    }
+
+    /**
+     * Return the dynamic field object information for a specified object
+     * @deprecated `getDynamicFieldObjectV1` is deprecated, prefer to use `getDynamicFieldObject` which uses V2.
+     */
+    async getDynamicFieldObjectV1(input: GetDynamicFieldObjectParams): Promise<IotaObjectResponse> {
         return await this.transport.request({
             method: 'iotax_getDynamicFieldObject',
             params: [input.parentId, input.name],
@@ -743,7 +764,7 @@ export class IotaClient {
     ): Promise<IotaObjectResponse> {
         return await this.transport.request({
             method: 'iotax_getDynamicFieldObjectV2',
-            params: [input.parentObjectId, input.name],
+            params: [input.parentObjectId, input.name, input.options],
         });
     }
 
@@ -900,6 +921,7 @@ export class IotaClient {
         signal,
         timeout = 60 * 1000,
         pollInterval = 2 * 1000,
+        waitMode,
         ...input
     }: {
         /** An optional abort signal that can be used to cancel */
@@ -908,6 +930,10 @@ export class IotaClient {
         timeout?: number;
         /** The amount of time to wait between checks for the transaction block. Defaults to 2 seconds. */
         pollInterval?: number;
+        /** Whether to wait the transaction to have been checkpointed or indexed on the node.
+         * A transaction might be indexed but not checkpointed yet, but a checkpointed transaction is guaranteed to be indexed.
+         */
+        waitMode?: 'checkpoint' | 'indexed-on-node';
     } & Parameters<IotaClient['getTransactionBlock']>[0]): Promise<IotaTransactionBlockResponse> {
         const timeoutSignal = AbortSignal.timeout(timeout);
         const timeoutPromise = new Promise((_, reject) => {
@@ -920,14 +946,32 @@ export class IotaClient {
 
         while (!timeoutSignal.aborted) {
             signal?.throwIfAborted();
-            try {
-                return await this.getTransactionBlock(input);
-            } catch (e) {
+            const wait = async () => {
                 // Wait for either the next poll interval, or the timeout.
                 await Promise.race([
                     new Promise((resolve) => setTimeout(resolve, pollInterval)),
                     timeoutPromise,
                 ]);
+            };
+            try {
+                if (waitMode === 'indexed-on-node') {
+                    const isIndexedOnNode = await this.isTransactionIndexedOnNode({
+                        digest: input.digest,
+                    });
+                    if (isIndexedOnNode) {
+                        return await this.getTransactionBlock(input);
+                    }
+                } else if (waitMode === 'checkpoint') {
+                    const transaction = await this.getTransactionBlock(input);
+                    if (transaction.checkpoint) {
+                        return transaction;
+                    }
+                } else {
+                    return await this.getTransactionBlock(input);
+                }
+                await wait();
+            } catch (e) {
+                await wait();
             }
         }
 
@@ -935,5 +979,57 @@ export class IotaClient {
 
         // This should never happen, because the above case should always throw, but just adding it in the event that something goes horribly wrong.
         throw new Error('Unexpected error while waiting for transaction block.');
+    }
+
+    /**
+     * Return the resolved record for the given name.
+     */
+    async iotaNamesLookup(input: IotaNamesLookupParams): Promise<IotaNameRecord | undefined> {
+        return await this.transport.request({
+            method: 'iotax_iotaNamesLookup',
+            params: [input.name],
+        });
+    }
+
+    /**
+     * Return the resolved name for the given address.
+     */
+    async iotaNamesReverseLookup(input: IotaNamesReverseLookupParams): Promise<string | undefined> {
+        return await this.transport.request({
+            method: 'iotax_iotaNamesReverseLookup',
+            params: [input.address],
+        });
+    }
+
+    /**
+     * Find all registration NFTs for the given address.
+     */
+    async iotaNamesFindAllRegistrationNFTs(
+        input: IotaNamesFindAllRegistrationNFTsParams,
+    ): Promise<PaginatedObjectsResponse> {
+        return await this.transport.request({
+            method: 'iotax_iotaNamesFindAllRegistrationNFTs',
+            params: [input.address, input.cursor, input.limit, input.options],
+        });
+    }
+
+    /**
+     * Check if a Transaction has been indexed on the Node.
+     */
+    async isTransactionIndexedOnNode(input: IsTransactionIndexedOnNodeParams): Promise<boolean> {
+        return await this.transport.request({
+            method: 'iota_isTransactionIndexedOnNode',
+            params: [input.digest],
+        });
+    }
+
+    /**
+     * Calls a move view function.
+     */
+    async view(input: ViewParams): Promise<IotaMoveViewCallResults> {
+        return await this.transport.request({
+            method: 'iota_view',
+            params: [input.functionName, input.typeArgs, input.callArgs],
+        });
     }
 }

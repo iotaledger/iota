@@ -1,40 +1,44 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::Result;
-use crossbeam::channel::{bounded, select};
-use lsp_server::{Connection, Message, Notification, Request, Response};
-use lsp_types::{
-    notification::Notification as _, request::Request as _, CompletionOptions, Diagnostic,
-    HoverProviderCapability, InlayHintOptions, InlayHintServerCapabilities, OneOf, SaveOptions,
-    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
-    TypeDefinitionProviderCapability, WorkDoneProgressOptions,
-};
-use move_compiler::linters::LintLevel;
 use std::{
     collections::BTreeMap,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 
+use anyhow::Result;
+use crossbeam::channel::{bounded, select};
+use lsp_server::{Connection, Message, Notification, Request, Response};
+use lsp_types::{
+    CodeActionKind, CodeActionOptions, CodeActionProviderCapability, CompletionOptions, Diagnostic,
+    HoverProviderCapability, InlayHintOptions, InlayHintServerCapabilities, OneOf, SaveOptions,
+    TextDocumentSyncCapability, TextDocumentSyncKind, TextDocumentSyncOptions,
+    TypeDefinitionProviderCapability, WorkDoneProgressOptions, notification::Notification as _,
+    request::Request as _,
+};
+use move_compiler::linters::LintLevel;
+use move_package::source_package::parsed_manifest::Dependencies;
+use url::Url;
+use vfs::{VfsPath, impls::memory::MemoryFS};
+
 use crate::{
-    completions::on_completion_request, context::Context, inlay_hints, symbols,
+    code_action, completions::on_completion_request, context::Context, inlay_hints, symbols,
     vfs::on_text_document_sync_notification,
 };
-use url::Url;
-use vfs::{impls::memory::MemoryFS, VfsPath};
 
 const LINT_NONE: &str = "none";
 const LINT_DEFAULT: &str = "default";
 const LINT_ALL: &str = "all";
 
 #[allow(deprecated)]
-pub fn run() {
+pub fn run(implicit_deps: Dependencies) {
     // stdio is used to communicate Language Server Protocol requests and responses.
-    // stderr is used for logging (and, when Visual Studio Code is used to communicate with this
-    // server, it captures this output in a dedicated "output channel").
+    // stderr is used for logging (and, when Visual Studio Code is used to
+    // communicate with this server, it captures this output in a dedicated
+    // "output channel").
     let exe = std::env::current_exe()
         .unwrap()
         .to_string_lossy()
@@ -108,6 +112,13 @@ pub fn run() {
                 resolve_provider: None,
             },
         ))),
+        code_action_provider: Some(CodeActionProviderCapability::Options(CodeActionOptions {
+            code_action_kinds: Some(vec![CodeActionKind::QUICKFIX]),
+            work_done_progress_options: WorkDoneProgressOptions {
+                work_done_progress: None,
+            },
+            resolve_provider: None,
+        })),
         ..Default::default()
     })
     .expect("could not serialize server capabilities");
@@ -140,12 +151,14 @@ pub fn run() {
         pkg_deps.clone(),
         diag_sender,
         lint,
+        implicit_deps.clone(),
     );
 
-    // If initialization information from the client contains a path to the directory being
-    // opened, try to initialize symbols before sending response to the client. Do not bother
-    // with diagnostics as they will be recomputed whenever the first source file is opened. The
-    // main reason for this is to enable unit tests that rely on the symbolication information
+    // If initialization information from the client contains a path to the
+    // directory being opened, try to initialize symbols before sending response
+    // to the client. Do not bother with diagnostics as they will be recomputed
+    // whenever the first source file is opened. The main reason for this is to
+    // enable unit tests that rely on the symbolication information
     // to be available right after the client is initialized.
     if let Some(uri) = initialize_params.root_uri {
         let build_path = uri.to_file_path().unwrap();
@@ -157,6 +170,7 @@ pub fn run() {
                 None,
                 lint,
                 None,
+                implicit_deps.clone(),
             ) {
                 let mut old_symbols_map = symbols_map.lock().unwrap();
                 old_symbols_map.insert(p, new_symbols);
@@ -247,7 +261,7 @@ pub fn run() {
                         // a chance of completing pending requests (but should not accept new requests
                         // either which is handled inside on_request) - instead it quits after receiving
                         // the exit notification from the client, which is handled below
-                        shutdown_req_received = on_request(&context, &request, ide_files_root.clone(), pkg_deps.clone(), shutdown_req_received);
+                        shutdown_req_received = on_request(&context, &request, ide_files_root.clone(), pkg_deps.clone(), shutdown_req_received, implicit_deps.clone());
                     }
                     Ok(Message::Response(response)) => on_response(&context, &response),
                     Ok(Message::Notification(notification)) => {
@@ -272,16 +286,18 @@ pub fn run() {
     eprintln!("Shut down language server '{}'.", exe);
 }
 
-/// This function returns `true` if shutdown request has been received, and `false` otherwise.
-/// The reason why this information is also passed as an argument is that according to the LSP
-/// spec, if any additional requests are received after shutdownd then the LSP implementation
-/// should respond with a particular type of error.
+/// This function returns `true` if shutdown request has been received, and
+/// `false` otherwise. The reason why this information is also passed as an
+/// argument is that according to the LSP spec, if any additional requests are
+/// received after shutdownd then the LSP implementation should respond with a
+/// particular type of error.
 fn on_request(
     context: &Context,
     request: &Request,
     ide_files_root: VfsPath,
     pkg_dependencies: Arc<Mutex<BTreeMap<PathBuf, symbols::PrecomputedPkgInfo>>>,
     shutdown_request_received: bool,
+    implicit_deps: Dependencies,
 ) -> bool {
     if shutdown_request_received {
         let response = lsp_server::Response::new_err(
@@ -299,9 +315,14 @@ fn on_request(
         return true;
     }
     match request.method.as_str() {
-        lsp_types::request::Completion::METHOD => {
-            on_completion_request(context, request, ide_files_root.clone(), pkg_dependencies)
-        }
+        lsp_types::request::Completion::METHOD => on_completion_request(
+            context,
+            request,
+            ide_files_root.clone(),
+            pkg_dependencies,
+            implicit_deps,
+            true, // auto-imports enabled
+        ),
         lsp_types::request::GotoDefinition::METHOD => {
             symbols::on_go_to_def_request(context, request);
         }
@@ -319,6 +340,15 @@ fn on_request(
         }
         lsp_types::request::InlayHintRequest::METHOD => {
             inlay_hints::on_inlay_hint_request(context, request);
+        }
+        lsp_types::request::CodeActionRequest::METHOD => {
+            code_action::on_code_action_request(
+                context,
+                request,
+                ide_files_root.clone(),
+                pkg_dependencies,
+                implicit_deps,
+            );
         }
         lsp_types::request::Shutdown::METHOD => {
             eprintln!("Shutdown request received");

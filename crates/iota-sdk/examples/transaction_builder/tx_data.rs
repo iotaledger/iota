@@ -9,6 +9,7 @@
 #[path = "../utils.rs"]
 mod utils;
 
+use anyhow::bail;
 use iota_sdk::rpc_types::{IotaExecutionStatus, IotaTransactionBlockEffects};
 use utils::{setup_for_write, sign_and_execute_transaction};
 
@@ -31,7 +32,7 @@ async fn main() -> Result<(), anyhow::Error> {
     let IotaTransactionBlockEffects::V1(effects) = dry_run_tx_resp.effects;
     // Error if the dry run failed to save gas
     if let IotaExecutionStatus::Failure { error } = effects.status {
-        return Err(anyhow::anyhow!(error));
+        bail!(error);
     }
 
     let tx_data = client
@@ -44,7 +45,7 @@ async fn main() -> Result<(), anyhow::Error> {
     println!("Transaction sent {}", transaction_response.digest);
     println!("Object changes:");
     for object_change in transaction_response.object_changes.unwrap() {
-        println!("{:?}", object_change);
+        println!("{object_change:?}");
     }
 
     Ok(())

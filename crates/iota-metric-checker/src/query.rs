@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use anyhow::anyhow;
+use anyhow::bail;
 use base64::{Engine, engine::general_purpose};
 use prometheus_http_query::Client;
 use reqwest::header::{AUTHORIZATION, HeaderValue};
@@ -38,9 +38,7 @@ pub async fn instant_query(
         debug!("Got value {}", first.sample().value());
         Ok(first.sample().value())
     } else {
-        Err(anyhow!(
-            "Did not get expected response from server for {query}"
-        ))
+        bail!("Did not get expected response from server for {query}")
     }
 }
 
@@ -74,9 +72,7 @@ pub async fn range_query(
         .unwrap_or_else(|| panic!("Expected result of type matrix for {query}"));
 
     if result.is_empty() {
-        return Err(anyhow!(
-            "Did not get expected response from server for {query}"
-        ));
+        bail!("Did not get expected response from server for {query}");
     }
 
     let mut samples: Vec<f64> = result
@@ -90,7 +86,7 @@ pub async fn range_query(
         })
         .collect();
     if samples.is_empty() {
-        return Err(anyhow!("Query returned zero data point! {query}"));
+        bail!("Query returned zero data point! {query}");
     }
     samples.sort_by(|a, b| a.partial_cmp(b).unwrap());
 

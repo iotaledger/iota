@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module verifies the usage of the "fake native" functions. These
@@ -18,7 +18,7 @@ use crate::{
     expansion::ast::{Address, ModuleIdent, ModuleIdent_},
     naming::ast as N,
     parser::ast::FunctionName,
-    shared::{known_attributes::NativeAttribute, Identifier},
+    shared::{Identifier, known_attributes::NativeAttribute},
 };
 
 /// verify fake native attribute usage usage

@@ -1,5 +1,90 @@
 # @iota/iota-sdk
 
+## 1.6.1
+
+### Patch Changes
+
+-   3244c29: Rename `parseIotaToNanos` util back to `parseAmount`
+
+## 1.6.0
+
+### Minor Changes
+
+-   bd17ba9: Add support for `IotaMoveNormalizedEnum` type
+
+### Patch Changes
+
+-   c5543f0: Add suggestedGasPrice optional field to dryRunTransaction response
+-   0accdb0: Add util to parse iota amount
+
+## 1.5.0
+
+### Minor Changes
+
+-   61b0944: Added support for WrappedOrDeletedObject in TransactionBlockFilter
+-   f008db3: Updated hex, base64, and base58 utility names for better consistency
+
+    All existing methods will continue to work, but the following methods have been deprecated and
+    replaced with methods with improved names:
+
+    -   `toHEX` -> `toHex`
+    -   `fromHEX` -> `fromHex`
+    -   `toB64` -> `toBase64`
+    -   `fromB64` -> `fromBase64`
+    -   `toB58` -> `toBase58`
+    -   `fromB58` -> `fromBase58`
+
+-   5bbafa8: add deriveDynamicFieldID util
+-   28ce666: Add new errors to ExecutionFailureStatus enum
+-   f008db3: support Bech32 secrets in the Keypair.fromSecretKey methods
+-   464c15a: Sync the APIs with the "Domain" -> "Name" rename of IotaNames
+
+### Patch Changes
+
+-   40576ed: Add balance formatting utils
+-   966f83c: Add data to result of executeTransaction methods on Transaction executor classes
+-   733df30: Add tx.object.option for creatnig object options in transaction builder
+-   13ca264: Allow 0 amounts with `coinWithBalance` intent when the wallet has no coin objects of
+    the required type.
+-   c855f8c: Require name to register global transaction plugins
+-   Updated dependencies [f008db3]
+    -   @iota/bcs@1.2.0
+
+## 1.4.0
+
+### Minor Changes
+
+-   f04033d: Export Owner BCS type
+-   ecea738: Improved logic around `fallbackMethods` in graphql-transport Introduced
+    `unsupportedMethods` in graphql-transport Improved IotaClient compatibility with
+    graphql-transport
+
+### Patch Changes
+
+-   59342b2: Renamed all instances of 'domain' to 'name' for IOTA-Names.
+-   Updated dependencies [f04033d]
+-   Updated dependencies [f04033d]
+-   Updated dependencies [f04033d]
+    -   @iota/bcs@1.1.0
+
+## 1.3.0
+
+### Minor Changes
+
+-   6051799: Add support for passkeys
+-   c837b79: Removed support for iota-bridge
+
+### Patch Changes
+
+-   5db9797: Add an util to trim addresses
+-   c4c6d9a: Export `getGraphQLUrl` correctly
+
+## 1.2.0
+
+### Minor Changes
+
+-   53d5058: Added iota names rpc methods to IotaClient and also GraphQL queries.
+
 ## 1.1.0
 
 ### Minor Changes

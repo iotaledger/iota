@@ -40,6 +40,8 @@ import {
 } from '@iota/apps-ui-kit';
 import { ampli } from '_src/shared/analytics/ampli';
 import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK, DISCORD_SUPPORT_LINK } from '@iota/core';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
+import { openInNewTab } from '_src/shared/utils';
 
 export function MenuList() {
     const { themePreference } = useTheme();
@@ -52,7 +54,9 @@ export function MenuList() {
     const networkConfig = network === Network.Custom ? getCustomNetwork() : getNetwork(network);
     const version = Browser.runtime.getManifest().version;
     const autoLockInterval = useAutoLockMinutes();
-    const isAppPopup = useAppSelector((state) => state.app.isAppViewPopup);
+    const isAppPopup = useAppSelector(
+        (state) => state.app.extensionViewType === ExtensionViewType.Popup,
+    );
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -92,10 +96,12 @@ export function MenuList() {
     }
 
     function onSupportClick() {
+        ampli.openedLink({ url: DISCORD_SUPPORT_LINK });
         window.open(DISCORD_SUPPORT_LINK, '_blank', 'noopener noreferrer');
     }
 
     function onFAQClick() {
+        ampli.openedLink({ url: FAQ_LINK });
         window.open(FAQ_LINK, '_blank', 'noopener noreferrer');
     }
 
@@ -128,8 +134,7 @@ export function MenuList() {
         {
             title: 'Expand View',
             icon: <Expand />,
-            onClick: () =>
-                window.open(window.location.href.split('?')[0], '_blank', 'noopener noreferrer'),
+            onClick: () => openInNewTab('/tokens'),
             hidden: !isAppPopup,
         },
         {
@@ -145,13 +150,13 @@ export function MenuList() {
     ];
 
     return (
-        <Overlay showModal title="Settings" closeOverlay={() => navigate('/')}>
+        <Overlay showModal title="Settings" closeOverlay={() => navigate('/tokens')}>
             <div className="flex h-full w-full flex-col justify-between">
                 <div className="flex flex-col">
                     {MENU_ITEMS.filter((item) => !item.hidden).map((item, index) => (
                         <Card key={index} type={CardType.Default} onClick={item.onClick}>
                             <CardImage type={ImageType.BgSolid}>
-                                <div className="flex h-10 w-10 items-center justify-center rounded-full  text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
+                                <div className="flex h-10 w-10 items-center justify-center rounded-full  text-iota-neutral-10 dark:text-iota-neutral-92 [&_svg]:h-5 [&_svg]:w-5">
                                     <span className="text-2xl">{item.icon}</span>
                                 </div>
                             </CardImage>
@@ -180,14 +185,14 @@ export function MenuList() {
                 <div className="flex flex-col gap-y-lg">
                     <FaucetRequestButton />
                     <div className="flex flex-row items-center justify-center gap-x-md">
-                        <span className="text-label-sm text-neutral-40 dark:text-neutral-60">
+                        <span className="text-label-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                             IOTA Wallet v{version}
                         </span>
                         <Link
                             to={ToS_LINK}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-label-sm text-primary-30 dark:text-primary-80"
+                            className="text-label-sm text-iota-primary-30 dark:text-iota-primary-80"
                         >
                             Terms of Service
                         </Link>

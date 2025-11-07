@@ -183,15 +183,15 @@ export type Address = IOwner & {
    */
   coins: CoinConnection;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * address.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
-   * The IotaNamesRegistration NFTs owned by this address. These grant the
-   * owner the capability to manage the associated domain.
+   * The NameRegistration NFTs owned by this address. These grant the
+   * owner the capability to manage the associated name.
    */
-  iotaNamesRegistrations: IotaNamesRegistrationConnection;
+  iotaNamesRegistrations: NameRegistrationConnection;
   /** Objects owned by this address, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /** The `0x3::staking_pool::StakedIota` objects owned by this address. */
@@ -268,7 +268,7 @@ export type AddressCoinsArgs = {
  * key).
  */
 export type AddressIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -477,16 +477,6 @@ export type BalanceEdge = {
   node: Balance;
 };
 
-export type BridgeCommitteeInitTransaction = {
-  __typename?: 'BridgeCommitteeInitTransaction';
-  bridgeObjInitialSharedVersion: Scalars['UInt53']['output'];
-};
-
-export type BridgeStateCreateTransaction = {
-  __typename?: 'BridgeStateCreateTransaction';
-  chainId: Scalars['String']['output'];
-};
-
 /**
  * A system transaction that updates epoch information on-chain (increments the
  * current epoch). Executed by the system once per epoch, without using gas.
@@ -561,6 +551,11 @@ export type ChangeEpochTransactionV2 = {
    * epoch (in NANOS).
    */
   computationChargeBurned: Scalars['BigInt']['output'];
+  /**
+   * The list of active validators eligible for committee selection for the
+   * next epoch.
+   */
+  eligibleActiveValidators?: Maybe<Array<Scalars['BigInt']['output']>>;
   /** The next (to become) epoch. */
   epoch?: Maybe<Epoch>;
   /**
@@ -786,15 +781,15 @@ export type Coin = IMoveObject & IObject & IOwner & {
    */
   dynamicObjectField?: Maybe<DynamicField>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
-   * The IotaNamesRegistration NFTs owned by this object. These grant the
-   * owner the capability to manage the associated domain.
+   * The NameRegistration NFTs owned by this object. These grant the
+   * owner the capability to manage the associated name.
    */
-  iotaNamesRegistrations: IotaNamesRegistrationConnection;
+  iotaNamesRegistrations: NameRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /** The owner type of this object: Immutable, Shared, Parent, Address */
@@ -833,14 +828,13 @@ export type Coin = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -901,7 +895,7 @@ export type CoinDynamicObjectFieldArgs = {
 
 /** Some 0x2::coin::Coin Move object. */
 export type CoinIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -1032,15 +1026,15 @@ export type CoinMetadata = IMoveObject & IObject & IOwner & {
   dynamicObjectField?: Maybe<DynamicField>;
   iconUrl?: Maybe<Scalars['String']['output']>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
-   * The IotaNamesRegistration NFTs owned by this object. These grant the
-   * owner the capability to manage the associated domain.
+   * The NameRegistration NFTs owned by this object. These grant the
+   * owner the capability to manage the associated name.
    */
-  iotaNamesRegistrations: IotaNamesRegistrationConnection;
+  iotaNamesRegistrations: NameRegistrationConnection;
   /** Full, official name of the token. */
   name?: Maybe<Scalars['String']['output']>;
   /** Objects owned by this object, optionally `filter`-ed. */
@@ -1081,14 +1075,13 @@ export type CoinMetadata = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -1153,7 +1146,7 @@ export type CoinMetadataDynamicObjectFieldArgs = {
 
 /** The metadata for a coin type. */
 export type CoinMetadataIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -1245,11 +1238,6 @@ export type DisplayEntry = {
   /** The template string for the key with placeholder values substituted. */
   value?: Maybe<Scalars['String']['output']>;
 };
-
-export enum DomainFormat {
-  At = 'AT',
-  Dot = 'DOT'
-}
 
 export type DryRunEffect = {
   __typename?: 'DryRunEffect';
@@ -1379,7 +1367,7 @@ export type EndOfEpochTransactionTransactionsArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
 };
 
-export type EndOfEpochTransactionKind = AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | BridgeCommitteeInitTransaction | BridgeStateCreateTransaction | ChangeEpochTransaction | ChangeEpochTransactionV2;
+export type EndOfEpochTransactionKind = AuthenticatorStateCreateTransaction | AuthenticatorStateExpireTransaction | ChangeEpochTransaction | ChangeEpochTransactionV2;
 
 export type EndOfEpochTransactionKindConnection = {
   __typename?: 'EndOfEpochTransactionKindConnection';
@@ -1513,7 +1501,12 @@ export type Epoch = {
    * epoch.
    */
   transactionBlocks: TransactionBlockConnection;
-  /** Validator related properties, including the active validators. */
+  /**
+   * Validator related properties, including the active validators.
+   *
+   * For epochs other than the current the data provided refer to the start
+   * of the epoch.
+   */
   validatorSet?: Maybe<ValidatorSet>;
 };
 
@@ -1892,7 +1885,16 @@ export type IObject = {
   previousTransactionBlock?: Maybe<TransactionBlock>;
   /** The transaction blocks that sent objects to this object. */
   receivedTransactionBlocks: TransactionBlockConnection;
-  /** The current status of the object as read from the off-chain store. The possible states are: NOT_INDEXED, the object is loaded from serialized data, such as the contents of a genesis or system package upgrade transaction. LIVE, the version returned is the most recent for the object, and it is not deleted or wrapped at that version. HISTORICAL, the object was referenced at a specific version or checkpoint, so is fetched from historical tables and may not be the latest version of the object. WRAPPED_OR_DELETED, the object is deleted or wrapped and only partial information can be loaded. */
+  /**
+   * The current status of the object as read from the off-chain store. The
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
+   */
   status: ObjectKind;
   storageRebate?: Maybe<Scalars['BigInt']['output']>;
   version: Scalars['UInt53']['output'];
@@ -1931,10 +1933,10 @@ export type IOwner = {
    * `type` is a filter on the coin's type parameter, defaulting to `0x2::iota::IOTA`.
    */
   coins: CoinConnection;
-  /** The domain explicitly configured as the default domain pointing to this object or address. */
+  /** The name explicitly configured as the default name pointing to this object or address. */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
-  /** The IotaNamesRegistration NFTs owned by this object or address. These grant the owner the capability to manage the associated domain. */
-  iotaNamesRegistrations: IotaNamesRegistrationConnection;
+  /** The NameRegistration NFTs owned by this object or address. These grant the owner the capability to manage the associated name. */
+  iotaNamesRegistrations: NameRegistrationConnection;
   /** Objects owned by this object or address, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /** The `0x3::staking_pool::StakedIota` objects owned by this object or address. */
@@ -1993,7 +1995,7 @@ export type IOwnerCoinsArgs = {
  * know which up-front.
  */
 export type IOwnerIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -2059,244 +2061,6 @@ export type Input = {
   __typename?: 'Input';
   /** Index of the programmable transaction block input (0-indexed). */
   ix: Scalars['Int']['output'];
-};
-
-export type IotaNamesRegistration = IMoveObject & IOwner & {
-  __typename?: 'IotaNamesRegistration';
-  address: Scalars['IotaAddress']['output'];
-  /**
-   * Total balance of all coins with marker type owned by this object. If
-   * type is not supplied, it defaults to `0x2::iota::IOTA`.
-   */
-  balance?: Maybe<Balance>;
-  /** The balances of all coin types owned by this object. */
-  balances: BalanceConnection;
-  /** The Base64-encoded BCS serialization of the object's content. */
-  bcs?: Maybe<Scalars['Base64']['output']>;
-  /**
-   * The coin objects for this object.
-   *
-   * `type` is a filter on the coin's type parameter, defaulting to
-   * `0x2::iota::IOTA`.
-   */
-  coins: CoinConnection;
-  /**
-   * Displays the contents of the Move object in a JSON string and through
-   * GraphQL types. Also provides the flat representation of the type
-   * signature, and the BCS of the corresponding data.
-   */
-  contents?: Maybe<MoveValue>;
-  /**
-   * 32-byte hash that identifies the object's contents, encoded as a Base58
-   * string.
-   */
-  digest?: Maybe<Scalars['String']['output']>;
-  /**
-   * The set of named templates defined on-chain for the type of this object,
-   * to be handled off-chain. The server substitutes data from the object
-   * into these templates to generate a display string per template.
-   */
-  display?: Maybe<Array<DisplayEntry>>;
-  /** Domain name of the IotaNamesRegistration object */
-  domain: Scalars['String']['output'];
-  /**
-   * Access a dynamic field on an object using its name. Names are arbitrary
-   * Move values whose type have `copy`, `drop`, and `store`, and are
-   * specified using their type, and their BCS contents, Base64 encoded.
-   *
-   * Dynamic fields on wrapped objects can be accessed by using the same API
-   * under the Owner type.
-   */
-  dynamicField?: Maybe<DynamicField>;
-  /**
-   * The dynamic fields and dynamic object fields on an object.
-   *
-   * Dynamic fields on wrapped objects can be accessed by using the same API
-   * under the Owner type.
-   */
-  dynamicFields: DynamicFieldConnection;
-  /**
-   * Access a dynamic object field on an object using its name. Names are
-   * arbitrary Move values whose type have `copy`, `drop`, and `store`,
-   * and are specified using their type, and their BCS contents, Base64
-   * encoded. The value of a dynamic object field can also be accessed
-   * off-chain directly via its address (e.g. using `Query.object`).
-   *
-   * Dynamic fields on wrapped objects can be accessed by using the same API
-   * under the Owner type.
-   */
-  dynamicObjectField?: Maybe<DynamicField>;
-  /**
-   * Determines whether a transaction can transfer this object, using the
-   * TransferObjects transaction command or
-   * `iota::transfer::public_transfer`, both of which require the object to
-   * have the `key` and `store` abilities.
-   */
-  hasPublicTransfer: Scalars['Boolean']['output'];
-  /**
-   * The domain explicitly configured as the default domain pointing to this
-   * object.
-   */
-  iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
-  /**
-   * The IotaNamesRegistration NFTs owned by this object. These grant the
-   * owner the capability to manage the associated domain.
-   */
-  iotaNamesRegistrations: IotaNamesRegistrationConnection;
-  /** Objects owned by this object, optionally `filter`-ed. */
-  objects: MoveObjectConnection;
-  /** The owner type of this object: Immutable, Shared, Parent, Address */
-  owner?: Maybe<ObjectOwner>;
-  /** The transaction block that created this version of the object. */
-  previousTransactionBlock?: Maybe<TransactionBlock>;
-  /**
-   * The transaction blocks that sent objects to this object.
-   *
-   * `scanLimit` restricts the number of candidate transactions scanned when
-   * gathering a page of results. It is required for queries that apply
-   * more than two complex filters (on function, kind, sender, recipient,
-   * input object, changed object, or ids), and can be at most
-   * `serviceConfig.maxScanLimit`.
-   *
-   * When the scan limit is reached the page will be returned even if it has
-   * fewer than `first` results when paginating forward (`last` when
-   * paginating backwards). If there are more transactions to scan,
-   * `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
-   * `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set
-   * to the last transaction that was scanned as opposed to the last (or
-   * first) transaction in the page.
-   *
-   * Requesting the next (or previous) page after this cursor will resume the
-   * search, scanning the next `scanLimit` many transactions in the
-   * direction of pagination, and so on until all transactions in the
-   * scanning range have been visited.
-   *
-   * By default, the scanning range includes all transactions known to
-   * GraphQL, but it can be restricted by the `after` and `before`
-   * cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
-   * `atCheckpoint` filters.
-   */
-  receivedTransactionBlocks: TransactionBlockConnection;
-  /** The `0x3::staking_pool::StakedIota` objects owned by this object. */
-  stakedIotas: StakedIotaConnection;
-  /**
-   * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
-   */
-  status: ObjectKind;
-  /**
-   * The amount of IOTA we would rebate if this object gets deleted or
-   * mutated. This number is recalculated based on the present storage
-   * gas price.
-   */
-  storageRebate?: Maybe<Scalars['BigInt']['output']>;
-  version: Scalars['UInt53']['output'];
-};
-
-
-export type IotaNamesRegistrationBalanceArgs = {
-  type?: InputMaybe<Scalars['String']['input']>;
-};
-
-
-export type IotaNamesRegistrationBalancesArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type IotaNamesRegistrationCoinsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-  type?: InputMaybe<Scalars['String']['input']>;
-};
-
-
-export type IotaNamesRegistrationDynamicFieldArgs = {
-  name: DynamicFieldName;
-};
-
-
-export type IotaNamesRegistrationDynamicFieldsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type IotaNamesRegistrationDynamicObjectFieldArgs = {
-  name: DynamicFieldName;
-};
-
-
-export type IotaNamesRegistrationIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
-};
-
-
-export type IotaNamesRegistrationIotaNamesRegistrationsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type IotaNamesRegistrationObjectsArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  filter?: InputMaybe<ObjectFilter>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type IotaNamesRegistrationReceivedTransactionBlocksArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  filter?: InputMaybe<TransactionBlockFilter>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-  scanLimit?: InputMaybe<Scalars['Int']['input']>;
-};
-
-
-export type IotaNamesRegistrationStakedIotasArgs = {
-  after?: InputMaybe<Scalars['String']['input']>;
-  before?: InputMaybe<Scalars['String']['input']>;
-  first?: InputMaybe<Scalars['Int']['input']>;
-  last?: InputMaybe<Scalars['Int']['input']>;
-};
-
-export type IotaNamesRegistrationConnection = {
-  __typename?: 'IotaNamesRegistrationConnection';
-  /** A list of edges. */
-  edges: Array<IotaNamesRegistrationEdge>;
-  /** A list of nodes. */
-  nodes: Array<IotaNamesRegistration>;
-  /** Information to aid in pagination. */
-  pageInfo: PageInfo;
-};
-
-/** An edge in a connection. */
-export type IotaNamesRegistrationEdge = {
-  __typename?: 'IotaNamesRegistrationEdge';
-  /** A cursor for use in pagination */
-  cursor: Scalars['String']['output'];
-  /** The item at the end of the edge */
-  node: IotaNamesRegistration;
 };
 
 /**
@@ -2681,7 +2445,7 @@ export type MoveModuleEdge = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObject = IMoveObject & IObject & IOwner & {
@@ -2691,7 +2455,7 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
   asCoin?: Maybe<Coin>;
   /** Attempts to convert the Move object into a `0x2::coin::CoinMetadata`. */
   asCoinMetadata?: Maybe<CoinMetadata>;
-  asIotaNamesRegistration?: Maybe<IotaNamesRegistration>;
+  asIotaNamesRegistration?: Maybe<NameRegistration>;
   /**
    * Attempts to convert the Move object into a
    * `0x3::staking_pool::StakedIota`.
@@ -2758,15 +2522,15 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
    */
   dynamicObjectField?: Maybe<DynamicField>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
-   * The IotaNamesRegistration NFTs owned by this object. These grant the
-   * owner the capability to manage the associated domain.
+   * The NameRegistration NFTs owned by this object. These grant the
+   * owner the capability to manage the associated name.
    */
-  iotaNamesRegistrations: IotaNamesRegistrationConnection;
+  iotaNamesRegistrations: NameRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /** The owner type of this object: Immutable, Shared, Parent, Address */
@@ -2805,14 +2569,13 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -2827,7 +2590,7 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectBalanceArgs = {
@@ -2837,7 +2600,7 @@ export type MoveObjectBalanceArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectBalancesArgs = {
@@ -2850,7 +2613,7 @@ export type MoveObjectBalancesArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectCoinsArgs = {
@@ -2864,7 +2627,7 @@ export type MoveObjectCoinsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicFieldArgs = {
@@ -2874,7 +2637,7 @@ export type MoveObjectDynamicFieldArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicFieldsArgs = {
@@ -2887,7 +2650,7 @@ export type MoveObjectDynamicFieldsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicObjectFieldArgs = {
@@ -2897,17 +2660,17 @@ export type MoveObjectDynamicObjectFieldArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectIotaNamesRegistrationsArgs = {
@@ -2920,7 +2683,7 @@ export type MoveObjectIotaNamesRegistrationsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectObjectsArgs = {
@@ -2934,7 +2697,7 @@ export type MoveObjectObjectsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectReceivedTransactionBlocksArgs = {
@@ -2949,7 +2712,7 @@ export type MoveObjectReceivedTransactionBlocksArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectStakedIotasArgs = {
@@ -3019,18 +2782,18 @@ export type MovePackage = IObject & IOwner & {
    */
   digest?: Maybe<Scalars['String']['output']>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
-   * The IotaNamesRegistration NFTs owned by this package. These grant the
-   * owner the capability to manage the associated domain.
+   * The NameRegistration NFTs owned by this package. These grant the
+   * owner the capability to manage the associated name.
    *
    * Note that objects owned by a package are inaccessible, because packages
    * are immutable and cannot be owned by an address.
    */
-  iotaNamesRegistrations: IotaNamesRegistrationConnection;
+  iotaNamesRegistrations: NameRegistrationConnection;
   /**
    * Fetch the latest version of this package (the package with the highest
    * `version` that shares this packages's original ID)
@@ -3115,14 +2878,13 @@ export type MovePackage = IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -3183,7 +2945,7 @@ export type MovePackageCoinsArgs = {
  * definitions, functions, and dependencies.
  */
 export type MovePackageIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -3391,9 +3153,15 @@ export type MoveStructTypeParameter = {
 /** Represents concrete types (no type parameters, no references). */
 export type MoveType = {
   __typename?: 'MoveType';
-  /** The abilities this concrete type has. */
+  /**
+   * The abilities this concrete type has. Returns no abilities if the type
+   * is invalid.
+   */
   abilities: Array<MoveAbility>;
-  /** Structured representation of the "shape" of values that match this type. */
+  /**
+   * Structured representation of the "shape" of values that match this type.
+   * May return MoveTypeLayout::InvalidType for malformed types.
+   */
   layout: Scalars['MoveTypeLayout']['output'];
   /** Flat representation of the type signature, as a displayable string. */
   repr: Scalars['String']['output'];
@@ -3425,6 +3193,23 @@ export type MoveValue = {
   json: Scalars['JSON']['output'];
   /** The value's Move type. */
   type: MoveType;
+};
+
+/**
+ * The result of a move-view function call.
+ *
+ * Execution errors are captured in the `error` field, in which
+ * case the `results` field will be `None`.
+ *
+ * On success, the `results` field will contain the return values of the
+ * move view function, and the `error` field will be `None`.
+ */
+export type MoveViewResult = {
+  __typename?: 'MoveViewResult';
+  /** Execution error from executing the move view call. */
+  error?: Maybe<Scalars['String']['output']>;
+  /** The return values of the move view function. */
+  results?: Maybe<Array<Scalars['JSON']['output']>>;
 };
 
 /**
@@ -3461,13 +3246,13 @@ export type Mutation = {
    * that was not possible. A transaction is final when its effects are
    * guaranteed on chain (it cannot be revoked).
    *
-   * There may be a delay between transaction finality and when GraphQL
-   * requests (including the request that issued the transaction) reflect
-   * its effects. As a result, queries that depend on indexing the state
-   * of the chain (e.g. contents of output objects, address-level balance
-   * information at the time of the transaction), must wait for indexing to
-   * catch up by polling for the transaction digest using
-   * `Query.transactionBlock`.
+   * Transaction effects are now available immediately after execution
+   * through `Query.transactionBlock`. However, other queries that depend
+   * on the chain’s indexed state (e.g., address-level balance updates)
+   * may still lag until the transaction has been checkpointed.
+   * To confirm that a transaction has been included in a checkpoint, query
+   * `Query.transactionBlock` and check whether the `effects.checkpoint`
+   * field is set (or `null` if not yet checkpointed).
    */
   executeTransactionBlock: ExecutionResult;
 };
@@ -3477,6 +3262,248 @@ export type Mutation = {
 export type MutationExecuteTransactionBlockArgs = {
   signatures: Array<Scalars['String']['input']>;
   txBytes: Scalars['String']['input'];
+};
+
+export enum NameFormat {
+  At = 'AT',
+  Dot = 'DOT'
+}
+
+export type NameRegistration = IMoveObject & IOwner & {
+  __typename?: 'NameRegistration';
+  address: Scalars['IotaAddress']['output'];
+  /**
+   * Total balance of all coins with marker type owned by this object. If
+   * type is not supplied, it defaults to `0x2::iota::IOTA`.
+   */
+  balance?: Maybe<Balance>;
+  /** The balances of all coin types owned by this object. */
+  balances: BalanceConnection;
+  /** The Base64-encoded BCS serialization of the object's content. */
+  bcs?: Maybe<Scalars['Base64']['output']>;
+  /**
+   * The coin objects for this object.
+   *
+   * `type` is a filter on the coin's type parameter, defaulting to
+   * `0x2::iota::IOTA`.
+   */
+  coins: CoinConnection;
+  /**
+   * Displays the contents of the Move object in a JSON string and through
+   * GraphQL types. Also provides the flat representation of the type
+   * signature, and the BCS of the corresponding data.
+   */
+  contents?: Maybe<MoveValue>;
+  /**
+   * 32-byte hash that identifies the object's contents, encoded as a Base58
+   * string.
+   */
+  digest?: Maybe<Scalars['String']['output']>;
+  /**
+   * The set of named templates defined on-chain for the type of this object,
+   * to be handled off-chain. The server substitutes data from the object
+   * into these templates to generate a display string per template.
+   */
+  display?: Maybe<Array<DisplayEntry>>;
+  /**
+   * Access a dynamic field on an object using its name. Names are arbitrary
+   * Move values whose type have `copy`, `drop`, and `store`, and are
+   * specified using their type, and their BCS contents, Base64 encoded.
+   *
+   * Dynamic fields on wrapped objects can be accessed by using the same API
+   * under the Owner type.
+   */
+  dynamicField?: Maybe<DynamicField>;
+  /**
+   * The dynamic fields and dynamic object fields on an object.
+   *
+   * Dynamic fields on wrapped objects can be accessed by using the same API
+   * under the Owner type.
+   */
+  dynamicFields: DynamicFieldConnection;
+  /**
+   * Access a dynamic object field on an object using its name. Names are
+   * arbitrary Move values whose type have `copy`, `drop`, and `store`,
+   * and are specified using their type, and their BCS contents, Base64
+   * encoded. The value of a dynamic object field can also be accessed
+   * off-chain directly via its address (e.g. using `Query.object`).
+   *
+   * Dynamic fields on wrapped objects can be accessed by using the same API
+   * under the Owner type.
+   */
+  dynamicObjectField?: Maybe<DynamicField>;
+  /**
+   * Determines whether a transaction can transfer this object, using the
+   * TransferObjects transaction command or
+   * `iota::transfer::public_transfer`, both of which require the object to
+   * have the `key` and `store` abilities.
+   */
+  hasPublicTransfer: Scalars['Boolean']['output'];
+  /**
+   * The name explicitly configured as the default name pointing to this
+   * object.
+   */
+  iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
+  /**
+   * The NameRegistration NFTs owned by this object. These grant the
+   * owner the capability to manage the associated name.
+   */
+  iotaNamesRegistrations: NameRegistrationConnection;
+  /** Name of the NameRegistration object */
+  name: Scalars['String']['output'];
+  /** Objects owned by this object, optionally `filter`-ed. */
+  objects: MoveObjectConnection;
+  /** The owner type of this object: Immutable, Shared, Parent, Address */
+  owner?: Maybe<ObjectOwner>;
+  /** The transaction block that created this version of the object. */
+  previousTransactionBlock?: Maybe<TransactionBlock>;
+  /**
+   * The transaction blocks that sent objects to this object.
+   *
+   * `scanLimit` restricts the number of candidate transactions scanned when
+   * gathering a page of results. It is required for queries that apply
+   * more than two complex filters (on function, kind, sender, recipient,
+   * input object, changed object, or ids), and can be at most
+   * `serviceConfig.maxScanLimit`.
+   *
+   * When the scan limit is reached the page will be returned even if it has
+   * fewer than `first` results when paginating forward (`last` when
+   * paginating backwards). If there are more transactions to scan,
+   * `pageInfo.hasNextPage` (or `pageInfo.hasPreviousPage`) will be set to
+   * `true`, and `PageInfo.endCursor` (or `PageInfo.startCursor`) will be set
+   * to the last transaction that was scanned as opposed to the last (or
+   * first) transaction in the page.
+   *
+   * Requesting the next (or previous) page after this cursor will resume the
+   * search, scanning the next `scanLimit` many transactions in the
+   * direction of pagination, and so on until all transactions in the
+   * scanning range have been visited.
+   *
+   * By default, the scanning range includes all transactions known to
+   * GraphQL, but it can be restricted by the `after` and `before`
+   * cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
+   * `atCheckpoint` filters.
+   */
+  receivedTransactionBlocks: TransactionBlockConnection;
+  /** The `0x3::staking_pool::StakedIota` objects owned by this object. */
+  stakedIotas: StakedIotaConnection;
+  /**
+   * The current status of the object as read from the off-chain store. The
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
+   */
+  status: ObjectKind;
+  /**
+   * The amount of IOTA we would rebate if this object gets deleted or
+   * mutated. This number is recalculated based on the present storage
+   * gas price.
+   */
+  storageRebate?: Maybe<Scalars['BigInt']['output']>;
+  version: Scalars['UInt53']['output'];
+};
+
+
+export type NameRegistrationBalanceArgs = {
+  type?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type NameRegistrationBalancesArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type NameRegistrationCoinsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  type?: InputMaybe<Scalars['String']['input']>;
+};
+
+
+export type NameRegistrationDynamicFieldArgs = {
+  name: DynamicFieldName;
+};
+
+
+export type NameRegistrationDynamicFieldsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type NameRegistrationDynamicObjectFieldArgs = {
+  name: DynamicFieldName;
+};
+
+
+export type NameRegistrationIotaNamesDefaultNameArgs = {
+  format?: InputMaybe<NameFormat>;
+};
+
+
+export type NameRegistrationIotaNamesRegistrationsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type NameRegistrationObjectsArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  filter?: InputMaybe<ObjectFilter>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type NameRegistrationReceivedTransactionBlocksArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  filter?: InputMaybe<TransactionBlockFilter>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+  scanLimit?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type NameRegistrationStakedIotasArgs = {
+  after?: InputMaybe<Scalars['String']['input']>;
+  before?: InputMaybe<Scalars['String']['input']>;
+  first?: InputMaybe<Scalars['Int']['input']>;
+  last?: InputMaybe<Scalars['Int']['input']>;
+};
+
+export type NameRegistrationConnection = {
+  __typename?: 'NameRegistrationConnection';
+  /** A list of edges. */
+  edges: Array<NameRegistrationEdge>;
+  /** A list of nodes. */
+  nodes: Array<NameRegistration>;
+  /** Information to aid in pagination. */
+  pageInfo: PageInfo;
+};
+
+/** An edge in a connection. */
+export type NameRegistrationEdge = {
+  __typename?: 'NameRegistrationEdge';
+  /** A cursor for use in pagination */
+  cursor: Scalars['String']['output'];
+  /** The item at the end of the edge */
+  node: NameRegistration;
 };
 
 /**
@@ -3547,15 +3574,15 @@ export type Object = IObject & IOwner & {
    */
   dynamicObjectField?: Maybe<DynamicField>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * address.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
-   * The IotaNamesRegistration NFTs owned by this address. These grant the
-   * owner the capability to manage the associated domain.
+   * The NameRegistration NFTs owned by this address. These grant the
+   * owner the capability to manage the associated name.
    */
-  iotaNamesRegistrations: IotaNamesRegistrationConnection;
+  iotaNamesRegistrations: NameRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /**
@@ -3597,14 +3624,13 @@ export type Object = IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -3700,7 +3726,7 @@ export type ObjectDynamicObjectFieldArgs = {
  * be accessed.
  */
 export type ObjectIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -3962,15 +3988,15 @@ export type Owner = IOwner & {
    */
   dynamicObjectField?: Maybe<DynamicField>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object or address.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
-   * The IotaNamesRegistration NFTs owned by this object or address. These
-   * grant the owner the capability to manage the associated domain.
+   * The NameRegistration NFTs owned by this object or address. These
+   * grant the owner the capability to manage the associated name.
    */
-  iotaNamesRegistrations: IotaNamesRegistrationConnection;
+  iotaNamesRegistrations: NameRegistrationConnection;
   /** Objects owned by this object or address, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /**
@@ -4064,7 +4090,7 @@ export type OwnerDynamicObjectFieldArgs = {
  * whether a given Owner is an Address or an Object).
  */
 export type OwnerIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -4343,6 +4369,8 @@ export type Query = {
    * error.
    */
   events: EventConnection;
+  /** Check if a transaction is indexed on the fullnode. */
+  isTransactionIndexedOnNode: Scalars['Boolean']['output'];
   /**
    * The latest version of the package at `address`.
    *
@@ -4350,6 +4378,7 @@ export type Query = {
    * its original ID with the package at `address`.
    */
   latestPackage?: Maybe<MovePackage>;
+  moveViewCall: MoveViewResult;
   /**
    * The object corresponding to the given address at the (optionally) given
    * version. When no version is given, the latest version is returned.
@@ -4418,7 +4447,7 @@ export type Query = {
    */
   protocolConfig: ProtocolConfigs;
   /**
-   * Resolves an IOTA-Names `domain` name to an address, if it has been
+   * Resolves an IOTA-Names `name` to an address, if it has been
    * bound.
    */
   resolveIotaNamesAddress?: Maybe<Address>;
@@ -4532,8 +4561,20 @@ export type QueryEventsArgs = {
 };
 
 
+export type QueryIsTransactionIndexedOnNodeArgs = {
+  digest: Scalars['String']['input'];
+};
+
+
 export type QueryLatestPackageArgs = {
   address: Scalars['IotaAddress']['input'];
+};
+
+
+export type QueryMoveViewCallArgs = {
+  arguments?: InputMaybe<Array<Scalars['JSON']['input']>>;
+  functionName: Scalars['String']['input'];
+  typeArgs?: InputMaybe<Array<Scalars['String']['input']>>;
 };
 
 
@@ -4589,7 +4630,7 @@ export type QueryProtocolConfigArgs = {
 
 
 export type QueryResolveIotaNamesAddressArgs = {
-  domain: Scalars['String']['input'];
+  name: Scalars['String']['input'];
 };
 
 
@@ -4785,7 +4826,7 @@ export type Shared = {
 export type SharedInput = {
   __typename?: 'SharedInput';
   address: Scalars['IotaAddress']['output'];
-  /** The version that this this object was shared at. */
+  /** The version at which this object was shared.​ */
   initialSharedVersion: Scalars['UInt53']['output'];
   /**
    * Controls whether the transaction block can reference the shared object
@@ -4955,15 +4996,15 @@ export type StakedIota = IMoveObject & IObject & IOwner & {
    */
   estimatedReward?: Maybe<Scalars['BigInt']['output']>;
   /**
-   * The domain explicitly configured as the default domain pointing to this
+   * The name explicitly configured as the default name pointing to this
    * object.
    */
   iotaNamesDefaultName?: Maybe<Scalars['String']['output']>;
   /**
-   * The IotaNamesRegistration NFTs owned by this object. These grant the
-   * owner the capability to manage the associated domain.
+   * The NameRegistration NFTs owned by this object. These grant the
+   * owner the capability to manage the associated name.
    */
-  iotaNamesRegistrations: IotaNamesRegistrationConnection;
+  iotaNamesRegistrations: NameRegistrationConnection;
   /** Objects owned by this object, optionally `filter`-ed. */
   objects: MoveObjectConnection;
   /** The owner type of this object: Immutable, Shared, Parent, Address */
@@ -5010,14 +5051,13 @@ export type StakedIota = IMoveObject & IObject & IOwner & {
   stakedIotas: StakedIotaConnection;
   /**
    * The current status of the object as read from the off-chain store. The
-   * possible states are: NOT_INDEXED, the object is loaded from
-   * serialized data, such as the contents of a genesis or system package
-   * upgrade transaction. LIVE, the version returned is the most recent for
-   * the object, and it is not deleted or wrapped at that version.
-   * HISTORICAL, the object was referenced at a specific version or
-   * checkpoint, so is fetched from historical tables and may not be the
-   * latest version of the object. WRAPPED_OR_DELETED, the object is deleted
-   * or wrapped and only partial information can be loaded."
+   * possible states are:
+   * - NOT_INDEXED: The object is loaded from serialized data, such as the
+   * contents of a genesis or system package upgrade transaction.
+   * - INDEXED: The object is retrieved from the off-chain index and
+   * represents the most recent or historical state of the object.
+   * - WRAPPED_OR_DELETED: The object is deleted or wrapped and only partial
+   * information can be loaded.
    */
   status: ObjectKind;
   /**
@@ -5078,7 +5118,7 @@ export type StakedIotaDynamicObjectFieldArgs = {
 
 /** Represents a `0x3::staking_pool::StakedIota` Move object on-chain. */
 export type StakedIotaIotaNamesDefaultNameArgs = {
-  format?: InputMaybe<DomainFormat>;
+  format?: InputMaybe<NameFormat>;
 };
 
 
@@ -5147,7 +5187,7 @@ export type StorageFund = {
    * storage rebates.
    *
    * The system maintains an invariant that the sum of all storage fees into
-   * the storage fund is equal to the sum of of all storage rebates out,
+   * the storage fund is equal to the sum of all storage rebates out,
    * the total storage rebates remaining, and the non-refundable balance.
    */
   nonRefundableBalance?: Maybe<Scalars['BigInt']['output']>;
@@ -5222,6 +5262,21 @@ export type TransactionBlock = {
    * transaction block is a sponsored transaction block.
    */
   gasInput?: Maybe<GasInput>;
+  /**
+   * Returns whether the transaction has been indexed on the fullnode.
+   *
+   * This makes a request to the fullnode if the transaction is not part of
+   * a checkpoint to resolve the index status on the node.
+   *
+   * However, as this relies on the transaction data being already
+   * constructed or fetched from the backing database, it only makes
+   * sense to be used with `Mutation.executeTransactionBlock` on the
+   * resulting effects.
+   *
+   * Otherwise, it is recommended that you use
+   * `Query.isTransactionIndexedOnNode` for optimal performance.
+   */
+  indexedOnNode?: Maybe<Scalars['Boolean']['output']>;
   /**
    * The type of this transaction as well as the commands and/or parameters
    * comprising the transaction of this kind.
@@ -5369,6 +5424,7 @@ export type TransactionBlockFilter = {
   recvAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
   signAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
   transactionIds?: InputMaybe<Array<Scalars['String']['input']>>;
+  wrappedOrDeletedObject?: InputMaybe<Scalars['IotaAddress']['input']>;
 };
 
 /**
@@ -5565,14 +5621,17 @@ export type Validator = {
   operationCap?: Maybe<MoveObject>;
   /**
    * Pending pool token withdrawn during the current epoch, emptied at epoch
-   * boundaries.
+   * boundaries. Zero for past epochs.
    */
   pendingPoolTokenWithdraw?: Maybe<Scalars['BigInt']['output']>;
-  /** Pending stake amount for this epoch. */
+  /**
+   * Pending stake amount for the current epoch, emptied at epoch boundaries.
+   * Zero for past epochs.
+   */
   pendingStake?: Maybe<Scalars['BigInt']['output']>;
   /**
    * Pending stake withdrawn during the current epoch, emptied at epoch
-   * boundaries.
+   * boundaries. Zero for past epochs.
    */
   pendingTotalIotaWithdraw?: Maybe<Scalars['BigInt']['output']>;
   /** Total number of pool tokens issued by the pool. */
@@ -5727,7 +5786,7 @@ export type GetCheckpointQueryVariables = Exact<{
 }>;
 
 
-export type GetCheckpointQuery = { __typename?: 'Query', checkpoint?: { __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'BridgeCommitteeInitTransaction' } | { __typename: 'BridgeStateCreateTransaction' } | { __typename: 'ChangeEpochTransaction' } | { __typename: 'ChangeEpochTransactionV2', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } } | null };
+export type GetCheckpointQuery = { __typename?: 'Query', checkpoint?: { __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'ChangeEpochTransaction' } | { __typename: 'ChangeEpochTransactionV2', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } } | null };
 
 export type GetCheckpointsQueryVariables = Exact<{
   first?: InputMaybe<Scalars['Int']['input']>;
@@ -5737,7 +5796,7 @@ export type GetCheckpointsQueryVariables = Exact<{
 }>;
 
 
-export type GetCheckpointsQuery = { __typename?: 'Query', checkpoints: { __typename?: 'CheckpointConnection', pageInfo: { __typename?: 'PageInfo', startCursor?: string | null, endCursor?: string | null, hasNextPage: boolean, hasPreviousPage: boolean }, nodes: Array<{ __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'BridgeCommitteeInitTransaction' } | { __typename: 'BridgeStateCreateTransaction' } | { __typename: 'ChangeEpochTransaction' } | { __typename: 'ChangeEpochTransactionV2', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } }> } };
+export type GetCheckpointsQuery = { __typename?: 'Query', checkpoints: { __typename?: 'CheckpointConnection', pageInfo: { __typename?: 'PageInfo', startCursor?: string | null, endCursor?: string | null, hasNextPage: boolean, hasPreviousPage: boolean }, nodes: Array<{ __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'ChangeEpochTransaction' } | { __typename: 'ChangeEpochTransactionV2', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } }> } };
 
 export type PaginateCheckpointTransactionBlocksQueryVariables = Exact<{
   id?: InputMaybe<CheckpointId>;
@@ -5747,7 +5806,7 @@ export type PaginateCheckpointTransactionBlocksQueryVariables = Exact<{
 
 export type PaginateCheckpointTransactionBlocksQuery = { __typename?: 'Query', checkpoint?: { __typename?: 'Checkpoint', transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> } } | null };
 
-export type Rpc_Checkpoint_FieldsFragment = { __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'BridgeCommitteeInitTransaction' } | { __typename: 'BridgeStateCreateTransaction' } | { __typename: 'ChangeEpochTransaction' } | { __typename: 'ChangeEpochTransactionV2', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } };
+export type Rpc_Checkpoint_FieldsFragment = { __typename?: 'Checkpoint', digest: string, networkTotalTransactions?: any | null, previousCheckpointDigest?: string | null, sequenceNumber: any, timestamp: any, validatorSignatures: any, epoch?: { __typename?: 'Epoch', epochId: any } | null, rollingGasSummary?: { __typename?: 'GasCostSummary', computationCost?: any | null, computationCostBurned?: any | null, storageCost?: any | null, storageRebate?: any | null, nonRefundableStorageFee?: any | null } | null, transactionBlocks: { __typename?: 'TransactionBlockConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'TransactionBlock', digest?: string | null }> }, endOfEpoch: { __typename?: 'TransactionBlockConnection', nodes: Array<{ __typename?: 'TransactionBlock', kind?: { __typename: 'AuthenticatorStateUpdateTransaction' } | { __typename: 'ConsensusCommitPrologueTransaction' } | { __typename: 'EndOfEpochTransaction', transactions: { __typename?: 'EndOfEpochTransactionKindConnection', nodes: Array<{ __typename: 'AuthenticatorStateCreateTransaction' } | { __typename: 'AuthenticatorStateExpireTransaction' } | { __typename: 'ChangeEpochTransaction' } | { __typename: 'ChangeEpochTransactionV2', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> }, committeeMembers: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', votingPower?: number | null, credentials?: { __typename?: 'ValidatorCredentials', authorityPubKey?: any | null } | null }> } } | null, protocolConfigs: { __typename?: 'ProtocolConfigs', protocolVersion: any } } | null }> } } | { __typename: 'GenesisTransaction' } | { __typename: 'ProgrammableTransactionBlock' } | { __typename: 'RandomnessStateUpdateTransaction' } | null }> } };
 
 export type DevInspectTransactionBlockQueryVariables = Exact<{
   txBytes: Scalars['String']['input'];
@@ -5867,10 +5926,17 @@ export type GetTypeLayoutQuery = { __typename?: 'Query', type: { __typename?: 'M
 export type GetDynamicFieldObjectQueryVariables = Exact<{
   parentId: Scalars['IotaAddress']['input'];
   name: DynamicFieldName;
+  showBcs?: InputMaybe<Scalars['Boolean']['input']>;
+  showContent?: InputMaybe<Scalars['Boolean']['input']>;
+  showDisplay?: InputMaybe<Scalars['Boolean']['input']>;
+  showType?: InputMaybe<Scalars['Boolean']['input']>;
+  showOwner?: InputMaybe<Scalars['Boolean']['input']>;
+  showPreviousTransaction?: InputMaybe<Scalars['Boolean']['input']>;
+  showStorageRebate?: InputMaybe<Scalars['Boolean']['input']>;
 }>;
 
 
-export type GetDynamicFieldObjectQuery = { __typename?: 'Query', owner?: { __typename?: 'Owner', dynamicObjectField?: { __typename?: 'DynamicField', value?: { __typename: 'MoveObject', owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any, digest?: string | null, version: any, storageRebate?: any | null, owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any } | null } | { __typename: 'Shared' } | null, previousTransactionBlock?: { __typename?: 'TransactionBlock', digest?: string | null } | null, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', data: any, type: { __typename?: 'MoveType', repr: string, layout: any } } | null } | null } | null } | { __typename: 'Shared' } | null } | { __typename: 'MoveValue' } | null } | null } | null };
+export type GetDynamicFieldObjectQuery = { __typename?: 'Query', owner?: { __typename?: 'Owner', dynamicObjectField?: { __typename?: 'DynamicField', value?: { __typename: 'MoveObject', owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any, digest?: string | null, version: any, storageRebate?: any | null, display?: Array<{ __typename?: 'DisplayEntry', key: string, value?: string | null, error?: string | null }> | null, owner?: { __typename: 'AddressOwner' } | { __typename: 'Immutable' } | { __typename: 'Parent', parent?: { __typename?: 'Object', address: any } | null } | { __typename: 'Shared' } | null, previousTransactionBlock?: { __typename?: 'TransactionBlock', digest?: string | null } | null, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', data: any, type: { __typename?: 'MoveType', repr: string, layout: any, signature: any } } | null } | null } | null } | { __typename: 'Shared' } | null } | { __typename: 'MoveValue' } | null } | null } | null };
 
 export type GetDynamicFieldsQueryVariables = Exact<{
   parentId: Scalars['IotaAddress']['input'];
@@ -5982,6 +6048,29 @@ export type GetValidatorsApyQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type GetValidatorsApyQuery = { __typename?: 'Query', epoch?: { __typename?: 'Epoch', epochId: any, validatorSet?: { __typename?: 'ValidatorSet', activeValidators: { __typename?: 'ValidatorConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Validator', apy?: number | null, address: { __typename?: 'Address', address: any } }> } } | null } | null };
+
+export type ResolveNameServiceAddressQueryVariables = Exact<{
+  name: Scalars['String']['input'];
+}>;
+
+
+export type ResolveNameServiceAddressQuery = { __typename?: 'Query', resolveIotaNamesAddress?: { __typename?: 'Address', address: any } | null };
+
+export type ResolveNameServiceNamesQueryVariables = Exact<{
+  address: Scalars['IotaAddress']['input'];
+  limit?: InputMaybe<Scalars['Int']['input']>;
+  cursor?: InputMaybe<Scalars['String']['input']>;
+}>;
+
+
+export type ResolveNameServiceNamesQuery = { __typename?: 'Query', address?: { __typename?: 'Address', iotaNamesRegistrations: { __typename?: 'NameRegistrationConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'NameRegistration', name: string }> } } | null };
+
+export type IsTransactionIndexedOnNodeQueryVariables = Exact<{
+  digest: Scalars['String']['input'];
+}>;
+
+
+export type IsTransactionIndexedOnNodeQuery = { __typename?: 'Query', isTransactionIndexedOnNode: boolean };
 
 export type GetOwnedObjectsQueryVariables = Exact<{
   owner: Scalars['IotaAddress']['input'];
@@ -6156,6 +6245,15 @@ export type PaginateTransactionBlockListsQuery = { __typename?: 'Query', transac
 export type Paginate_Transaction_ListsFragment = { __typename?: 'TransactionBlock', effects?: { __typename?: 'TransactionBlockEffects', events?: { __typename?: 'EventConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Event', json: any, bcs: any, timestamp?: any | null, sendingModule?: { __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } } | null, sender?: { __typename?: 'Address', address: any } | null, type: { __typename?: 'MoveType', repr: string } }> }, balanceChanges?: { __typename?: 'BalanceChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'BalanceChange', amount?: any | null, coinType?: { __typename?: 'MoveType', repr: string } | null, owner?: { __typename?: 'Owner', asObject?: { __typename?: 'Object', address: any } | null, asAddress?: { __typename?: 'Address', address: any } | null } | null }> }, objectChanges?: { __typename?: 'ObjectChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'ObjectChange', address: any, inputState?: { __typename?: 'Object', version: any, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null } | null, outputState?: { __typename?: 'Object', asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null, asMovePackage?: { __typename?: 'MovePackage', modules?: { __typename?: 'MoveModuleConnection', nodes: Array<{ __typename?: 'MoveModule', name: string }> } | null } | null } | null }> } } | null };
 
 export type Rpc_Transaction_FieldsFragment = { __typename?: 'TransactionBlock', digest?: string | null, signatures?: Array<any> | null, rawTransaction?: any | null, sender?: { __typename?: 'Address', address: any } | null, effects?: { __typename?: 'TransactionBlockEffects', bcs?: any, timestamp?: any | null, events?: { __typename?: 'EventConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Event', json: any, bcs: any, timestamp?: any | null, sendingModule?: { __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } } | null, sender?: { __typename?: 'Address', address: any } | null, type: { __typename?: 'MoveType', repr: string } }> }, checkpoint?: { __typename?: 'Checkpoint', sequenceNumber: any } | null, balanceChanges?: { __typename?: 'BalanceChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'BalanceChange', amount?: any | null, coinType?: { __typename?: 'MoveType', repr: string } | null, owner?: { __typename?: 'Owner', asObject?: { __typename?: 'Object', address: any } | null, asAddress?: { __typename?: 'Address', address: any } | null } | null }> }, objectChanges?: { __typename?: 'ObjectChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'ObjectChange', address: any, inputState?: { __typename?: 'Object', version: any, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null } | null, outputState?: { __typename?: 'Object', asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null, asMovePackage?: { __typename?: 'MovePackage', modules?: { __typename?: 'MoveModuleConnection', nodes: Array<{ __typename?: 'MoveModule', name: string }> } | null } | null } | null }> } } | null };
+
+export type ViewQueryVariables = Exact<{
+  functionName: Scalars['String']['input'];
+  typeArgs?: InputMaybe<Array<Scalars['String']['input']> | Scalars['String']['input']>;
+  arguments?: InputMaybe<Array<Scalars['JSON']['input']> | Scalars['JSON']['input']>;
+}>;
+
+
+export type ViewQuery = { __typename?: 'Query', moveViewCall: { __typename?: 'MoveViewResult', error?: string | null, results?: Array<any> | null } };
 
 export class TypedDocumentString<TResult, TVariables>
   extends String
@@ -7586,7 +7684,7 @@ export const GetTypeLayoutDocument = new TypedDocumentString(`
 }
     `) as unknown as TypedDocumentString<GetTypeLayoutQuery, GetTypeLayoutQueryVariables>;
 export const GetDynamicFieldObjectDocument = new TypedDocumentString(`
-    query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!) {
+    query getDynamicFieldObject($parentId: IotaAddress!, $name: DynamicFieldName!, $showBcs: Boolean = false, $showContent: Boolean = false, $showDisplay: Boolean = false, $showType: Boolean = false, $showOwner: Boolean = false, $showPreviousTransaction: Boolean = false, $showStorageRebate: Boolean = false) {
   owner(address: $parentId) {
     dynamicObjectField(name: $name) {
       value {
@@ -7599,8 +7697,13 @@ export const GetDynamicFieldObjectDocument = new TypedDocumentString(`
                 address
                 digest
                 version
-                storageRebate
-                owner {
+                display @include(if: $showDisplay) {
+                  key
+                  value
+                  error
+                }
+                storageRebate @include(if: $showStorageRebate)
+                owner @include(if: $showOwner) {
                   __typename
                   ... on Parent {
                     parent {
@@ -7608,10 +7711,27 @@ export const GetDynamicFieldObjectDocument = new TypedDocumentString(`
                     }
                   }
                 }
-                previousTransactionBlock {
+                previousTransactionBlock @include(if: $showPreviousTransaction) {
                   digest
                 }
-                asMoveObject {
+                asMoveObject @include(if: $showType) {
+                  contents {
+                    type {
+                      repr
+                    }
+                  }
+                }
+                asMoveObject @include(if: $showContent) {
+                  contents {
+                    data
+                    type {
+                      repr
+                      layout
+                      signature
+                    }
+                  }
+                }
+                asMoveObject @include(if: $showBcs) {
                   contents {
                     data
                     type {
@@ -8150,6 +8270,33 @@ export const GetValidatorsApyDocument = new TypedDocumentString(`
   }
 }
     `) as unknown as TypedDocumentString<GetValidatorsApyQuery, GetValidatorsApyQueryVariables>;
+export const ResolveNameServiceAddressDocument = new TypedDocumentString(`
+    query resolveNameServiceAddress($name: String!) {
+  resolveIotaNamesAddress(name: $name) {
+    address
+  }
+}
+    `) as unknown as TypedDocumentString<ResolveNameServiceAddressQuery, ResolveNameServiceAddressQueryVariables>;
+export const ResolveNameServiceNamesDocument = new TypedDocumentString(`
+    query resolveNameServiceNames($address: IotaAddress!, $limit: Int, $cursor: String) {
+  address(address: $address) {
+    iotaNamesRegistrations(first: $limit, after: $cursor) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      nodes {
+        name
+      }
+    }
+  }
+}
+    `) as unknown as TypedDocumentString<ResolveNameServiceNamesQuery, ResolveNameServiceNamesQueryVariables>;
+export const IsTransactionIndexedOnNodeDocument = new TypedDocumentString(`
+    query IsTransactionIndexedOnNode($digest: String!) {
+  isTransactionIndexedOnNode(digest: $digest)
+}
+    `) as unknown as TypedDocumentString<IsTransactionIndexedOnNodeQuery, IsTransactionIndexedOnNodeQueryVariables>;
 export const GetOwnedObjectsDocument = new TypedDocumentString(`
     query getOwnedObjects($owner: IotaAddress!, $limit: Int, $cursor: String, $showBcs: Boolean = false, $showContent: Boolean = false, $showDisplay: Boolean = false, $showType: Boolean = false, $showOwner: Boolean = false, $showPreviousTransaction: Boolean = false, $showStorageRebate: Boolean = false, $filter: ObjectFilter) {
   address(address: $owner) {
@@ -8979,3 +9126,15 @@ fragment PAGINATE_TRANSACTION_LISTS on TransactionBlock {
     }
   }
 }`) as unknown as TypedDocumentString<PaginateTransactionBlockListsQuery, PaginateTransactionBlockListsQueryVariables>;
+export const ViewDocument = new TypedDocumentString(`
+    query View($functionName: String!, $typeArgs: [String!], $arguments: [JSON!]) {
+  moveViewCall(
+    functionName: $functionName
+    typeArgs: $typeArgs
+    arguments: $arguments
+  ) {
+    error
+    results
+  }
+}
+    `) as unknown as TypedDocumentString<ViewQuery, ViewQueryVariables>;

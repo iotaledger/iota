@@ -1,6 +1,6 @@
 // Copyright (c) 2021, Facebook, Inc. and its affiliates
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{
@@ -8,10 +8,10 @@ use move_core_types::{
 };
 
 use crate::{
+    CompiledModule,
     binary_config::{BinaryConfig, TableConfig},
     errors::BinaryLoaderResult,
     file_format::*,
-    CompiledModule,
 };
 // Add simple proptest tests
 // use proptest::prelude::*;

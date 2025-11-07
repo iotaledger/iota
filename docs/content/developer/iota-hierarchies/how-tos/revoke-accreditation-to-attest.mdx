@@ -1,0 +1,154 @@
+---
+title: Revoke Accreditation to Attest
+sidebar_label: Revoke Accreditation to Attest
+description: Guide to revoke attestation permissions in a federation.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+## Revoke Accreditation to Attest
+
+This guide demonstrates how to revoke a accreditation to attest to given Property
+
+### Prerequisites
+
+- An existing federation with issued accreditations
+- Root authority or appropriate accreditations to revoke accreditations
+- A funded client with write access
+
+### Overview
+
+Revoking accreditations to attest removes the ability for a receiver to create attestations for specific Properties. This is essential for managing permissions within a hierarchy.
+
+### 1. Set Up Client and Federation
+
+Initialize a client and create a federation with Properties:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L28-L57
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L20-L40
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Accreditation to Attest
+
+Issue an accreditation to a receiver that will later be revoked:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L62-L78
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L42-L52
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Verify Accreditation Exists
+
+Confirm the accreditation was successfully created:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L94-L99
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L54-L57
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Revoke the Accreditation
+
+Revoke the accreditation using its ID:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L107-L113
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L59-L63
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Verify Revocation
+
+Confirm the accreditation has been successfully revoked:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs#L116-L123
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts#L65-L67
+```
+</TabItem>
+</Tabs>
+</div>
+
+### Key Points
+
+- **Permission ID Required**: You need the specific accreditation ID to revoke it
+- **Immediate Effect**: Revocation takes effect immediately on-chain
+- **Irreversible**: Once revoked, the same accreditation cannot be restored (a new one must be created)
+- **Authority Required**: Only those with appropriate permissions can revoke accreditations
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/05_revoke_accreditation_to_attest.rs
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/05_revoke_accreditation_to_attest.ts
+```
+</TabItem>
+</Tabs>
+</div>

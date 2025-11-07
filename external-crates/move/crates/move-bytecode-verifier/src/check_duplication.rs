@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module implements a checker for verifying that each vector in a
@@ -15,13 +15,13 @@
 use std::{collections::HashSet, hash::Hash};
 
 use move_binary_format::{
-    errors::{verification_error, Location, PartialVMResult, VMResult},
+    IndexKind,
+    errors::{Location, PartialVMResult, VMResult, verification_error},
     file_format::{
         CompiledModule, Constant, DatatypeHandle, DatatypeHandleIndex, FunctionHandle,
         FunctionHandleIndex, FunctionInstantiation, ModuleHandle, Signature,
         StructFieldInformation, TableIndex, VariantHandle,
     },
-    IndexKind,
 };
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, vm_status::StatusCode,

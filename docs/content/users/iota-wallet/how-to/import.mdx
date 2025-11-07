@@ -1,0 +1,82 @@
+---
+description: Detailed instructions on how to import an existing wallet into the IOTA Wallet, including using the balance finder and other tools.
+teams:
+   - iotaledger/tooling
+tags: [iota-wallet]
+---
+import BalanceFinder from '../../../_snippets/about-iota/iota-wallet/balance-finder.md';
+import PaginatorNavLink from '@theme/PaginatorNavLink';
+import Seed from '../../../_snippets/about-iota/iota-wallet/seed.md'
+
+# Importing an Existing Wallet
+
+To import an existing wallet into the IOTA Wallet, you can use your [mnemonic recovery phrase](./import/mnemonic.mdx), a [ledger device](./import/ledger.mdx) and more. 
+
+## Migrating from deprecated Wallet
+
+If you are trying to migrate from a wallet like Firefly or Bloom, you can follow one of the listed guides depending on your setup:
+
+<div className='container'>
+    <div className='margin-vert--xs'>
+        <PaginatorNavLink
+            title="Firefly/Bloom Ledger" 
+            subLabel="You used Firefly or Bloom with a Ledger device"
+            permalink='import/ledger'
+            isNext
+            />
+    </div>
+
+    <div className='margin-vert--xs'>
+        <PaginatorNavLink 
+            title="Firefly/Bloom Mnemonic" 
+            subLabel="You used Firefly or Bloom with a mnemonic phrase"
+            permalink='import/mnemonic'
+            isNext
+            />
+    </div>
+
+    <div className='margin-vert--xs'>
+        <PaginatorNavLink 
+            title="Firefly/Bloom Seed" 
+            subLabel="You used Firefly or Bloom with Stronghold but can't remember your mnemonic phrase"
+            permalink='import/seed'
+            isNext
+            />
+    </div>
+</div>
+
+<BalanceFinder />
+
+### What's Changed?
+
+#### Account Management
+
+In Firefly, accounts were structured using a multi-account index, 
+which allowed generating multiple addresses under a single account without exposing the underlying BIP32 derivation
+paths. In practice, this means that Firefly would display a single wallet account that actually represented `n` addresses.
+
+The IOTA Wallet now displays each address individually.
+This change provides transparency for users managing accounts across different wallets or tools.
+
+When restoring accounts by importing a mnemonic phrase or seed,
+the IOTA Wallet will display the main account by default.
+To access derived accounts use the [Balance Finder](./import/balance-finder.mdx) tool to scan for assets associated with historical paths.
+This ensures compatibility with Firefly’s legacy multi-account framework. 
+
+:::note Legacy Chrysalis Accounts
+
+If you are trying to restore an Legacy Chrysalis-era account from a mnemonic in a third-party wallet, you may notice a
+discrepancy in the amount of IOTA in your wallet. You should use the [Balance Finder](./import/balance-finder.mdx) in the
+IOTA Web Wallet and move all your funds in `Legacy` addresses to a new address to be able to access them in any wallet.
+
+:::
+
+#### Stronghold Has Been Deprecated
+
+<Seed />
+
+The new IOTA Wallet does not support Stronghold. If you have your mnemonic, private key or seed, you can use them to
+[import your account](import/mnemonic.mdx). 
+
+Alternatively, if you only have your seed or `.stronghold` file backup and know the password, you should follow the
+[Restore Account guide](import/seed.mdx).

@@ -57,7 +57,7 @@ impl RawQuery {
     /// conditions using `AND`.
     pub(crate) fn filter<T: std::fmt::Display>(mut self, condition: T) -> Self {
         self.where_ = match self.where_ {
-            Some(where_) => Some(format!("({}) AND {}", where_, condition)),
+            Some(where_) => Some(format!("({where_}) AND {condition}")),
             None => Some(condition.to_string()),
         };
 
@@ -68,7 +68,7 @@ impl RawQuery {
     /// conditions using `OR`.
     pub(crate) fn or_filter<T: std::fmt::Display>(mut self, condition: T) -> Self {
         self.where_ = match self.where_ {
-            Some(where_) => Some(format!("({}) OR {}", where_, condition)),
+            Some(where_) => Some(format!("({where_}) OR {condition}")),
             None => Some(condition.to_string()),
         };
 
@@ -147,7 +147,7 @@ impl RawQuery {
         }
 
         for (i, sql) in sql_components {
-            result.push_str(&format!("${}", i));
+            result.push_str(&format!("${i}"));
             result.push_str(sql);
         }
 

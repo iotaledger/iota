@@ -31,7 +31,8 @@ use crate::{
         reconfig_observer::DummyReconfigObserver,
     },
     test_authority_clients::{LocalAuthorityClient, LocalAuthorityClientFaultConfig},
-    test_utils::{init_local_authorities, make_transfer_iota_transaction},
+    test_utils::make_transfer_iota_transaction,
+    unit_test_utils::init_local_authorities,
 };
 
 async fn setup() -> (AuthorityAggregator<LocalAuthorityClient>, Transaction) {
@@ -314,21 +315,11 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     // there are not enough retryable errors to push the original tx or the most
     // staked conflicting tx >= 2f+1 stake. Neither transaction can be retried
     // due to client double spend and this is a fatal error.
-    if let Err(QuorumDriverError::ObjectsDoubleUsed {
-        conflicting_txes,
-        retried_tx,
-        retried_tx_success,
-    }) = res
-    {
-        assert_eq!(retried_tx, None);
-        assert_eq!(retried_tx_success, None);
+    if let Err(QuorumDriverError::ObjectsDoubleUsed { conflicting_txes }) = res {
         assert_eq!(conflicting_txes.len(), 1);
         assert_eq!(conflicting_txes.iter().next().unwrap().0, tx.digest());
     } else {
-        panic!(
-            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {:?}",
-            res
-        );
+        panic!("expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {res:?}");
     }
 
     println!("Case 1 - three validators lock the object with the same tx");
@@ -362,21 +353,11 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         .unwrap()
         .await;
     // Aggregator gets three bad responses, and tries tx, which should succeed.
-    if let Err(QuorumDriverError::ObjectsDoubleUsed {
-        conflicting_txes,
-        retried_tx,
-        retried_tx_success,
-    }) = res
-    {
-        assert_eq!(retried_tx, Some(*tx.digest()));
-        assert_eq!(retried_tx_success, Some(true));
+    if let Err(QuorumDriverError::ObjectsDoubleUsed { conflicting_txes }) = res {
         assert_eq!(conflicting_txes.len(), 1);
         assert_eq!(conflicting_txes.iter().next().unwrap().0, tx.digest());
     } else {
-        panic!(
-            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {:?}",
-            res
-        )
+        panic!("expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {res:?}")
     }
 
     println!("Case 2 - one validator locks the object");
@@ -432,28 +413,21 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
     let tx3 = make_tx(&gas, sender, &keypair, rgp);
 
     let res = quorum_driver
-        .submit_transaction(ExecuteTransactionRequestV1::new(tx3))
-        .await
-        .unwrap()
+        .submit_transaction(ExecuteTransactionRequestV1::new(tx3.clone()))
+        .await?
         .await;
 
-    if let Err(QuorumDriverError::ObjectsDoubleUsed {
-        conflicting_txes,
-        retried_tx,
-        retried_tx_success,
-    }) = res
-    {
-        assert_eq!(retried_tx, None);
-        assert_eq!(retried_tx_success, None);
-        assert_eq!(conflicting_txes.len(), 2);
+    if let Err(QuorumDriverError::ObjectsDoubleUsed { conflicting_txes }) = res {
         let tx_stake = conflicting_txes.get(tx.digest()).unwrap().1;
-        assert!(tx_stake == 2500 || tx_stake == 5000);
-        assert_eq!(conflicting_txes.get(tx2.digest()).unwrap().1, 2500);
+        if tx_stake == 5000 {
+            assert_eq!(conflicting_txes.len(), 1);
+        } else {
+            assert_eq!(conflicting_txes.len(), 2);
+            assert_eq!(tx_stake, 2500);
+            assert_eq!(conflicting_txes.get(tx2.digest()).unwrap().1, 2500);
+        }
     } else {
-        panic!(
-            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {:?}",
-            res
-        )
+        panic!("expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {res:?}")
     }
 
     println!(
@@ -486,21 +460,11 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         .unwrap()
         .await;
 
-    if let Err(QuorumDriverError::ObjectsDoubleUsed {
-        conflicting_txes,
-        retried_tx,
-        retried_tx_success,
-    }) = res
-    {
-        assert_eq!(retried_tx, None);
-        assert_eq!(retried_tx_success, None);
+    if let Err(QuorumDriverError::ObjectsDoubleUsed { conflicting_txes }) = res {
         assert_eq!(conflicting_txes.len(), 1);
         assert_eq!(conflicting_txes.get(tx.digest()).unwrap().1, 5000);
     } else {
-        panic!(
-            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {:?}",
-            res
-        )
+        panic!("expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {res:?}")
     }
 
     println!(
@@ -571,14 +535,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
         .unwrap()
         .await;
 
-    if let Err(QuorumDriverError::ObjectsDoubleUsed {
-        conflicting_txes,
-        retried_tx,
-        retried_tx_success,
-    }) = res
-    {
-        assert_eq!(retried_tx, None);
-        assert_eq!(retried_tx_success, None);
+    if let Err(QuorumDriverError::ObjectsDoubleUsed { conflicting_txes }) = res {
         assert!(conflicting_txes.len() == 3 || conflicting_txes.len() == 2);
         assert!(
             conflicting_txes
@@ -587,10 +544,7 @@ async fn test_quorum_driver_object_locked() -> Result<(), anyhow::Error> {
                     && (digest == tx.digest() || digest == tx2.digest() || digest == tx3.digest()))
         );
     } else {
-        panic!(
-            "expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {:?}",
-            res
-        )
+        panic!("expect Err(QuorumDriverError::ObjectsDoubleUsed) but got {res:?}")
     }
 
     Ok(())
@@ -663,7 +617,7 @@ async fn test_quorum_driver_handling_overload_and_retry() {
         .await
         .unwrap();
     match timeout(Duration::from_secs(300), ticket).await {
-        Ok(result) => panic!("Process transaction should timeout! {:?}", result),
+        Ok(result) => panic!("Process transaction should timeout! {result:?}"),
         Err(_) => {
             assert_eq!(retry_count.load(Ordering::SeqCst), 10);
             println!("Waiting for txn timed out! This is desired behavior.")

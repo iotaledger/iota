@@ -39,16 +39,15 @@ use crate::{
         create_object_move_transaction, do_cert, do_transaction, extract_cert, get_latest_ref,
     },
     authority_server::{ValidatorService, ValidatorServiceMetrics},
+    checkpoints::CheckpointStore,
     consensus_adapter::{
         ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
         MockConsensusClient,
     },
     safe_client::SafeClient,
     test_authority_clients::LocalAuthorityClient,
-    test_utils::{
-        init_local_authorities, init_local_authorities_with_overload_thresholds,
-        make_transfer_object_move_transaction, make_transfer_object_transaction,
-    },
+    test_utils::{make_transfer_object_move_transaction, make_transfer_object_transaction},
+    unit_test_utils::{init_local_authorities, init_local_authorities_with_overload_thresholds},
 };
 
 #[expect(dead_code)]
@@ -274,7 +273,6 @@ pub async fn do_cert_with_shared_objects(
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[*cert.digest()])
         .await
-        .unwrap()
         .pop()
         .unwrap()
 }
@@ -365,7 +363,7 @@ async fn test_execution_with_dependencies() {
         assert_eq!(initial_shared_version.value(), 3);
         initial_shared_version
     } else {
-        panic!("Not a shared object! {:?} {:?}", shared_counter_ref, owner);
+        panic!("Not a shared object! {shared_counter_ref:?} {owner:?}");
     };
 
     // ---- Execute transactions with dependencies on first 3 nodes in the
@@ -454,8 +452,7 @@ async fn test_execution_with_dependencies() {
     authorities[3]
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&digests)
-        .await
-        .unwrap();
+        .await;
 }
 
 fn make_socket_addr() -> std::net::SocketAddr {
@@ -519,7 +516,6 @@ async fn test_per_object_overload() {
             .get_transaction_cache_reader()
             .notify_read_executed_effects(&[*create_counter_cert.digest()])
             .await
-            .unwrap()
             .pop()
             .unwrap();
     }
@@ -534,7 +530,6 @@ async fn test_per_object_overload() {
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[*create_counter_cert.digest()])
         .await
-        .unwrap()
         .pop()
         .unwrap();
     let (shared_counter_ref, owner) = create_counter_effects.created()[0];
@@ -542,7 +537,7 @@ async fn test_per_object_overload() {
         initial_shared_version: shared_counter_initial_version,
     } = owner
     else {
-        panic!("Not a shared object! {:?} {:?}", shared_counter_ref, owner);
+        panic!("Not a shared object! {shared_counter_ref:?} {owner:?}");
     };
 
     // Stop execution on the last authority, to simulate having a backlog.
@@ -649,7 +644,6 @@ async fn test_txn_age_overload() {
             .get_transaction_cache_reader()
             .notify_read_executed_effects(&[*create_counter_cert.digest()])
             .await
-            .unwrap()
             .pop()
             .unwrap();
     }
@@ -664,7 +658,6 @@ async fn test_txn_age_overload() {
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[*create_counter_cert.digest()])
         .await
-        .unwrap()
         .pop()
         .unwrap();
     let (shared_counter_ref, owner) = create_counter_effects.created()[0];
@@ -672,7 +665,7 @@ async fn test_txn_age_overload() {
         initial_shared_version: shared_counter_initial_version,
     } = owner
     else {
-        panic!("Not a shared object! {:?} {:?}", shared_counter_ref, owner);
+        panic!("Not a shared object! {shared_counter_ref:?} {owner:?}");
     };
 
     // Stop execution on the last authority, to simulate having a backlog.
@@ -763,6 +756,7 @@ async fn test_authority_txn_signing_pushback() {
     let epoch_store = authority_state.epoch_store_for_testing();
     let consensus_adapter = Arc::new(ConsensusAdapter::new(
         Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
         authority_state.name,
         Arc::new(ConnectionMonitorStatusForTests {}),
         100_000,
@@ -893,6 +887,7 @@ async fn test_authority_txn_execution_pushback() {
     // Create a validator service around the `authority_state`.
     let consensus_adapter = Arc::new(ConsensusAdapter::new(
         Arc::new(MockConsensusClient::new()),
+        CheckpointStore::new_for_tests(),
         authority_state.name,
         Arc::new(ConnectionMonitorStatusForTests {}),
         100_000,

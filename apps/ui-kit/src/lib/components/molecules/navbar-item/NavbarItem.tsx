@@ -10,7 +10,6 @@ export interface NavbarItemProps {
      * The type of the navbar item.
      */
     type?: NavbarItemType;
-
     /**
      * The icon of the navbar item.
      */

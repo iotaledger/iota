@@ -3,7 +3,6 @@
 
 export * from './collapsible';
 export * from './header';
-export * from './image';
 export * from './modal';
 
 export * from './ButtonOrLink';

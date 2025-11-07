@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -32,7 +32,7 @@ pub use code_unit_verifier::CodeUnitVerifier;
 pub use data_defs::RecursiveDataDefChecker;
 pub use instruction_consistency::InstructionConsistency;
 pub use script_signature::{
-    legacy_script_signature_checks, no_additional_script_signature_checks, FnCheckScriptSignature,
+    FnCheckScriptSignature, legacy_script_signature_checks, no_additional_script_signature_checks,
 };
 pub use signature::SignatureChecker;
 pub use verifier::{

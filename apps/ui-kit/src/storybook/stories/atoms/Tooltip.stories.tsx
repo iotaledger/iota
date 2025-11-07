@@ -12,7 +12,9 @@ const meta: Meta<typeof Tooltip> = {
         return (
             <div className="flex h-20 items-center p-sm">
                 <Tooltip {...props}>
-                    <span className="text-neutral-10 dark:text-neutral-92">Hover me</span>
+                    <span className="text-iota-neutral-10 names:text-names-neutral-92 dark:text-names-neutral-92">
+                        Hover me
+                    </span>
                 </Tooltip>
             </div>
         );
@@ -50,7 +52,7 @@ export const WithIcon: Story = {
     render: (props) => {
         return (
             <Tooltip {...props}>
-                <Info className="text-neutral-10 dark:text-neutral-92" />
+                <Info className="text-iota-neutral-10 names:text-names-neutral-92 dark:text-names-neutral-92" />
             </Tooltip>
         );
     },

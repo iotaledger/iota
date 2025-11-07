@@ -1,6 +1,7 @@
 name: Split Cluster Check
 
 on:
+  workflow_dispatch:
   workflow_call:
 
 concurrency:
@@ -25,8 +26,17 @@ jobs:
       - name: Run split cluster check script
         id: mn-split-cluster-check
         run: |
+          WORKING_DIR=/tmp/mainnet-split-cluster-${{ github.run_id }} \
           IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE=mainnet \
           scripts/compatibility/split-cluster-check.sh origin/mainnet ${{ github.sha }}
+      - name: Upload mainnet split cluster logs on failure
+        if: failure()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: mainnet-split-cluster-logs-${{ github.run_id }}
+          path: /tmp/mainnet-split-cluster-${{ github.run_id }}/logs/
+          retention-days: 5
+          if-no-files-found: warn
   validate-testnet:
     runs-on: self-hosted-x64
     if: (!cancelled() && !failure())
@@ -38,5 +48,14 @@ jobs:
       - name: Run split cluster check script
         id: tn-split-cluster-check
         run: |
+          WORKING_DIR=/tmp/testnet-split-cluster-${{ github.run_id }} \
           IOTA_PROTOCOL_CONFIG_CHAIN_OVERRIDE=testnet \
           scripts/compatibility/split-cluster-check.sh origin/testnet ${{ github.sha }}
+      - name: Upload testnet split cluster logs on failure
+        if: failure()
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: testnet-split-cluster-logs-${{ github.run_id }}
+          path: /tmp/testnet-split-cluster-${{ github.run_id }}/logs/
+          retention-days: 5
+          if-no-files-found: warn

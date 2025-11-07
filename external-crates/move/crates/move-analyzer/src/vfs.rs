@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! The language server must operate upon Move source buffers as they are being
@@ -11,14 +11,16 @@
 //! reality, it is basically just a mapping from file identifier (this could be
 //! the file's path were it to be saved) to its textual contents.
 
-use crate::symbols;
+use std::{io::Write, path::PathBuf};
+
 use lsp_server::Notification;
 use lsp_types::{
-    notification::Notification as _, DidChangeTextDocumentParams, DidCloseTextDocumentParams,
-    DidOpenTextDocumentParams, DidSaveTextDocumentParams,
+    DidChangeTextDocumentParams, DidCloseTextDocumentParams, DidOpenTextDocumentParams,
+    DidSaveTextDocumentParams, notification::Notification as _,
 };
-use std::{io::Write, path::PathBuf};
 use vfs::VfsPath;
+
+use crate::symbols;
 
 /// A mapping from identifiers (file names, potentially, but not necessarily) to
 /// their contents.

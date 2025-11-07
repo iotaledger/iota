@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt;
@@ -11,8 +11,8 @@ use move_core_types::{
 };
 
 use crate::{
-    file_format::{CodeOffset, FunctionDefinitionIndex, TableIndex},
     IndexKind,
+    file_format::{CodeOffset, FunctionDefinitionIndex, TableIndex},
 };
 
 pub type VMResult<T> = ::std::result::Result<T, VMError>;
@@ -297,8 +297,8 @@ impl PartialVMError {
         self
     }
 
-    /// Append the message `message` to the message field of the VM status, and insert a separator
-    /// if the original message is non-empty.
+    /// Append the message `message` to the message field of the VM status, and
+    /// insert a separator if the original message is non-empty.
     pub fn append_message_with_separator(
         mut self,
         separator: char,
@@ -381,7 +381,7 @@ impl fmt::Display for VMError {
 }
 
 ////////////////////////////////////////////////////////////////////////////
-/// Conversion functions from internal VM statuses into external VM statuses
+// Conversion functions from internal VM statuses into external VM statuses
 ////////////////////////////////////////////////////////////////////////////
 
 pub fn offset_out_of_bounds(

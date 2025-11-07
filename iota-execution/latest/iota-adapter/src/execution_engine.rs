@@ -14,9 +14,8 @@ mod checked {
     #[cfg(msim)]
     use iota_types::iota_system_state::advance_epoch_result_injection::maybe_modify_result;
     use iota_types::{
-        BRIDGE_ADDRESS, IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_BRIDGE_OBJECT_ID,
-        IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID, IOTA_RANDOMNESS_STATE_OBJECT_ID,
-        IOTA_SYSTEM_PACKAGE_ID,
+        IOTA_AUTHENTICATOR_STATE_OBJECT_ID, IOTA_FRAMEWORK_ADDRESS, IOTA_FRAMEWORK_PACKAGE_ID,
+        IOTA_RANDOMNESS_STATE_OBJECT_ID, IOTA_SYSTEM_PACKAGE_ID,
         authenticator_state::{
             AUTHENTICATOR_STATE_CREATE_FUNCTION_NAME,
             AUTHENTICATOR_STATE_EXPIRE_JWKS_FUNCTION_NAME, AUTHENTICATOR_STATE_MODULE_NAME,
@@ -29,13 +28,8 @@ mod checked {
         base_types::{
             IotaAddress, ObjectID, ObjectRef, SequenceNumber, TransactionDigest, TxContext,
         },
-        bridge::{
-            BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER, BRIDGE_CREATE_FUNCTION_NAME,
-            BRIDGE_INIT_COMMITTEE_FUNCTION_NAME, BRIDGE_MODULE_NAME, BridgeChainId,
-        },
         clock::{CLOCK_MODULE_NAME, CONSENSUS_COMMIT_PROLOGUE_FUNCTION_NAME},
         committee::EpochId,
-        digests::{ChainIdentifier, get_mainnet_chain_identifier, get_testnet_chain_identifier},
         effects::TransactionEffects,
         error::{ExecutionError, ExecutionErrorKind},
         execution::{ExecutionResults, ExecutionResultsV1, is_certificate_denied},
@@ -43,7 +37,6 @@ mod checked {
         execution_status::{CongestedObjects, ExecutionStatus},
         gas::{GasCostSummary, IotaGasStatus},
         gas_coin::GAS,
-        id::UID,
         inner_temporary_store::InnerTemporaryStore,
         iota_system_state::{
             ADVANCE_EPOCH_FUNCTION_NAME, AdvanceEpochParams, IOTA_SYSTEM_MODULE_NAME,
@@ -56,13 +49,12 @@ mod checked {
         storage::{BackingStore, Storage},
         transaction::{
             Argument, AuthenticatorStateExpire, AuthenticatorStateUpdateV1, CallArg, ChangeEpoch,
-            ChangeEpochV2, CheckedInputObjects, Command, EndOfEpochTransactionKind,
+            ChangeEpochV2, ChangeEpochV3, CheckedInputObjects, Command, EndOfEpochTransactionKind,
             GenesisTransaction, ObjectArg, ProgrammableTransaction, RandomnessStateUpdate,
             TransactionKind,
         },
     };
     use move_binary_format::CompiledModule;
-    use move_core_types::ident_str;
     use move_trace_format::format::MoveTraceBuilder;
     use move_vm_runtime::move_vm::MoveVM;
     use tracing::{info, instrument, trace, warn};
@@ -342,9 +334,21 @@ mod checked {
                 ))
             } else if let Some((cancelled_objects, reason)) = cancelled_objects {
                 match reason {
-                    SequenceNumber::CONGESTED => Err(ExecutionError::new(
-                        ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
-                            congested_objects: CongestedObjects(cancelled_objects),
+                    version if version.is_congested() => Err(ExecutionError::new(
+                        if protocol_config.congestion_control_gas_price_feedback_mechanism() {
+                            ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestionV2 {
+                                congested_objects: CongestedObjects(cancelled_objects),
+                                suggested_gas_price: version
+                                    .get_congested_version_suggested_gas_price(),
+                            }
+                        } else {
+                            // WARN: do not remove this `else` branch even after
+                            // `congestion_control_gas_price_feedback_mechanism` is enabled
+                            // on the mainnet. It must be kept to be able to replay old
+                            // transaction data.
+                            ExecutionErrorKind::ExecutionCancelledDueToSharedObjectCongestion {
+                                congested_objects: CongestedObjects(cancelled_objects),
+                            }
                         },
                         None,
                     )),
@@ -469,7 +473,7 @@ mod checked {
                 result = Err(conservation_err);
                 gas_charger.reset(temporary_store);
                 gas_charger.charge_gas(temporary_store, &mut result);
-                // check conservation once more more
+                // check conservation once more
                 if let Err(recovery_err) = {
                     temporary_store
                         .check_iota_conserved(cost_summary)
@@ -703,6 +707,21 @@ mod checked {
                             )?;
                             return Ok(Mode::empty_results());
                         }
+                        EndOfEpochTransactionKind::ChangeEpochV3(change_epoch_v3) => {
+                            assert_eq!(i, len - 1);
+                            advance_epoch_v3(
+                                builder,
+                                change_epoch_v3,
+                                temporary_store,
+                                tx_ctx,
+                                move_vm,
+                                gas_charger,
+                                protocol_config,
+                                metrics,
+                                trace_builder_opt,
+                            )?;
+                            return Ok(Mode::empty_results());
+                        }
                         EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                             assert!(protocol_config.enable_jwk_consensus_updates());
                             builder = setup_authenticator_state_create(builder);
@@ -713,15 +732,6 @@ mod checked {
                             // TODO: it would be nice if a failure of this function didn't cause
                             // safe mode.
                             builder = setup_authenticator_state_expire(builder, expire);
-                        }
-                        EndOfEpochTransactionKind::BridgeStateCreate(chain_id) => {
-                            assert!(protocol_config.enable_bridge());
-                            builder = setup_bridge_create(builder, chain_id)
-                        }
-                        EndOfEpochTransactionKind::BridgeCommitteeInit(bridge_shared_version) => {
-                            assert!(protocol_config.enable_bridge());
-                            assert!(protocol_config.should_try_to_finalize_bridge_committee());
-                            builder = setup_bridge_committee_update(builder, bridge_shared_version)
                         }
                     }
                 }
@@ -899,6 +909,30 @@ mod checked {
         construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
     }
 
+    pub fn construct_advance_epoch_pt_v3(
+        builder: ProgrammableTransactionBuilder,
+        params: &AdvanceEpochParams,
+    ) -> Result<ProgrammableTransaction, ExecutionError> {
+        // the first three arguments to the advance_epoch function, namely
+        // validator_subsidy, storage_charges and computation_charges, are
+        // common to both v1, v2 and v3 and are added in
+        // `construct_advance_epoch_pt_impl`. The remaining arguments are added
+        // here.
+        let call_arg_vec = vec![
+            CallArg::Pure(bcs::to_bytes(&params.computation_charge_burned).unwrap()), /* computation_charge_burned: u64 */
+            CallArg::IOTA_SYSTEM_MUT, // wrapper: &mut IotaSystemState
+            CallArg::Pure(bcs::to_bytes(&params.epoch).unwrap()), // new_epoch: u64
+            CallArg::Pure(bcs::to_bytes(&params.next_protocol_version.as_u64()).unwrap()), /* next_protocol_version: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.storage_rebate).unwrap()), // storage_rebate: u64
+            CallArg::Pure(bcs::to_bytes(&params.non_refundable_storage_fee).unwrap()), /* non_refundable_storage_fee: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.reward_slashing_rate).unwrap()), /* reward_slashing_rate: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.epoch_start_timestamp_ms).unwrap()), /* epoch_start_timestamp_ms: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.max_committee_members_count).unwrap()), /* max_committee_members_count: u64 */
+            CallArg::Pure(bcs::to_bytes(&params.eligible_active_validators).unwrap()), /* eligible_active_validators: Vec<u64> */
+        ];
+        construct_advance_epoch_pt_impl(builder, params, call_arg_vec)
+    }
+
     /// Advances the epoch by executing a `ProgrammableTransaction`. If the
     /// transaction fails, it switches to safe mode and retries the epoch
     /// advancement in a more controlled environment. The function also
@@ -992,9 +1026,10 @@ mod checked {
             non_refundable_storage_fee: change_epoch.non_refundable_storage_fee,
             reward_slashing_rate: protocol_config.reward_slashing_rate(),
             epoch_start_timestamp_ms: change_epoch.epoch_start_timestamp_ms,
-            // AdvanceEpochV1 does not use this field, but keeping it to avoid creating a separate
-            // AdvanceEpochParams struct.
+            // AdvanceEpochV1 does not use those fields, but keeping them to avoid creating a
+            // separate AdvanceEpochParams struct.
             max_committee_members_count: 0,
+            eligible_active_validators: vec![],
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v1(builder, &params)?;
         advance_epoch_impl(
@@ -1037,12 +1072,58 @@ mod checked {
             reward_slashing_rate: protocol_config.reward_slashing_rate(),
             epoch_start_timestamp_ms: change_epoch_v2.epoch_start_timestamp_ms,
             max_committee_members_count: protocol_config.max_committee_members_count(),
+            // AdvanceEpochV2 does not use this field, but keeping them to avoid creating a
+            // separate AdvanceEpochParams struct.
+            eligible_active_validators: vec![],
         };
         let advance_epoch_pt = construct_advance_epoch_pt_v2(builder, &params)?;
         advance_epoch_impl(
             advance_epoch_pt,
             params,
             change_epoch_v2.system_packages,
+            temporary_store,
+            tx_ctx,
+            move_vm,
+            gas_charger,
+            protocol_config,
+            metrics,
+            trace_builder_opt,
+        )
+    }
+
+    /// Advances the epoch for the given `ChangeEpochV3` transaction kind by
+    /// constructing a programmable transaction, executing it and processing the
+    /// system packages.
+    fn advance_epoch_v3(
+        builder: ProgrammableTransactionBuilder,
+        change_epoch_v3: ChangeEpochV3,
+        temporary_store: &mut TemporaryStore<'_>,
+        tx_ctx: &mut TxContext,
+        move_vm: &Arc<MoveVM>,
+        gas_charger: &mut GasCharger,
+        protocol_config: &ProtocolConfig,
+        metrics: Arc<LimitsMetrics>,
+        trace_builder_opt: &mut Option<MoveTraceBuilder>,
+    ) -> Result<(), ExecutionError> {
+        let params = AdvanceEpochParams {
+            epoch: change_epoch_v3.epoch,
+            next_protocol_version: change_epoch_v3.protocol_version,
+            validator_subsidy: protocol_config.validator_target_reward(),
+            storage_charge: change_epoch_v3.storage_charge,
+            computation_charge: change_epoch_v3.computation_charge,
+            computation_charge_burned: change_epoch_v3.computation_charge_burned,
+            storage_rebate: change_epoch_v3.storage_rebate,
+            non_refundable_storage_fee: change_epoch_v3.non_refundable_storage_fee,
+            reward_slashing_rate: protocol_config.reward_slashing_rate(),
+            epoch_start_timestamp_ms: change_epoch_v3.epoch_start_timestamp_ms,
+            max_committee_members_count: protocol_config.max_committee_members_count(),
+            eligible_active_validators: change_epoch_v3.eligible_active_validators,
+        };
+        let advance_epoch_pt = construct_advance_epoch_pt_v3(builder, &params)?;
+        advance_epoch_impl(
+            advance_epoch_pt,
+            params,
+            change_epoch_v3.system_packages,
             temporary_store,
             tx_ctx,
             move_vm,
@@ -1178,80 +1259,6 @@ mod checked {
                 vec![],
             )
             .expect("Unable to generate authenticator_state_create transaction!");
-        builder
-    }
-
-    /// Configures a `ProgrammableTransactionBuilder` to create a bridge.
-    fn setup_bridge_create(
-        mut builder: ProgrammableTransactionBuilder,
-        chain_id: ChainIdentifier,
-    ) -> ProgrammableTransactionBuilder {
-        let bridge_uid = builder
-            .input(CallArg::Pure(
-                UID::new(IOTA_BRIDGE_OBJECT_ID).to_bcs_bytes(),
-            ))
-            .expect("Unable to create Bridge object UID!");
-
-        let bridge_chain_id = if chain_id == get_mainnet_chain_identifier() {
-            BridgeChainId::IotaMainnet as u8
-        } else if chain_id == get_testnet_chain_identifier() {
-            BridgeChainId::IotaTestnet as u8
-        } else {
-            // How do we distinguish devnet from other test envs?
-            BridgeChainId::IotaCustom as u8
-        };
-
-        let bridge_chain_id = builder.pure(bridge_chain_id).unwrap();
-        builder.programmable_move_call(
-            BRIDGE_ADDRESS.into(),
-            BRIDGE_MODULE_NAME.to_owned(),
-            BRIDGE_CREATE_FUNCTION_NAME.to_owned(),
-            vec![],
-            vec![bridge_uid, bridge_chain_id],
-        );
-        builder
-    }
-
-    /// Configures a `ProgrammableTransactionBuilder` to update the bridge
-    /// committee.
-    fn setup_bridge_committee_update(
-        mut builder: ProgrammableTransactionBuilder,
-        bridge_shared_version: SequenceNumber,
-    ) -> ProgrammableTransactionBuilder {
-        let bridge = builder
-            .obj(ObjectArg::SharedObject {
-                id: IOTA_BRIDGE_OBJECT_ID,
-                initial_shared_version: bridge_shared_version,
-                mutable: true,
-            })
-            .expect("Unable to create Bridge object arg!");
-        let system_state = builder
-            .obj(ObjectArg::IOTA_SYSTEM_MUT)
-            .expect("Unable to create System State object arg!");
-
-        let voting_power = builder.programmable_move_call(
-            IOTA_SYSTEM_PACKAGE_ID,
-            IOTA_SYSTEM_MODULE_NAME.to_owned(),
-            ident_str!("validator_voting_powers").to_owned(),
-            vec![],
-            vec![system_state],
-        );
-
-        // Hardcoding min stake participation to 75.00%
-        // TODO: We need to set a correct value or make this configurable.
-        let min_stake_participation_percentage = builder
-            .input(CallArg::Pure(
-                bcs::to_bytes(&BRIDGE_COMMITTEE_MINIMAL_VOTING_POWER).unwrap(),
-            ))
-            .unwrap();
-
-        builder.programmable_move_call(
-            BRIDGE_ADDRESS.into(),
-            BRIDGE_MODULE_NAME.to_owned(),
-            BRIDGE_INIT_COMMITTEE_FUNCTION_NAME.to_owned(),
-            vec![],
-            vec![bridge, voting_power, min_stake_participation_percentage],
-        );
         builder
     }
 

@@ -8,7 +8,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     AccountsFormType,
     useAccountsFormContext,
-    LedgerAccountList,
+    AccountList,
     useDeriveLedgerAccounts,
     type DerivedLedgerAccount,
     Overlay,
@@ -33,10 +33,14 @@ export function ImportLedgerAccountsPage() {
         isError: encounteredDerviceAccountsError,
     } = useDeriveLedgerAccounts({
         numAccountsToDerive: NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT,
-        select: (ledgerAccounts) => {
-            return ledgerAccounts.filter(
-                ({ address }) => !existingAccounts?.some((account) => account.address === address),
-            );
+        select: ({ accounts, mainPublicKey }) => {
+            return {
+                accounts: accounts.filter(
+                    ({ address }) =>
+                        !existingAccounts?.some((account) => account.address === address),
+                ),
+                mainPublicKey,
+            };
         },
     });
 
@@ -61,7 +65,7 @@ export function ImportLedgerAccountsPage() {
         },
         [setSelectedLedgerAccounts],
     );
-    const numImportableAccounts = ledgerAccounts?.length;
+    const numImportableAccounts = ledgerAccounts?.accounts?.length;
     const numSelectedAccounts = selectedLedgerAccounts.size;
     const areAllAccountsImported = numImportableAccounts === 0;
     const isUnlockButtonDisabled = numSelectedAccounts === 0;
@@ -75,8 +79,8 @@ export function ImportLedgerAccountsPage() {
     } else if (!encounteredDerviceAccountsError) {
         importLedgerAccountsBody = (
             <div className="max-h-[530px] w-full overflow-auto">
-                <LedgerAccountList
-                    accounts={ledgerAccounts}
+                <AccountList
+                    accounts={ledgerAccounts.accounts}
                     selectedAccounts={selectedLedgerAccounts}
                     onAccountClick={onAccountClick}
                     selectAll={selectAllAccounts}
@@ -88,17 +92,21 @@ export function ImportLedgerAccountsPage() {
     function selectAllAccounts() {
         const areAllAccountsSelected = numSelectedAccounts === numImportableAccounts;
         if (ledgerAccounts && !areAllAccountsSelected) {
-            setSelectedLedgerAccounts(new Set(ledgerAccounts.map((acc) => acc.address)));
+            setSelectedLedgerAccounts(new Set(ledgerAccounts.accounts.map((acc) => acc.address)));
         } else if (areAllAccountsSelected) {
             setSelectedLedgerAccounts(new Set());
         }
     }
 
     function handleNextClick() {
+        if (!ledgerAccounts) {
+            return;
+        }
         setAccountsFormValues({
             type: AccountsFormType.ImportLedger,
+            mainPublicKey: ledgerAccounts.mainPublicKey,
             accounts:
-                ledgerAccounts
+                ledgerAccounts.accounts
                     ?.filter((acc) => selectedLedgerAccounts.has(acc.address))
                     .map(({ address, derivationPath, publicKey }) => ({
                         address,
@@ -126,12 +134,21 @@ export function ImportLedgerAccountsPage() {
             <div className="flex h-full w-full flex-col">
                 {importLedgerAccountsBody}
                 <div className="flex flex-1 items-end">
-                    <Button
-                        text="Next"
-                        disabled={isUnlockButtonDisabled}
-                        onClick={handleNextClick}
-                        fullWidth
-                    />
+                    {areAllAccountsImported ? (
+                        <Button
+                            text="Finish"
+                            onClick={() => navigate('/accounts/manage')}
+                            fullWidth
+                        />
+                    ) : (
+                        <Button
+                            text="Next"
+                            disabled={isUnlockButtonDisabled}
+                            onClick={handleNextClick}
+                            fullWidth
+                        />
+                    )}
+                    ;
                 </div>
             </div>
         </Overlay>
@@ -142,7 +159,7 @@ function LedgerViewLoading() {
     return (
         <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm">
             <LoadingIndicator />
-            <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+            <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                 Looking for Accounts...
             </span>
         </div>
@@ -152,8 +169,8 @@ function LedgerViewLoading() {
 function LedgerViewAllAccountsImported() {
     return (
         <div className="flex h-full w-full flex-row items-center justify-center gap-x-sm [&_svg]:h-6 [&_svg]:w-6">
-            <CheckmarkFilled className="text-primary-30 dark:text-primary-80" />
-            <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+            <CheckmarkFilled className="text-iota-primary-30 dark:text-iota-primary-80" />
+            <span className="text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                 Imported all Ledger Accounts
             </span>
         </div>

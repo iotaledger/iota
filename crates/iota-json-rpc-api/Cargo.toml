@@ -27,4 +27,7 @@ iota-types.workspace = true
 # This and the iota-sdk crate are widely used to develop on IOTA and it's valuable
 # to not have to pull in the entire iota repo for it.
 
-[dev-dependencies]
+[package.metadata.cargo-machete]
+ignored = [
+  "iota-open-rpc", # imported through a procedural macro
+]

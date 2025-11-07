@@ -1,12 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::file_format_common::VERSION_MAX;
 use move_vm_config::verifier::{
-    MeterConfig, VerifierConfig, DEFAULT_MAX_CONSTANT_VECTOR_LEN, DEFAULT_MAX_IDENTIFIER_LENGTH,
-    DEFAULT_MAX_VARIANTS,
+    DEFAULT_MAX_CONSTANT_VECTOR_LEN, DEFAULT_MAX_IDENTIFIER_LENGTH, DEFAULT_MAX_VARIANTS,
+    MeterConfig, VerifierConfig,
 };
 
 pub mod binary_samples;

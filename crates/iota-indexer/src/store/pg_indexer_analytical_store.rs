@@ -6,7 +6,9 @@ use core::result::Result::Ok;
 use std::time::Duration;
 
 use async_trait::async_trait;
-use diesel::{ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, dsl::count};
+use diesel::{
+    ExpressionMethods, OptionalExtension, QueryDsl, RunQueryDsl, dsl::count, sql_types::BigInt,
+};
 use downcast::Any;
 use iota_types::base_types::ObjectID;
 use tap::tap::TapFallible;
@@ -60,7 +62,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredCheckpoint>(conn)
                 .optional()
         })
-        .context("Failed reading latest checkpoint from PostgresDB")?;
+        .context("failed reading latest checkpoint from PostgresDB")?;
         Ok(latest_cp)
     }
 
@@ -71,7 +73,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredTransaction>(conn)
                 .optional()
         })
-        .context("Failed reading latest transaction from PostgresDB")?;
+        .context("failed reading latest transaction from PostgresDB")?;
         Ok(latest_tx)
     }
 
@@ -87,7 +89,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .order(checkpoints::sequence_number.asc())
                 .load::<StoredCheckpoint>(conn)
         })
-        .context("Failed reading checkpoints from PostgresDB")?;
+        .context("failed reading checkpoints from PostgresDB")?;
         Ok(cps)
     }
 
@@ -107,7 +109,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 ))
                 .load::<StoredTransactionTimestamp>(conn)
         })
-        .context("Failed reading transaction timestamps from PostgresDB")?;
+        .context("failed reading transaction timestamps from PostgresDB")?;
         Ok(tx_timestamps)
     }
 
@@ -127,7 +129,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 ))
                 .load::<StoredTransactionCheckpoint>(conn)
         })
-        .context("Failed reading transaction checkpoints from PostgresDB")?;
+        .context("failed reading transaction checkpoints from PostgresDB")?;
         Ok(tx_checkpoints)
     }
 
@@ -149,7 +151,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 ))
                 .load::<StoredTransactionSuccessCommandCount>(conn)
         })
-        .context("Failed reading transaction success command counts from PostgresDB")?;
+        .context("failed reading transaction success command counts from PostgresDB")?;
         Ok(tx_success_cmd_counts)
     }
     async fn get_tx(&self, tx_sequence_number: i64) -> IndexerResult<Option<StoredTransaction>> {
@@ -159,7 +161,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredTransaction>(conn)
                 .optional()
         })
-        .context("Failed reading transaction from PostgresDB")?;
+        .context("failed reading transaction from PostgresDB")?;
         Ok(tx)
     }
 
@@ -170,7 +172,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredCheckpoint>(conn)
                 .optional()
         })
-        .context("Failed reading checkpoint from PostgresDB")?;
+        .context("failed reading checkpoint from PostgresDB")?;
         Ok(cp)
     }
 
@@ -181,7 +183,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredTxCountMetrics>(conn)
                 .optional()
         })
-        .context("Failed reading latest tx count metrics from PostgresDB")?;
+        .context("failed reading latest tx count metrics from PostgresDB")?;
         Ok(latest_tx_count)
     }
 
@@ -192,7 +194,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<StoredEpochPeakTps>(conn)
                 .optional()
         })
-        .context("Failed reading latest epoch peak TPS from PostgresDB")?;
+        .context("failed reading latest epoch peak TPS from PostgresDB")?;
         Ok(latest_network_metrics)
     }
 
@@ -203,24 +205,24 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
         start_checkpoint: i64,
         end_checkpoint: i64,
     ) -> IndexerResult<()> {
-        let tx_count_query = construct_checkpoint_tx_count_query(start_checkpoint, end_checkpoint);
         info!(
-            "Persisting tx count metrics for checkpoints [{}-{}]",
-            start_checkpoint,
+            "Persisting tx count metrics for checkpoints [{start_checkpoint}-{}]",
             end_checkpoint - 1
         );
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                diesel::sql_query(tx_count_query.clone()).execute(conn)?;
+                diesel::sql_query("CALL calculate_tx_count_metrics($1, $2)")
+                    .bind::<BigInt, _>(start_checkpoint)
+                    .bind::<BigInt, _>(end_checkpoint)
+                    .execute(conn)?;
                 Ok::<(), IndexerError>(())
             },
             Duration::from_secs(10)
         )
-        .context("Failed persisting tx count metrics to PostgresDB")?;
+        .context("failed persisting tx count metrics to PostgresDB")?;
         info!(
-            "Persisted tx count metrics for checkpoints [{}-{}]",
-            start_checkpoint,
+            "Persisted tx count metrics for checkpoints [{start_checkpoint}-{}]",
             end_checkpoint - 1
         );
         Ok(())
@@ -234,13 +236,13 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 diesel::sql_query(epoch_peak_tps_query),
                 conn
             ))
-            .context("Failed reading epoch peak TPS from PostgresDB")?;
+            .context("failed reading epoch peak TPS from PostgresDB")?;
         let tps_30d: Tps =
             read_only_blocking!(&self.blocking_cp, |conn| diesel::RunQueryDsl::get_result(
                 diesel::sql_query(peak_tps_30d_query),
                 conn
             ))
-            .context("Failed reading 30d peak TPS from PostgresDB")?;
+            .context("failed reading 30d peak TPS from PostgresDB")?;
 
         let epoch_peak_tps = StoredEpochPeakTps {
             epoch,
@@ -257,7 +259,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             },
             Duration::from_secs(10)
         )
-        .context("Failed persisting epoch peak TPS to PostgresDB.")?;
+        .context("failed persisting epoch peak TPS to PostgresDB.")?;
         Ok(())
     }
 
@@ -269,44 +271,33 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                 .first::<TxSeq>(conn)
                 .optional()
         })
-        .context("Failed to read address metrics last processed tx sequence.")?;
+        .context("failed to read address metrics last processed tx sequence.")?;
         Ok(last_processed_tx_seq)
     }
 
+    /// Calls the stored procedure `persist_address_analytics`.
+    ///
+    /// This updates both the `addresses` and `active_addresses` tables.
+    ///
+    /// See more in the respective migration:
+    /// `2025-06-05-054854_persist_address_analytics`
     fn persist_addresses_in_tx_range(
         &self,
         start_tx_seq: i64,
         end_tx_seq: i64,
     ) -> IndexerResult<()> {
-        let address_persist_query = construct_address_persisting_query(start_tx_seq, end_tx_seq);
         transactional_blocking_with_retry!(
             &self.blocking_cp,
             |conn| {
-                diesel::sql_query(address_persist_query.clone()).execute(conn)?;
+                diesel::sql_query("CALL persist_address_analytics($1, $2)")
+                    .bind::<BigInt, _>(start_tx_seq)
+                    .bind::<BigInt, _>(end_tx_seq)
+                    .execute(conn)?;
                 Ok::<(), IndexerError>(())
             },
             Duration::from_secs(10)
         )
-        .context("Failed persisting addresses to PostgresDB")?;
-        Ok(())
-    }
-
-    fn persist_active_addresses_in_tx_range(
-        &self,
-        start_tx_seq: i64,
-        end_tx_seq: i64,
-    ) -> IndexerResult<()> {
-        let active_address_persist_query =
-            construct_active_address_persisting_query(start_tx_seq, end_tx_seq);
-        transactional_blocking_with_retry!(
-            &self.blocking_cp,
-            |conn| {
-                diesel::sql_query(active_address_persist_query.clone()).execute(conn)?;
-                Ok::<(), IndexerError>(())
-            },
-            Duration::from_secs(10)
-        )
-        .context("Failed persisting active addresses to PostgresDB")?;
+        .context("failed persisting address analytics to PostgresDB")?;
         Ok(())
     }
 
@@ -362,7 +353,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             },
             Duration::from_secs(60)
         )
-        .context("Failed persisting address metrics to PostgresDB")?;
+        .context("failed persisting address metrics to PostgresDB")?;
         Ok(())
     }
 
@@ -403,7 +394,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             },
             Duration::from_secs(10)
         )
-        .context("Failed persisting move calls to PostgresDB")?;
+        .context("failed persisting move calls to PostgresDB")?;
         Ok(())
     }
 
@@ -436,12 +427,12 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| {
-                error!("Error joining move call calculation tasks: {:?}", e);
+                error!("error joining move call calculation tasks: {e:?}");
             })?
             .into_iter()
             .collect::<Result<Vec<_>, _>>()
             .tap_err(|e| {
-                error!("Error calculating move call metrics: {:?}", e);
+                error!("error calculating move call metrics: {e:?}");
             })?
             .into_iter()
             .flatten()
@@ -455,7 +446,7 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
                     Some(p) => p.to_canonical_string(/* with_prefix */ true),
                     None => {
                         tracing::error!(
-                            "Failed to parse move package ID: {:?}",
+                            "failed to parse move package ID: {:?}",
                             queried_move_metrics.move_package
                         );
                         return None;
@@ -483,37 +474,9 @@ impl IndexerAnalyticalStore for PgIndexerAnalyticalStore {
             },
             Duration::from_secs(60)
         )
-        .context("Failed persisting move call metrics to PostgresDB")?;
+        .context("failed persisting move call metrics to PostgresDB")?;
         Ok(())
     }
-}
-
-fn construct_checkpoint_tx_count_query(start_checkpoint: i64, end_checkpoint: i64) -> String {
-    format!(
-        "WITH expanded_checkpoint_range AS (
-            SELECT
-                sequence_number AS checkpoint_sequence_number,
-                epoch,
-                generate_series(min_tx_sequence_number, max_tx_sequence_number) AS tx_sequence_number
-            FROM checkpoints
-            WHERE sequence_number >= {start_checkpoint} AND sequence_number < {end_checkpoint}
-        )
-
-        INSERT INTO tx_count_metrics
-        SELECT
-            ecr.checkpoint_sequence_number,
-            ecr.epoch,
-            MAX(t.timestamp_ms) AS timestamp_ms,
-            COUNT(*) AS total_transaction_blocks,
-            SUM(CASE WHEN t.success_command_count > 0 THEN 1 ELSE 0 END) AS total_successful_transaction_blocks,
-            SUM(t.success_command_count) AS total_successful_transactions
-        FROM expanded_checkpoint_range ecr
-        JOIN transactions t
-            ON t.tx_sequence_number = ecr.tx_sequence_number
-        GROUP BY ecr.checkpoint_sequence_number, ecr.epoch
-        ORDER BY ecr.checkpoint_sequence_number
-        ON CONFLICT (checkpoint_sequence_number) DO NOTHING;"
-    )
 }
 
 fn construct_peak_tps_query(epoch: i64, offset: i64) -> String {
@@ -525,7 +488,7 @@ fn construct_peak_tps_query(epoch: i64, offset: i64) -> String {
               timestamp_ms
             FROM
               tx_count_metrics
-              WHERE epoch > ({} - {}) AND epoch <= {}
+              WHERE epoch > ({epoch} - {offset}) AND epoch <= {epoch}
             GROUP BY
               timestamp_ms
           ),
@@ -543,95 +506,7 @@ fn construct_peak_tps_query(epoch: i64, offset: i64) -> String {
             tps_data
           WHERE
             time_diff IS NOT NULL;
-        ",
-        epoch, offset, epoch
-    )
-}
-
-fn construct_address_persisting_query(start_tx_seq: i64, end_tx_seq: i64) -> String {
-    format!(
-        "WITH senders AS (
-        SELECT
-            s.sender AS address,
-            s.tx_sequence_number,
-            t.timestamp_ms
-        FROM tx_senders s
-        JOIN transactions t
-        ON s.tx_sequence_number = t.tx_sequence_number
-        WHERE s.tx_sequence_number >= {} AND s.tx_sequence_number < {}
-      ),
-      recipients AS (
-        SELECT
-            r.recipient AS address,
-            r.tx_sequence_number,
-            t.timestamp_ms
-        FROM tx_recipients r
-        JOIN transactions t
-        ON r.tx_sequence_number = t.tx_sequence_number
-        WHERE r.tx_sequence_number >= {} AND r.tx_sequence_number < {}
-      ),
-      union_address AS (
-        SELECT
-            address,
-            MIN(tx_sequence_number) as first_seq,
-            MIN(timestamp_ms) AS first_timestamp,
-            MAX(tx_sequence_number) as last_seq,
-            MAX(timestamp_ms) AS last_timestamp
-        FROM recipients GROUP BY address
-        UNION ALL
-        SELECT
-            address,
-            MIN(tx_sequence_number) as first_seq,
-            MIN(timestamp_ms) AS first_timestamp,
-            MAX(tx_sequence_number) as last_seq,
-            MAX(timestamp_ms) AS last_timestamp
-        FROM senders GROUP BY address
-      )
-      INSERT INTO addresses
-      SELECT
-        address,
-        MIN(first_seq) AS first_appearance_tx,
-        MIN(first_timestamp) AS first_appearance_time,
-        MAX(last_seq) AS last_appearance_tx,
-        MAX(last_timestamp) AS last_appearance_time
-      FROM union_address
-      GROUP BY address
-      ON CONFLICT (address) DO UPDATE
-      SET
-        last_appearance_tx = GREATEST(EXCLUDED.last_appearance_tx, addresses.last_appearance_tx),
-        last_appearance_time = GREATEST(EXCLUDED.last_appearance_time, addresses.last_appearance_time);
-    ",
-        start_tx_seq, end_tx_seq, start_tx_seq, end_tx_seq
-    )
-}
-
-fn construct_active_address_persisting_query(start_tx_seq: i64, end_tx_seq: i64) -> String {
-    format!(
-        "WITH senders AS (
-        SELECT
-            s.sender AS address,
-            s.tx_sequence_number,
-            t.timestamp_ms
-        FROM tx_senders s
-        JOIN transactions t
-        ON s.tx_sequence_number = t.tx_sequence_number
-        WHERE s.tx_sequence_number >= {} AND s.tx_sequence_number < {}
-      )
-      INSERT INTO active_addresses
-      SELECT
-            address,
-            MIN(tx_sequence_number) AS first_appearance_tx,
-            MIN(timestamp_ms) AS first_appearance_time,
-            MAX(tx_sequence_number) AS last_appearance_tx,
-            MAX(timestamp_ms) AS last_appearance_time
-      FROM senders
-      GROUP BY address
-      ON CONFLICT (address) DO UPDATE
-      SET
-        last_appearance_tx = GREATEST(EXCLUDED.last_appearance_tx, active_addresses.last_appearance_tx),
-        last_appearance_time = GREATEST(EXCLUDED.last_appearance_time, active_addresses.last_appearance_time);
-    ",
-        start_tx_seq, end_tx_seq
+        "
     )
 }
 
@@ -650,9 +525,9 @@ fn construct_move_call_persist_query(start_tx_seq: i64, end_tx_seq: i64) -> Stri
         ON m.tx_sequence_number = t.tx_sequence_number
     INNER JOIN checkpoints c
         ON t.checkpoint_sequence_number = c.sequence_number
-    WHERE m.tx_sequence_number >= {} AND m.tx_sequence_number < {}
+    -- Ensure partition pruning
+    WHERE t.tx_sequence_number >= {start_tx_seq} AND t.tx_sequence_number < {end_tx_seq}
     ON CONFLICT (transaction_sequence_number, move_package, move_module, move_function) DO NOTHING;
-    ",
-        start_tx_seq, end_tx_seq
+    "
     )
 }

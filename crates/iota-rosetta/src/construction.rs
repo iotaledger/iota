@@ -79,7 +79,7 @@ pub async fn payloads(
     let intent_msg_bytes = bcs::to_bytes(&intent_msg)?;
 
     let mut hasher = DefaultHash::default();
-    hasher.update(bcs::to_bytes(&intent_msg).expect("Message serialization should not fail"));
+    hasher.update(bcs::to_bytes(&intent_msg).expect("message serialization should not fail"));
     let digest = hasher.finalize().digest;
 
     Ok(ConstructionPayloadsResponse {
@@ -180,7 +180,7 @@ pub async fn submit(
 
     if let IotaExecutionStatus::Failure { error } = response
         .effects
-        .expect("Execute transaction should return effects")
+        .expect("execute transaction should return effects")
         .status()
     {
         return Err(Error::TransactionExecution(error.to_string()));

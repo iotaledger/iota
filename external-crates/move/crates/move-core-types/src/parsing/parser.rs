@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{fmt::Display, iter::Peekable, num::ParseIntError};
@@ -461,10 +461,13 @@ pub fn parse_address_number(s: &str) -> Option<(AccountAddress, NumberFormat)> {
     if txt.len() > max_len {
         return None;
     }
-    let parsed = U256::from_str_radix(&txt, match base {
-        NumberFormat::Hex => 16,
-        NumberFormat::Decimal => 10,
-    })
+    let parsed = U256::from_str_radix(
+        &txt,
+        match base {
+            NumberFormat::Hex => 16,
+            NumberFormat::Decimal => 10,
+        },
+    )
     .ok()?;
     Some((AccountAddress::new(parsed.to_be_bytes()), base))
 }

@@ -215,7 +215,7 @@ where
             _ = tokio::time::sleep(tx_finalization_delay) => {
                 trace!(?tx_digest, "Waking up to finalize transaction");
             }
-            _ = cache_read.notify_read_executed_effects_digests(&digests) => {
+            _ = cache_read.try_notify_read_executed_effects_digests(&digests) => {
                 trace!(?tx_digest, "Transaction already finalized");
                 return Ok(false);
             }
@@ -305,6 +305,7 @@ mod tests {
         iota_system_state::IotaSystemState,
         messages_checkpoint::{CheckpointRequest, CheckpointResponse},
         messages_grpc::{
+            HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
             HandleCertificateRequestV1, HandleCertificateResponseV1,
             HandleSoftBundleCertificatesRequestV1, HandleSoftBundleCertificatesResponseV1,
             HandleTransactionResponse, ObjectInfoRequest, ObjectInfoResponse, SystemStateRequest,
@@ -356,16 +357,13 @@ mod tests {
             _client_addr: Option<SocketAddr>,
         ) -> Result<HandleCertificateResponseV1, IotaError> {
             let epoch_store = self.authority.epoch_store_for_testing();
-            let (effects, _) = self
-                .authority
-                .try_execute_immediately(
-                    &VerifiedExecutableTransaction::new_from_certificate(
-                        VerifiedCertificate::new_unchecked(request.certificate),
-                    ),
-                    None,
-                    &epoch_store,
-                )
-                .await?;
+            let (effects, _) = self.authority.try_execute_immediately(
+                &VerifiedExecutableTransaction::new_from_certificate(
+                    VerifiedCertificate::new_unchecked(request.certificate),
+                ),
+                None,
+                &epoch_store,
+            )?;
             let events = match effects.events_digest() {
                 None => TransactionEvents::default(),
                 Some(digest) => self.authority.get_transaction_events(digest)?,
@@ -416,6 +414,13 @@ mod tests {
             &self,
             _request: SystemStateRequest,
         ) -> Result<IotaSystemState, IotaError> {
+            unimplemented!()
+        }
+
+        async fn handle_capability_notification_v1(
+            &self,
+            _request: HandleCapabilityNotificationRequestV1,
+        ) -> Result<HandleCapabilityNotificationResponseV1, IotaError> {
             unimplemented!()
         }
     }
@@ -673,7 +678,6 @@ mod tests {
             .get_object(&gas_object_id)
             .await
             .unwrap()
-            .unwrap()
             .compute_object_reference();
         let tx_data = TestTransactionBuilder::new(
             sender,
@@ -708,7 +712,6 @@ mod tests {
                 client
                     .authority
                     .is_tx_already_executed(tx_digest)
-                    .unwrap()
                     .then_some(auth_agg.committee.weight(name))
             })
             .sum();

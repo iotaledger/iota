@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli } from '_src/shared/analytics/ampli';
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import { toast } from '@iota/core';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
@@ -14,6 +14,8 @@ import {
     CardAction,
     ImageType,
     CardActionType,
+    Button,
+    ButtonType,
 } from '@iota/apps-ui-kit';
 import {
     AccountsFormType,
@@ -22,10 +24,12 @@ import {
     PageTemplate,
 } from '_components';
 import { getLedgerConnectionErrorMessage } from '../../helpers/errorMessages';
-import { useAppSelector, useCreateAccountsMutation } from '_hooks';
+import { useAppSelector, useCheckCameraPermissionStatus, useCreateAccountsMutation } from '_hooks';
 import { AppType } from '../../redux/slices/app/appType';
-import { Create, ImportPass, Key, Seed, Ledger } from '@iota/apps-ui-icons';
+import { Create, ImportPass, Key, Seed, Ledger, Keystone, Passkey } from '@iota/apps-ui-icons';
 import Browser from 'webextension-polyfill';
+import { openInNewTab } from '_src/shared/utils';
+import clsx from 'clsx';
 
 async function openTabWithSearchParam(searchParam: string, searchParamValue: string) {
     const currentURL = new URL(window.location.href);
@@ -39,6 +43,12 @@ async function openTabWithSearchParam(searchParam: string, searchParamValue: str
     });
 }
 
+async function openTabOnImportKeystone() {
+    await Browser.tabs.create({
+        url: Browser.runtime.getURL('ui.html#/accounts/import-keystone'),
+    });
+}
+
 export function AddAccountPage() {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -49,14 +59,31 @@ export function AddAccountPage() {
     const isPopup = useAppSelector((state) => state.app.appType === AppType.Popup);
     const [isConnectLedgerModalOpen, setConnectLedgerModalOpen] = useState(forceShowLedger);
     const createAccountsMutation = useCreateAccountsMutation();
-    const cardGroups = [
+    const [cameraPermissionStatus] = useCheckCameraPermissionStatus();
+
+    type CardGroup = {
+        title?: string;
+        type?: 'buttons' | 'cards';
+        cards: {
+            title: string;
+            icon: React.ComponentType<{ className: string }>;
+            actionType: AccountsFormType;
+            isDisabled: boolean;
+        }[];
+    };
+    const cardGroups: CardGroup[] = [
         {
-            title: 'Create a new mnemonic profile',
             cards: [
                 {
-                    title: 'Create New',
+                    title: 'New Mnemonic Profile',
                     icon: Create,
                     actionType: AccountsFormType.NewMnemonic,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+                {
+                    title: 'New Passkey Profile',
+                    icon: Passkey,
+                    actionType: AccountsFormType.Passkey,
                     isDisabled: createAccountsMutation.isPending,
                 },
             ],
@@ -77,6 +104,12 @@ export function AddAccountPage() {
                     isDisabled: createAccountsMutation.isPending,
                 },
                 {
+                    title: 'Passkey',
+                    icon: Passkey,
+                    actionType: AccountsFormType.ImportPasskey,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+                {
                     title: 'Seed',
                     icon: Seed,
                     actionType: AccountsFormType.ImportSeed,
@@ -85,12 +118,19 @@ export function AddAccountPage() {
             ],
         },
         {
-            title: 'Import from Ledger',
+            title: 'Hardware Wallets',
+            type: 'buttons',
             cards: [
                 {
                     title: 'Ledger',
                     icon: Ledger,
                     actionType: AccountsFormType.ImportLedger,
+                    isDisabled: createAccountsMutation.isPending,
+                },
+                {
+                    title: 'Keystone',
+                    icon: Keystone,
+                    actionType: AccountsFormType.ImportKeystone,
                     isDisabled: createAccountsMutation.isPending,
                 },
             ],
@@ -114,7 +154,19 @@ export function AddAccountPage() {
                 ampli.clickedImportPrivateKey({ sourceFlow });
                 navigate('/accounts/import-private-key');
                 break;
+            case AccountsFormType.Passkey:
+            case AccountsFormType.ImportPasskey:
+                ampli.clickedCreatePasskey({ sourceFlow });
+                const flowType = actionType === AccountsFormType.Passkey ? 'create' : 'import';
+                const url = `/accounts/passkey-account?flowType=${flowType}`;
+                if (isPopup) {
+                    openInNewTab(url);
+                } else {
+                    navigate(url);
+                }
+                break;
             case AccountsFormType.ImportSeed:
+                ampli.clickedImportSeed({ sourceFlow });
                 navigate('/accounts/import-seed');
                 break;
             case AccountsFormType.ImportLedger:
@@ -126,6 +178,15 @@ export function AddAccountPage() {
                     setConnectLedgerModalOpen(true);
                 }
                 break;
+            case AccountsFormType.ImportKeystone:
+                ampli.clickedImportKeystone({ sourceFlow });
+                if (isPopup && cameraPermissionStatus === 'prompt') {
+                    await openTabOnImportKeystone();
+                    window.close();
+                } else {
+                    navigate('/accounts/import-keystone');
+                }
+                break;
             default:
                 break;
         }
@@ -135,27 +196,49 @@ export function AddAccountPage() {
         <PageTemplate
             title="Add Profile"
             isTitleCentered
-            onClose={() => navigate('/')}
+            onClose={() => navigate('/tokens')}
             showBackButton
+            onBack={() => navigate('/')}
         >
             <div className="flex h-full w-full flex-col gap-4 ">
                 {cardGroups.map((group, groupIndex) => (
                     <div key={groupIndex} className="flex flex-col gap-y-2">
-                        <span className="text-label-lg text-neutral-60 dark:text-neutral-40">
+                        <span className="text-label-lg text-iota-neutral-60 dark:text-iota-neutral-40">
                             {group.title}
                         </span>
-                        {group.cards.map((card, cardIndex) => (
-                            <Card
-                                key={cardIndex}
-                                type={CardType.Filled}
-                                onClick={() => handleCardAction(card.actionType)}
-                                isDisabled={card.isDisabled}
-                            >
-                                <CardIcon Icon={card.icon} />
-                                <CardBody title={card.title} />
-                                <CardAction type={CardActionType.Link} />
-                            </Card>
-                        ))}
+                        <div
+                            className={clsx(
+                                group.type === 'buttons'
+                                    ? 'grid grid-cols-2 gap-2'
+                                    : 'flex flex-col gap-2',
+                            )}
+                        >
+                            {group.cards.map((card, cardIndex) => (
+                                <Fragment key={cardIndex}>
+                                    {!group.type || group.type === 'cards' ? (
+                                        <Card
+                                            type={CardType.Filled}
+                                            onClick={() => handleCardAction(card.actionType)}
+                                            isDisabled={card.isDisabled}
+                                        >
+                                            <CardIcon Icon={card.icon} />
+                                            <CardBody title={card.title} />
+                                            <CardAction type={CardActionType.Link} />
+                                        </Card>
+                                    ) : (
+                                        <Button
+                                            type={ButtonType.Secondary}
+                                            onClick={() => handleCardAction(card.actionType)}
+                                            icon={
+                                                <card.icon className="h-5 w-5 text-iota-primary-30 dark:text-iota-primary-80" />
+                                            }
+                                            text={card.title}
+                                            disabled={card.isDisabled}
+                                        />
+                                    )}
+                                </Fragment>
+                            ))}
+                        </div>
                     </div>
                 ))}
             </div>
@@ -183,6 +266,6 @@ export function AddAccountPage() {
 
 const CardIcon = ({ Icon }: { Icon: React.ComponentType<{ className: string }> }) => (
     <CardImage type={ImageType.BgTransparent}>
-        <Icon className="h-5 w-5 text-primary-30 dark:text-primary-80" />
+        <Icon className="h-5 w-5 text-iota-primary-30 dark:text-iota-primary-80" />
     </CardImage>
 );

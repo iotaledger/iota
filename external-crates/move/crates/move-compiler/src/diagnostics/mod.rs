@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod codes;
@@ -835,8 +835,7 @@ macro_rules! diag {
     }};
 }
 
-pub const ICE_BUG_REPORT_MESSAGE: &str =
-    "The Move compiler has encountered an internal compiler error.\n \
+pub const ICE_BUG_REPORT_MESSAGE: &str = "The Move compiler has encountered an internal compiler error.\n \
     Please report this issue to the IOTA Foundation Move language team,\n \
     including this error and any relevant code, to the IOTA Foundation issue tracker\n \
     at : https://github.com/iotaledger/iota/issues";
@@ -874,12 +873,9 @@ macro_rules! ice_assert {
 pub fn print_stack_trace() {
     use std::backtrace::{Backtrace, BacktraceStatus};
     let stacktrace = Backtrace::capture();
-    match stacktrace.status() {
-        BacktraceStatus::Captured => {
-            eprintln!("stacktrace:");
-            eprintln!("{}", stacktrace);
-        }
-        BacktraceStatus::Unsupported | BacktraceStatus::Disabled | _ => (),
+    if stacktrace.status() == BacktraceStatus::Captured {
+        eprintln!("stacktrace:");
+        eprintln!("{}", stacktrace);
     }
 }
 

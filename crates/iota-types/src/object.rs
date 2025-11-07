@@ -116,18 +116,13 @@ impl MoveObject {
         }
     }
 
-    pub fn new_coin(
-        coin_type: MoveObjectType,
-        version: SequenceNumber,
-        id: ObjectID,
-        value: u64,
-    ) -> Self {
+    pub fn new_coin(coin_type: TypeTag, version: SequenceNumber, id: ObjectID, value: u64) -> Self {
         // unwrap safe because coins are always smaller than the max object size
         {
             Self::new_from_execution_with_limit(
-                coin_type,
+                MoveObjectType::coin(coin_type),
                 version,
-                GasCoin::new(id, value).to_bcs_bytes(),
+                Coin::new(id, value).to_bcs_bytes(),
                 256,
             )
             .unwrap()
@@ -529,10 +524,10 @@ impl Display for Owner {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::AddressOwner(address) => {
-                write!(f, "Account Address ( {} )", address)
+                write!(f, "Account Address ( {address} )")
             }
             Self::ObjectOwner(address) => {
-                write!(f, "Object ID: ( {} )", address)
+                write!(f, "Object ID: ( {address} )")
             }
             Self::Immutable => {
                 write!(f, "Immutable")
@@ -562,6 +557,7 @@ pub struct ObjectInner {
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Deserialize, Serialize, Hash)]
+#[serde(from = "ObjectInner")]
 pub struct Object(Arc<ObjectInner>);
 
 impl From<ObjectInner> for Object {
@@ -629,15 +625,13 @@ impl Object {
     pub fn new_package<'p>(
         modules: &[CompiledModule],
         previous_transaction: TransactionDigest,
-        max_move_package_size: u64,
-        move_binary_format_version: u32,
+        protocol_config: &ProtocolConfig,
         dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         Ok(Self::new_package_from_data(
             Data::Package(MovePackage::new_initial(
                 modules,
-                max_move_package_size,
-                move_binary_format_version,
+                protocol_config,
                 dependencies,
             )?),
             previous_transaction,
@@ -670,13 +664,7 @@ impl Object {
     ) -> Result<Self, ExecutionError> {
         let dependencies: Vec<_> = dependencies.into_iter().collect();
         let config = ProtocolConfig::get_for_max_version_UNSAFE();
-        Self::new_package(
-            modules,
-            previous_transaction,
-            config.max_move_package_size(),
-            config.move_binary_format_version(),
-            &dependencies,
-        )
+        Self::new_package(modules, previous_transaction, &config, &dependencies)
     }
 
     /// Create a system package which is not subject to size limits. Panics if
@@ -1006,7 +994,7 @@ impl Object {
     pub fn with_id_owner_version_for_testing(
         id: ObjectID,
         version: SequenceNumber,
-        owner: IotaAddress,
+        owner: Owner,
     ) -> Self {
         let data = Data::Move(MoveObject {
             type_: GasCoin::type_().into(),
@@ -1014,7 +1002,7 @@ impl Object {
             contents: GasCoin::new(id, GAS_VALUE_FOR_TESTING).to_bcs_bytes(),
         });
         ObjectInner {
-            owner: Owner::AddressOwner(owner),
+            owner,
             data,
             previous_transaction: TransactionDigest::genesis_marker(),
             storage_rebate: 0,
@@ -1106,13 +1094,13 @@ impl Display for ObjectRead {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Deleted(oref) => {
-                write!(f, "ObjectRead::Deleted ({:?})", oref)
+                write!(f, "ObjectRead::Deleted ({oref:?})")
             }
             Self::NotExists(id) => {
-                write!(f, "ObjectRead::NotExists ({:?})", id)
+                write!(f, "ObjectRead::NotExists ({id:?})")
             }
             Self::Exists(oref, _, _) => {
-                write!(f, "ObjectRead::Exists ({:?})", oref)
+                write!(f, "ObjectRead::Exists ({oref:?})")
             }
         }
     }
@@ -1168,19 +1156,18 @@ impl Display for PastObjectRead {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::ObjectDeleted(oref) => {
-                write!(f, "PastObjectRead::ObjectDeleted ({:?})", oref)
+                write!(f, "PastObjectRead::ObjectDeleted ({oref:?})")
             }
             Self::ObjectNotExists(id) => {
-                write!(f, "PastObjectRead::ObjectNotExists ({:?})", id)
+                write!(f, "PastObjectRead::ObjectNotExists ({id:?})")
             }
             Self::VersionFound(oref, _, _) => {
-                write!(f, "PastObjectRead::VersionFound ({:?})", oref)
+                write!(f, "PastObjectRead::VersionFound ({oref:?})")
             }
             Self::VersionNotFound(object_id, version) => {
                 write!(
                     f,
-                    "PastObjectRead::VersionNotFound ({:?}, asked sequence number {:?})",
-                    object_id, version
+                    "PastObjectRead::VersionNotFound ({object_id:?}, asked sequence number {version:?})"
                 )
             }
             Self::VersionTooHigh {
@@ -1190,85 +1177,93 @@ impl Display for PastObjectRead {
             } => {
                 write!(
                     f,
-                    "PastObjectRead::VersionTooHigh ({:?}, asked sequence number {:?}, latest sequence number {:?})",
-                    object_id, asked_version, latest_version
+                    "PastObjectRead::VersionTooHigh ({object_id:?}, asked sequence number {asked_version:?}, latest sequence number {latest_version:?})"
                 )
             }
         }
     }
 }
 
-// Ensure that object digest computation and bcs serialized format are not
-// inadvertently changed.
-#[test]
-fn test_object_digest_and_serialized_format() {
-    let g = GasCoin::new_for_testing_with_id(ObjectID::ZERO, 123).to_object(OBJECT_START_VERSION);
-    let o = Object::new_move(
-        g,
-        Owner::AddressOwner(IotaAddress::ZERO),
-        TransactionDigest::ZERO,
-    );
-    let bytes = bcs::to_bytes(&o).unwrap();
+#[cfg(test)]
+mod tests {
+    use crate::{
+        base_types::{IotaAddress, ObjectID, TransactionDigest},
+        gas_coin::GasCoin,
+        object::{OBJECT_START_VERSION, Object, Owner},
+    };
 
-    assert_eq!(
-        bytes,
-        [
-            0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 32, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-            0, 0, 0, 0, 0, 0, 0, 0, 0, 0
-        ]
-    );
+    // Ensure that object digest computation and bcs serialized format are not
+    // inadvertently changed.
+    #[test]
+    fn test_object_digest_and_serialized_format() {
+        let g =
+            GasCoin::new_for_testing_with_id(ObjectID::ZERO, 123).to_object(OBJECT_START_VERSION);
+        let o = Object::new_move(
+            g,
+            Owner::AddressOwner(IotaAddress::ZERO),
+            TransactionDigest::ZERO,
+        );
+        let bytes = bcs::to_bytes(&o).unwrap();
 
-    let objref = format!("{:?}", o.compute_object_reference());
-    assert_eq!(
-        objref,
-        "(0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
-    );
-}
-
-#[test]
-fn test_get_coin_value_unsafe() {
-    fn test_for_value(v: u64) {
-        let g = GasCoin::new_for_testing(v).to_object(OBJECT_START_VERSION);
-        assert_eq!(g.get_coin_value_unsafe(), v);
-        assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
+        assert_eq!(
+            bytes,
+            [
+                0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 123, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 32, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ]
+        );
+        let objref = format!("{:?}", o.compute_object_reference());
+        assert_eq!(
+            objref,
+            "(0x0000000000000000000000000000000000000000000000000000000000000000, SequenceNumber(1), o#Ba4YyVBcpc9jgX4PMLRoyt9dKLftYVSDvuKbtMr9f4NM)"
+        );
     }
 
-    test_for_value(0);
-    test_for_value(1);
-    test_for_value(8);
-    test_for_value(9);
-    test_for_value(u8::MAX as u64);
-    test_for_value(u8::MAX as u64 + 1);
-    test_for_value(u16::MAX as u64);
-    test_for_value(u16::MAX as u64 + 1);
-    test_for_value(u32::MAX as u64);
-    test_for_value(u32::MAX as u64 + 1);
-    test_for_value(u64::MAX);
-}
+    #[test]
+    fn test_get_coin_value_unsafe() {
+        fn test_for_value(v: u64) {
+            let g = GasCoin::new_for_testing(v).to_object(OBJECT_START_VERSION);
+            assert_eq!(g.get_coin_value_unsafe(), v);
+            assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
+        }
 
-#[test]
-fn test_set_coin_value_unsafe() {
-    fn test_for_value(v: u64) {
-        let mut g = GasCoin::new_for_testing(u64::MAX).to_object(OBJECT_START_VERSION);
-        g.set_coin_value_unsafe(v);
-        assert_eq!(g.get_coin_value_unsafe(), v);
-        assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
-        assert_eq!(g.version(), OBJECT_START_VERSION);
-        assert_eq!(g.contents().len(), 40);
+        test_for_value(0);
+        test_for_value(1);
+        test_for_value(8);
+        test_for_value(9);
+        test_for_value(u8::MAX as u64);
+        test_for_value(u8::MAX as u64 + 1);
+        test_for_value(u16::MAX as u64);
+        test_for_value(u16::MAX as u64 + 1);
+        test_for_value(u32::MAX as u64);
+        test_for_value(u32::MAX as u64 + 1);
+        test_for_value(u64::MAX);
     }
 
-    test_for_value(0);
-    test_for_value(1);
-    test_for_value(8);
-    test_for_value(9);
-    test_for_value(u8::MAX as u64);
-    test_for_value(u8::MAX as u64 + 1);
-    test_for_value(u16::MAX as u64);
-    test_for_value(u16::MAX as u64 + 1);
-    test_for_value(u32::MAX as u64);
-    test_for_value(u32::MAX as u64 + 1);
-    test_for_value(u64::MAX);
+    #[test]
+    fn test_set_coin_value_unsafe() {
+        fn test_for_value(v: u64) {
+            let mut g = GasCoin::new_for_testing(u64::MAX).to_object(OBJECT_START_VERSION);
+            g.set_coin_value_unsafe(v);
+            assert_eq!(g.get_coin_value_unsafe(), v);
+            assert_eq!(GasCoin::try_from(&g).unwrap().value(), v);
+            assert_eq!(g.version(), OBJECT_START_VERSION);
+            assert_eq!(g.contents().len(), 40);
+        }
+
+        test_for_value(0);
+        test_for_value(1);
+        test_for_value(8);
+        test_for_value(9);
+        test_for_value(u8::MAX as u64);
+        test_for_value(u8::MAX as u64 + 1);
+        test_for_value(u16::MAX as u64);
+        test_for_value(u16::MAX as u64 + 1);
+        test_for_value(u32::MAX as u64);
+        test_for_value(u32::MAX as u64 + 1);
+        test_for_value(u64::MAX);
+    }
 }

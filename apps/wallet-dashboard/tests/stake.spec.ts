@@ -21,11 +21,18 @@ test.describe('Wallet staking', () => {
         await connectWallet(dashboardPage, context, extensionName);
 
         await dashboardPage.getByTestId('sidebar-staking').click();
+        // Move mouse to avoid keeping tooltip open
+        await dashboardPage.mouse.move(200, 0);
+        // Wait for tooltip to disappear
+        await expect(dashboardPage.getByRole('tooltip', { name: 'Staking' })).not.toBeVisible({
+            timeout: 5_000,
+        });
         await dashboardPage.getByRole('button', { name: 'Stake' }).click();
 
-        await dashboardPage.getByText('validator-1').click();
+        await dashboardPage.getByText('validator-0').click();
         await dashboardPage.getByText('Next').click();
 
+        await expect(dashboardPage.getByText(/IOTA Available/)).toBeVisible({ timeout: 30_000 });
         await dashboardPage.getByLabel('Amount').fill('10');
 
         let stakeButton = dashboardPage.getByTestId('stake-confirm-btn');
@@ -37,6 +44,8 @@ test.describe('Wallet staking', () => {
 
         let walletApprovePage = await walletApprovePagePromise;
         await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
+
+        await dashboardPage.bringToFront();
 
         await expect(dashboardPage.getByText('Successfully sent')).toBeVisible({
             timeout: 30_000,
@@ -54,7 +63,7 @@ test.describe('Wallet staking', () => {
         expect(stakedAmount).toEqual('10');
 
         // UNSTAKE
-        await dashboardPage.getByText('validator-1').click();
+        await dashboardPage.getByText('validator-0').click();
         await dashboardPage.getByText('Unstake').click();
 
         walletApprovePagePromise = context.waitForEvent('page');
@@ -62,11 +71,13 @@ test.describe('Wallet staking', () => {
         walletApprovePage = await walletApprovePagePromise;
         await walletApprovePage.getByRole('button', { name: 'Approve' }).click();
 
+        await dashboardPage.bringToFront();
+
         await dashboardPage.waitForSelector('text=Start Staking', {
             timeout: 30_000,
         });
 
         expect(dashboardPage.getByRole('button', { name: 'Stake' })).toBeVisible();
-        expect(dashboardPage.getByText('validator-1')).not.toBeVisible();
+        expect(dashboardPage.getByText('validator-0')).not.toBeVisible();
     });
 });

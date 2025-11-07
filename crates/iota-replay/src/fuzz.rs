@@ -183,7 +183,6 @@ impl ReplayFuzzer {
     }
 }
 
-#[expect(clippy::large_enum_variant)]
 #[derive(Debug, Error, Clone)]
 pub enum ReplayFuzzError {
     #[error(

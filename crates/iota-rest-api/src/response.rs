@@ -139,7 +139,7 @@ pub async fn append_info_headers(
         headers.insert(X_IOTA_CHAIN, chain);
     }
 
-    if let Ok(latest_checkpoint) = state.reader.inner().get_latest_checkpoint() {
+    if let Ok(latest_checkpoint) = state.reader.inner().try_get_latest_checkpoint() {
         headers.insert(X_IOTA_EPOCH, latest_checkpoint.epoch().into());
         headers.insert(
             X_IOTA_CHECKPOINT_HEIGHT,
@@ -148,7 +148,8 @@ pub async fn append_info_headers(
         headers.insert(X_IOTA_TIMESTAMP_MS, latest_checkpoint.timestamp_ms.into());
     }
 
-    if let Ok(lowest_available_checkpoint) = state.reader.inner().get_lowest_available_checkpoint()
+    if let Ok(lowest_available_checkpoint) =
+        state.reader.inner().try_get_lowest_available_checkpoint()
     {
         headers.insert(
             X_IOTA_LOWEST_AVAILABLE_CHECKPOINT,

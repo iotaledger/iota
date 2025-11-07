@@ -1,14 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::{Path, PathBuf};
 
 use anyhow::Result;
-use move_package::{compilation::compiled_package::CompiledPackage, BuildConfig};
+use move_package::{BuildConfig, compilation::compiled_package::CompiledPackage};
 
-use crate::{sandbox::utils::OnDiskStateView, DEFAULT_BUILD_DIR};
+use crate::{DEFAULT_BUILD_DIR, sandbox::utils::OnDiskStateView};
 
 /// The PackageContext controls the package that the CLI is executing with
 /// respect to, and handles the creation of the `OnDiskStateView` with the

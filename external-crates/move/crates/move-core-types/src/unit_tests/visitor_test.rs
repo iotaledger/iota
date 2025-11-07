@@ -1,10 +1,11 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{fmt::Write, str::FromStr};
 
 use crate::{
+    VARIANT_COUNT_MAX,
     account_address::AccountAddress,
     annotated_value::{
         MoveEnumLayout, MoveFieldLayout, MoveStruct, MoveStructLayout, MoveTypeLayout, MoveValue,
@@ -17,7 +18,6 @@ use crate::{
     identifier::Identifier,
     language_storage::StructTag,
     u256::U256,
-    VARIANT_COUNT_MAX,
 };
 
 #[derive(Default)]
@@ -592,7 +592,7 @@ fn peek_field_test() {
         fields: &'f [&'f str],
     }
 
-    impl<'b, 'l, 'f> Visitor<'b, 'l> for PeekU64Visitor<'f> {
+    impl<'b, 'l> Visitor<'b, 'l> for PeekU64Visitor<'_> {
         type Value = Option<u64>;
         type Error = annotated_visitor::Error;
 

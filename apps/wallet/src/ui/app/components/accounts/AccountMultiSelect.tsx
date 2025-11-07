@@ -5,18 +5,19 @@
 import { AccountItemApproveConnection, SelectAllButton } from '_components';
 import { type SerializedUIAccount } from '_src/background/accounts/account';
 import * as ToggleGroup from '@radix-ui/react-toggle-group';
-import { useState } from 'react';
 
 interface AccountMultiSelectProps {
     accounts: SerializedUIAccount[];
     selectedAccountIDs: string[];
     onChange: (value: string[]) => void;
+    onLock: (id: string) => void;
 }
 
-export function AccountMultiSelect({
+function AccountMultiSelect({
     accounts,
     selectedAccountIDs,
     onChange,
+    onLock,
 }: AccountMultiSelectProps) {
     return (
         <ToggleGroup.Root
@@ -31,6 +32,7 @@ export function AccountMultiSelect({
                         <AccountItemApproveConnection
                             account={account}
                             selected={selectedAccountIDs.includes(account.id)}
+                            onLock={onLock}
                         />
                     </div>
                 </ToggleGroup.Item>
@@ -40,27 +42,24 @@ export function AccountMultiSelect({
 }
 
 export function AccountMultiSelectWithControls({
-    selectedAccountIDs: selectedAccountsFromProps,
+    selectedAccountIDs,
     accounts,
-    onChange: onChangeFromProps,
+    onChange,
+    onLock,
 }: AccountMultiSelectProps) {
-    const [selectedAccountIds, setSelectedAccountsIds] = useState(selectedAccountsFromProps);
-    const onChange = (value: string[]) => {
-        setSelectedAccountsIds(value);
-        onChangeFromProps(value);
-    };
     return (
         <div className="flex flex-col gap-3 [&>button]:border-none">
             <AccountMultiSelect
-                selectedAccountIDs={selectedAccountIds}
+                selectedAccountIDs={selectedAccountIDs}
                 accounts={accounts}
                 onChange={onChange}
+                onLock={onLock}
             />
 
             {accounts.length > 1 ? (
                 <SelectAllButton
                     accountIds={accounts.map((account) => account.id)}
-                    selectedAccountIds={selectedAccountIds}
+                    selectedAccountIds={selectedAccountIDs}
                     onChange={onChange}
                 />
             ) : null}

@@ -1,0 +1,4 @@
+magic-contract/*
+!magic-contract/introduction.mdx
+iscutils
+openapi

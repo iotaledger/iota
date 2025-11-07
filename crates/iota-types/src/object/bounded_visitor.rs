@@ -432,7 +432,7 @@ pub(crate) mod tests {
         let mut values = vec![];
 
         for i in 0..WIDTH {
-            idents.push(format!("f{}", i));
+            idents.push(format!("f{i}"));
         }
 
         for (i, id) in idents.iter().enumerate() {

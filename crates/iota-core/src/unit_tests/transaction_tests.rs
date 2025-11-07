@@ -367,21 +367,9 @@ async fn do_transaction_test_impl(
     ])
     .await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object1 = authority_state
-        .get_object(&gas_object_id1)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object2 = authority_state
-        .get_object(&gas_object_id2)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object1 = authority_state.get_object(&gas_object_id1).await.unwrap();
+    let gas_object2 = authority_state.get_object(&gas_object_id2).await.unwrap();
 
     // Execute the test with two transactions, one transfer and one move call.
     // The move call contains access to a shared object.
@@ -410,9 +398,18 @@ async fn do_transaction_test_impl(
 
     let server_handle = server.spawn_for_test().await.unwrap();
 
-    let client = NetworkAuthorityClient::connect(server_handle.address())
-        .await
-        .unwrap();
+    let client = NetworkAuthorityClient::connect(
+        server_handle.address(),
+        Some(
+            authority_state
+                .config
+                .network_key_pair()
+                .public()
+                .to_owned(),
+        ),
+    )
+    .await
+    .unwrap();
 
     post_sign_mutations(&mut transfer_transaction);
     post_sign_mutations(&mut move_call_transaction);
@@ -929,11 +926,7 @@ async fn do_zklogin_transaction_test(
 
 async fn check_locks(authority_state: Arc<AuthorityState>, object_ids: Vec<ObjectID>) {
     for object_id in object_ids {
-        let object = authority_state
-            .get_object(&object_id)
-            .await
-            .unwrap()
-            .unwrap();
+        let object = authority_state.get_object(&object_id).await.unwrap();
         assert!(
             authority_state
                 .get_transaction_lock(
@@ -1034,9 +1027,18 @@ async fn setup_zklogin_network(
 
     let server_handle = server.spawn_for_test().await.unwrap();
 
-    let client = NetworkAuthorityClient::connect(server_handle.address())
-        .await
-        .unwrap();
+    let client = NetworkAuthorityClient::connect(
+        server_handle.address(),
+        Some(
+            authority_state
+                .config
+                .network_key_pair()
+                .public()
+                .to_owned(),
+        ),
+    )
+    .await
+    .unwrap();
     Ok((
         object_ids,
         gas_object_ids,
@@ -1062,16 +1064,8 @@ async fn init_zklogin_transfer(
     zklogin: &ZkLoginInputs,
 ) -> iota_types::message_envelope::Envelope<SenderSignedData, iota_types::crypto::EmptySignInfo> {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
     let object_ref = object.compute_object_reference();
     let gas_object_ref = gas_object.compute_object_reference();
     let gas_budget = rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER;
@@ -1112,16 +1106,8 @@ async fn sign_with_zklogin_inside_multisig(
     multisig_pk: MultiSigPublicKey,
 ) -> iota_types::message_envelope::Envelope<SenderSignedData, iota_types::crypto::EmptySignInfo> {
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
     let object_ref = object.compute_object_reference();
     let gas_object_ref = gas_object.compute_object_reference();
     let gas_budget = rgp * TEST_ONLY_GAS_UNIT_FOR_TRANSFER;
@@ -1272,16 +1258,8 @@ async fn test_zklogin_multisig() {
     });
 
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let data = TransactionData::new_transfer(
         recipient,
@@ -1331,9 +1309,18 @@ async fn execute_transaction_assert_err(
 
     let server_handle = server.spawn_for_test().await.unwrap();
 
-    let client = NetworkAuthorityClient::connect(server_handle.address())
-        .await
-        .unwrap();
+    let client = NetworkAuthorityClient::connect(
+        server_handle.address(),
+        Some(
+            authority_state
+                .config
+                .network_key_pair()
+                .public()
+                .to_owned(),
+        ),
+    )
+    .await
+    .unwrap();
     let err = client
         .handle_transaction(txn.clone(), Some(make_socket_addr()))
         .await;
@@ -1354,11 +1341,7 @@ async fn test_oversized_txn() {
         .epoch_store_for_testing()
         .protocol_config()
         .max_tx_size_bytes() as usize;
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
     let obj_ref = object.compute_object_reference();
 
     // Construct an oversized txn.
@@ -1383,9 +1366,18 @@ async fn test_oversized_txn() {
 
     let server_handle = server.spawn_for_test().await.unwrap();
 
-    let client = NetworkAuthorityClient::connect(server_handle.address())
-        .await
-        .unwrap();
+    let client = NetworkAuthorityClient::connect(
+        server_handle.address(),
+        Some(
+            authority_state
+                .config
+                .network_key_pair()
+                .public()
+                .to_owned(),
+        ),
+    )
+    .await
+    .unwrap();
 
     let res = client
         .handle_transaction(txn, Some(make_socket_addr()))
@@ -1409,16 +1401,8 @@ async fn test_very_large_certificate() {
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let transfer_transaction = init_transfer_transaction(
         |_| {},
@@ -1435,9 +1419,18 @@ async fn test_very_large_certificate() {
 
     let server_handle = server.spawn_for_test().await.unwrap();
 
-    let client = NetworkAuthorityClient::connect(server_handle.address())
-        .await
-        .unwrap();
+    let client = NetworkAuthorityClient::connect(
+        server_handle.address(),
+        Some(
+            authority_state
+                .config
+                .network_key_pair()
+                .public()
+                .to_owned(),
+        ),
+    )
+    .await
+    .unwrap();
     let socket_addr = make_socket_addr();
 
     let auth_sig = client
@@ -1493,16 +1486,8 @@ async fn test_handle_certificate_errors() {
     let authority_state =
         init_state_with_ids(vec![(sender, object_id), (sender, gas_object_id)]).await;
     let rgp = authority_state.reference_gas_price_for_testing().unwrap();
-    let object = authority_state
-        .get_object(&object_id)
-        .await
-        .unwrap()
-        .unwrap();
-    let gas_object = authority_state
-        .get_object(&gas_object_id)
-        .await
-        .unwrap()
-        .unwrap();
+    let object = authority_state.get_object(&object_id).await.unwrap();
+    let gas_object = authority_state.get_object(&gas_object_id).await.unwrap();
 
     let transfer_transaction = init_transfer_transaction(
         |_| {},
@@ -1519,9 +1504,18 @@ async fn test_handle_certificate_errors() {
 
     let server_handle = server.spawn_for_test().await.unwrap();
 
-    let client = NetworkAuthorityClient::connect(server_handle.address())
-        .await
-        .unwrap();
+    let client = NetworkAuthorityClient::connect(
+        server_handle.address(),
+        Some(
+            authority_state
+                .config
+                .network_key_pair()
+                .public()
+                .to_owned(),
+        ),
+    )
+    .await
+    .unwrap();
 
     // Test handle certificate from the wrong epoch
     let epoch_store = authority_state.epoch_store_for_testing();
@@ -1692,11 +1686,7 @@ async fn test_handle_soft_bundle_certificates() {
         .unwrap();
         effects.status().unwrap();
         let shared_object_id = effects.created()[0].0.0;
-        authority
-            .get_object(&shared_object_id)
-            .await
-            .unwrap()
-            .unwrap()
+        authority.get_object(&shared_object_id).await.unwrap()
     };
     let initial_shared_version = shared_object.version();
 
@@ -1711,9 +1701,12 @@ async fn test_handle_soft_bundle_certificates() {
     let server = AuthorityServer::new_for_test_with_consensus_adapter(authority.clone(), adapter);
     let _metrics = server.metrics.clone();
     let server_handle = server.spawn_for_test().await.unwrap();
-    let client = NetworkAuthorityClient::connect(server_handle.address())
-        .await
-        .unwrap();
+    let client = NetworkAuthorityClient::connect(
+        server_handle.address(),
+        Some(authority.config.network_key_pair().public().to_owned()),
+    )
+    .await
+    .unwrap();
 
     let signed_tx_into_certificate = |transaction: Transaction| async {
         let epoch_store = authority.load_epoch_store_one_call_per_task();
@@ -1744,7 +1737,6 @@ async fn test_handle_soft_bundle_certificates() {
             let gas_object_ref = authority
                 .get_object(&gas_object_ids[i])
                 .await
-                .unwrap()
                 .unwrap()
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
@@ -1858,11 +1850,7 @@ async fn test_handle_soft_bundle_certificates_errors() {
         .unwrap();
         effects.status().unwrap();
         let shared_object_id = effects.created()[0].0.0;
-        authority
-            .get_object(&shared_object_id)
-            .await
-            .unwrap()
-            .unwrap()
+        authority.get_object(&shared_object_id).await.unwrap()
     };
     let initial_shared_version = shared_object.version();
 
@@ -1871,9 +1859,12 @@ async fn test_handle_soft_bundle_certificates_errors() {
     let authority = server.state.clone();
     let _metrics = server.metrics.clone();
     let server_handle = server.spawn_for_test().await.unwrap();
-    let client = NetworkAuthorityClient::connect(server_handle.address())
-        .await
-        .unwrap();
+    let client = NetworkAuthorityClient::connect(
+        server_handle.address(),
+        Some(authority.config.network_key_pair().public().to_owned()),
+    )
+    .await
+    .unwrap();
 
     let signed_tx_into_certificate = |transaction: Transaction| async {
         let epoch_store = authority.load_epoch_store_one_call_per_task();
@@ -1929,12 +1920,10 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&owned_objects[i].id())
                 .await
                 .unwrap()
-                .unwrap()
                 .compute_object_reference();
             let gas_object_ref = authority
                 .get_object(&gas_objects[i].id())
                 .await
-                .unwrap()
                 .unwrap()
                 .compute_object_reference();
             let data = TransactionData::new_transfer(
@@ -1978,12 +1967,10 @@ async fn test_handle_soft_bundle_certificates_errors() {
             .get_object(&owned_objects[5].id())
             .await
             .unwrap()
-            .unwrap()
             .compute_object_reference();
         let gas_object_ref = authority
             .get_object(&gas_objects[5].id())
             .await
-            .unwrap()
             .unwrap()
             .compute_object_reference();
         let data = TransactionData::new_transfer(
@@ -2026,7 +2013,6 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[6].id())
                 .await
                 .unwrap()
-                .unwrap()
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[6].0,
@@ -2056,7 +2042,6 @@ async fn test_handle_soft_bundle_certificates_errors() {
             let gas_object_ref = authority
                 .get_object(&gas_objects[7].id())
                 .await
-                .unwrap()
                 .unwrap()
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
@@ -2114,7 +2099,6 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&gas_objects[8].id())
                 .await
                 .unwrap()
-                .unwrap()
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
                 senders[8].0,
@@ -2144,7 +2128,6 @@ async fn test_handle_soft_bundle_certificates_errors() {
             let gas_object_ref = authority
                 .get_object(&gas_objects[9].id())
                 .await
-                .unwrap()
                 .unwrap()
                 .compute_object_reference();
             let data = TransactionData::new_move_call(
@@ -2206,12 +2189,10 @@ async fn test_handle_soft_bundle_certificates_errors() {
                 .get_object(&owned_objects[i].id())
                 .await
                 .unwrap()
-                .unwrap()
                 .compute_object_reference();
             let gas_object_ref = authority
                 .get_object(&gas_objects[i].id())
                 .await
-                .unwrap()
                 .unwrap()
                 .compute_object_reference();
             let sender = &senders[i];

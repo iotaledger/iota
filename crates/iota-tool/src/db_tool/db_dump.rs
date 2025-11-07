@@ -25,9 +25,9 @@ use iota_core::{
     },
     checkpoints::CheckpointStore,
     epoch::committee_store::CommitteeStoreTables,
+    jsonrpc_index::IndexStoreTables,
     rest_index::RestIndexStore,
 };
-use iota_storage::{IndexStoreTables, mutex_table::RwLockTable};
 use iota_types::base_types::{EpochId, ObjectID};
 use prometheus::Registry;
 use strum_macros::EnumString;
@@ -46,7 +46,7 @@ pub enum StoreName {
 }
 impl std::fmt::Display for StoreName {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{:?}", self)
+        write!(f, "{self:?}")
     }
 }
 
@@ -163,7 +163,7 @@ pub fn print_table_metadata(
         table.add_row(row);
     }
 
-    eprintln!("{}", table);
+    eprintln!("{table}");
     Ok(())
 }
 
@@ -206,12 +206,7 @@ pub fn compact(db_path: PathBuf) -> anyhow::Result<()> {
 
 pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
-    let checkpoint_store = Arc::new(CheckpointStore::open_tables_read_write(
-        db_path.join("checkpoints"),
-        MetricConf::default(),
-        None,
-        None,
-    ));
+    let checkpoint_store = CheckpointStore::new(&db_path.join("checkpoints"));
     let rest_index = RestIndexStore::new_without_init(db_path.join("rest_index"));
     let highest_pruned_checkpoint = checkpoint_store.get_highest_pruned_checkpoint_seq_number()?;
     let latest_checkpoint = checkpoint_store.get_highest_executed_checkpoint()?;
@@ -221,7 +216,6 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
     );
     info!("Highest pruned checkpoint: {}", highest_pruned_checkpoint);
     let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
-    let lock_table = Arc::new(RwLockTable::new(1));
     info!("Pruning setup for db at path: {:?}", db_path.display());
     let pruning_config = AuthorityStorePruningConfig {
         num_epochs_to_retain: 0,
@@ -232,10 +226,9 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
         &perpetual_db,
         &checkpoint_store,
         Some(&rest_index),
-        &lock_table,
+        None,
         pruning_config,
         metrics,
-        usize::MAX,
         EPOCH_DURATION_MS_FOR_TESTING,
     )
     .await?;
@@ -244,15 +237,9 @@ pub async fn prune_objects(db_path: PathBuf) -> anyhow::Result<()> {
 
 pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
     let perpetual_db = Arc::new(AuthorityPerpetualTables::open(&db_path.join("store"), None));
-    let checkpoint_store = Arc::new(CheckpointStore::open_tables_read_write(
-        db_path.join("checkpoints"),
-        MetricConf::default(),
-        None,
-        None,
-    ));
+    let checkpoint_store = CheckpointStore::new(&db_path.join("checkpoints"));
     let rest_index = RestIndexStore::new_without_init(db_path.join("rest_index"));
     let metrics = AuthorityStorePruningMetrics::new(&Registry::default());
-    let lock_table = Arc::new(RwLockTable::new(1));
     info!("Pruning setup for db at path: {:?}", db_path.display());
     let pruning_config = AuthorityStorePruningConfig {
         num_epochs_to_retain_for_checkpoints: Some(1),
@@ -264,10 +251,9 @@ pub async fn prune_checkpoints(db_path: PathBuf) -> anyhow::Result<()> {
         &perpetual_db,
         &checkpoint_store,
         Some(&rest_index),
-        &lock_table,
+        None,
         pruning_config,
         metrics,
-        usize::MAX,
         archive_readers,
         EPOCH_DURATION_MS_FOR_TESTING,
     )
@@ -328,7 +314,7 @@ mod test {
 
     #[tokio::test]
     async fn db_dump_population() -> Result<(), anyhow::Error> {
-        let primary_path = tempfile::tempdir()?.into_path();
+        let primary_path = tempfile::tempdir()?.keep();
 
         // Open the DB for writing
         let _: AuthorityEpochTables = AuthorityEpochTables::open(0, &primary_path, None);
@@ -346,7 +332,7 @@ mod test {
 
         let mut missing_tables = vec![];
         for t in tables {
-            println!("{}", t);
+            println!("{t}");
             if dump_table(
                 StoreName::Validator,
                 Some(0),

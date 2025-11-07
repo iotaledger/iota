@@ -1,14 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{
-    file_format::{
-        empty_module, Bytecode, CodeUnit, FunctionDefinition, FunctionHandle, IdentifierIndex,
-        ModuleHandleIndex, SignatureIndex,
-    },
     CompiledModule,
+    file_format::{
+        Bytecode, CodeUnit, FunctionDefinition, FunctionHandle, IdentifierIndex, ModuleHandleIndex,
+        SignatureIndex, empty_module,
+    },
 };
 
 /// Create a dummy module to wrap the bytecode program in local@code

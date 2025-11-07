@@ -1,13 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{fs::File, io::Write, path::Path};
 
 use anyhow::Result;
 use move_binary_format::{file_format::CompiledModule, file_format_common::VERSION_MAX};
-use move_compiler::{compiled_unit::AnnotatedCompiledUnit, Compiler as MoveCompiler};
+use move_compiler::{Compiler as MoveCompiler, compiled_unit::AnnotatedCompiledUnit};
 use tempfile::tempdir;
 
 pub fn compile_units(s: &str) -> Result<Vec<AnnotatedCompiledUnit>> {

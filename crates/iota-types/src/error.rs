@@ -90,7 +90,7 @@ macro_rules! assert_invariant {
     Eq, PartialEq, Clone, Debug, Serialize, Deserialize, Error, Hash, AsRefStr, IntoStaticStr,
 )]
 pub enum UserInputError {
-    #[error("Mutable object {object_id} cannot appear more than one in one transaction")]
+    #[error("Mutable object {object_id} cannot appear more than once in one transaction")]
     MutableObjectUsedMoreThanOnce { object_id: ObjectID },
     #[error("Wrong number of parameters for the transaction")]
     ObjectInputArityViolation,
@@ -104,7 +104,8 @@ pub enum UserInputError {
         version: Option<SequenceNumber>,
     },
     #[error(
-        "Object {provided_obj_ref:?} is not available for consumption, its current version: {current_version:?}"
+        "Object ID {} Version {} Digest {} is not available for consumption, current version: {current_version}",
+        .provided_obj_ref.0, .provided_obj_ref.1, .provided_obj_ref.2
     )]
     ObjectVersionUnavailableForConsumption {
         provided_obj_ref: ObjectRef,
@@ -202,6 +203,8 @@ pub enum UserInputError {
     BlockedMoveFunction,
     #[error("Empty input coins for Pay related transaction")]
     EmptyInputCoins,
+    #[error("Invalid Move View Function call: {error:?}")]
+    InvalidMoveViewFunction { error: String },
 
     #[error(
         "IOTA payment transactions use first input coin for gas payment, but found a different gas object"
@@ -306,6 +309,9 @@ pub enum UserInputError {
 
     #[error("Coin type is globally paused for use: {coin_type}")]
     CoinTypeGlobalPause { coin_type: String },
+
+    #[error("Invalid identifier found in the transaction: {error}")]
+    InvalidIdentifier { error: String },
 }
 
 #[derive(
@@ -438,6 +444,7 @@ pub enum IotaError {
     #[error("Signatures in a certificate must form a quorum")]
     CertificateRequiresQuorum,
     #[error("Transaction certificate processing failed: {err}")]
+    // DEPRECATED: "local execution" was removed from fullnodes
     ErrorWhileProcessingCertificate { err: String },
     #[error(
         "Failed to get a quorum of signed effects when processing transaction: {effects_map:?}"
@@ -546,9 +553,6 @@ pub enum IotaError {
     #[error("Authority Error: {error:?}")]
     GenericAuthority { error: String },
 
-    #[error("Generic Bridge Error: {error:?}")]
-    GenericBridge { error: String },
-
     #[error("Failed to dispatch subscription: {error:?}")]
     FailedToDispatchSubscription { error: String },
 
@@ -599,6 +603,8 @@ pub enum IotaError {
     // Unsupported Operations on Fullnode
     #[error("Fullnode does not support handle_certificate")]
     FullNodeCantHandleCertificate,
+    #[error("Fullnode does not support handle_authority_capabilities")]
+    FullNodeCantHandleAuthorityCapabilities,
 
     // Epoch related errors.
     #[error("Validator temporarily stopped processing transactions due to epoch change")]
@@ -646,9 +652,6 @@ pub enum IotaError {
 
     #[error("Failed to read or deserialize system state related data structures on-chain: {0}")]
     IotaSystemStateRead(String),
-
-    #[error("Failed to read or deserialize bridge related data structures on-chain: {0}")]
-    IotaBridgeRead(String),
 
     #[error("Unexpected version error: {0}")]
     UnexpectedVersion(String),
@@ -972,7 +975,7 @@ impl ExecutionError {
 
 impl std::fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "ExecutionError: {:?}", self)
+        write!(f, "ExecutionError: {self:?}")
     }
 }
 

@@ -472,10 +472,7 @@ mod tests {
         })
         .await
         .unwrap_or_else(|_| {
-            panic!(
-                "Timeout while waiting for connectivity results for value {}",
-                value
-            )
+            panic!("Timeout while waiting for connectivity results for value {value}")
         });
 
         assert_eq!(metrics.network_peers.get(), value);

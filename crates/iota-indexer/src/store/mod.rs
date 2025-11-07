@@ -5,7 +5,7 @@
 pub(crate) use indexer_analytics_store::IndexerAnalyticalStore;
 pub(crate) use indexer_store::*;
 pub use pg_indexer_analytical_store::PgIndexerAnalyticalStore;
-pub use pg_indexer_store::PgIndexerStore;
+pub use pg_indexer_store::{PgIndexerStore, TxGlobalOrderCursor};
 
 mod indexer_analytics_store;
 pub mod indexer_store;
@@ -79,10 +79,53 @@ pub mod diesel_macro {
                     .read_write()
                     .run($query)
                     .map_err(|e| {
-                        tracing::error!("Error with persisting data into DB: {:?}, retrying...", e);
+                        tracing::error!("error with persisting data into DB: {e:?}, retrying...");
                         backoff::Error::Transient {
                             err: IndexerError::PostgresWrite(e.to_string()),
                             retry_after: None,
+                        }
+                    })
+            }) {
+                Ok(v) => Ok(v),
+                Err(backoff::Error::Transient { err, .. }) => Err(err),
+                Err(backoff::Error::Permanent(err)) => Err(err),
+            };
+
+            result
+        }};
+    }
+
+    #[macro_export]
+    macro_rules! transactional_blocking_with_retry_with_conditional_abort {
+        ($pool:expr, $query:expr, $abort_condition:expr, $max_elapsed:expr) => {{
+            use $crate::{
+                db::{PoolConnection, get_pool_connection},
+                errors::IndexerError,
+            };
+            let mut backoff = backoff::ExponentialBackoff::default();
+            backoff.max_elapsed_time = Some($max_elapsed);
+            let result = match backoff::retry(backoff, || {
+                let mut pool_conn =
+                    get_pool_connection($pool).map_err(|e| backoff::Error::Transient {
+                        err: IndexerError::PostgresWrite(e.to_string()),
+                        retry_after: None,
+                    })?;
+                pool_conn
+                    .as_any_mut()
+                    .downcast_mut::<PoolConnection>()
+                    .unwrap()
+                    .build_transaction()
+                    .read_write()
+                    .run($query)
+                    .map_err(|e| {
+                        tracing::error!("error with persisting data into DB: {e:?}, retrying...");
+                        if $abort_condition(&e) {
+                            backoff::Error::Permanent(e)
+                        } else {
+                            backoff::Error::Transient {
+                                err: IndexerError::PostgresWrite(e.to_string()),
+                                retry_after: None,
+                            }
                         }
                     })
             }) {
@@ -133,7 +176,7 @@ pub mod diesel_macro {
                 }
             })
             .await
-            .expect("Blocking call failed")
+            .expect("blocking call failed")
         }};
     }
 
@@ -141,7 +184,7 @@ pub mod diesel_macro {
     macro_rules! insert_or_ignore_into {
         ($table:expr, $values:expr, $conn:expr) => {{
             use diesel::RunQueryDsl;
-            let error_message = concat!("Failed to write to ", stringify!($table), " DB");
+            let error_message = concat!("failed to write to ", stringify!($table), " DB");
 
             diesel::insert_into($table)
                 .values($values)
@@ -162,6 +205,21 @@ pub mod diesel_macro {
                 .on_conflict($target)
                 .do_update()
                 .set($pg_columns)
+                .execute($conn)?;
+        }};
+    }
+
+    #[macro_export]
+    macro_rules! on_conflict_do_update_with_condition {
+        ($table:expr, $values:expr, $target:expr, $pg_columns:expr, $condition:expr, $conn:expr) => {{
+            use diesel::{ExpressionMethods, RunQueryDsl, query_dsl::methods::FilterDsl};
+
+            diesel::insert_into($table)
+                .values($values)
+                .on_conflict($target)
+                .do_update()
+                .set($pg_columns)
+                .filter($condition)
                 .execute($conn)?;
         }};
     }
@@ -208,7 +266,7 @@ pub mod diesel_macro {
                 && !CALLED_FROM_BLOCKING_POOL.with(|in_blocking_pool| *in_blocking_pool.borrow())
             {
                 panic!(
-                    "You are calling a blocking DB operation directly on an async thread. \
+                    "you are calling a blocking DB operation directly on an async thread. \
                         Please use IndexerReader::spawn_blocking instead to move the \
                         operation to a blocking thread"
                 );
@@ -216,6 +274,53 @@ pub mod diesel_macro {
         }};
     }
 
+    /// This macro provides a standardized way to bulk insert data into database
+    /// tables with built-in performance monitoring, error handling, and
+    /// retry logic. It automatically subdivides large chunks into smaller
+    /// batches to optimize database performance and avoid overwhelming
+    /// individual transactions.
+    ///
+    /// # Parameters
+    ///
+    /// * `$table` - The target database table (e.g., `events::table`,
+    ///   `transactions::table`)
+    /// * `$chunk` - Collection of data to persist (must implement `.len()` and
+    ///   `.chunks()`)
+    /// * `$pool` - Database connection pool reference
+    ///
+    /// # Behavior
+    ///
+    /// 1. **Performance Timing**: Records operation duration for monitoring
+    /// 2. **Automatic Batching**: Splits data into chunks of
+    ///    `PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX` rows
+    /// 3. **Transaction Safety**: Uses `transactional_blocking_with_retry!` for
+    ///    atomic operations
+    /// 4. **Conflict Resolution**: Employs `INSERT ... ON CONFLICT DO NOTHING`
+    ///    strategy
+    /// 5. **Retry Logic**: Automatically retries failed operations with timeout
+    ///    of `PG_DB_COMMIT_SLEEP_DURATION`
+    /// 6. **Comprehensive Logging**: Logs success/failure with timing and row
+    ///    count information
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// let event_batch = vec![/* event data */];
+    /// // Persist event data
+    /// persist_chunk_into_table!(
+    ///     events::table,
+    ///     event_batch,
+    ///     &connection_pool
+    /// ).unwrap();
+    ///
+    /// let sender_data = vec![/* sender data */];
+    /// // Persist transaction senders
+    /// persist_chunk_into_table!(
+    ///     tx_senders::table,
+    ///     sender_data,
+    ///     &blocking_pool
+    /// ).unwrap();
+    /// ```
     #[macro_export]
     macro_rules! persist_chunk_into_table {
         ($table:expr, $chunk:expr, $pool:expr) => {{
@@ -224,9 +329,7 @@ pub mod diesel_macro {
             transactional_blocking_with_retry!(
                 $pool,
                 |conn| {
-                    for chunk in $chunk.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
-                        insert_or_ignore_into!($table, chunk, conn);
-                    }
+                    persist_chunk_into_table_in_existing_connection!($table, $chunk, conn);
                     Ok::<(), IndexerError>(())
                 },
                 PG_DB_COMMIT_SLEEP_DURATION
@@ -241,8 +344,17 @@ pub mod diesel_macro {
                 );
             })
             .tap_err(|e| {
-                tracing::error!("Failed to persist {} with error: {}", stringify!($table), e);
+                tracing::error!("failed to persist {} with error: {e}", stringify!($table));
             })
+        }};
+    }
+
+    #[macro_export]
+    macro_rules! persist_chunk_into_table_in_existing_connection {
+        ($table:expr, $chunk:expr, $conn:expr) => {{
+            for chunk in $chunk.chunks(PG_COMMIT_CHUNK_SIZE_INTRA_DB_TX) {
+                insert_or_ignore_into!($table, chunk, $conn);
+            }
         }};
     }
 

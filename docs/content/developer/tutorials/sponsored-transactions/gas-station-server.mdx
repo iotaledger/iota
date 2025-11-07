@@ -9,7 +9,7 @@ This guide is for developers who want to build their own gas station. If you'd r
 The workflow of the sponsored transaction is as follows:
     - A user who does not have an IOTA balance wants to subscribe to the free trial option. They will send a request to the Gas Station server to sponsor their transaction alongside content type (Music, News or Movies).
     - The Gas Station server will verify that this user has not used the free trial option before. If the user is eligible, the Gas Station will build a transaction (with gas payment from the sponsor's balance), sign it, and send back both the transaction and the signature separately as the response.
-    - The user, having received the transaction and the sponsor's signature, will sign the transaction and send it to the IOTA network. The user can do this using the [CLI](../../../references/cli.mdx), [Rust SDK](../../../references/rust-sdk.mdx) or [TS SDK](../../../ts-sdk/typescript/install.mdx). In this part, we will use the Rust SDK.
+    - The user, having received the transaction and the sponsor's signature, will sign the transaction and send it to the IOTA network. The user can do this using the [CLI](../../../developer/references/cli.mdx), [Rust SDK](../../../developer/references/rust-sdk.mdx) or [TS SDK](../../../developer/ts-sdk/typescript/install.mdx). In this part, we will use the Rust SDK.
     - The sponsor/admin (they can be different addresses, but for simplicity, we will assume they are the same) can now call the `publish` content function on the platform to publish the content to the user's address.
 
 ![Architecture overview](../../../../site/static/img/developer/tutorials/sponsored-txs/sponsored-tx-arch.png)

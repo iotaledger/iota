@@ -11,7 +11,6 @@
     "**/target/",
     "**/build/",
     "external-crates/move/crates/move-docgen/tests/sources/*.md",
-    "bridge/evm/lib/",
     "examples/trading/api/prisma/migrations/migration_lock.toml",
     "sdk/create-dapp/templates/",
     "crates/iota-core/tests/staged/iota.yaml",
@@ -19,7 +18,8 @@
     "crates/iota-graphql-rpc/docs/examples.md",
     "**/pnpm-lock.yaml",
     "external-crates/move/crates/move-stdlib/**/docs/**/*.md",
-    "crates/iota/src/unit_tests/fixtures/*"
+    "crates/iota/src/unit_tests/fixtures/*",
+    "external-crates/move/crates/move-package-alt/tests/data/manifest_parsing_invalid/basic_invalid_environment2/Move.toml"
   ],
   "toml": {
     "lineWidth": 80

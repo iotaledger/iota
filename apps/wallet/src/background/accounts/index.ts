@@ -8,7 +8,7 @@ import {
     type MethodPayload,
 } from '_src/shared/messaging/messages/payloads/methodPayload';
 import { type WalletStatusChange } from '_src/shared/messaging/messages/payloads/wallet-status-change';
-import { fromB64 } from '@iota/iota-sdk/utils';
+import { fromBase64 } from '@iota/iota-sdk/utils';
 import Dexie from 'dexie';
 import { getAccountSourceByID } from '../account-sources';
 import { accountSourcesEvents } from '../account-sources/events';
@@ -29,7 +29,15 @@ import { ImportedAccount } from './importedAccount';
 import { LedgerAccount } from './ledgerAccount';
 import { MnemonicAccount } from './mnemonicAccount';
 import { SeedAccount } from './seedAccount';
-import { MILLISECONDS_PER_SECOND, SECONDS_PER_MINUTE } from '@iota/core';
+import { PasskeyAccount } from './passkeyAccount';
+import {
+    MILLISECONDS_PER_SECOND,
+    SECONDS_PER_MINUTE,
+    WALLET_LOCK_DURATION_IN_MS,
+} from '@iota/core';
+import { AccountTooManyAttemptsError } from '_src/shared/accounts';
+import { KeystoneAccount } from './keystoneAccount';
+import { KeystoneAccountSource } from '../account-sources/keystoneAccountSource';
 
 function toAccount(account: SerializedAccount) {
     if (MnemonicAccount.isOfType(account)) {
@@ -41,8 +49,14 @@ function toAccount(account: SerializedAccount) {
     if (ImportedAccount.isOfType(account)) {
         return new ImportedAccount({ id: account.id, cachedData: account });
     }
+    if (PasskeyAccount.isOfType(account)) {
+        return new PasskeyAccount({ id: account.id, cachedData: account });
+    }
     if (LedgerAccount.isOfType(account)) {
         return new LedgerAccount({ id: account.id, cachedData: account });
+    }
+    if (KeystoneAccount.isOfType(account)) {
+        return new KeystoneAccount({ id: account.id, cachedData: account });
     }
     throw new Error(`Unknown account of type ${account.type}`);
 }
@@ -232,7 +246,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                 {
                     type: 'method-payload',
                     method: 'signDataResponse',
-                    args: { signature: await account.signData(fromB64(data)) },
+                    args: { signature: await account.signData(fromBase64(data)) },
                 },
                 msg.id,
             ),
@@ -264,11 +278,31 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             newSerializedAccounts.push(await accountSource.deriveAccount());
         } else if (type === AccountType.PrivateKeyDerived) {
             newSerializedAccounts.push(await ImportedAccount.createNew(payload.args));
+        } else if (type === AccountType.PasskeyDerived) {
+            newSerializedAccounts.push(await PasskeyAccount.createNew(payload.args));
         } else if (type === AccountType.LedgerDerived) {
             const { password, accounts } = payload.args;
             for (const aLedgerAccount of accounts) {
                 newSerializedAccounts.push(
-                    await LedgerAccount.createNew({ ...aLedgerAccount, password }),
+                    await LedgerAccount.createNew({
+                        ...aLedgerAccount,
+                        password,
+                        mainPublicKey: payload.args.mainPublicKey,
+                    }),
+                );
+            }
+        } else if (type === AccountType.KeystoneDerived) {
+            const { sourceID, accounts } = payload.args;
+            const accountSource = await getAccountSourceByID(sourceID);
+            if (!accountSource) {
+                throw new Error(`Account source ${sourceID} not found`);
+            }
+            if (!(accountSource instanceof KeystoneAccountSource)) {
+                throw new Error(`Invalid account source type`);
+            }
+            for (const account of accounts) {
+                newSerializedAccounts.push(
+                    await KeystoneAccount.createNew({ ...account, sourceID }),
                 );
             }
         } else {
@@ -298,9 +332,28 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
         await uiConnection.send(createMessage({ type: 'done' }, msg.id));
         return true;
     }
+    if (isMethodPayload(payload, 'getLockedState')) {
+        let remainingTime = 0;
+        const { isLockedOut, lockTimeMs } = await getLockedState();
+        if (isLockedOut && lockTimeMs) {
+            const elapsedTime = Date.now() - Number(lockTimeMs);
+            remainingTime = Math.max(0, WALLET_LOCK_DURATION_IN_MS - elapsedTime);
+        }
+        await uiConnection.send(
+            createMessage<MethodPayload<'getLockedStateResponse'>>(
+                {
+                    type: 'method-payload',
+                    method: 'getLockedStateResponse',
+                    args: {
+                        remainingTime,
+                    },
+                },
+                msg.id,
+            ),
+        );
+    }
     if (isMethodPayload(payload, 'verifyPassword')) {
         const MAX_UNLOCK_ATTEMPTS = 3;
-        const WALLET_LOCK_DURATION_IN_MS = 60 * MILLISECONDS_PER_SECOND;
         const RESET_FAILED_ATTEMPTS_THRESHOLD_IN_MS =
             60 * SECONDS_PER_MINUTE * MILLISECONDS_PER_SECOND;
 
@@ -312,9 +365,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
 
             if (remainingTime > 0) {
                 // The wallet is still locked after the maximum number of failed attempts
-                throw new Error(
-                    `Too many failed attempts. Please try again in ${Math.ceil(remainingTime / MILLISECONDS_PER_SECOND)} seconds.`,
-                );
+                throw new AccountTooManyAttemptsError();
             } else {
                 await clearStateAfterManyFailedAttempts();
             }
@@ -351,10 +402,7 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
                     lockTimeMs: Date.now(),
                     isLockedOut: true,
                 });
-                const remainingSeconds = WALLET_LOCK_DURATION_IN_MS / MILLISECONDS_PER_SECOND;
-                throw new Error(
-                    `Too many failed attempts. Please try again in ${remainingSeconds} ${remainingSeconds === 1 ? 'second' : 'seconds'}.`,
-                );
+                throw new AccountTooManyAttemptsError();
             } else {
                 // Update the failed attempts count and the time of the last failed attempt
                 await updateLockedState({ failedAttempts, lastFailedAttemptTime: currentTime });

@@ -4,6 +4,7 @@
 
 use std::{io::Cursor, sync::Arc};
 
+use anyhow::bail;
 use async_trait::async_trait;
 use byteorder::{BigEndian, ByteOrder};
 use bytes::Bytes;
@@ -60,7 +61,7 @@ impl ArchivalReducer {
         summary_buffer: Vec<u8>,
         buffer: Vec<u8>,
     ) -> anyhow::Result<()> {
-        let checkpoint_file_path = format!("epoch_{}/{}.chk", epoch, start);
+        let checkpoint_file_path = format!("epoch_{epoch}/{start}.chk");
         let chk_bytes = self
             .upload_file(
                 Path::from(checkpoint_file_path.clone()),
@@ -68,7 +69,7 @@ impl ArchivalReducer {
                 &buffer,
             )
             .await?;
-        let summary_file_path = format!("epoch_{}/{}.sum", epoch, start);
+        let summary_file_path = format!("epoch_{epoch}/{start}.sum");
         let sum_bytes = self
             .upload_file(
                 Path::from(summary_file_path.clone()),
@@ -136,7 +137,7 @@ impl ArchivalReducer {
 impl Reducer<RelayWorker> for ArchivalReducer {
     async fn commit(&self, batch: &[Arc<CheckpointData>]) -> Result<(), anyhow::Error> {
         if batch.is_empty() {
-            return Err(anyhow::anyhow!("commit batch can't be empty"));
+            bail!("commit batch can't be empty");
         }
         let mut summary_buffer = vec![];
         let mut buffer = vec![];

@@ -177,6 +177,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateV1 {
                         NetworkMetadata {
                             network_address: verified_metadata.net_address.clone(),
                             primary_address: verified_metadata.primary_address.clone(),
+                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
                         },
                     ),
                 )
@@ -193,31 +194,36 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateV1 {
     }
 
     fn into_epoch_start_state(self) -> EpochStartSystemState {
-        EpochStartSystemState::new_v1(
+        let committee_validators: Vec<_> = self
+            .validators
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let metadata = validator.verified_metadata();
+                EpochStartValidatorInfoV1 {
+                    iota_address: metadata.iota_address,
+                    authority_pubkey: metadata.authority_pubkey.clone(),
+                    network_pubkey: metadata.network_pubkey.clone(),
+                    protocol_pubkey: metadata.protocol_pubkey.clone(),
+                    iota_net_address: metadata.net_address.clone(),
+                    p2p_address: metadata.p2p_address.clone(),
+                    primary_address: metadata.primary_address.clone(),
+                    voting_power: validator.voting_power,
+                    hostname: "".to_string(),
+                }
+            })
+            .collect();
+
+        EpochStartSystemState::new_v2(
             self.epoch,
             self.protocol_version,
             self.reference_gas_price,
             self.safe_mode,
             self.epoch_start_timestamp_ms,
             self.parameters.epoch_duration_ms,
-            self.validators
-                .active_validators
-                .iter()
-                .map(|validator| {
-                    let metadata = validator.verified_metadata();
-                    EpochStartValidatorInfoV1 {
-                        iota_address: metadata.iota_address,
-                        authority_pubkey: metadata.authority_pubkey.clone(),
-                        network_pubkey: metadata.network_pubkey.clone(),
-                        protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        iota_net_address: metadata.net_address.clone(),
-                        p2p_address: metadata.p2p_address.clone(),
-                        primary_address: metadata.primary_address.clone(),
-                        voting_power: validator.voting_power,
-                        hostname: "".to_string(),
-                    }
-                })
-                .collect(),
+            committee_validators.clone(),
+            committee_validators, /* In simtest, committee_validators are the same as
+                                   * active_validators */
         )
     }
 
@@ -294,6 +300,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
                         NetworkMetadata {
                             network_address: verified_metadata.net_address.clone(),
                             primary_address: verified_metadata.primary_address.clone(),
+                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
                         },
                     ),
                 )
@@ -310,31 +317,36 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateShallowV1 {
     }
 
     fn into_epoch_start_state(self) -> EpochStartSystemState {
-        EpochStartSystemState::new_v1(
+        let committee_validators: Vec<_> = self
+            .validators
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let metadata = validator.verified_metadata();
+                EpochStartValidatorInfoV1 {
+                    iota_address: metadata.iota_address,
+                    authority_pubkey: metadata.authority_pubkey.clone(),
+                    network_pubkey: metadata.network_pubkey.clone(),
+                    protocol_pubkey: metadata.protocol_pubkey.clone(),
+                    iota_net_address: metadata.net_address.clone(),
+                    p2p_address: metadata.p2p_address.clone(),
+                    primary_address: metadata.primary_address.clone(),
+                    voting_power: validator.voting_power,
+                    hostname: "".to_string(),
+                }
+            })
+            .collect();
+
+        EpochStartSystemState::new_v2(
             self.epoch,
             self.protocol_version,
             self.reference_gas_price,
             self.safe_mode,
             self.epoch_start_timestamp_ms,
             self.parameters.epoch_duration_ms,
-            self.validators
-                .active_validators
-                .iter()
-                .map(|validator| {
-                    let metadata = validator.verified_metadata();
-                    EpochStartValidatorInfoV1 {
-                        iota_address: metadata.iota_address,
-                        authority_pubkey: metadata.authority_pubkey.clone(),
-                        network_pubkey: metadata.network_pubkey.clone(),
-                        protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        iota_net_address: metadata.net_address.clone(),
-                        p2p_address: metadata.p2p_address.clone(),
-                        primary_address: metadata.primary_address.clone(),
-                        voting_power: validator.voting_power,
-                        hostname: "".to_string(),
-                    }
-                })
-                .collect(),
+            committee_validators.clone(),
+            committee_validators, /* In simtest, committee_validators are the same as
+                                   * active_validators */
         )
     }
 
@@ -440,6 +452,7 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateDeepV1 {
                         NetworkMetadata {
                             network_address: verified_metadata.net_address.clone(),
                             primary_address: verified_metadata.primary_address.clone(),
+                            network_public_key: Some(verified_metadata.network_pubkey.clone()),
                         },
                     ),
                 )
@@ -456,31 +469,36 @@ impl IotaSystemStateTrait for SimTestIotaSystemStateDeepV1 {
     }
 
     fn into_epoch_start_state(self) -> EpochStartSystemState {
-        EpochStartSystemState::new_v1(
+        let committee_validators: Vec<_> = self
+            .validators
+            .active_validators
+            .iter()
+            .map(|validator| {
+                let metadata = validator.verified_metadata();
+                EpochStartValidatorInfoV1 {
+                    iota_address: metadata.iota_address,
+                    authority_pubkey: metadata.authority_pubkey.clone(),
+                    network_pubkey: metadata.network_pubkey.clone(),
+                    protocol_pubkey: metadata.protocol_pubkey.clone(),
+                    iota_net_address: metadata.net_address.clone(),
+                    p2p_address: metadata.p2p_address.clone(),
+                    primary_address: metadata.primary_address.clone(),
+                    voting_power: validator.voting_power,
+                    hostname: "".to_string(),
+                }
+            })
+            .collect();
+
+        EpochStartSystemState::new_v2(
             self.epoch,
             self.protocol_version,
             self.reference_gas_price,
             self.safe_mode,
             self.epoch_start_timestamp_ms,
             self.parameters.epoch_duration_ms,
-            self.validators
-                .active_validators
-                .iter()
-                .map(|validator| {
-                    let metadata = validator.verified_metadata();
-                    EpochStartValidatorInfoV1 {
-                        iota_address: metadata.iota_address,
-                        authority_pubkey: metadata.authority_pubkey.clone(),
-                        network_pubkey: metadata.network_pubkey.clone(),
-                        protocol_pubkey: metadata.protocol_pubkey.clone(),
-                        iota_net_address: metadata.net_address.clone(),
-                        p2p_address: metadata.p2p_address.clone(),
-                        primary_address: metadata.primary_address.clone(),
-                        voting_power: validator.voting_power,
-                        hostname: "".to_string(),
-                    }
-                })
-                .collect(),
+            committee_validators.clone(),
+            committee_validators, /* In simtest, committee_validators are the same as
+                                   * active_validators */
         )
     }
 

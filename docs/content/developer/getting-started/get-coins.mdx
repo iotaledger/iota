@@ -15,7 +15,7 @@ You can use the IOTA faucet to get free test IOTAs to pay for [gas](../../about-
 
 ## Using the IOTA CLI
 
-You can use the [IOTA CLI client](../../references/cli/client.mdx) to request tokens for your [address](get-address.mdx) by using the `iota client faucet` command. By default, the command will use the active network and address, but you can specify any values for these using the following parameters:
+You can use the [IOTA CLI client](../../developer/references/cli/client.mdx) to request tokens for your [address](get-address.mdx) by using the `iota client faucet` command. By default, the command will use the active network and address, but you can specify any values for these using the following parameters:
 
 - `--address` argument to provide a specific address (or its alias),
 - `--url` argument to provide a custom faucet endpoint.
@@ -65,7 +65,7 @@ You can also access the faucet using the IOTA TypeScript-SDK, as shown in the ex
 import { getFaucetHost, requestIOTAFromFaucetV0 } from '@iota/iota-sdk/faucet';
 
 // get tokens from the Devnet faucet server
-await requestIOTAFromFaucetV0({
+await requestIotaFromFaucetV0({
   // connect to Devnet
 	host: getFaucetHost('devnet'),
 	recipient: '<YOUR IOTA ADDRESS>',

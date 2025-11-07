@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_core_types::{metadata::Metadata, vm_status::StatusCode};
@@ -8,8 +8,8 @@ use move_core_types::{metadata::Metadata, vm_status::StatusCode};
 use crate::{
     binary_config::BinaryConfig,
     file_format::{
-        basic_test_module, basic_test_module_with_enum, Bytecode, CodeUnit, CompiledModule,
-        SignatureIndex, VariantJumpTableIndex,
+        Bytecode, CodeUnit, CompiledModule, SignatureIndex, VariantJumpTableIndex,
+        basic_test_module, basic_test_module_with_enum,
     },
     file_format_common::*,
 };

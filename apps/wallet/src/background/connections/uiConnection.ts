@@ -55,6 +55,7 @@ import { AccountSourceType } from '../account-sources/accountSource';
 import { isDeriveBipPathAccountsFinder, isPersistAccountsFinder } from '_payloads/accounts-finder';
 import type { SerializedAccount } from '../accounts/account';
 import { LedgerAccount } from '../accounts/ledgerAccount';
+import { KeystoneAccountSource } from '../account-sources/keystoneAccountSource';
 
 export class UiConnection extends Connection {
     public static readonly CHANNEL: PortChannelName = 'iota_ui<->background';
@@ -271,6 +272,10 @@ export class UiConnection extends Connection {
                     throw new Error('Could not find account source');
                 }
 
+                if (accountSource instanceof KeystoneAccountSource) {
+                    throw new Error('Keystone accounts are not supported.');
+                }
+
                 const publicKey = await accountSource.derivePubKey(payload.derivationOptions);
 
                 this.send(
@@ -295,6 +300,10 @@ export class UiConnection extends Connection {
                             throw new Error('Could not find account source');
                         }
 
+                        if (accountSource instanceof KeystoneAccountSource) {
+                            throw new Error('Keystone accounts are not supported.');
+                        }
+
                         derivedAccounts = await Promise.all(
                             payload.sourceStrategy.bipPaths.map((addressBipPath) =>
                                 accountSource.deriveAccount(addressBipPath),
@@ -307,6 +316,7 @@ export class UiConnection extends Connection {
                                 await LedgerAccount.createNew({
                                     password: payload.sourceStrategy.password,
                                     ...address,
+                                    mainPublicKey: payload.sourceStrategy.mainPublicKey,
                                 }),
                             );
                         }

@@ -104,7 +104,7 @@ export function NetworkSelector(): JSX.Element {
                                 <div className="flex items-center gap-2">
                                     <CheckmarkFilled
                                         className={cx('flex-shrink-0', {
-                                            'text-primary-30': network === selectedNetwork,
+                                            'text-iota-primary-30': network === selectedNetwork,
                                             'text-gray-45': network !== selectedNetwork,
                                         })}
                                     />
@@ -129,6 +129,7 @@ export function NetworkSelector(): JSX.Element {
                                 </div>
                                 {customOpen && (
                                     <div className="mt-3">
+                                        For full functionality, provide an indexer URL.
                                         <CustomRPCInput
                                             value={isCustomNetwork ? network : ''}
                                             onChange={handleNetworkSwitch}
@@ -140,10 +141,10 @@ export function NetworkSelector(): JSX.Element {
                         {!!network && data?.protocolVersion && binaryVersion ? (
                             <div className="bg-hero-darkest/5 rounded-b-lg">
                                 <div className="flex flex-col justify-between gap-1 px-4 py-3">
-                                    <div className="text-body-sm font-medium text-neutral-40">
+                                    <div className="text-body-sm font-medium text-iota-neutral-40">
                                         IOTA {selectedNetwork?.label ?? 'Custom RPC'}
                                     </div>
-                                    <div className="text-body-sm font-medium text-neutral-40">
+                                    <div className="text-body-sm font-medium text-iota-neutral-40">
                                         v{binaryVersion} (Protocol {data?.protocolVersion})
                                     </div>
                                 </div>

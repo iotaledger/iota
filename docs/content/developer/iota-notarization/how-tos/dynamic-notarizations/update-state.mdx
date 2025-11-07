@@ -1,0 +1,192 @@
+---
+title: Update State in Dynamic Notarizations
+sidebar_label: Update State
+description: Update the state of a Dynamic Notarization including content and metadata.
+teams:
+  - iotaledger/identity
+tags:
+  - notarization
+  - dynamic-notarization
+  - how-to
+---
+
+## Update State in Dynamic Notarizations
+
+This guide demonstrates how to update the state of a Dynamic Notarization. Unlike locked notarizations, dynamic notarizations allow you to modify their content and state metadata after creation.
+
+### Prerequisites
+
+- A Dynamic Notarization already created and published to the IOTA network
+- The notarization must not be update-locked
+- Sufficient funds for gas costs
+
+### 1. Get the Notarization Client
+
+First, ensure you have a funded notarization client with the necessary permissions to update the notarization.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L27
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Dynamic Notarization for Testing
+
+If you don't have an existing dynamic notarization, create one first:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/05_update_state.rs#L17-L28
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/05_update_state.ts#L16-L24
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Check Current State
+
+Before updating, you can inspect the current state of the notarization:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/05_update_state.rs#L33-L36
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/05_update_state.ts#L26-L36
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Update the State
+
+Update the state with new content and metadata:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/05_update_state.rs#L55-L59
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/05_update_state.ts#L49-L54
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Verify the Update
+
+After updating, verify that the changes were applied successfully:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/05_update_state.rs#L83
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/05_update_state.ts#L59
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Key Features of State Updates
+
+### Version Tracking
+
+Each state update increments the version counter:
+
+- Initial state has version count 0
+- First update increments to version 1
+- Subsequent updates continue incrementing
+
+### State Types
+
+Dynamic notarizations support both text and binary data:
+
+- **Text content**: Use `State::from_string()` for textual data
+- **Binary content**: Use `State::from_bytes()` for binary data
+- **Metadata**: Optional metadata can be included with either type
+
+### Timestamps
+
+State updates automatically update the "last state change" timestamp, which can be queried separately from the creation timestamp.
+
+## Error Handling
+
+State updates may fail if:
+
+- The notarization is update-locked (locked notarizations cannot be updated)
+- Insufficient gas funds
+- Invalid state data format
+- Network connectivity issues
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/05_update_state.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/05_update_state.ts
+```
+
+</TabItem>
+</Tabs>
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally.
+
+If you want to use something different, you will need to modify the API and faucet endpoints in the examples to match your setup.

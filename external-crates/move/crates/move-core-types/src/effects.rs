@@ -1,11 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::btree_map::{self, BTreeMap};
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 use crate::{account_address::AccountAddress, identifier::Identifier, language_storage::ModuleId};
 
@@ -82,8 +82,8 @@ fn squash<K, V>(map: &mut BTreeMap<K, Op<V>>, other: BTreeMap<K, Op<V>>) -> Resu
 where
     K: Ord,
 {
-    use btree_map::Entry::*;
     use Op::*;
+    use btree_map::Entry::*;
 
     for (key, op) in other.into_iter() {
         match map.entry(key) {

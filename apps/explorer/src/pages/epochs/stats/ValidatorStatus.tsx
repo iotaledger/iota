@@ -27,11 +27,11 @@ export function ValidatorStatus(): JSX.Element | null {
                 values: [
                     {
                         percent: 0,
-                        color: IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                        color: IOTA_PRIMITIVES_COLOR_PALETTE['iota-primary']['30'],
                     },
                     {
                         percent: 100,
-                        color: IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                        color: IOTA_PRIMITIVES_COLOR_PALETTE['iota-primary']['30'],
                     },
                 ],
             },
@@ -45,14 +45,14 @@ export function ValidatorStatus(): JSX.Element | null {
                     {
                         percent: 0,
                         color: getHexColorWithOpacity(
-                            IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                            IOTA_PRIMITIVES_COLOR_PALETTE['iota-primary']['30'],
                             0.6,
                         ),
                     },
                     {
                         percent: 100,
                         color: getHexColorWithOpacity(
-                            IOTA_PRIMITIVES_COLOR_PALETTE.primary[30],
+                            IOTA_PRIMITIVES_COLOR_PALETTE['iota-primary']['30'],
                             0.6,
                         ),
                     },
@@ -62,15 +62,15 @@ export function ValidatorStatus(): JSX.Element | null {
         {
             value: Number(data.pendingActiveValidatorsSize ?? 0),
             label: 'New',
-            color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE.primary[30], 0.3),
+            color: getHexColorWithOpacity(IOTA_PRIMITIVES_COLOR_PALETTE['iota-primary']['30'], 0.3),
         },
         {
             value: data.atRiskValidators.length,
             label: 'At Risk',
             color:
                 theme === Theme.Dark
-                    ? IOTA_PRIMITIVES_COLOR_PALETTE.neutral[20]
-                    : IOTA_PRIMITIVES_COLOR_PALETTE.neutral[90],
+                    ? IOTA_PRIMITIVES_COLOR_PALETTE['iota-neutral']['20']
+                    : IOTA_PRIMITIVES_COLOR_PALETTE['iota-neutral']['90'],
         },
     ];
 

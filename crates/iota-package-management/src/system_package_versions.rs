@@ -18,6 +18,8 @@ static VERSION_TABLE: LazyLock<BTreeMap<ProtocolVersion, SystemPackagesVersion>>
         )))
     });
 
+pub const SYSTEM_GIT_REPO: &str = "https://github.com/iotaledger/iota.git";
+
 #[derive(Debug)]
 pub struct SystemPackagesVersion {
     pub git_revision: String,
@@ -80,7 +82,10 @@ fn test_nonempty_version_table() {
 /// The hash for a specific version that we have one for is correctly returned.
 fn test_exact_version() {
     let (system_packages, protocol) = system_packages_for_protocol(4.into()).unwrap();
-    assert_eq!(system_packages.git_revision, "49d5d7d99313");
+    assert_eq!(
+        system_packages.git_revision,
+        "c786df5c74f185b4645db010006203946a17c8a8"
+    );
     assert_eq!(protocol, 4.into());
     assert!(
         system_packages

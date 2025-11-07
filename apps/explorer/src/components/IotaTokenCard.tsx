@@ -24,14 +24,14 @@ export function IotaTokenCard(): JSX.Element {
         <ButtonOrLink href={COIN_GECKO_IOTA_URL}>
             <Panel>
                 <div className="flex items-center gap-xs p-md--rs">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-shader-neutral-light-8 text-neutral-10">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-shader-neutral-light-8 text-iota-neutral-10">
                         <CoinIcon coinType={IOTA_TYPE_ARG} size={ImageIconSize.Small} />
                     </div>
                     <div className="flex w-full flex-col gap-xxxs">
-                        <span className="font-inter text-title-lg text-neutral-10 dark:text-neutral-92">
+                        <span className="font-inter text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                             1 IOTA = {formattedPrice}
                         </span>
-                        <span className="font-inter text-label-lg text-neutral-60 dark:text-neutral-40">
+                        <span className="font-inter text-label-lg text-iota-neutral-60 dark:text-iota-neutral-40">
                             via CoinGecko
                         </span>
                     </div>

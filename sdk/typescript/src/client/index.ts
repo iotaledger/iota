@@ -20,6 +20,7 @@ export {
     getNetwork,
     getDefaultNetwork,
     getFullnodeUrl,
+    getGraphQLUrl,
 } from './network.js';
 export * from './types/index.js';
 export {

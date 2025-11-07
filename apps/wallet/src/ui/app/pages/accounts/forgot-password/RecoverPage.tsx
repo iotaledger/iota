@@ -62,7 +62,7 @@ export function RecoverPage() {
     return (
         <PageTemplate title="Forgot Password?" isTitleCentered showBackButton>
             <div className="flex h-full flex-col gap-md">
-                <span className="text-label-lg text-neutral-40 dark:text-neutral-60">
+                <span className="text-label-lg text-iota-neutral-40 dark:text-iota-neutral-60">
                     {descriptionText}
                 </span>
                 <div className="flex h-full flex-col overflow-hidden">

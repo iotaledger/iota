@@ -1,12 +1,12 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{HashMap, VecDeque};
 
 use move_binary_format::file_format::{AbilitySet, Bytecode, Signature, SignatureToken};
-use rand::{rngs::StdRng, Rng};
+use rand::{Rng, rngs::StdRng};
 use tracing::debug;
 
 use crate::abstract_state::{AbstractValue, BorrowState};

@@ -1,11 +1,22 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    convert::TryInto,
+    sync::Arc,
+};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+use once_cell::sync::Lazy;
+
 use crate::{
-    debug_display, debug_display_verbose, diag,
-    diagnostics::{warning_filters::WarningFilters, Diagnostic, DiagnosticReporter, Diagnostics},
+    FullyCompiledProgram, debug_display, debug_display_verbose, diag,
+    diagnostics::{Diagnostic, DiagnosticReporter, Diagnostics, warning_filters::WarningFilters},
     editions::{FeatureGate, Flavor},
     expansion::ast::{self as E, Fields, ModuleIdent, Mutability},
     hlir::{
@@ -14,31 +25,20 @@ use crate::{
         match_compilation,
     },
     ice,
+    iota_mode::ID_FIELD_NAME,
     naming::ast as N,
     parser::ast::{
         Ability_, BinOp, BinOp_, ConstantName, DatatypeName, Field, FunctionName, TargetKind,
         VariantName,
     },
     shared::{
-        matching::{new_match_var_name, MatchContext, MATCH_TEMP_PREFIX},
+        matching::{MATCH_TEMP_PREFIX, MatchContext, new_match_var_name},
         program_info::TypingProgramInfo,
         string_utils::debug_print,
         unique_map::UniqueMap,
         *,
     },
-    iota_mode::ID_FIELD_NAME,
     typing::ast as T,
-    FullyCompiledProgram,
-};
-
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use once_cell::sync::Lazy;
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    convert::TryInto,
-    sync::Arc,
 };
 
 //**************************************************************************************************
@@ -280,7 +280,7 @@ impl MatchContext<true> for Context<'_> {
         self.env
     }
 
-    fn reporter(&self) -> &DiagnosticReporter {
+    fn reporter(&self) -> &DiagnosticReporter<'_> {
         &self.reporter
     }
 
@@ -1598,9 +1598,11 @@ fn value(
         E::ErrorConstant {
             line_number_loc,
             error_constant,
+            error_code,
         } => make_exp(HE::ErrorConstant {
             line_number_loc,
             error_constant,
+            error_code,
         }),
         E::Move { from_user, var } => {
             let annotation = if from_user {

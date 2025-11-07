@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli, type AddedAccountsProperties } from '_src/shared/analytics/ampli';
@@ -8,6 +8,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
+
+import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
@@ -33,12 +35,16 @@ function validateAccountFormValues<T extends AccountsFormType>(
 enum AmpliAccountType {
     Derived = 'Derived',
     ImportPrivateKey = 'Private Key',
+    Passkey = 'Passkey',
     Ledger = 'Ledger',
+    Keystone = 'Keystone',
 }
 
 export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
+    const { createPasskeyAccount } = useCreatePasskeyAccount();
+
     const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
         AccountsFormType,
         AddedAccountsProperties['accountType']
@@ -49,7 +55,10 @@ export function useCreateAccountsMutation() {
         [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
         [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
         [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
+        [AccountsFormType.Passkey]: AmpliAccountType.Passkey,
+        [AccountsFormType.ImportPasskey]: AmpliAccountType.Passkey,
         [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
+        [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
     };
     return useMutation({
         mutationKey: ['create accounts'],
@@ -130,6 +139,25 @@ export function useCreateAccountsMutation() {
                     password: password!,
                 });
             } else if (
+                type === AccountsFormType.Passkey &&
+                validateAccountFormValues(type, accountsFormValues, password)
+            ) {
+                const { address, publicKey, providerOptions, credentialId } =
+                    await createPasskeyAccount({
+                        username: accountsFormValues.username,
+                        authenticatorAttachment: accountsFormValues.authenticatorAttachment,
+                        isRestore: accountsFormValues.isRestoreAccount,
+                    });
+
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.PasskeyDerived,
+                    address,
+                    publicKey,
+                    providerOptions,
+                    credentialId,
+                    password: password!,
+                });
+            } else if (
                 type === AccountsFormType.ImportLedger &&
                 validateAccountFormValues(type, accountsFormValues, password)
             ) {
@@ -137,6 +165,31 @@ export function useCreateAccountsMutation() {
                     type: AccountType.LedgerDerived,
                     accounts: accountsFormValues.accounts,
                     password: password!,
+                    mainPublicKey: accountsFormValues.mainPublicKey,
+                });
+            } else if (
+                type === AccountsFormType.ImportKeystone &&
+                validateAccountFormValues(type, accountsFormValues, password)
+            ) {
+                const sourceID = `keystone-${accountsFormValues.masterFingerprint}`;
+                try {
+                    await backgroundClient.createKeystoneAccountSource({
+                        // validateAccountFormValues checks the password
+                        password: password!,
+                        masterFingerprint: accountsFormValues.masterFingerprint,
+                    });
+                } catch {
+                    // Its fine to ignore if the account source already exists
+                }
+
+                await backgroundClient.unlockAccountSourceOrAccount({
+                    password,
+                    id: sourceID,
+                });
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.KeystoneDerived,
+                    accounts: accountsFormValues.accounts,
+                    sourceID,
                 });
             } else {
                 throw new Error(`Create accounts with type ${type} is not implemented yet`);

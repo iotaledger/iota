@@ -1,14 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::{btree_map, BTreeMap},
+    collections::{BTreeMap, btree_map},
     fmt::Debug,
 };
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use move_core_types::{
     account_address::AccountAddress,
     effects::{AccountChangeSet, ChangeSet, Op},
@@ -60,7 +60,7 @@ pub struct DeltaStorage<'a, 'b, S> {
     delta: &'b ChangeSet,
 }
 
-impl<'a, 'b, S: LinkageResolver> LinkageResolver for DeltaStorage<'a, 'b, S> {
+impl<S: LinkageResolver> LinkageResolver for DeltaStorage<'_, '_, S> {
     type Error = S::Error;
 
     fn link_context(&self) -> AccountAddress {
@@ -72,7 +72,7 @@ impl<'a, 'b, S: LinkageResolver> LinkageResolver for DeltaStorage<'a, 'b, S> {
     }
 }
 
-impl<'a, 'b, S: ModuleResolver> ModuleResolver for DeltaStorage<'a, 'b, S> {
+impl<S: ModuleResolver> ModuleResolver for DeltaStorage<'_, '_, S> {
     type Error = S::Error;
 
     fn get_module(&self, module_id: &ModuleId) -> Result<Option<Vec<u8>>, Self::Error> {
@@ -86,7 +86,7 @@ impl<'a, 'b, S: ModuleResolver> ModuleResolver for DeltaStorage<'a, 'b, S> {
     }
 }
 
-impl<'a, 'b, S: ResourceResolver> ResourceResolver for DeltaStorage<'a, 'b, S> {
+impl<S: ResourceResolver> ResourceResolver for DeltaStorage<'_, '_, S> {
     type Error = S::Error;
 
     fn get_resource(
@@ -124,8 +124,8 @@ fn apply_changes<K, V>(
 where
     K: Ord + Debug,
 {
-    use btree_map::Entry::*;
     use Op::*;
+    use btree_map::Entry::*;
 
     for (k, op) in changes.into_iter() {
         match (map.entry(k), op) {

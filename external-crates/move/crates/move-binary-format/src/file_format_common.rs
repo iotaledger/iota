@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Constants for the binary format.
@@ -33,7 +33,8 @@ const _: () = {
     assert!(BinaryFlavor::mask_and_shift_to_unflavor(x) == BinaryFlavor::IOTA_FLAVOR);
 };
 
-/// Encoding of the flavor into the version of the binary format for versions >= 7.
+/// Encoding of the flavor into the version of the binary format for versions >=
+/// 7.
 pub struct BinaryFlavor;
 impl BinaryFlavor {
     pub const FLAVOR_MASK: u32 = 0xFF00_0000;
@@ -70,7 +71,7 @@ impl BinaryFlavor {
     }
 
     const fn shift_and_flavor(unflavored: u32) -> u32 {
-        (Self::IOTA_FLAVOR as u32) << Self::SHIFT_AMOUNT | unflavored
+        ((Self::IOTA_FLAVOR as u32) << Self::SHIFT_AMOUNT) | unflavored
     }
 }
 

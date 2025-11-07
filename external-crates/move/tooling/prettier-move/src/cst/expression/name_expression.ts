@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { Node } from '../..';
@@ -11,11 +11,11 @@ const {} = doc.builders;
 export const NODE_TYPE = 'name_expression';
 
 export default function (path: AstPath<Node>): treeFn | null {
-	if (path.node.type === NODE_TYPE) {
-		return printNameExpression;
-	}
+    if (path.node.type === NODE_TYPE) {
+        return printNameExpression;
+    }
 
-	return null;
+    return null;
 }
 
 /**
@@ -25,5 +25,5 @@ export default function (path: AstPath<Node>): treeFn | null {
  * - `type_arguments`
  */
 function printNameExpression(path: AstPath<Node>, options: MoveOptions, print: printFn): Doc {
-	return path.map(print, 'nonFormattingChildren');
+    return path.map(print, 'nonFormattingChildren');
 }

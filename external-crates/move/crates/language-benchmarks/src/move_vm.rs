@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{path::PathBuf, sync::Arc};
@@ -80,8 +80,7 @@ fn create_vm() -> MoveVM {
     MoveVM::new(move_stdlib_natives::all_natives(
         AccountAddress::from_hex_literal("0x1").unwrap(),
         move_stdlib_natives::GasParameters::zeros(),
-        // silent debug
-        true,
+        true, // silent debug
     ))
     .unwrap()
 }

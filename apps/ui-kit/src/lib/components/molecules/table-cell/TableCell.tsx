@@ -27,7 +27,7 @@ export function TableCellBase({
     return (
         <td
             className={cx(
-                'h-14 border-b border-shader-neutral-light-8 px-md dark:border-shader-neutral-dark-8',
+                'table-cell-border-color h-14  border-b px-md',
                 { 'last:border-none': hasLastBorderNoneClass },
                 { 'flex items-center justify-center': isContentCentered },
             )}
@@ -49,7 +49,7 @@ export function TableCellText({
         <div className="flex flex-row items-baseline gap-1">
             <span>{children}</span>
             {supportingLabel && (
-                <span className="text-body-sm text-neutral-60 dark:text-neutral-40">
+                <span className="table-cell-supporting-label-color text-body-sm">
                     {supportingLabel}
                 </span>
             )}

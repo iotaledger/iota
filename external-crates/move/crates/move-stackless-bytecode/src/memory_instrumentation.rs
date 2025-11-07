@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeSet;
@@ -9,7 +9,7 @@ use move_binary_format::file_format::CodeOffset;
 use move_model::{
     exp_generator::ExpGenerator,
     model::{FunctionEnv, StructEnv},
-    ty::{Type, BOOL_TYPE},
+    ty::{BOOL_TYPE, Type},
 };
 
 use crate::{

@@ -4,13 +4,14 @@
 'use client';
 
 import { IotaObjectData } from '@iota/iota-sdk/client';
-import { useGetNFTDisplay } from '@iota/core';
+import { NFTMediaRenderer, useGetNFTDisplay } from '@iota/core';
 import { FlexDirection } from '@/lib/ui/enums';
 import { VisualAssetCard, VisualAssetType, type VisualAssetCardProps } from '@iota/apps-ui-kit';
 
 interface AssetCardProps extends Pick<VisualAssetCardProps, 'onClick' | 'onIconClick' | 'icon'> {
     asset: IotaObjectData;
     flexDirection?: FlexDirection;
+    disableVideoControls?: boolean;
 }
 
 export function VisualAssetTile({
@@ -18,6 +19,7 @@ export function VisualAssetTile({
     onClick,
     onIconClick,
     icon,
+    disableVideoControls,
 }: AssetCardProps): React.JSX.Element | null {
     const { data: nftMeta } = useGetNFTDisplay(asset.objectId);
 
@@ -27,10 +29,15 @@ export function VisualAssetTile({
 
     return (
         <VisualAssetCard
-            assetSrc={nftMeta?.imageUrl ?? asset?.display?.data?.imageUrl ?? ''}
+            renderAsset={
+                <NFTMediaRenderer
+                    src={nftMeta?.imageUrl ?? asset?.display?.data?.imageUrl ?? ''}
+                    alt={nftMeta?.name ?? (asset?.display?.data?.name || 'NFT')}
+                    disableVideoControls={disableVideoControls}
+                />
+            }
             assetTitle={nftMeta?.name ?? asset?.display?.data?.name}
             assetType={VisualAssetType.Image}
-            altText={nftMeta?.name ?? (asset?.display?.data?.name || 'NFT')}
             isHoverable
             icon={icon}
             onClick={onClick}

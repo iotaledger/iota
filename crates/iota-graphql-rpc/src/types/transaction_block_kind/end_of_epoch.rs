@@ -7,13 +7,15 @@ use async_graphql::{
     *,
 };
 use iota_types::{
-    base_types::SequenceNumber,
-    digests::{ChainIdentifier as IotaChainIdentifier, TransactionDigest},
+    base_types::{ObjectID, SequenceNumber},
+    committee::{EpochId, ProtocolVersion},
+    digests::TransactionDigest,
     object::Object as NativeObject,
     transaction::{
         AuthenticatorStateExpire as NativeAuthenticatorStateExpireTransaction,
         ChangeEpoch as NativeChangeEpochTransaction,
         ChangeEpochV2 as NativeChangeEpochTransactionV2,
+        ChangeEpochV3 as NativeChangeEpochTransactionV3,
         EndOfEpochTransactionKind as NativeEndOfEpochTransactionKind,
     },
 };
@@ -47,8 +49,6 @@ pub(crate) enum EndOfEpochTransactionKind {
     ChangeEpochV2(ChangeEpochTransactionV2),
     AuthenticatorStateCreate(AuthenticatorStateCreateTransaction),
     AuthenticatorStateExpire(AuthenticatorStateExpireTransaction),
-    BridgeStateCreate(BridgeStateCreateTransaction),
-    BridgeCommitteeInit(BridgeCommitteeInitTransaction),
 }
 
 // System transaction for advancing the epoch.
@@ -64,9 +64,75 @@ pub(crate) struct ChangeEpochTransaction {
 // protocol_defined_base_fee is enabled in the protocol config.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ChangeEpochTransactionV2 {
-    pub native: NativeChangeEpochTransactionV2,
+    /// The next (to become) epoch ID.
+    pub epoch: EpochId,
+    /// The protocol version in effect in the new epoch.
+    pub protocol_version: ProtocolVersion,
+    /// The total amount of gas charged for storage during the epoch.
+    pub storage_charge: u64,
+    /// The total amount of gas charged for computation during the epoch.
+    pub computation_charge: u64,
+    /// The burned component of the total computation/execution costs.
+    pub computation_charge_burned: u64,
+    /// The amount of storage rebate refunded to the txn senders.
+    pub storage_rebate: u64,
+    /// The amount of storage rebate that is burnt due to the
+    /// gas_price. It's given that storage_rebate + non_refundable_storage_fee
+    /// is always equal to the storage_charge of the tx.
+    pub non_refundable_storage_fee: u64,
+    /// Unix timestamp from the start of the epoch as milliseconds
+    pub epoch_start_timestamp_ms: u64,
+    /// System packages (specifically framework and move stdlib) that are
+    /// written by the execution of this transaction. Validators must write
+    /// out the modules below.  Modules are provided with the version they
+    /// will be upgraded to, their modules in serialized form (which include
+    /// their package ID), and a list of their transitive dependencies.
+    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
+    /// Vector of active validator indices eligible to take part in committee
+    /// selection because they support the new, target protocol version.
+    pub eligible_active_validators: Option<Vec<u64>>,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
+}
+
+impl ChangeEpochTransactionV2 {
+    pub fn new_with_native_v2(
+        native: NativeChangeEpochTransactionV2,
+        checkpoint_viewed_at: u64,
+    ) -> Self {
+        Self {
+            epoch: native.epoch,
+            protocol_version: native.protocol_version,
+            storage_charge: native.storage_charge,
+            computation_charge: native.computation_charge,
+            computation_charge_burned: native.computation_charge_burned,
+            storage_rebate: native.storage_rebate,
+            non_refundable_storage_fee: native.non_refundable_storage_fee,
+            epoch_start_timestamp_ms: native.epoch_start_timestamp_ms,
+            system_packages: native.system_packages,
+            eligible_active_validators: None,
+            checkpoint_viewed_at,
+        }
+    }
+
+    pub fn new_with_native_v3(
+        native: NativeChangeEpochTransactionV3,
+        checkpoint_viewed_at: u64,
+    ) -> Self {
+        Self {
+            epoch: native.epoch,
+            protocol_version: native.protocol_version,
+            storage_charge: native.storage_charge,
+            computation_charge: native.computation_charge,
+            computation_charge_burned: native.computation_charge_burned,
+            storage_rebate: native.storage_rebate,
+            non_refundable_storage_fee: native.non_refundable_storage_fee,
+            epoch_start_timestamp_ms: native.epoch_start_timestamp_ms,
+            system_packages: native.system_packages,
+            eligible_active_validators: Some(native.eligible_active_validators),
+            checkpoint_viewed_at,
+        }
+    }
 }
 
 /// System transaction for creating the on-chain state used by zkLogin.
@@ -80,20 +146,6 @@ pub(crate) struct AuthenticatorStateCreateTransaction {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct AuthenticatorStateExpireTransaction {
     pub native: NativeAuthenticatorStateExpireTransaction,
-    /// The checkpoint sequence number this was viewed at.
-    pub checkpoint_viewed_at: u64,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct BridgeStateCreateTransaction {
-    pub native: IotaChainIdentifier,
-    /// The checkpoint sequence number this was viewed at.
-    pub checkpoint_viewed_at: u64,
-}
-
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct BridgeCommitteeInitTransaction {
-    pub native: SequenceNumber,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
 }
@@ -120,16 +172,16 @@ impl EndOfEpochTransaction {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) =
+        let Some(consistent_page) =
             page.paginate_consistent_indices(self.native.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let tx = EndOfEpochTransactionKind::from(self.native[c.ix].clone(), c.c);
             connection.edges.push(Edge::new(c.encode_cursor(), tx));
         }
@@ -199,7 +251,7 @@ impl ChangeEpochTransaction {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) = page.paginate_consistent_indices(
+        let Some(consistent_page) = page.paginate_consistent_indices(
             self.native.system_packages.len(),
             self.checkpoint_viewed_at,
         )?
@@ -207,10 +259,10 @@ impl ChangeEpochTransaction {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
+        for c in consistent_page.cursors {
             let (version, modules, deps) = &self.native.system_packages[c.ix];
             let compiled_modules = modules
                 .iter()
@@ -247,49 +299,49 @@ impl ChangeEpochTransaction {
 impl ChangeEpochTransactionV2 {
     /// The next (to become) epoch.
     async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(ctx, Some(self.native.epoch), self.checkpoint_viewed_at)
+        Epoch::query(ctx, Some(self.epoch), self.checkpoint_viewed_at)
             .await
             .extend()
     }
 
     /// The protocol version in effect in the new epoch.
     async fn protocol_version(&self) -> UInt53 {
-        self.native.protocol_version.as_u64().into()
+        self.protocol_version.as_u64().into()
     }
 
     /// The total amount of gas charged for storage during the previous epoch
     /// (in NANOS).
     async fn storage_charge(&self) -> BigInt {
-        BigInt::from(self.native.storage_charge)
+        BigInt::from(self.storage_charge)
     }
 
     /// The total amount of gas charged for computation during the previous
     /// epoch (in NANOS).
     async fn computation_charge(&self) -> BigInt {
-        BigInt::from(self.native.computation_charge)
+        BigInt::from(self.computation_charge)
     }
 
     /// The total amount of gas burned for computation during the previous
     /// epoch (in NANOS).
     async fn computation_charge_burned(&self) -> BigInt {
-        BigInt::from(self.native.computation_charge_burned)
+        BigInt::from(self.computation_charge_burned)
     }
 
     /// The IOTA returned to transaction senders for cleaning up objects (in
     /// NANOS).
     async fn storage_rebate(&self) -> BigInt {
-        BigInt::from(self.native.storage_rebate)
+        BigInt::from(self.storage_rebate)
     }
 
     /// The total gas retained from storage fees, that will not be returned by
     /// storage rebates when the relevant objects are cleaned up (in NANOS).
     async fn non_refundable_storage_fee(&self) -> BigInt {
-        BigInt::from(self.native.non_refundable_storage_fee)
+        BigInt::from(self.non_refundable_storage_fee)
     }
 
     /// Time at which the next epoch will start.
     async fn start_timestamp(&self) -> Result<DateTime, Error> {
-        DateTime::from_ms(self.native.epoch_start_timestamp_ms as i64)
+        DateTime::from_ms(self.epoch_start_timestamp_ms as i64)
     }
 
     /// System packages (specifically framework and move stdlib) that are
@@ -306,19 +358,17 @@ impl ChangeEpochTransactionV2 {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
 
         let mut connection = Connection::new(false, false);
-        let Some((prev, next, _, cs)) = page.paginate_consistent_indices(
-            self.native.system_packages.len(),
-            self.checkpoint_viewed_at,
-        )?
+        let Some(consistent_page) = page
+            .paginate_consistent_indices(self.system_packages.len(), self.checkpoint_viewed_at)?
         else {
             return Ok(connection);
         };
 
-        connection.has_previous_page = prev;
-        connection.has_next_page = next;
+        connection.has_previous_page = consistent_page.has_previous_page;
+        connection.has_next_page = consistent_page.has_next_page;
 
-        for c in cs {
-            let (version, modules, deps) = &self.native.system_packages[c.ix];
+        for c in consistent_page.cursors {
+            let (version, modules, deps) = &self.system_packages[c.ix];
             let compiled_modules = modules
                 .iter()
                 .map(|bytes| CompiledModule::deserialize_with_defaults(bytes))
@@ -344,6 +394,14 @@ impl ChangeEpochTransactionV2 {
 
         Ok(connection)
     }
+
+    /// The list of active validators eligible for committee selection for the
+    /// next epoch.
+    async fn eligible_active_validators(&self) -> Option<Vec<BigInt>> {
+        self.eligible_active_validators
+            .as_ref()
+            .map(|v| v.iter().map(|id| BigInt::from(*id)).collect())
+    }
 }
 
 #[Object]
@@ -364,20 +422,6 @@ impl AuthenticatorStateExpireTransaction {
     }
 }
 
-#[Object]
-impl BridgeStateCreateTransaction {
-    async fn chain_id(&self) -> String {
-        self.native.to_string()
-    }
-}
-
-#[Object]
-impl BridgeCommitteeInitTransaction {
-    async fn bridge_obj_initial_shared_version(&self) -> UInt53 {
-        self.native.value().into()
-    }
-}
-
 impl EndOfEpochTransactionKind {
     fn from(kind: NativeEndOfEpochTransactionKind, checkpoint_viewed_at: u64) -> Self {
         use EndOfEpochTransactionKind as K;
@@ -388,26 +432,20 @@ impl EndOfEpochTransactionKind {
                 native: ce,
                 checkpoint_viewed_at,
             }),
-            N::ChangeEpochV2(ce) => K::ChangeEpochV2(ChangeEpochTransactionV2 {
-                native: ce,
+            N::ChangeEpochV2(ce) => K::ChangeEpochV2(ChangeEpochTransactionV2::new_with_native_v2(
+                ce,
                 checkpoint_viewed_at,
-            }),
+            )),
+            N::ChangeEpochV3(ce) => K::ChangeEpochV2(ChangeEpochTransactionV2::new_with_native_v3(
+                ce,
+                checkpoint_viewed_at,
+            )),
             N::AuthenticatorStateCreate => {
                 K::AuthenticatorStateCreate(AuthenticatorStateCreateTransaction { dummy: None })
             }
             N::AuthenticatorStateExpire(ase) => {
                 K::AuthenticatorStateExpire(AuthenticatorStateExpireTransaction {
                     native: ase,
-                    checkpoint_viewed_at,
-                })
-            }
-            N::BridgeStateCreate(chain_id) => K::BridgeStateCreate(BridgeStateCreateTransaction {
-                native: chain_id,
-                checkpoint_viewed_at,
-            }),
-            N::BridgeCommitteeInit(bridge_shared_version) => {
-                K::BridgeCommitteeInit(BridgeCommitteeInitTransaction {
-                    native: bridge_shared_version,
                     checkpoint_viewed_at,
                 })
             }

@@ -25,7 +25,10 @@ thread_local! {
 }
 
 const LATENCY_SEC_BUCKETS: &[f64] = &[
-    0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1., 2.5, 5., 10., 20., 30., 60., 90.,
+    0.00001, 0.00005, // 10 mcs, 50 mcs
+    0.0001, 0.0002, 0.0003, 0.0004, 0.0005, // 100..500 mcs
+    0.001, 0.002, 0.003, 0.004, 0.005, // 1..5ms
+    0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1., 2.5, 5., 10.,
 ];
 
 #[derive(Debug, Clone)]
@@ -83,6 +86,8 @@ impl SamplingInterval {
 pub struct ColumnFamilyMetrics {
     pub rocksdb_total_sst_files_size: IntGaugeVec,
     pub rocksdb_total_blob_files_size: IntGaugeVec,
+    pub rocksdb_total_num_files: IntGaugeVec,
+    pub rocksdb_num_level0_files: IntGaugeVec,
     pub rocksdb_current_size_active_mem_tables: IntGaugeVec,
     pub rocksdb_size_all_mem_tables: IntGaugeVec,
     pub rocksdb_num_snapshots: IntGaugeVec,
@@ -118,6 +123,20 @@ impl ColumnFamilyMetrics {
             rocksdb_total_blob_files_size: register_int_gauge_vec_with_registry!(
                 "rocksdb_total_blob_files_size",
                 "The storage size occupied by the blob files in the column family",
+                &["cf_name"],
+                registry,
+            )
+            .unwrap(),
+            rocksdb_total_num_files: register_int_gauge_vec_with_registry!(
+                "rocksdb_total_num_files",
+                "Total number of files used in the column family",
+                &["cf_name"],
+                registry,
+            )
+            .unwrap(),
+            rocksdb_num_level0_files: register_int_gauge_vec_with_registry!(
+                "rocksdb_num_level0_files",
+                "Number of level 0 files in the column family",
                 &["cf_name"],
                 registry,
             )

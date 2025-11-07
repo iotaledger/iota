@@ -5,6 +5,7 @@
 use std::{fs, net::SocketAddr, path::PathBuf};
 
 use crate::{
+    benchmark::{BenchmarkParameters, BenchmarkType},
     client::Instance,
     error::{MonitorError, MonitorResult},
     protocol::ProtocolMetrics,
@@ -43,13 +44,18 @@ impl Monitor {
     }
 
     /// Start a prometheus instance on each remote machine.
-    pub async fn start_prometheus<P: ProtocolMetrics>(
+    pub async fn start_prometheus<P: ProtocolMetrics, T: BenchmarkType>(
         &self,
         protocol_commands: &P,
+        parameters: &BenchmarkParameters<T>,
     ) -> MonitorResult<()> {
         let instance = std::iter::once(self.instance.clone());
-        let commands =
-            Prometheus::setup_commands(self.clients.clone(), self.nodes.clone(), protocol_commands);
+        let commands = Prometheus::setup_commands(
+            self.clients.clone(),
+            self.nodes.clone(),
+            protocol_commands,
+            parameters,
+        );
         self.ssh_manager
             .execute(instance, commands, CommandContext::default())
             .await?;
@@ -94,30 +100,41 @@ impl Prometheus {
 
     /// Generate the commands to update the prometheus configuration and restart
     /// prometheus.
-    pub fn setup_commands<I, P>(clients: I, nodes: I, protocol: &P) -> String
+    pub fn setup_commands<I, P, T>(
+        clients: I,
+        nodes: I,
+        protocol: &P,
+        parameters: &BenchmarkParameters<T>,
+    ) -> String
     where
         I: IntoIterator<Item = Instance>,
         P: ProtocolMetrics,
+        T: BenchmarkType,
     {
         // Generate the prometheus' global configuration.
         let mut config = vec![Self::global_configuration()];
 
         // Add configurations to scrape the clients.
-        let clients_metrics_path = protocol.clients_metrics_path(clients);
+        let clients_metrics_path = protocol.clients_metrics_path(clients, parameters);
         for (i, (_, clients_metrics_path)) in clients_metrics_path.into_iter().enumerate() {
             let id = format!("client-{i}");
             let scrape_config = Self::scrape_configuration(&id, &clients_metrics_path);
             config.push(scrape_config);
         }
-
         // Add configurations to scrape the nodes.
-        let nodes_metrics_path = protocol.nodes_metrics_path(nodes);
+        let mut node_ips = vec![];
+        let nodes_metrics_path = protocol.nodes_metrics_path(nodes, parameters);
         for (i, (_, nodes_metrics_path)) in nodes_metrics_path.into_iter().enumerate() {
             let id = format!("node-{i}");
+            let node_ip = nodes_metrics_path.split(":").next().unwrap().to_string();
+            node_ips.push(node_ip);
             let scrape_config = Self::scrape_configuration(&id, &nodes_metrics_path);
             config.push(scrape_config);
         }
-
+        // Add configuration to scrape prometheus exporter metrics
+        let prometheus_exporter_config =
+            Self::node_exporter_configuration("prometheus_exporter", node_ips, 9100);
+        config.push(prometheus_exporter_config);
         // Make the command to configure and restart prometheus.
         [
             &format!(
@@ -159,6 +176,24 @@ impl Prometheus {
             &format!("        - {ip}:{port}"),
         ]
         .join("\n")
+    }
+
+    fn node_exporter_configuration(
+        id: &str,
+        node_ips: Vec<String>,
+        prometheus_exporter_port: u16,
+    ) -> String {
+        let mut configuration = vec![
+            format!("  - job_name: {id}"),
+            "    static_configs:".to_string(),
+            "      - targets:".to_string(),
+        ];
+        let targets = node_ips
+            .into_iter()
+            .map(|path| format!("        - {path}:{prometheus_exporter_port}"))
+            .collect::<Vec<_>>();
+        configuration.extend(targets);
+        configuration.join("\n")
     }
 }
 
@@ -252,7 +287,7 @@ impl LocalGrafana {
         // Create the new datasources.
         for (i, instance) in instances.into_iter().enumerate() {
             let mut file = path.clone();
-            file.push(format!("instance-{}.yml", i));
+            file.push(format!("instance-{i}.yml"));
             fs::write(&file, Self::datasource(&instance, i)).map_err(|e| {
                 MonitorError::Grafana(format!("Failed to write grafana datasource ({e})"))
             })?;

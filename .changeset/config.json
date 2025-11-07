@@ -13,6 +13,7 @@
 		"iota-explorer",
 		"wallet-dashboard",
 		"apps-backend",
+        "iota-evm-bridge",
 		"@iota/core",
 		"sponsored-transactions",
 		"kiosk-demo",

@@ -5,6 +5,10 @@ description: Overview of the IOTA consensus.
 tags: [core-protocol]
 ---
 
+import Quiz from '@site/src/components/Quiz';
+import {questions} from '../../../site/static/json/about-iota/iota-architecture/consensus.json';
+import ThemedImage from '@theme/ThemedImage';
+
 The primary goal of consensus in distributed systems is to establish a consistent order of transactions and ensure their availability. In IOTA, consensus is achieved through a combination of Delegated Proof-of-Stake (dPoS) and the Mysticeti Byzantine Fault Tolerant (BFT) consensus protocol.
 
 IOTA's consensus mechanism ensures:
@@ -51,3 +55,5 @@ The **Mysticeti** protocol is a _BFT_ consensus protocol optimized for **low-lat
 - **Fault Tolerance**: The protocol tolerates unavailable or faulty validators without significantly increasing commit latencies.
 
 For more technical details, including correctness proofs, refer to the [Mysticeti paper](https://arxiv.org/pdf/2310.14821).
+
+<Quiz questions={questions} />

@@ -9,7 +9,7 @@ use std::{
     fmt::{Display, Formatter, Write},
 };
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use colored::Colorize;
 use fastcrypto::encoding::Base64;
 use iota_protocol_config::ProtocolConfig;
@@ -115,9 +115,9 @@ impl IotaObjectResponse {
     }
 
     pub fn object_id(&self) -> Result<ObjectID, anyhow::Error> {
-        match (&self.data, &self.error) {
-            (Some(obj_data), None) => Ok(obj_data.object_id),
-            (None, Some(IotaObjectResponseError::NotExists { object_id })) => Ok(*object_id),
+        Ok(match (&self.data, &self.error) {
+            (Some(obj_data), None) => obj_data.object_id,
+            (None, Some(IotaObjectResponseError::NotExists { object_id })) => *object_id,
             (
                 None,
                 Some(IotaObjectResponseError::Deleted {
@@ -125,11 +125,11 @@ impl IotaObjectResponse {
                     version: _,
                     digest: _,
                 }),
-            ) => Ok(*object_id),
-            _ => Err(anyhow!(
+            ) => *object_id,
+            _ => bail!(
                 "Could not get object_id, something went wrong with IotaObjectResponse construction."
-            )),
-        }
+            ),
+        })
     }
 
     pub fn object_ref_if_exists(&self) -> Option<ObjectRef> {
@@ -387,10 +387,7 @@ impl TryFrom<&IotaObjectData> for GasCoin {
             IotaParsedData::Package(_) => {}
         }
 
-        Err(anyhow!(
-            "Gas object type is not a gas coin: {:?}",
-            object.type_
-        ))
+        bail!("Gas object type is not a gas coin: {:?}", object.type_)
     }
 }
 
@@ -409,7 +406,7 @@ impl TryFrom<&IotaMoveStruct> for GasCoin {
             }
             _ => {}
         }
-        Err(anyhow!("Struct is not a gas coin: {move_struct:?}"))
+        bail!("Struct is not a gas coin: {move_struct:?}")
     }
 }
 
@@ -741,9 +738,30 @@ impl IotaData for IotaParsedData {
     }
 
     fn try_from_package(package: MovePackage) -> Result<Self, anyhow::Error> {
-        Ok(Self::Package(IotaMovePackage {
-            disassembled: package.disassemble()?,
-        }))
+        let mut disassembled = BTreeMap::new();
+        for bytecode in package.serialized_module_map().values() {
+            // this function is only from JSON RPC - it is OK to deserialize with max Move
+            // binary version
+            let module = move_binary_format::CompiledModule::deserialize_with_defaults(bytecode)
+                .map_err(|error| IotaError::ModuleDeserializationFailure {
+                    error: error.to_string(),
+                })?;
+            let d = move_disassembler::disassembler::Disassembler::from_module(
+                &module,
+                move_ir_types::location::Spanned::unsafe_no_loc(()).loc,
+            )
+            .map_err(|e| IotaError::ObjectSerialization {
+                error: e.to_string(),
+            })?;
+            let bytecode_str = d
+                .disassemble()
+                .map_err(|e| IotaError::ObjectSerialization {
+                    error: e.to_string(),
+                })?;
+            disassembled.insert(module.name().to_string(), Value::String(bytecode_str));
+        }
+
+        Ok(Self::Package(IotaMovePackage { disassembled }))
     }
 
     fn try_as_move(&self) -> Option<&Self::ObjectType> {
@@ -1002,6 +1020,7 @@ impl IotaRawMovePackage {
 
 #[derive(Serialize, Deserialize, Debug, JsonSchema, Clone, PartialEq, Eq)]
 #[serde(tag = "status", content = "details", rename = "ObjectRead")]
+#[expect(clippy::large_enum_variant)]
 pub enum IotaPastObjectResponse {
     /// The object exists and is found with this version
     VersionFound(IotaObjectData),

@@ -1,0 +1,40 @@
+{
+    "questions": [
+        {
+        "questionText": "What consensus mechanism does IOTA use to achieve transaction finality?",
+        "answerOptions": [
+            { "answerText": "Proof-of-Work (PoW)", "isCorrect": false },
+            { "answerText": "Delegated Proof-of-Stake (dPoS) combined with the Mysticeti BFT protocol", "isCorrect": true },
+            { "answerText": "Pure Proof-of-Stake (PoS)", "isCorrect": false },
+            { "answerText": "Randomized Leader Election (RLE)", "isCorrect": false }
+        ]
+        },
+        {
+        "questionText": "What is the main responsibility of the Consensus Committee in IOTA?",
+        "answerOptions": [
+            { "answerText": "To propose new validator sets every epoch", "isCorrect": false },
+            { "answerText": "To audit smart contracts", "isCorrect": false },
+            { "answerText": "To execute the consensus protocol and finalize transactions", "isCorrect": true },
+            { "answerText": "To validate user identities", "isCorrect": false }
+        ]
+        },
+        {
+        "questionText": "Which of the following is a key feature of the Mysticeti consensus protocol?",
+        "answerOptions": [
+            { "answerText": "Uses Proof-of-Work to secure the network", "isCorrect": false },
+            { "answerText": "Relies on a central coordinator for block approvals", "isCorrect": false },
+            { "answerText": "Allows parallel block proposals by multiple validators", "isCorrect": true },
+            { "answerText": "Requires six rounds of voting for transaction finality", "isCorrect": false }
+        ]
+        },
+        {
+        "questionText": "How are validators selected to join the Consensus Committee in IOTA?",
+        "answerOptions": [
+            { "answerText": "By random selection from all full nodes", "isCorrect": false },
+            { "answerText": "Based on delegated stake from token holders", "isCorrect": true },
+            { "answerText": "Via centralized assignment from the IOTA Foundation", "isCorrect": false },
+            { "answerText": "Through a public lottery system", "isCorrect": false }
+        ]
+        }
+    ]
+    }

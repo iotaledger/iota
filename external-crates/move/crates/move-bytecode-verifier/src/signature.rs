@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module implements a checker for verifying signature tokens used in
@@ -10,6 +10,7 @@
 use std::collections::{HashMap, HashSet};
 
 use move_binary_format::{
+    IndexKind,
     errors::{Location, PartialVMError, PartialVMResult, VMResult},
     file_format::{
         AbilitySet, Bytecode, CodeUnit, CompiledModule, DatatypeTyParameter, EnumDefinition,
@@ -17,7 +18,6 @@ use move_binary_format::{
         StructDefinition, StructFieldInformation, TableIndex,
     },
     file_format_common::VERSION_6,
-    IndexKind,
 };
 use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;

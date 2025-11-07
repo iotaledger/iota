@@ -1,0 +1,51 @@
+---
+source: crates/iota/tests/shell_tests.rs
+---
+----- script -----
+# Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2025 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+# tests that iota move new followed by iota move disassemble succeeds
+
+
+iota move new example
+cat > example/sources/example.move <<EOF
+module example::example;
+
+public fun foo(_ctx: &mut TxContext) {}
+EOF
+cd example
+
+echo "=== Build ===" | tee /dev/stderr
+iota move build
+
+echo "=== Disassemble ===" | tee /dev/stderr
+iota move disassemble build/example/bytecode_modules/example.mv
+
+----- results -----
+success: true
+exit_code: 0
+----- stdout -----
+=== Build ===
+=== Disassemble ===
+// Move bytecode v6
+module 0.example {
+use 0000000000000000000000000000000000000000000000000000000000000002::tx_context;
+
+public foo(_ctx#0#0: &mut TxContext) {
+B0:
+	0: Ret
+}
+
+}
+
+
+----- stderr -----
+=== Build ===
+INCLUDING DEPENDENCY IotaSystem
+INCLUDING DEPENDENCY Stardust
+INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY MoveStdlib
+BUILDING example
+=== Disassemble ===

@@ -79,6 +79,9 @@ pub enum IndexerError {
     #[error(transparent)]
     Postgres(#[from] diesel::result::Error),
 
+    #[error("Indexer failed to assign TX global order with error: `{0}`")]
+    PostgresUniqueTxGlobalOrderViolation(String),
+
     #[error("Indexer failed to initialize fullnode Http client with error: `{0}`")]
     HttpClientInit(String),
 
@@ -144,7 +147,15 @@ pub enum IndexerError {
 
     #[error(transparent)]
     IotaNames(#[from] IotaNamesError),
+
+    #[error("Inconsistent migration records: {0}")]
+    DbMigration(String),
+
+    #[error("Transaction dependencies have not been indexed")]
+    TransactionDependenciesNotIndexed,
 }
+
+pub type IndexerResult<T> = Result<T, IndexerError>;
 
 pub trait Context<T> {
     fn context(self, context: &str) -> Result<T, IndexerError>;

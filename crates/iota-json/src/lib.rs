@@ -108,9 +108,7 @@ impl IotaJsonValue {
             JsonValue::Number(n) => {
                 // Must be castable to u64
                 if !n.is_u64() {
-                    return Err(anyhow!(
-                        "{n} not allowed. Number must be unsigned integer of at most u32"
-                    ));
+                    bail!("{n} not allowed. Number must be unsigned integer of at most u32");
                 }
             }
             // Must be homogeneous
@@ -142,47 +140,21 @@ impl IotaJsonValue {
         layout: Option<&MoveTypeLayout>,
         bytes: &[u8],
     ) -> Result<Self, anyhow::Error> {
-        let json = if let Some(layout) = layout {
-            // Try to convert Vec<u8> inputs into string
-            fn try_parse_string(layout: &MoveTypeLayout, bytes: &[u8]) -> Option<String> {
-                if let MoveTypeLayout::Vector(t) = layout {
-                    if let MoveTypeLayout::U8 = **t {
-                        return bcs::from_bytes::<String>(bytes).ok();
-                    }
-                }
-                None
-            }
-            if let Some(s) = try_parse_string(layout, bytes) {
-                json!(s)
-            } else {
-                let result = BoundedVisitor::deserialize_value(bytes, layout).map_or_else(
-                    |_| {
-                        // fallback to array[u8] if fail to convert to json.
-                        JsonValue::Array(
-                            bytes
-                                .iter()
-                                .map(|b| JsonValue::Number(Number::from(*b)))
-                                .collect(),
-                        )
-                    },
-                    |move_value| {
-                        move_value_to_json(&move_value).unwrap_or_else(|| {
-                            // fallback to array[u8] if fail to convert to json.
-                            JsonValue::Array(
-                                bytes
-                                    .iter()
-                                    .map(|b| JsonValue::Number(Number::from(*b)))
-                                    .collect(),
-                            )
-                        })
-                    },
-                );
-                result
-            }
-        } else {
-            json!(bytes)
+        let Some(layout) = layout else {
+            return IotaJsonValue::new(json!(bytes));
         };
-        IotaJsonValue::new(json)
+        if let Ok(Some(value)) = BoundedVisitor::deserialize_value(bytes, layout)
+            .map(|move_value| move_value_to_json(&move_value))
+        {
+            return IotaJsonValue::new(value);
+        }
+        let value = JsonValue::Array(
+            bytes
+                .iter()
+                .map(|b| JsonValue::Number(Number::from(*b)))
+                .collect(),
+        );
+        IotaJsonValue::new(value)
     }
 
     pub fn to_json_value(&self) -> JsonValue {
@@ -249,15 +221,15 @@ impl IotaJsonValue {
             // most U32
             (JsonValue::Number(n), MoveTypeLayout::U8) => match n.as_u64() {
                 Some(x) => R::MoveValue::U8(u8::try_from(x)?),
-                None => return Err(anyhow!("{} is not a valid number. Only u8 allowed.", n)),
+                None => bail!("{} is not a valid number. Only u8 allowed.", n),
             },
             (JsonValue::Number(n), MoveTypeLayout::U16) => match n.as_u64() {
                 Some(x) => R::MoveValue::U16(u16::try_from(x)?),
-                None => return Err(anyhow!("{} is not a valid number. Only u16 allowed.", n)),
+                None => bail!("{} is not a valid number. Only u16 allowed.", n),
             },
             (JsonValue::Number(n), MoveTypeLayout::U32) => match n.as_u64() {
                 Some(x) => R::MoveValue::U32(u32::try_from(x)?),
-                None => return Err(anyhow!("{} is not a valid number. Only u32 allowed.", n)),
+                None => bail!("{} is not a valid number. Only u32 allowed.", n),
             },
 
             // u8, u16, u32, u64, u128, u256 can be encoded as String
@@ -794,7 +766,7 @@ pub fn is_receiving_argument(view: &CompiledModule, arg_type: &SignatureToken) -
     )
 }
 
-fn resolve_call_args(
+pub fn resolve_call_args(
     view: &CompiledModule,
     type_args: &[TypeTag],
     json_args: &[IotaJsonValue],
@@ -851,6 +823,7 @@ pub fn resolve_move_function_args(
             combined_args_json.len()
         );
     }
+
     // Check that the args are valid and convert to the correct format
     let call_args = resolve_call_args(&module, type_args, &combined_args_json, parameters)?;
     let tupled_call_args = call_args

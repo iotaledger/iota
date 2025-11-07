@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { Transaction } from '@iota/iota-sdk/transactions';
-import { toB64 } from '@iota/iota-sdk/utils';
+import { toBase64 } from '@iota/iota-sdk/utils';
 import type {
     IotaSignAndExecuteTransactionInput,
     IotaSignAndExecuteTransactionOutput,
@@ -23,12 +23,14 @@ import { useIotaClient } from '../useIotaClient.js';
 import { useCurrentAccount } from './useCurrentAccount.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 import { useReportTransactionEffects } from './useReportTransactionEffects.js';
+import { useCurrentChain } from './useCurrentChain.js';
 
 type UseSignAndExecuteTransactionArgs = PartialBy<
     Omit<IotaSignAndExecuteTransactionInput, 'transaction'>,
     'account' | 'chain'
 > & {
     transaction: Transaction | string;
+    waitForTransaction?: boolean;
 };
 
 type UseSignAndExecuteTransactionResult = IotaSignAndExecuteTransactionOutput;
@@ -76,6 +78,7 @@ export function useSignAndExecuteTransaction<
     UseSignAndExecuteTransactionError,
     UseSignAndExecuteTransactionArgs
 > {
+    const currentChain = useCurrentChain();
     const { currentWallet, supportedIntents } = useCurrentWallet();
     const currentAccount = useCurrentAccount();
     const client = useIotaClient();
@@ -101,7 +104,7 @@ export function useSignAndExecuteTransaction<
             return {
                 digest,
                 rawEffects,
-                effects: toB64(new Uint8Array(rawEffects!)),
+                effects: toBase64(new Uint8Array(rawEffects!)),
                 bytes,
                 signature,
             };
@@ -120,13 +123,14 @@ export function useSignAndExecuteTransaction<
                     'No wallet account is selected to sign the transaction with.',
                 );
             }
-            const chain = signTransactionArgs.chain ?? signerAccount?.chains[0];
 
             if (!currentWallet.features['iota:signTransaction']) {
                 throw new WalletFeatureNotSupportedError(
                     "This wallet doesn't support the `signTransaction` feature.",
                 );
             }
+
+            const chain = signTransactionArgs.chain ?? currentChain ?? signerAccount?.chains[0];
 
             const { signature, bytes } = await signTransaction(currentWallet, {
                 ...signTransactionArgs,
@@ -141,7 +145,7 @@ export function useSignAndExecuteTransaction<
                     },
                 },
                 account: signerAccount,
-                chain: signTransactionArgs.chain ?? signerAccount.chains[0],
+                chain,
             });
 
             const result = await executeTransaction({ bytes, signature });
@@ -151,12 +155,18 @@ export function useSignAndExecuteTransaction<
             if ('effects' in result && result.effects?.bcs) {
                 effects = result.effects.bcs;
             } else if ('rawEffects' in result) {
-                effects = toB64(new Uint8Array(result.rawEffects!));
+                effects = toBase64(new Uint8Array(result.rawEffects!));
             } else {
                 throw new Error('Could not parse effects from transaction result.');
             }
 
             reportTransactionEffects({ effects, account: signerAccount, chain });
+
+            if (signTransactionArgs.waitForTransaction && 'digest' in result) {
+                await client.waitForTransaction({
+                    digest: result.digest,
+                });
+            }
 
             return result as Result;
         },

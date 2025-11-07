@@ -11,8 +11,9 @@ use anyhow::Result;
 use arc_swap::ArcSwapOption;
 use consensus_config::{AuthorityIndex, Committee, NetworkKeyPair, Parameters, ProtocolKeyPair};
 use consensus_core::{
-    CommitConsumer, CommitConsumerMonitor, CommittedSubDag, ConsensusAuthority, TransactionClient,
-    network::tonic_network::to_socket_addr, transaction::NoopTransactionVerifier,
+    BlockTimestampMs, Clock, CommitConsumer, CommitConsumerMonitor, CommittedSubDag,
+    ConsensusAuthority, TransactionClient, network::tonic_network::to_socket_addr,
+    transaction::NoopTransactionVerifier,
 };
 use iota_metrics::monitored_mpsc::{UnboundedReceiver, unbounded_channel};
 use iota_protocol_config::{ConsensusNetwork, ProtocolConfig};
@@ -30,6 +31,7 @@ pub(crate) struct Config {
     pub keypairs: Vec<(NetworkKeyPair, ProtocolKeyPair)>,
     pub network_type: ConsensusNetwork,
     pub boot_counter: u64,
+    pub clock_drift: BlockTimestampMs,
     pub protocol_config: ProtocolConfig,
 }
 
@@ -67,7 +69,7 @@ impl AuthorityNode {
             let commit_consumer_monitor = inner.commit_consumer_monitor();
             let _handle = tokio::spawn(async move {
                 while let Some(subdag) = commit_receiver.recv().await {
-                    info!(index =% authority_index, "received committed subdag");
+                    info!(authority =% authority_index, commit_index =% subdag.commit_ref.index, "received committed subdag");
                     commit_consumer_monitor.set_highest_handled_commit(subdag.commit_ref.index);
                 }
             });
@@ -102,7 +104,7 @@ impl AuthorityNode {
 
     /// If this Node is currently running
     pub fn is_running(&self) -> bool {
-        self.inner.lock().as_ref().map_or(false, |c| c.is_alive())
+        self.inner.lock().as_ref().is_some_and(|c| c.is_alive())
     }
 }
 
@@ -251,6 +253,7 @@ pub(crate) async fn make_authority(
         network_type,
         boot_counter,
         protocol_config,
+        clock_drift,
     } = config;
 
     let registry = Registry::new();
@@ -276,12 +279,14 @@ pub(crate) async fn make_authority(
 
     let authority = ConsensusAuthority::start(
         network_type,
+        0,
         authority_index,
         committee,
         parameters,
         protocol_config,
         protocol_keypair,
         network_keypair,
+        Arc::new(Clock::new_for_test(clock_drift)),
         Arc::new(txn_verifier),
         commit_consumer,
         registry,

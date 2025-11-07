@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 pub mod absint;
@@ -26,7 +26,7 @@ use crate::{
     diagnostics::DiagnosticReporter,
     expansion::ast::{Attributes, ModuleIdent, Mutability},
     hlir::ast::{FunctionSignature, Label, SingleType, Var, Visibility},
-    shared::{program_info::TypingProgramInfo, unique_map::UniqueMap, CompilationEnv, Name},
+    shared::{CompilationEnv, Name, program_info::TypingProgramInfo, unique_map::UniqueMap},
 };
 
 pub struct CFGContext<'a> {

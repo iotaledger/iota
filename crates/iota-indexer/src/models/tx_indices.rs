@@ -6,10 +6,8 @@ use diesel::prelude::*;
 
 use crate::{
     schema::{
-        optimistic_tx_calls_fun, optimistic_tx_calls_mod, optimistic_tx_calls_pkg,
-        optimistic_tx_changed_objects, optimistic_tx_input_objects, optimistic_tx_kinds,
-        optimistic_tx_recipients, optimistic_tx_senders, tx_calls_fun, tx_calls_mod, tx_calls_pkg,
-        tx_changed_objects, tx_digests, tx_input_objects, tx_kinds, tx_recipients, tx_senders,
+        tx_calls_fun, tx_calls_mod, tx_calls_pkg, tx_changed_objects, tx_digests, tx_input_objects,
+        tx_kinds, tx_recipients, tx_senders, tx_wrapped_or_deleted_objects,
     },
     types::TxIndex,
 };
@@ -23,7 +21,7 @@ pub struct TxSequenceNumber {
 #[derive(QueryableByName)]
 pub struct TxDigest {
     #[diesel(sql_type = diesel::sql_types::Binary)]
-    pub transaction_digest: Vec<u8>,
+    pub tx_digest: Vec<u8>,
 }
 
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
@@ -52,6 +50,14 @@ pub struct StoredTxInputObject {
 #[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
 #[diesel(table_name = tx_changed_objects)]
 pub struct StoredTxChangedObject {
+    pub tx_sequence_number: i64,
+    pub object_id: Vec<u8>,
+    pub sender: Vec<u8>,
+}
+
+#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
+#[diesel(table_name = tx_wrapped_or_deleted_objects)]
+pub struct StoredTxWrappedOrDeletedObject {
     pub tx_sequence_number: i64,
     pub object_id: Vec<u8>,
     pub sender: Vec<u8>,
@@ -98,51 +104,51 @@ pub struct StoredTxKind {
     pub tx_sequence_number: i64,
 }
 
-#[expect(clippy::type_complexity)]
-impl TxIndex {
-    pub fn split(
-        self: TxIndex,
-    ) -> (
-        Vec<StoredTxSenders>,
-        Vec<StoredTxRecipients>,
-        Vec<StoredTxInputObject>,
-        Vec<StoredTxChangedObject>,
-        Vec<StoredTxPkg>,
-        Vec<StoredTxMod>,
-        Vec<StoredTxFun>,
-        Vec<StoredTxDigest>,
-        Vec<StoredTxKind>,
-    ) {
-        let tx_sequence_number = self.tx_sequence_number as i64;
+impl From<TxIndex> for TxIndexSplit {
+    fn from(value: TxIndex) -> Self {
+        let tx_wrapped_or_deleted_objects = value
+            .wrapped_or_deleted_objects
+            .into_iter()
+            .map(|o| StoredTxWrappedOrDeletedObject {
+                tx_sequence_number: value.tx_sequence_number as i64,
+                object_id: bcs::to_bytes(&o)
+                    .expect("indexed object should serialize without issues"),
+                sender: value.sender.to_vec(),
+            })
+            .collect();
+
+        let tx_sequence_number = value.tx_sequence_number as i64;
         let tx_sender = StoredTxSenders {
             tx_sequence_number,
-            sender: self.sender.to_vec(),
+            sender: value.sender.to_vec(),
         };
-        let tx_recipients = self
+        let tx_recipients = value
             .recipients
             .iter()
             .map(|s| StoredTxRecipients {
                 tx_sequence_number,
                 recipient: s.to_vec(),
-                sender: self.sender.to_vec(),
+                sender: value.sender.to_vec(),
             })
             .collect();
-        let tx_input_objects = self
+        let tx_input_objects = value
             .input_objects
             .iter()
             .map(|o| StoredTxInputObject {
                 tx_sequence_number,
-                object_id: bcs::to_bytes(&o).unwrap(),
-                sender: self.sender.to_vec(),
+                object_id: bcs::to_bytes(&o)
+                    .expect("indexed object should serialize without issues"),
+                sender: value.sender.to_vec(),
             })
             .collect();
-        let tx_changed_objects = self
+        let tx_changed_objects = value
             .changed_objects
             .iter()
             .map(|o| StoredTxChangedObject {
                 tx_sequence_number,
-                object_id: bcs::to_bytes(&o).unwrap(),
-                sender: self.sender.to_vec(),
+                object_id: bcs::to_bytes(&o)
+                    .expect("indexed object should serialize without issues"),
+                sender: value.sender.to_vec(),
             })
             .collect();
 
@@ -150,7 +156,7 @@ impl TxIndex {
         let mut packages_modules = Vec::new();
         let mut packages_modules_funcs = Vec::new();
 
-        for (pkg, pkg_mod, pkg_mod_func) in self
+        for (pkg, pkg_mod, pkg_mod_func) in value
             .move_calls
             .iter()
             .map(|(p, m, f)| (*p, (*p, m.clone()), (*p, m.clone(), f.clone())))
@@ -165,7 +171,7 @@ impl TxIndex {
             .map(|p| StoredTxPkg {
                 tx_sequence_number,
                 package: p.to_vec(),
-                sender: self.sender.to_vec(),
+                sender: value.sender.to_vec(),
             })
             .collect();
 
@@ -175,126 +181,58 @@ impl TxIndex {
                 tx_sequence_number,
                 package: p.to_vec(),
                 module: m.to_string(),
-                sender: self.sender.to_vec(),
+                sender: value.sender.to_vec(),
             })
             .collect();
 
-        let tx_calls = packages_modules_funcs
+        let tx_funs = packages_modules_funcs
             .iter()
             .map(|(p, m, f)| StoredTxFun {
                 tx_sequence_number,
                 package: p.to_vec(),
                 module: m.to_string(),
                 func: f.to_string(),
-                sender: self.sender.to_vec(),
+                sender: value.sender.to_vec(),
             })
             .collect();
 
         let stored_tx_digest = StoredTxDigest {
-            tx_digest: self.transaction_digest.into_inner().to_vec(),
+            tx_digest: value.transaction_digest.into_inner().to_vec(),
             tx_sequence_number,
         };
 
         let tx_kind = StoredTxKind {
-            tx_kind: self.tx_kind as i16,
+            tx_kind: value.tx_kind as i16,
             tx_sequence_number,
         };
 
-        (
-            vec![tx_sender],
+        let tx_senders = vec![tx_sender];
+        let tx_digests = vec![stored_tx_digest];
+        let tx_kinds = vec![tx_kind];
+        Self {
+            tx_senders,
             tx_recipients,
             tx_input_objects,
             tx_changed_objects,
+            tx_wrapped_or_deleted_objects,
             tx_pkgs,
             tx_mods,
-            tx_calls,
-            vec![stored_tx_digest],
-            vec![tx_kind],
-        )
+            tx_funs,
+            tx_digests,
+            tx_kinds,
+        }
     }
 }
 
-#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
-#[diesel(table_name = optimistic_tx_senders)]
-pub struct OptimisticTxSenders {
-    pub tx_insertion_order: i64,
-    pub sender: Vec<u8>,
-}
-
-#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
-#[diesel(table_name = optimistic_tx_recipients)]
-pub struct OptimisticTxRecipients {
-    pub tx_insertion_order: i64,
-    pub recipient: Vec<u8>,
-    pub sender: Vec<u8>,
-}
-
-#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
-#[diesel(table_name = optimistic_tx_input_objects)]
-pub struct OptimisticTxInputObject {
-    pub tx_insertion_order: i64,
-    pub object_id: Vec<u8>,
-    pub sender: Vec<u8>,
-}
-
-#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
-#[diesel(table_name = optimistic_tx_changed_objects)]
-pub struct OptimisticTxChangedObject {
-    pub tx_insertion_order: i64,
-    pub object_id: Vec<u8>,
-    pub sender: Vec<u8>,
-}
-
-#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
-#[diesel(table_name = optimistic_tx_calls_pkg)]
-pub struct OptimisticTxPkg {
-    pub tx_insertion_order: i64,
-    pub package: Vec<u8>,
-    pub sender: Vec<u8>,
-}
-
-#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
-#[diesel(table_name = optimistic_tx_calls_mod)]
-pub struct OptimisticTxMod {
-    pub tx_insertion_order: i64,
-    pub package: Vec<u8>,
-    pub module: String,
-    pub sender: Vec<u8>,
-}
-
-#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
-#[diesel(table_name = optimistic_tx_calls_fun)]
-pub struct OptimisticTxFun {
-    pub tx_insertion_order: i64,
-    pub package: Vec<u8>,
-    pub module: String,
-    pub func: String,
-    pub sender: Vec<u8>,
-}
-
-#[derive(Queryable, Insertable, Selectable, Debug, Clone, Default)]
-#[diesel(table_name = optimistic_tx_kinds)]
-pub struct OptimisticTxKind {
-    pub tx_kind: i16,
-    pub tx_insertion_order: i64,
-}
-
-optimistic_from_into_checkpoint!(OptimisticTxSenders, StoredTxSenders, { sender });
-optimistic_from_into_checkpoint!(OptimisticTxRecipients, StoredTxRecipients, { recipient, sender });
-optimistic_from_into_checkpoint!(OptimisticTxInputObject, StoredTxInputObject, { object_id, sender });
-optimistic_from_into_checkpoint!(OptimisticTxChangedObject, StoredTxChangedObject, { object_id, sender });
-optimistic_from_into_checkpoint!(OptimisticTxPkg, StoredTxPkg, { package, sender });
-optimistic_from_into_checkpoint!(OptimisticTxMod, StoredTxMod, { package, module, sender });
-optimistic_from_into_checkpoint!(OptimisticTxFun, StoredTxFun, { package, module, func, sender });
-optimistic_from_into_checkpoint!(OptimisticTxKind, StoredTxKind, { tx_kind });
-
-pub struct OptimisticTxIndices {
-    pub optimistic_tx_senders: Vec<OptimisticTxSenders>,
-    pub optimistic_tx_recipients: Vec<OptimisticTxRecipients>,
-    pub optimistic_tx_input_objects: Vec<OptimisticTxInputObject>,
-    pub optimistic_tx_changed_objects: Vec<OptimisticTxChangedObject>,
-    pub optimistic_tx_pkgs: Vec<OptimisticTxPkg>,
-    pub optimistic_tx_mods: Vec<OptimisticTxMod>,
-    pub optimistic_tx_funs: Vec<OptimisticTxFun>,
-    pub optimistic_tx_kinds: Vec<OptimisticTxKind>,
+pub(crate) struct TxIndexSplit {
+    pub(crate) tx_senders: Vec<StoredTxSenders>,
+    pub(crate) tx_recipients: Vec<StoredTxRecipients>,
+    pub(crate) tx_input_objects: Vec<StoredTxInputObject>,
+    pub(crate) tx_changed_objects: Vec<StoredTxChangedObject>,
+    pub(crate) tx_wrapped_or_deleted_objects: Vec<StoredTxWrappedOrDeletedObject>,
+    pub(crate) tx_pkgs: Vec<StoredTxPkg>,
+    pub(crate) tx_mods: Vec<StoredTxMod>,
+    pub(crate) tx_funs: Vec<StoredTxFun>,
+    pub(crate) tx_digests: Vec<StoredTxDigest>,
+    pub(crate) tx_kinds: Vec<StoredTxKind>,
 }

@@ -11,6 +11,7 @@ import { type Status } from '_src/background/storageMigration';
 
 import { isBasePayload } from './basePayload';
 import type { Payload } from './payload';
+import { type BrowserPasswordProviderOptions } from '@iota/iota-sdk/keypairs/passkey';
 
 export type UIAccessibleEntityType = 'accountSources' | 'accounts';
 export type LedgerAccountsPublicKeys = {
@@ -38,6 +39,13 @@ type MethodPayloads = {
                   password: string;
                   seed: string;
               };
+          }
+        | {
+              type: AccountSourceType.Keystone;
+              params: {
+                  password: string;
+                  masterFingerprint: string;
+              };
           };
     accountSourceCreationResponse: { accountSource: AccountSourceSerializedUI };
     lockAccountSourceOrAccount: { id: string };
@@ -47,9 +55,27 @@ type MethodPayloads = {
         | { type: AccountType.SeedDerived; sourceID: string }
         | { type: AccountType.PrivateKeyDerived; keyPair: string; password: string }
         | {
+              type: AccountType.PasskeyDerived;
+              address: string;
+              publicKey: string;
+              providerOptions: BrowserPasswordProviderOptions;
+              credentialId: number[];
+              password: string;
+          }
+        | {
               type: AccountType.LedgerDerived;
+              mainPublicKey: string;
               accounts: { publicKey: string; derivationPath: string; address: string }[];
               password: string;
+          }
+        | {
+              type: AccountType.KeystoneDerived;
+              sourceID: string;
+              accounts: {
+                  publicKey: string;
+                  derivationPath: string;
+                  address: string;
+              }[];
           };
     accountsCreatedResponse: { accounts: SerializedUIAccount[] };
     signData: { data: string; id: string };
@@ -61,6 +87,10 @@ type MethodPayloads = {
     switchAccount: { accountID: string };
     setAccountNickname: { id: string; nickname: string | null };
     verifyPassword: { password: string };
+    getLockedState: {};
+    getLockedStateResponse: {
+        remainingTime: number;
+    };
     storeLedgerAccountsPublicKeys: { publicKeysToStore: LedgerAccountsPublicKeys };
     getAccountSourceEntropy: { accountSourceID: string; password?: string };
     getAccountSourceEntropyResponse: { entropy: string };

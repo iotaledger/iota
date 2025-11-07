@@ -69,7 +69,7 @@ export function ConnectModal({ trigger, open, defaultOpen, onOpenChange }: Conne
     const connectWallet = (wallet: WalletWithRequiredFeatures) => {
         setCurrentView('connection-status');
         mutate(
-            { wallet },
+            { wallet, silent: false },
             {
                 onSuccess: () => handleOpenChange(false),
             },

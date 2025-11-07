@@ -1,5 +1,90 @@
 # @iota/graphql-transport
 
+## 0.9.2
+
+### Patch Changes
+
+-   Updated dependencies [3244c29]
+    -   @iota/iota-sdk@1.6.1
+
+## 0.9.1
+
+### Patch Changes
+
+-   Updated dependencies [c5543f0]
+-   Updated dependencies [bd17ba9]
+-   Updated dependencies [0accdb0]
+    -   @iota/iota-sdk@1.6.0
+
+## 0.9.0
+
+### Minor Changes
+
+-   61b0944: Added support for WrappedOrDeletedObject in TransactionBlockFilter
+-   464c15a: Sync the APIs with the "Domain" -> "Name" rename of IotaNames
+
+### Patch Changes
+
+-   Updated dependencies [40576ed]
+-   Updated dependencies [61b0944]
+-   Updated dependencies [966f83c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [733df30]
+-   Updated dependencies [13ca264]
+-   Updated dependencies [5bbafa8]
+-   Updated dependencies [28ce666]
+-   Updated dependencies [c855f8c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [464c15a]
+    -   @iota/iota-sdk@1.5.0
+    -   @iota/bcs@1.2.0
+
+## 0.8.0
+
+### Minor Changes
+
+-   ecea738: Improved logic around `fallbackMethods` in graphql-transport Introduced
+    `unsupportedMethods` in graphql-transport Improved IotaClient compatibility with
+    graphql-transport
+
+### Patch Changes
+
+-   ecea738: Added missing GraphQL query option fields.
+-   59342b2: Renamed all instances of 'domain' to 'name' for IOTA-Names.
+-   Updated dependencies [f04033d]
+-   Updated dependencies [f04033d]
+-   Updated dependencies [59342b2]
+-   Updated dependencies [f04033d]
+-   Updated dependencies [f04033d]
+-   Updated dependencies [ecea738]
+    -   @iota/iota-sdk@1.4.0
+    -   @iota/bcs@1.1.0
+
+## 0.7.0
+
+### Minor Changes
+
+-   c837b79: Removed support for iota-bridge
+
+### Patch Changes
+
+-   Updated dependencies [6051799]
+-   Updated dependencies [5db9797]
+-   Updated dependencies [c4c6d9a]
+-   Updated dependencies [c837b79]
+    -   @iota/iota-sdk@1.3.0
+
+## 0.6.0
+
+### Minor Changes
+
+-   53d5058: Added iota names rpc methods to IotaClient and also GraphQL queries.
+
+### Patch Changes
+
+-   Updated dependencies [53d5058]
+    -   @iota/iota-sdk@1.2.0
+
 ## 0.5.2
 
 ### Patch Changes

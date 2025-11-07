@@ -922,7 +922,7 @@ Lastly, to deploy the changed template module, build and publish:
 const tx = new Transaction();
   tx.setGasBudget(100000000);
   const [upgradeCap] = tx.publish({
-    modules: [[...fromHEX(bytesToPublish)], [...fromHEX(genesis_bytecode)]],
+    modules: [[...fromHex(bytesToPublish)], [...fromHex(genesis_bytecode)]],
     dependencies: [
       normalizeIotaObjectId("0x1"),
       normalizeIotaObjectId("0x2"),

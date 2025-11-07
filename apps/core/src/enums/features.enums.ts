@@ -13,7 +13,6 @@ export enum Feature {
     WalletInterstitialConfig = 'wallet-interstitial-config',
     RecognizedPackages = 'recognized-packages',
     WalletSentryTracing = 'wallet-sentry-tracing',
-    KioskOriginbytePackageId = 'kiosk-originbyte-package-id',
     PollingTxnTable = 'polling-txn-table',
     NetworkOutageOverride = 'network-outage-override',
     ModuleSourceVerification = 'module-source-verification',
@@ -21,4 +20,8 @@ export enum Feature {
     StardustMigration = 'migration',
     SupplyIncreaseVesting = 'supply-increase-vesting',
     FiatConversion = 'fiat-conversion',
+    KnownAddressAlias = 'known-address-alias',
+    KnownIotaEVMCoinTypes = 'known-iota-evm-coin-types',
+    IotaNames = 'iota-names',
+    ValidatorAddressAlias = 'validator-address-alias',
 }

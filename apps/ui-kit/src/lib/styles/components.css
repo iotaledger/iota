@@ -1,0 +1,735 @@
+@layer components {
+    /* ---------------- ATOMS ---------------- */
+
+    /* BADGE */
+    .badge-bg-color-neutral {
+        background-color: var(--badge-bg-color-neutral);
+    }
+
+    .badge-bg-color-primary {
+        background-color: var(--badge-bg-color-primary);
+    }
+
+    .badge-bg-color-primary-soft {
+        background-color: var(--badge-bg-color-primary-soft);
+    }
+
+    .badge-border-color-primary {
+        border-color: var(--badge-border-color-primary);
+    }
+
+    .badge-border-color-neutral {
+        border-color: var(--badge-border-color-neutral);
+    }
+
+    .badge-border-color-soft {
+        border-color: var(--badge-border-color-soft);
+    }
+
+    .badge-text-color-neutral {
+        color: var(--badge-text-color-neutral);
+    }
+
+    .badge-text-color-primary-soft {
+        color: var(--badge-text-color-primary-soft);
+    }
+
+    .badge-text-color-primary {
+        color: var(--badge-text-color-primary);
+    }
+
+    /* INFOBOX */
+    .infobox-text-title {
+        color: var(--infobox-text-title);
+    }
+
+    .infobox-supporting-text {
+        color: var(--infobox-supporting-text);
+    }
+
+    /* BUTTON */
+    .button-bg-color-primary {
+        background-color: var(--button-bg-color-primary);
+    }
+
+    .button-bg-color-disabled-primary {
+        background-color: var(--button-bg-color-disabled-primary);
+    }
+
+    .button-bg-color-secondary {
+        background-color: var(--button-bg-color-secondary);
+    }
+
+    .button-bg-color-error {
+        background-color: var(--button-bg-color-error);
+    }
+
+    .button-border-color-outline {
+        border-width: 1px;
+        border-color: var(--button-border-color-outline);
+    }
+
+    .button-text-color-primary {
+        color: var(--button-text-color-primary);
+    }
+
+    .button-text-color-neutral {
+        color: var(--button-text-color-neutral);
+    }
+
+    .button-text-color-error {
+        color: var(--button-text-color-error);
+    }
+
+    .button-text-color-primary {
+        color: var(--button-text-color-primary);
+    }
+
+    /* BUTTON PILL */
+
+    .button-pill-text-color {
+        color: var(--button-pill-text-color);
+    }
+
+    .button-pill-border-color {
+        border-color: var(--button-pill-border-color);
+    }
+
+    /* HEADER */
+    .header-bg-color {
+        background-color: var(--header-bg-color);
+    }
+
+    .header-text-color {
+        color: var(--header-text-color);
+    }
+
+    /* LABELTEXT */
+    .label-text-primary-neutral {
+        color: var(--label-text-primary-neutral);
+    }
+
+    .label-text-secondary-neutral {
+        color: var(--label-text-secondary-neutral);
+    }
+
+    /* KEYVALUE */
+    .key-supporting-text-color {
+        color: var(--key-supporting-text-color);
+    }
+
+    .key-value-hover-text-color {
+        color: var(--key-value-hover-text-color);
+    }
+
+    .key-value-key-text-color {
+        color: var(--key-value-key-text-color);
+    }
+
+    /* CHECKBOX */
+
+    .checkbox-base {
+        @apply relative inset-0 flex h-5 w-5 items-center justify-center rounded border;
+    }
+
+    .checkbox-state {
+        @apply peer-enabled:state-layer group-[.disabled]:cursor-not-allowed;
+    }
+
+    .checkbox-border-default {
+        border-color: var(--checkbox-border-color-default);
+    }
+
+    .checkbox-border-checked {
+        border-color: var(--checkbox-border-color-checked);
+    }
+
+    .checkbox-border-color-disabled {
+        border-color: var(--checkbox-border-color-disabled);
+    }
+
+    .checkbox-border-color-disabled-checked {
+        border-color: var(--checkbox-border-color-disabled-checked);
+    }
+
+    .checkbox-bg-checked {
+        background-color: var(--checkbox-bg-color-checked);
+    }
+
+    .checkbox-bg-color-disabled-checked {
+        background-color: var(--checkbox-bg-color-disabled-checked);
+    }
+
+    .checkbox-text {
+        color: var(--checkbox-text-color);
+    }
+
+    .checkbox-text-checked {
+        color: var(--checkbox-text-color-checked);
+    }
+
+    .checkbox-icon {
+        @apply [&_svg]:h-4 [&_svg]:w-4;
+    }
+
+    .checkbox-icon-hidden {
+        @apply peer-[&:not(:checked,:indeterminate)]:[&_svg]:hidden;
+    }
+
+    .checkbox-label {
+        @apply text-label-lg;
+        color: var(--checkbox-label-text-color);
+    }
+
+    .checkbox-label-disabled {
+        @apply group-[.disabled]:cursor-not-allowed;
+    }
+
+    /* DIVIDER */
+    .divider-bg-color {
+        background-color: var(--divider-bg-color);
+    }
+
+    /* BUTTON SEGMENT */
+    .button-segment-text-color-default {
+        color: var(--button-segment-text-color-default);
+    }
+
+    .button-segment-text-color-hover {
+        @apply enabled:hover:[color:var(--button-segment-text-color-hover)];
+    }
+
+    .button-segment-text-color-focused {
+        @apply enabled:focus:[color:var(--button-segment-text-color-focused)];
+    }
+
+    .button-segment-text-color-selected {
+        color: var(--button-segment-text-color-selected);
+    }
+
+    .button-segment-bg-color-selected {
+        background-color: var(--button-segment-bg-color-selected);
+    }
+
+    .button-segment-underline-base {
+        @apply relative before:absolute before:left-0 before:block before:w-full before:content-[''];
+        border-bottom: 1px solid var(--button-segment-underline-default-color);
+    }
+
+    .button-segment-underline-hover {
+        @apply hover:before:bottom-[-0.8px] hover:before:left-2 hover:before:w-[calc(100%-16px)];
+    }
+
+    .button-segment-underline-hover-color {
+        @apply hover:before:border-b hover:before:border-[color:var(--button-segment-underline-hover-color)];
+    }
+
+    .button-segment-underline-selected {
+        @apply before:bottom-[-0.8px] enabled:before:left-2 enabled:before:w-[calc(100%-16px)];
+        @apply before:border-b before:border-[color:var(--button-segment-underline-selected-color)] names:before:rounded-full;
+    }
+
+    .button-segment-underline-selected:disabled::before {
+        content: none;
+        display: none;
+    }
+
+    /* LOADING INDICATOR */
+    .loading-indicator-color {
+        color: var(--loading-indicator-color);
+    }
+
+    /* LIST ITEM */
+    .list-item-color {
+        color: var(--list-item-color);
+    }
+
+    .list-item-border-color {
+        border-color: var(--list-item-border-color);
+    }
+
+    .list-item-highlight-bg {
+        background-color: var(--list-item-highlight-bg);
+    }
+
+    /* PANEL */
+    .panel-bg {
+        background-color: var(--panel-bg);
+    }
+
+    .panel-border-color {
+        border-color: var(--panel-border-color);
+    }
+
+    /* RADIO BUTTON */
+    .radio-icon-color {
+        color: var(--radio-icon-color);
+    }
+
+    .radio-icon-checked-color {
+        color: var(--radio-icon-checked-color);
+    }
+
+    .radio-icon-checked-disabled-color {
+        color: var(--radio-icon-checked-disabled-color);
+    }
+
+    .radio-label-color {
+        color: var(--radio-label-color);
+    }
+
+    /* SECONDARY TEXT */
+    .secondary-text-color {
+        color: var(--secondary-text-color);
+    }
+
+    .secondary-text-error-color {
+        color: var(--secondary-text-error-color);
+    }
+
+    /* SKELETON */
+    .skeleton-bg {
+        background-color: var(--skeleton-bg);
+    }
+
+    .skeleton-secondary-bg {
+        background-color: var(--skeleton-secondary-bg);
+    }
+
+    /* TOGGLE */
+    .toggle-bg-active {
+        background-color: var(--toggle-bg-active);
+    }
+
+    .toggle-border-active {
+        border-color: var(--toggle-border-active);
+    }
+
+    .toggle-bg-inactive {
+        background-color: var(--toggle-bg-inactive);
+    }
+
+    .toggle-border-inactive {
+        border-color: var(--toggle-border-inactive);
+    }
+
+    .toggle-bg-disabled-active {
+        background-color: var(--toggle-bg-disabled-active);
+    }
+
+    .toggle-border-disabled-active {
+        border-color: var(--toggle-border-disabled-active);
+    }
+
+    .toggle-thumb-color {
+        background-color: var(--toggle-thumb-color);
+    }
+
+    .toggle-thumb-color-checked {
+        background-color: var(--toggle-thumb-color-checked);
+    }
+
+    .toggle-label-color {
+        color: var(--toggle-label-color);
+    }
+
+    /* TOOLTIP */
+    .tooltip-bg {
+        background-color: var(--tooltip-bg);
+    }
+
+    .tooltip-text-color {
+        color: var(--tooltip-text-color);
+    }
+
+    /* VISUAL ASSET CARD */
+    .visual-asset-placeholder-bg {
+        background-color: var(--visual-asset-placeholder-bg);
+    }
+
+    .visual-asset-placeholder-icon {
+        color: var(--visual-asset-placeholder-icon);
+    }
+
+    .visual-asset-title-color {
+        color: var(--visual-asset-title-color);
+    }
+
+    .visual-asset-icon-color svg {
+        color: var(--visual-asset-icon-color);
+    }
+
+    /* ---------------- MOLECULES ---------------- */
+
+    /* ACCOUNT */
+    .account-title-color {
+        color: var(--account-title-color);
+    }
+
+    .account-icon-color svg {
+        color: var(--account-icon-color);
+    }
+
+    .account-check-active-color {
+        color: var(--account-check-active-color);
+    }
+
+    .account-check-inactive-color {
+        color: var(--account-check-inactive-color);
+    }
+
+    /* ADDRESS */
+    .address-text-color {
+        color: var(--address-text-color);
+    }
+
+    /* CARD */
+    .card-filled-bg {
+        background-color: var(--card-filled-bg);
+    }
+
+    .card-image-bg-solid {
+        background-color: var(--card-image-bg-solid);
+    }
+    .card-image-bg-white {
+        background-color: var(--card-image-bg-white);
+    }
+    .card-action-link-color {
+        color: var(--card-action-link-color);
+    }
+
+    .card-action-title-color {
+        color: var(--card-action-title-color);
+    }
+
+    .card-action-subtitle-color {
+        color: var(--card-action-subtitle-color);
+    }
+    .card-body-title-color {
+        color: var(--card-body-title-color);
+    }
+
+    .card-body-subtitle-color {
+        color: var(--card-body-subtitle-color);
+    }
+
+    /* CHIP */
+
+    .chip-bg-selected-outline {
+        background-color: var(--chip-bg-selected-outline);
+    }
+
+    .chip-bg-elevated {
+        background-color: var(--chip-bg-elevated);
+    }
+
+    .chip-border-default {
+        border-color: var(--chip-border-default);
+    }
+
+    .chip-text-default {
+        color: var(--chip-text-default);
+    }
+
+    .chip-text-secondary {
+        color: var(--chip-text-secondary);
+    }
+
+    .chip-focus-ring {
+        box-shadow: 0 0 0 2px var(--chip-focus-ring);
+    }
+
+    .chip-bg-brand {
+        background-color: var(--chip-bg-brand);
+    }
+
+    .chip-text-brand {
+        color: var(--chip-text-brand);
+    }
+
+    .chip-border-color-brand {
+        border-color: var(--chip-border-color-brand);
+    }
+
+    .chip-bg-selected-overlay {
+        background-color: var(--chip-bg-selected-overlay);
+    }
+
+    .chip-outline-color {
+        outline-color: var(--chip-outline-color);
+    }
+
+    .chip-outline-color-hover {
+        outline-color: var(--chip-outline-color-hover);
+    }
+
+    .chip-outline-color-active {
+        outline-color: var(--chip-outline-color-active);
+    }
+
+    .chip-bg-color-hover {
+        background-color: var(--chip-bg-color-hover);
+    }
+
+    .chip-bg-color-active {
+        background-color: var(--chip-bg-color-active);
+    }
+
+    .chip-bg-color-focus {
+        background-color: var(--chip-bg-color-focus);
+    }
+
+    .chip-close-icon-opacity {
+        opacity: var(--chip-close-icon-opacity);
+    }
+
+    /* DISPLAY STATS */
+    .display-stats-bg-default {
+        background-color: var(--display-stats-bg-default);
+    }
+
+    .display-stats-bg-highlight {
+        background-color: var(--display-stats-bg-highlight);
+    }
+
+    .display-stats-bg-secondary {
+        background-color: var(--display-stats-bg-secondary);
+    }
+
+    .display-stats-text-default {
+        color: var(--display-stats-text-default);
+    }
+
+    .display-stats-text-highlight {
+        color: var(--display-stats-text-highlight);
+    }
+
+    .display-stats-text-secondary {
+        color: var(--display-stats-text-secondary);
+    }
+
+    .display-stats-icon-color {
+        color: var(--display-stats-icon-color);
+    }
+
+    .display-stats-copy-icon-color {
+        color: var(--display-stats-copy-icon-color);
+    }
+
+    /* DROPDOWN */
+    .dropdown-bg {
+        background-color: var(--dropdown-bg);
+    }
+
+    .dropdown-border-color {
+        border-color: var(--dropdown-border-color);
+    }
+
+    /* INPUT */
+    .input-text-color {
+        color: var(--input-text-color);
+    }
+
+    .input-caret-color {
+        caret-color: var(--input-caret-color);
+    }
+
+    .input-placeholder-color::placeholder {
+        color: var(--input-placeholder-color);
+    }
+
+    .input-icon-color {
+        color: var(--input-icon-color);
+    }
+
+    .input-border-color {
+        border-color: var(--input-border-color);
+    }
+
+    .input-border-color-hover {
+        &:hover:not(:has(input:focus)) {
+            border-color: var(--input-border-hover-color);
+        }
+    }
+
+    .input-border-error-color {
+        .group.errored:not(:has(input:focus)) & {
+            border-color: var(--input-border-error-color);
+        }
+    }
+
+    .input-border-color-focus {
+        &:has(input:focus) {
+            border-color: var(--input-border-focus-color);
+        }
+    }
+
+    .input-border-color-disabled {
+        .group.enabled & {
+            cursor: text;
+        }
+        &:disabled {
+            cursor: not-allowed;
+        }
+    }
+    .input-visibility-bar {
+        background-color: var(--input-visibility-bar-color);
+    }
+
+    .input-label-color {
+        color: var(--input-label-color);
+    }
+
+    /* NAVBAR ITEM */
+    .navbar-item-icon-color {
+        color: var(--navbar-item-icon-color);
+    }
+
+    .navbar-item-icon-selected-color {
+        color: var(--navbar-item-icon-selected-color);
+    }
+
+    .navbar-item-label-color {
+        color: var(--navbar-item-label-color);
+    }
+
+    .navbar-item-label-selected-color {
+        color: var(--navbar-item-label-selected-color);
+    }
+
+    /* SEARCH */
+    .search-text-color {
+        color: var(--search-text-color);
+    }
+
+    .search-placeholder-color::placeholder {
+        color: var(--search-placeholder-color);
+    }
+
+    .search-border-color {
+        border-color: var(--search-border-color);
+    }
+
+    .search-bg-color-filled {
+        background-color: var(--search-bg-color-filled);
+    }
+
+    .search-suggestion-bg-color {
+        background-color: var(--search-suggestion-bg-color);
+    }
+
+    .search-selected-index-bg-color {
+        background-color: var(--search-selected-index-bg-color);
+    }
+
+    /* SEGMENTED BUTTON */
+    .segmented-filled-bg-color {
+        background-color: var(--segmented-filled-bg-color);
+    }
+
+    .segmented-outlined-border {
+        border-color: var(--segmented-outlined-border-color);
+    }
+
+    /* SELECT */
+    .select-border-color {
+        border-color: var(--select-border-color);
+    }
+
+    .select-border-hover-color {
+        border-color: var(--select-border-hover-color);
+    }
+
+    .select-border-focus-color {
+        border-color: var(--select-border-focus-color);
+    }
+
+    .select-border-error-color {
+        border-color: var(--select-border-error-color);
+    }
+
+    .select-icon-color {
+        color: var(--select-icon-color);
+    }
+
+    .select-label-color {
+        color: var(--select-label-color);
+    }
+
+    /* TABLE CELL */
+    .table-cell-supporting-label-color {
+        color: var(--table-cell-supporting-label-color);
+    }
+
+    .table-cell-border-color {
+        border-color: var(--table-cell-border-color);
+    }
+
+    /* TABLE HEADER CELL */
+    .table-header-text-color {
+        color: var(--table-header-text-color);
+    }
+
+    /* TITLE */
+    .title-main-color {
+        color: var(--title-main-color);
+    }
+
+    .title-subtitle-color {
+        color: var(--title-subtitle-color);
+    }
+
+    .title-icon-color {
+        color: var(--title-icon-color);
+    }
+
+    /* ---------------- ORGANISMS ---------------- */
+
+    /* ACCORDION */
+    .accordion-bg {
+        background-color: var(--accordion-bg);
+    }
+
+    .accordion-icon-color {
+        color: var(--accordion-icon-color);
+    }
+
+    .accordion-border-color {
+        border-color: var(--accordion-border-color);
+    }
+
+    /* DIALOG */
+    .dialog-content-bg {
+        background-color: var(--dialog-content-bg);
+    }
+
+    .dialog-title-color {
+        color: var(--dialog-title-color);
+    }
+
+    .dialog-body-color {
+        color: var(--dialog-body-color);
+    }
+
+    /* NAVBAR */
+    .navbar-icon-color {
+        color: var(--navbar-icon-color);
+    }
+    .navbar-slideout-bg {
+        background-color: var(--navbar-slideout-bg);
+    }
+
+    /* TABLE */
+    .table-text-color {
+        color: var(--table-text-color);
+    }
+
+    /* DIALOG */
+    .dialog-outline {
+        outline: var(--dialog-outline);
+    }
+
+    .dialog-overlay-bg {
+        background-color: var(--dialog-overlay-bg);
+    }
+}

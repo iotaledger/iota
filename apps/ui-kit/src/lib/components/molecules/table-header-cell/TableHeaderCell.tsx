@@ -79,7 +79,7 @@ export function TableHeaderCell({
         }
     };
 
-    const textColorClass = 'text-neutral-10 dark:text-neutral-92';
+    const textColorClass = 'table-header-text-color';
     const textSizeClass = 'text-label-lg';
 
     const sortElement = (() => {
@@ -102,7 +102,7 @@ export function TableHeaderCell({
         <th
             onClick={hasSort ? handleSort : undefined}
             className={cx(
-                'state-layer group relative h-14 border-b border-shader-neutral-light-8 px-md after:pointer-events-none dark:border-shader-neutral-dark-8',
+                'state-layer table-cell-border-color group relative h-14 border-b px-md after:pointer-events-none',
                 {
                     'cursor-pointer': hasSort,
                 },

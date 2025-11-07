@@ -8,10 +8,10 @@ use anyhow::Result;
 use async_trait::async_trait;
 use iota_data_ingestion_core::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, ReaderOptions, Worker, WorkerPool,
+    reader::v2::CheckpointReaderConfig,
 };
 use iota_types::full_checkpoint_content::CheckpointData;
 use prometheus::Registry;
-use tokio_util::sync::CancellationToken;
 
 struct CustomWorker;
 
@@ -32,16 +32,18 @@ impl Worker for CustomWorker {
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    // Number of Workers to process checkpoints in parallel.
     let concurrency = 5;
     let metrics = DataIngestionMetrics::new(&Registry::new());
-    let backfill_progress_file_path =
-        env::var("BACKFILL_PROGRESS_FILE_PATH").unwrap_or("/tmp/local_reader_progress".to_string());
-    let progress_store = FileProgressStore::new(backfill_progress_file_path).await?;
+    let progress_file_path =
+        env::var("PROGRESS_FILE_PATH").unwrap_or("/tmp/local_reader_progress".to_string());
+    // Save last processed checkpoint to a file.
+    let progress_store = FileProgressStore::new(progress_file_path).await?;
     let mut executor = IndexerExecutor::new(
         progress_store,
-        1, // number of workflow types
+        1, // should match the total number of registered workers.
         metrics,
-        CancellationToken::new(),
+        Default::default(),
     );
     let worker_pool = WorkerPool::new(
         CustomWorker,
@@ -51,13 +53,13 @@ async fn main() -> Result<()> {
     );
 
     executor.register(worker_pool).await?;
-    executor
-        .run(
-            PathBuf::from("./chk".to_string()), // path to a local directory
-            None,
-            vec![],                   // optional remote store access options
-            ReaderOptions::default(), // remote_read_batch_size
-        )
-        .await?;
+
+    let config = CheckpointReaderConfig {
+        ingestion_path: Some(PathBuf::from("./chk")),
+        reader_options: ReaderOptions::default(),
+        ..Default::default()
+    };
+
+    executor.run_with_config(config).await?;
     Ok(())
 }

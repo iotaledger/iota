@@ -2,7 +2,10 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    hash::Hash,
+};
 
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
@@ -17,11 +20,8 @@ use move_core_types::{
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, StructTag},
 };
-use move_disassembler::disassembler::Disassembler;
-use move_ir_types::location::Spanned;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use serde_with::{Bytes, serde_as};
 
 use crate::{
@@ -247,8 +247,7 @@ impl MovePackage {
     /// origin and linkage tables.
     pub fn new_initial<'p>(
         modules: &[CompiledModule],
-        max_move_package_size: u64,
-        move_binary_format_version: u32,
+        protocol_config: &ProtocolConfig,
         transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
         let module = modules
@@ -262,8 +261,7 @@ impl MovePackage {
             runtime_id,
             OBJECT_START_VERSION,
             modules,
-            max_move_package_size,
-            move_binary_format_version,
+            protocol_config,
             type_origin_table,
             transitive_dependencies,
         )
@@ -290,8 +288,7 @@ impl MovePackage {
             runtime_id,
             new_version,
             modules,
-            protocol_config.max_move_package_size(),
-            protocol_config.move_binary_format_version(),
+            protocol_config,
             type_origin_table,
             transitive_dependencies,
         )
@@ -353,8 +350,7 @@ impl MovePackage {
         self_id: ObjectID,
         version: SequenceNumber,
         modules: &[CompiledModule],
-        max_move_package_size: u64,
-        move_binary_format_version: u32,
+        protocol_config: &ProtocolConfig,
         type_origin_table: Vec<TypeOrigin>,
         transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
     ) -> Result<Self, ExecutionError> {
@@ -372,7 +368,7 @@ impl MovePackage {
             );
 
             let mut bytes = Vec::new();
-            let version = if move_binary_format_version > VERSION_6 {
+            let version = if protocol_config.move_binary_format_version() > VERSION_6 {
                 module.version
             } else {
                 VERSION_6
@@ -382,12 +378,16 @@ impl MovePackage {
         }
 
         immediate_dependencies.remove(&self_id);
-        let linkage_table = build_linkage_table(immediate_dependencies, transitive_dependencies)?;
+        let linkage_table = build_linkage_table(
+            immediate_dependencies,
+            transitive_dependencies,
+            protocol_config,
+        )?;
         Self::new(
             storage_id,
             version,
             module_map,
-            max_move_package_size,
+            protocol_config.max_move_package_size(),
             type_origin_table,
             linkage_table,
         )
@@ -514,16 +514,15 @@ impl MovePackage {
             }
         })
     }
-
-    pub fn disassemble(&self) -> IotaResult<BTreeMap<String, Value>> {
-        disassemble_modules(self.module_map.values())
-    }
-
-    pub fn normalize(
+    /// If `include_code` is set to `false`, the normalized module will skip
+    /// function bodies but still include the signatures.
+    pub fn normalize<S: Hash + Eq + Clone + ToString, Pool: normalized::StringPool<String = S>>(
         &self,
+        pool: &mut Pool,
         binary_config: &BinaryConfig,
-    ) -> IotaResult<BTreeMap<String, normalized::Module>> {
-        normalize_modules(self.module_map.values(), binary_config)
+        include_code: bool,
+    ) -> IotaResult<BTreeMap<String, normalized::Module<S>>> {
+        normalize_modules(pool, self.module_map.values(), binary_config, include_code)
     }
 }
 
@@ -592,39 +591,19 @@ pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInf
     }
 }
 
-pub fn disassemble_modules<'a, I>(modules: I) -> IotaResult<BTreeMap<String, Value>>
-where
-    I: Iterator<Item = &'a Vec<u8>>,
-{
-    let mut disassembled = BTreeMap::new();
-    for bytecode in modules {
-        // this function is only from JSON RPC - it is OK to deserialize with max Move
-        // binary version
-        let module = CompiledModule::deserialize_with_defaults(bytecode).map_err(|error| {
-            IotaError::ModuleDeserializationFailure {
-                error: error.to_string(),
-            }
-        })?;
-        let d =
-            Disassembler::from_module(&module, Spanned::unsafe_no_loc(()).loc).map_err(|e| {
-                IotaError::ObjectSerialization {
-                    error: e.to_string(),
-                }
-            })?;
-        let bytecode_str = d
-            .disassemble()
-            .map_err(|e| IotaError::ObjectSerialization {
-                error: e.to_string(),
-            })?;
-        disassembled.insert(module.name().to_string(), Value::String(bytecode_str));
-    }
-    Ok(disassembled)
-}
-
-pub fn normalize_modules<'a, I>(
+/// If `include_code` is set to `false`, the normalized module will skip
+/// function bodies but still include the signatures.
+pub fn normalize_modules<
+    'a,
+    S: Hash + Eq + Clone + ToString,
+    Pool: normalized::StringPool<String = S>,
+    I,
+>(
+    pool: &mut Pool,
     modules: I,
     binary_config: &BinaryConfig,
-) -> IotaResult<BTreeMap<String, normalized::Module>>
+    include_code: bool,
+) -> IotaResult<BTreeMap<String, normalized::Module<S>>>
 where
     I: Iterator<Item = &'a Vec<u8>>,
 {
@@ -636,20 +615,31 @@ where
                     error: error.to_string(),
                 }
             })?;
-        let normalized_module = normalized::Module::new(&module);
-        normalized_modules.insert(normalized_module.name.to_string(), normalized_module);
+        let normalized_module = normalized::Module::new(pool, &module, include_code);
+        normalized_modules.insert(normalized_module.name().to_string(), normalized_module);
     }
     Ok(normalized_modules)
 }
 
-pub fn normalize_deserialized_modules<'a, I>(modules: I) -> BTreeMap<String, normalized::Module>
+/// If `include_code` is set to `false`, the normalized module will skip
+/// function bodies but still include the signatures.
+pub fn normalize_deserialized_modules<
+    'a,
+    S: Hash + Eq + Clone + ToString,
+    Pool: normalized::StringPool<String = S>,
+    I,
+>(
+    pool: &mut Pool,
+    modules: I,
+    include_code: bool,
+) -> BTreeMap<String, normalized::Module<S>>
 where
     I: Iterator<Item = &'a CompiledModule>,
 {
     let mut normalized_modules = BTreeMap::new();
     for module in modules {
-        let normalized_module = normalized::Module::new(module);
-        normalized_modules.insert(normalized_module.name.to_string(), normalized_module);
+        let normalized_module = normalized::Module::new(pool, module, include_code);
+        normalized_modules.insert(normalized_module.name().to_string(), normalized_module);
     }
     normalized_modules
 }
@@ -657,6 +647,7 @@ where
 fn build_linkage_table<'p>(
     mut immediate_dependencies: BTreeSet<ObjectID>,
     transitive_dependencies: impl IntoIterator<Item = &'p MovePackage>,
+    protocol_config: &ProtocolConfig,
 ) -> Result<BTreeMap<ObjectID, UpgradeInfo>, ExecutionError> {
     let mut linkage_table = BTreeMap::new();
     let mut dep_linkage_tables = vec![];
@@ -667,19 +658,36 @@ fn build_linkage_table<'p>(
         // Move binary version during deserialization is OK
         let original_id = transitive_dep.original_package_id();
 
-        if immediate_dependencies.remove(&original_id) {
-            // Found an immediate dependency, mark it as seen, and stash a reference to its
-            // linkage table to check later.
-            dep_linkage_tables.push(&transitive_dep.linkage_table);
-        }
+        let imm_dep = immediate_dependencies.remove(&original_id);
 
-        linkage_table.insert(
-            original_id,
-            UpgradeInfo {
-                upgraded_id: transitive_dep.id,
-                upgraded_version: transitive_dep.version,
-            },
-        );
+        if protocol_config.dependency_linkage_error() {
+            dep_linkage_tables.push(&transitive_dep.linkage_table);
+
+            let existing = linkage_table.insert(
+                original_id,
+                UpgradeInfo {
+                    upgraded_id: transitive_dep.id,
+                    upgraded_version: transitive_dep.version,
+                },
+            );
+
+            if existing.is_some() {
+                return Err(ExecutionErrorKind::InvalidLinkage.into());
+            }
+        } else {
+            if imm_dep {
+                // Found an immediate dependency, mark it as seen, and stash a reference to its
+                // linkage table to check later.
+                dep_linkage_tables.push(&transitive_dep.linkage_table);
+            }
+            linkage_table.insert(
+                original_id,
+                UpgradeInfo {
+                    upgraded_id: transitive_dep.id,
+                    upgraded_version: transitive_dep.version,
+                },
+            );
+        }
     }
     // (1) Every dependency is represented in the transitive dependencies
     if !immediate_dependencies.is_empty() {

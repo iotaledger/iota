@@ -160,6 +160,7 @@ const ENotAPendingValidator: u64 = 12;
 const EValidatorSetEmpty: u64 = 13;
 const ENotACommitteeValidator: u64 = 14;
 const EInvalidStakeAmount: u64 = 15;
+const EInvalidEligibleValidatorIndex: u64 = 16;
 
 const EInvalidCap: u64 = 101;
 
@@ -223,8 +224,10 @@ public(package) fun new_v2(
     };
 
     // Only assign new committee, no need to call `process_new_committee` which also emits events.
+    // All validators are eligible during initialization
+    let all_eligible_indices = vector::tabulate!(validators.active_validators.length(), |i| i);
     validators.committee_members =
-        validators.select_committee_members_top_n_stakers(committee_size);
+        validators.select_committee_members_from_eligible(committee_size, all_eligible_indices);
 
     validators.total_stake =
         calculate_total_committee_stakes(
@@ -438,6 +441,12 @@ public(package) fun request_set_commission_rate(
 ///   3. Process pending stake deposits, and withdraws.
 ///   4. Process pending validator application and withdraws.
 ///   5. At the end, we calculate the total stake for the new epoch.
+///
+/// IMPORTANT: With the new authority capability notification system, newly activated validators
+/// cannot immediately join the committee. They must wait one epoch after activation to:
+/// 1. Notify their AuthorityCapabilities to the network
+/// 2. Show that they support the correct ProtocolVersion
+/// This means validators activated in epoch N can only become committee members in epoch N+2.
 public(package) fun advance_epoch(
     self: &mut ValidatorSetV2,
     total_validator_rewards: &mut Balance<IOTA>,
@@ -447,6 +456,7 @@ public(package) fun advance_epoch(
     very_low_stake_threshold: u64,
     low_stake_grace_period: u64,
     committee_size: u64,
+    eligible_active_validators: vector<u64>,
     ctx: &mut TxContext,
 ) {
     let new_epoch = ctx.epoch() + 1;
@@ -503,6 +513,16 @@ public(package) fun advance_epoch(
     // would be pointing to incorrect validators in `active_validators`.
     let prev_committee_validator_addresses = self.committee_validator_addresses();
 
+    // Collect active validator addresses before modifying the `active_validators`.
+    // This is needed for proper eligible validator index mapping.
+    let prev_active_validator_addresses = self.active_validator_addresses();
+
+    // Validate eligible validators have sufficient voting power before processing pending validators
+    let validated_eligible_validators = validate_eligible_validators_voting_power(
+        &self.active_validators,
+        eligible_active_validators,
+    );
+
     // Note that all their staged next epoch metadata will be effectuated below.
     process_pending_validators(self, new_epoch);
 
@@ -524,7 +544,16 @@ public(package) fun advance_epoch(
         ctx,
     );
 
-    self.process_new_committee(committee_size, prev_committee_validator_addresses, ctx);
+    // Fail advancing epoch if active_validators set is empty.
+    assert!(!self.active_validators.is_empty(), EValidatorSetEmpty);
+
+    self.process_new_committee(
+        committee_size,
+        prev_committee_validator_addresses,
+        prev_active_validator_addresses,
+        validated_eligible_validators,
+        ctx,
+    );
 
     self.total_stake =
         calculate_total_committee_stakes(&self.active_validators, &self.committee_members);
@@ -1202,6 +1231,38 @@ fun calculate_total_committee_stakes(
     voting_power::total_committee_stake(validators, committee_members)
 }
 
+/// Validates that eligible validators have sufficient voting power (at least quorum threshold).
+/// If they don't, returns indices of all validators as fallback.
+/// This ensures the committee selection process has enough voting power to meet consensus requirements.
+fun validate_eligible_validators_voting_power(
+    active_validators: &vector<ValidatorV1>,
+    eligible_active_validators: vector<u64>,
+): vector<u64> {
+    // If eligible_active_validators is empty, use all validators as fallback.
+    // This can happen only if the protocol does not support selecting committee only from eligible validators or there is a bug in the caller.
+    if (eligible_active_validators.is_empty()) {
+        return vector::tabulate!(active_validators.length(), |i| i)
+    };
+
+    // Calculate total voting power of eligible validators
+    let mut eligible_total_voting_power = 0;
+    eligible_active_validators.do_ref!(|idx| {
+        // Validate index bounds
+        assert!(*idx < active_validators.length(), EInvalidEligibleValidatorIndex);
+        eligible_total_voting_power =
+            eligible_total_voting_power + active_validators[*idx].voting_power();
+    });
+
+    // If eligible validators don't have enough voting power, fallback to all validators.
+    // This should never happen under normal circumstances, but we include this
+    // safeguard to ensure the committee selection can always proceed in a safe manner.
+    if (eligible_total_voting_power < voting_power::quorum_threshold()) {
+        vector::tabulate!(active_validators.length(), |i| i)
+    } else {
+        eligible_active_validators
+    }
+}
+
 /// Process the pending stake changes for each validator.
 fun adjust_next_epoch_commission_rate(validators: &mut vector<ValidatorV1>) {
     let length = validators.length();
@@ -1352,15 +1413,13 @@ fun emit_validator_epoch_events(
     let mut i = 0;
     vs.do_ref!(|v| {
         let validator_address = v.iota_address();
-        let tallying_rule_reporters =
-            if (report_records.contains(&validator_address)) {
-                report_records[&validator_address].into_keys()
-            } else {
-                vector[]
-            };
-        let tallying_rule_global_score =
-            if (slashed_validators.contains(&validator_address)) 0
-            else 1;
+        let tallying_rule_reporters = if (report_records.contains(&validator_address)) {
+            report_records[&validator_address].into_keys()
+        } else {
+            vector[]
+        };
+        let tallying_rule_global_score = if (slashed_validators.contains(&validator_address)) 0
+        else 1;
         let mut committee_member_index = committee_members.find_index!(|c| c == i);
         let pool_staking_reward = if (committee_member_index.is_some()) {
             // prepare event for a committee validator
@@ -1369,20 +1428,18 @@ fun emit_validator_epoch_events(
             // prepare event for an active non-committee validator
             0
         };
-        event::emit(
-            ValidatorEpochInfoEventV1 {
-                epoch: new_epoch,
-                validator_address,
-                reference_gas_survey_quote: v.gas_price(),
-                stake: v.total_stake_amount(),
-                voting_power: v.voting_power(),
-                commission_rate: v.commission_rate(),
-                pool_staking_reward,
-                pool_token_exchange_rate: v.pool_token_exchange_rate_at_epoch(new_epoch),
-                tallying_rule_reporters,
-                tallying_rule_global_score,
-            }
-        );
+        event::emit(ValidatorEpochInfoEventV1 {
+            epoch: new_epoch,
+            validator_address,
+            reference_gas_survey_quote: v.gas_price(),
+            stake: v.total_stake_amount(),
+            voting_power: v.voting_power(),
+            commission_rate: v.commission_rate(),
+            pool_staking_reward,
+            pool_token_exchange_rate: v.pool_token_exchange_rate_at_epoch(new_epoch),
+            tallying_rule_reporters,
+            tallying_rule_global_score,
+        });
         i = i + 1;
     });
 }
@@ -1458,22 +1515,58 @@ public(package) fun committee_validator_addresses(self: &ValidatorSetV2): vector
     self.active_validators.take_map_ref!(&self.committee_members, |v| v.iota_address())
 }
 
-// Selects top N stakers among all active validators to be part of the committee.
-public(package) fun select_committee_members_top_n_stakers(
+// Selects top N stakers among eligible active validators to be part of the committee.
+public(package) fun select_committee_members_from_eligible(
     self: &ValidatorSetV2,
     n: u64,
+    eligible_indices: vector<u64>,
 ): vector<u64> {
-    self.active_validators.take_top_n!(n, |v1, v2| v1.smaller_than(v2))
+    // Use take_top_n on eligible indices, comparing the validators they point to
+    let selected_positions = eligible_indices.take_top_n!(n, |idx1, idx2| {
+        self.active_validators[*idx1].smaller_than(&self.active_validators[*idx2])
+    });
+    // Convert positions in eligible_indices to actual active_validators indices
+    selected_positions.map_ref!(|pos| eligible_indices[*pos])
 }
 
 // Emits events for committee validators that were added or left the committee.
+//
+// IMPORTANT: With the new authority capability notification system, newly activated validators
+// cannot immediately join the committee. They must wait one epoch after activation to:
+// 1. Notify their AuthorityCapabilities to the network
+// 2. Show that they support the correct ProtocolVersion
+// This introduces an additional epoch delay before newly activated validators can participate in consensus.
 public(package) fun process_new_committee(
     self: &mut ValidatorSetV2,
     committee_size: u64,
     prev_committee_addresses: vector<address>,
+    prev_active_validator_addresses: vector<address>,
+    eligible_active_validators: vector<u64>,
     ctx: &TxContext,
 ) {
-    self.committee_members = self.select_committee_members_top_n_stakers(committee_size);
+    // Convert eligible validator indices into current active_validators indices, independent of the changes in active_validators.
+    let mut current_eligible_indices = vector[];
+
+    eligible_active_validators.do_ref!(|idx| {
+        // Validate that the index is within bounds of prev_active_validator_addresses
+        assert!(*idx < prev_active_validator_addresses.length(), EInvalidEligibleValidatorIndex);
+
+        // Get address from prev_active_validator_addresses using the old index
+        let addr = prev_active_validator_addresses[*idx];
+
+        // Find the corresponding index in current active_validators
+        let mut validator_index_opt = find_validator(&self.active_validators, addr);
+        if (validator_index_opt.is_some()) {
+            let current_index = validator_index_opt.extract();
+            // Only add if not already present (handle duplicates by ignoring them)
+            if (!current_eligible_indices.contains(&current_index)) {
+                current_eligible_indices.push_back(current_index);
+            };
+        };
+    });
+
+    self.committee_members =
+        self.select_committee_members_from_eligible(committee_size, current_eligible_indices);
 
     let new_epoch = ctx.epoch() + 1;
 

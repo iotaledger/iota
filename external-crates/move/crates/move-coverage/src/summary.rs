@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -14,11 +14,11 @@ use move_abstract_interpreter::control_flow_graph::{
     BlockId, ControlFlowGraph, VMControlFlowGraph,
 };
 use move_binary_format::{
-    file_format::{Bytecode, CodeOffset},
     CompiledModule,
+    file_format::{Bytecode, CodeOffset},
 };
 use move_core_types::{identifier::Identifier, language_storage::ModuleId};
-use petgraph::{algo::tarjan_scc, Graph};
+use petgraph::{Graph, algo::tarjan_scc};
 use serde::{Deserialize, Serialize};
 
 use crate::coverage_map::{

@@ -16,6 +16,7 @@ use tracing::{error, info, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    consensus_adapter,
     consensus_adapter::{BlockStatusReceiver, ConsensusClient},
     consensus_handler::SequencedConsensusTransactionKey,
 };
@@ -96,7 +97,7 @@ impl ConsensusClient for LazyMysticetiClient {
             .await
             .tap_err(|err| {
                 // Will be logged by caller as well.
-                let msg = format!("Transaction submission failed with: {:?}", err);
+                let msg = format!("Transaction submission failed with: {err:?}");
                 match err {
                     ClientError::ConsensusShuttingDown(_) => {
                         info!("{}", msg);
@@ -128,6 +129,19 @@ impl ConsensusClient for LazyMysticetiClient {
             let transaction_key = SequencedConsensusTransactionKey::External(transactions[0].key());
             tracing::info!("Transaction {transaction_key:?} was included in {block_ref}",)
         };
-        Ok(status_waiter)
+
+        // Transform the status waiter into a receiver that can be used by the consensus
+        // adapter.
+
+        let (tx_internal, rx_internal) =
+            tokio::sync::oneshot::channel::<consensus_adapter::BlockStatusInternal>();
+
+        tokio::spawn(async move {
+            if let Ok(status) = status_waiter.await {
+                let _ = tx_internal.send(status.into());
+            }
+        });
+
+        Ok(rx_internal)
     }
 }

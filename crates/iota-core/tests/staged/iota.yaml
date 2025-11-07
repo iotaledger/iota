@@ -42,6 +42,14 @@ AuthenticatorStateUpdateV1:
         TYPENAME: SequenceNumber
 AuthorityPublicKeyBytes:
   NEWTYPESTRUCT: BYTES
+AuthorityQuorumSignInfo:
+  STRUCT:
+    - epoch: U64
+    - signature:
+        TUPLEARRAY:
+          CONTENT: U8
+          SIZE: 48
+    - signers_map: BYTES
 CallArg:
   ENUM:
     0:
@@ -52,9 +60,6 @@ CallArg:
       Object:
         NEWTYPE:
           TYPENAME: ObjectArg
-ChainIdentifier:
-  NEWTYPESTRUCT:
-    TYPENAME: CheckpointDigest
 ChangeEpoch:
   STRUCT:
     - epoch: U64
@@ -92,6 +97,27 @@ ChangeEpochV2:
                 SEQ: U8
             - SEQ:
                 TYPENAME: ObjectID
+ChangeEpochV3:
+  STRUCT:
+    - epoch: U64
+    - protocol_version:
+        TYPENAME: ProtocolVersion
+    - storage_charge: U64
+    - computation_charge: U64
+    - computation_charge_burned: U64
+    - storage_rebate: U64
+    - non_refundable_storage_fee: U64
+    - epoch_start_timestamp_ms: U64
+    - system_packages:
+        SEQ:
+          TUPLE:
+            - TYPENAME: SequenceNumber
+            - SEQ:
+                SEQ: U8
+            - SEQ:
+                TYPENAME: ObjectID
+    - eligible_active_validators:
+        SEQ: U64
 CheckpointCommitment:
   ENUM:
     0:
@@ -116,6 +142,15 @@ CheckpointContentsV1:
         SEQ:
           SEQ:
             TYPENAME: GenericSignature
+CheckpointData:
+  STRUCT:
+    - checkpoint_summary:
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>"
+    - checkpoint_contents:
+        TYPENAME: CheckpointContents
+    - transactions:
+        SEQ:
+          TYPENAME: CheckpointTransaction
 CheckpointDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
@@ -140,6 +175,21 @@ CheckpointSummary:
           TYPENAME: EndOfEpochData
     - version_specific_data:
         SEQ: U8
+CheckpointTransaction:
+  STRUCT:
+    - transaction:
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>"
+    - effects:
+        TYPENAME: TransactionEffects
+    - events:
+        OPTION:
+          TYPENAME: TransactionEvents
+    - input_objects:
+        SEQ:
+          TYPENAME: Object
+    - output_objects:
+        SEQ:
+          TYPENAME: Object
 Command:
   ENUM:
     0:
@@ -175,7 +225,7 @@ Command:
       MakeMoveVec:
         TUPLE:
           - OPTION:
-              TYPENAME: TypeTag
+              TYPENAME: TypeInput
           - SEQ:
               TYPENAME: Argument
     6:
@@ -220,6 +270,8 @@ CommandArgumentError:
       InvalidObjectByMutRef: UNIT
     11:
       SharedObjectOperationNotAllowed: UNIT
+    12:
+      InvalidArgumentArity: UNIT
 CompressedSignature:
   ENUM:
     0:
@@ -335,31 +387,20 @@ EndOfEpochTransactionKind:
         NEWTYPE:
           TYPENAME: ChangeEpochV2
     2:
-      AuthenticatorStateCreate: UNIT
+      ChangeEpochV3:
+        NEWTYPE:
+          TYPENAME: ChangeEpochV3
     3:
+      AuthenticatorStateCreate: UNIT
+    4:
       AuthenticatorStateExpire:
         NEWTYPE:
           TYPENAME: AuthenticatorStateExpire
-    4:
-      BridgeStateCreate:
-        NEWTYPE:
-          TYPENAME: ChainIdentifier
-    5:
-      BridgeCommitteeInit:
-        NEWTYPE:
-          TYPENAME: SequenceNumber
-Envelope:
-  STRUCT:
-    - data:
-        TYPENAME: SenderSignedData
-    - auth_signature:
-        TYPENAME: EmptySignInfo
 Event:
   STRUCT:
     - package_id:
         TYPENAME: ObjectID
-    - transaction_module:
-        TYPENAME: Identifier
+    - transaction_module: STR
     - sender:
         TYPENAME: IotaAddress
     - type_:
@@ -368,7 +409,7 @@ Event:
 ExecutionData:
   STRUCT:
     - transaction:
-        TYPENAME: Envelope
+        TYPENAME: "iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>"
     - effects:
         TYPENAME: TransactionEffects
 ExecutionDigests:
@@ -498,6 +539,14 @@ ExecutionFailureStatus:
           - coin_type: STR
     36:
       ExecutionCancelledDueToRandomnessUnavailable: UNIT
+    37:
+      ExecutionCancelledDueToSharedObjectCongestionV2:
+        STRUCT:
+          - congested_objects:
+              TYPENAME: CongestedObjects
+          - suggested_gas_price: U64
+    38:
+      InvalidLinkage: UNIT
 ExecutionStatus:
   ENUM:
     0:
@@ -565,8 +614,6 @@ IDOperation:
       Created: UNIT
     2:
       Deleted: UNIT
-Identifier:
-  NEWTYPESTRUCT: STR
 Intent:
   STRUCT:
     - scope: U8
@@ -597,8 +644,7 @@ ModuleId:
   STRUCT:
     - address:
         TYPENAME: AccountAddress
-    - name:
-        TYPENAME: Identifier
+    - name: STR
 MoveLocation:
   STRUCT:
     - module:
@@ -670,6 +716,15 @@ MultiSigPublicKey:
             - TYPENAME: PublicKey
             - U8
     - threshold: U16
+Object:
+  STRUCT:
+    - data:
+        TYPENAME: Data
+    - owner:
+        TYPENAME: Owner
+    - previous_transaction:
+        TYPENAME: TransactionDigest
+    - storage_rebate: U64
 ObjectArg:
   ENUM:
     0:
@@ -787,13 +842,11 @@ ProgrammableMoveCall:
   STRUCT:
     - package:
         TYPENAME: ObjectID
-    - module:
-        TYPENAME: Identifier
-    - function:
-        TYPENAME: Identifier
+    - module: STR
+    - function: STR
     - type_arguments:
         SEQ:
-          TYPENAME: TypeTag
+          TYPENAME: TypeInput
     - arguments:
         SEQ:
           TYPENAME: Argument
@@ -855,14 +908,21 @@ SenderSignedTransaction:
           TYPENAME: GenericSignature
 SequenceNumber:
   NEWTYPESTRUCT: U64
+StructInput:
+  STRUCT:
+    - address:
+        TYPENAME: AccountAddress
+    - module: STR
+    - name: STR
+    - type_args:
+        SEQ:
+          TYPENAME: TypeInput
 StructTag:
   STRUCT:
     - address:
         TYPENAME: AccountAddress
-    - module:
-        TYPENAME: Identifier
-    - name:
-        TYPENAME: Identifier
+    - module: STR
+    - name: STR
     - type_args:
         SEQ:
           TYPENAME: TypeTag
@@ -926,6 +986,11 @@ TransactionEffectsV1:
     - aux_data_digest:
         OPTION:
           TYPENAME: EffectsAuxDataDigest
+TransactionEvents:
+  STRUCT:
+    - data:
+        SEQ:
+          TYPENAME: Event
 TransactionEventsDigest:
   NEWTYPESTRUCT:
     TYPENAME: Digest
@@ -969,6 +1034,34 @@ TypeArgumentError:
       TypeNotFound: UNIT
     1:
       ConstraintNotSatisfied: UNIT
+TypeInput:
+  ENUM:
+    0:
+      bool: UNIT
+    1:
+      u8: UNIT
+    2:
+      u64: UNIT
+    3:
+      u128: UNIT
+    4:
+      address: UNIT
+    5:
+      signer: UNIT
+    6:
+      vector:
+        NEWTYPE:
+          TYPENAME: TypeInput
+    7:
+      struct:
+        NEWTYPE:
+          TYPENAME: StructInput
+    8:
+      u16: UNIT
+    9:
+      u32: UNIT
+    10:
+      u256: UNIT
 TypeOrigin:
   STRUCT:
     - module_name: STR
@@ -1054,4 +1147,16 @@ ZkLoginAuthenticatorAsBytes:
 ZkLoginPublicIdentifier:
   NEWTYPESTRUCT:
     SEQ: U8
+"iota_types::message_envelope::Envelope<iota_types::messages_checkpoint::CheckpointSummary, iota_types::crypto::AuthorityQuorumSignInfo<true>>":
+  STRUCT:
+    - data:
+        TYPENAME: CheckpointSummary
+    - auth_signature:
+        TYPENAME: AuthorityQuorumSignInfo
+"iota_types::message_envelope::Envelope<iota_types::transaction::SenderSignedData, iota_types::crypto::EmptySignInfo>":
+  STRUCT:
+    - data:
+        TYPENAME: SenderSignedData
+    - auth_signature:
+        TYPENAME: EmptySignInfo
 

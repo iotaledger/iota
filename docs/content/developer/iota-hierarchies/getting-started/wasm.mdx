@@ -1,0 +1,98 @@
+---
+title: Getting Started with Wasm
+sidebar_label: Wasm
+description: Getting started with the IOTA Hierarchies WASM Library.
+tags:
+    - hierarchies
+    - wasm
+    - setup
+    - install
+    - getting-started
+---
+
+## Getting Started with Wasm
+
+### Minimum Requirements
+
+- [Node.js](https://nodejs.org/en) (>= `v20`)
+
+## Install the Library
+
+If your project does not contain it already, install the peer dependency `@iota/iota-sdk` as well.
+
+```bash npm2yarn
+npm install @iota/iota-sdk
+```
+
+You can install the latest beta version of the library by running the following command:
+
+```bash npm2yarn
+npm install @iota/hierarchies@alpha
+```
+
+## Build the Library
+
+Alternatively, you can build the bindings to work with currently unreleased features. You can find instructions for this in the [`hierarchies` repository](https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm#build).
+
+## Usage in Node.js and Web
+
+The Wasm packages are bundled for both Node.js and web. To use them, you must import them from the correct entry point:
+
+- **Node.js**
+
+```ts
+import { ... } from '@iota/hierarchies/node';
+```
+
+- **Web**
+
+```ts
+import { ... } from '@iota/hierarchies/web';
+```
+
+## Usage Examples
+
+<Tabs groupId="language" queryString>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+    https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/01_create_federation.ts
+```
+
+</TabItem>
+
+<TabItem value="typescript-web" label="Typescript (Web)">
+
+```ts
+import { Federation } from "@iota/hierarchies/web";
+import assert from "assert";
+import { getFundedClient } from "./util";
+
+export async function createFederation(): Promise<void> {
+    const hierarchies = await getFundedClient();
+
+    const { output: federation }: { output: Federation } = await hierarchies.createNewFederation().buildAndExecute(
+        hierarchies,
+    );
+
+    console.log("\n✅ Federation created successfully!");
+    console.log("Federation ID: ", federation.id);
+
+    assert(federation.id, "Federation ID should not be empty");
+    assert(federation.rootAuthorities.length > 0, "Federation should have at least one root authority");
+}
+```
+
+</TabItem>
+</Tabs>
+
+See [utils](https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/util.ts) for details about the implementations about the helper functions used here.
+
+
+## API Reference
+
+For complete API documentation, see the [WASM API Reference](../references/wasm/api_ref.md).
+
+## Examples
+
+You can find more usage examples and tutorials in the [hierarchies examples repository](https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples).

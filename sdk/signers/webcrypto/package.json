@@ -1,0 +1,6 @@
+{
+    "private": true,
+    "import": "../dist/esm/webcrypto/index.js",
+    "main": "../dist/cjs/webcrypto/index.js",
+    "sideEffects": false
+}

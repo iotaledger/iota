@@ -20,6 +20,7 @@ use iota_network_stack::{
     callback::{CallbackLayer, MakeCallbackHandler, ResponseHandler},
     multiaddr::Protocol,
 };
+use iota_tls::AllowPublicKeys;
 use parking_lot::RwLock;
 use tokio_stream::{Iter, iter};
 use tonic::{Request, Response, Streaming, codec::CompressionEncoding};
@@ -33,7 +34,6 @@ use super::{
         consensus_service_client::ConsensusServiceClient,
         consensus_service_server::ConsensusService,
     },
-    tonic_tls::create_rustls_client_config,
 };
 use crate::{
     CommitIndex, Round,
@@ -43,7 +43,7 @@ use crate::{
     error::{ConsensusError, ConsensusResult},
     network::{
         tonic_gen::consensus_service_server::ConsensusServiceServer,
-        tonic_tls::create_rustls_server_config,
+        tonic_tls::certificate_server_name,
     },
 };
 
@@ -374,7 +374,16 @@ impl ChannelPool {
         let address = format!("https://{address}");
         let config = &self.context.parameters.tonic;
         let buffer_size = config.connection_buffer_size;
-        let client_tls_config = create_rustls_client_config(&self.context, network_keypair, peer);
+        let client_tls_config = iota_tls::create_rustls_client_config(
+            self.context
+                .committee
+                .authority(peer)
+                .network_key
+                .clone()
+                .into_inner(),
+            certificate_server_name(&self.context),
+            Some(network_keypair.private_key().into_inner()),
+        );
         let endpoint = tonic_rustls::Channel::from_shared(address.clone())
             .unwrap()
             .connect_timeout(timeout)
@@ -748,8 +757,17 @@ impl<S: NetworkService> NetworkManager<S> for TonicManager {
             .into_axum_router()
             .route_layer(layers);
 
-        let tls_server_config =
-            create_rustls_server_config(&self.context, self.network_keypair.clone());
+        let tls_server_config = iota_tls::create_rustls_server_config_with_client_verifier(
+            self.network_keypair.clone().private_key().into_inner(),
+            certificate_server_name(&self.context),
+            AllowPublicKeys::new(
+                self.context
+                    .committee
+                    .authorities()
+                    .map(|(_i, a)| a.network_key.clone().into_inner())
+                    .collect(),
+            ),
+        );
 
         // Calculate some metrics around send/recv buffer sizes for the current
         // machine/OS
@@ -885,14 +903,10 @@ fn to_host_port_str(addr: &Multiaddr) -> Result<String, String> {
     let mut iter = addr.iter();
 
     match (iter.next(), iter.next()) {
-        (Some(Protocol::Ip4(ipaddr)), Some(Protocol::Udp(port))) => {
-            Ok(format!("{}:{}", ipaddr, port))
-        }
-        (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port))) => {
-            Ok(format!("{}:{}", ipaddr, port))
-        }
+        (Some(Protocol::Ip4(ipaddr)), Some(Protocol::Udp(port))) => Ok(format!("{ipaddr}:{port}")),
+        (Some(Protocol::Ip6(ipaddr)), Some(Protocol::Udp(port))) => Ok(format!("{ipaddr}:{port}")),
         (Some(Protocol::Dns(hostname)), Some(Protocol::Udp(port))) => {
-            Ok(format!("{}:{}", hostname, port))
+            Ok(format!("{hostname}:{port}"))
         }
 
         _ => Err(format!("unsupported multiaddr: {addr}")),
@@ -971,10 +985,29 @@ struct PeerInfo {
 
 // Adapt MetricsCallbackMaker and MetricsResponseCallback to http.
 
+/// Calculate approximate size of HTTP headers.
+/// Note: This is an approximation of uncompressed size. Actual wire size will
+/// be smaller due to HTTP/2 HPACK compression.
+fn calculate_header_size(headers: &http::HeaderMap) -> usize {
+    headers
+        .iter()
+        .map(|(name, value)| {
+            // +4 bytes for ": " and "\r\n" separator in HTTP/1.1 format
+            name.as_str().len() + value.len() + 4
+        })
+        .sum()
+}
+
 impl SizedRequest for http::request::Parts {
     fn size(&self) -> usize {
-        // TODO: implement this.
-        0
+        let header_size = calculate_header_size(&self.headers);
+        let body_size = self
+            .headers
+            .get(http::header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0);
+        header_size + body_size
     }
 
     fn route(&self) -> String {
@@ -988,8 +1021,9 @@ impl SizedRequest for http::request::Parts {
 
 impl SizedResponse for http::response::Parts {
     fn size(&self) -> usize {
-        // TODO: implement this.
-        0
+        // Return header size only. Body size is tracked separately via
+        // ResponseHandler::on_body_chunk callback to support streaming responses.
+        calculate_header_size(&self.headers)
     }
 
     fn error_type(&self) -> Option<String> {
@@ -1010,12 +1044,20 @@ impl MakeCallbackHandler for MetricsCallbackMaker {
 }
 
 impl ResponseHandler for MetricsResponseCallback {
-    fn on_response(self, response: &http::response::Parts) {
-        self.on_response(response)
+    fn on_response(&mut self, response: &http::response::Parts) {
+        MetricsResponseCallback::on_response(self, response, &response.headers)
     }
 
-    fn on_error<E>(self, err: &E) {
-        self.on_error(err)
+    fn on_error<E>(&mut self, err: &E) {
+        MetricsResponseCallback::on_error(self, err)
+    }
+
+    fn on_body_chunk<B>(&mut self, chunk: &B)
+    where
+        B: bytes::Buf,
+    {
+        let chunk_size = chunk.chunk().len();
+        self.on_chunk(chunk_size);
     }
 }
 

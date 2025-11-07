@@ -8,9 +8,10 @@ import {
     ThemeProvider,
     Toaster,
     IotaGraphQLClientProvider,
+    IotaNamesClientProvider,
 } from '@iota/core';
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import type { Network } from '@iota/iota-sdk/client';
+import { getNetwork, type Network } from '@iota/iota-sdk/client';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Fragment } from 'react';
 import { Outlet, ScrollRestoration } from 'react-router-dom';
@@ -42,17 +43,23 @@ export function Layout(): JSX.Element {
                 onNetworkChange={setNetwork}
             >
                 <IotaGraphQLClientProvider>
-                    <WalletProvider autoConnect enableUnsafeBurner={import.meta.env.DEV}>
-                        <KioskClientProvider>
-                            <NetworkContext.Provider value={[network, setNetwork]}>
-                                <ThemeProvider appId="iota-explorer">
-                                    <Outlet />
-                                    <Toaster />
-                                    <ReactQueryDevtools />
-                                </ThemeProvider>
-                            </NetworkContext.Provider>
-                        </KioskClientProvider>
-                    </WalletProvider>
+                    <IotaNamesClientProvider>
+                        <WalletProvider
+                            autoConnect
+                            enableUnsafeBurner={import.meta.env.DEV}
+                            chain={getNetwork(network).chain}
+                        >
+                            <KioskClientProvider>
+                                <NetworkContext.Provider value={[network, setNetwork]}>
+                                    <ThemeProvider appId="iota-explorer">
+                                        <Outlet />
+                                        <Toaster />
+                                        <ReactQueryDevtools />
+                                    </ThemeProvider>
+                                </NetworkContext.Provider>
+                            </KioskClientProvider>
+                        </WalletProvider>
+                    </IotaNamesClientProvider>
                 </IotaGraphQLClientProvider>
             </IotaClientProvider>
         </Fragment>

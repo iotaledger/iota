@@ -1,0 +1,23 @@
+# Copyright (c) Mysten Labs, Inc.
+# Modifications Copyright (c) 2025 IOTA Stiftung
+# SPDX-License-Identifier: Apache-2.0
+
+query resolveNameServiceAddress($name: String!) {
+    resolveIotaNamesAddress(name: $name) {
+        address
+    }
+}
+
+query resolveNameServiceNames($address: IotaAddress!, $limit: Int, $cursor: String) {
+    address(address: $address) {
+        iotaNamesRegistrations(first: $limit, after: $cursor) {
+            pageInfo {
+                hasNextPage
+                endCursor
+            }
+            nodes {
+                name
+            }
+        }
+    }
+}

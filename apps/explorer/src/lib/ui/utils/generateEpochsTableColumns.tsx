@@ -8,8 +8,7 @@ import { TableCellBase, TableCellText } from '@iota/apps-ui-kit';
 import { CheckpointSequenceLink, EpochLink } from '~/components';
 import { getEpochStorageFundFlow } from '~/lib/utils';
 import { getElapsedTime } from '~/pages/epochs/utils';
-import { CoinFormat, formatBalance } from '@iota/core';
-import { NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
+import { CoinFormat, formatBalance, NANOS_PER_IOTA } from '@iota/iota-sdk/utils';
 
 /**
  * Generate table columns renderers for the epochs data.
@@ -59,7 +58,7 @@ export function generateEpochsTableColumns(currentEpoch?: string): ColumnDef<Epo
                         : formatBalance(
                               Number(totalStakeRewardsDistributed) / Number(NANOS_PER_IOTA),
                               0,
-                              CoinFormat.ROUNDED,
+                              CoinFormat.Rounded,
                           );
                 return (
                     <TableCellBase>
@@ -95,7 +94,7 @@ export function generateEpochsTableColumns(currentEpoch?: string): ColumnDef<Epo
                 const endOfEpochInfo = getValue<EpochMetrics['endOfEpochInfo']>();
                 const storageNetInflow = getEpochStorageFundFlow(endOfEpochInfo).netInflow;
                 const storageNetInflowFormatted = storageNetInflow
-                    ? formatBalance(storageNetInflow / NANOS_PER_IOTA, 0, CoinFormat.ROUNDED)
+                    ? formatBalance(storageNetInflow / NANOS_PER_IOTA, 0, CoinFormat.Rounded)
                     : '--';
                 return (
                     <TableCellBase>

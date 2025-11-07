@@ -19,8 +19,8 @@ export function ListItem({ active, children, onClick }: ListItemProps): JSX.Elem
                 className={clsx(
                     'block w-full cursor-pointer rounded-md border px-2.5 py-2 text-left text-body-md',
                     active
-                        ? 'border-gray-40 bg-gray-40 font-semibold text-neutral-40 shadow-sm'
-                        : 'border-transparent bg-white font-medium text-neutral-50',
+                        ? 'border-gray-40 bg-gray-40 font-semibold text-iota-neutral-40 shadow-sm'
+                        : 'border-transparent bg-white font-medium text-iota-neutral-50',
                 )}
                 onClick={onClick}
             >

@@ -9,23 +9,23 @@ use iota_types::{
     effects::TransactionEffects, storage::MarkerValue,
 };
 use serde::{Deserialize, Serialize};
+use tracing::error;
 use typed_store::{
     DBMapUtils,
     metrics::SamplingInterval,
     rocks::{
-        DBBatch, DBMap, DBOptions, MetricConf, ReadWriteOptions, default_db_options,
+        DBBatch, DBMap, DBMapTableConfigMap, DBOptions, MetricConf, default_db_options,
         read_size_from_env,
-        util::{empty_compaction_filter, reference_count_merge_operator},
     },
-    rocksdb::Options,
+    rocksdb::compaction_filter::Decision,
     traits::{Map, TableSummary, TypedStoreDebug},
 };
 
 use super::*;
 use crate::authority::{
+    authority_store_pruner::ObjectsCompactionFilter,
     authority_store_types::{
-        ObjectContentDigest, StoreData, StoreMoveObjectWrapper, StoreObject, StoreObjectPair,
-        StoreObjectValue, StoreObjectWrapper, get_store_object_pair, try_construct_object,
+        StoreObject, StoreObjectValue, StoreObjectWrapper, get_store_object, try_construct_object,
     },
     epoch_start_configuration::EpochStartConfiguration,
 };
@@ -35,7 +35,23 @@ pub(crate) const ENV_VAR_LOCKS_BLOCK_CACHE_SIZE: &str = "LOCKS_BLOCK_CACHE_MB";
 const ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE: &str = "TRANSACTIONS_BLOCK_CACHE_MB";
 const ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE: &str = "EFFECTS_BLOCK_CACHE_MB";
 const ENV_VAR_EVENTS_BLOCK_CACHE_SIZE: &str = "EVENTS_BLOCK_CACHE_MB";
-const ENV_VAR_INDIRECT_OBJECTS_BLOCK_CACHE_SIZE: &str = "INDIRECT_OBJECTS_BLOCK_CACHE_MB";
+
+/// Options to apply to every column family of the `perpetual` DB.
+#[derive(Default)]
+pub struct AuthorityPerpetualTablesOptions {
+    /// Whether to enable write stalling on all column families.
+    pub enable_write_stall: bool,
+    pub compaction_filter: Option<ObjectsCompactionFilter>,
+}
+
+impl AuthorityPerpetualTablesOptions {
+    fn apply_to(&self, mut db_options: DBOptions) -> DBOptions {
+        if !self.enable_write_stall {
+            db_options = db_options.disable_write_throttling();
+        }
+        db_options
+    }
+}
 
 /// AuthorityPerpetualTables contains data that must be preserved from one epoch
 /// to the next.
@@ -44,8 +60,7 @@ pub struct AuthorityPerpetualTables {
     /// This is a map between the object (ID, version) and the latest state of
     /// the object, namely the state that is needed to process new
     /// transactions. State is represented by `StoreObject` enum, which is
-    /// either a move module, a move object, or a pointer to an object
-    /// stored in the `indirect_move_objects` table.
+    /// either a move module or a move object.
     ///
     /// Note that while this map can store all versions of an object, we will
     /// eventually prune old object versions from the db.
@@ -56,21 +71,15 @@ pub struct AuthorityPerpetualTables {
     /// executed transactions whose effects have not yet been written out,
     /// and which must be retried. But, they cannot be retried unless their
     /// input objects are still accessible!
-    #[default_options_override_fn = "objects_table_default_config"]
     pub(crate) objects: DBMap<ObjectKey, StoreObjectWrapper>,
 
-    #[default_options_override_fn = "indirect_move_objects_table_default_config"]
-    pub(crate) indirect_move_objects: DBMap<ObjectContentDigest, StoreMoveObjectWrapper>,
-
     /// Object references of currently active objects that can be mutated.
-    #[default_options_override_fn = "live_owned_object_markers_table_default_config"]
     pub(crate) live_owned_object_markers: DBMap<ObjectRef, ()>,
 
     /// This is a map between the transaction digest and the corresponding
     /// transaction that's known to be executable. This means that it may
     /// have been executed locally, or it may have been synced through
     /// state-sync but hasn't been executed yet.
-    #[default_options_override_fn = "transactions_table_default_config"]
     pub(crate) transactions: DBMap<TransactionDigest, TrustedTransaction>,
 
     /// A map between the transaction digest of a certificate to the effects of
@@ -85,7 +94,6 @@ pub struct AuthorityPerpetualTables {
     ///
     /// It's also possible for the effects to be reverted if the transaction
     /// didn't make it into the epoch.
-    #[default_options_override_fn = "effects_table_default_config"]
     pub(crate) effects: DBMap<TransactionEffectsDigest, TransactionEffects>,
 
     /// Transactions that have been executed locally on this node. We need this
@@ -99,7 +107,6 @@ pub struct AuthorityPerpetualTables {
     // We could potentially remove this if we decided not to provide events in the execution path.
     // TODO: Figure out what to do with this table in the long run.
     // Also we need a pruning policy for this table. We can prune this table along with tx/effects.
-    #[default_options_override_fn = "events_table_default_config"]
     pub(crate) events: DBMap<(TransactionEventsDigest, usize), Event>,
 
     /// Epoch and checkpoint of transactions finalized by checkpoint
@@ -142,6 +149,27 @@ pub struct AuthorityPerpetualTables {
     pub(crate) object_per_epoch_marker_table: DBMap<(EpochId, ObjectKey), MarkerValue>,
 }
 
+#[derive(DBMapUtils)]
+pub struct AuthorityPrunerTables {
+    pub(crate) object_tombstones: DBMap<ObjectID, SequenceNumber>,
+}
+
+impl AuthorityPrunerTables {
+    pub fn path(parent_path: &Path) -> PathBuf {
+        parent_path.join("pruner")
+    }
+
+    pub fn open(parent_path: &Path) -> Self {
+        Self::open_tables_read_write(
+            Self::path(parent_path),
+            MetricConf::new("pruner")
+                .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
+            None,
+            None,
+        )
+    }
+}
+
 /// The total IOTA supply used during conservation checks.
 #[derive(Debug, Serialize, Deserialize)]
 pub(crate) struct TotalIotaSupplyCheck {
@@ -156,13 +184,41 @@ impl AuthorityPerpetualTables {
         parent_path.join("perpetual")
     }
 
-    pub fn open(parent_path: &Path, db_options: Option<Options>) -> Self {
+    pub fn open(
+        parent_path: &Path,
+        db_options_override: Option<AuthorityPerpetualTablesOptions>,
+    ) -> Self {
+        let db_options_override = db_options_override.unwrap_or_default();
+        let db_options =
+            db_options_override.apply_to(default_db_options().optimize_db_for_write_throughput(4));
+        let table_options = DBMapTableConfigMap::new(BTreeMap::from([
+            (
+                "objects".to_string(),
+                objects_table_config(db_options.clone(), db_options_override.compaction_filter),
+            ),
+            (
+                "live_owned_object_markers".to_string(),
+                live_owned_object_markers_table_config(db_options.clone()),
+            ),
+            (
+                "transactions".to_string(),
+                transactions_table_config(db_options.clone()),
+            ),
+            (
+                "effects".to_string(),
+                effects_table_config(db_options.clone()),
+            ),
+            (
+                "events".to_string(),
+                events_table_config(db_options.clone()),
+            ),
+        ]));
         Self::open_tables_read_write(
             Self::path(parent_path),
             MetricConf::new("perpetual")
                 .with_sampling(SamplingInterval::new(Duration::from_secs(60), 0)),
-            db_options,
-            None,
+            Some(db_options.options),
+            Some(table_options),
         )
     }
 
@@ -184,11 +240,11 @@ impl AuthorityPerpetualTables {
         object_id: ObjectID,
         version: SequenceNumber,
     ) -> IotaResult<Option<Object>> {
-        let iter = self
-            .objects
-            .safe_range_iter(ObjectKey::min_for_id(&object_id)..=ObjectKey::max_for_id(&object_id))
-            .skip_prior_to(&ObjectKey(object_id, version))?;
-        match iter.reverse().next() {
+        let mut iter = self.objects.reversed_safe_iter_with_bounds(
+            Some(ObjectKey::min_for_id(&object_id)),
+            Some(ObjectKey(object_id, version)),
+        )?;
+        match iter.next() {
             Some(Ok((key, o))) => self.object(&key, o),
             Some(Err(e)) => Err(e.into()),
             None => Ok(None),
@@ -200,14 +256,7 @@ impl AuthorityPerpetualTables {
         object_key: &ObjectKey,
         store_object: StoreObjectValue,
     ) -> Result<Object, IotaError> {
-        let indirect_object = match store_object.data {
-            StoreData::IndirectObject(ref metadata) => self
-                .indirect_move_objects
-                .get(&metadata.digest)?
-                .map(|o| o.migrate().into_inner()),
-            _ => None,
-        };
-        try_construct_object(object_key, store_object, indirect_object)
+        try_construct_object(object_key, store_object)
     }
 
     // Constructs `iota_types::object::Object` from `StoreObjectWrapper`.
@@ -271,12 +320,12 @@ impl AuthorityPerpetualTables {
         &self,
         object_id: ObjectID,
     ) -> Result<Option<ObjectRef>, IotaError> {
-        let mut iterator = self
-            .objects
-            .unbounded_iter()
-            .skip_prior_to(&ObjectKey::max_for_id(&object_id))?;
+        let mut iterator = self.objects.reversed_safe_iter_with_bounds(
+            Some(ObjectKey::min_for_id(&object_id)),
+            Some(ObjectKey::max_for_id(&object_id)),
+        )?;
 
-        if let Some((object_key, value)) = iterator.next() {
+        if let Some(Ok((object_key, value))) = iterator.next() {
             if object_key.0 == object_id {
                 return Ok(Some(self.object_reference(&object_key, value)?));
             }
@@ -288,12 +337,12 @@ impl AuthorityPerpetualTables {
         &self,
         object_id: ObjectID,
     ) -> Result<Option<(ObjectKey, StoreObjectWrapper)>, IotaError> {
-        let mut iterator = self
-            .objects
-            .unbounded_iter()
-            .skip_prior_to(&ObjectKey::max_for_id(&object_id))?;
+        let mut iterator = self.objects.reversed_safe_iter_with_bounds(
+            Some(ObjectKey::min_for_id(&object_id)),
+            Some(ObjectKey::max_for_id(&object_id)),
+        )?;
 
-        if let Some((object_key, value)) = iterator.next() {
+        if let Some(Ok((object_key, value))) = iterator.next() {
             if object_key.0 == object_id {
                 return Ok(Some((object_key, value)));
             }
@@ -370,7 +419,7 @@ impl AuthorityPerpetualTables {
         let mut objects = vec![];
         for result in self.objects.safe_iter_with_bounds(
             Some(ObjectKey(object.0, object.1.next())),
-            Some(ObjectKey(object.0, VersionNumber::MAX)),
+            Some(ObjectKey(object.0, VersionNumber::MAX_VALID_EXCL)),
         ) {
             let (key, _) = result?;
             objects.push(key);
@@ -389,12 +438,7 @@ impl AuthorityPerpetualTables {
     }
 
     pub fn database_is_empty(&self) -> IotaResult<bool> {
-        Ok(self
-            .objects
-            .unbounded_iter()
-            .skip_to(&ObjectKey::ZERO)?
-            .next()
-            .is_none())
+        Ok(self.objects.unbounded_iter().next().is_none())
     }
 
     pub fn iter_live_object_set(&self) -> LiveSetIter<'_> {
@@ -428,7 +472,6 @@ impl AuthorityPerpetualTables {
     pub fn reset_db_for_execution_since_genesis(&self) -> IotaResult {
         // TODO: Add new tables that get added to the db automatically
         self.objects.unsafe_clear()?;
-        self.indirect_move_objects.unsafe_clear()?;
         self.live_owned_object_markers.unsafe_clear()?;
         self.executed_effects.unsafe_clear()?;
         self.events.unsafe_clear()?;
@@ -463,7 +506,7 @@ impl AuthorityPerpetualTables {
 
     pub fn insert_object_test_only(&self, object: Object) -> IotaResult {
         let object_reference = object.compute_object_reference();
-        let StoreObjectPair(wrapper, _indirect_object) = get_store_object_pair(object, usize::MAX);
+        let wrapper = get_store_object(object);
         let mut wb = self.objects.batch();
         wb.insert_batch(
             &self.objects,
@@ -476,18 +519,17 @@ impl AuthorityPerpetualTables {
 
 impl ObjectStore for AuthorityPerpetualTables {
     /// Read an object and return it, or Ok(None) if the object was not found.
-    fn get_object(
+    fn try_get_object(
         &self,
         object_id: &ObjectID,
     ) -> Result<Option<Object>, iota_types::storage::error::Error> {
         let obj_entry = self
             .objects
-            .unbounded_iter()
-            .skip_prior_to(&ObjectKey::max_for_id(object_id))
+            .reversed_safe_iter_with_bounds(None, Some(ObjectKey::max_for_id(object_id)))
             .map_err(iota_types::storage::error::Error::custom)?
             .next();
 
-        match obj_entry {
+        match obj_entry.transpose()? {
             Some((ObjectKey(obj_id, version), obj)) if obj_id == *object_id => Ok(self
                 .object(&ObjectKey(obj_id, version), obj)
                 .map_err(iota_types::storage::error::Error::custom)?),
@@ -495,7 +537,7 @@ impl ObjectStore for AuthorityPerpetualTables {
         }
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
@@ -605,57 +647,57 @@ impl Iterator for LiveSetIter<'_> {
 }
 
 // These functions are used to initialize the DB tables
-fn live_owned_object_markers_table_default_config() -> DBOptions {
+fn live_owned_object_markers_table_config(db_options: DBOptions) -> DBOptions {
     DBOptions {
-        options: default_db_options()
+        options: db_options
+            .clone()
             .optimize_for_write_throughput()
             .optimize_for_read(read_size_from_env(ENV_VAR_LOCKS_BLOCK_CACHE_SIZE).unwrap_or(1024))
             .options,
-        rw_options: ReadWriteOptions::default().set_ignore_range_deletions(false),
+        rw_options: db_options.rw_options.set_ignore_range_deletions(false),
     }
 }
 
-fn objects_table_default_config() -> DBOptions {
-    default_db_options()
+fn objects_table_config(
+    mut db_options: DBOptions,
+    compaction_filter: Option<ObjectsCompactionFilter>,
+) -> DBOptions {
+    if let Some(mut compaction_filter) = compaction_filter {
+        db_options
+            .options
+            .set_compaction_filter("objects", move |_, key, value| {
+                match compaction_filter.filter(key, value) {
+                    Ok(decision) => decision,
+                    Err(err) => {
+                        error!("Compaction error: {:?}", err);
+                        Decision::Keep
+                    }
+                }
+            });
+    }
+    db_options
         .optimize_for_write_throughput()
         .optimize_for_read(read_size_from_env(ENV_VAR_OBJECTS_BLOCK_CACHE_SIZE).unwrap_or(5 * 1024))
 }
 
-fn transactions_table_default_config() -> DBOptions {
-    default_db_options()
+fn transactions_table_config(db_options: DBOptions) -> DBOptions {
+    db_options
         .optimize_for_write_throughput()
         .optimize_for_point_lookup(
             read_size_from_env(ENV_VAR_TRANSACTIONS_BLOCK_CACHE_SIZE).unwrap_or(512),
         )
 }
 
-fn effects_table_default_config() -> DBOptions {
-    default_db_options()
+fn effects_table_config(db_options: DBOptions) -> DBOptions {
+    db_options
         .optimize_for_write_throughput()
         .optimize_for_point_lookup(
             read_size_from_env(ENV_VAR_EFFECTS_BLOCK_CACHE_SIZE).unwrap_or(1024),
         )
 }
 
-fn events_table_default_config() -> DBOptions {
-    default_db_options()
+fn events_table_config(db_options: DBOptions) -> DBOptions {
+    db_options
         .optimize_for_write_throughput()
         .optimize_for_read(read_size_from_env(ENV_VAR_EVENTS_BLOCK_CACHE_SIZE).unwrap_or(1024))
-}
-
-fn indirect_move_objects_table_default_config() -> DBOptions {
-    let mut options = default_db_options()
-        .optimize_for_write_throughput()
-        .optimize_for_point_lookup(
-            read_size_from_env(ENV_VAR_INDIRECT_OBJECTS_BLOCK_CACHE_SIZE).unwrap_or(512),
-        );
-    options.options.set_merge_operator(
-        "refcount operator",
-        reference_count_merge_operator,
-        reference_count_merge_operator,
-    );
-    options
-        .options
-        .set_compaction_filter("empty filter", empty_compaction_filter);
-    options
 }

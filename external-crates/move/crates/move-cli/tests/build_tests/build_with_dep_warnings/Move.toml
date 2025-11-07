@@ -1,6 +1,6 @@
 [package]
 name = "Test"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 SomeDep = { local = "dep" }

@@ -22,9 +22,11 @@ jobs:
       isWallet: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-wallet')) }}
       isExplorer: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-explorer')) }}
       isTypescriptSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/iota-sdk')) }}
+      isIscSDK: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/isc-sdk')) }}
       isAppsBackend: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'apps-backend')) }}
       isWalletDashboard: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'wallet-dashboard')) }}
       isGraphQlTransport: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/graphql-transport')) }}
+      isEvmBridge: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), 'iota-evm-bridge')) }}
       isLedgerjs: ${{ (steps.turbo.outputs.packages && contains(fromJson(steps.turbo.outputs.packages), '@iota/ledgerjs-hw-app-iota')) }}
     steps:
       - uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
@@ -34,6 +36,45 @@ jobs:
       - name: Detect Changes (diff)
         uses: "./.github/actions/diffs"
         id: diff
+
+  sync:
+    name: ts-sdk sync with Node Changes
+    runs-on: self-hosted-x64
+    concurrency:
+      group: turbo-sync-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: ${{ github.ref != 'refs/heads/develop' }}
+    if: (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]'))
+    steps:
+      - name: Checkout
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 2
+      - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+      - name: Install Nodejs
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "20"
+          cache: "pnpm"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Turbo Cache
+        id: turbo-cache
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c30a57 # v4.2.0
+        with:
+          path: .turbo
+          key: turbo-${{ runner.os }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-
+      - name: Node Sync
+        run: |
+          pnpm codegen
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No sync needed"
+          else
+            echo "Sync is needed! Run: 'pnpm codegen' in the root."
+            git status
+            exit 1
+          fi
 
   audit:
     name: pnpm audit
@@ -47,7 +88,7 @@ jobs:
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
       - name: Install Nodejs
-        uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4.0.4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
       - name: Run audit
@@ -67,7 +108,7 @@ jobs:
           fetch-depth: 2
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
       - name: Install Nodejs
-        uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4.0.4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
           cache: "pnpm"
@@ -92,6 +133,9 @@ jobs:
       - name: Build
         run: pnpm turbo build
       - name: Test
+        env:
+          VITE_EVM_BRIDGE_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
+          VITE_EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
         # @iota/ledgerjs-hw-app-iota is tested separately
         run: pnpm turbo test --filter '!@iota/ledgerjs-hw-app-iota'
       # Pack wallet extension and upload it as an artifact for easy developer use:
@@ -122,6 +166,11 @@ jobs:
       isTypescriptSDK: ${{ needs.diff.outputs.isTypescriptSDK == 'true' }}
       isGraphQlTransport: ${{ needs.diff.outputs.isGraphQlTransport == 'true' }}
       isWalletDashboard: ${{ needs.diff.outputs.isWalletDashboard == 'true' }}
+      isEvmBridge: ${{ needs.diff.outputs.isEvmBridge == 'true' }}
+      isIscSDK: ${{ needs.diff.outputs.isIscSDK == 'true' }}
+    secrets:
+      EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK: ${{ secrets.EVM_BRIDGE_PREVIEW_DEFAULT_NETWORK }}
+      EVM_BRIDGE_CONFIG: ${{ secrets.EVM_BRIDGE_CONFIG }}
 
   ledgernano:
     if: (!cancelled() && !failure() && needs.diff.outputs.isLedgerjs == 'true' && (github.event.pull_request.draft == false || contains(github.event.pull_request.body, '[run-ci]')))

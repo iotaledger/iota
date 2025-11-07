@@ -10,13 +10,18 @@ use iota_core::{
     authority::AuthorityState, authority_client::NetworkAuthorityClient,
     transaction_orchestrator::TransactionOrchestrator,
 };
+use iota_json::IotaJsonValue;
 use iota_json_rpc_api::{JsonRpcMetrics, WriteApiOpenRpc, WriteApiServer};
 use iota_json_rpc_types::{
-    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaTransactionBlock,
-    IotaTransactionBlockEvents, IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions,
+    DevInspectArgs, DevInspectResults, DryRunTransactionBlockResponse, IotaMoveViewCallResults,
+    IotaTransactionBlock, IotaTransactionBlockEvents, IotaTransactionBlockResponse,
+    IotaTransactionBlockResponseOptions, IotaTypeTag, MoveFunctionName,
 };
 use iota_metrics::spawn_monitored_task;
 use iota_open_rpc::Module;
+use iota_package_resolver::{Package, PackageStore, error::Error as PackageResolverError};
+use iota_protocol_config::Chain;
+use iota_transaction_builder::TransactionBuilder;
 use iota_types::{
     base_types::IotaAddress,
     crypto::default_hash,
@@ -33,8 +38,9 @@ use iota_types::{
     },
 };
 use jsonrpsee::{RpcModule, core::RpcResult};
+use move_core_types::account_address::AccountAddress;
 use shared_crypto::intent::{AppId, Intent, IntentMessage, IntentScope, IntentVersion};
-use tracing::instrument;
+use tracing::{Instrument, instrument};
 
 use crate::{
     IotaRpcModule, ObjectProviderCache,
@@ -42,12 +48,15 @@ use crate::{
     error::{Error, IotaRpcInputError},
     get_balance_changes_from_effect, get_object_changes,
     logger::FutureWithTracing,
+    transaction_builder_api::AuthorityStateDataReader,
 };
 
+#[derive(Clone)]
 pub struct TransactionExecutionApi {
     state: Arc<dyn StateRead>,
     transaction_orchestrator: Arc<TransactionOrchestrator<NetworkAuthorityClient>>,
     metrics: Arc<JsonRpcMetrics>,
+    transaction_builder: TransactionBuilder,
 }
 
 impl TransactionExecutionApi {
@@ -56,10 +65,12 @@ impl TransactionExecutionApi {
         transaction_orchestrator: Arc<TransactionOrchestrator<NetworkAuthorityClient>>,
         metrics: Arc<JsonRpcMetrics>,
     ) -> Self {
+        let reader = Arc::new(AuthorityStateDataReader::new(state.clone()));
         Self {
             state,
             transaction_orchestrator,
             metrics,
+            transaction_builder: TransactionBuilder::new(reader),
         }
     }
 
@@ -138,6 +149,7 @@ impl TransactionExecutionApi {
         ))
     }
 
+    #[instrument("json_rpc_api_execute_transaction_block", level = "trace", skip_all)]
     async fn execute_transaction_block(
         &self,
         tx_bytes: Base64,
@@ -153,6 +165,11 @@ impl TransactionExecutionApi {
 
         let transaction_orchestrator = self.transaction_orchestrator.clone();
         let orch_timer = self.metrics.orchestrator_latency_ms.start_timer();
+
+        tracing::trace!(
+            "Spawning transaction orchestrator task for transaction: {}",
+            digest
+        );
         let (response, is_executed_locally) = spawn_monitored_task!(
             transaction_orchestrator.execute_transaction_block(request, request_type, None)
         )
@@ -173,6 +190,7 @@ impl TransactionExecutionApi {
         .await
     }
 
+    #[instrument(level = "trace", skip_all)]
     async fn handle_post_orchestration(
         &self,
         response: ExecuteTransactionResponseV1,
@@ -187,6 +205,7 @@ impl TransactionExecutionApi {
         let _post_orch_timer = self.metrics.post_orchestrator_latency_ms.start_timer();
 
         let events = if opts.show_events {
+            tracing::trace!("Resolving events");
             let epoch_store = self.state.load_epoch_store_one_call_per_task();
             let backing_package_store = PostExecutionPackageResolver::new(
                 self.state.get_backing_package_store().clone(),
@@ -205,9 +224,11 @@ impl TransactionExecutionApi {
             None
         };
 
-        let object_cache = response.output_objects.map(|output_objects| {
-            ObjectProviderCache::new_with_output_objects(self.state.clone(), output_objects)
-        });
+        let object_cache = {
+            response.output_objects.map(|output_objects| {
+                ObjectProviderCache::new_with_output_objects(self.state.clone(), output_objects)
+            })
+        };
 
         let balance_changes = match &object_cache {
             Some(object_cache) if opts.show_balance_changes => Some(
@@ -217,6 +238,7 @@ impl TransactionExecutionApi {
                     input_objs,
                     None,
                 )
+                .instrument(tracing::trace_span!("resolving balance changes"))
                 .await?,
             ),
             _ => None,
@@ -231,6 +253,7 @@ impl TransactionExecutionApi {
                     response.effects.effects.all_changed_objects(),
                     response.effects.effects.all_removed_objects(),
                 )
+                .instrument(tracing::trace_span!("resolving object changes"))
                 .await?,
             ),
             _ => None,
@@ -285,10 +308,17 @@ impl TransactionExecutionApi {
         let (txn_data, txn_digest, input_objs) =
             self.prepare_dry_run_transaction_block(tx_bytes)?;
         let sender = txn_data.sender();
-        let (resp, written_objects, transaction_effects, mock_gas) = self
-            .state
-            .dry_exec_transaction(txn_data.clone(), txn_digest)
-            .await?;
+
+        // Use spawn_blocking since dry_exec_transaction is a long-running synchronous
+        // operation
+        let state = self.state.clone();
+        let (resp, written_objects, transaction_effects, mock_gas) =
+            tokio::task::spawn_blocking(move || {
+                state.dry_exec_transaction(txn_data.clone(), txn_digest)
+            })
+            .await
+            .map_err(Error::from)??;
+
         let object_cache = ObjectProviderCache::new_with_cache(self.state.clone(), written_objects);
         let balance_changes = get_balance_changes_from_effect(
             &object_cache,
@@ -312,6 +342,7 @@ impl TransactionExecutionApi {
             object_changes,
             balance_changes,
             input: resp.input,
+            suggested_gas_price: resp.suggested_gas_price,
         })
     }
 }
@@ -329,6 +360,54 @@ impl WriteApiServer for TransactionExecutionApi {
         self.execute_transaction_block(tx_bytes, signatures, opts, request_type)
             .trace_timeout(Duration::from_secs(10))
             .await
+    }
+
+    /// Calls a move view function.
+    #[instrument(skip(self))]
+    async fn view_function_call(
+        &self,
+        function_name: String,
+        type_args: Option<Vec<IotaTypeTag>>,
+        call_args: Vec<IotaJsonValue>,
+    ) -> RpcResult<IotaMoveViewCallResults> {
+        let chain = self
+            .state
+            .get_chain_identifier()
+            .map_err(Error::from)?
+            .chain();
+        if !matches!(chain, Chain::Unknown) {
+            return Err(Error::UnsupportedFeature(format!(
+                "View function calls not supported yet on {}",
+                chain.as_str()
+            ))
+            .into());
+        }
+        let MoveFunctionName {
+            package,
+            module,
+            function,
+        } = function_name.as_str().parse().map_err(Error::from)?;
+        let sender = IotaAddress::ZERO;
+        let tx_kind = self
+            .transaction_builder
+            .move_view_call_tx_kind(
+                package,
+                &module,
+                &function,
+                type_args.unwrap_or_default(),
+                call_args,
+            )
+            .await
+            .map_err(Error::from)?;
+        let tx_bytes = Base64::from_bytes(&bcs::to_bytes(&tx_kind).map_err(Error::from)?);
+        let dev_inspect_results = self
+            .dev_inspect_transaction_block(sender, tx_bytes, None, None, None)
+            .await?;
+        Ok(
+            IotaMoveViewCallResults::from_dev_inspect_results(self.clone(), dev_inspect_results)
+                .await
+                .map_err(Error::from)?,
+        )
     }
 
     #[instrument(skip(self))]
@@ -383,5 +462,20 @@ impl IotaRpcModule for TransactionExecutionApi {
 
     fn rpc_doc_module() -> Module {
         WriteApiOpenRpc::module_doc()
+    }
+}
+
+#[async_trait]
+impl PackageStore for TransactionExecutionApi {
+    async fn fetch(&self, id: AccountAddress) -> Result<Arc<Package>, PackageResolverError> {
+        let backing_store = self.state.get_backing_package_store();
+        match backing_store.get_package_object(&(id.into())) {
+            Ok(Some(pkg)) => Ok(Arc::new(Package::read_from_package(pkg.move_package())?)),
+            Ok(None) => Err(PackageResolverError::PackageNotFound(id)),
+            Err(e) => Err(PackageResolverError::Store {
+                store: "Node",
+                source: Arc::new(e),
+            }),
+        }
     }
 }

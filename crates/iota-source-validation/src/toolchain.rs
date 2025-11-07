@@ -18,7 +18,7 @@ use move_bytecode_source_map::utils::source_map_from_file;
 use move_command_line_common::{
     env::MOVE_HOME,
     files::{
-        MOVE_COMPILED_EXTENSION, MOVE_EXTENSION, SOURCE_MAP_EXTENSION, extension_equals,
+        DEBUG_INFO_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION, extension_equals,
         find_filenames,
     },
 };
@@ -236,7 +236,7 @@ fn download_and_compile(
             Err(e) => return Err(e.into()),
         }.into_reader();
 
-        let dest_tarball = dest_version.join(format!("{}.tgz", compiler_version));
+        let dest_tarball = dest_version.join(format!("{compiler_version}.tgz"));
         debug!("tarball destination: {} ", dest_tarball.display());
         if let Some(parent) = dest_tarball.parent() {
             std::fs::create_dir_all(parent)
@@ -356,9 +356,9 @@ fn decode_bytecode_file(
     let bytecode_bytes = std::fs::read(bytecode_path)?;
     let source_map = source_map_from_file(
         &root_path
-            .join(CompiledPackageLayout::SourceMaps.path())
+            .join(CompiledPackageLayout::DebugInfo.path())
             .join(&path_to_file)
-            .with_extension(SOURCE_MAP_EXTENSION),
+            .with_extension(DEBUG_INFO_EXTENSION),
     )?;
     let source_path = &root_path
         .join(CompiledPackageLayout::Sources.path())

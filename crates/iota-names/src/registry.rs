@@ -1,10 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{
-    marker::PhantomData,
-    time::{Duration, SystemTime, UNIX_EPOCH},
-};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use iota_types::{
     base_types::{IotaAddress, ObjectID},
@@ -15,37 +12,29 @@ use iota_types::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    constants::IOTA_NAMES_LEAF_EXPIRATION_TIMESTAMP, domain::Domain, error::IotaNamesError,
-};
+use crate::{constants::IOTA_NAMES_LEAF_EXPIRATION_TIMESTAMP, error::IotaNamesError, name::Name};
 
 /// Rust version of the Move `iota::table::Table` type.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct Table<K, V> {
+pub struct Table {
     pub id: ObjectID,
     pub size: u64,
-
-    // TODO: Are K & V actually necessary https://github.com/iotaledger/iota/issues/6529 ?
-    #[serde(skip)]
-    _key: PhantomData<K>,
-    #[serde(skip)]
-    _value: PhantomData<V>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Registry {
-    /// The `registry` table maps `Domain` to `NameRecord`.
+    /// The `registry` table maps `Name` to `NameRecord`.
     /// Added / replaced in the `add_record` function.
-    registry: Table<Domain, NameRecord>,
-    /// The `reverse_registry` table maps `IotaAddress` to `Domain`.
+    registry: Table,
+    /// The `reverse_registry` table maps `IotaAddress` to `Name`.
     /// Updated in the `set_reverse_lookup` function.
-    reverse_registry: Table<IotaAddress, Domain>,
+    reverse_registry: Table,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RegistryEntry {
     pub id: ObjectID,
-    pub domain: Domain,
+    pub name: Name,
     pub name_record: NameRecord,
 }
 
@@ -53,7 +42,7 @@ pub struct RegistryEntry {
 pub struct ReverseRegistryEntry {
     pub id: ObjectID,
     pub address: IotaAddress,
-    pub domain: Domain,
+    pub name: Name,
 }
 
 /// A single record in the registry.
@@ -62,14 +51,14 @@ pub struct NameRecord {
     /// The ID of the registration NFT assigned to this record.
     ///
     /// The owner of the corresponding registration NFT has the rights to be
-    /// able to change and adjust the `target_address` of this domain.
+    /// able to change and adjust the `target_address` of this name.
     ///
     /// It is possible that the ID changes if the record expires and is
     /// purchased by someone else.
     pub nft_id: ID,
     /// Timestamp in milliseconds when the record expires.
     pub expiration_timestamp_ms: u64,
-    /// The target address that this domain points to.
+    /// The target address that this name points to.
     pub target_address: Option<IotaAddress>,
     /// Additional data which may be stored in a record.
     pub data: VecMap<String, String>,
@@ -80,7 +69,7 @@ impl TryFrom<Object> for NameRecord {
 
     fn try_from(object: Object) -> Result<Self, IotaNamesError> {
         object
-            .to_rust::<Field<Domain, Self>>()
+            .to_rust::<Field<Name, Self>>()
             .map(|record| record.value)
             .ok_or_else(|| IotaNamesError::MalformedObject(object.id()))
     }
@@ -91,7 +80,7 @@ impl TryFrom<MoveObject> for NameRecord {
 
     fn try_from(object: MoveObject) -> Result<Self, IotaNamesError> {
         object
-            .to_rust::<Field<Domain, Self>>()
+            .to_rust::<Field<Name, Self>>()
             .map(|record| record.value)
             .ok_or_else(|| IotaNamesError::MalformedObject(object.id()))
     }

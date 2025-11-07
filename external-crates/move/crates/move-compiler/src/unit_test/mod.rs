@@ -1,11 +1,10 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    compiled_unit::NamedCompiledModule, shared::files::MappedFiles, shared::NumericalAddress,
-};
+use std::{collections::BTreeMap, fmt};
+
 use move_binary_format::CompiledModule;
 use move_core_types::{
     account_address::AccountAddress,
@@ -14,7 +13,11 @@ use move_core_types::{
     runtime_value::MoveValue,
     vm_status::StatusCode,
 };
-use std::{collections::BTreeMap, fmt};
+
+use crate::{
+    compiled_unit::NamedCompiledModule,
+    shared::{NumericalAddress, files::MappedFiles},
+};
 
 pub mod filter_test_members;
 pub mod plan_builder;
@@ -128,7 +131,7 @@ impl<'a> ExpectedMoveError {
     }
 }
 
-impl<'a> ExpectedMoveErrorDisplay<'a> {
+impl ExpectedMoveErrorDisplay<'_> {
     pub fn past_tense(mut self) -> Self {
         self.is_past_tense = true;
         self
@@ -149,7 +152,7 @@ impl fmt::Display for MoveErrorType {
     }
 }
 
-impl<'a> fmt::Display for ExpectedMoveErrorDisplay<'a> {
+impl fmt::Display for ExpectedMoveErrorDisplay<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use move_binary_format::errors::Location;
         let Self {

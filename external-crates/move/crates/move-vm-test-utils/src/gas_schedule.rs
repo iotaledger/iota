@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module lays out the basic abstract costing schedule for bytecode
@@ -9,6 +9,8 @@
 //! It is important to note that the cost schedule defined in this file does not
 //! track hashing operations or other native operations; the cost of each native
 //! operation will be returned by the native function itself.
+use std::ops::{Add, Mul};
+
 use move_binary_format::{
     errors::{PartialVMError, PartialVMResult},
     file_format::{
@@ -17,7 +19,7 @@ use move_binary_format::{
         StructDefInstantiationIndex, StructDefinitionIndex, VariantHandleIndex,
         VariantInstantiationHandleIndex, VariantJumpTableIndex,
     },
-    file_format_common::{instruction_key, Opcodes},
+    file_format_common::{Opcodes, instruction_key},
 };
 use move_core_types::{
     gas_algebra::{
@@ -35,7 +37,6 @@ use move_vm_types::{
 };
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::ops::{Add, Mul};
 pub enum GasUnit {}
 
 pub type Gas = GasQuantity<GasUnit>;
@@ -269,7 +270,7 @@ fn get_simple_instruction_opcode(instr: SimpleInstruction) -> Opcodes {
     }
 }
 
-impl<'b> GasMeter for GasStatus<'b> {
+impl GasMeter for GasStatus<'_> {
     /// Charge an instruction and fail if not enough gas units are left.
     fn charge_simple_instr(&mut self, instr: SimpleInstruction) -> PartialVMResult<()> {
         self.charge_instr(get_simple_instruction_opcode(instr))

@@ -1,15 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module implements a checker for verifying that
 //! - a constant's type only refers to primitive types
 //! - a constant's data serializes correctly for that type
 use move_binary_format::{
-    errors::{verification_error, Location, PartialVMResult, VMResult},
-    file_format::{CompiledModule, Constant, SignatureToken, TableIndex},
     IndexKind,
+    errors::{Location, PartialVMResult, VMResult, verification_error},
+    file_format::{CompiledModule, Constant, SignatureToken, TableIndex},
 };
 use move_core_types::vm_status::StatusCode;
 

@@ -20,7 +20,9 @@ export function DAppPermissionList({ permissions }: DAppPermissionListProps) {
             {permissions.map((permissionKey) => (
                 <SummaryListItem
                     key={permissionKey}
-                    icon={<Checkmark className="h-5 w-5 text-neutral-10 dark:text-neutral-92" />}
+                    icon={
+                        <Checkmark className="h-5 w-5 text-iota-neutral-10 dark:text-iota-neutral-92" />
+                    }
                     text={PERMISSION_TYPE_TO_TEXT[permissionKey]}
                 />
             ))}

@@ -48,7 +48,7 @@ where
 {
     let checkpoint_chunk_size = u64::deserialize(deserializer)? * 1024 * 1024;
     if checkpoint_chunk_size < MIN_CHUNK_SIZE_MB {
-        return Err(serde::de::Error::custom("Chunk size must be at least 5 MB"));
+        return Err(serde::de::Error::custom("chunk size must be at least 5 MB"));
     }
     Ok(checkpoint_chunk_size)
 }

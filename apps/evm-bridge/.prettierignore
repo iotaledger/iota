@@ -1,0 +1,8 @@
+node_modules
+dist
+test-results/
+playwright-report/
+wallet-dist-L1/
+wallet-dist-L2/
+scripts/
+

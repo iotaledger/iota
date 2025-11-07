@@ -1,6 +1,6 @@
 [package]
 name = "macro_different_different_files2"
-edition = "2024.beta"
+edition = "2024"
 
 [dependencies]
 MoveStdlib = { local = "../../../../move-stdlib" }

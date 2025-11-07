@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::path::{Path, PathBuf};
@@ -13,10 +13,8 @@ fn run_all(args_path: &Path) -> datatest_stable::Result<()> {
     test::run_one(
         args_path,
         &PathBuf::from(cli_exe),
-        // use_temp_dir
         use_temp_dir,
-        // track_cov
-        false,
+        false, // track_cov
     )?;
     Ok(())
 }

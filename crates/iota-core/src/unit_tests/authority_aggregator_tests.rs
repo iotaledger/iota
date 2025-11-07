@@ -13,23 +13,30 @@ use iota_authority_aggregation::quorum_map_then_reduce_with_timeout;
 use iota_framework::BuiltInFramework;
 use iota_macros::sim_test;
 use iota_move_build::BuildConfig;
+use iota_protocol_config::Chain::Unknown;
 #[cfg(msim)]
 use iota_simulator::configs::constant_latency_ms;
 use iota_types::{
+    base_types::{AuthorityName, EpochId},
     crypto::{
-        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, KeypairTraits, Signature, Signer,
-        get_key_pair, get_key_pair_from_rng,
+        AccountKeyPair, AuthorityKeyPair, AuthoritySignature, IotaAuthoritySignature,
+        KeypairTraits, Signature, Signer, get_key_pair, get_key_pair_from_rng,
     },
     effects::{TestEffectsBuilder, TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     execution_status::{ExecutionFailureStatus, ExecutionStatus},
-    messages_grpc::{HandleTransactionResponse, TransactionStatus, VerifiedObjectInfoResponse},
+    messages_consensus::{AuthorityCapabilitiesV1, SignedAuthorityCapabilitiesV1},
+    messages_grpc::{
+        HandleCapabilityNotificationRequestV1, HandleCapabilityNotificationResponseV1,
+        HandleTransactionResponse, TransactionStatus, VerifiedObjectInfoResponse,
+    },
     object::Object,
+    supported_protocol_versions::SupportedProtocolVersions,
     transaction::*,
     utils::{create_fake_transaction, to_sender_signed_transaction},
 };
 use move_core_types::{account_address::AccountAddress, ident_str};
 use rand::{SeedableRng, rngs::StdRng};
-use shared_crypto::intent::{Intent, IntentScope};
+use shared_crypto::intent::{Intent, IntentMessage, IntentScope};
 use tokio::time::Instant;
 
 use super::*;
@@ -39,9 +46,8 @@ use crate::{
         HandleTransactionTestAuthorityClient, LocalAuthorityClient,
         LocalAuthorityClientFaultConfig, MockAuthorityApi,
     },
-    test_utils::{
-        init_local_authorities, make_transfer_iota_transaction, make_transfer_object_transaction,
-    },
+    test_utils::{make_transfer_iota_transaction, make_transfer_object_transaction},
+    unit_test_utils::init_local_authorities,
 };
 
 macro_rules! assert_matches {
@@ -1548,10 +1554,7 @@ async fn test_handle_conflicting_transaction_response() {
         |e| {
             matches!(
                 e,
-                AggregatorProcessTransactionError::RetryableConflictingTransaction {
-                    conflicting_tx_digest_to_retry,
-                    ..
-                } if conflicting_tx_digest_to_retry.is_none()
+                AggregatorProcessTransactionError::RetryableTransaction { .. }
             )
         },
         |e| matches!(e, IotaError::ObjectLockConflict { .. } | IotaError::Rpc(..)),
@@ -1576,17 +1579,14 @@ async fn test_handle_conflicting_transaction_response() {
         |e| {
             matches!(
                 e,
-                AggregatorProcessTransactionError::RetryableConflictingTransaction {
-                    conflicting_tx_digest_to_retry,
-                    ..
-                } if conflicting_tx_digest_to_retry.is_none()
+                AggregatorProcessTransactionError::RetryableTransaction { .. }
             )
         },
         |e| matches!(e, IotaError::ObjectLockConflict { .. } | IotaError::Rpc(..)),
     )
     .await;
 
-    println!("Case 2 - Non-retryable Tx but Retryable Conflicting Transaction");
+    println!("Case 2 - Non-retryable Tx1 due to conflicting Tx2");
     // Validators return >= f+1 conflicting Tx2
     set_retryable_tx_info_response_error(&mut clients, &authority_keys);
     for (name, _) in authority_keys.iter().skip(1) {
@@ -1603,10 +1603,10 @@ async fn test_handle_conflicting_transaction_response() {
         |e| {
             matches!(
                 e,
-                AggregatorProcessTransactionError::RetryableConflictingTransaction {
-                    conflicting_tx_digest_to_retry,
+                AggregatorProcessTransactionError::FatalConflictingTransaction {
+                    conflicting_tx_digests,
                     ..
-                } if *conflicting_tx_digest_to_retry == Some(*conflicting_tx2.digest())
+                } if conflicting_tx_digests.contains_key(conflicting_tx2.digest())
             )
         },
         |e| matches!(e, IotaError::ObjectLockConflict { .. } | IotaError::Rpc(..)),
@@ -1630,14 +1630,17 @@ async fn test_handle_conflicting_transaction_response() {
         |e| {
             matches!(
                 e,
-                AggregatorProcessTransactionError::FatalConflictingTransaction { .. }
+                AggregatorProcessTransactionError::FatalConflictingTransaction {
+                    conflicting_tx_digests,
+                    ..
+                } if conflicting_tx_digests.contains_key(conflicting_tx2.digest())
             )
         },
         |e| matches!(e, IotaError::ObjectLockConflict { .. }),
     )
     .await;
 
-    println!("Case 3 - Non-retryable Tx (Mixed Response - 2 conflicts, 1 signed, 1 non-retryable)");
+    println!("Case 4 - Non-retryable Tx (Mixed Response - 2 conflicts, 1 signed, 1 non-retryable)");
     // Validator 1 returns a signed tx1
     set_tx_info_response_with_signed_tx(&mut clients, &authority_keys, &tx1, 0);
     // Validator 2 returns a conflicting tx2
@@ -1675,7 +1678,10 @@ async fn test_handle_conflicting_transaction_response() {
         |e| {
             matches!(
                 e,
-                AggregatorProcessTransactionError::FatalConflictingTransaction { .. }
+                AggregatorProcessTransactionError::FatalConflictingTransaction {
+                    conflicting_tx_digests,
+                    ..
+                } if !conflicting_tx_digests.is_empty()
             )
         },
         |e| {
@@ -1689,7 +1695,7 @@ async fn test_handle_conflicting_transaction_response() {
     .await;
 
     println!(
-        "Case 3.1 - Non-retryable Tx (Mixed Response - 1 conflict, 1 signed, 1 non-retryable, 1 retryable)"
+        "Case 4.1 - Non-retryable Tx (Mixed Response - 1 conflict, 1 signed, 1 non-retryable, 1 retryable)"
     );
     // Validator 1 returns a signed tx1
     set_tx_info_response_with_signed_tx(&mut clients, &authority_keys, &tx1, 0);
@@ -1728,7 +1734,12 @@ async fn test_handle_conflicting_transaction_response() {
         |e| {
             matches!(
                 e,
-                AggregatorProcessTransactionError::FatalConflictingTransaction { .. }
+                AggregatorProcessTransactionError::FatalConflictingTransaction {
+                    conflicting_tx_digests,
+                    ..
+                } if conflicting_tx_digests.contains_key(conflicting_tx2.digest()) &&
+                conflicting_tx_digests.contains_key(conflicting_tx3.digest())
+
             )
         },
         |e| {
@@ -1741,7 +1752,7 @@ async fn test_handle_conflicting_transaction_response() {
     .await;
 
     println!(
-        "Case 3.2 - Non-retryable Tx (Mixed Response - 1 conflict, 1 signed, 1 non-retryable, 1 ObjectNotFoundError)"
+        "Case 4.2 - Non-retryable Tx (Mixed Response - 1 conflict, 1 signed, 1 non-retryable, 1 ObjectNotFoundError)"
     );
     // Validator 1 returns a signed tx1
     set_tx_info_response_with_signed_tx(&mut clients, &authority_keys, &tx1, 0);
@@ -1768,7 +1779,10 @@ async fn test_handle_conflicting_transaction_response() {
         |e| {
             matches!(
                 e,
-                AggregatorProcessTransactionError::FatalConflictingTransaction { .. }
+                AggregatorProcessTransactionError::FatalConflictingTransaction {
+                    conflicting_tx_digests,
+                    ..
+                } if conflicting_tx_digests.contains_key(conflicting_tx2.digest())
             )
         },
         |e| {
@@ -1782,7 +1796,7 @@ async fn test_handle_conflicting_transaction_response() {
     )
     .await;
 
-    println!("Case 4 - Successful Conflicting Transaction with Cert");
+    println!("Case 5 - Successful Conflicting Transaction with Cert");
     // All Validators gives signed-tx
     set_tx_info_response_with_signed_tx(&mut clients, &authority_keys, &tx1, 0);
 
@@ -1821,7 +1835,7 @@ async fn test_handle_conflicting_transaction_response() {
         .await
         .unwrap();
 
-    println!("Case 5 - Retryable Transaction (MissingCommitteeAtEpoch Error)");
+    println!("Case 6 - Retryable Transaction (MissingCommitteeAtEpoch Error)");
     // Validators return signed-tx with epoch 1
     set_tx_info_response_with_signed_tx(&mut clients, &authority_keys, &tx1, 1);
 
@@ -1864,7 +1878,7 @@ async fn test_handle_conflicting_transaction_response() {
         |e| {
             matches!(
                 e,
-                AggregatorProcessTransactionError::RetryableConflictingTransaction { .. }
+                AggregatorProcessTransactionError::RetryableTransaction { .. }
             )
         },
         |e| {
@@ -1876,7 +1890,7 @@ async fn test_handle_conflicting_transaction_response() {
     )
     .await;
 
-    println!("Case 5.1 - Retryable Transaction (WrongEpoch Error)");
+    println!("Case 6.1 - Retryable Transaction (WrongEpoch Error)");
     // Update committee store to epoch 2, now SafeClient will pass
     let committee_2 =
         Committee::new_for_testing_with_normalized_voting_power(2, authorities.clone());
@@ -1889,7 +1903,7 @@ async fn test_handle_conflicting_transaction_response() {
         |e| {
             matches!(
                 e,
-                AggregatorProcessTransactionError::RetryableConflictingTransaction { .. }
+                AggregatorProcessTransactionError::RetryableTransaction { .. }
             )
         },
         |e| {
@@ -1901,7 +1915,7 @@ async fn test_handle_conflicting_transaction_response() {
     )
     .await;
 
-    println!("Case 5.2 - Successful Cert Transaction");
+    println!("Case 6.2 - Successful Cert Transaction");
     // Update aggregator committee to epoch 2, and transaction will succeed.
     agg.committee = Arc::new(committee_2);
     agg.process_transaction(tx1.clone().into(), Some(client_ip))
@@ -2465,14 +2479,6 @@ async fn assert_resp_err<E, F>(
 {
     match agg.process_transaction(tx, Some(make_socket_addr())).await {
         Err(received_agg_err) if agg_err_checker(&received_agg_err) => match received_agg_err {
-            AggregatorProcessTransactionError::RetryableConflictingTransaction {
-                errors,
-                conflicting_tx_digest_to_retry: _,
-                conflicting_tx_digests,
-            } => {
-                assert!(!conflicting_tx_digests.is_empty());
-                assert!(errors.iter().map(|e| &e.0).all(iota_err_checker));
-            }
             AggregatorProcessTransactionError::TxAlreadyFinalizedWithDifferentUserSignatures => (),
             AggregatorProcessTransactionError::FatalConflictingTransaction {
                 errors,
@@ -2618,4 +2624,446 @@ fn test_retryable_overload_info() {
         retryable_overload_info.get_quorum_retry_after(0, 7000),
         Duration::from_secs(6)
     );
+}
+
+// Helper function to create a test capability notification request
+fn create_test_capability_notification_request() -> HandleCapabilityNotificationRequestV1 {
+    let (_, keypair): (_, AuthorityKeyPair) = get_key_pair();
+    let authority_name: AuthorityName = keypair.public().into();
+
+    let capabilities = AuthorityCapabilitiesV1::new(
+        authority_name,
+        Unknown,
+        SupportedProtocolVersions::new_for_testing(1, 5),
+        vec![
+            random_object_ref(),
+            random_object_ref(),
+            random_object_ref(),
+        ],
+    );
+
+    let signature = AuthoritySignature::new_secure(
+        &IntentMessage::new(
+            Intent::iota_app(IntentScope::AuthorityCapabilities),
+            &capabilities,
+        ),
+        &13,
+        &keypair,
+    );
+
+    let signed_capabilities =
+        SignedAuthorityCapabilitiesV1::new_from_data_and_sig(capabilities, signature);
+
+    HandleCapabilityNotificationRequestV1 {
+        message: signed_capabilities,
+    }
+}
+
+#[derive(Debug, Clone)]
+enum CapabilityNotificationErrorType {
+    NonRetryable(IotaError),
+    Retryable(IotaError),
+}
+
+impl CapabilityNotificationErrorType {
+    fn create_non_retryable_errors(count: usize) -> Vec<Self> {
+        let base_errors = vec![
+            Self::NonRetryable(IotaError::FullNodeCantHandleAuthorityCapabilities),
+            Self::NonRetryable(IotaError::UnsupportedFeature {
+                error: "Test unsupported feature".to_string(),
+            }),
+            Self::NonRetryable(IotaError::IncorrectSigner {
+                error: "Test incorrect signer".to_string(),
+            }),
+            Self::NonRetryable(IotaError::InvalidAuthenticator),
+            Self::NonRetryable(IotaError::InvalidSignature {
+                error: "Test invalid signature".to_string(),
+            }),
+        ];
+        (0..count)
+            .map(|i| base_errors[i % base_errors.len()].clone())
+            .collect()
+    }
+
+    fn create_retryable_errors(count: usize) -> Vec<Self> {
+        let base_errors = [Self::Retryable(
+            IotaError::TooManyTransactionsPendingConsensus,
+        )];
+        (0..count)
+            .map(|i| base_errors[i % base_errors.len()].clone())
+            .collect()
+    }
+
+    fn into_iota_error(self) -> IotaError {
+        match self {
+            Self::NonRetryable(err) | Self::Retryable(err) => err,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CapabilityNotificationConfig {
+    success_count: u64,
+    non_retryable_errors: Vec<CapabilityNotificationErrorType>,
+    retryable_errors: Vec<CapabilityNotificationErrorType>,
+    timeout_delay_ms: Option<u64>,
+}
+
+// Enhanced helper function to create mock clients with specific error types
+fn create_capability_notification_mock_clients_with_errors(
+    committee_size: u64,
+    config: CapabilityNotificationConfig,
+) -> (
+    BTreeMap<AuthorityName, StakeUnit>,
+    BTreeMap<AuthorityName, MockAuthorityApi>,
+) {
+    let mut authorities = BTreeMap::new();
+    let mut clients = BTreeMap::new();
+    let count = Arc::new(Mutex::new(0u32));
+
+    let total_error_clients =
+        config.non_retryable_errors.len() as u64 + config.retryable_errors.len() as u64;
+
+    for i in 0..committee_size {
+        let (_, keypair): (_, AuthorityKeyPair) = get_key_pair();
+        let name: AuthorityName = keypair.public().into();
+        authorities.insert(name, 1);
+
+        let delay = if i >= config.success_count + total_error_clients {
+            // Apply timeout delay to remaining validators
+            config
+                .timeout_delay_ms
+                .map(Duration::from_millis)
+                .unwrap_or(Duration::from_millis(10))
+        } else {
+            // Successful and error validators respond quickly
+            Duration::from_millis(10)
+        };
+        let mut client = MockAuthorityApi::new(delay, count.clone());
+
+        if i < config.success_count {
+            // Configure successful response
+            client.set_handle_capability_notification(Ok(HandleCapabilityNotificationResponseV1 {
+                _unused: false,
+            }));
+        } else if i < config.success_count + config.non_retryable_errors.len() as u64 {
+            // Configure non-retryable error response
+            let error_index = (i - config.success_count) as usize;
+            let error = config.non_retryable_errors[error_index]
+                .clone()
+                .into_iota_error();
+            client.set_handle_capability_notification(Err(error));
+        } else if i < config.success_count + total_error_clients {
+            // Configure retryable error response
+            let error_index =
+                (i - config.success_count - config.non_retryable_errors.len() as u64) as usize;
+            let error = config.retryable_errors[error_index]
+                .clone()
+                .into_iota_error();
+            client.set_handle_capability_notification(Err(error));
+        }
+        // Remaining clients will timeout based on delay configuration
+
+        clients.insert(name, client);
+    }
+
+    (authorities, clients)
+}
+
+#[tokio::test]
+async fn test_send_capability_notification_to_quorum_success() {
+    // Test happy path: successful capability notification to a validity threshold
+    let config = CapabilityNotificationConfig {
+        success_count: 10, // successful validators
+        non_retryable_errors: vec![],
+        retryable_errors: vec![],
+        timeout_delay_ms: None,
+    };
+    let (authorities, clients) =
+        create_capability_notification_mock_clients_with_errors(10, config);
+
+    let agg = get_genesis_agg(authorities, clients);
+    let request = create_test_capability_notification_request();
+
+    // Should succeed as we have enough validators responding successfully
+    let result = agg.send_capability_notification_to_quorum(request).await;
+    assert!(result.is_ok(), "Capability notification should succeed");
+
+    // Verify metrics
+    assert_eq!(
+        agg.metrics.capability_notification_success.get(),
+        1 // 1 successful method call
+    );
+}
+
+#[tokio::test]
+async fn test_send_capability_notification_to_quorum_timeout() {
+    // Test timeout scenarios
+    let config = CapabilityNotificationConfig {
+        success_count: 2, // successful validators (not enough for validity threshold of 3,334)
+        non_retryable_errors: vec![],
+        retryable_errors: vec![],
+        timeout_delay_ms: Some(500), /* 500ms delay for the remaining validators - will cause
+                                      * timeout */
+    };
+    let (authorities, clients) =
+        create_capability_notification_mock_clients_with_errors(10, config);
+
+    let mut agg = get_genesis_agg(authorities, clients);
+    let request = create_test_capability_notification_request();
+
+    // Set a very small timeout to trigger timeout before reaching a validity
+    // threshold
+    agg.timeouts.pre_quorum_timeout = Duration::from_millis(100);
+
+    // Should fail due to timeout preventing reaching a validity threshold
+    let result = agg.send_capability_notification_to_quorum(request).await;
+    assert!(
+        result.is_err(),
+        "Capability notification should fail due to timeouts"
+    );
+
+    // Assert specific error type - timeout should result in Timeout or
+    // TooManyIncorrectAuthorities
+    match result.unwrap_err() {
+        AggregatorSendCapabilityNotificationError::RetryableNotification { .. } => {
+            // Expected when all validators timeout
+        }
+
+        other => panic!("Expected RetryableNotification, got: {other:?}"),
+    }
+
+    // Verify metrics - success should not increment on failure
+    assert_eq!(agg.metrics.capability_notification_success.get(), 0);
+
+    // Count total errors after test - should have recorded timeout errors
+    // which are counted as one capability notification error.
+    assert_eq!(agg.metrics.capability_notification_errors.get(), 1);
+}
+
+#[tokio::test]
+async fn test_send_capability_notification_validity_threshold_with_non_retryable_errors() {
+    // Test Case 1: Validity threshold reached with remaining non-retryable errors
+    // 4 success responses (meets f+1 validity threshold of 3,334)
+    // 6 nodes return various non-retryable errors
+    // Should succeed despite non-retryable errors from remaining nodes
+
+    let config = CapabilityNotificationConfig {
+        success_count: 4,
+        non_retryable_errors: CapabilityNotificationErrorType::create_non_retryable_errors(6),
+        retryable_errors: vec![],
+        timeout_delay_ms: None,
+    };
+
+    let (authorities, clients) =
+        create_capability_notification_mock_clients_with_errors(10, config);
+    let agg = get_genesis_agg(authorities, clients);
+    let request = create_test_capability_notification_request();
+
+    // Should succeed as we have reached validity threshold (4 >= 3,334)
+    let result = agg.send_capability_notification_to_quorum(request).await;
+    assert!(
+        result.is_ok(),
+        "Capability notification should succeed when validity threshold is reached despite non-retryable errors"
+    );
+
+    // Verify metrics
+    assert_eq!(agg.metrics.capability_notification_success.get(), 1);
+    assert_eq!(agg.metrics.capability_notification_errors.get(), 0);
+}
+
+#[tokio::test]
+async fn test_send_capability_notification_validity_threshold_with_retryable_errors() {
+    // Test Case 2: Validity threshold reached with remaining retryable errors
+    // 4 success responses (meets f+1 validity threshold of 3,334)
+    // 6 nodes return retryable errors
+    // Should succeed despite retryable errors from remaining nodes
+
+    let config = CapabilityNotificationConfig {
+        success_count: 4,
+        non_retryable_errors: vec![],
+        retryable_errors: CapabilityNotificationErrorType::create_retryable_errors(6),
+        timeout_delay_ms: None,
+    };
+
+    let (authorities, clients) =
+        create_capability_notification_mock_clients_with_errors(10, config);
+    let agg = get_genesis_agg(authorities, clients);
+    let request = create_test_capability_notification_request();
+
+    // Should succeed as we have reached validity threshold (4 >= 3,334)
+    let result = agg.send_capability_notification_to_quorum(request).await;
+    assert!(
+        result.is_ok(),
+        "Capability notification should succeed when validity threshold is reached despite retryable errors"
+    );
+
+    // Verify metrics
+    assert_eq!(agg.metrics.capability_notification_success.get(), 1);
+    assert_eq!(agg.metrics.capability_notification_errors.get(), 0);
+}
+
+#[tokio::test]
+async fn test_send_capability_notification_3_success_6_non_retryable_1_retryable() {
+    // Test Case 3: Mixed scenario - 3 success, 6 non-retryable, 1 retryable
+    // 3 success responses (below f+1 validity threshold of 3,334)
+    // 6 non-retryable errors + 1 retryable error
+    // Should fail with RetryableNotification since validity threshold not met
+
+    let config = CapabilityNotificationConfig {
+        success_count: 3,
+        non_retryable_errors: CapabilityNotificationErrorType::create_non_retryable_errors(6),
+        retryable_errors: CapabilityNotificationErrorType::create_retryable_errors(1),
+        timeout_delay_ms: None,
+    };
+
+    let (authorities, clients) =
+        create_capability_notification_mock_clients_with_errors(10, config);
+    let agg = get_genesis_agg(authorities, clients);
+    let request = create_test_capability_notification_request();
+
+    // Should fail as we don't have enough successful responses for validity
+    // threshold (3 < 3,334)
+    let result = agg.send_capability_notification_to_quorum(request).await;
+    assert!(
+        result.is_err(),
+        "Capability notification should fail when validity threshold is not reached"
+    );
+
+    // Assert specific error type - should be retryable since there's at least one
+    // retryable error
+    match result.unwrap_err() {
+        AggregatorSendCapabilityNotificationError::RetryableNotification { .. } => {
+            // Expected retryable error type when there are retryable errors
+            // present
+        }
+        other => panic!("Expected RetryableNotification, got: {other:?}"),
+    }
+
+    // Verify metrics
+    assert_eq!(agg.metrics.capability_notification_success.get(), 0);
+    assert_eq!(agg.metrics.capability_notification_errors.get(), 1);
+}
+
+#[tokio::test]
+async fn test_send_capability_notification_2_success_7_non_retryable_1_retryable() {
+    // Test Case 4: Mixed scenario - 2 success, 7 non-retryable, 1 retryable
+    // 2 success responses (below f+1 validity threshold of 3,334)
+    // 7 non-retryable errors + 1 retryable error
+    // Should fail with NonRetryableNotification since the sum of retryable errors
+    // and success weights is below f+1 (3,334)
+
+    let config = CapabilityNotificationConfig {
+        success_count: 2,
+        non_retryable_errors: CapabilityNotificationErrorType::create_non_retryable_errors(7),
+        retryable_errors: CapabilityNotificationErrorType::create_retryable_errors(1),
+        timeout_delay_ms: None,
+    };
+
+    let (authorities, clients) =
+        create_capability_notification_mock_clients_with_errors(10, config);
+    let agg = get_genesis_agg(authorities, clients);
+    let request = create_test_capability_notification_request();
+
+    // Should fail as we don't have enough successful responses for validity
+    // threshold (2 < 3,334)
+    let result = agg.send_capability_notification_to_quorum(request).await;
+    assert!(
+        result.is_err(),
+        "Capability notification should fail when validity threshold is not reached"
+    );
+
+    // Assert specific error type - should be retryable since there's at least one
+    // retryable error
+    match result.unwrap_err() {
+        AggregatorSendCapabilityNotificationError::NonRetryableNotification { .. } => {
+            // Expected retryable error type when there are retryable errors
+            // present
+        }
+        other => panic!("Expected NonRetryableNotification, got: {other:?}"),
+    }
+
+    // Verify metrics
+    assert_eq!(agg.metrics.capability_notification_success.get(), 0);
+    assert_eq!(agg.metrics.capability_notification_errors.get(), 1);
+}
+
+#[tokio::test]
+async fn test_send_capability_notification_5_retryable_5_non_retryable_errors() {
+    // Test Case 5: Equal split - 5 retryable, 5 non-retryable errors
+    // 0 success responses
+    // 5 retryable + 5 non-retryable errors (total = 10 = 2f+1)
+    // Should fail with RetryableNotification since there are retryable errors
+
+    let config = CapabilityNotificationConfig {
+        success_count: 0,
+        non_retryable_errors: CapabilityNotificationErrorType::create_non_retryable_errors(5),
+        retryable_errors: CapabilityNotificationErrorType::create_retryable_errors(5),
+        timeout_delay_ms: None,
+    };
+
+    let (authorities, clients) =
+        create_capability_notification_mock_clients_with_errors(10, config);
+    let agg = get_genesis_agg(authorities, clients);
+    let request = create_test_capability_notification_request();
+
+    // Should fail as no validators respond successfully and we have 2f+1 errors
+    let result = agg.send_capability_notification_to_quorum(request).await;
+    assert!(
+        result.is_err(),
+        "Capability notification should fail when all validators return errors"
+    );
+
+    // Should be retryable since there are retryable errors present
+    match result.unwrap_err() {
+        AggregatorSendCapabilityNotificationError::RetryableNotification { .. } => {
+            // Expected retryable error type when there are retryable errors
+            // present
+        }
+        other => panic!("Expected RetryableNotification, got: {other:?}"),
+    }
+
+    // Verify metrics
+    assert_eq!(agg.metrics.capability_notification_success.get(), 0);
+    assert_eq!(agg.metrics.capability_notification_errors.get(), 1);
+}
+
+#[tokio::test]
+async fn test_send_capability_notification_3_success_7_non_retryable() {
+    // Test Case: Boundary scenario - 3 success, 7 non-retryable, 0 retryable
+    // 3 success (3000 weight) < validity threshold (3334)
+    // 7 non-retryable (7000 weight) >= quorum threshold (6667)
+    // Should fail with NonRetryableNotification since non-retryable errors alone
+    // meet the quorum threshold, and we cannot reach the validity threshold
+    let config = CapabilityNotificationConfig {
+        success_count: 3,
+        non_retryable_errors: CapabilityNotificationErrorType::create_non_retryable_errors(7),
+        retryable_errors: vec![],
+        timeout_delay_ms: None,
+    };
+
+    let (authorities, clients) =
+        create_capability_notification_mock_clients_with_errors(10, config);
+    let agg = get_genesis_agg(authorities, clients);
+    let request = create_test_capability_notification_request();
+
+    let result = agg.send_capability_notification_to_quorum(request).await;
+    assert!(
+        result.is_err(),
+        "Capability notification should fail when non-retryable errors meet quorum threshold"
+    );
+
+    // Should be non-retryable since non-retryable errors alone meet quorum
+    // threshold
+    match result.unwrap_err() {
+        AggregatorSendCapabilityNotificationError::NonRetryableNotification { .. } => {
+            // Expected - non-retryable errors meet quorum threshold, so we
+            // cannot reach validity threshold even if we retry
+        }
+        other => panic!("Expected NonRetryableNotification, got: {other:?}"),
+    }
+
+    // Verify metrics
+    assert_eq!(agg.metrics.capability_notification_success.get(), 0);
+    assert_eq!(agg.metrics.capability_notification_errors.get(), 1);
 }

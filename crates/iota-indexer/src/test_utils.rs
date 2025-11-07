@@ -2,21 +2,21 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{net::SocketAddr, path::PathBuf};
+use std::path::PathBuf;
 
-use diesel::connection::SimpleConnection;
+use diesel::{QueryableByName, connection::SimpleConnection, sql_types::BigInt};
 use iota_json_rpc_types::IotaTransactionBlockResponse;
 use iota_metrics::init_metrics;
-use secrecy::{ExposeSecret, Secret};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
 
 use crate::{
-    IndexerConfig, IndexerMetrics,
-    db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool_with_config},
+    IndexerMetrics,
+    config::{
+        IngestionConfig, IotaNamesOptions, PruningOptions, RetentionConfig, SnapshotLagConfig,
+    },
+    db::{ConnectionPool, ConnectionPoolConfig, PoolConnection, new_connection_pool},
     errors::IndexerError,
-    handlers::objects_snapshot_handler::SnapshotLagConfig,
     indexer::Indexer,
     store::{PgIndexerAnalyticalStore, PgIndexerStore},
 };
@@ -65,7 +65,8 @@ pub enum IndexerTypeConfig {
     },
     Writer {
         snapshot_config: SnapshotLagConfig,
-        epochs_to_keep: Option<u64>,
+        retention_config: Option<RetentionConfig>,
+        optimistic_pruner_batch_size: Option<u64>,
     },
     AnalyticalWorker,
 }
@@ -79,11 +80,17 @@ impl IndexerTypeConfig {
 
     pub fn writer_mode(
         snapshot_config: Option<SnapshotLagConfig>,
-        epochs_to_keep: Option<u64>,
+        pruning_options: Option<PruningOptions>,
     ) -> Self {
         Self::Writer {
             snapshot_config: snapshot_config.unwrap_or_default(),
-            epochs_to_keep,
+            retention_config: pruning_options.as_ref().and_then(|pruning_options| {
+                pruning_options
+                    .epochs_to_keep
+                    .map(RetentionConfig::new_with_default_retention_only_for_testing)
+            }),
+            optimistic_pruner_batch_size: pruning_options
+                .and_then(|pruning_options| pruning_options.optimistic_pruner_batch_size),
         }
     }
 }
@@ -95,17 +102,23 @@ pub async fn start_test_indexer(
     rpc_url: String,
     reader_writer_config: IndexerTypeConfig,
     data_ingestion_path: Option<PathBuf>,
-) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
-    start_test_indexer_impl(
+) -> (
+    PgIndexerStore,
+    JoinHandle<Result<(), IndexerError>>,
+    CancellationToken,
+) {
+    let token = CancellationToken::new();
+    let (store, handle) = start_test_indexer_impl(
         db_url,
         reset_db,
         db_init_hook,
         rpc_url,
         reader_writer_config,
         data_ingestion_path,
-        CancellationToken::new(),
+        token.clone(),
     )
-    .await
+    .await;
+    (store, handle, token)
 }
 
 /// Starts an indexer reader or writer for testing depending on the
@@ -119,22 +132,8 @@ pub async fn start_test_indexer_impl(
     data_ingestion_path: Option<PathBuf>,
     cancel: CancellationToken,
 ) -> (PgIndexerStore, JoinHandle<Result<(), IndexerError>>) {
-    let mut config = IndexerConfig {
-        db_url: Some(db_url.clone().into()),
-        // As fallback sync mechanism enable Rest Api if `data_ingestion_path` was not provided
-        remote_store_url: data_ingestion_path
-            .is_none()
-            .then_some(format!("{rpc_url}/api/v1")),
-        rpc_client_url: rpc_url,
-        reset_db,
-        fullnode_sync_worker: true,
-        rpc_server_worker: false,
-        data_ingestion_path,
-        ..Default::default()
-    };
-
-    let store = create_pg_store(config.get_db_url().unwrap(), reset_db);
-    if config.reset_db {
+    let store = create_pg_store(&db_url, reset_db);
+    if reset_db {
         crate::db::reset_database(&mut store.blocking_cp().get().unwrap()).unwrap();
     }
     if let Some(db_init_hook) = db_init_hook {
@@ -142,35 +141,45 @@ pub async fn start_test_indexer_impl(
     }
 
     let registry = prometheus::Registry::default();
+    init_metrics(&registry);
+    let indexer_metrics = IndexerMetrics::new(&registry);
+
     let handle = match reader_writer_config {
         IndexerTypeConfig::Reader {
             reader_mode_rpc_url,
         } => {
-            let reader_mode_rpc_url = reader_mode_rpc_url
-                .parse::<SocketAddr>()
-                .expect("Unable to parse fullnode address");
-            config.fullnode_sync_worker = false;
-            config.rpc_server_worker = true;
-            config.rpc_server_url = reader_mode_rpc_url.ip().to_string();
-            config.rpc_server_port = reader_mode_rpc_url.port();
-            tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await })
+            let config = crate::config::JsonRpcConfig {
+                iota_names_options: IotaNamesOptions::default(),
+                rpc_address: reader_mode_rpc_url.parse().unwrap(),
+                rpc_client_url: rpc_url,
+            };
+            let pool = store.blocking_cp();
+            let store_clone = store.clone();
+            tokio::spawn(async move {
+                Indexer::start_reader(&config, store_clone, &registry, pool, indexer_metrics).await
+            })
         }
         IndexerTypeConfig::Writer {
             snapshot_config,
-            epochs_to_keep,
+            retention_config,
+            optimistic_pruner_batch_size,
         } => {
             let store_clone = store.clone();
-
-            init_metrics(&registry);
-            let indexer_metrics = IndexerMetrics::new(&registry);
+            let mut ingestion_config = IngestionConfig::default();
+            ingestion_config.sources.remote_store_url = data_ingestion_path
+                .is_none()
+                .then_some(format!("{rpc_url}/api/v1").parse().unwrap());
+            ingestion_config.sources.data_ingestion_path = data_ingestion_path;
+            ingestion_config.sources.rpc_client_url = Some(rpc_url.parse().unwrap());
 
             tokio::spawn(async move {
                 Indexer::start_writer_with_config(
-                    &config,
+                    &ingestion_config,
                     store_clone,
                     indexer_metrics,
                     snapshot_config,
-                    epochs_to_keep,
+                    retention_config,
+                    optimistic_pruner_batch_size,
                     cancel,
                 )
                 .await
@@ -178,9 +187,6 @@ pub async fn start_test_indexer_impl(
         }
         IndexerTypeConfig::AnalyticalWorker => {
             let store = PgIndexerAnalyticalStore::new(store.blocking_cp());
-
-            init_metrics(&registry);
-            let indexer_metrics = IndexerMetrics::new(&registry);
 
             tokio::spawn(
                 async move { Indexer::start_analytical_worker(store, indexer_metrics).await },
@@ -193,24 +199,24 @@ pub async fn start_test_indexer_impl(
 
 /// Manage a test database for integration tests.
 pub struct TestDatabase {
-    pub url: Secret<String>,
+    pub url: String,
     db_name: String,
     connection: PoolConnection,
     pool_config: ConnectionPoolConfig,
 }
 
 impl TestDatabase {
-    pub fn new(db_url: Secret<String>) -> Self {
-        let pool_config = ConnectionPoolConfig::default();
-        let db_name = db_url
-            .expose_secret()
-            .split('/')
-            .next_back()
-            .unwrap()
-            .into();
-        let (default_url, _) = replace_db_name(db_url.expose_secret(), "postgres");
-        let blocking_pool =
-            new_connection_pool_with_config(&default_url, Some(5), pool_config).unwrap();
+    pub fn new(db_url: String) -> Self {
+        // Reduce the connection pool size to 5 for testing
+        // to prevent maxing out
+        let pool_config = ConnectionPoolConfig {
+            pool_size: 5,
+            ..Default::default()
+        };
+
+        let db_name = db_url.split('/').next_back().unwrap().into();
+        let (default_url, _) = replace_db_name(&db_url, "postgres");
+        let blocking_pool = new_connection_pool(&default_url, &pool_config).unwrap();
         let connection = blocking_pool.get().unwrap();
         Self {
             url: db_url,
@@ -242,8 +248,7 @@ impl TestDatabase {
 
     /// Create a new connection pool to the database.
     pub fn to_connection_pool(&self) -> ConnectionPool {
-        new_connection_pool_with_config(self.url.expose_secret(), Some(5), self.pool_config)
-            .unwrap()
+        new_connection_pool(&self.url, &self.pool_config).unwrap()
     }
 
     pub fn reset_db(&mut self) {
@@ -251,19 +256,12 @@ impl TestDatabase {
     }
 }
 
-pub fn create_pg_store(db_url: Secret<String>, reset_database: bool) -> PgIndexerStore {
-    // Reduce the connection pool size to 10 for testing
-    // to prevent maxing out
-    info!("Setting DB_POOL_SIZE to 10");
-    std::env::set_var("DB_POOL_SIZE", "10");
-
+pub fn create_pg_store(db_url: &str, reset_database: bool) -> PgIndexerStore {
     let registry = prometheus::Registry::default();
-
     init_metrics(&registry);
-
     let indexer_metrics = IndexerMetrics::new(&registry);
 
-    let mut test_db = TestDatabase::new(db_url);
+    let mut test_db = TestDatabase::new(db_url.to_string());
     if reset_database {
         test_db.recreate();
     }
@@ -272,7 +270,7 @@ pub fn create_pg_store(db_url: Secret<String>, reset_database: bool) -> PgIndexe
 }
 
 fn replace_db_name(db_url: &str, new_db_name: &str) -> (String, String) {
-    let pos = db_url.rfind('/').expect("Unable to find / in db_url");
+    let pos = db_url.rfind('/').expect("unable to find / in db_url");
     let old_db_name = &db_url[pos + 1..];
 
     (
@@ -287,14 +285,14 @@ pub async fn force_delete_database(db_url: String) {
     // while being connected to it. Hence switch to the default `postgres`
     // database to drop the active database.
     let (default_db_url, db_name) = replace_db_name(&db_url, "postgres");
-    let pool_config = ConnectionPoolConfig::default();
+    let mut pool_config = ConnectionPoolConfig::default();
+    pool_config.set_pool_size(1);
 
-    let blocking_pool =
-        new_connection_pool_with_config(&default_db_url, Some(5), pool_config).unwrap();
+    let blocking_pool = new_connection_pool(&default_db_url, &pool_config).unwrap();
     blocking_pool
         .get()
         .unwrap()
-        .batch_execute(&format!("DROP DATABASE IF EXISTS {} WITH (FORCE)", db_name))
+        .batch_execute(&format!("DROP DATABASE IF EXISTS {db_name} WITH (FORCE)"))
         .unwrap();
 }
 
@@ -382,4 +380,18 @@ impl<'a> IotaTransactionBlockResponseBuilder<'a> {
             ..self.full_response.clone()
         }
     }
+}
+
+/// Returns a database URL for testing purposes.
+/// It uses a default user and password, and connects to a local PostgreSQL
+/// instance.
+pub fn db_url(db_name: &str) -> String {
+    format!("postgres://postgres:postgrespw@localhost:5432/{db_name}")
+}
+
+/// Represents a row count result from a SQL query.
+#[derive(QueryableByName, Debug)]
+pub struct RowCount {
+    #[diesel(sql_type = BigInt)]
+    pub cnt: i64,
 }

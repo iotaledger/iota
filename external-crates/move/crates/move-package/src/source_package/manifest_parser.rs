@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -9,7 +9,7 @@ use std::{
     str::FromStr,
 };
 
-use anyhow::{anyhow, bail, format_err, Context, Result};
+use anyhow::{Context, Result, anyhow, bail, format_err};
 use move_compiler::editions::{Edition, Flavor};
 use move_core_types::account_address::{AccountAddress, AccountAddressParseError};
 use move_symbol_pool::symbol::Symbol;
@@ -343,7 +343,9 @@ fn parse_external_resolver_name(resolver_val: &TV) -> Result<Option<Symbol>> {
     };
 
     if table.len() != 1 {
-        bail!("Malformed external resolver declaration for dependency {EXTERNAL_RESOLVER_PREFIX}.{resolver_val}",);
+        bail!(
+            "Malformed external resolver declaration for dependency {EXTERNAL_RESOLVER_PREFIX}.{resolver_val}",
+        );
     }
 
     let key = table
@@ -357,7 +359,9 @@ fn parse_external_resolver_name(resolver_val: &TV) -> Result<Option<Symbol>> {
     })?;
 
     if !key_value.is_str() {
-        bail!("Malformed external resolver declaration for dependency {EXTERNAL_RESOLVER_PREFIX}.{resolver_val}",);
+        bail!(
+            "Malformed external resolver declaration for dependency {EXTERNAL_RESOLVER_PREFIX}.{resolver_val}",
+        );
     }
 
     Ok(Some(Symbol::from(key)))
@@ -384,7 +388,7 @@ pub fn parse_dependency(mut tval: TV) -> Result<PM::Dependency> {
         .remove("override")
         .map(parse_dep_override)
         .transpose()?
-        .map_or(false, |o| o);
+        .is_some_and(|o| o);
 
     let kind = match (
         table.remove("local"),

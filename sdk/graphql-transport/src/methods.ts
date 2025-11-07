@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@iota/bcs';
+import { fromBase64 } from '@iota/bcs';
 import type {
     MoveValue,
     ProtocolConfigValue,
@@ -10,6 +10,7 @@ import type {
     IotaClient,
     IotaMoveNormalizedModule,
     IotaTransactionKind,
+    IotaMoveViewCallResults,
 } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/iota-sdk/utils';
@@ -54,6 +55,7 @@ import {
     GetTransactionBlockDocument,
     GetTypeLayoutDocument,
     GetValidatorsApyDocument,
+    IsTransactionIndexedOnNodeDocument,
     MultiGetObjectsDocument,
     MultiGetTransactionBlocksDocument,
     PaginateCheckpointTransactionBlocksDocument,
@@ -64,6 +66,7 @@ import {
     QueryTransactionBlocksDocument,
     TransactionBlockKindInput,
     TryGetPastObjectDocument,
+    ViewDocument,
 } from './generated/queries.js';
 import { mapJsonToBcs } from './mappers/bcs.js';
 import { mapGraphQLCheckpointToRpcCheckpoint } from './mappers/checkpoint.js';
@@ -456,7 +459,7 @@ export const RPC_METHODS: {
                           ? inputFilter.AddressOwner
                           : undefined,
             };
-            const unsupportedFilters = ['MatchAll', 'MatchAny', 'MatchNone', 'Version'];
+            const unsupportedFilters: string[] = [];
 
             for (const unsupportedFilter of unsupportedFilters) {
                 if (unsupportedFilter in inputFilter) {
@@ -474,6 +477,7 @@ export const RPC_METHODS: {
                     cursor,
                     showBcs: options?.showBcs,
                     showContent: options?.showContent,
+                    showDisplay: options?.showDisplay,
                     showOwner: options?.showOwner,
                     showPreviousTransaction: options?.showPreviousTransaction,
                     showStorageRebate: options?.showStorageRebate,
@@ -500,6 +504,7 @@ export const RPC_METHODS: {
                     id,
                     showBcs: options?.showBcs,
                     showContent: options?.showContent,
+                    showDisplay: options?.showDisplay,
                     showOwner: options?.showOwner,
                     showPreviousTransaction: options?.showPreviousTransaction,
                     showStorageRebate: options?.showStorageRebate,
@@ -521,6 +526,7 @@ export const RPC_METHODS: {
                 version,
                 showBcs: options?.showBcs,
                 showContent: options?.showContent,
+                showDisplay: options?.showDisplay,
                 showOwner: options?.showOwner,
                 showPreviousTransaction: options?.showPreviousTransaction,
                 showStorageRebate: options?.showStorageRebate,
@@ -564,6 +570,7 @@ export const RPC_METHODS: {
                     ids,
                     showBcs: options?.showBcs,
                     showContent: options?.showContent,
+                    showDisplay: options?.showDisplay,
                     showOwner: options?.showOwner,
                     showPreviousTransaction: options?.showPreviousTransaction,
                     showStorageRebate: options?.showStorageRebate,
@@ -636,10 +643,11 @@ export const RPC_METHODS: {
                     ...pagination,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
-                    showRawEffects: options?.showRawEffects,
-                    showObjectChanges: options?.showObjectChanges,
-                    showRawInput: options?.showRawInput,
+                    showEvents: options?.showEvents,
                     showInput: options?.showInput,
+                    showObjectChanges: options?.showObjectChanges,
+                    showRawEffects: options?.showRawEffects,
+                    showRawInput: options?.showRawInput,
                     filter: filter
                         ? {
                               atCheckpoint:
@@ -687,10 +695,11 @@ export const RPC_METHODS: {
                     digest,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
-                    showRawEffects: options?.showRawEffects,
-                    showObjectChanges: options?.showObjectChanges,
-                    showRawInput: options?.showRawInput,
+                    showEvents: options?.showEvents,
                     showInput: options?.showInput,
+                    showObjectChanges: options?.showObjectChanges,
+                    showRawEffects: options?.showRawEffects,
+                    showRawInput: options?.showRawInput,
                 },
             },
             (data) => data.transactionBlock,
@@ -709,10 +718,11 @@ export const RPC_METHODS: {
                     digests: digests,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
-                    showRawEffects: options?.showEffects,
-                    showObjectChanges: options?.showObjectChanges,
-                    showRawInput: options?.showRawInput,
+                    showEvents: options?.showEvents,
                     showInput: options?.showInput,
+                    showObjectChanges: options?.showObjectChanges,
+                    showRawEffects: options?.showEffects,
+                    showRawInput: options?.showRawInput,
                     limit: digests.length,
                 },
             },
@@ -966,7 +976,7 @@ export const RPC_METHODS: {
                     txDigest: '', // TODO
                 },
                 packageId: event.sendingModule?.package.address!,
-                parsedJson: event.json ? JSON.parse(event.json) : undefined,
+                parsedJson: event.json,
                 sender: event.sender?.address,
                 timestampMs: new Date(event.timestamp).getTime().toString(),
                 transactionModule: `${event.sendingModule?.package.address}::${event.sendingModule?.name}`,
@@ -1023,12 +1033,12 @@ export const RPC_METHODS: {
                                 : {
                                       Result: ref.input.cmd,
                                   },
-                        Array.from(fromB64(ref.bcs)),
+                        Array.from(fromBase64(ref.bcs)),
                         toShortTypeString(ref.type.repr),
                     ],
                 ),
                 returnValues: result.returnValues?.map((value) => [
-                    Array.from(fromB64(value.bcs)),
+                    Array.from(fromBase64(value.bcs)),
                     toShortTypeString(value.type.repr),
                 ]),
             })),
@@ -1072,68 +1082,29 @@ export const RPC_METHODS: {
             hasNextPage: pageInfo.hasNextPage,
         };
     },
-    async getDynamicFieldObject(transport, [parentId, name]) {
-        const nameLayout = await transport.graphqlQuery(
-            {
-                query: GetTypeLayoutDocument,
-                variables: {
-                    type: name.type,
-                },
-            },
-            (data) => data.type.layout,
-        );
-
-        const bcsName = mapJsonToBcs(name.value, nameLayout);
-
-        const parent = await transport.graphqlQuery(
-            {
-                query: GetDynamicFieldObjectDocument,
-                variables: {
-                    parentId: parentId,
-                    name: {
-                        type: name.type,
-                        bcs: bcsName,
-                    },
-                },
-            },
-            (data) => {
-                return data.owner?.dynamicObjectField?.value?.__typename === 'MoveObject'
-                    ? data.owner.dynamicObjectField.value.owner?.__typename === 'Parent'
-                        ? data.owner.dynamicObjectField.value.owner.parent
-                        : undefined
-                    : undefined;
-            },
-        );
-
-        return {
-            data: {
-                content: {
-                    dataType: 'moveObject' as const,
-                    ...(moveDataToRpcContent(
-                        parent?.asMoveObject?.contents?.data!,
-                        parent?.asMoveObject?.contents?.type.layout!,
-                    ) as {
-                        fields: {
-                            [key: string]: MoveValue;
-                        };
-                        type: string;
-                    }),
-                },
-                digest: parent?.digest!,
-                objectId: parent?.address,
-                type: toShortTypeString(parent?.asMoveObject?.contents?.type.repr),
-                version: parent?.version.toString()!,
-                storageRebate: parent.storageRebate,
-                previousTransaction: parent.previousTransactionBlock?.digest,
-                owner:
-                    parent.owner?.__typename === 'Parent'
-                        ? {
-                              ObjectOwner: parent.owner.parent?.address,
-                          }
-                        : undefined,
-            },
-        };
+    async getDynamicFieldObjectV2(transport, inputs) {
+        return await getDynamicFieldObject!(transport, inputs);
     },
+    /**
+     * @deprecated The V1 of this method is deprecated, use `getDynamicFieldObjectV2` instead.
+     */
+    async getDynamicFieldObject(transport, [parentId, name]) {
+        return await getDynamicFieldObject!(transport, [
+            parentId,
+            name,
+            {
+                // These are the same defaults as in the JSON RPC.
+                showBcs: true,
+                showContent: true,
+                showDisplay: true,
+                showOwner: true,
+                showPreviousTransaction: true,
+                showStorageRebate: true,
+                showType: true,
+            },
+        ]);
+    },
+
     async executeTransactionBlock(transport, [txBytes, signatures, options]) {
         const { effects, errors } = await transport.graphqlQuery(
             {
@@ -1143,10 +1114,10 @@ export const RPC_METHODS: {
                     signatures,
                     showBalanceChanges: options?.showBalanceChanges,
                     showEffects: options?.showEffects,
-                    showRawEffects: options?.showRawEffects,
-                    showInput: options?.showInput,
                     showEvents: options?.showEvents,
+                    showInput: options?.showInput,
                     showObjectChanges: options?.showObjectChanges,
+                    showRawEffects: options?.showRawEffects,
                     showRawInput: options?.showRawInput,
                 },
             },
@@ -1154,7 +1125,7 @@ export const RPC_METHODS: {
         );
 
         if (!effects?.transactionBlock) {
-            const tx = Transaction.from(fromB64(txBytes));
+            const tx = Transaction.from(fromBase64(txBytes));
             return { errors: errors ?? undefined, digest: await tx.getDigest() };
         }
 
@@ -1167,7 +1138,7 @@ export const RPC_METHODS: {
         );
     },
     async dryRunTransactionBlock(transport, [txBytes]) {
-        const tx = Transaction.from(fromB64(txBytes));
+        const tx = Transaction.from(fromBase64(txBytes));
         const { transaction, error } = await transport.graphqlQuery(
             {
                 query: DryRunTransactionBlockDocument,
@@ -1176,8 +1147,8 @@ export const RPC_METHODS: {
                     showBalanceChanges: true,
                     showEffects: true,
                     showEvents: true,
-                    showObjectChanges: true,
                     showInput: true,
+                    showObjectChanges: true,
                 },
             },
             (data) => data.dryRunTransactionBlock,
@@ -1193,8 +1164,8 @@ export const RPC_METHODS: {
                 showBalanceChanges: true,
                 showEffects: true,
                 showEvents: true,
-                showObjectChanges: true,
                 showInput: true,
+                showObjectChanges: true,
             },
         );
 
@@ -1492,6 +1463,43 @@ export const RPC_METHODS: {
             featureFlags,
         };
     },
+
+    async isTransactionIndexedOnNode(transport, [digest]): Promise<boolean> {
+        const isTransactionIndexedOnNode = await transport.graphqlQuery(
+            {
+                query: IsTransactionIndexedOnNodeDocument,
+                variables: {
+                    digest,
+                },
+            },
+            (data) => data.isTransactionIndexedOnNode,
+        );
+        return isTransactionIndexedOnNode;
+    },
+
+    async view(transport, [functionName, typeArgs, callArgs]): Promise<IotaMoveViewCallResults> {
+        return await transport.graphqlQuery(
+            {
+                query: ViewDocument,
+                variables: {
+                    functionName,
+                    typeArgs,
+                    arguments: callArgs,
+                },
+            },
+            (data) => {
+                if (data.moveViewCall.error) {
+                    return {
+                        executionError: data.moveViewCall.error,
+                    } as IotaMoveViewCallResults;
+                } else {
+                    return {
+                        functionReturnValues: data.moveViewCall.results,
+                    } as IotaMoveViewCallResults;
+                }
+            },
+        );
+    },
 };
 
 export class UnsupportedParamError extends Error {
@@ -1599,4 +1607,81 @@ async function paginateCheckpointLists(
             after = page.pageInfo?.endCursor;
         }
     }
+}
+
+async function getDynamicFieldObject(
+    transport: IotaClientGraphQLTransport,
+    [parentId, name, options]: any[],
+) {
+    const nameLayout = await transport.graphqlQuery(
+        {
+            query: GetTypeLayoutDocument,
+            variables: {
+                type: name.type,
+            },
+        },
+        (data) => data.type.layout,
+    );
+
+    const bcsName = mapJsonToBcs(name.value, nameLayout);
+
+    const parent = await transport.graphqlQuery(
+        {
+            query: GetDynamicFieldObjectDocument,
+            variables: {
+                parentId: parentId,
+                name: {
+                    type: name.type,
+                    bcs: bcsName,
+                },
+                showBcs: options?.showBcs,
+                showContent: options?.showContent,
+                showDisplay: options?.showDisplay,
+                showOwner: options?.showOwner,
+                showPreviousTransaction: options?.showPreviousTransaction,
+                showStorageRebate: options?.showStorageRebate,
+                showType: options?.showType,
+            },
+        },
+        (data) => {
+            return data.owner?.dynamicObjectField?.value?.__typename === 'MoveObject'
+                ? data.owner.dynamicObjectField.value.owner?.__typename === 'Parent'
+                    ? data.owner.dynamicObjectField.value.owner.parent
+                    : undefined
+                : undefined;
+        },
+    );
+
+    return {
+        data: {
+            content: parent.asMoveObject
+                ? {
+                      dataType: 'moveObject' as const,
+                      ...(moveDataToRpcContent(
+                          parent.asMoveObject?.contents?.data!,
+                          parent.asMoveObject?.contents?.type.layout!,
+                      ) as {
+                          fields: {
+                              [key: string]: MoveValue;
+                          };
+                          type: string;
+                      }),
+                  }
+                : undefined,
+            digest: parent?.digest!,
+            objectId: parent?.address,
+            type: parent?.asMoveObject
+                ? toShortTypeString(parent.asMoveObject.contents?.type.repr)
+                : undefined,
+            version: parent?.version.toString()!,
+            storageRebate: parent.storageRebate,
+            previousTransaction: parent.previousTransactionBlock?.digest,
+            owner:
+                parent.owner?.__typename === 'Parent'
+                    ? {
+                          ObjectOwner: parent.owner.parent?.address,
+                      }
+                    : undefined,
+        },
+    };
 }

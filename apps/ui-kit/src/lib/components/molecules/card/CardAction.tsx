@@ -37,7 +37,7 @@ export function CardAction({
         return (
             <div
                 onClick={handleActionClick}
-                className="shrink-0 text-neutral-10 dark:text-neutral-92 [&_svg]:h-5 [&_svg]:w-5"
+                className="card-action-link-color shrink-0 [&_svg]:h-5 [&_svg]:w-5"
             >
                 {icon ? icon : <ArrowRight />}
             </div>
@@ -48,12 +48,10 @@ export function CardAction({
         return (
             <div className="shrink-0 text-right">
                 {title && (
-                    <div className="font-inter text-label-md text-neutral-10 dark:text-neutral-92">
-                        {title}
-                    </div>
+                    <div className="card-action-title-color font-inter text-label-md">{title}</div>
                 )}
                 {subtitle && (
-                    <div className="font-inter text-label-sm text-neutral-60 dark:text-neutral-40">
+                    <div className="card-action-subtitle-color font-inter text-label-sm">
                         {subtitle}
                     </div>
                 )}

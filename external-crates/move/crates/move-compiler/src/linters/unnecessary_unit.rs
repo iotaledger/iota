@@ -1,8 +1,10 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Detects an unnecessary unit expression in a block, sequence, if, or else.
+
+use move_ir_types::location::Loc;
 
 use crate::{
     diag, ice,
@@ -12,7 +14,6 @@ use crate::{
         visitor::simple_visitor,
     },
 };
-use move_ir_types::location::Loc;
 
 simple_visitor!(
     UnnecessaryUnit,
@@ -23,9 +24,9 @@ simple_visitor!(
                 self.add_diag(ice!((loc, "Unexpected empty block without a value")));
             }
             1 => {
-                // TODO probably too noisy for now, we would need more information about
-                // blocks were added by the programmer
-                // self.env.add_diag(diag!(
+                // TODO probably too noisy for now, we would need more
+                // information about blocks were added by the
+                // programmer self.env.add_diag(diag!(
                 //     StyleCodes::UnnecessaryBlock.diag_info(),
                 //     (e.exp.loc, "Unnecessary block expression '{}')"
                 //     (e.exp.loc, if_msg),

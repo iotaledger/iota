@@ -1,6 +1,5 @@
 ---
 source: crates/iota/tests/shell_tests.rs
-description: tests/shell_tests/with_network/move_build_bytecode_with_address_resolution/move_build_bytecode_with_address_resolution.sh
 ---
 ----- script -----
 # Copyright (c) Mysten Labs, Inc.
@@ -23,7 +22,15 @@ exit_code: 0
 }
 
 ----- stderr -----
+INCLUDING DEPENDENCY IotaSystem
+INCLUDING DEPENDENCY Stardust
+INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY MoveStdlib
 BUILDING simple
 Successfully verified dependencies on-chain against source.
 INCLUDING DEPENDENCY simple
+INCLUDING DEPENDENCY IotaSystem
+INCLUDING DEPENDENCY Stardust
+INCLUDING DEPENDENCY Iota
+INCLUDING DEPENDENCY MoveStdlib
 BUILDING depends_on_simple

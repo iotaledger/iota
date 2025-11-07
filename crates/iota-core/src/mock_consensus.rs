@@ -76,6 +76,7 @@ impl MockConsensusClient {
                             vec![SequencedConsensusTransaction::new_test(tx.clone())],
                             &checkpoint_service,
                             validator.get_object_cache_reader().as_ref(),
+                            validator.get_transaction_cache_reader().as_ref(),
                             &authority_metrics,
                             true,
                         )
@@ -83,7 +84,7 @@ impl MockConsensusClient {
                         .unwrap();
                 }
             }
-            if let ConsensusTransactionKind::UserTransaction(tx) = tx.kind {
+            if let ConsensusTransactionKind::CertifiedTransaction(tx) = tx.kind {
                 if tx.contains_shared_object() {
                     validator.enqueue_certificates_for_execution(
                         vec![VerifiedCertificate::new_unchecked(*tx)],
@@ -93,18 +94,30 @@ impl MockConsensusClient {
             }
         }
     }
-}
 
-#[async_trait::async_trait]
-impl SubmitToConsensus for MockConsensusClient {
-    async fn submit_to_consensus(
+    fn submit_impl(
         &self,
         transactions: &[ConsensusTransaction],
-        epoch_store: &Arc<AuthorityPerEpochStore>,
+    ) -> IotaResult<BlockStatusReceiver> {
+        // TODO: maybe support multi-transactions and remove this check
+        assert!(transactions.len() == 1);
+        let transaction = &transactions[0];
+        self.tx_sender
+            .try_send(transaction.clone())
+            .map_err(|_| IotaError::from("MockConsensusClient channel overflowed"))?;
+        Ok(with_block_status(consensus_core::BlockStatus::Sequenced(
+            BlockRef::MIN,
+        )))
+    }
+}
+
+impl SubmitToConsensus for MockConsensusClient {
+    fn submit_to_consensus(
+        &self,
+        transactions: &[ConsensusTransaction],
+        _epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult {
-        self.submit(transactions, epoch_store)
-            .await
-            .map(|_response| ())
+        self.submit_impl(transactions).map(|_response| ())
     }
 }
 
@@ -115,21 +128,12 @@ impl ConsensusClient for MockConsensusClient {
         transactions: &[ConsensusTransaction],
         _epoch_store: &Arc<AuthorityPerEpochStore>,
     ) -> IotaResult<BlockStatusReceiver> {
-        // TODO: maybe support multi-transactions and remove this check
-        assert!(transactions.len() == 1);
-        let transaction = &transactions[0];
-        self.tx_sender
-            .send(transaction.clone())
-            .await
-            .map_err(|e| IotaError::Unknown(e.to_string()))?;
-        Ok(with_block_status(consensus_core::BlockStatus::Sequenced(
-            BlockRef::MIN,
-        )))
+        self.submit_impl(transactions)
     }
 }
 
 pub(crate) fn with_block_status(status: consensus_core::BlockStatus) -> BlockStatusReceiver {
     let (tx, rx) = oneshot::channel();
-    tx.send(status).ok();
+    tx.send(status.into()).ok();
     rx
 }

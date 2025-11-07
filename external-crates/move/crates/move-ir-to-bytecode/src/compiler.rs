@@ -1,18 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
     clone::Clone,
     collections::{
-        hash_map::Entry::{Occupied, Vacant},
         BTreeSet, HashMap, HashSet,
+        hash_map::Entry::{Occupied, Vacant},
     },
     fmt::Write,
 };
 
-use anyhow::{bail, format_err, Result};
+use anyhow::{Result, bail, format_err};
 use move_binary_format::{
     file_format::{
         Ability, AbilitySet, Bytecode, CodeOffset, CodeUnit, CompiledModule, Constant,
@@ -2006,6 +2006,7 @@ fn compile_bytecode(
             Bytecode::VecSwap(context.signature_index(sig)?)
         }
         IRBytecode_::ErrorConstant {
+            error_code,
             line_number,
             constant,
         } => {
@@ -2024,7 +2025,11 @@ fn compile_bytecode(
                 bitset_builder.with_identifier_index(constant_name_value_index.0);
             }
 
-            Bytecode::LdU64(bitset_builder.build().bits)
+            if let Some(error_code) = error_code {
+                bitset_builder.with_error_code(error_code);
+            }
+
+            Bytecode::LdU64(bitset_builder.build().bits())
         }
         IRBytecode_::PackVariant(name, variant_name, tys) => {
             let tokens = Signature(compile_types(

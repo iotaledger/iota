@@ -1,14 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
+
+use move_core_types::u256::U256;
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
 
 use crate::{
     debug_display, diag,
     editions::FeatureGate,
     expansion::ast::Value_,
     ice,
-    naming::ast::{BuiltinTypeName_, FunctionSignature, Type, TypeName_, Type_},
+    naming::ast::{BuiltinTypeName_, FunctionSignature, Type, Type_, TypeName_},
     parser::ast::Ability_,
     shared::{ide::IDEAnnotation, string_utils::debug_print},
     typing::{
@@ -16,9 +20,6 @@ use crate::{
         core::{self, Context},
     },
 };
-use move_core_types::u256::U256;
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
 
 //**************************************************************************************************
 // Functions
@@ -60,10 +61,10 @@ pub fn type_(context: &mut Context, ty: &mut Type) {
         Anything | UnresolvedError | Param(_) | Unit => (),
         Ref(_, b) => type_(context, b),
         Var(tvar) => {
-            debug_print!(context.debug.type_elaboration, ("before" => Var(*tvar)));
+            debug_print!(context.debug().type_elaboration, ("before" => Var(*tvar)));
             let ty_tvar = sp(ty.loc, Var(*tvar));
             let replacement = core::unfold_type(&context.subst, ty_tvar);
-            debug_print!(context.debug.type_elaboration, ("resolved" => replacement));
+            debug_print!(context.debug().type_elaboration, ("resolved" => replacement));
             let replacement = match replacement {
                 sp!(loc, Var(_)) => {
                     let diag = ice!((
@@ -87,7 +88,7 @@ pub fn type_(context: &mut Context, ty: &mut Type) {
             };
             *ty = replacement;
             type_(context, ty);
-            debug_print!(context.debug.type_elaboration, ("after" => ty));
+            debug_print!(context.debug().type_elaboration, ("after" => ty));
         }
         Apply(Some(_), sp!(_, TypeName_::Builtin(_)), tys) => types(context, tys),
         aty @ Apply(Some(_), _, _) => {
@@ -99,7 +100,7 @@ pub fn type_(context: &mut Context, ty: &mut Type) {
             *ty = sp(ty.loc, UnresolvedError)
         }
         Apply(None, _, _) => {
-            let abilities = core::infer_abilities(&context.modules, &context.subst, ty.clone());
+            let abilities = core::infer_abilities(context.info(), &context.subst, ty.clone());
             match &mut ty.value {
                 Apply(abilities_opt, _, tys) => {
                     *abilities_opt = Some(abilities);
@@ -125,7 +126,7 @@ pub fn type_(context: &mut Context, ty: &mut Type) {
 }
 
 fn unexpected_lambda_type(context: &mut Context, loc: Loc) {
-    if context.check_feature(context.current_package, FeatureGate::MacroFuns, loc) {
+    if context.check_feature(context.current_package(), FeatureGate::MacroFuns, loc) {
         let msg = "Unexpected lambda type. \
             Lambdas can only be used with 'macro' functions, as parameters or direct arguments";
         context.add_diag(diag!(TypeSafety::UnexpectedFunctionType, (loc, msg)));
@@ -193,7 +194,7 @@ pub fn exp(context: &mut Context, e: &mut T::Exp) {
         E::Use(v) => {
             let from_user = false;
             let var = *v;
-            let abs = core::infer_abilities(&context.modules, &context.subst, e.ty.clone());
+            let abs = core::infer_abilities(context.info(), &context.subst, e.ty.clone());
             e.exp.value = if abs.has_ability_(Ability_::Copy) {
                 E::Copy { from_user, var }
             } else {

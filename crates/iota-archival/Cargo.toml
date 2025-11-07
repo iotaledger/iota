@@ -41,7 +41,6 @@ iota-macros.workspace = true
 iota-swarm-config.workspace = true
 move-binary-format.workspace = true
 move-core-types.workspace = true
-move-package.workspace = true
 
 [target.'cfg(msim)'.dependencies]
 iota-simulator.workspace = true

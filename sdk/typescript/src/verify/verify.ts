@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { fromB64 } from '@iota/bcs';
+import { fromBase64 } from '@iota/bcs';
 
 import type { PublicKey, SignatureFlag, SignatureScheme } from '../cryptography/index.js';
 import { parseSerializedSignature, SIGNATURE_FLAG_TO_SCHEME } from '../cryptography/index.js';
@@ -11,6 +11,7 @@ import { Secp256k1PublicKey } from '../keypairs/secp256k1/publickey.js';
 import { Secp256r1PublicKey } from '../keypairs/secp256r1/publickey.js';
 // eslint-disable-next-line import/no-cycle
 import { MultiSigPublicKey } from '../multisig/publickey.js';
+import { PasskeyPublicKey } from '../keypairs/passkey/publickey.js';
 
 export async function verifySignature(bytes: Uint8Array, signature: string): Promise<PublicKey> {
     const parsedSignature = parseSignature(signature);
@@ -91,13 +92,15 @@ export function publicKeyFromRawBytes(
             return new Secp256r1PublicKey(bytes);
         case 'MultiSig':
             return new MultiSigPublicKey(bytes);
+        case 'Passkey':
+            return new PasskeyPublicKey(bytes);
         default:
             throw new Error(`Unsupported signature scheme ${signatureScheme}`);
     }
 }
 
 export function publicKeyFromIotaBytes(publicKey: string | Uint8Array) {
-    const bytes = typeof publicKey === 'string' ? fromB64(publicKey) : publicKey;
+    const bytes = typeof publicKey === 'string' ? fromBase64(publicKey) : publicKey;
 
     const signatureScheme = SIGNATURE_FLAG_TO_SCHEME[bytes[0] as SignatureFlag];
 

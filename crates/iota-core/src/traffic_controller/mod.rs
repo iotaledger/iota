@@ -10,7 +10,7 @@ pub mod policies;
 use std::{
     fmt::Debug,
     fs,
-    net::{IpAddr, Ipv4Addr},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
     ops::Add,
     sync::Arc,
     time::{Duration, Instant, SystemTime},
@@ -19,7 +19,7 @@ use std::{
 use dashmap::DashMap;
 use fs::File;
 use iota_metrics::spawn_monitored_task;
-use iota_types::traffic_control::{PolicyConfig, RemoteFirewallConfig, Weight};
+use iota_types::traffic_control::{PolicyConfig, PolicyType, RemoteFirewallConfig, Weight};
 use prometheus::IntGauge;
 use rand::Rng;
 use tokio::{
@@ -46,9 +46,19 @@ struct Blocklists {
 }
 
 #[derive(Clone)]
+enum Acl {
+    Blocklists(Blocklists),
+    /// If this variant is set, then we do no tallying or running
+    /// of background tasks, and instead simply block all IPs not
+    /// in the allowlist on calls to `check`. The allowlist should
+    /// only be populated once at initialization.
+    Allowlist(Vec<IpAddr>),
+}
+
+#[derive(Clone)]
 pub struct TrafficController {
-    tally_channel: mpsc::Sender<TrafficTally>,
-    blocklists: Blocklists,
+    tally_channel: Option<mpsc::Sender<TrafficTally>>,
+    acl: Acl,
     metrics: Arc<TrafficControllerMetrics>,
     dry_run_mode: bool,
 }
@@ -74,12 +84,39 @@ impl Debug for TrafficController {
 }
 
 impl TrafficController {
-    pub fn spawn(
+    pub fn init(
+        policy_config: PolicyConfig,
+        metrics: TrafficControllerMetrics,
+        fw_config: Option<RemoteFirewallConfig>,
+    ) -> Self {
+        match policy_config.allow_list {
+            Some(allow_list) => {
+                let allowlist = allow_list
+                    .into_iter()
+                    .map(|ip_str| {
+                        parse_ip(&ip_str).unwrap_or_else(|| {
+                            panic!("Failed to parse allowlist IP address: {ip_str:?}")
+                        })
+                    })
+                    .collect();
+                Self {
+                    tally_channel: None,
+                    acl: Acl::Allowlist(allowlist),
+                    metrics: Arc::new(metrics),
+                    dry_run_mode: policy_config.dry_run,
+                }
+            }
+            None => Self::spawn(policy_config, metrics, fw_config),
+        }
+    }
+
+    fn spawn(
         policy_config: PolicyConfig,
         metrics: TrafficControllerMetrics,
         fw_config: Option<RemoteFirewallConfig>,
     ) -> Self {
         let metrics = Arc::new(metrics);
+        Self::set_policy_config_metrics(&policy_config, metrics.clone());
         let (tx, rx) = mpsc::channel(policy_config.channel_capacity);
         // Memoized drainfile existence state. This is passed into delegation
         // functions to prevent them from continuing to populate blocklists
@@ -92,20 +129,15 @@ impl TrafficController {
         metrics
             .deadmans_switch_enabled
             .set(mem_drainfile_present as i64);
-
-        let ret = Self {
-            tally_channel: tx,
-            blocklists: Blocklists {
-                clients: Arc::new(DashMap::new()),
-                proxied_clients: Arc::new(DashMap::new()),
-            },
-            metrics: metrics.clone(),
-            dry_run_mode: policy_config.dry_run,
+        let blocklists = Blocklists {
+            clients: Arc::new(DashMap::new()),
+            proxied_clients: Arc::new(DashMap::new()),
         };
-        let tally_loop_blocklists = ret.blocklists.clone();
-        let clear_loop_blocklists = ret.blocklists.clone();
+        let tally_loop_blocklists = blocklists.clone();
+        let clear_loop_blocklists = blocklists.clone();
         let tally_loop_metrics = metrics.clone();
         let clear_loop_metrics = metrics.clone();
+        let dry_run_mode = policy_config.dry_run;
         spawn_monitored_task!(run_tally_loop(
             rx,
             policy_config,
@@ -118,74 +150,114 @@ impl TrafficController {
             clear_loop_blocklists,
             clear_loop_metrics,
         ));
-        ret
+        Self {
+            tally_channel: Some(tx),
+            acl: Acl::Blocklists(blocklists),
+            metrics: metrics.clone(),
+            dry_run_mode,
+        }
     }
 
-    pub fn spawn_for_test(
+    fn set_policy_config_metrics(
+        policy_config: &PolicyConfig,
+        metrics: Arc<TrafficControllerMetrics>,
+    ) {
+        if let PolicyType::FreqThreshold(config) = &policy_config.spam_policy_type {
+            metrics
+                .spam_client_threshold
+                .set(config.client_threshold as i64);
+            metrics
+                .spam_proxied_client_threshold
+                .set(config.proxied_client_threshold as i64);
+        }
+        if let PolicyType::FreqThreshold(config) = &policy_config.error_policy_type {
+            metrics
+                .error_client_threshold
+                .set(config.client_threshold as i64);
+            metrics
+                .error_proxied_client_threshold
+                .set(config.proxied_client_threshold as i64);
+        }
+    }
+
+    pub fn init_for_test(
         policy_config: PolicyConfig,
         fw_config: Option<RemoteFirewallConfig>,
     ) -> Self {
         let metrics = TrafficControllerMetrics::new(&prometheus::Registry::new());
-        Self::spawn(policy_config, metrics, fw_config)
+        Self::init(policy_config, metrics, fw_config)
     }
 
     pub fn tally(&self, tally: TrafficTally) {
-        // Use try_send rather than send mainly to avoid creating backpressure
-        // on the caller if the channel is full, which may slow down the critical
-        // path. Dropping the tally on the floor should be ok, as in this case
-        // we are effectively sampling traffic, which we would need to do anyway
-        // if we are overloaded
-        match self.tally_channel.try_send(tally) {
-            Err(TrySendError::Full(_)) => {
-                warn!("TrafficController tally channel full, dropping tally");
-                self.metrics.tally_channel_overflow.inc();
-                // TODO: once we've verified this doesn't happen under normal
-                // conditions, we can consider dropping the request itself given
-                // that clearly the system is overloaded
+        if let Some(channel) = self.tally_channel.as_ref() {
+            // Use try_send rather than send mainly to avoid creating backpressure
+            // on the caller if the channel is full, which may slow down the critical
+            // path. Dropping the tally on the floor should be ok, as in this case
+            // we are effectively sampling traffic, which we would need to do anyway
+            // if we are overloaded
+            match channel.try_send(tally) {
+                Err(TrySendError::Full(_)) => {
+                    warn!("TrafficController tally channel full, dropping tally");
+                    self.metrics.tally_channel_overflow.inc();
+                    // TODO: once we've verified this doesn't happen under
+                    // normal conditions, we can consider
+                    // dropping the request itself given
+                    // that clearly the system is overloaded
+                }
+                Err(TrySendError::Closed(_)) => {
+                    panic!("TrafficController tally channel closed unexpectedly");
+                }
+                Ok(_) => {}
             }
-            Err(TrySendError::Closed(_)) => {
-                panic!("TrafficController tally channel closed unexpectedly");
-            }
-            Ok(_) => {}
         }
     }
 
     /// Handle check with dry-run mode considered
     pub async fn check(&self, client: &Option<IpAddr>, proxied_client: &Option<IpAddr>) -> bool {
-        match (
-            self.check_impl(client, proxied_client).await,
-            self.dry_run_mode(),
-        ) {
-            // check succeeded
-            (true, _) => true,
-            // check failed while in dry-run mode
-            (false, true) => {
-                debug!(
-                    "Dry run mode: Blocked request from client {:?}, proxied client: {:?}",
-                    client, proxied_client
-                );
-                self.metrics.num_dry_run_blocked_requests.inc();
-                true
+        let check_with_dry_run_maybe = |allowed| -> bool {
+            match (allowed, self.dry_run_mode()) {
+                // check succeeded
+                (true, _) => true,
+                // check failed while in dry-run mode
+                (false, true) => {
+                    debug!("Dry run mode: Blocked request from client {:?}", client);
+                    self.metrics.num_dry_run_blocked_requests.inc();
+                    true
+                }
+                // check failed
+                (false, false) => false,
             }
-            // check failed
-            (false, false) => false,
+        };
+
+        match &self.acl {
+            Acl::Allowlist(allowlist) => {
+                let allowed = client.is_none() || allowlist.contains(&client.unwrap());
+                check_with_dry_run_maybe(allowed)
+            }
+            Acl::Blocklists(blocklists) => {
+                let allowed = self
+                    .check_blocklists(blocklists, client, proxied_client)
+                    .await;
+                check_with_dry_run_maybe(allowed)
+            }
         }
     }
 
-    /// Returns true if the connection is allowed, false if it is blocked
-    pub async fn check_impl(
+    /// Returns true if the connection is in blocklist, false otherwise
+    async fn check_blocklists(
         &self,
+        blocklists: &Blocklists,
         client: &Option<IpAddr>,
         proxied_client: &Option<IpAddr>,
     ) -> bool {
         let client_check = self.check_and_clear_blocklist(
             client,
-            self.blocklists.clients.clone(),
+            blocklists.clients.clone(),
             &self.metrics.connection_ip_blocklist_len,
         );
         let proxied_client_check = self.check_and_clear_blocklist(
             proxied_client,
-            self.blocklists.proxied_clients.clone(),
+            blocklists.proxied_clients.clone(),
             &self.metrics.proxy_ip_blocklist_len,
         );
         let (client_check, proxied_client_check) =
@@ -336,13 +408,13 @@ async fn run_tally_loop(
                     metrics
                         .highest_direct_spam_rate
                         .set(highest_direct_rate.0 as i64);
-                    trace!("Recent highest direct spam rate: {:?}", highest_direct_rate);
+                    debug!("Recent highest direct spam rate: {:?}", highest_direct_rate);
                 }
                 if let Some(highest_proxied_rate) = spam_policy.highest_proxied_rate() {
                     metrics
                         .highest_proxied_spam_rate
                         .set(highest_proxied_rate.0 as i64);
-                    trace!(
+                    debug!(
                         "Recent highest proxied spam rate: {:?}",
                         highest_proxied_rate
                     );
@@ -353,7 +425,7 @@ async fn run_tally_loop(
                     metrics
                         .highest_direct_error_rate
                         .set(highest_direct_rate.0 as i64);
-                    trace!(
+                    debug!(
                         "Recent highest direct error rate: {:?}",
                         highest_direct_rate
                     );
@@ -362,7 +434,7 @@ async fn run_tally_loop(
                     metrics
                         .highest_proxied_error_rate
                         .set(highest_proxied_rate.0 as i64);
-                    trace!(
+                    debug!(
                         "Recent highest proxied error rate: {:?}",
                         highest_proxied_rate
                     );
@@ -383,10 +455,21 @@ async fn handle_error_tally(
     metrics: Arc<TrafficControllerMetrics>,
     mem_drainfile_present: bool,
 ) -> Result<(), reqwest::Error> {
-    if !tally.error_weight.is_sampled() {
+    let Some((error_weight, error_type)) = tally.clone().error_info else {
+        return Ok(());
+    };
+    if !error_weight.is_sampled() {
         return Ok(());
     }
-    let resp = policy.handle_tally(tally.clone());
+    trace!(
+        "Handling error_type {:?} from client {:?}",
+        error_type, tally.direct,
+    );
+    metrics
+        .tally_error_types
+        .with_label_values(&[error_type.as_str()])
+        .inc();
+    let resp = policy.handle_tally(tally);
     metrics.error_tally_handled.inc();
     if let Some(fw_config) = fw_config {
         if fw_config.delegate_error_blocking && !mem_drainfile_present {
@@ -467,6 +550,7 @@ async fn handle_policy_response(
         {
             // Only increment the metric if the client was not already blocked
             debug!("Blocking client: {:?}", client);
+            metrics.requests_blocked_at_protocol.inc();
             metrics.connection_ip_blocklist_len.inc();
         }
     }
@@ -481,6 +565,7 @@ async fn handle_policy_response(
         {
             // Only increment the metric if the client was not already blocked
             debug!("Blocking proxied client: {:?}", client);
+            metrics.requests_blocked_at_protocol.inc();
             metrics.proxy_ip_blocklist_len.inc();
         }
     }
@@ -610,7 +695,7 @@ impl TrafficSim {
         assert!(per_client_tps > 0);
         assert!(duration.as_secs() > 0);
 
-        let controller = TrafficController::spawn_for_test(policy.clone(), None);
+        let controller = TrafficController::init_for_test(policy.clone(), None);
         let tasks = (0..num_clients).map(|task_num| {
             tokio::spawn(Self::run_single_client(
                 controller.clone(),
@@ -626,9 +711,9 @@ impl TrafficSim {
                     "Running naive traffic simulation for {} seconds",
                     duration.as_secs()
                 );
-                println!("Policy: {:#?}", policy);
-                println!("Num clients: {}", num_clients);
-                println!("TPS per client: {}", per_client_tps);
+                println!("Policy: {policy:#?}");
+                println!("Num clients: {num_clients}");
+                println!("TPS per client: {per_client_tps}");
                 println!(
                     "Target total TPS: {}",
                     per_client_tps * num_clients as usize
@@ -646,16 +731,11 @@ impl TrafficSim {
 
         let metrics = futures::future::join_all(tasks).await.into_iter().fold(
             TrafficSimMetrics::default(),
-            |acc, run_client_ret| {
-                if run_client_ret.is_err() {
-                    error!(
-                        "Error running traffic sim client: {:?}",
-                        run_client_ret.err()
-                    );
+            |acc, run_client_ret| match run_client_ret {
+                Ok(metrics) => acc + metrics,
+                Err(err) => {
+                    error!("Error running traffic sim client: {:?}", err);
                     acc
-                } else {
-                    let metrics = run_client_ret.unwrap();
-                    acc + metrics
                 }
             },
         );
@@ -707,7 +787,7 @@ impl TrafficSim {
                     // TODO add proxy IP for testing
                     None,
                     // TODO add weight adjustments
-                    Weight::one(),
+                    None,
                     Weight::one(),
                 ));
             } else {
@@ -766,7 +846,7 @@ impl TrafficSim {
         let avg_first_block_time = metrics
             .time_to_first_block
             .map(|ttf| ttf / num_clients as u32);
-        println!("Average time to first block: {:?}", avg_first_block_time);
+        println!("Average time to first block: {avg_first_block_time:?}");
         // This is the time it took for the first request to be blocked across all
         // clients, and is instead more useful for understanding false positives
         // in terms of rate and magnitude.
@@ -785,4 +865,16 @@ impl TrafficSim {
             Duration::from_millis(avg_time_blocked)
         );
     }
+}
+
+pub fn parse_ip(ip: &str) -> Option<IpAddr> {
+    ip.parse::<IpAddr>().ok().or_else(|| {
+        ip.parse::<SocketAddr>()
+            .ok()
+            .map(|socket_addr| socket_addr.ip())
+            .or_else(|| {
+                error!("Failed to parse value of {:?} to ip address or socket.", ip,);
+                None
+            })
+    })
 }

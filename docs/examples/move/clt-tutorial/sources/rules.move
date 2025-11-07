@@ -23,7 +23,7 @@ module clt_tutorial::allowlist_rule {
     /// The Rule witness.
     public struct Allowlist has drop {}
 
-    /// Verifes that only shops can receive and return vouchers.
+    /// Verifies that only shops can receive and return vouchers.
     ///
     /// Aborts if:
     ///     - The policy does not have a configuration.

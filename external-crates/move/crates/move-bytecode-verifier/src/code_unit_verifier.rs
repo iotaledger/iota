@@ -1,27 +1,30 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! This module implements the checker for verifying correctness of function bodies.
-//! The overall verification is split between stack_usage_verifier.rs and
-//! abstract_interpreter.rs. CodeUnitVerifier simply orchestrates calls into these two files.
-use crate::{
-    ability_cache::AbilityCache, acquires_list_verifier::AcquiresVerifier, control_flow,
-    locals_safety, reference_safety, stack_usage_verifier::StackUsageVerifier, type_safety,
-};
+//! This module implements the checker for verifying correctness of function
+//! bodies. The overall verification is split between stack_usage_verifier.rs
+//! and abstract_interpreter.rs. CodeUnitVerifier simply orchestrates calls into
+//! these two files.
+use std::collections::HashMap;
+
 use move_abstract_interpreter::{absint::FunctionContext, control_flow_graph::ControlFlowGraph};
 use move_binary_format::{
+    IndexKind,
     errors::{Location, PartialVMError, PartialVMResult, VMResult},
     file_format::{
         CompiledModule, FunctionDefinition, FunctionDefinitionIndex, IdentifierIndex, TableIndex,
     },
-    IndexKind,
 };
 use move_bytecode_verifier_meter::{Meter, Scope};
 use move_core_types::vm_status::StatusCode;
 use move_vm_config::verifier::VerifierConfig;
-use std::collections::HashMap;
+
+use crate::{
+    ability_cache::AbilityCache, acquires_list_verifier::AcquiresVerifier, control_flow,
+    locals_safety, reference_safety, stack_usage_verifier::StackUsageVerifier, type_safety,
+};
 
 pub struct CodeUnitVerifier<'env, 'a> {
     module: &'env CompiledModule,
@@ -135,7 +138,7 @@ fn verify_function<'env>(
     Ok(num_back_edges)
 }
 
-impl<'env, 'a> CodeUnitVerifier<'env, 'a> {
+impl<'env> CodeUnitVerifier<'env, '_> {
     fn verify_common(
         &self,
         verifier_config: &VerifierConfig,

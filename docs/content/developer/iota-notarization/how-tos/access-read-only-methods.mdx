@@ -1,0 +1,309 @@
+---
+title: Access Read-Only Methods in Notarizations
+sidebar_label: Access Read-Only Methods
+description: Comprehensive guide to all read-only inspection methods for notarizations.
+teams:
+  - iotaledger/identity
+tags:
+  - notarization
+  - how-to
+---
+
+## Access Read-Only Methods
+
+This guide demonstrates how to use all available read-only methods to inspect and query notarizations. These methods work for both dynamic and locked notarizations and provide comprehensive information about their state, metadata, and configuration.
+
+### Prerequisites
+
+- An existing notarization (dynamic or locked) on the IOTA network
+- Access to a notarization client (read-only access is sufficient)
+
+### Available Read-Only Methods
+
+All notarizations support the same comprehensive read-only interface:
+
+- **Content inspection**: State, metadata, and description
+- **Timestamp queries**: Creation and modification times
+- **Lock status checking**: Transfer, update, and destruction permissions
+- **Version tracking**: State version counters
+- **Method identification**: Notarization type detection
+
+### 1. Set Up Read-Only Client
+
+You can use either a full client or a read-only client for inspection:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L27
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Test Notarizations
+
+Create both dynamic and locked notarizations for comprehensive testing:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L22-L33
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L20-L26
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Content and Metadata Inspection
+
+### 3. Read Description and Metadata
+
+Access the immutable description and updatable metadata:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L41-L52
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L34-L42
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Read Current State
+
+Access the current state content and its metadata:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L52-L57
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L45-L47
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Timestamp Queries
+
+### 5. Get Creation and Modification Times
+
+Query when the notarization was created and last modified:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L58-L69
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L50-L59
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Version and Type Information
+
+### 6. Get Version Count and Method Type
+
+Check the state version counter and notarization method:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L70-L81
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L60-L70
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Lock Status Checking
+
+### 7. Check All Lock Statuses
+
+Verify transfer, update, and destruction permissions:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L83-L95
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L73-L84
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 8. Get Lock Metadata
+
+Access detailed information about applied locks:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L168-L171
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L87-L90
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Demonstrating Version Tracking
+
+### 9. Update State and Show Version Changes
+
+For dynamic notarizations, demonstrate how version tracking works:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs#L103-L128
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts#L92-L124
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+
+## Read-Only Methods Summary
+
+| Method | Returns | Description |
+|--------|---------|-------------|
+| `description()` | `String` | Immutable description set at creation |
+| `updatable_metadata()` | `Option<String>` | Current updatable metadata |
+| `state()` | `State` | Current state content and metadata |
+| `created_at_ts()` | `u64` | Creation timestamp |
+| `last_state_change_ts()` | `u64` | Last state modification timestamp |
+| `state_version_count()` | `u64` | Number of state updates |
+| `notarization_method()` | `NotarizationMethod` | Dynamic or Locked |
+| `is_transfer_locked()` | `bool` | Whether transfers are blocked |
+| `is_update_locked()` | `bool` | Whether updates are blocked |
+| `is_destroy_allowed()` | `bool` | Whether destruction is allowed |
+| `lock_metadata()` | `Option<LockingMetadata>` | Detailed lock information |
+
+## Use Cases for Read-Only Methods
+
+### Auditing and Compliance
+
+- **Verify immutability**: Check that locked notarizations haven't changed
+- **Track modifications**: Monitor version counts and timestamps
+- **Compliance checking**: Verify lock status for regulatory requirements
+
+### Integration and Automation
+
+- **Status monitoring**: Check lock status before operations
+- **Content verification**: Validate state and metadata
+- **Type detection**: Handle dynamic and locked notarizations differently
+
+### User Interfaces
+
+- **Display information**: Show content, metadata, and status
+- **Permission checking**: Enable/disable UI actions based on locks
+- **History tracking**: Display version information and timestamps
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/08_access_read_only_methods.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/08_access_read_only_methods.ts
+```
+
+</TabItem>
+</Tabs>
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally.
+
+If you want to use something different, you will need to modify the API and faucet endpoints in the examples to match your setup. 

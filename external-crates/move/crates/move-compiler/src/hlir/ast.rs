@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -14,16 +14,16 @@ use move_symbol_pool::Symbol;
 use crate::{
     diagnostics::warning_filters::{WarningFilters, WarningFiltersTable},
     expansion::ast::{
-        ability_modifiers_ast_debug, AbilitySet, Attributes, Friend, ModuleIdent, Mutability,
+        AbilitySet, Attributes, Friend, ModuleIdent, Mutability, ability_modifiers_ast_debug,
     },
     naming::ast::{BuiltinTypeName, BuiltinTypeName_, DatatypeTypeParameter, TParam},
     parser::ast::{
-        self as P, BinOp, ConstantName, DatatypeName, Field, FunctionName, TargetKind, UnaryOp,
-        VariantName, ENTRY_MODIFIER,
+        self as P, BinOp, ConstantName, DatatypeName, ENTRY_MODIFIER, Field, FunctionName,
+        TargetKind, UnaryOp, VariantName,
     },
     shared::{
-        ast_debug::*, program_info::TypingProgramInfo, unique_map::UniqueMap, Name,
-        NumericalAddress, TName,
+        Name, NumericalAddress, TName, ast_debug::*, program_info::TypingProgramInfo,
+        unique_map::UniqueMap,
     },
 };
 
@@ -36,7 +36,8 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Program {
     pub info: Arc<TypingProgramInfo>,
-    /// Safety: This table should not be dropped as long as any `WarningFilters` are alive
+    /// Safety: This table should not be dropped as long as any `WarningFilters`
+    /// are alive
     pub warning_filters_table: Arc<WarningFiltersTable>,
     pub modules: UniqueMap<ModuleIdent, ModuleDefinition>,
 }
@@ -399,6 +400,7 @@ pub enum UnannotatedExp_ {
     ErrorConstant {
         line_number_loc: Loc,
         error_constant: Option<ConstantName>,
+        error_code: Option<u8>,
     },
 
     ModuleCall(Box<ModuleCall>),
@@ -1625,11 +1627,16 @@ impl AstDebug for UnannotatedExp_ {
             E::ErrorConstant {
                 line_number_loc: _,
                 error_constant,
+                error_code,
             } => {
-                w.write("ErrorConstant");
-                if let Some(c) = error_constant {
-                    w.write(format!("({})", c))
+                w.write("ErrorConstant(");
+                if let Some(c) = error_code {
+                    w.write(format!("code={},", c))
                 }
+                if let Some(c) = error_constant {
+                    w.write(format!("{}", c))
+                }
+                w.write(")");
             }
         }
     }

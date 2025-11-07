@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import type { IotaClient } from '@iota/iota-sdk/client';
-import { normalizeIotaAddress, toB64 } from '@iota/iota-sdk/utils';
+import { normalizeIotaAddress, toBase64 } from '@iota/iota-sdk/utils';
 import { InactiveValidatorData, ValidatorSchema, DynamicFieldObjectSchema } from '../../types';
 
 export async function getInactiveValidatorsMetadata(
@@ -44,7 +44,7 @@ export async function getInactiveValidatorsMetadata(
         name: validatorMetadata.name,
         projectUrl: validatorMetadata.project_url,
         validatorAddress: validatorMetadata.iota_address,
-        validatorPublicKey: toB64(Uint8Array.from(validatorMetadata.protocol_pubkey_bytes)),
+        validatorPublicKey: toBase64(Uint8Array.from(validatorMetadata.protocol_pubkey_bytes)),
         validatorStakingPoolId: validator.data.fields.name,
     };
 }

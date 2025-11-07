@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 #![forbid(unsafe_code)]
@@ -8,7 +8,7 @@
 use std::path::Path;
 
 use clap::Parser;
-use move_coverage::coverage_map::{output_map_to_file, CoverageMap, TraceMap};
+use move_coverage::coverage_map::{CoverageMap, TraceMap, output_map_to_file};
 
 #[derive(Debug, Parser)]
 #[clap(

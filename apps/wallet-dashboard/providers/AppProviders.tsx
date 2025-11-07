@@ -5,7 +5,7 @@
 
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
 import { IotaClientProvider, lightTheme, darkTheme, WalletProvider } from '@iota/dapp-kit';
-import { getAllNetworks, getDefaultNetwork } from '@iota/iota-sdk/client';
+import { getAllNetworks, getDefaultNetwork, getNetwork } from '@iota/iota-sdk/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { useState } from 'react';
@@ -16,6 +16,7 @@ import {
     Toaster,
     ClipboardPasteSafetyWrapper,
     IotaGraphQLClientProvider,
+    IotaNamesClientProvider,
 } from '@iota/core';
 import { growthbook } from '@/lib/utils';
 import { ThemeProvider } from '@iota/core';
@@ -26,8 +27,12 @@ growthbook.init();
 export function AppProviders({ children }: React.PropsWithChildren) {
     const [queryClient] = useState(() => new QueryClient());
     const allNetworks = getAllNetworks();
-    const defaultNetwork = getDefaultNetwork();
-    const [persistedNetwork] = useLocalStorage<string>('network_iota-dashboard', defaultNetwork);
+    const defaultNetworkId = getDefaultNetwork();
+    const [persistedNetworkId] = useLocalStorage<string>(
+        'network_iota-dashboard',
+        defaultNetworkId,
+    );
+    const persistedNetwork = getNetwork(persistedNetworkId);
 
     function handleNetworkChange() {
         queryClient.resetQueries();
@@ -39,32 +44,35 @@ export function AppProviders({ children }: React.PropsWithChildren) {
                 <IotaClientProvider
                     networks={allNetworks}
                     createClient={createIotaClient}
-                    defaultNetwork={persistedNetwork}
+                    defaultNetwork={persistedNetworkId}
                     onNetworkChange={handleNetworkChange}
                 >
                     <StardustIndexerClientProvider>
                         <IotaGraphQLClientProvider>
-                            <KioskClientProvider>
-                                <WalletProvider
-                                    autoConnect={true}
-                                    theme={[
-                                        {
-                                            variables: lightTheme,
-                                        },
-                                        {
-                                            selector: '.dark',
-                                            variables: darkTheme,
-                                        },
-                                    ]}
-                                >
-                                    <ClipboardPasteSafetyWrapper>
-                                        <ThemeProvider appId="iota-dashboard">
-                                            {children}
-                                            <Toaster containerClassName="!right-8" />
-                                        </ThemeProvider>
-                                    </ClipboardPasteSafetyWrapper>
-                                </WalletProvider>
-                            </KioskClientProvider>
+                            <IotaNamesClientProvider>
+                                <KioskClientProvider>
+                                    <WalletProvider
+                                        autoConnect={true}
+                                        theme={[
+                                            {
+                                                variables: lightTheme,
+                                            },
+                                            {
+                                                selector: '.dark',
+                                                variables: darkTheme,
+                                            },
+                                        ]}
+                                        chain={persistedNetwork.chain}
+                                    >
+                                        <ClipboardPasteSafetyWrapper>
+                                            <ThemeProvider appId="iota-dashboard">
+                                                {children}
+                                                <Toaster containerClassName="!right-8" />
+                                            </ThemeProvider>
+                                        </ClipboardPasteSafetyWrapper>
+                                    </WalletProvider>
+                                </KioskClientProvider>
+                            </IotaNamesClientProvider>
                         </IotaGraphQLClientProvider>
                     </StardustIndexerClientProvider>
                 </IotaClientProvider>

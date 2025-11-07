@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeSet, fmt};
@@ -964,7 +964,7 @@ fn get_name_token(edition: Edition, name: &str) -> Tok {
         "fun" => Tok::Fun,
         "friend" => Tok::Friend,
         "if" => Tok::If,
-        "invariant" => Tok::Invariant,
+        "invariant" if !edition.supports(FeatureGate::Move2024Keywords) => Tok::Invariant,
         "let" => Tok::Let,
         "loop" => Tok::Loop,
         "module" => Tok::Module,
@@ -972,7 +972,7 @@ fn get_name_token(edition: Edition, name: &str) -> Tok {
         "native" => Tok::Native,
         "public" => Tok::Public,
         "return" => Tok::Return,
-        "spec" => Tok::Spec,
+        "spec" if !edition.supports(FeatureGate::Move2024Keywords) => Tok::Spec,
         "struct" => Tok::Struct,
         "true" => Tok::True,
         "use" => Tok::Use,

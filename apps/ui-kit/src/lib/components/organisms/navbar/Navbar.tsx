@@ -56,10 +56,10 @@ export function Navbar({
             {isCollapsible && (
                 <div className="flex w-full items-center justify-between sm:mb-[48px] sm:flex-col">
                     <div className="flex justify-center [&_svg]:h-[38px] [&_svg]:w-[38px]">
-                        <IotaLogoMark className="text-neutral-10 dark:text-neutral-92" />
+                        <IotaLogoMark className="navbar-icon-color" />
                     </div>
                     <div
-                        className="state-layer relative rounded-full p-xs hover:cursor-pointer dark:text-neutral-92 sm:hidden [&_svg]:h-6 [&_svg]:w-6"
+                        className="state-layer navbar-icon-color relative rounded-full p-xs hover:cursor-pointer sm:hidden [&_svg]:h-6 [&_svg]:w-6"
                         onClick={onToggleNavbar}
                     >
                         <MenuIcon />

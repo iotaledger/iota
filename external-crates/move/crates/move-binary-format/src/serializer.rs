@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Serialization of transactions and modules.
@@ -17,11 +17,12 @@
 //! constructs might be supported for older versions, leading to serialization
 //! errors.
 
-use crate::{file_format::*, file_format_common::*};
-use anyhow::{anyhow, bail, Result};
+use anyhow::{Result, anyhow, bail};
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, metadata::Metadata,
 };
+
+use crate::{file_format::*, file_format_common::*};
 
 fn write_as_uleb128<T1, T2>(binary: &mut BinaryData, x: T1, max: T2) -> Result<()>
 where

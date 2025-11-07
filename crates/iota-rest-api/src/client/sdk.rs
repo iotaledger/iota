@@ -4,8 +4,8 @@
 
 use iota_sdk2::types::{
     Address, CheckpointData, CheckpointDigest, CheckpointSequenceNumber, EpochId, Object, ObjectId,
-    SignedCheckpointSummary, SignedTransaction, StructTag, TransactionDigest, ValidatorCommittee,
-    Version,
+    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction, TransactionDigest,
+    UnresolvedTransaction, ValidatorCommittee, Version,
 };
 use reqwest::{StatusCode, Url, header::HeaderValue};
 use tap::Pipe;
@@ -13,7 +13,7 @@ use tap::Pipe;
 use crate::{
     ExecuteTransactionQueryParameters,
     accounts::{AccountOwnedObjectInfo, ListAccountOwnedObjectsQueryParameters},
-    checkpoints::ListCheckpointsQueryParameters,
+    checkpoints::{CheckpointResponse, ListCheckpointsQueryParameters},
     coins::CoinInfo,
     health::Threshold,
     info::NodeInfo,
@@ -23,7 +23,9 @@ use crate::{
         X_IOTA_MIN_SUPPORTED_PROTOCOL_VERSION,
     },
     transactions::{
-        ListTransactionsQueryParameters, TransactionExecutionResponse, TransactionResponse,
+        ListTransactionsQueryParameters, ResolveTransactionQueryParameters,
+        ResolveTransactionResponse, TransactionExecutionResponse, TransactionResponse,
+        TransactionSimulationResponse,
     },
     types::{
         X_IOTA_CHAIN, X_IOTA_CHAIN_ID, X_IOTA_CHECKPOINT_HEIGHT, X_IOTA_CURSOR, X_IOTA_EPOCH,
@@ -265,7 +267,7 @@ impl Client {
     pub async fn get_checkpoint(
         &self,
         checkpoint_sequence_number: CheckpointSequenceNumber,
-    ) -> Result<Response<SignedCheckpointSummary>> {
+    ) -> Result<Response<CheckpointResponse>> {
         let url = self
             .url()
             .join(&format!("checkpoints/{checkpoint_sequence_number}"))?;
@@ -285,6 +287,7 @@ impl Client {
             limit: Some(1),
             start: None,
             direction: None,
+            contents: false,
         };
 
         let (mut page, parts) = self.list_checkpoints(&parameters).await?.into_parts();
@@ -292,6 +295,10 @@ impl Client {
         let checkpoint = page
             .pop()
             .ok_or_else(|| Error::new_message("server returned empty checkpoint list"))?;
+        let checkpoint = SignedCheckpointSummary {
+            checkpoint: checkpoint.checkpoint,
+            signature: checkpoint.signature,
+        };
 
         Ok(Response::new(checkpoint, parts))
     }
@@ -299,7 +306,7 @@ impl Client {
     pub async fn list_checkpoints(
         &self,
         parameters: &ListCheckpointsQueryParameters,
-    ) -> Result<Response<Vec<SignedCheckpointSummary>>> {
+    ) -> Result<Response<Vec<CheckpointResponse>>> {
         let url = self.url().join("checkpoints")?;
 
         let response = self
@@ -398,6 +405,62 @@ impl Client {
             .inner
             .get(url)
             .header(reqwest::header::ACCEPT, crate::APPLICATION_BCS)
+            .send()
+            .await?;
+
+        self.bcs(response).await
+    }
+
+    pub async fn simulate_transaction(
+        &self,
+        transaction: &Transaction,
+    ) -> Result<Response<TransactionSimulationResponse>> {
+        let url = self.url().join("transactions/simulate")?;
+
+        let body = bcs::to_bytes(transaction)?;
+
+        let response = self
+            .inner
+            .post(url)
+            .header(reqwest::header::ACCEPT, crate::APPLICATION_BCS)
+            .header(reqwest::header::CONTENT_TYPE, crate::APPLICATION_BCS)
+            .body(body)
+            .send()
+            .await?;
+
+        self.bcs(response).await
+    }
+
+    pub async fn resolve_transaction(
+        &self,
+        unresolved_transaction: &UnresolvedTransaction,
+    ) -> Result<Response<ResolveTransactionResponse>> {
+        let url = self.url.join("transactions/resolve")?;
+
+        let response = self
+            .inner
+            .post(url)
+            .header(reqwest::header::ACCEPT, crate::APPLICATION_BCS)
+            .json(unresolved_transaction)
+            .send()
+            .await?;
+
+        self.bcs(response).await
+    }
+
+    pub async fn resolve_transaction_with_parameters(
+        &self,
+        unresolved_transaction: &UnresolvedTransaction,
+        parameters: &ResolveTransactionQueryParameters,
+    ) -> Result<Response<ResolveTransactionResponse>> {
+        let url = self.url.join("transactions/resolve")?;
+
+        let response = self
+            .inner
+            .post(url)
+            .query(&parameters)
+            .header(reqwest::header::ACCEPT, crate::APPLICATION_BCS)
+            .json(unresolved_transaction)
             .send()
             .await?;
 
@@ -671,8 +734,8 @@ impl From<url::ParseError> for Error {
     }
 }
 
-impl From<iota_types::iota_sdk2_conversions::SdkTypeConversionError> for Error {
-    fn from(value: iota_types::iota_sdk2_conversions::SdkTypeConversionError) -> Self {
+impl From<iota_types::iota_sdk_types_conversions::SdkTypeConversionError> for Error {
+    fn from(value: iota_types::iota_sdk_types_conversions::SdkTypeConversionError) -> Self {
         Self::from_error(value)
     }
 }

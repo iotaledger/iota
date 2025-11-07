@@ -1,13 +1,13 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Utilities for property-based testing.
 
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
 use proptest::{
-    collection::{btree_set, vec, SizeRange},
+    collection::{SizeRange, btree_set, vec},
     prelude::*,
     sample::Index as PropIndex,
 };

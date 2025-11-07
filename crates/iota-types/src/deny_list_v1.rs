@@ -13,16 +13,14 @@ use move_core_types::{
     language_storage::{StructTag, TypeTag},
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use tracing::error;
+use tracing::{error, instrument};
 
 use crate::{
     IOTA_DENY_LIST_OBJECT_ID, IOTA_FRAMEWORK_PACKAGE_ID, MoveTypeTagTrait,
     base_types::{EpochId, IotaAddress, ObjectID, SequenceNumber},
     config::{Config, Setting},
     dynamic_field::{DOFWrapper, get_dynamic_field_from_store},
-    error::{
-        ExecutionError, ExecutionErrorKind, IotaError, IotaResult, UserInputError, UserInputResult,
-    },
+    error::{ExecutionError, ExecutionErrorKind, UserInputError, UserInputResult},
     id::{ID, UID},
     object::{Object, Owner},
     storage::{DenyListResult, ObjectStore},
@@ -122,6 +120,7 @@ impl MoveTypeTagTrait for GlobalPauseKey {
     }
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn check_coin_deny_list_v1_during_signing(
     address: IotaAddress,
     input_objects: &CheckedInputObjects,
@@ -217,6 +216,7 @@ fn check_new_regulated_coin_owners(
     Ok(())
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn get_per_type_coin_deny_list_v1(
     coin_type: &String,
     object_store: &dyn ObjectStore,
@@ -233,6 +233,7 @@ pub fn get_per_type_coin_deny_list_v1(
     Some(config)
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn check_address_denied_by_config(
     deny_config: &Config,
     address: IotaAddress,
@@ -243,6 +244,7 @@ pub fn check_address_denied_by_config(
     read_config_setting(object_store, deny_config, address_key, cur_epoch).unwrap_or(false)
 }
 
+#[instrument(level = "trace", skip_all)]
 pub fn check_global_pause(
     deny_config: &Config,
     object_store: &dyn ObjectStore,
@@ -252,31 +254,25 @@ pub fn check_global_pause(
     read_config_setting(object_store, deny_config, global_pause_key, cur_epoch).unwrap_or(false)
 }
 
-pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> IotaResult<Object> {
+pub fn get_deny_list_root_object(object_store: &dyn ObjectStore) -> Option<Object> {
     match object_store.get_object(&IOTA_DENY_LIST_OBJECT_ID) {
-        Ok(Some(obj)) => Ok(obj),
-        Ok(None) => {
+        Some(obj) => Some(obj),
+        None => {
             error!("Deny list object not found");
-            Err(IotaError::Storage("Deny list object not found".to_string()))
-        }
-        Err(err) => {
-            error!("Failed to get deny list object: {err}");
-            Err(IotaError::Storage(format!(
-                "Failed to get deny list object: {err}"
-            )))
+            None
         }
     }
 }
 
-pub fn get_deny_list_obj_initial_shared_version(
-    object_store: &dyn ObjectStore,
-) -> IotaResult<SequenceNumber> {
-    get_deny_list_root_object(object_store).map(|obj| match obj.owner {
-        Owner::Shared {
-            initial_shared_version,
-        } => initial_shared_version,
-        _ => unreachable!("Deny list object must be shared"),
-    })
+pub fn get_deny_list_obj_initial_shared_version(object_store: &dyn ObjectStore) -> SequenceNumber {
+    get_deny_list_root_object(object_store)
+        .map(|obj| match obj.owner {
+            Owner::Shared {
+                initial_shared_version,
+            } => initial_shared_version,
+            _ => unreachable!("Deny list object must be shared"),
+        })
+        .expect("Deny list object must exist")
 }
 
 /// Fetches the setting from a particular config.
@@ -305,6 +301,7 @@ where
 /// Returns all unique coin types in canonical string form from the input
 /// objects and receiving objects. It filters out IOTA coins since it's known
 /// that it's not a regulated coin.
+#[instrument(level = "trace", skip_all)]
 fn input_object_coin_types_for_denylist_check(
     input_objects: &CheckedInputObjects,
     receiving_objects: &ReceivingObjects,

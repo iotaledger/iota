@@ -105,7 +105,10 @@ async fn test_get_staked_iota() {
         )
         .await
         .unwrap();
-    let tx = to_sender_signed_transaction(delegation_tx, keystore.get_key(&address).unwrap());
+    let tx = to_sender_signed_transaction(
+        delegation_tx,
+        keystore.get_key(&address).unwrap().as_keypair().unwrap(),
+    );
     client
         .quorum_driver_api()
         .execute_transaction_block(
@@ -261,7 +264,7 @@ async fn test_withdraw_stake() {
     telemetry_subscribers::init_for_testing();
 
     let test_cluster = TestClusterBuilder::new()
-        .with_epoch_duration_ms(15000)
+        .with_epoch_duration_ms(60000)
         .build()
         .await;
     let sender = test_cluster.get_address_0();
@@ -329,8 +332,8 @@ async fn test_withdraw_stake() {
     assert_eq!(1, response.balances.len());
     assert_eq!(1000000000, response.balances[0].value);
 
-    // wait for epoch.
-    tokio::time::sleep(Duration::from_millis(15000)).await;
+    // Trigger epoch change.
+    test_cluster.force_new_epoch().await;
 
     // withdraw all stake
     let ops = serde_json::from_value(json!(
@@ -455,7 +458,7 @@ async fn test_pay_iota_multiple_times() {
     let (rosetta_client, _handle) = start_rosetta_test_server(client.clone()).await;
 
     for i in 1..20 {
-        println!("Iteration: {}", i);
+        println!("Iteration: {i}");
         let ops = serde_json::from_value(json!(
             [{
                 "operation_identifier":{"index":0},

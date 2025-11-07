@@ -69,11 +69,11 @@ function CoinSelectOption({
                         hasCoinWrapper={hasCoinWrapper}
                     />
                 </div>
-                <span className="text-body-lg text-neutral-10 dark:text-neutral-92">
+                <span className="text-body-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                     {isIota ? (coinMeta?.name || '').toUpperCase() : coinMeta?.name || symbol}
                 </span>
             </div>
-            <span className="text-label-lg text-neutral-60">
+            <span className="text-label-lg text-iota-neutral-60">
                 {formatted} {symbol}
             </span>
         </div>

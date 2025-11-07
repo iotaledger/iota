@@ -4,6 +4,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { Feature } from '@iota/core/enums/features.enums';
 import { Network } from '@iota/iota-sdk/client';
+import { NAME_ADDRESS_RESOLUTION_FEATURE, KNOWN_ADDRESSES_ALIASES } from './features.constants';
 
 @Controller('/api/features')
 export class FeaturesController {
@@ -14,7 +15,6 @@ export class FeaturesController {
             features: {
                 [Feature.RecognizedPackages]: {
                     defaultValue: [
-                        '0xb',
                         '0x2',
                         '0x3',
                         '0x1',
@@ -46,9 +46,6 @@ export class FeaturesController {
                 },
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
-                },
-                [Feature.KioskOriginbytePackageId]: {
-                    defaultValue: '',
                 },
                 [Feature.WalletAppsBannerConfig]: {
                     defaultValue: {
@@ -92,6 +89,18 @@ export class FeaturesController {
                         [Network.Custom]: false,
                     },
                 },
+                [Feature.KnownAddressAlias]: {
+                    defaultValue: { enabled: true, addresses: KNOWN_ADDRESSES_ALIASES },
+                },
+                [Feature.KnownIotaEVMCoinTypes]: {
+                    defaultValue: [
+                        '0x3fbd238eea1f4ce7d797148954518fce853f24a8be01b47388bfa2262602fefa::vusd::VUSD',
+                        '0xe1e88f4962b3ea96cfad19aee42f666b04bbce4dc4327c3cd63f1b8ff16e13b2::tool_coin::TOOL_COIN',
+                    ],
+                },
+                [Feature.IotaNames]: {
+                    defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
+                },
             },
             dateUpdated: new Date().toISOString(),
         };
@@ -104,7 +113,6 @@ export class FeaturesController {
             features: {
                 [Feature.RecognizedPackages]: {
                     defaultValue: [
-                        '0xb',
                         '0x2',
                         '0x3',
                         '0x1',
@@ -138,9 +146,6 @@ export class FeaturesController {
                 [Feature.WalletBalanceRefetchInterval]: {
                     defaultValue: 1000,
                 },
-                [Feature.KioskOriginbytePackageId]: {
-                    defaultValue: '',
-                },
                 [Feature.WalletAppsBannerConfig]: {
                     defaultValue: {
                         enabled: false,
@@ -182,6 +187,17 @@ export class FeaturesController {
                         [Network.Localnet]: false,
                         [Network.Custom]: false,
                     },
+                },
+                [Feature.KnownAddressAlias]: {
+                    defaultValue: { enabled: true, addresses: KNOWN_ADDRESSES_ALIASES },
+                },
+                [Feature.KnownIotaEVMCoinTypes]: {
+                    defaultValue: [
+                        '0xd3b63e603a78786facf65ff22e79701f3e824881a12fa3268d62a75530fe904f::vusd::VUSD',
+                    ],
+                },
+                [Feature.IotaNames]: {
+                    defaultValue: NAME_ADDRESS_RESOLUTION_FEATURE,
                 },
             },
             dateUpdated: new Date().toISOString(),

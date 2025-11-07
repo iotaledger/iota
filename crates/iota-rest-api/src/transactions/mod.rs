@@ -3,18 +3,23 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod execution;
+pub use execution::{
+    EffectsFinality, ExecuteTransaction, ExecuteTransactionQueryParameters, SimulateTransaction,
+    SimulateTransactionQueryParameters, TransactionExecutionResponse,
+    TransactionSimulationResponse,
+};
 
+mod resolve;
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
 };
-pub use execution::{
-    EffectsFinality, ExecuteTransaction, ExecuteTransactionQueryParameters,
-    TransactionExecutionResponse,
-};
 use iota_sdk2::types::{
     CheckpointSequenceNumber, Transaction, TransactionDigest, TransactionEffects,
     TransactionEvents, UserSignature,
+};
+pub use resolve::{
+    ResolveTransaction, ResolveTransactionQueryParameters, ResolveTransactionResponse,
 };
 use tap::Pipe;
 
@@ -153,8 +158,8 @@ async fn list_transactions(
     accept: AcceptFormat,
     State(state): State<StateReader>,
 ) -> Result<Page<TransactionResponse, TransactionCursor>> {
-    let latest_checkpoint = state.inner().get_latest_checkpoint()?.sequence_number;
-    let oldest_checkpoint = state.inner().get_lowest_available_checkpoint()?;
+    let latest_checkpoint = state.inner().try_get_latest_checkpoint()?.sequence_number;
+    let oldest_checkpoint = state.inner().try_get_lowest_available_checkpoint()?;
     let limit = parameters.limit();
     let start = parameters.start(latest_checkpoint);
     let direction = parameters.direction();

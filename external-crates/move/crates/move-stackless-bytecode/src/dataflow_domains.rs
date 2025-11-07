@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module defines traits and representations of domains used in dataflow
@@ -13,7 +13,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use im::{ordmap, ordset, OrdMap, OrdSet};
+use im::{OrdMap, OrdSet, ordmap, ordset};
 use itertools::Itertools;
 
 // ================================================================================================

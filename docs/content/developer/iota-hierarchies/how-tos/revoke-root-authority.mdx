@@ -1,0 +1,154 @@
+---
+title: Revoke Root Authority
+sidebar_label: Revoke Root Authority
+description: Guide to revoke root authority from a federation.
+teams:
+  - iotaledger/identity
+tags:
+  - hierarchies
+  - how-to
+---
+# Revoke Root Authority
+
+This guide demonstrates how to revoke a root authority from a federation.
+
+### Prerequisites
+
+- An existing federation with multiple root authorities
+- Root authority permissions to revoke other root authorities
+- A funded client with write access
+
+### Overview
+
+Revoking root authority removes the highest level of permissions from an entity in the federation. This action is irreversible and requires careful consideration.
+
+### 1. Set Up Client
+
+Initialize a funded client to interact with the hierarchy:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L21
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/08_revoke_root_authority.ts#L10
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create Federation and Add Second Root Authority
+
+Create a federation and add a second root authority (to ensure we can revoke one):
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L23-L40
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/08_revoke_root_authority.ts#L12-L27
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Verify Root Authority Status
+
+Confirm the second root authority is active:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L42-L53
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/08_revoke_root_authority.ts#L30-L37
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Revoke Root Authority
+
+Revoke the second root authority:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L55-L61
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/08_revoke_root_authority.ts#L39-L44
+```
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Verify Revocation
+
+Confirm the root authority has been successfully revoked:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs#L64-L85
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/08_revoke_root_authority.ts#L47-L62
+```
+</TabItem>
+</Tabs>
+</div>
+
+### Key Points
+
+- **Irreversible Action**: Once revoked, root authority cannot be restored to the same entity
+- **Multiple Authorities Required**: Cannot revoke the last remaining root authority
+- **Immediate Effect**: Revocation takes effect immediately on-chain
+- **Tracked History**: Revoked root authorities are recorded in the federation's history
+
+## Full Example Code
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/hierarchies-rs/examples/08_revoke_root_authority.rs
+```
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/hierarchies/tree/v0.1/bindings/wasm/hierarchies_wasm/examples/src/08_revoke_root_authority.ts
+```
+</TabItem>
+</Tabs>
+</div>

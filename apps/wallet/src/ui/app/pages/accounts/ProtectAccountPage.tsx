@@ -31,7 +31,9 @@ const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.MnemonicSource,
     AccountsFormType.SeedSource,
     AccountsFormType.ImportPrivateKey,
+    AccountsFormType.Passkey,
     AccountsFormType.ImportLedger,
+    AccountsFormType.ImportKeystone,
 ];
 
 const REDIRECT_TO_ACCOUNTS_FINDER: AccountsFormType[] = [

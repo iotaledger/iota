@@ -1,14 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::file_format::{
     Bytecode::*, CompiledModule, SignatureToken::*, Visibility::Public, *,
 };
 use move_bytecode_verifier::{
-    ability_cache::AbilityCache, verify_module_unmetered, verify_module_with_config_for_test,
-    SignatureChecker,
+    SignatureChecker, ability_cache::AbilityCache, verify_module_unmetered,
+    verify_module_with_config_for_test,
 };
 use move_bytecode_verifier_meter::dummy::DummyMeter;
 use move_core_types::{

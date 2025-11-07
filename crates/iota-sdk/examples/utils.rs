@@ -14,7 +14,7 @@ use iota_config::{
 use iota_keys::keystore::{AccountKeystore, FileBasedKeystore};
 use iota_sdk::{
     IotaClient, IotaClientBuilder,
-    iota_client_config::{IotaClientConfig, IotaEnv},
+    iota_client_config::IotaClientConfig,
     rpc_types::{
         Coin, IotaObjectDataOptions, IotaTransactionBlockResponse,
         IotaTransactionBlockResponseOptions,
@@ -264,17 +264,8 @@ pub fn retrieve_wallet() -> Result<WalletContext, anyhow::Error> {
 
     if !wallet_conf.exists() {
         let keystore = FileBasedKeystore::new(&keystore_path)?;
-        let mut client_config = IotaClientConfig::new(keystore);
-
-        client_config.add_env(IotaEnv::testnet());
-        client_config.add_env(IotaEnv::devnet());
-        client_config.add_env(IotaEnv::localnet());
-
-        if client_config.active_env().is_none() {
-            client_config
-                .set_active_env(client_config.envs().first().map(|env| env.alias().clone()));
-        }
-
+        let mut client_config = IotaClientConfig::new(keystore).with_default_envs();
+        client_config.set_active_env("testnet".to_string());
         client_config.save(&wallet_conf)?;
         info!("Client config file is stored in {wallet_conf:?}.");
     }

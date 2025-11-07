@@ -11,7 +11,7 @@ import {
     mockedSupplyIncreaseVestingTimelockedObjectsWithDynamicDate,
 } from '../../constants';
 import { SupplyIncreaseUserType, SupplyIncreaseVestingPayout } from '../../interfaces';
-import { formatDelegatedTimelockedStake, isTimelockedObject } from '../timelock';
+import { isTimelockedObject } from '../timelock';
 import {
     getVestingOverview,
     buildSupplyIncreaseVestingSchedule as buildVestingPortfolio,
@@ -19,6 +19,7 @@ import {
     getSupplyIncreaseVestingPayoutsCount,
     getSupplyIncreaseVestingUserType,
 } from './vesting';
+import { formatDelegatedTimelockedStake } from '@iota/core/utils/formatDelegatedTimelockedStake';
 
 const MOCKED_CURRENT_EPOCH_TIMESTAMP = Date.now() + MILLISECONDS_PER_HOUR * 6; // 6 hours later
 

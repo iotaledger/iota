@@ -1,0 +1,8 @@
+[package]
+name = "G"
+edition = "2024"
+
+[dependencies]
+
+[addresses]
+g = "0x0"

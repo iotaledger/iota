@@ -52,7 +52,7 @@ impl<'a> ProcessPayload<'a, &'a PayIota> for RpcCommandProcessor {
             .governance_api()
             .get_reference_gas_price()
             .await
-            .expect("Unable to fetch gas price");
+            .expect("unable to fetch gas price");
         join_all(gas_payments.iter().map(|gas| async {
             let tx = TransactionData::new_transfer_iota(
                 recipient,

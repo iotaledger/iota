@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //**************************************************************************************************
@@ -21,13 +21,13 @@ use crate::{
     cfgir::absint::*,
     diag,
     diagnostics::{
-        codes::{DiagnosticCode, ReferenceSafety},
         Diagnostic, Diagnostics,
+        codes::{DiagnosticCode, ReferenceSafety},
     },
     expansion::ast::Mutability,
     hlir::{
         ast::{self as H, *},
-        translate::{display_var, DisplayVar},
+        translate::{DisplayVar, display_var},
     },
     parser::ast::Field,
     shared::{unique_map::UniqueMap, *},

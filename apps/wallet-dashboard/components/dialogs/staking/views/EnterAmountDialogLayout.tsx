@@ -2,12 +2,12 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import {
-    CoinFormat,
     useFormatCoin,
     useIsValidatorCommitteeMember,
     useStakeTxnInfo,
     Validator,
 } from '@iota/core';
+import { CoinFormat } from '@iota/iota-sdk/utils';
 import {
     Button,
     ButtonType,
@@ -66,7 +66,7 @@ export function EnterAmountDialogLayout({
     const amount = values.amount;
     const { isCommitteeMember } = useIsValidatorCommitteeMember();
 
-    const [gas, symbol] = useFormatCoin({ balance: totalGas ?? 0, format: CoinFormat.FULL });
+    const [gas, symbol] = useFormatCoin({ balance: totalGas ?? 0, format: CoinFormat.Full });
 
     const { stakedRewardsStartEpoch, timeBeforeStakeRewardsRedeemableAgoDisplay } = useStakeTxnInfo(
         system?.epoch,

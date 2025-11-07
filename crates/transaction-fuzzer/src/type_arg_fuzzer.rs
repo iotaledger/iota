@@ -129,7 +129,7 @@ pub fn type_factory_pt_for_tags(
         .move_call(
             package_id,
             Identifier::new("type_factory").unwrap(),
-            Identifier::new(format!("type_tags{}", len)).unwrap(),
+            Identifier::new(format!("type_tags{len}")).unwrap(),
             type_tags,
             vec![],
         )

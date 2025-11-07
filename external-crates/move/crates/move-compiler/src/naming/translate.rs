@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -1464,11 +1464,15 @@ impl std::fmt::Display for LoopType {
 
 impl std::fmt::Display for NominalBlockType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            NominalBlockType::Loop(_) => "loop",
-            NominalBlockType::Block => "named",
-            NominalBlockType::LambdaReturn | NominalBlockType::LambdaLoopCapture => "lambda",
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                NominalBlockType::Loop(_) => "loop",
+                NominalBlockType::Block => "named",
+                NominalBlockType::LambdaReturn | NominalBlockType::LambdaLoopCapture => "lambda",
+            }
+        )
     }
 }
 
@@ -1808,7 +1812,7 @@ fn use_funs(context: &mut Context, eufs: E::UseFuns) -> N::UseFuns {
         .flat_map(|e| explicit_use_fun(context, e))
         .collect();
     for (tn, method, nuf) in resolved_vec {
-        let methods = resolved.entry(tn.clone()).or_default();
+        let methods = resolved.entry(tn).or_default();
         let nuf_loc = nuf.loc;
         if let Err((_, prev)) = methods.add(method, nuf) {
             let msg = format!("Duplicate 'use fun' for '{}.{}'", tn, method);
@@ -1913,7 +1917,7 @@ fn explicit_use_fun(
         loc,
         attributes,
         is_public,
-        tname: tn.clone(),
+        tname: tn,
         target_function,
         kind: N::UseFunKind::Explicit,
         used: is_public.is_some(), // suppress unused warning for public use funs
@@ -2781,6 +2785,7 @@ fn exp(context: &mut Context, e: Box<E::Exp>) -> Box<N::Exp> {
                     return_label,
                     use_fun_color: 0, // used in macro expansion
                     body,
+                    extra_annotations: vec![], // used in macro expansion
                 }),
             }
         }
@@ -2816,9 +2821,12 @@ fn exp(context: &mut Context, e: Box<E::Exp>) -> Box<N::Exp> {
         EE::Abort(Some(es)) => NE::Abort(exp(context, es)),
         EE::Abort(None) => {
             context.check_feature(context.current_package, FeatureGate::CleverAssertions, eloc);
-            let abort_const_expr = sp(eloc, N::Exp_::ErrorConstant {
-                line_number_loc: eloc,
-            });
+            let abort_const_expr = sp(
+                eloc,
+                N::Exp_::ErrorConstant {
+                    line_number_loc: eloc,
+                },
+            );
             NE::Abort(Box::new(abort_const_expr))
         }
         EE::Return(Some(block_name), es) => {
@@ -4041,9 +4049,12 @@ fn resolve_call(
                             FeatureGate::CleverAssertions,
                             subject_loc,
                         );
-                        args.value.push(sp(call_loc, N::Exp_::ErrorConstant {
-                            line_number_loc: subject_loc,
-                        }));
+                        args.value.push(sp(
+                            call_loc,
+                            N::Exp_::ErrorConstant {
+                                line_number_loc: subject_loc,
+                            },
+                        ));
                     }
                     B::Assert(is_macro)
                 }
@@ -4341,6 +4352,7 @@ fn remove_unused_bindings_exp(
             return_type: _,
             use_fun_color: _,
             body,
+            extra_annotations: _,
         }) => {
             for (lvs, _) in parameters {
                 remove_unused_bindings_lvalues(context, used, lvs)

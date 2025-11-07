@@ -7,8 +7,8 @@ error[Compatibility E01006]: module missing
   │  
 2 │ ╭ [package]
 3 │ │ name = "upgrades"
-4 │ │ edition = "2024.beta" # edition = "legacy" to use legacy (pre-2024) Move
-  │ ╰────────────────────────────────────────────────────────────────────────^ Package is missing module 'identifier'
+4 │ │ edition = "2024" # edition = "legacy" to use legacy (pre-2024) Move
+  │ ╰───────────────────────────────────────────────────────────────────^ Package is missing module 'identifier'
   │  
   = Modules which are part package cannot be removed during an upgrade.
   = Add missing module 'identifier' back to the package.

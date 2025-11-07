@@ -27,7 +27,7 @@ type FunctionExecutionResultProps = {
 export function FunctionExecutionResult({ error, result, onClear }: FunctionExecutionResultProps) {
     const adjError = error || (result && result.effects?.status.error) || null;
     return (
-        <div className="relative inline-flex flex-nowrap items-center gap-2 overflow-hidden rounded-lg bg-neutral-96 p-xs dark:bg-neutral-12">
+        <div className="relative inline-flex flex-nowrap items-center gap-2 overflow-hidden rounded-lg bg-iota-neutral-96 p-xs dark:bg-iota-neutral-12">
             <div className="space-y-4 text-body-sm">
                 <LinkGroup
                     title="Digest"
@@ -53,7 +53,7 @@ export function FunctionExecutionResult({ error, result, onClear }: FunctionExec
                 <LinkGroup title="Transaction failed" text={adjError} />
                 <div className="absolute right-2 top-2">
                     <Close
-                        className="h-3 w-3 text-neutral-10 dark:text-neutral-92"
+                        className="h-3 w-3 text-iota-neutral-10 dark:text-iota-neutral-92"
                         onClick={onClear}
                         aria-label="Close"
                     />

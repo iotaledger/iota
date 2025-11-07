@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
@@ -134,7 +134,7 @@ impl<Loc: Copy, Lbl: Clone + Ord> BorrowEdgeSet<Loc, Lbl> {
         self.edges.is_empty()
     }
 
-    pub(crate) fn iter(&self) -> std::collections::btree_set::Iter<BorrowEdge<Loc, Lbl>> {
+    pub(crate) fn iter(&self) -> std::collections::btree_set::Iter<'_, BorrowEdge<Loc, Lbl>> {
         debug_assert!(self.overflown || !self.is_empty());
         self.edges.iter()
     }

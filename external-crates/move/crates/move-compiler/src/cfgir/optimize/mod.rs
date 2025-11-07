@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod constant_fold;
@@ -18,7 +18,7 @@ use crate::{
     expansion::ast::Mutability,
     hlir::ast::*,
     parser::ast::ConstantName,
-    shared::{unique_map::UniqueMap, CompilationEnv},
+    shared::{CompilationEnv, unique_map::UniqueMap},
 };
 
 pub type Optimization = fn(

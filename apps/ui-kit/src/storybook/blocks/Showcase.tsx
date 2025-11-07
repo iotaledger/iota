@@ -9,9 +9,9 @@ interface ShowcaseProps {
 export function Showcase({ children, title }: ShowcaseProps) {
     return (
         <div className="flex flex-col gap-2">
-            <code className="inline w-fit rounded-md bg-neutral-96 px-xxs">{title}</code>
+            <code className="inline w-fit rounded-md bg-iota-neutral-96 px-xxs">{title}</code>
             <div className="flex">
-                <div className="flex flex-row items-center justify-center rounded-xl border border-neutral-70 p-md">
+                <div className="flex flex-row items-center justify-center rounded-xl border border-iota-neutral-70 p-md">
                     {children}
                 </div>
             </div>

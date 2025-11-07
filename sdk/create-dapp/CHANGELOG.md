@@ -1,5 +1,75 @@
 # @iota/create-dapp
 
+## 0.3.13
+
+### Patch Changes
+
+-   Updated dependencies [3244c29]
+    -   @iota/iota-sdk@1.6.1
+    -   @iota/dapp-kit@0.5.3
+
+## 0.3.12
+
+### Patch Changes
+
+-   Updated dependencies [c5543f0]
+-   Updated dependencies [bd17ba9]
+-   Updated dependencies [0accdb0]
+    -   @iota/iota-sdk@1.6.0
+    -   @iota/dapp-kit@0.5.2
+
+## 0.3.11
+
+### Patch Changes
+
+-   d8e3086: Fixes issue regarding refetching object data too soon after executing transactions
+-   Updated dependencies [40576ed]
+-   Updated dependencies [61b0944]
+-   Updated dependencies [966f83c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [733df30]
+-   Updated dependencies [13ca264]
+-   Updated dependencies [5bbafa8]
+-   Updated dependencies [28ce666]
+-   Updated dependencies [c855f8c]
+-   Updated dependencies [f008db3]
+-   Updated dependencies [464c15a]
+-   Updated dependencies [75554e6]
+    -   @iota/iota-sdk@1.5.0
+    -   @iota/dapp-kit@0.5.1
+
+## 0.3.10
+
+### Patch Changes
+
+-   ecea738: Remove prePublish npm script from create-dapp
+-   Updated dependencies [f04033d]
+-   Updated dependencies [59342b2]
+-   Updated dependencies [ea2b889]
+-   Updated dependencies [ecea738]
+    -   @iota/iota-sdk@1.4.0
+    -   @iota/dapp-kit@0.5.0
+
+## 0.3.9
+
+### Patch Changes
+
+-   Updated dependencies [6051799]
+-   Updated dependencies [5db9797]
+-   Updated dependencies [c4c6d9a]
+-   Updated dependencies [c837b79]
+    -   @iota/iota-sdk@1.3.0
+    -   @iota/dapp-kit@0.4.7
+
+## 0.3.8
+
+### Patch Changes
+
+-   Updated dependencies [53d5058]
+-   Updated dependencies [ea7f799]
+    -   @iota/iota-sdk@1.2.0
+    -   @iota/dapp-kit@0.4.6
+
 ## 0.3.7
 
 ### Patch Changes

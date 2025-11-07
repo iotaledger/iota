@@ -8,16 +8,17 @@ publish = false
 description = "Move VM code coverage"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
+bcs.workspace = true
 clap.workspace = true
 codespan = { workspace = true, features = ["serialization"] }
 colored.workspace = true
+indexmap.workspace = true
 petgraph.workspace = true
 serde.workspace = true
 
-bcs.workspace = true
-
-indexmap.workspace = true
+# internal dependencies
 move-abstract-interpreter.workspace = true
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true

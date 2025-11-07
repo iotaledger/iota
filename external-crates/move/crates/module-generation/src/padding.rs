@@ -1,11 +1,11 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::file_format::{Bytecode, CompiledModule, Signature};
 use move_core_types::{account_address::AccountAddress, identifier::Identifier};
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use crate::{options::ModuleGeneratorOptions, utils::random_string};
 

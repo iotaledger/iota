@@ -7,10 +7,21 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
+anyhow.workspace = true
+fastcrypto.workspace = true
 futures.workspace = true
 parking_lot.workspace = true
+prometheus.workspace = true
+reqwest.workspace = true
+snap.workspace = true
 tokio = { workspace = true, features = ["sync"] }
 tracing.workspace = true
+
+# internal dependencies
+iota-metrics.workspace = true
+iota-tls.workspace = true
+iota-types.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util", "macros"] }

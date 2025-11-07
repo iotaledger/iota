@@ -4,7 +4,7 @@
 
 use std::path::PathBuf;
 
-use anyhow::anyhow;
+use anyhow::{anyhow, bail};
 use fastcrypto::{
     encoding::{Encoding, Hex},
     secp256k1::Secp256k1KeyPair,
@@ -69,7 +69,7 @@ pub fn read_network_keypair_from_file<P: AsRef<std::path::Path>>(
 /// Secp256k1.
 pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<IotaKeyPair, anyhow::Error> {
     if !path.exists() {
-        return Err(anyhow::anyhow!("Key file not found at path: {:?}", path));
+        bail!("Key file not found at path: {:?}", path);
     }
     let file_contents = std::fs::read_to_string(path)?;
     let contents = file_contents.as_str().trim();
@@ -77,7 +77,7 @@ pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<IotaKeyPair, 
     // Try base64 encoded IotaKeyPair `flag || privkey`
     if let Ok(key) = IotaKeyPair::decode_base64(contents) {
         if require_secp256k1 && !matches!(key, IotaKeyPair::Secp256k1(_)) {
-            return Err(anyhow!("Key is not Secp256k1"));
+            bail!("Key is not Secp256k1");
         }
         return Ok(key);
     }
@@ -92,7 +92,7 @@ pub fn read_key(path: &PathBuf, require_secp256k1: bool) -> Result<IotaKeyPair, 
     // iota.keystore.
     if let Ok(key) = IotaKeyPair::decode(contents) {
         if require_secp256k1 && !matches!(key, IotaKeyPair::Secp256k1(_)) {
-            return Err(anyhow!("Key is not Secp256k1"));
+            bail!("Key is not Secp256k1");
         }
         return Ok(key);
     }

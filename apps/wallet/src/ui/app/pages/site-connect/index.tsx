@@ -36,9 +36,17 @@ export function SiteConnectPage() {
     const accounts = accountGroups.list();
     const unlockedAccounts = accounts.filter((account) => !account.isLocked);
     const lockedAccounts = accounts.filter((account) => account.isLocked);
-    const [accountsToConnect, setAccountsToConnect] = useState<SerializedUIAccount[]>(() =>
-        activeAccount && !activeAccount.isLocked ? [activeAccount] : [],
-    );
+
+    const [accountsToConnect, setAccountsToConnect] = useState<SerializedUIAccount[]>(() => {
+        const preselectedAccounts = activeAccount && !activeAccount.isLocked ? [activeAccount] : [];
+
+        const previouslyPermittedAccounts = permissionRequest?.accounts.length
+            ? unlockedAccounts.filter((acc) => permissionRequest.accounts.includes(acc.address))
+            : [];
+
+        return preselectedAccounts.concat(previouslyPermittedAccounts);
+    });
+
     const handleOnSubmit = useCallback(
         async (allowed: boolean) => {
             if (requestID && accountsToConnect && permissionRequest) {
@@ -114,11 +122,11 @@ export function SiteConnectPage() {
                                 icon={<Warning />}
                             />
                             <div className="flex flex-col gap-xs">
-                                <span className="text-label-lg text-neutral-60">
+                                <span className="text-label-lg text-iota-neutral-60">
                                     Connecting your wallet to this site could expose your data to
                                     attackers.
                                 </span>
-                                <span className="text-label-lg text-neutral-60">
+                                <span className="text-label-lg text-iota-neutral-60">
                                     If you don't have confidence in this site, reject the
                                     connection.
                                 </span>
@@ -148,6 +156,11 @@ export function SiteConnectPage() {
                                         setAccountsToConnect(
                                             value.map((id) => accounts.find((a) => a.id === id)!),
                                         );
+                                    }}
+                                    onLock={(id) => {
+                                        setAccountsToConnect((prev) => {
+                                            return prev.filter((account) => account.id !== id);
+                                        });
                                     }}
                                 />
                             ) : (

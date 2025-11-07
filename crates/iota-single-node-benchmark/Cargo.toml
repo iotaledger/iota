@@ -21,7 +21,7 @@ tracing.workspace = true
 
 # internal dependencies
 iota-config.workspace = true
-iota-core = { workspace = true, features = ["test-utils"] }
+iota-core.workspace = true
 iota-move-build.workspace = true
 iota-storage.workspace = true
 iota-test-transaction-builder.workspace = true

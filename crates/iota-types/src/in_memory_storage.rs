@@ -104,11 +104,14 @@ impl ModuleResolver for &mut InMemoryStorage {
 }
 
 impl ObjectStore for InMemoryStorage {
-    fn get_object(&self, object_id: &ObjectID) -> crate::storage::error::Result<Option<Object>> {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectID,
+    ) -> crate::storage::error::Result<Option<Object>> {
         Ok(self.persistent.get(object_id).cloned())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,
@@ -128,11 +131,14 @@ impl ObjectStore for InMemoryStorage {
 }
 
 impl ObjectStore for &mut InMemoryStorage {
-    fn get_object(&self, object_id: &ObjectID) -> crate::storage::error::Result<Option<Object>> {
+    fn try_get_object(
+        &self,
+        object_id: &ObjectID,
+    ) -> crate::storage::error::Result<Option<Object>> {
         Ok(self.persistent.get(object_id).cloned())
     }
 
-    fn get_object_by_key(
+    fn try_get_object_by_key(
         &self,
         object_id: &ObjectID,
         version: VersionNumber,

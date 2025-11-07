@@ -5,14 +5,18 @@
 use std::{net::SocketAddr, path::PathBuf, sync::Arc, time::Duration};
 
 use iota_graphql_rpc_client::simple_client::SimpleClient;
-pub use iota_indexer::handlers::objects_snapshot_handler::SnapshotLagConfig;
+pub use iota_indexer::config::SnapshotLagConfig;
 use iota_indexer::{
+    config::PruningOptions,
     errors::IndexerError,
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::{IndexerTypeConfig, force_delete_database, start_test_indexer_impl},
 };
 use iota_swarm_config::genesis_config::{AccountConfig, DEFAULT_GAS_AMOUNT};
-use iota_types::storage::RestStateReader;
+use iota_types::{
+    storage::RestStateReader,
+    transaction::{Transaction, TransactionData},
+};
 use test_cluster::{TestCluster, TestClusterBuilder};
 use tokio::{join, task::JoinHandle};
 use tokio_util::sync::CancellationToken;
@@ -56,7 +60,7 @@ pub async fn start_cluster(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: Option<u16>,
 ) -> Cluster {
-    let data_ingestion_path = tempfile::tempdir().unwrap().into_path();
+    let data_ingestion_path = tempfile::tempdir().unwrap().keep();
     let db_url = graphql_connection_config.db_url.clone();
     let cancellation_token = CancellationToken::new();
     // Starts validator+fullnode
@@ -106,8 +110,11 @@ pub async fn start_cluster(
 }
 
 /// Takes in a simulated instantiation of an IOTA blockchain and builds a
-/// cluster around it. This cluster is typically used in e2e tests to emulate
-/// and test behaviors.
+/// cluster around it.
+///
+/// This cluster is typically used in e2e tests to emulate
+/// and test behaviors. It should be noted however that queries
+/// that rely on the fullnode Write API are not supported yet.
 pub async fn serve_executor(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: u16,
@@ -121,7 +128,7 @@ pub async fn serve_executor(
     // can send a cancellation token on cleanup
     let cancellation_token = CancellationToken::new();
 
-    let executor_server_url: SocketAddr = format!("127.0.0.1:{}", internal_data_source_rpc_port)
+    let executor_server_url: SocketAddr = format!("127.0.0.1:{internal_data_source_rpc_port}")
         .parse()
         .unwrap();
 
@@ -139,17 +146,25 @@ pub async fn serve_executor(
         db_url,
         true,
         None,
-        format!("http://{}", executor_server_url),
-        IndexerTypeConfig::writer_mode(snapshot_config.clone(), epochs_to_keep),
+        format!("http://{executor_server_url}"),
+        IndexerTypeConfig::writer_mode(
+            snapshot_config.clone(),
+            Some(PruningOptions {
+                epochs_to_keep,
+                ..Default::default()
+            }),
+        ),
         Some(data_ingestion_path),
         cancellation_token.clone(),
     )
     .await;
 
     // Starts graphql server
-    let graphql_server_handle = start_graphql_server(
+    let graphql_server_handle = start_graphql_server_with_fn_rpc(
         graphql_connection_config.clone(),
-        cancellation_token.clone(),
+        // this does not provide access to the node write api
+        Some(format!("http://{executor_server_url}")),
+        Some(cancellation_token.clone()),
     )
     .await;
 
@@ -189,11 +204,10 @@ pub async fn wait_for_graphql_checkpoint_pruned(
     let query = format!(
         r#"
         {{
-            checkpoint(id: {{ sequenceNumber: {} }}) {{
+            checkpoint(id: {{ sequenceNumber: {checkpoint} }}) {{
                 sequenceNumber
             }}
-        }}"#,
-        checkpoint
+        }}"#
     );
 
     let timeout = base_timeout.mul_f64(checkpoint.max(1) as f64);
@@ -215,15 +229,7 @@ pub async fn wait_for_graphql_checkpoint_pruned(
         }
     })
     .await
-    .expect("Timeout waiting for checkpoint to be pruned");
-}
-
-pub async fn start_graphql_server(
-    graphql_connection_config: ConnectionConfig,
-    cancellation_token: CancellationToken,
-) -> JoinHandle<()> {
-    start_graphql_server_with_fn_rpc(graphql_connection_config, None, Some(cancellation_token))
-        .await
+    .expect("timeout waiting for checkpoint to be pruned");
 }
 
 pub async fn start_graphql_server_with_fn_rpc(
@@ -280,7 +286,7 @@ async fn wait_for_graphql_server(client: &SimpleClient) {
         }
     })
     .await
-    .expect("Timeout waiting for graphql server to start");
+    .expect("timeout waiting for graphql server to start");
 }
 
 /// Ping the GraphQL server until its background task has updated the checkpoint
@@ -332,7 +338,7 @@ async fn wait_for_graphql_checkpoint_catchup(
         }
     })
     .await
-    .expect("Timeout waiting for graphql to catchup to checkpoint");
+    .expect("timeout waiting for graphql to catchup to checkpoint");
 }
 
 impl Cluster {
@@ -353,6 +359,25 @@ impl Cluster {
     pub async fn cleanup_resources(self) {
         self.cancellation_token.cancel();
         let _ = join!(self.graphql_server_join_handle, self.indexer_join_handle);
+    }
+
+    /// Builds a transaction that transfers IOTA for testing.
+    pub async fn build_transfer_iota_for_test(&self) -> TransactionData {
+        let addresses = self.validator_fullnode_handle.wallet.get_addresses();
+
+        let recipient = addresses[1];
+        self.validator_fullnode_handle
+            .test_transaction_builder()
+            .await
+            .transfer_iota(Some(1_000), recipient)
+            .build()
+    }
+
+    /// Signs a transaction.
+    pub fn sign_transaction(&self, transaction: &TransactionData) -> Transaction {
+        self.validator_fullnode_handle
+            .wallet
+            .sign_transaction(transaction)
     }
 }
 
@@ -395,8 +420,7 @@ impl ExecutorCluster {
             }
         })
         .await
-        .unwrap_or_else(|_| panic!("Timeout waiting for indexer to update objects snapshot - latest_cp: {}, latest_snapshot_cp: {}",
-        latest_cp, latest_snapshot_cp));
+        .unwrap_or_else(|_| panic!("timeout waiting for indexer to update objects snapshot - latest_cp: {latest_cp}, latest_snapshot_cp: {latest_snapshot_cp}"));
     }
 
     /// Sends a cancellation signal to the graphql and indexer services, waits

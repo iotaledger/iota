@@ -17,7 +17,7 @@ use std::{
     time::Duration,
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use clap::ValueEnum;
 use eyre::ContextCompat;
 use fastcrypto::{hash::MultisetHash, traits::ToFromBytes};
@@ -75,7 +75,6 @@ use prometheus::Registry;
 use serde::{Deserialize, Serialize};
 use tokio::{sync::mpsc, task::JoinHandle, time::Instant};
 use tracing::info;
-use typed_store::rocks::MetricConf;
 
 pub mod commands;
 pub mod db_tool;
@@ -113,9 +112,18 @@ async fn make_clients(
         .await?;
 
     for committee_member in state.iter_committee_members() {
-        let net_addr = Multiaddr::try_from(committee_member.net_address.clone())?;
+        let net_addr = Multiaddr::try_from(committee_member.net_address.clone()).unwrap();
+        // TODO: Enable TLS on this interface with below config, once support is rolled
+        // out to validators.
+        // ```
+        // let tls_config = iota_tls::create_rustls_client_config(
+        //     iota_types::crypto::NetworkPublicKey::from_bytes(&committee_member.network_pubkey_bytes)?,
+        //     iota_tls::IOTA_VALIDATOR_SERVER_NAME.to_string(),
+        //     None,
+        // );
+        // ```
         let channel = net_config
-            .connect_lazy(&net_addr)
+            .connect_lazy(&net_addr, None)
             .map_err(|err| anyhow!(err.to_string()))?;
         let client = NetworkAuthorityClient::new(channel);
         let public_key_bytes =
@@ -143,7 +151,7 @@ where
     fn opt_debug(&self, def_str: &str) -> String {
         match self {
             None => def_str.to_string(),
-            Some(t) => format!("{:?}", t),
+            Some(t) => format!("{t:?}"),
         }
     }
 }
@@ -283,7 +291,7 @@ impl std::fmt::Display for ConciseObjectOutput {
                     let obj_digest = resp.object.compute_object_reference().2;
                     let parent = resp.object.previous_transaction;
                     let owner = resp.object.owner;
-                    write!(f, " {:<66} {:<45} {:<51}", obj_digest, parent, owner)?;
+                    write!(f, " {obj_digest:<66} {parent:<45} {owner:<51}")?;
                 }
             }
             writeln!(f)?;
@@ -308,7 +316,7 @@ impl std::fmt::Display for VerboseObjectOutput {
             )?;
 
             match resp {
-                Err(e) => writeln!(f, "Error fetching object: {}", e)?,
+                Err(e) => writeln!(f, "Error fetching object: {e}")?,
                 Ok(resp) => {
                     writeln!(
                         f,
@@ -429,19 +437,17 @@ pub async fn get_transaction_block(
             Ok(Some((tx, effects, effects_digest))) => {
                 writeln!(
                     &mut s,
-                    "#{:<2} tx_digest: {:<68?} effects_digest: {:?}",
-                    i, tx_digest, effects_digest,
+                    "#{i:<2} tx_digest: {tx_digest:<68?} effects_digest: {effects_digest:?}",
                 )?;
-                writeln!(&mut s, "{:#?}", effects)?;
+                writeln!(&mut s, "{effects:#?}")?;
                 if show_input_tx {
-                    writeln!(&mut s, "{:#?}", tx)?;
+                    writeln!(&mut s, "{tx:#?}")?;
                 }
             }
             Ok(None) => {
                 writeln!(
                     &mut s,
-                    "#{:<2} tx_digest: {:<68?} Signed but not executed",
-                    i, tx_digest
+                    "#{i:<2} tx_digest: {tx_digest:<68?} Signed but not executed"
                 )?;
                 if show_input_tx {
                     // In this case, we expect at least one validator knows about this tx
@@ -450,11 +456,11 @@ pub async fn get_transaction_block(
                     let tx_info = client.handle_transaction_info_request(TransactionInfoRequest {
                         transaction_digest: tx_digest,
                     }).await.unwrap_or_else(|e| panic!("Validator {:?} should have known about tx_digest: {:?}, got error: {:?}", validator_aware_of_tx.0, tx_digest, e));
-                    writeln!(&mut s, "{:#?}", tx_info)?;
+                    writeln!(&mut s, "{tx_info:#?}")?;
                 }
             }
             other => {
-                writeln!(&mut s, "#{:<2} {:#?}", i, other)?;
+                writeln!(&mut s, "#{i:<2} {other:#?}")?;
             }
         }
         for (j, (_, _, res)) in group.enumerate() {
@@ -504,8 +510,8 @@ pub(crate) fn make_anemo_config() -> anemo_cli::Config {
         .add_service(
             "Discovery",
             anemo_cli::ServiceInfo::new().add_method(
-                "GetKnownPeers",
-                anemo_cli::ron_method!(DiscoveryClient, get_known_peers, ()),
+                "GetKnownPeersV2",
+                anemo_cli::ron_method!(DiscoveryClient, get_known_peers_v2, ()),
             ),
         )
         // IOTA state sync
@@ -590,8 +596,7 @@ fn start_summary_sync(
 ) -> JoinHandle<Result<(), anyhow::Error>> {
     tokio::spawn(async move {
         info!("Starting summary sync");
-        let store =
-            AuthorityStore::open_no_genesis(perpetual_db, usize::MAX, false, &Registry::default())?;
+        let store = AuthorityStore::open_no_genesis(perpetual_db, false, &Registry::default())?;
         let cache_traits = build_execution_cache_from_env(&Registry::default(), &store);
         let state_sync_store =
             RocksDbStore::new(cache_traits, committee_store, checkpoint_store.clone());
@@ -659,8 +664,7 @@ fn start_summary_sync(
                     num_summaries as f64 / s_instant.elapsed().as_secs_f64();
                 cloned_progress_bar.set_position(s_start + num_summaries);
                 cloned_progress_bar.set_message(format!(
-                    "checkpoints synced per sec: {}",
-                    total_checkpoints_per_sec
+                    "checkpoints synced per sec: {total_checkpoints_per_sec}"
                 ));
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
@@ -713,8 +717,7 @@ fn start_summary_sync(
                         num_summaries as f64 / v_instant.elapsed().as_secs_f64();
                     cloned_verify_progress_bar.set_position(v_start + num_summaries);
                     cloned_verify_progress_bar.set_message(format!(
-                        "checkpoints verified per sec: {}",
-                        total_checkpoints_per_sec
+                        "checkpoints verified per sec: {total_checkpoints_per_sec}"
                     ));
                     tokio::time::sleep(Duration::from_secs(1)).await;
                 }
@@ -750,12 +753,9 @@ fn start_summary_sync(
                     let epoch_last_checkpoint = checkpoint_store
                         .get_checkpoint_by_sequence_number(*epoch_last_cp_seq_num)?
                         .ok_or(anyhow!("Failed to read checkpoint"))?;
-                    let committee = state_sync_store
-                        .get_committee(cp_epoch as u64)
-                        .expect("store operation should not fail")
-                        .expect(
-                            "Expected committee to exist after syncing all end of epoch checkpoints",
-                        );
+                    let committee = state_sync_store.get_committee(cp_epoch as u64).expect(
+                        "Expected committee to exist after syncing all end of epoch checkpoints",
+                    );
                     epoch_last_checkpoint
                         .verify_authority_signatures(&committee)
                         .expect("Failed to verify checkpoint");
@@ -799,7 +799,7 @@ pub async fn check_completed_snapshot(
     snapshot_store_config: &ObjectStoreConfig,
     epoch: EpochId,
 ) -> Result<(), anyhow::Error> {
-    let success_marker = format!("epoch_{}/_SUCCESS", epoch);
+    let success_marker = format!("epoch_{epoch}/_SUCCESS");
     let remote_object_store = if snapshot_store_config.no_sign_request {
         snapshot_store_config.make_http()?
     } else {
@@ -808,7 +808,7 @@ pub async fn check_completed_snapshot(
     if exists(&remote_object_store, &get_path(success_marker.as_str())).await {
         Ok(())
     } else {
-        Err(anyhow!(
+        bail!(
             "missing success marker at {}/{}",
             snapshot_store_config.bucket.as_ref().unwrap_or(
                 &snapshot_store_config
@@ -817,7 +817,7 @@ pub async fn check_completed_snapshot(
                     .unwrap_or("unknown_bucket".to_string())
             ),
             success_marker
-        ))
+        )
     }
 }
 
@@ -834,8 +834,7 @@ pub async fn download_formal_snapshot(
 ) -> Result<(), anyhow::Error> {
     let m = MultiProgress::new();
     m.println(format!(
-        "Beginning formal snapshot restore to end of epoch {}, network: {:?}, verification mode: {:?}",
-        epoch, network, verify,
+        "Beginning formal snapshot restore to end of epoch {epoch}, network: {network:?}, verification mode: {verify:?}",
     ))?;
     let path = path.join("staging").to_path_buf();
     if path.exists() {
@@ -849,12 +848,7 @@ pub async fn download_formal_snapshot(
         &genesis_committee,
         None,
     ));
-    let checkpoint_store = Arc::new(CheckpointStore::open_tables_read_write(
-        path.join("checkpoints"),
-        MetricConf::default(),
-        None,
-        None,
-    ));
+    let checkpoint_store = CheckpointStore::new(&path.join("checkpoints"));
 
     let summaries_handle = start_summary_sync(
         perpetual_db.clone(),
@@ -891,16 +885,16 @@ pub async fn download_formal_snapshot(
             epoch,
             &snapshot_store_config,
             &local_store_config,
-            usize::MAX,
             NonZeroUsize::new(num_parallel_downloads).unwrap(),
             m_clone,
+            false, // skip_reset_local_store
         )
         .await
-        .unwrap_or_else(|err| panic!("Failed to create reader: {}", err));
+        .unwrap_or_else(|err| panic!("Failed to create reader: {err}"));
         reader
             .read(&perpetual_db_clone, abort_registration, Some(sender))
             .await
-            .unwrap_or_else(|err| panic!("Failed during read: {}", err));
+            .unwrap_or_else(|err| panic!("Failed during read: {err}"));
         Ok::<(), anyhow::Error>(())
     });
     let mut root_accumulator = Accumulator::default();
@@ -997,10 +991,7 @@ pub async fn download_formal_snapshot(
     }
     fs::rename(&path, &new_path)?;
     fs::remove_dir_all(snapshot_dir.clone())?;
-    println!(
-        "Successfully restored state from snapshot at end of epoch {}",
-        epoch
-    );
+    println!("Successfully restored state from snapshot at end of epoch {epoch}");
 
     Ok(())
 }
@@ -1024,13 +1015,10 @@ pub async fn download_db_snapshot(
         .map_err(|err| anyhow!("Error parsing MANIFEST from bytes: {}", err))?;
 
     if !root_manifest.epoch_exists(epoch) {
-        return Err(anyhow!(
-            "Epoch dir {} doesn't exist on the remote store",
-            epoch
-        ));
+        bail!("Epoch dir {} doesn't exist on the remote store", epoch);
     }
 
-    let epoch_path = format!("epoch_{}", epoch);
+    let epoch_path = format!("epoch_{epoch}");
     let epoch_dir = get_path(&epoch_path);
 
     let manifest_file = epoch_dir.child(MANIFEST_FILENAME);
@@ -1074,7 +1062,7 @@ pub async fn download_db_snapshot(
                 let counter_cloned = file_counter.clone();
                 async move {
                     counter_cloned.fetch_add(1, Ordering::Relaxed);
-                    let file_path = get_path(format!("epoch_{}/{}", epoch, file).as_str());
+                    let file_path = get_path(format!("epoch_{epoch}/{file}").as_str());
                     copy_file(&file_path, &file_path, &remote_store, &local_store).await?;
                     Ok::<::object_store::path::Path, anyhow::Error>(file_path.clone())
                 }
@@ -1162,7 +1150,7 @@ pub async fn dump_checkpoints_from_archive(
     {
         let mut content = serde_json::to_string(
             &store
-                .get_full_checkpoint_contents_by_sequence_number(key.sequence_number)?
+                .try_get_full_checkpoint_contents_by_sequence_number(key.sequence_number)?
                 .unwrap(),
         )?;
         content.truncate(max_content_length);

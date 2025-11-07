@@ -12,34 +12,15 @@ A default configuration file is provided at `config/config.yaml`. This configura
 # Remote KV Store REST API config
 #
 # The Rest Api address
-rest-api-address: "0.0.0.0:3555"
+server-address: "0.0.0.0:3555"
 
-# remote Object Store config for more info:
-# - https://docs.iota.org/operator/archives#set-up-archival-fallback
-#
-# The object store config should point to the same object store the
-# `KvStoreWorker` from the `iota-data-ingestion` crate uses to write data
-object-store-config:
-  object-store: "S3"
-  aws-endpoint: "http://0.0.0.0:4566"
-  bucket: "iota-storage-bucket"
-  aws-access-key-id: "test"
-  aws-secret-access-key: "test"
-  aws-allow-http: true
-  object-store-connection-limit: 20
-
-# DynamoDb config
-#
-# The DynamoDb config should point to the same tables the
-# `KvStoreWorker` from the `iota-data-ingestion` crate uses to write data
-dynamo-db-config:
-  aws-access-key-id: "test"
-  aws-secret-access-key: "test"
-  aws-region: "us-east-1"
-  aws-endpoint: "http://0.0.0.0:4566"
-  # DynamoDB table name
-  table-name: "iota-storage"
+instance-id: "iota"
+column-family: "iota"
+timeout-secs: 60
 ```
+
+> [!NOTE]
+> Following the application default credentials [guidelines](https://cloud.google.com/docs/authentication/application-default-credentials) the docker compose file uses the `GOOGLE_APPLICATION_CREDENTIALS` environment variable to authenticate with the Google Cloud API.
 
 ## Usage
 
@@ -78,45 +59,4 @@ docker compose down
 
 ### Prerequisites
 
-Before starting the service, you need to set up the required AWS components. The following examples use [localstack](https://github.com/localstack/localstack), but can be adapted for production AWS environments.
-
-### 1. Create S3 Bucket
-
-```bash
-aws --profile localstack s3 mb s3://iota-storage-bucket
-```
-
-### 2. Set up DynamoDB
-
-Create the DynamoDB table:
-
-```bash
-aws --profile localstack \
-dynamodb create-table \
---table-name iota-storage \
---attribute-definitions \
-    AttributeName=digest,AttributeType=B \
-    AttributeName=type,AttributeType=S \
---key-schema \
-    AttributeName=digest,KeyType=HASH \
-    AttributeName=type,KeyType=RANGE \
---provisioned-throughput ReadCapacityUnits=5,WriteCapacityUnits=5
-```
-
-### 3. Verify Resources
-
-Verify that the resources were created correctly:
-
-```bash
-aws --profile localstack s3 ls
-aws --profile localstack dynamodb list-tables
-```
-
-## Troubleshooting
-
-- Ensure all AWS credentials are properly set in the `config.yaml` file
-- Verify that the S3 bucket and DynamoDB table exist before starting the service
-- Check container logs if the service fails to start:
-  ```bash
-  docker compose logs
-  ```
+Follow the `README.md` file in the `iota-kvstore` directory.

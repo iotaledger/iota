@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -10,7 +10,7 @@ use move_proc_macros::growing_stack;
 use crate::{
     cfgir::{
         ast::remap_labels,
-        cfg::{MutForwardCFG, CFG},
+        cfg::{CFG, MutForwardCFG},
     },
     diagnostics::DiagnosticReporter,
     expansion::ast::Mutability,

@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! This module controls feature gating and breaking changes in new editions of
@@ -211,8 +211,9 @@ impl Edition {
         Self::DEVELOPMENT,
         Self::E2024,
     ];
-    // NB: This is the list of editions that are considered "valid" for the purposes of the Move.
-    // This list should be kept in order from oldest edition to newest.
+    // NB: This is the list of editions that are considered "valid" for the purposes
+    // of the Move. This list should be kept in order from oldest edition to
+    // newest.
     pub const VALID: &'static [Self] = &[
         Self::LEGACY,
         Self::E2024_ALPHA,

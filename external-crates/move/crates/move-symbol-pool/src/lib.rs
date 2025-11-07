@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! A global, uniqued cache of strings that is never purged. Inspired by
@@ -105,7 +105,7 @@ pub(crate) static SYMBOL_POOL: Lazy<Mutex<Pool>> = Lazy::new(|| Mutex::new(Pool:
 mod tests {
     use std::mem::replace;
 
-    use crate::{Pool, Symbol, SYMBOL_POOL};
+    use crate::{Pool, SYMBOL_POOL, Symbol};
 
     #[test]
     fn test_serialization() {

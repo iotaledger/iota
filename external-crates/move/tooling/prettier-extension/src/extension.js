@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 const path = require('path');
@@ -90,8 +90,8 @@ async function findMatchingConfig(documentUri) {
 		};
 	}
 
-	const root = workspaceFolder.uri.path;
-	let lookup = documentUri.path;
+	const root = workspaceFolder.uri.fsPath;
+	let lookup = documentUri.fsPath;
 	let search = {};
 
 	// go back in the directory until the root is found; or until we find the

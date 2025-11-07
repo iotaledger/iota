@@ -1,14 +1,14 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
+use anyhow::{Result, bail};
 use move_binary_format::errors::PartialVMError;
 use move_bytecode_utils::Modules;
 use move_core_types::vm_status::StatusCode;
 
-use anyhow::{bail, Result};
+use crate::sandbox::utils::on_disk_state_view::OnDiskStateView;
 
 /// Run sanity checks on storage and build dirs. This is primarily intended for
 /// testing the CLI; doctor should never fail unless `publish --ignore-breaking

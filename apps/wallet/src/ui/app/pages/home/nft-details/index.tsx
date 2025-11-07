@@ -2,19 +2,22 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useActiveAddress, useUnlockedGuard } from '_hooks';
+import { useActiveAddress, useUnlockedGuard, useShouldOpenInNewTab } from '_hooks';
 import { ExplorerLink, ExplorerLinkType, Loading, NFTDisplayCard, PageTemplate } from '_components';
 import { useNFTBasicData, useNftDetails, Collapsible } from '@iota/core';
 import { formatAddress } from '@iota/iota-sdk/utils';
 import cl from 'clsx';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { Button, ButtonType, KeyValueInfo } from '@iota/apps-ui-kit';
+import { ampli } from '_src/shared/analytics/ampli';
+import { openInNewTab } from '_src/shared/utils';
 
 export function NFTDetailsPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const nftId = searchParams.get('objectId');
     const accountAddress = useActiveAddress();
+    const shouldOpenNewTab = useShouldOpenInNewTab();
     const {
         nftDisplayData,
         isLoading,
@@ -32,16 +35,25 @@ export function NFTDetailsPage() {
     const isPending = isLoading || isGuardLoading;
 
     function handleMoreAboutKiosk() {
-        window.open('https://docs.iota.org/ts-sdk/kiosk/', '_blank', 'noopener noreferrer');
+        const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
+        ampli.openedLink({ url });
+        window.open(url, '_blank', 'noopener noreferrer');
     }
 
     function handleMarketplace() {
         // TODO: https://github.com/iotaledger/iota/issues/4024
-        window.open('https://docs.iota.org/ts-sdk/kiosk/', '_blank', 'noopener noreferrer');
+        const url = 'https://docs.iota.org/developer/ts-sdk/kiosk/';
+        ampli.openedLink({ url });
+        window.open(url, '_blank', 'noopener noreferrer');
     }
 
-    function handleSend() {
-        navigate(`/nft-transfer/${nftId}`);
+    async function handleSend() {
+        const destination = `/nft-transfer/${nftId}`;
+        if (shouldOpenNewTab) {
+            openInNewTab(destination);
+        } else {
+            navigate(destination);
+        }
     }
 
     return (
@@ -77,11 +89,11 @@ export function NFTDetailsPage() {
                                     </div>
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col gap-xxxs">
-                                            <span className="text-title-lg text-neutral-10 dark:text-neutral-92">
+                                            <span className="break-words text-title-lg text-iota-neutral-10 dark:text-iota-neutral-92">
                                                 {nftDisplayData?.name}
                                             </span>
                                             {nftDisplayData?.description ? (
-                                                <span className="text-body-md text-neutral-60">
+                                                <span className="break-words text-body-md text-iota-neutral-60">
                                                     {nftDisplayData?.description}
                                                 </span>
                                             ) : null}

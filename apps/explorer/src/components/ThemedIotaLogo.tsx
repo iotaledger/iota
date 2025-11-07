@@ -4,5 +4,11 @@
 import { IotaLogoWeb } from '@iota/apps-ui-icons';
 
 export function ThemedIotaLogo(): React.JSX.Element {
-    return <IotaLogoWeb className="text-neutral-10 dark:text-neutral-92" width={137} height={36} />;
+    return (
+        <IotaLogoWeb
+            className="text-iota-neutral-10 dark:text-iota-neutral-92"
+            width={137}
+            height={36}
+        />
+    );
 }

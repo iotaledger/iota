@@ -81,12 +81,12 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
 
         let checkpoint_timestamp = summary.timestamp_ms;
         let checkpoint_seq = summary.sequence_number;
-        self.metrics.checkpoint_creation_latency_ms.observe(
+        self.metrics.checkpoint_creation_latency.observe(
             summary
                 .timestamp()
                 .elapsed()
                 .unwrap_or_default()
-                .as_millis() as u64,
+                .as_secs_f64(),
         );
 
         let highest_verified_checkpoint = checkpoint_store
@@ -110,8 +110,7 @@ impl<T: SubmitToConsensus + ReconfigurationInitiator> CheckpointOutput
             let message = CheckpointSignatureMessage { summary };
             let transaction = ConsensusTransaction::new_checkpoint_signature_message(message);
             self.sender
-                .submit_to_consensus(&vec![transaction], epoch_store)
-                .await?;
+                .submit_to_consensus(&vec![transaction], epoch_store)?;
             self.metrics
                 .last_sent_checkpoint_signature
                 .set(checkpoint_seq as i64);
@@ -187,7 +186,7 @@ impl SendCheckpointToStateSync {
 
 #[async_trait]
 impl CertifiedCheckpointOutput for SendCheckpointToStateSync {
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(level = "trace", name = "checkpoint_created_from_consensus", skip_all)]
     async fn certified_checkpoint_created(
         &self,
         summary: &CertifiedCheckpointSummary,

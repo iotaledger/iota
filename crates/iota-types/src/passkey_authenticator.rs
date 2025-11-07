@@ -18,7 +18,7 @@ use once_cell::sync::OnceCell;
 use passkey_types::webauthn::{ClientDataType, CollectedClientData};
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
-use shared_crypto::intent::{INTENT_PREFIX_LENGTH, Intent, IntentMessage};
+use shared_crypto::intent::IntentMessage;
 
 use crate::{
     base_types::{EpochId, IotaAddress},
@@ -62,22 +62,17 @@ pub struct PasskeyAuthenticator {
     #[serde(skip)]
     pk: Secp256r1PublicKey,
 
-    /// Valid intent parsed from the first 3 bytes of
-    /// `client_data_json.challenge`.
+    /// Decoded `client_data_json.challenge` which is expected to be the signing
+    /// message `hash(Intent | bcs_message)`
     #[serde(skip)]
-    intent: Intent,
-
-    /// Valid digest parsed from the last 32 bytes of
-    /// `client_data_json.challenge`.
-    #[serde(skip)]
-    digest: [u8; DefaultHash::OUTPUT_SIZE],
+    challenge: [u8; DefaultHash::OUTPUT_SIZE],
 
     /// Initialization of bytes for passkey in serialized form.
     #[serde(skip)]
     bytes: OnceCell<Vec<u8>>,
 }
 
-/// An raw passkey authenticator struct used during deserialization. Can be
+/// A raw passkey authenticator struct used during deserialization. Can be
 /// converted to [struct PasskeyAuthenticator].
 #[derive(Serialize, Deserialize, Debug)]
 pub struct RawPasskeyAuthenticator {
@@ -105,22 +100,13 @@ impl TryFrom<RawPasskeyAuthenticator> for PasskeyAuthenticator {
             });
         };
 
-        let parsed_challenge = Base64UrlUnpadded::decode_vec(&client_data_json_parsed.challenge)
+        let challenge = Base64UrlUnpadded::decode_vec(&client_data_json_parsed.challenge)
             .map_err(|_| IotaError::InvalidSignature {
                 error: "Invalid encoded challenge".to_string(),
-            })?;
-
-        let intent =
-            Intent::from_bytes(&parsed_challenge[..INTENT_PREFIX_LENGTH]).map_err(|_| {
-                IotaError::InvalidSignature {
-                    error: "Invalid intent from challenge".to_string(),
-                }
-            })?;
-
-        let digest = parsed_challenge[INTENT_PREFIX_LENGTH..]
+            })?
             .try_into()
             .map_err(|_| IotaError::InvalidSignature {
-                error: "Invalid digest from challenge".to_string(),
+                error: "Invalid size for challenge".to_string(),
             })?;
 
         if raw.user_signature.scheme() != SignatureScheme::Secp256r1 {
@@ -145,8 +131,7 @@ impl TryFrom<RawPasskeyAuthenticator> for PasskeyAuthenticator {
             client_data_json: raw.client_data_json,
             signature,
             pk,
-            intent,
-            digest,
+            challenge,
             bytes: OnceCell::new(),
         })
     }
@@ -180,12 +165,15 @@ impl Serialize for PasskeyAuthenticator {
             authenticator_data: self.authenticator_data.clone(),
             client_data_json: self.client_data_json.clone(),
             user_signature: Signature::Secp256r1IotaSignature(
-                Secp256r1IotaSignature::from_bytes(&bytes).unwrap(),
+                Secp256r1IotaSignature::from_bytes(&bytes).unwrap(), /* ok to unwrap since the
+                                                                      * bytes are constructed as
+                                                                      * valid above. */
             ),
         };
         raw.serialize(serializer)
     }
 }
+
 impl PasskeyAuthenticator {
     /// A constructor for [struct PasskeyAuthenticator] with custom
     /// defined fields. Used for testing.
@@ -205,6 +193,24 @@ impl PasskeyAuthenticator {
     /// Returns the public key of the passkey authenticator.
     pub fn get_pk(&self) -> IotaResult<PublicKey> {
         Ok(PublicKey::Passkey((&self.pk).into()))
+    }
+
+    pub fn authenticator_data(&self) -> &[u8] {
+        &self.authenticator_data
+    }
+
+    pub fn client_data_json(&self) -> &str {
+        &self.client_data_json
+    }
+
+    pub fn signature(&self) -> Signature {
+        let mut bytes = Vec::with_capacity(Secp256r1IotaSignature::LENGTH);
+        bytes.push(SignatureScheme::Secp256r1.flag());
+        bytes.extend_from_slice(self.signature.as_ref());
+        bytes.extend_from_slice(self.pk.as_ref());
+
+        // Safe to unwrap because signature and pk are serialized from valid struct.
+        Signature::Secp256r1IotaSignature(Secp256r1IotaSignature::from_bytes(&bytes).unwrap())
     }
 }
 
@@ -245,9 +251,16 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
     where
         T: Serialize,
     {
+        // Check if author is derived from the public key.
+        if author != IotaAddress::from(&self.get_pk()?) {
+            return Err(IotaError::InvalidSignature {
+                error: "Invalid author".to_string(),
+            });
+        };
+
         // Check the intent and signing is consisted from what's parsed from
         // client_data_json.challenge
-        if intent_msg.intent != self.intent || to_signing_digest(intent_msg) != self.digest {
+        if self.challenge != to_signing_message(intent_msg) {
             return Err(IotaError::InvalidSignature {
                 error: "Invalid challenge".to_string(),
             });
@@ -257,13 +270,6 @@ impl AuthenticatorTrait for PasskeyAuthenticator {
         let mut message = self.authenticator_data.clone();
         let client_data_hash = Sha256::digest(self.client_data_json.as_bytes()).digest;
         message.extend_from_slice(&client_data_hash);
-
-        // Check if author is derived from the public key.
-        if author != IotaAddress::from(&self.get_pk()?) {
-            return Err(IotaError::InvalidSignature {
-                error: "Invalid author".to_string(),
-            });
-        };
 
         // Verify the signature against pk and message.
         self.pk
@@ -301,27 +307,13 @@ impl AsRef<[u8]> for PasskeyAuthenticator {
             .expect("OnceCell invariant violated")
     }
 }
-/// Compute the digest that the signature committed over as `intent ||
-/// hash(tx_data)`, total of 3 + 32 = 35 bytes.
-pub fn to_signing_message<T: Serialize>(
-    intent_msg: &IntentMessage<T>,
-) -> [u8; INTENT_PREFIX_LENGTH + DefaultHash::OUTPUT_SIZE] {
-    let mut extended = [0; INTENT_PREFIX_LENGTH + DefaultHash::OUTPUT_SIZE];
-    extended[..INTENT_PREFIX_LENGTH].copy_from_slice(&intent_msg.intent.to_bytes());
-    extended[INTENT_PREFIX_LENGTH..].copy_from_slice(&to_signing_digest(intent_msg));
-    extended
-}
 
-/// Compute the BCS hash of the value in intent message. In the case of
-/// transaction data, this is the BCS hash of `struct TransactionData`,
-/// different from the transaction digest itself that computes the BCS hash of
-/// the Rust type prefix and `struct TransactionData`. (See `fn digest` in `impl
-/// Message for SenderSignedData`).
-pub fn to_signing_digest<T: Serialize>(
+/// Compute the signing digest that the signature committed over as `hash(intent
+/// || tx_data)`
+pub fn to_signing_message<T: Serialize>(
     intent_msg: &IntentMessage<T>,
 ) -> [u8; DefaultHash::OUTPUT_SIZE] {
     let mut hasher = DefaultHash::default();
-    bcs::serialize_into(&mut hasher, &intent_msg.value)
-        .expect("Message serialization should not fail");
+    bcs::serialize_into(&mut hasher, intent_msg).expect("Message serialization should not fail");
     hasher.finalize().digest
 }

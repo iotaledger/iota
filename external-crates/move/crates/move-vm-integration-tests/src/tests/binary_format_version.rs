@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::{file_format::basic_test_module, file_format_common::VERSION_MAX};
@@ -24,7 +24,7 @@ fn test_publish_module_with_custom_max_binary_format_version() {
         let vm = MoveVM::new(move_stdlib_natives::all_natives(
             AccountAddress::from_hex_literal("0x1").unwrap(),
             move_stdlib_natives::GasParameters::zeros(),
-            /* silent debug */ true,
+            true, // silent debug
         ))
         .unwrap();
         let mut sess = vm.new_session(&storage);
@@ -58,7 +58,7 @@ fn test_publish_module_with_custom_max_binary_format_version() {
             move_stdlib_natives::all_natives(
                 AccountAddress::from_hex_literal("0x1").unwrap(),
                 move_stdlib_natives::GasParameters::zeros(),
-                /* silent debug */ true,
+                true, // silent debug
             ),
             vm_config,
         )

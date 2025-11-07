@@ -40,3 +40,8 @@ tempfile.workspace = true
 [[bin]]
 name = "iota-aws-orchestrator"
 path = "src/main.rs"
+
+[package.metadata.cargo-machete]
+ignored = [
+  "prettytable-rs", # library name is different than crate name
+]

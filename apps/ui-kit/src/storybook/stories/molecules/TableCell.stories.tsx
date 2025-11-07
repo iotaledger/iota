@@ -38,7 +38,7 @@ const Avatar = () => {
             viewBox="0 0 33 32"
             fill="none"
         >
-            <circle cx="16.5" cy="16" r="16" className="fill-primary-40" />
+            <circle cx="16.5" cy="16" r="16" className="fill-iota-primary-40" />
         </svg>
     );
 };

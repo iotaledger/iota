@@ -142,13 +142,13 @@ You can merge and split IOTA token objects to create token objects with specific
 
 To transfer a specific amount of IOTA, you need an IOTA token worth that specific amount. To get an IOTA token with that specific value, you might need to split or merge existing IOTA tokens. IOTA supports several methods to accomplish this, including some that do not require you to manually split or merge coins.
 
-Keep in mind that to execute a transaction, including a normal transfer, you need to provide some IOTA for gas as well. This can not be the same IOTA object as the one you are trying to transfer. The [SDKs](../references/iota-sdks.mdx) can automatically find another owned IOTA Coin object to use for gas if you don't manually select one. If you only have a single IOTA coin object, you might need to split some off first to have an object to transfer and an object to pay for gas (these can not be the same).
+Keep in mind that to execute a transaction, including a normal transfer, you need to provide some IOTA for gas as well. This can not be the same IOTA object as the one you are trying to transfer. The [SDKs](../developer/references/iota-sdks.mdx) can automatically find another owned IOTA Coin object to use for gas if you don't manually select one. If you only have a single IOTA coin object, you might need to split some off first to have an object to transfer and an object to pay for gas (these can not be the same).
 
 ## IOTA API operations for transfers
 
 :::warning
 
-While it's possible to directly call the JSON-RPC API to integrate, we highly recommend using on of our [SDKs](../references/iota-sdks.mdx) instead. This will abstract away boilerplate complexity, makes integration easier, and avoids common mistakes.
+While it's possible to directly call the JSON-RPC API to integrate, we highly recommend using on of our [SDKs](../developer/references/iota-sdks.mdx) instead. This will abstract away boilerplate complexity, makes integration easier, and avoids common mistakes.
 
 :::
 

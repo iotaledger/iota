@@ -69,13 +69,10 @@ impl TestCaseImpl for CoinMergeSplitTest {
         // be locked
         for new_coin in new_coins {
             let coin_to_merge = new_coin.reference.object_id;
-            debug!(
-                "Merging coin {} back to {}.",
-                coin_to_merge, primary_coin_id
-            );
+            debug!("Merging coin {coin_to_merge} back to {primary_coin_id}.",);
             let response =
                 Self::merge_coin(ctx, signer, primary_coin_id, coin_to_merge, *gas_obj.id()).await;
-            debug!("Verifying the merged coin {} is deleted.", coin_to_merge);
+            debug!("Verifying the merged coin {coin_to_merge} is deleted.");
             coins_merged.push(coin_to_merge);
             txes.push(response.digest);
         }
@@ -110,8 +107,7 @@ impl TestCaseImpl for CoinMergeSplitTest {
         assert_eq!(
             primary_after_merge.value(),
             original_value,
-            "Split-then-merge yields unexpected coin value, expect {}, got {}",
-            original_value,
+            "split-then-merge yields unexpected coin value, expect {original_value}, got {}",
             primary_after_merge.value(),
         );
         Ok(())

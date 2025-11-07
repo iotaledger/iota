@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::file_format::*;
@@ -8,7 +8,7 @@ use move_bytecode_verifier_meter::dummy::DummyMeter;
 use move_core_types::{
     account_address::AccountAddress, identifier::Identifier, vm_status::StatusCode,
 };
-use move_vm_config::verifier::{VerifierConfig, DEFAULT_MAX_IDENTIFIER_LENGTH};
+use move_vm_config::verifier::{DEFAULT_MAX_IDENTIFIER_LENGTH, VerifierConfig};
 
 use crate::unit_tests::production_config;
 

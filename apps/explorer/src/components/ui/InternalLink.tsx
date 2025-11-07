@@ -4,17 +4,22 @@
 
 import { Copy } from '@iota/apps-ui-icons';
 import { ButtonUnstyled } from '@iota/apps-ui-kit';
-import { formatAddress, formatDigest, formatType } from '@iota/iota-sdk/utils';
-import { type ReactNode } from 'react';
+import { NamedAddressTooltip, AddressAlias, useGetDefaultIotaName } from '@iota/core';
+import { isValidIotaName } from '@iota/iota-names-sdk';
+import { formatAddress, formatDigest, formatType, isValidIotaAddress } from '@iota/iota-sdk/utils';
+import clsx from 'clsx';
+import React, { type ReactNode } from 'react';
 
 import { Link, type LinkProps } from '~/components/ui';
+import { onCopySuccess } from '~/lib';
 
 interface BaseInternalLinkProps extends LinkProps {
+    showAddressAlias?: boolean;
     noTruncate?: boolean;
     label?: string | ReactNode;
+    renderAddressAlias?: (alias: string) => ReactNode;
     queryStrings?: Record<string, string>;
     copyText?: string;
-    onCopySuccess?: (e: React.MouseEvent<HTMLButtonElement>, text: string) => void;
     onCopyError?: (e: unknown, text: string) => void;
 }
 
@@ -29,13 +34,20 @@ function createInternalLink<T extends string>(
         label,
         queryStrings = {},
         copyText,
-        onCopySuccess,
         onCopyError,
+        renderAddressAlias,
+        showAddressAlias = ['address', 'object', 'validator'].includes(base),
+        className,
         ...props
     }: BaseInternalLinkProps & Record<T, string>) => {
         const truncatedAddress = noTruncate ? id : formatter(id);
         const queryString = new URLSearchParams(queryStrings).toString();
         const queryStringPrefix = queryString ? `?${queryString}` : '';
+
+        const to = `/${base}/${encodeURI(id)}${queryStringPrefix}`;
+
+        const isResolveIotaName = base === 'address' && isValidIotaAddress(id);
+        const { data: iotaName } = useGetDefaultIotaName(isResolveIotaName ? id : null);
 
         async function handleCopyClick(event: React.MouseEvent<HTMLButtonElement>) {
             event.stopPropagation();
@@ -45,7 +57,7 @@ function createInternalLink<T extends string>(
             if (copyText) {
                 try {
                     await navigator.clipboard.writeText(copyText);
-                    onCopySuccess?.(event, copyText);
+                    onCopySuccess();
                 } catch (error) {
                     console.error('Failed to copy:', error);
                     onCopyError?.(error, copyText);
@@ -53,19 +65,46 @@ function createInternalLink<T extends string>(
             }
         }
 
+        if (showAddressAlias) {
+            return (
+                <AddressAlias
+                    address={id}
+                    onCopy={copyText ? handleCopyClick : undefined}
+                    noTruncate={noTruncate}
+                    truncateUnknown={!noTruncate}
+                    renderAddress={(address) => (
+                        <NamedAddressTooltip name={iotaName} address={address}>
+                            <Link
+                                className={clsx(
+                                    'text-iota-primary-30 dark:text-iota-primary-80',
+                                    className,
+                                )}
+                                variant="mono"
+                                to={to}
+                                {...props}
+                            >
+                                {iotaName || label || address}
+                            </Link>
+                        </NamedAddressTooltip>
+                    )}
+                    renderAlias={renderAddressAlias}
+                />
+            );
+        }
+
         return (
             <div className="flex flex-row items-center gap-x-xxs">
                 <Link
-                    className="text-primary-30 dark:text-primary-80"
+                    className={clsx('text-iota-primary-30 dark:text-iota-primary-80', className)}
                     variant="mono"
-                    to={`/${base}/${encodeURI(id)}${queryStringPrefix}`}
+                    to={to}
                     {...props}
                 >
                     {label || truncatedAddress}
                 </Link>
                 {copyText && (
                     <ButtonUnstyled onClick={handleCopyClick}>
-                        <Copy className="text-neutral-60 dark:text-neutral-40" />
+                        <Copy className="text-iota-neutral-60 dark:text-iota-neutral-40" />
                     </ButtonUnstyled>
                 )}
             </div>
@@ -76,9 +115,13 @@ function createInternalLink<T extends string>(
 export const EpochLink = createInternalLink('epoch', 'epoch');
 export const CheckpointLink = createInternalLink('checkpoint', 'digest', formatAddress);
 export const CheckpointSequenceLink = createInternalLink('checkpoint', 'sequence');
-export const AddressLink = createInternalLink('address', 'address', (addressOrNs) =>
-    formatAddress(addressOrNs),
-);
+export const AddressLink = createInternalLink('address', 'address', (addressOrName) => {
+    if (isValidIotaName(addressOrName)) {
+        return addressOrName;
+    }
+
+    return formatAddress(addressOrName);
+});
 export const ObjectLink = createInternalLink('object', 'objectId', formatType);
 export const TransactionLink = createInternalLink('txblock', 'digest', formatDigest);
 export const ValidatorLink = createInternalLink('validator', 'address', formatAddress);

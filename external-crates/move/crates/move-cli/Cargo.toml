@@ -8,7 +8,9 @@ publish = false
 description = "CLI frontend for the Move compiler and VM"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
+bcs.workspace = true
 clap.workspace = true
 codespan-reporting.workspace = true
 colored.workspace = true
@@ -18,6 +20,7 @@ tempfile.workspace = true
 toml_edit.workspace = true
 walkdir.workspace = true
 
+# internal dependencies
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
 move-bytecode-utils.workspace = true

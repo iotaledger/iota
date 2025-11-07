@@ -19,7 +19,9 @@ export enum AccountType {
     MnemonicDerived = 'mnemonic-derived',
     SeedDerived = 'seed-derived',
     PrivateKeyDerived = 'private-key-derived',
+    PasskeyDerived = 'passkey-key-derived',
     LedgerDerived = 'ledger-derived',
+    KeystoneDerived = 'keystone-derived',
 }
 
 export abstract class Account<

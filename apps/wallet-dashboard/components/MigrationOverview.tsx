@@ -1,12 +1,12 @@
 // Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-import { useTheme, Theme } from '@iota/core';
+import { useTheme, Theme, Banner } from '@iota/core';
 import { useRouter } from 'next/navigation';
-import { Banner } from './Banner';
 import { useCurrentAccount } from '@iota/dapp-kit';
 import { useGetStardustMigratableObjects } from '@/hooks';
 import { MIGRATION_ROUTE } from '@/lib/constants/routes.constants';
+import { Button, ButtonSize, ButtonType } from '@iota/apps-ui-kit';
 
 export function MigrationOverview() {
     const { theme } = useTheme();
@@ -28,13 +28,14 @@ export function MigrationOverview() {
     }
     return needsMigration ? (
         <div style={{ gridArea: 'migration' }} className="with-migration flex grow overflow-hidden">
-            <Banner
-                videoSrc={videoSrc}
-                title="Migration"
-                subtitle="Fast & Easy"
-                onButtonClick={handleButtonClick}
-                buttonText="Start Migration"
-            />
+            <Banner videoSrc={videoSrc} title="Migration" subtitle="Fast & Easy">
+                <Button
+                    onClick={handleButtonClick}
+                    size={ButtonSize.Small}
+                    type={ButtonType.Outlined}
+                    text="Start Migration"
+                />
+            </Banner>
         </div>
     ) : null;
 }

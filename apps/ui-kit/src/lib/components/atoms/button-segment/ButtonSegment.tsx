@@ -77,7 +77,7 @@ export function ButtonSegment({
         <ButtonUnstyled
             onClick={onClick}
             className={cx(
-                'enabled:state-layer relative flex items-center disabled:opacity-40',
+                'enabled:state-layer-secondary relative flex items-center disabled:opacity-40',
                 backgroundColors,
                 textColors,
                 padding,

@@ -16,7 +16,7 @@ use crate::{
         cursor::Page,
         dynamic_field::{DynamicField, DynamicFieldName},
         iota_address::IotaAddress,
-        iota_names_registration::{DomainFormat, IotaNames, IotaNamesRegistration},
+        iota_names_registration::{IotaNames, NameFormat, NameRegistration},
         move_object::MoveObject,
         move_package::MovePackage,
         object::{self, Object, ObjectFilter},
@@ -114,9 +114,9 @@ pub(crate) struct OwnerImpl {
     ),
     field(
         name = "iota_names_default_name",
-        arg(name = "format", ty = "Option<DomainFormat>"),
+        arg(name = "format", ty = "Option<NameFormat>"),
         ty = "Option<String>",
-        desc = "The domain explicitly configured as the default domain pointing to this object or \
+        desc = "The name explicitly configured as the default name pointing to this object or \
                     address."
     ),
     field(
@@ -125,9 +125,9 @@ pub(crate) struct OwnerImpl {
         arg(name = "after", ty = "Option<object::Cursor>"),
         arg(name = "last", ty = "Option<u64>"),
         arg(name = "before", ty = "Option<object::Cursor>"),
-        ty = "Connection<String, IotaNamesRegistration>",
-        desc = "The IotaNamesRegistration NFTs owned by this object or address. These grant the owner \
-                    the capability to manage the associated domain."
+        ty = "Connection<String, NameRegistration>",
+        desc = "The NameRegistration NFTs owned by this object or address. These grant the owner \
+                    the capability to manage the associated name."
     )
 )]
 pub(crate) enum IOwner {
@@ -139,7 +139,7 @@ pub(crate) enum IOwner {
     Coin(Coin),
     CoinMetadata(CoinMetadata),
     StakedIota(StakedIota),
-    IotaNamesRegistration(IotaNamesRegistration),
+    NameRegistration(NameRegistration),
 }
 
 /// An Owner is an entity that can own an object. Each Owner is identified by a
@@ -224,20 +224,20 @@ impl Owner {
             .await
     }
 
-    /// The domain explicitly configured as the default domain pointing to this
+    /// The name explicitly configured as the default name pointing to this
     /// object or address.
     pub(crate) async fn iota_names_default_name(
         &self,
         ctx: &Context<'_>,
-        format: Option<DomainFormat>,
+        format: Option<NameFormat>,
     ) -> Result<Option<String>> {
         OwnerImpl::from(self)
             .iota_names_default_name(ctx, format)
             .await
     }
 
-    /// The IotaNamesRegistration NFTs owned by this object or address. These
-    /// grant the owner the capability to manage the associated domain.
+    /// The NameRegistration NFTs owned by this object or address. These
+    /// grant the owner the capability to manage the associated name.
     pub(crate) async fn iota_names_registrations(
         &self,
         ctx: &Context<'_>,
@@ -245,7 +245,7 @@ impl Owner {
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNamesRegistration>> {
+    ) -> Result<Connection<String, NameRegistration>> {
         OwnerImpl::from(self)
             .iota_names_registrations(ctx, first, after, last, before)
             .await
@@ -437,13 +437,13 @@ impl OwnerImpl {
     pub(crate) async fn iota_names_default_name(
         &self,
         ctx: &Context<'_>,
-        format: Option<DomainFormat>,
+        format: Option<NameFormat>,
     ) -> Result<Option<String>> {
         Ok(
             IotaNames::reverse_resolve_to_name(ctx, self.address, self.checkpoint_viewed_at)
                 .await
                 .extend()?
-                .map(|d| d.format(format.unwrap_or(DomainFormat::Dot).into())),
+                .map(|d| d.format(format.unwrap_or(NameFormat::Dot).into())),
         )
     }
 
@@ -454,9 +454,9 @@ impl OwnerImpl {
         after: Option<object::Cursor>,
         last: Option<u64>,
         before: Option<object::Cursor>,
-    ) -> Result<Connection<String, IotaNamesRegistration>> {
+    ) -> Result<Connection<String, NameRegistration>> {
         let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-        IotaNamesRegistration::paginate(
+        NameRegistration::paginate(
             ctx.data_unchecked::<Db>(),
             ctx.data_unchecked::<IotaNamesConfig>(),
             page,

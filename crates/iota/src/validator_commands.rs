@@ -17,12 +17,6 @@ use fastcrypto::{
     traits::{KeyPair, ToFromBytes},
 };
 use futures::TryStreamExt;
-use iota_bridge::{
-    iota_client::IotaClient as IotaBridgeClient,
-    iota_transaction_builder::{
-        build_committee_register_transaction, build_committee_update_url_transaction,
-    },
-};
 use iota_genesis_builder::validator_info::GenesisValidatorInfo;
 use iota_json_rpc_types::{
     IotaData, IotaMoveValue, IotaObjectDataOptions, IotaTransactionBlockResponse,
@@ -31,10 +25,10 @@ use iota_json_rpc_types::{
 use iota_keys::{
     key_derive::generate_new_key,
     keypair_file::{
-        read_authority_keypair_from_file, read_key, read_keypair_from_file,
-        read_network_keypair_from_file, write_authority_keypair_to_file, write_keypair_to_file,
+        read_authority_keypair_from_file, read_network_keypair_from_file,
+        write_authority_keypair_to_file, write_keypair_to_file,
     },
-    keystore::AccountKeystore,
+    keystore::{AccountKeystore, StoredKey},
 };
 use iota_sdk::{IotaClient, PagedFn, wallet_context::WalletContext};
 use iota_types::{
@@ -53,7 +47,7 @@ use iota_types::{
     },
     multiaddr::Multiaddr,
     object::Owner,
-    transaction::{CallArg, ObjectArg, Transaction, TransactionData},
+    transaction::{CallArg, ObjectArg, Transaction, TransactionData, TransactionDataAPI},
 };
 use move_core_types::ident_str;
 use serde::Serialize;
@@ -65,9 +59,8 @@ use tabled::{
         object::{Column, Columns},
     },
 };
-use url::{ParseError, Url};
 
-use crate::{PrintableResult, fire_drill::get_gas_obj_ref};
+use crate::{PrintableResult, fire_drill::get_gas_obj_ref, signing::sign_transaction};
 
 #[path = "unit_tests/validator_tests.rs"]
 #[cfg(test)]
@@ -114,8 +107,6 @@ pub enum IotaValidatorCommand {
     DisplayMetadata {
         #[arg(name = "validator-address")]
         validator_address: Option<IotaAddress>,
-        #[arg(name = "json", long)]
-        json: Option<bool>,
     },
     /// Update the validator metadata.
     UpdateMetadata {
@@ -155,41 +146,6 @@ pub enum IotaValidatorCommand {
         #[arg(name = "authority-public-key", long)]
         authority_public_key: AuthorityPublicKeyBytes,
     },
-    /// IOTA native bridge committee member registration.
-    RegisterBridgeCommittee {
-        /// Path to Bridge Authority Key file.
-        #[arg(long)]
-        bridge_authority_key_path: PathBuf,
-        /// Bridge authority URL which clients collects action signatures from.
-        #[arg(long)]
-        bridge_authority_url: String,
-        /// If true, only print the unsigned transaction and do not execute it.
-        /// This is useful for offline signing.
-        #[arg(name = "print-only", long, default_value = "false")]
-        print_unsigned_transaction_only: bool,
-        /// Must present if `print_unsigned_transaction_only` is true.
-        #[arg(long)]
-        validator_address: Option<IotaAddress>,
-        /// Gas budget for this transaction.
-        #[arg(name = "gas-budget", long)]
-        gas_budget: Option<u64>,
-    },
-    /// Update IOTA native bridge committee node url.
-    UpdateBridgeCommitteeNodeUrl {
-        /// New node url to be registered in the on chain bridge object.
-        #[arg(long)]
-        bridge_authority_url: String,
-        /// If true, only print the unsigned transaction and do not execute it.
-        /// This is useful for offline signing.
-        #[arg(name = "print-only", long, default_value = "false")]
-        print_unsigned_transaction_only: bool,
-        /// Must be present if `print_unsigned_transaction_only` is true.
-        #[arg(long)]
-        validator_address: Option<IotaAddress>,
-        /// Gas budget for this transaction.
-        #[arg(name = "gas-budget", long)]
-        gas_budget: Option<u64>,
-    },
     /// Get a list of the validators in the network. Use the `display-metadata`
     /// command to see the complete data for a validator.
     List,
@@ -199,22 +155,14 @@ pub enum IotaValidatorCommand {
 #[serde(untagged)]
 pub enum IotaValidatorCommandResponse {
     MakeValidatorInfo,
-    DisplayMetadata,
+    DisplayMetadata(String),
     BecomeCandidate(IotaTransactionBlockResponse),
     JoinValidators(IotaTransactionBlockResponse),
     LeaveValidators(IotaTransactionBlockResponse),
     UpdateMetadata(IotaTransactionBlockResponse),
     ReportValidator(IotaTransactionBlockResponse),
     SerializedPayload(String),
-    RegisterBridgeCommittee {
-        execution_response: Option<IotaTransactionBlockResponse>,
-        serialized_unsigned_transaction: Option<String>,
-    },
-    UpdateBridgeCommitteeURL {
-        execution_response: Option<IotaTransactionBlockResponse>,
-        serialized_unsigned_transaction: Option<String>,
-    },
-    List,
+    List(String),
 }
 
 fn make_key_files(
@@ -223,24 +171,21 @@ fn make_key_files(
     key: Option<IotaKeyPair>,
 ) -> Result<()> {
     if file_name.exists() {
-        println!("Use existing {:?} key file.", file_name);
+        println!("Use existing {file_name:?} key file.");
         return Ok(());
     } else if is_authority_key {
         let (_, keypair) = get_authority_key_pair();
         write_authority_keypair_to_file(&keypair, file_name.clone())?;
-        println!("Generated new key file: {:?}.", file_name);
+        println!("Generated new key file: {file_name:?}.");
     } else {
         let kp = match key {
             Some(key) => {
-                println!(
-                    "Generated new key file {:?} based on iota.keystore file.",
-                    file_name
-                );
+                println!("Generated new key file {file_name:?} based on iota.keystore file.");
                 key
             }
             None => {
                 let (_, kp, _, _) = generate_new_key(SignatureScheme::ED25519, None, None)?;
-                println!("Generated new key file: {:?}.", file_name);
+                println!("Generated new key file: {file_name:?}.");
                 kp
             }
         };
@@ -253,6 +198,7 @@ impl IotaValidatorCommand {
     pub async fn execute(
         self,
         context: &mut WalletContext,
+        json: bool,
     ) -> Result<IotaValidatorCommandResponse, anyhow::Error> {
         let iota_address = context.active_address()?;
 
@@ -266,49 +212,48 @@ impl IotaValidatorCommand {
             } => {
                 let dir = std::env::current_dir()?;
                 let authority_key_file_name = dir.join("authority.key");
-                let account_key = match context.config().keystore().get_key(&iota_address)? {
-                    IotaKeyPair::Ed25519(account_key) => IotaKeyPair::Ed25519(account_key.copy()),
-                    _ => panic!(
-                        "Other account key types supported yet, please use Ed25519 keys for now."
-                    ),
-                };
-                let account_key_file_name = dir.join("account.key");
+
+                let account_key = context.config().keystore().get_key(&iota_address)?;
+
+                if account_key.public().scheme() != SignatureScheme::ED25519 {
+                    bail!("Only Ed25519 accounts are supported, please use Ed25519 keys for now.");
+                }
+
+                if let StoredKey::KeyPair(keypair) = account_key {
+                    let account_key_file_name = dir.join("account.key");
+                    make_key_files(account_key_file_name.clone(), false, Some(keypair.clone()))?;
+                }
+
                 let network_key_file_name = dir.join("network.key");
                 let protocol_key_file_name = dir.join("protocol.key");
                 make_key_files(authority_key_file_name.clone(), true, None)?;
-                make_key_files(account_key_file_name.clone(), false, Some(account_key))?;
                 make_key_files(network_key_file_name.clone(), false, None)?;
                 make_key_files(protocol_key_file_name.clone(), false, None)?;
 
                 let authority_keypair: AuthorityKeyPair =
                     read_authority_keypair_from_file(authority_key_file_name)?;
-                let account_keypair: IotaKeyPair = read_keypair_from_file(account_key_file_name)?;
                 let protocol_keypair: NetworkKeyPair =
                     read_network_keypair_from_file(protocol_key_file_name)?;
                 let network_keypair: NetworkKeyPair =
                     read_network_keypair_from_file(network_key_file_name)?;
-                let pop = generate_proof_of_possession(
-                    &authority_keypair,
-                    (&account_keypair.public()).into(),
-                );
+
+                let account_address = IotaAddress::from(&account_key.public());
+
+                let pop = generate_proof_of_possession(&authority_keypair, account_address);
                 let validator_info = GenesisValidatorInfo {
                     info: iota_genesis_builder::validator_info::ValidatorInfo {
                         name,
                         authority_key: authority_keypair.public().into(),
                         protocol_key: protocol_keypair.public().clone(),
-                        account_address: IotaAddress::from(&account_keypair.public()),
+                        account_address,
                         network_key: network_keypair.public().clone(),
                         gas_price: iota_config::node::DEFAULT_VALIDATOR_GAS_PRICE,
                         commission_rate: iota_config::node::DEFAULT_COMMISSION_RATE,
                         network_address: Multiaddr::try_from(format!(
-                            "/dns/{}/tcp/8080/http",
-                            host_name
+                            "/dns/{host_name}/tcp/8080/http"
                         ))?,
-                        p2p_address: Multiaddr::try_from(format!("/dns/{}/udp/8084", host_name))?,
-                        primary_address: Multiaddr::try_from(format!(
-                            "/dns/{}/udp/8081",
-                            host_name
-                        ))?,
+                        p2p_address: Multiaddr::try_from(format!("/dns/{host_name}/udp/8084"))?,
+                        primary_address: Multiaddr::try_from(format!("/dns/{host_name}/udp/8081"))?,
                         description,
                         image_url,
                         project_url,
@@ -319,10 +264,7 @@ impl IotaValidatorCommand {
                 let validator_info_file_name = dir.join("validator.info");
                 let validator_info_bytes = serde_yaml::to_string(&validator_info)?;
                 fs::write(validator_info_file_name.clone(), validator_info_bytes)?;
-                println!(
-                    "Generated validator info file: {:?}.",
-                    validator_info_file_name
-                );
+                println!("Generated validator info file: {validator_info_file_name:?}.");
                 IotaValidatorCommandResponse::MakeValidatorInfo
             }
             IotaValidatorCommand::BecomeCandidate { file, gas_budget } => {
@@ -392,15 +334,12 @@ impl IotaValidatorCommand {
                 IotaValidatorCommandResponse::LeaveValidators(response)
             }
 
-            IotaValidatorCommand::DisplayMetadata {
-                validator_address,
-                json,
-            } => {
+            IotaValidatorCommand::DisplayMetadata { validator_address } => {
                 let validator_address = validator_address.unwrap_or(context.active_address()?);
                 // Default display with json serialization for better UX.
                 let iota_client = context.get_client().await?;
-                display_metadata(&iota_client, validator_address, json.unwrap_or(true)).await?;
-                IotaValidatorCommandResponse::DisplayMetadata
+                let resp = display_metadata(&iota_client, validator_address, json).await?;
+                IotaValidatorCommandResponse::DisplayMetadata(resp)
             }
 
             IotaValidatorCommand::UpdateMetadata {
@@ -446,167 +385,6 @@ impl IotaValidatorCommand {
                 DEFAULT_EPOCH_ID.write(&mut intent_msg_bytes);
                 IotaValidatorCommandResponse::SerializedPayload(Base64::encode(&intent_msg_bytes))
             }
-
-            IotaValidatorCommand::RegisterBridgeCommittee {
-                bridge_authority_key_path,
-                bridge_authority_url,
-                print_unsigned_transaction_only,
-                validator_address,
-                gas_budget,
-            } => {
-                let parsed_url =
-                    Url::parse(&bridge_authority_url).map_err(|e: ParseError| anyhow!(e))?;
-                if parsed_url.scheme() != "http" && parsed_url.scheme() != "https" {
-                    anyhow::bail!(
-                        "URL scheme has to be http or https: {}",
-                        parsed_url.scheme()
-                    );
-                }
-                // Read bridge keypair
-                let ecdsa_keypair = match read_key(&bridge_authority_key_path, true)? {
-                    IotaKeyPair::Secp256k1(key) => key,
-                    _ => unreachable!("we required secp256k1 key in `read_key`"),
-                };
-                let address = check_address(
-                    context.active_address()?,
-                    validator_address,
-                    print_unsigned_transaction_only,
-                )?;
-
-                // The bridge should be run by the same committee as the consensus, hence we use
-                // get committee members here.
-                let iota_client = context.get_client().await?;
-                if !iota_client
-                    .governance_api()
-                    .get_latest_iota_system_state()
-                    .await?
-                    .iter_committee_members()
-                    .any(|s| s.iota_address == address)
-                {
-                    bail!("Address {address} is not in the committee members");
-                }
-                println!(
-                    "Starting bridge committee registration for IOTA committee member: {address}, with bridge public key: {} and url: {}",
-                    ecdsa_keypair.public, bridge_authority_url
-                );
-                let iota_rpc_url = context.active_env().unwrap().rpc();
-                let bridge_client = IotaBridgeClient::new(iota_rpc_url).await?;
-                let bridge = bridge_client
-                    .get_mutable_bridge_object_arg_must_succeed()
-                    .await;
-
-                let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
-                let (_, gas) = context
-                    .gas_for_owner_budget(address, gas_budget, Default::default())
-                    .await?;
-
-                let gas_price = context.get_reference_gas_price().await?;
-                let tx_data = build_committee_register_transaction(
-                    address,
-                    &gas.object_ref(),
-                    bridge,
-                    ecdsa_keypair.public().as_bytes().to_vec(),
-                    &bridge_authority_url,
-                    gas_price,
-                    gas_budget,
-                )
-                .map_err(|e| anyhow!("{e:?}"))?;
-                if print_unsigned_transaction_only {
-                    let serialized_data = Base64::encode(bcs::to_bytes(&tx_data)?);
-                    IotaValidatorCommandResponse::RegisterBridgeCommittee {
-                        execution_response: None,
-                        serialized_unsigned_transaction: Some(serialized_data),
-                    }
-                } else {
-                    let tx = context.sign_transaction(&tx_data);
-                    let response = context.execute_transaction_must_succeed(tx).await;
-                    println!(
-                        "Committee registration successful. Transaction digest: {}",
-                        response.digest
-                    );
-                    IotaValidatorCommandResponse::RegisterBridgeCommittee {
-                        execution_response: Some(response),
-                        serialized_unsigned_transaction: None,
-                    }
-                }
-            }
-            IotaValidatorCommand::UpdateBridgeCommitteeNodeUrl {
-                bridge_authority_url,
-                print_unsigned_transaction_only,
-                validator_address,
-                gas_budget,
-            } => {
-                let parsed_url =
-                    Url::parse(&bridge_authority_url).map_err(|e: ParseError| anyhow!(e))?;
-                if parsed_url.scheme() != "http" && parsed_url.scheme() != "https" {
-                    anyhow::bail!(
-                        "URL scheme has to be http or https: {}",
-                        parsed_url.scheme()
-                    );
-                }
-                // Make sure the address is member of the committee
-                let address = check_address(
-                    context.active_address()?,
-                    validator_address,
-                    print_unsigned_transaction_only,
-                )?;
-                let iota_rpc_url = context.active_env().unwrap().rpc();
-                let bridge_client = IotaBridgeClient::new(iota_rpc_url).await?;
-                let committee_members = bridge_client
-                    .get_bridge_summary()
-                    .await
-                    .map_err(|e| anyhow!("{e:?}"))?
-                    .committee
-                    .members;
-                if !committee_members
-                    .into_iter()
-                    .any(|(_, m)| m.iota_address == address)
-                {
-                    bail!("Address {} is not in the committee", address);
-                }
-                println!(
-                    "Updating bridge committee node URL for IOTA validator: {address}, url: {}",
-                    bridge_authority_url
-                );
-
-                let bridge = bridge_client
-                    .get_mutable_bridge_object_arg_must_succeed()
-                    .await;
-
-                let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
-                let (_, gas) = context
-                    .gas_for_owner_budget(address, gas_budget, Default::default())
-                    .await?;
-
-                let gas_price = context.get_reference_gas_price().await?;
-                let tx_data = build_committee_update_url_transaction(
-                    address,
-                    &gas.object_ref(),
-                    bridge,
-                    &bridge_authority_url,
-                    gas_price,
-                    gas_budget,
-                )
-                .map_err(|e| anyhow!("{e:?}"))?;
-                if print_unsigned_transaction_only {
-                    let serialized_data = Base64::encode(bcs::to_bytes(&tx_data)?);
-                    IotaValidatorCommandResponse::UpdateBridgeCommitteeURL {
-                        execution_response: None,
-                        serialized_unsigned_transaction: Some(serialized_data),
-                    }
-                } else {
-                    let tx = context.sign_transaction(&tx_data);
-                    let response = context.execute_transaction_must_succeed(tx).await;
-                    println!(
-                        "Update Bridge validator node URL successful. Transaction digest: {}",
-                        response.digest
-                    );
-                    IotaValidatorCommandResponse::UpdateBridgeCommitteeURL {
-                        execution_response: Some(response),
-                        serialized_unsigned_transaction: None,
-                    }
-                }
-            }
             IotaValidatorCommand::List => {
                 let mut builder = Builder::default();
 
@@ -629,9 +407,12 @@ impl IotaValidatorCommand {
                     IotaSystemStateSummary::V2(v2) => {
                         (v2.active_validators, Some(v2.committee_members))
                     }
-                    _ => panic!("unsupported IotaSystemStateSummary"),
+                    _ => bail!(
+                        "Unsupported IotaSystemStateSummary found. You may need to upgrade your iota binary."
+                    ),
                 };
 
+                let mut entries = Vec::new();
                 for (
                     index,
                     IotaValidatorSummary {
@@ -651,46 +432,35 @@ impl IotaValidatorCommand {
                         .unwrap_or(true);
                     builder.push_record([
                         iota_address.to_string(),
-                        name,
+                        name.clone(),
                         staking_pool_iota_balance.to_string(),
                         pending_stake.to_string(),
                         if committee_member { "✓" } else { "" }.to_string(),
                     ]);
+                    entries.push(serde_json::json!({
+                        "iota_address": iota_address.to_string(),
+                        "name": name,
+                        "staking_pool_balance": staking_pool_iota_balance.to_string(),
+                        "pending_stake": pending_stake.to_string(),
+                        "committee_member": committee_member,
+                    }));
                 }
 
-                let table = builder
-                    .build()
-                    .with(Style::rounded())
-                    .with(Modify::new(Columns::new(2..=3)).with(Alignment::right()))
-                    .with(Modify::new(Column::from(4)).with(Alignment::center()))
-                    .to_string();
-                println!("{table}");
+                let resp = if json {
+                    serde_json::to_string_pretty(&entries)?
+                } else {
+                    builder
+                        .build()
+                        .with(Style::rounded())
+                        .with(Modify::new(Columns::new(2..=3)).with(Alignment::right()))
+                        .with(Modify::new(Column::from(4)).with(Alignment::center()))
+                        .to_string()
+                };
 
-                IotaValidatorCommandResponse::List
+                IotaValidatorCommandResponse::List(resp)
             }
         });
         ret
-    }
-}
-
-fn check_address(
-    active_address: IotaAddress,
-    validator_address: Option<IotaAddress>,
-    print_unsigned_transaction_only: bool,
-) -> Result<IotaAddress, anyhow::Error> {
-    if !print_unsigned_transaction_only {
-        if let Some(validator_address) = validator_address {
-            if validator_address != active_address {
-                bail!(
-                    "`--validator-address` must be the same as the current active address: {}",
-                    active_address
-                );
-            }
-        }
-        Ok(active_address)
-    } else {
-        validator_address
-            .ok_or_else(|| anyhow!("--validator-address must be provided when `print_unsigned_transaction_only` is true"))
     }
 }
 
@@ -735,7 +505,7 @@ async fn get_cap_object_ref(
         let owner = resp.owner().unwrap();
         let cap_obj_ref = resp
             .object_ref_if_exists()
-            .unwrap_or_else(|| panic!("OperationCap {} shall exist.", cap_object_id));
+            .unwrap_or_else(|| panic!("OperationCap {cap_object_id} does not exist"));
         if owner != Owner::AddressOwner(context.active_address()?) {
             anyhow::bail!(
                 "OperationCap {} is not owned by the sender address {} but {:?}",
@@ -852,13 +622,11 @@ async fn call_0x5(
     let sender = context.active_address()?;
     let tx_data =
         construct_unsigned_0x5_txn(context, sender, function, call_args, gas_budget).await?;
-    let signature =
-        context
-            .config()
-            .keystore()
-            .sign_secure(&sender, &tx_data, Intent::iota_transaction())?;
-    let transaction = Transaction::from_data(tx_data, vec![signature]);
     let iota_client = context.get_client().await?;
+
+    let signature = sign_transaction(context, &tx_data, &tx_data.sender()).await?;
+    let transaction = Transaction::from_data(tx_data, vec![signature]);
+
     iota_client
         .quorum_driver_api()
         .execute_transaction_block(
@@ -872,49 +640,32 @@ async fn call_0x5(
         .map_err(|err| anyhow::anyhow!(err.to_string()))
 }
 
+impl PrintableResult for IotaValidatorCommandResponse {
+    // pretty is unused here, as this is handled for each command separately
+    fn print(&self, _pretty: bool) {
+        println!("{self}");
+    }
+}
+
 impl Display for IotaValidatorCommandResponse {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let mut writer = String::new();
         match self {
             IotaValidatorCommandResponse::MakeValidatorInfo => {}
-            IotaValidatorCommandResponse::DisplayMetadata => {}
-            IotaValidatorCommandResponse::BecomeCandidate(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
+            IotaValidatorCommandResponse::DisplayMetadata(resp)
+            | IotaValidatorCommandResponse::List(resp) => {
+                write!(writer, "{resp}")?;
             }
-            IotaValidatorCommandResponse::JoinValidators(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
-            }
-            IotaValidatorCommandResponse::LeaveValidators(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
-            }
-            IotaValidatorCommandResponse::UpdateMetadata(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
-            }
-            IotaValidatorCommandResponse::ReportValidator(response) => {
-                write!(writer, "{}", write_transaction_response(response)?)?;
+            IotaValidatorCommandResponse::BecomeCandidate(resp)
+            | IotaValidatorCommandResponse::JoinValidators(resp)
+            | IotaValidatorCommandResponse::LeaveValidators(resp)
+            | IotaValidatorCommandResponse::UpdateMetadata(resp)
+            | IotaValidatorCommandResponse::ReportValidator(resp) => {
+                write!(writer, "{}", write_transaction_response(resp)?)?;
             }
             IotaValidatorCommandResponse::SerializedPayload(response) => {
-                write!(writer, "Serialized payload: {}", response)?;
+                write!(writer, "Serialized payload: {response}")?;
             }
-            IotaValidatorCommandResponse::RegisterBridgeCommittee {
-                execution_response,
-                serialized_unsigned_transaction,
-            }
-            | IotaValidatorCommandResponse::UpdateBridgeCommitteeURL {
-                execution_response,
-                serialized_unsigned_transaction,
-            } => {
-                if let Some(response) = execution_response {
-                    write!(writer, "{}", write_transaction_response(response)?)?;
-                } else {
-                    write!(
-                        writer,
-                        "Serialized transaction for signing: {:?}",
-                        serialized_unsigned_transaction
-                    )?;
-                }
-            }
-            IotaValidatorCommandResponse::List => {}
         }
         write!(f, "{}", writer.trim_end_matches('\n'))
     }
@@ -937,7 +688,7 @@ pub fn write_transaction_response(
     let mut writer = String::new();
     for line in lines {
         let colorized_line = if success { line.green() } else { line.red() };
-        writeln!(writer, "{}", colorized_line)?;
+        writeln!(writer, "{colorized_line}")?;
     }
     Ok(writer)
 }
@@ -949,13 +700,7 @@ impl Debug for IotaValidatorCommandResponse {
             Ok(s) => s,
             Err(err) => format!("{err}").red().to_string(),
         };
-        write!(f, "{}", s)
-    }
-}
-
-impl PrintableResult for IotaValidatorCommandResponse {
-    fn should_print(&self) -> bool {
-        !matches!(self, Self::MakeValidatorInfo | Self::DisplayMetadata)
+        write!(f, "{s}")
     }
 }
 
@@ -997,7 +742,9 @@ pub async fn get_validator_summary(
             v2.validator_candidates_id,
             v2.inactive_pools_id,
         ),
-        _ => panic!("unsupported IotaSystemStateSummary"),
+        _ => bail!(
+            "Unsupported IotaSystemStateSummary found. You may need to upgrade your iota binary."
+        ),
     };
 
     let mut active_validators = active_validators
@@ -1112,19 +859,30 @@ async fn display_metadata(
     client: &IotaClient,
     validator_address: IotaAddress,
     json: bool,
-) -> anyhow::Result<()> {
-    match get_validator_summary(client, validator_address).await? {
-        None => println!("{validator_address} is not a validator"),
-        Some((status, info)) => {
-            println!("{validator_address}'s validator status: {status:?}");
-            if json {
-                println!("{}", serde_json::to_string_pretty(&info)?);
-            } else {
-                println!("{info:#?}");
+) -> anyhow::Result<String> {
+    Ok(
+        match get_validator_summary(client, validator_address).await? {
+            None => format!("{validator_address} is not a validator"),
+            Some((status, metadata)) => {
+                if json {
+                    let obj = serde_json::json!({
+                        "status": format!("{status:?}"),
+                        "metadata": metadata
+                    });
+                    serde_json::to_string_pretty(&obj)?
+                } else {
+                    let mut result = format!("{validator_address}'s validator status: {status:?}");
+                    if let serde_json::Value::Object(map) = serde_json::to_value(&metadata).unwrap()
+                    {
+                        for (key, value) in map {
+                            write!(result, "\n{key}: {value}").unwrap();
+                        }
+                    }
+                    result
+                }
             }
-        }
-    }
-    Ok(())
+        },
+    )
 }
 
 async fn get_pending_candidate_summary(

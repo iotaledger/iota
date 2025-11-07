@@ -1,17 +1,17 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fmt::{self, Display};
+
+use anyhow::bail;
 
 use crate::{
     account_address::AccountAddress,
     identifier::{self, Identifier},
     language_storage::{ModuleId, StructTag, TypeTag},
+    parsing::{address::ParsedAddress, parser::Token},
 };
-use anyhow::bail;
-
-use crate::parsing::{address::ParsedAddress, parser::Token};
 
 #[derive(Eq, PartialEq, Debug, Clone, Copy)]
 pub enum TypeToken {

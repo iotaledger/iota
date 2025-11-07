@@ -14,7 +14,6 @@ use std::{
 };
 
 use arc_swap::ArcSwap;
-use consensus_core::BlockStatus;
 use dashmap::{DashMap, try_result::TryResult};
 use futures::{
     FutureExt, StreamExt,
@@ -22,7 +21,7 @@ use futures::{
     pin_mut,
     stream::FuturesUnordered,
 };
-use iota_metrics::{GaugeGuard, GaugeGuardFutureExt, spawn_monitored_task};
+use iota_metrics::{GaugeGuard, GaugeGuardFutureExt, LATENCY_SEC_BUCKETS, spawn_monitored_task};
 use iota_simulator::anemo::PeerId;
 use iota_types::{
     base_types::{AuthorityName, TransactionDigest},
@@ -42,12 +41,15 @@ use prometheus::{
 use tokio::{
     sync::{Semaphore, SemaphorePermit, oneshot},
     task::JoinHandle,
-    time::{self, Duration},
+    time::{
+        Duration, {self},
+    },
 };
 use tracing::{debug, info, trace, warn};
 
 use crate::{
     authority::authority_per_epoch_store::AuthorityPerEpochStore,
+    checkpoints::CheckpointStore,
     connection_monitor::ConnectionStatus,
     consensus_handler::{SequencedConsensusTransactionKey, classify},
     epoch::reconfiguration::{ReconfigState, ReconfigurationInitiator},
@@ -57,11 +59,6 @@ use crate::{
 #[cfg(test)]
 #[path = "unit_tests/consensus_tests.rs"]
 pub mod consensus_tests;
-
-const SEQUENCING_CERTIFICATE_LATENCY_SEC_BUCKETS: &[f64] = &[
-    0.1, 0.25, 0.5, 0.75, 1., 1.25, 1.5, 1.75, 2., 2.25, 2.5, 2.75, 3., 4., 5., 6., 7., 10., 15.,
-    20., 25., 30., 60., 90., 120., 150., 180., 210., 240., 270., 300.,
-];
 
 const SEQUENCING_CERTIFICATE_POSITION_BUCKETS: &[f64] = &[
     0., 1., 2., 3., 5., 10., 15., 20., 25., 30., 50., 100., 150., 200.,
@@ -95,98 +92,103 @@ impl ConsensusAdapterMetrics {
                 &["tx_type"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_certificate_success: register_int_counter_vec_with_registry!(
                 "sequencing_certificate_success",
                 "Counts the number of successfully sequenced certificates.",
                 &["tx_type"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_certificate_failures: register_int_counter_vec_with_registry!(
                 "sequencing_certificate_failures",
                 "Counts the number of sequenced certificates that failed other than by timeout.",
                 &["tx_type"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_certificate_status: register_int_counter_vec_with_registry!(
                 "sequencing_certificate_status",
                 "The status of the certificate sequencing as reported by consensus. The status can be either sequenced or garbage collected.",
                 &["tx_type", "status"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_certificate_inflight: register_int_gauge_vec_with_registry!(
                 "sequencing_certificate_inflight",
                 "The inflight requests to sequence certificates.",
                 &["tx_type"],
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_acknowledge_latency: register_histogram_vec_with_registry!(
                 "sequencing_acknowledge_latency",
                 "The latency for acknowledgement from sequencing engine. The overall sequencing latency is measured by the sequencing_certificate_latency metric",
                 &["retry", "tx_type"],
-                SEQUENCING_CERTIFICATE_LATENCY_SEC_BUCKETS.to_vec(),
+                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_certificate_latency: register_histogram_vec_with_registry!(
                 "sequencing_certificate_latency",
                 "The latency for sequencing a certificate.",
                 &["position", "tx_type", "processed_method"],
-                SEQUENCING_CERTIFICATE_LATENCY_SEC_BUCKETS.to_vec(),
+                LATENCY_SEC_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+            )
+            .unwrap(),
             sequencing_certificate_authority_position: register_histogram_with_registry!(
                 "sequencing_certificate_authority_position",
                 "The position of the authority when submitted a certificate to consensus.",
                 SEQUENCING_CERTIFICATE_POSITION_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+            )
+            .unwrap(),
             sequencing_certificate_positions_moved: register_histogram_with_registry!(
                 "sequencing_certificate_positions_moved",
                 "The number of authorities ahead of ourselves that were filtered out when submitting a certificate to consensus.",
                 SEQUENCING_CERTIFICATE_POSITION_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+            )
+            .unwrap(),
             sequencing_certificate_preceding_disconnected: register_histogram_with_registry!(
                 "sequencing_certificate_preceding_disconnected",
                 "The number of authorities that were hashed to an earlier position that were filtered out due to being disconnected when submitting to consensus.",
                 SEQUENCING_CERTIFICATE_POSITION_BUCKETS.to_vec(),
                 registry,
-            ).unwrap(),
+            )
+            .unwrap(),
             sequencing_certificate_processed: register_int_counter_vec_with_registry!(
                 "sequencing_certificate_processed",
                 "The number of certificates that have been processed either by consensus or checkpoint.",
                 &["source"],
                 registry
-            ).unwrap(),
+            )
+            .unwrap(),
             sequencing_in_flight_semaphore_wait: register_int_gauge_with_registry!(
                 "sequencing_in_flight_semaphore_wait",
                 "How many requests are blocked on submit_permit.",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_in_flight_submissions: register_int_gauge_with_registry!(
                 "sequencing_in_flight_submissions",
                 "Number of transactions submitted to local consensus instance and not yet sequenced",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_estimated_latency: register_int_gauge_with_registry!(
                 "sequencing_estimated_latency",
                 "Consensus latency estimated by consensus adapter in milliseconds",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
             sequencing_resubmission_interval_ms: register_int_gauge_with_registry!(
                 "sequencing_resubmission_interval_ms",
                 "Resubmission interval used by consensus adapter in milliseconds",
                 registry,
             )
-                .unwrap(),
+            .unwrap(),
         }
     }
 
@@ -195,12 +197,39 @@ impl ConsensusAdapterMetrics {
     }
 }
 
-pub type BlockStatusReceiver = oneshot::Receiver<BlockStatus>;
+/// Block status for internal use in the consensus adapter that serves for both
+/// Mysticeti and Starfish.
+pub enum BlockStatusInternal {
+    Sequenced,
+    GarbageCollected,
+}
+
+impl From<consensus_core::BlockStatus> for BlockStatusInternal {
+    fn from(status: consensus_core::BlockStatus) -> Self {
+        match status {
+            consensus_core::BlockStatus::Sequenced(_) => BlockStatusInternal::Sequenced,
+            consensus_core::BlockStatus::GarbageCollected(_) => {
+                BlockStatusInternal::GarbageCollected
+            }
+        }
+    }
+}
+impl From<starfish_core::BlockStatus> for BlockStatusInternal {
+    fn from(status: starfish_core::BlockStatus) -> Self {
+        match status {
+            starfish_core::BlockStatus::Sequenced(_) => BlockStatusInternal::Sequenced,
+            starfish_core::BlockStatus::GarbageCollected(_) => {
+                BlockStatusInternal::GarbageCollected
+            }
+        }
+    }
+}
+
+pub type BlockStatusReceiver = oneshot::Receiver<BlockStatusInternal>;
 
 #[mockall::automock]
-#[async_trait::async_trait]
 pub trait SubmitToConsensus: Sync + Send + 'static {
-    async fn submit_to_consensus(
+    fn submit_to_consensus(
         &self,
         transactions: &[ConsensusTransaction],
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -221,6 +250,8 @@ pub trait ConsensusClient: Sync + Send + 'static {
 pub struct ConsensusAdapter {
     /// The network client connecting to the consensus node of this authority.
     consensus_client: Arc<dyn ConsensusClient>,
+    /// The checkpoint store for the validator
+    checkpoint_store: Arc<CheckpointStore>,
     /// Authority pubkey.
     authority: AuthorityName,
     /// The limit to number of inflight transactions at this node.
@@ -268,6 +299,7 @@ impl ConsensusAdapter {
     /// Make a new Consensus adapter instance.
     pub fn new(
         consensus_client: Arc<dyn ConsensusClient>,
+        checkpoint_store: Arc<CheckpointStore>,
         authority: AuthorityName,
         connection_monitor_status: Arc<dyn CheckConnection>,
         max_pending_transactions: usize,
@@ -281,6 +313,7 @@ impl ConsensusAdapter {
             ArcSwap::from_pointee(Arc::new(ArcSwap::from_pointee(HashMap::new())));
         Self {
             consensus_client,
+            checkpoint_store,
             authority,
             max_pending_transactions,
             max_submit_position,
@@ -301,8 +334,6 @@ impl ConsensusAdapter {
         self.low_scoring_authorities.swap(Arc::new(new_low_scoring));
     }
 
-    // TODO - this probably need to hold some kind of lock to make sure epoch does
-    // not change while we are recovering
     pub fn submit_recovered(self: &Arc<Self>, epoch_store: &Arc<AuthorityPerEpochStore>) {
         // Currently consensus worker might lose transactions on restart, so we need to
         // resend them.
@@ -353,7 +384,7 @@ impl ConsensusAdapter {
         let min_digest = transactions
             .iter()
             .filter_map(|tx| match &tx.kind {
-                ConsensusTransactionKind::UserTransaction(certificate) => {
+                ConsensusTransactionKind::CertifiedTransaction(certificate) => {
                     Some(certificate.digest())
                 }
                 _ => None,
@@ -550,7 +581,7 @@ impl ConsensusAdapter {
                 fp_ensure!(
                     matches!(
                         transaction.kind,
-                        ConsensusTransactionKind::UserTransaction(_)
+                        ConsensusTransactionKind::CertifiedTransaction(_)
                     ),
                     IotaError::InvalidTxKindInSoftBundle
                 );
@@ -750,7 +781,7 @@ impl ConsensusAdapter {
                         .await;
 
                     match status_waiter.await {
-                        Ok(BlockStatus::Sequenced(_)) => {
+                        Ok(BlockStatusInternal::Sequenced) => {
                             self.metrics
                                 .sequencing_certificate_status
                                 .with_label_values(&[tx_type, "sequenced"])
@@ -762,7 +793,7 @@ impl ConsensusAdapter {
                             );
                             break;
                         }
-                        Ok(BlockStatus::GarbageCollected(_)) => {
+                        Ok(BlockStatusInternal::GarbageCollected) => {
                             self.metrics
                                 .sequencing_certificate_status
                                 .with_label_values(&[tx_type, "garbage_collected"])
@@ -810,7 +841,7 @@ impl ConsensusAdapter {
         let is_user_tx = is_soft_bundle
             || matches!(
                 transactions[0].kind,
-                ConsensusTransactionKind::UserTransaction(_)
+                ConsensusTransactionKind::CertifiedTransaction(_)
             );
         let send_end_of_publish = if is_user_tx {
             // If we are in RejectUserCerts state and we just drained the list we need to
@@ -946,7 +977,10 @@ impl ConsensusAdapter {
                 // notified when a checkpoint with equal or higher sequence
                 // number has been already synced. This way we don't try to unnecessarily
                 // sequence the signature for an already verified checkpoint.
-                Either::Left(epoch_store.synced_checkpoint_notify(checkpoint_sequence_number))
+                Either::Left(
+                    self.checkpoint_store
+                        .notify_read_synced_checkpoint(checkpoint_sequence_number),
+                )
             } else {
                 Either::Right(future::pending())
             };
@@ -968,8 +1002,7 @@ impl ConsensusAdapter {
                         processed.expect("Storage error when waiting for transaction executed in checkpoint");
                         self.metrics.sequencing_certificate_processed.with_label_values(&["checkpoint"]).inc();
                     }
-                    processed = checkpoint_synced_future => {
-                        processed.expect("Error when waiting for checkpoint sequence number");
+                    _ = checkpoint_synced_future => {
                         self.metrics.sequencing_certificate_processed.with_label_values(&["synced_checkpoint"]).inc();
                     }
                 }
@@ -1213,9 +1246,8 @@ impl Drop for InflightDropGuard<'_> {
     }
 }
 
-#[async_trait::async_trait]
 impl SubmitToConsensus for Arc<ConsensusAdapter> {
-    async fn submit_to_consensus(
+    fn submit_to_consensus(
         &self,
         transactions: &[ConsensusTransaction],
         epoch_store: &Arc<AuthorityPerEpochStore>,
@@ -1248,6 +1280,7 @@ mod adapter_tests {
 
     use super::position_submit_certificate;
     use crate::{
+        checkpoints::CheckpointStore,
         consensus_adapter::{
             ConnectionMonitorStatusForTests, ConsensusAdapter, ConsensusAdapterMetrics,
         },
@@ -1280,6 +1313,7 @@ mod adapter_tests {
         // When we define max submit position and delay step
         let consensus_adapter = ConsensusAdapter::new(
             Arc::new(LazyMysticetiClient::new()),
+            CheckpointStore::new_for_tests(),
             *committee.authority_by_index(0).unwrap(),
             Arc::new(ConnectionMonitorStatusForTests {}),
             100_000,
@@ -1309,6 +1343,7 @@ mod adapter_tests {
         // Without submit position and delay step
         let consensus_adapter = ConsensusAdapter::new(
             Arc::new(LazyMysticetiClient::new()),
+            CheckpointStore::new_for_tests(),
             *committee.authority_by_index(0).unwrap(),
             Arc::new(ConnectionMonitorStatusForTests {}),
             100_000,

@@ -8,6 +8,10 @@ cargo install --locked --bin iota --path crates/iota
 cargo install --locked --bin iota-rosetta --path crates/iota-rosetta
 
 echo "run IOTA genesis"
+# remove old config because --force will not clean up the client config and keystore
+if [ -d "/home/runner/.iota/iota_config/" ]; then
+    rm -Rf /home/runner/.iota/iota_config/
+fi
 iota genesis --force
 
 echo "generate rosetta configuration"

@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 mod state;
@@ -16,7 +16,7 @@ use crate::{
     diagnostics::Diagnostics,
     hlir::{
         ast::*,
-        translate::{display_var, DisplayVar},
+        translate::{DisplayVar, display_var},
     },
     parser::ast::BinOp_,
     shared::unique_map::UniqueMap,

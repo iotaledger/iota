@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
@@ -15,11 +15,11 @@ use petgraph::{
 
 use super::core::{self, Subst, TParamSubst};
 use crate::{
-    diagnostics::{codes::TypeSafety, Diagnostic},
+    diagnostics::{Diagnostic, codes::TypeSafety},
     expansion::ast::ModuleIdent,
     naming::ast::{self as N, TParam, TParamID, Type, Type_},
     parser::ast::FunctionName,
-    shared::{unique_map::UniqueMap, CompilationEnv},
+    shared::{CompilationEnv, unique_map::UniqueMap},
     typing::ast as T,
 };
 

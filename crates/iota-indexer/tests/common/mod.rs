@@ -8,22 +8,34 @@ use std::{
     time::Duration,
 };
 
+use diesel::{QueryDsl, RunQueryDsl};
+use fastcrypto::traits::Signer;
 use iota_config::local_ip_utils::{get_available_port, new_local_tcp_socket_for_testing};
 use iota_indexer::{
-    IndexerConfig,
+    config::{IotaNamesOptions, JsonRpcConfig, PruningOptions, SnapshotLagConfig},
+    db::{ConnectionPoolConfig, new_connection_pool},
     errors::IndexerError,
-    handlers::objects_snapshot_handler::SnapshotLagConfig,
     indexer::Indexer,
+    metrics::IndexerMetrics,
+    read_only_blocking,
+    schema::optimistic_transactions,
     store::{PgIndexerStore, indexer_store::IndexerStore},
-    test_utils::{DBInitHook, IndexerTypeConfig, start_test_indexer},
+    test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
-use iota_json_rpc_api::ReadApiClient;
-use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
+use iota_json_rpc_api::{
+    CoinReadApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+};
+use iota_json_rpc_types::{
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    TransactionBlockBytes,
+};
 use iota_metrics::init_metrics;
+use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
-    crypto::AccountKeyPair,
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
+    quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
@@ -33,9 +45,12 @@ use jsonrpsee::{
 use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
-use tokio::{runtime::Runtime, task::JoinHandle};
+use tokio::{
+    runtime::Runtime,
+    sync::{Mutex, OnceCell},
+    task::JoinHandle,
+};
 
-const POSTGRES_URL: &str = "postgres://postgres:postgrespw@localhost:5432";
 const DEFAULT_DB: &str = "iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
 const DEFAULT_INDEXER_PORT: u16 = 9005;
@@ -43,6 +58,7 @@ const DEFAULT_SERVER_PORT: u16 = 3000;
 pub const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
 
 static GLOBAL_API_TEST_SETUP: OnceLock<ApiTestSetup> = OnceLock::new();
+static PACKAGE_PUBLISH_LOCK: OnceCell<Arc<Mutex<i64>>> = OnceCell::const_new();
 
 pub struct ApiTestSetup {
     pub runtime: Runtime,
@@ -90,12 +106,12 @@ impl SimulacrumTestSetup {
     ) -> &'a SimulacrumTestSetup {
         initialized_env_container.get_or_init(|| {
             let runtime = tokio::runtime::Runtime::new().unwrap();
-            let data_ingestion_path = tempdir().unwrap().into_path();
+            let data_ingestion_path = tempdir().unwrap().keep();
 
             let sim = env_initializer(data_ingestion_path.clone());
             let sim = Arc::new(sim);
 
-            let db_name = format!("simulacrum_env_db_{}", unique_env_name);
+            let db_name = format!("simulacrum_env_db_{unique_env_name}");
             let (_, store, _, client) =
                 runtime.block_on(start_simulacrum_rest_api_with_read_write_indexer(
                     sim.clone(),
@@ -118,9 +134,8 @@ impl SimulacrumTestSetup {
 pub async fn start_test_cluster_with_read_write_indexer(
     database_name: Option<&str>,
     builder_modifier: Option<Box<dyn FnOnce(TestClusterBuilder) -> TestClusterBuilder>>,
-    epochs_to_keep: Option<u64>,
+    pruning_options: Option<PruningOptions>,
 ) -> (TestCluster, PgIndexerStore, HttpClient) {
-    let temp = tempdir().unwrap().into_path();
     let mut builder = TestClusterBuilder::new();
 
     if let Some(builder_modifier) = builder_modifier {
@@ -130,19 +145,19 @@ pub async fn start_test_cluster_with_read_write_indexer(
     let cluster = builder.build().await;
 
     // start indexer in write mode
-    let (pg_store, _pg_store_handle) = start_test_indexer(
-        get_indexer_db_url(database_name),
+    let (pg_store, _pg_store_handle, _) = start_test_indexer(
+        db_url(database_name.unwrap_or(DEFAULT_DB)),
         // reset the existing db
         true,
         None,
         cluster.rpc_url().to_string(),
-        IndexerTypeConfig::writer_mode(None, epochs_to_keep),
+        IndexerTypeConfig::writer_mode(None, pruning_options),
         None,
     )
     .await;
 
     // start indexer in read mode
-    let indexer_port = start_indexer_reader(cluster.rpc_url().to_owned(), temp, database_name);
+    let indexer_port = start_indexer_reader(cluster.rpc_url().to_owned(), database_name);
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
@@ -150,13 +165,6 @@ pub async fn start_test_cluster_with_read_write_indexer(
         .unwrap();
 
     (cluster, pg_store, rpc_client)
-}
-
-pub fn get_indexer_db_url(database_name: Option<&str>) -> String {
-    database_name.map_or_else(
-        || format!("{POSTGRES_URL}/{DEFAULT_DB}"),
-        |db_name| format!("{POSTGRES_URL}/{db_name}"),
-    )
 }
 
 /// Wait for the indexer to catch up to the given checkpoint sequence number
@@ -178,7 +186,7 @@ pub async fn indexer_wait_for_checkpoint(
         }
     })
     .await
-    .expect("Timeout waiting for indexer to catchup to checkpoint");
+    .expect("timeout waiting for indexer to catchup to checkpoint");
 }
 
 /// Wait for the indexer to catch up to the latest node checkpoint sequence
@@ -194,15 +202,15 @@ pub async fn indexer_wait_for_latest_checkpoint(pg_store: &PgIndexerStore, clust
     indexer_wait_for_checkpoint(pg_store, latest_checkpoint).await;
 }
 
-/// Wait for the indexer to catch up to the given object sequence number
-pub async fn indexer_wait_for_object(
+async fn wait_for_object(
     client: &HttpClient,
     object_id: ObjectID,
     sequence_number: SequenceNumber,
-) {
+) -> anyhow::Result<()> {
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
             let Ok(obj_res) = client.get_object(object_id, None).await else {
+                tokio::time::sleep(Duration::from_millis(20)).await;
                 continue;
             };
 
@@ -214,11 +222,69 @@ pub async fn indexer_wait_for_object(
                 break;
             }
 
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    })
+    .await?;
+    Ok(())
+}
+
+/// Wait for the indexer to catch up to the given object sequence number
+pub async fn indexer_wait_for_object(
+    client: &HttpClient,
+    object_id: ObjectID,
+    sequence_number: SequenceNumber,
+) {
+    wait_for_object(client, object_id, sequence_number)
+        .await
+        .expect("timeout waiting for indexer to catchup to given object's sequence number");
+}
+
+pub async fn node_wait_for_object(
+    cluster: &TestCluster,
+    object_id: ObjectID,
+    sequence_number: SequenceNumber,
+) {
+    wait_for_object(cluster.rpc_client(), object_id, sequence_number)
+        .await
+        .expect("timeout waiting for node to catchup to given object's sequence number");
+}
+
+pub async fn get_optimistic_transactions_count(pg_store: &PgIndexerStore) -> u64 {
+    let blocking_cp = pg_store.blocking_cp();
+    tokio::task::spawn_blocking(move || {
+        read_only_blocking!(&blocking_cp, |conn| {
+            optimistic_transactions::table
+                .count()
+                .get_result::<i64>(conn)
+        })
+    })
+    .await
+    .unwrap()
+    .unwrap() as u64
+}
+
+pub async fn indexer_wait_for_optimistic_transactions_count(
+    pg_store: &PgIndexerStore,
+    expected_transactions_count: u64,
+) {
+    tokio::time::timeout(Duration::from_secs(30), async {
+        loop {
+            let optimistic_transactions_count = get_optimistic_transactions_count(pg_store).await;
+            if optimistic_transactions_count == expected_transactions_count {
+                break;
+            }
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
     })
     .await
-    .expect("Timeout waiting for indexer to catchup to given object's sequence number");
+    .expect("timeout waiting for indexer to prune optimistic transactions");
+
+    tokio::time::sleep(Duration::from_millis(100)).await;
+
+    // check once again, to ensure match was not accidental
+    let optimistic_transactions_count = get_optimistic_transactions_count(pg_store).await;
+    assert_eq!(optimistic_transactions_count, expected_transactions_count);
 }
 
 /// Wait for the indexer to prune the given checkpoint number
@@ -231,7 +297,7 @@ pub async fn indexer_wait_for_checkpoint_pruned(
             let (min, _max) = pg_store
                 .get_available_checkpoint_range()
                 .await
-                .expect("Failed to get available checkpoint range");
+                .expect("failed to get available checkpoint range");
 
             if min > checkpoint_sequence_number {
                 break;
@@ -241,7 +307,7 @@ pub async fn indexer_wait_for_checkpoint_pruned(
         }
     })
     .await
-    .expect("Timeout waiting for indexer to prune checkpoint");
+    .expect("timeout waiting for indexer to prune checkpoint");
 }
 
 pub async fn indexer_wait_for_transaction(
@@ -264,44 +330,73 @@ pub async fn indexer_wait_for_transaction(
         }
     })
     .await
-    .expect("Timeout waiting for indexer to catchup to given transaction");
+    .expect("timeout waiting for indexer to catchup to given transaction");
 }
 
 pub async fn execute_tx_and_wait_for_indexer(
     indexer_client: &HttpClient,
-    cluster: &TestCluster,
     store: &PgIndexerStore,
     tx_bytes: TransactionBlockBytes,
-    keypair: &AccountKeyPair,
-) {
+    keypair: &dyn Signer<Signature>,
+) -> TransactionDigest {
+    let digest = execute_tx_must_succeed(indexer_client, tx_bytes, keypair).await;
+    indexer_wait_for_transaction(digest, store, indexer_client).await;
+    digest
+}
+
+pub async fn execute_tx_must_succeed(
+    indexer_client: &HttpClient,
+    tx_bytes: TransactionBlockBytes,
+    keypair: &dyn Signer<Signature>,
+) -> TransactionDigest {
     let txn = to_sender_signed_transaction(tx_bytes.to_data().unwrap(), keypair);
-    let res = cluster.wallet.execute_transaction_must_succeed(txn).await;
-    indexer_wait_for_transaction(res.digest, store, indexer_client).await;
+    let (tx_bytes, signatures) = txn.to_tx_bytes_and_signatures();
+    let indexer_tx_response = indexer_client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(IotaTransactionBlockResponseOptions::new().with_effects()),
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        indexer_tx_response.status_ok(),
+        Some(true),
+        "transaction failed: {indexer_tx_response:?}"
+    );
+    *txn.digest()
 }
 
 /// Start an Indexer instance in `Read` mode
-fn start_indexer_reader(
-    fullnode_rpc_url: impl Into<String>,
-    data_ingestion_path: PathBuf,
-    database_name: Option<&str>,
-) -> u16 {
-    let db_url = get_indexer_db_url(database_name);
+fn start_indexer_reader(fullnode_rpc_url: impl Into<String>, database_name: Option<&str>) -> u16 {
+    let db_url = db_url(database_name.unwrap_or(DEFAULT_DB));
     let port = get_available_port(DEFAULT_INDEXER_IP);
-    let config = IndexerConfig {
-        db_url: Some(db_url.clone().into()),
+
+    let config = JsonRpcConfig {
+        iota_names_options: IotaNamesOptions::default(),
+        rpc_address: SocketAddr::new(DEFAULT_INDEXER_IP.parse().unwrap(), port),
         rpc_client_url: fullnode_rpc_url.into(),
-        reset_db: true,
-        rpc_server_worker: true,
-        rpc_server_url: DEFAULT_INDEXER_IP.to_owned(),
-        rpc_server_port: port,
-        data_ingestion_path: Some(data_ingestion_path),
-        ..Default::default()
     };
+
+    let pool = new_connection_pool(
+        &db_url,
+        &ConnectionPoolConfig {
+            pool_size: 5,
+            ..Default::default()
+        },
+    )
+    .expect("creating new connection pool should succeed");
 
     let registry = prometheus::Registry::default();
     init_metrics(&registry);
+    let metrics = IndexerMetrics::new(&registry);
 
-    tokio::spawn(async move { Indexer::start_reader(&config, &registry, db_url).await });
+    let store = create_pg_store(&db_url, false);
+
+    tokio::spawn(
+        async move { Indexer::start_reader(&config, store, &registry, pool, metrics).await },
+    );
     port
 }
 
@@ -341,11 +436,11 @@ pub async fn start_simulacrum_rest_api_with_write_indexer(
             .await;
     });
     // Starts indexer
-    let (pg_store, pg_handle) = start_test_indexer(
-        get_indexer_db_url(database_name),
+    let (pg_store, pg_handle, _) = start_test_indexer(
+        db_url(database_name.unwrap_or(DEFAULT_DB)),
         true,
         db_init_hook,
-        format!("http://{}", server_url),
+        format!("http://{server_url}"),
         IndexerTypeConfig::writer_mode(
             Some(SnapshotLagConfig {
                 snapshot_min_lag: 5,
@@ -380,11 +475,8 @@ pub async fn start_simulacrum_rest_api_with_read_write_indexer(
     .await;
 
     // start indexer in read mode
-    let indexer_port = start_indexer_reader(
-        format!("http://{}", simulacrum_server_url),
-        data_ingestion_path,
-        database_name,
-    );
+    let indexer_port =
+        start_indexer_reader(format!("http://{simulacrum_server_url}"), database_name);
 
     // create an RPC client by using the indexer url
     let rpc_client = HttpClientBuilder::default()
@@ -412,6 +504,74 @@ pub async fn wait_for_objects_snapshot(
         }
     })
     .await
-    .expect("Timeout waiting for indexer to catchup to checkpoint for objects snapshot");
+    .expect("timeout waiting for indexer to catchup to checkpoint for objects snapshot");
     Ok(())
+}
+
+pub async fn publish_test_move_package(
+    client: &HttpClient,
+    address: IotaAddress,
+    account_keypair: &IotaKeyPair,
+    test_package_name: &str,
+) -> Result<(ObjectRef, IotaTransactionBlockResponse), anyhow::Error> {
+    let _lock = PACKAGE_PUBLISH_LOCK
+        .get_or_init(async || Arc::new(tokio::sync::Mutex::new(0)))
+        .await
+        .lock()
+        .await;
+
+    let coins = client
+        .get_coins(address, None, None, Some(1))
+        .await
+        .unwrap()
+        .data;
+    let gas = &coins[0];
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.extend(["tests", "data", test_package_name]);
+
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+    let with_unpublished_deps = false;
+    let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
+
+    let transaction_bytes: TransactionBlockBytes = client
+        .publish(
+            address,
+            compiled_modules_bytes,
+            dependencies,
+            Some(gas.coin_object_id),
+            100_000_000.into(),
+        )
+        .await
+        .unwrap();
+
+    let signed_transaction =
+        to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), account_keypair);
+    let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+
+    let tx_response: IotaTransactionBlockResponse = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_object_changes()
+                    .with_events(),
+            ),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+
+    let object_changes = tx_response.object_changes.as_ref().unwrap();
+    let package_object_ref = object_changes
+        .iter()
+        .find_map(|change| match change {
+            ObjectChange::Published { .. } => Some(change.object_ref()),
+            _ => None,
+        })
+        .unwrap();
+
+    Ok((package_object_ref, tx_response))
 }

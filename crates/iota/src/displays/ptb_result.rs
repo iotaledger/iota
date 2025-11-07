@@ -17,7 +17,7 @@ impl<'a> Display for Pretty<'a, PTB<'a>> {
         if let Some((transaction_response, program_metadata)) = self.0 {
             if let Some(effects) = transaction_response.effects.as_ref() {
                 if effects.status().is_err() {
-                    return Err(anyhow!(
+                    bail!(
                         "PTB execution {}. Transaction digest is: {}",
                         Pretty(effects.status()),
                         effects.transaction_digest()

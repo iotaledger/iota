@@ -40,7 +40,8 @@ macro_rules! bin_version {
     };
 }
 
-/// Defines constant that holds the git revision at build time.
+/// Defines constant that holds the git revision at build time using an
+/// abbreviated sha of 12 characters.
 ///
 ///   `GIT_REVISION`: The git revision as specified by the `GIT_REVISION` env
 /// variable provided at compile time, or the current git revision as discovered
@@ -51,6 +52,29 @@ macro_rules! bin_version {
 #[macro_export]
 macro_rules! git_revision {
     () => {
+        $crate::git_revision_abbrev!("--abbrev=12");
+    };
+}
+
+/// Defines constant that holds the git revision at build time using the full
+/// sha characters.
+///
+///   `GIT_REVISION`: The git revision as specified by the `GIT_REVISION` env
+/// variable provided at compile time, or the current git revision as discovered
+/// by running `git describe`.
+///
+/// Note: This macro must only be used from a binary, if used inside a library
+/// this will fail to compile.
+#[macro_export]
+macro_rules! git_revision_long {
+    () => {
+        $crate::git_revision_abbrev!("--abbrev=40");
+    };
+}
+
+#[macro_export]
+macro_rules! git_revision_abbrev {
+    ($abbrev:literal) => {
         const _ASSERT_IS_BINARY: () = {
             env!(
                 "CARGO_BIN_NAME",
@@ -63,7 +87,7 @@ macro_rules! git_revision {
                 revision
             } else {
                 let version = $crate::_hidden::git_version!(
-                    args = ["--always", "--abbrev=12", "--dirty", "--exclude", "*"],
+                    args = ["--always", $abbrev, "--dirty", "--exclude", "*"],
                     fallback = ""
                 );
 

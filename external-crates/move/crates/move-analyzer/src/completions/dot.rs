@@ -1,24 +1,25 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // Auto-completion for the dot operator, e.g., `struct.` or `value.foo()`.`
 
-use crate::{
-    completions::utils::{call_completion_item, mod_defs},
-    symbols::{type_to_ide_string, DefInfo, FunType, Symbols},
-    utils::lsp_position_to_loc,
-};
+use std::path::Path;
+
 use lsp_types::{
     CompletionItem, CompletionItemKind, CompletionItemLabelDetails, InsertTextFormat, Position,
 };
 use move_compiler::{
     expansion::ast::ModuleIdent_,
-    shared::{ide::AutocompleteMethod, Identifier},
+    shared::{Identifier, ide::AutocompleteMethod},
 };
 use move_symbol_pool::Symbol;
 
-use std::path::Path;
+use crate::{
+    completions::utils::{call_completion_item, mod_defs},
+    symbols::{DefInfo, FunType, Symbols, type_to_ide_string},
+    utils::lsp_position_to_loc,
+};
 
 /// Handle "dot" auto-completion at a given position.
 pub fn dot_completions(
@@ -67,7 +68,7 @@ pub fn dot_completions(
                 arg_names,
                 arg_types,
                 ret_type,
-                /* inside_use */ false,
+                false, // inside_use
             )
         } else {
             // this shouldn't really happen as we should be able to get

@@ -41,8 +41,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
     let mut txns = batch_make_transfer_transactions(context, txn_count).await;
     assert!(
         txns.len() >= txn_count,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     // Quorum driver does not execute txn locally
@@ -61,8 +60,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
         .state()
         .get_transaction_cache_reader()
         .notify_read_executed_effects(&[digest])
-        .await
-        .unwrap();
+        .await;
 
     // Transaction Orchestrator proactivcely executes txn locally
     let txn = txns.swap_remove(0);
@@ -74,7 +72,7 @@ async fn test_blocking_execution() -> Result<(), anyhow::Error> {
         ExecuteTransactionRequestType::WaitForLocalExecution,
     )
     .await
-    .unwrap_or_else(|e| panic!("Failed to execute transaction {:?}: {:?}", digest, e));
+    .unwrap_or_else(|e| panic!("Failed to execute transaction {digest:?}: {e:?}"));
 
     assert!(executed_locally);
 
@@ -120,8 +118,7 @@ async fn test_fullnode_wal_log() -> Result<(), anyhow::Error> {
     let mut txns = batch_make_transfer_transactions(context, txn_count).await;
     assert!(
         txns.len() >= txn_count,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
     // As a comparison, we first verify a tx can go through
     let txn = txns.swap_remove(0);
@@ -132,7 +129,7 @@ async fn test_fullnode_wal_log() -> Result<(), anyhow::Error> {
         ExecuteTransactionRequestType::WaitForLocalExecution,
     )
     .await
-    .unwrap_or_else(|e| panic!("Failed to execute transaction {:?}: {:?}", digest, e));
+    .unwrap_or_else(|e| panic!("Failed to execute transaction {digest:?}: {e:?}"));
 
     let validator_addresses = test_cluster.get_validator_pubkeys();
     assert_eq!(validator_addresses.len(), 4);
@@ -269,7 +266,7 @@ async fn test_tx_across_epoch_boundaries() {
             Err(QuorumDriverError::TimeoutBeforeFinality) => {
                 info!(?tx_digest, "tx result: timeout and will retry")
             }
-            Err(other) => panic!("unexpected error: {:?}", other),
+            Err(other) => panic!("unexpected error: {other:?}"),
         }
     });
 
@@ -288,7 +285,7 @@ async fn test_tx_across_epoch_boundaries() {
     let start = std::time::Instant::now();
     match tokio::time::timeout(tokio::time::Duration::from_secs(15), result_rx.recv()).await {
         Ok(Some(effects_cert)) if effects_cert.epoch() == 1 => (),
-        other => panic!("unexpected error: {:?}", other),
+        other => panic!("unexpected error: {other:?}"),
     }
     info!("test completed in {:?}", start.elapsed());
 }
@@ -314,8 +311,7 @@ async fn execute_transaction_v1() -> Result<(), anyhow::Error> {
     let mut txns = batch_make_transfer_transactions(context, txn_count).await;
     assert!(
         txns.len() >= txn_count,
-        "Expect at least {} txns. Do we generate enough gas objects during genesis?",
-        txn_count,
+        "Expect at least {txn_count} txns. Do we generate enough gas objects during genesis?",
     );
 
     // Quorum driver does not execute txn locally

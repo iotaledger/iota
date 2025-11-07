@@ -21,9 +21,9 @@ export function PinButton({ isPinned, onClick }: PinButtonProps) {
             }}
         >
             {isPinned ? (
-                <Pined className="text-primary-40" />
+                <Pined className="text-iota-primary-40" />
             ) : (
-                <Unpined className="text-neutral-60" />
+                <Unpined className="text-iota-neutral-60" />
             )}
         </button>
     );

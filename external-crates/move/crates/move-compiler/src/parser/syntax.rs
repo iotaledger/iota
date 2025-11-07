@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 // In the informal grammar comments in this file, Comma<T> is shorthand for:
@@ -4688,7 +4688,6 @@ fn parse_module_member(context: &mut Context) -> Result<ModuleMember, ErrCase> {
                                     "or",
                                     "'{}'",
                                     [
-                                        Tok::Spec,
                                         Tok::Use,
                                         Tok::Friend,
                                         Tok::Const,

@@ -26,6 +26,6 @@ impl Display for Pretty<'_, GasCostSummary> {
                  Storage Rebate: {storage_rebate}\n   \
                  Non-refundable Storage Fee: {non_refundable_storage_fee}",
         );
-        write!(f, "{}", output)
+        write!(f, "{output}")
     }
 }

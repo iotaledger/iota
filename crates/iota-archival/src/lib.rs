@@ -22,7 +22,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, bail};
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use bytes::Bytes;
 use fastcrypto::hash::{HashFunction, Sha3_256};
@@ -346,7 +346,7 @@ pub fn read_manifest_from_bytes(vec: Vec<u8>) -> Result<Manifest> {
     manifest_reader.rewind()?;
     let magic = manifest_reader.read_u32::<BigEndian>()?;
     if magic != MANIFEST_FILE_MAGIC {
-        return Err(anyhow!("Unexpected magic byte in manifest: {}", magic));
+        bail!("Unexpected magic byte in manifest: {}", magic);
     }
 
     // Reads from the end of the file and gets the SHA3 checksum
@@ -364,11 +364,11 @@ pub fn read_manifest_from_bytes(vec: Vec<u8>) -> Result<Manifest> {
     hasher.update(&content_buf);
     let computed_digest = hasher.finalize().digest;
     if computed_digest != sha3_digest {
-        return Err(anyhow!(
+        bail!(
             "Manifest corrupted, computed checksum: {:?}, stored checksum: {:?}",
             computed_digest,
             sha3_digest
-        ));
+        );
     }
     manifest_reader.rewind()?;
     manifest_reader.seek(SeekFrom::Start(MAGIC_BYTES as u64))?;
@@ -468,10 +468,7 @@ pub async fn verify_archive_with_genesis_config(
         }
     }
 
-    Err::<(), anyhow::Error>(anyhow!(
-        "Failed to verify archive after {} retries",
-        num_retries
-    ))
+    bail!("Failed to verify archive after {} retries", num_retries)
 }
 
 pub async fn verify_archive_with_checksums(
@@ -529,7 +526,7 @@ where
         latest_checkpoint_in_archive
     );
     let latest_checkpoint = store
-        .get_highest_synced_checkpoint()
+        .try_get_highest_synced_checkpoint()
         .map_err(|_| anyhow!("Failed to read highest synced checkpoint"))?
         .sequence_number;
     info!("Highest synced checkpoint in db: {latest_checkpoint}");
@@ -553,8 +550,7 @@ where
                     cloned_counter.load(Ordering::Relaxed) as f64 / instant.elapsed().as_secs_f64();
                 cloned_progress_bar.set_position(latest_checkpoint + total_checkpoints_loaded);
                 cloned_progress_bar.set_message(format!(
-                    "checkpoints/s: {}, txns/s: {}",
-                    total_checkpoints_per_sec, total_txns_per_sec
+                    "checkpoints/s: {total_checkpoints_per_sec}, txns/s: {total_txns_per_sec}"
                 ));
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
@@ -565,7 +561,7 @@ where
         tokio::spawn(async move {
             loop {
                 let latest_checkpoint = cloned_store
-                    .get_highest_synced_checkpoint()
+                    .try_get_highest_synced_checkpoint()
                     .map_err(|_| anyhow!("Failed to read highest synced checkpoint"))?
                     .sequence_number;
                 let percent = (latest_checkpoint * 100) / latest_checkpoint_in_archive;
@@ -592,7 +588,7 @@ where
         .await?;
     progress_bar.iter().for_each(|p| p.finish_and_clear());
     let end = store
-        .get_highest_synced_checkpoint()
+        .try_get_highest_synced_checkpoint()
         .map_err(|_| anyhow!("Failed to read watermark"))?
         .sequence_number;
     info!("Highest verified checkpoint: {}", end);

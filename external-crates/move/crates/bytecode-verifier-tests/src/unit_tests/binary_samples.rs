@@ -1,5 +1,5 @@
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 //! Tests in here are based on binary representation of modules taken from
@@ -8,7 +8,7 @@
 //! metering working as expected. Those tests represent cases which we want to
 //! continue to succeed.
 
-use move_binary_format::{errors::VMResult, CompiledModule};
+use move_binary_format::{CompiledModule, errors::VMResult};
 use move_bytecode_verifier::verifier;
 use move_bytecode_verifier_meter::bound::BoundMeter;
 

@@ -3,7 +3,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { ExplorerLinkType, Loading, UnlockAccountButton } from '_components';
-import { useActiveAccount, useActiveAddress, useAppSelector, useExplorerLink } from '_hooks';
+import {
+    useActiveAccount,
+    useActiveAddress,
+    useAppSelector,
+    useExplorerLink,
+    useShouldOpenInNewTab,
+} from '_hooks';
 import { FaucetRequestButton } from '_src/ui/app/shared/faucet/FaucetRequestButton';
 import { useFeature } from '@growthbook/growthbook-react';
 import {
@@ -46,6 +52,7 @@ import { ReceiveTokensDialog } from './ReceiveTokensDialog';
 import { OverviewHint } from './OverviewHint';
 import { SupplyIncreaseVestingStakingDialog } from './SupplyIncreaseVestingStakingDialog';
 import { MigrationDialog } from './MigrationDialog';
+import { openInNewTab } from '_src/shared/utils';
 
 export function TokenDetails() {
     const navigate = useNavigate();
@@ -57,6 +64,7 @@ export function TokenDetails() {
     const activeAccount = useActiveAccount();
     const activeAccountAddress = activeAccount?.address;
     const network = useAppSelector((state) => state.app.network);
+    const shouldOpenNewTab = useShouldOpenInNewTab();
     const isMainnet = network === Network.Mainnet;
     const supplyIncreaseVestingEnabled = useFeature<boolean>(Feature.SupplyIncreaseVesting).value;
     const migrationEnabled = useFeature<boolean>(Feature.StardustMigration).value;
@@ -158,12 +166,16 @@ export function TokenDetails() {
     const isFirstTimeLoading = isPending && !isFetched;
 
     const onSendClick = () => {
-        if (!activeAccount?.isLocked) {
+        if (activeAccount && !activeAccount?.isLocked) {
             const destination = coinBalance?.coinType
                 ? `/send?${new URLSearchParams({ type: coinBalance?.coinType }).toString()}`
                 : '/send';
 
-            navigate(destination);
+            if (shouldOpenNewTab) {
+                openInNewTab(destination);
+            } else {
+                navigate(destination);
+            }
         }
     };
 
@@ -230,6 +242,7 @@ export function TokenDetails() {
                                 type={ButtonType.Secondary}
                                 icon={<ArrowBottomLeft />}
                                 size={ButtonSize.Small}
+                                testId="receive-coin-button"
                             />
                             <Button
                                 onClick={onSendClick}
@@ -255,18 +268,18 @@ export function TokenDetails() {
                                     ) : null}
                                     {hasSupplyIncreaseVestingObjects || needsMigration ? (
                                         <div className="flex w-full flex-row gap-x-xs">
-                                            {hasSupplyIncreaseVestingObjects ? (
-                                                <OverviewHint
-                                                    onClick={() => setDialogVestingOpen(true)}
-                                                    title="Vested Staking"
-                                                    icon={Vesting}
-                                                />
-                                            ) : null}
                                             {needsMigration ? (
                                                 <OverviewHint
                                                     onClick={() => setDialogMigrationOpen(true)}
                                                     title="Migration"
                                                     icon={Migration}
+                                                />
+                                            ) : null}
+                                            {hasSupplyIncreaseVestingObjects ? (
+                                                <OverviewHint
+                                                    onClick={() => setDialogVestingOpen(true)}
+                                                    title="Vesting"
+                                                    icon={Vesting}
                                                 />
                                             ) : null}
                                         </div>
@@ -275,7 +288,7 @@ export function TokenDetails() {
                                 {!accountHasIota ? (
                                     <div className="flex flex-col gap-md">
                                         <div className="flex flex-col flex-nowrap items-center justify-center px-sm text-center">
-                                            <span className="text-body-sm text-neutral-40 dark:text-neutral-60">
+                                            <span className="text-body-sm text-iota-neutral-40 dark:text-iota-neutral-60">
                                                 {isMainnet
                                                     ? 'Start by buying IOTA'
                                                     : 'Need to send transactions on the IOTA network? You’ll need IOTA in your wallet'}

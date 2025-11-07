@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::io::Cursor;
@@ -8,7 +8,7 @@ use std::io::Cursor;
 use crate::{
     deserializer::load_signature_token_test_entry,
     file_format::{DatatypeHandleIndex, SignatureToken},
-    file_format_common::{BinaryData, SerializedType, SIGNATURE_TOKEN_DEPTH_MAX},
+    file_format_common::{BinaryData, SIGNATURE_TOKEN_DEPTH_MAX, SerializedType},
     serializer::{serialize_signature_token, serialize_signature_token_unchecked},
 };
 

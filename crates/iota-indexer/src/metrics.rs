@@ -2,7 +2,7 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, net::SocketAddr};
+use std::net::SocketAddr;
 
 use axum::{Router, extract::Extension, http::StatusCode, routing::get};
 use iota_metrics::RegistryService;
@@ -10,27 +10,15 @@ use prometheus::{
     Histogram, IntCounter, IntGauge, Registry, TextEncoder, register_histogram_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };
-use regex::Regex;
-use tracing::{info, warn};
+use tracing::info;
 
 const METRICS_ROUTE: &str = "/metrics";
 
 pub fn start_prometheus_server(
     addr: SocketAddr,
-    fn_url: &str,
 ) -> Result<(RegistryService, Registry), anyhow::Error> {
-    let converted_fn_url = convert_url(fn_url);
-    if converted_fn_url.is_none() {
-        warn!(
-            "Failed to convert full node url {} to a shorter version",
-            fn_url
-        );
-    }
-    let fn_url_str = converted_fn_url.unwrap_or_else(|| "unknown_url".to_string());
-
-    let labels = HashMap::from([("indexer_fullnode".to_string(), fn_url_str)]);
-    info!("Starting prometheus server with labels: {:?}", labels);
-    let registry = Registry::new_custom(Some("indexer".to_string()), Some(labels))?;
+    info!(address =% addr, "Starting prometheus server");
+    let registry = Registry::new_custom(Some("indexer".to_string()), None)?;
     let registry_service = RegistryService::new(registry.clone());
 
     let app = Router::new()
@@ -55,14 +43,6 @@ async fn metrics(Extension(registry_service): Extension<RegistryService>) -> (St
             format!("unable to encode metrics: {error}"),
         ),
     }
-}
-
-fn convert_url(url_str: &str) -> Option<String> {
-    // NOTE: unwrap here is safe because the regex is a constant.
-    let re = Regex::new(r"https?://([a-z0-9-]+\.[a-z0-9-]+\.[a-z]+)").unwrap();
-    let captures = re.captures(url_str)?;
-
-    captures.get(1).map(|m| m.as_str().to_string())
 }
 
 /// NOTE: for various data ingestion steps, which are expected to be within
@@ -143,9 +123,11 @@ pub struct IndexerMetrics {
     pub checkpoint_db_commit_latency_tx_insertion_order_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects: Histogram,
     pub checkpoint_db_commit_latency_objects_snapshot: Histogram,
+    pub checkpoint_db_commit_latency_objects_version: Histogram,
     pub checkpoint_db_commit_latency_objects_history: Histogram,
     pub checkpoint_db_commit_latency_objects_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects_snapshot_chunks: Histogram,
+    pub checkpoint_db_commit_latency_objects_version_chunks: Histogram,
     pub checkpoint_db_commit_latency_objects_history_chunks: Histogram,
     pub checkpoint_db_commit_latency_events: Histogram,
     pub checkpoint_db_commit_latency_events_chunks: Histogram,
@@ -196,6 +178,21 @@ pub struct IndexerMetrics {
     pub last_pruned_checkpoint: IntGauge,
     pub last_pruned_transaction: IntGauge,
     pub epoch_pruning_latency: Histogram, // not used
+    pub optimistic_pruner_total_rows_pruned: IntCounter,
+    pub optimistic_pruner_batch_duration: Histogram,
+    // Optimistic indexing metrics
+    pub optimistic_tx_total_execution_and_indexing_time: Histogram,
+    pub optimistic_tx_node_response_wait_time: Histogram,
+    pub optimistic_tx_dependencies_wait_time: Histogram,
+    pub optimistic_tx_db_write_time: Histogram,
+    pub optimistic_tx_db_wait_and_read_time: Histogram,
+    pub optimistic_tx_count: IntCounter,
+    pub optimistic_tx_successful_db_writes_count: IntCounter,
+    pub optimistic_tx_failed_node_requests_count: IntCounter,
+    pub optimistic_tx_unique_global_order_violations_count: IntCounter,
+    pub optimistic_tx_with_missing_dependencies_count: IntCounter,
+    pub optimistic_tx_with_missing_objects_counts: IntCounter,
+    pub optimistic_tx_failed_db_writes_count: IntCounter,
 }
 
 impl IndexerMetrics {
@@ -494,6 +491,12 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
+            checkpoint_db_commit_latency_objects_version: register_histogram_with_registry!(
+                "checkpoint_db_commit_latency_objects_version",
+                "Time spent committing objects version",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
             checkpoint_db_commit_latency_objects_history: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_history",
                 "Time spent committing objects history",
@@ -514,6 +517,12 @@ impl IndexerMetrics {
                 registry,
             )
             .unwrap(),
+            checkpoint_db_commit_latency_objects_version_chunks: register_histogram_with_registry!(
+                "checkpoint_db_commit_latency_objects_version_chunks",
+                "Time spent committing objects version chunks",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
             checkpoint_db_commit_latency_objects_history_chunks: register_histogram_with_registry!(
                 "checkpoint_db_commit_latency_objects_history_chunks",
                 "Time spent committing objects history chunks",
@@ -809,12 +818,121 @@ impl IndexerMetrics {
                 "Last pruned transaction sequence number",
                 registry,
             ).unwrap(),
+            optimistic_pruner_total_rows_pruned: register_int_counter_with_registry!(
+                "optimistic_pruner_total_rows_pruned",
+                "Total number of rows pruned by optimistic pruner",
+                registry,
+            )
+                .unwrap(),
+            optimistic_pruner_batch_duration: register_histogram_with_registry!(
+                "optimistic_pruner_batch_duration",
+                "Time spent processing single optimistic pruner batch",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+                .unwrap(),
             epoch_pruning_latency: register_histogram_with_registry!(
                 "epoch_pruning_latency",
                 "Time spent in pruning one epoch",
                 DB_UPDATE_QUERY_LATENCY_SEC_BUCKETS.to_vec(),
                 registry
-            ).unwrap(),
+            )
+            .unwrap(),
+            optimistic_tx_total_execution_and_indexing_time: register_histogram_with_registry!(
+                "optimistic_tx_total_execution_and_indexing_time",
+                "Total execution and indexing time for optimistic transaction",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_node_response_wait_time: register_histogram_with_registry!(
+                "optimistic_tx_node_response_wait_time",
+                "Time waiting for node response during optimistic indexing",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_dependencies_wait_time: register_histogram_with_registry!(
+                "optimistic_tx_dependencies_wait_time",
+                "Time spent waiting for transaction dependencies",
+                DATA_INGESTION_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_db_write_time: register_histogram_with_registry!(
+                "optimistic_tx_db_write_time",
+                "Time spent writing optimistic transaction to database",
+                DB_UPDATE_QUERY_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_db_wait_and_read_time: register_histogram_with_registry!(
+                "optimistic_tx_db_wait_and_read_time",
+                "Time spent waiting and reading optimistic transaction from database before returning response",
+                DB_UPDATE_QUERY_LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_count: register_int_counter_with_registry!(
+                "optimistic_tx_count",
+                "Total number of optimistic transactions executed through indexer",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_successful_db_writes_count: register_int_counter_with_registry!(
+                "optimistic_tx_successful_db_writes_count",
+                "Number optimistic transactions successfully written to the database",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_failed_node_requests_count: register_int_counter_with_registry!(
+                "optimistic_tx_failed_node_requests_count",
+                "Number of failed fullnode requests during optimistic indexing",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_unique_global_order_violations_count: register_int_counter_with_registry!(
+                "optimistic_tx_unique_global_order_violations_count",
+                "Number of unique global order violations encountered during optimistic indexing",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_with_missing_dependencies_count: register_int_counter_with_registry!(
+                "optimistic_tx_with_missing_dependencies_count",
+                "Number of transactions with missing dependencies that skipped optimistic indexing",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_with_missing_objects_counts: register_int_counter_with_registry!(
+                "optimistic_tx_with_missing_objects_counts",
+                "Number of transactions with missing input/output objects that skipped optimistic indexing",
+                registry,
+            )
+            .unwrap(),
+            optimistic_tx_failed_db_writes_count: register_int_counter_with_registry!(
+                "optimistic_tx_failed_db_writes_count",
+                "Number of failed database writes during optimistic indexing",
+                registry,
+            )
+            .unwrap(),
         }
     }
+}
+
+pub fn spawn_connection_pool_metric_collector(
+    metrics: IndexerMetrics,
+    connection_pool: crate::db::ConnectionPool,
+) {
+    tokio::spawn(async move {
+        loop {
+            let cp_state = connection_pool.state();
+            tracing::debug!(
+                connection_pool_size =% cp_state.connections,
+                idle_connections =% cp_state.idle_connections,
+            );
+            metrics.db_conn_pool_size.set(cp_state.connections as i64);
+            metrics.idle_db_conn.set(cp_state.idle_connections as i64);
+            tokio::time::sleep(tokio::time::Duration::from_secs(60)).await;
+        }
+    });
 }

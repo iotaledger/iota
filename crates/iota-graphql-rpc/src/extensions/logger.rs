@@ -138,10 +138,10 @@ impl Extension for LoggerExtension {
                         }
                         match s {
                             PathSegment::Index(idx) => {
-                                let _ = write!(&mut path, "{}", idx);
+                                let _ = write!(&mut path, "{idx}");
                             }
                             PathSegment::Field(name) => {
-                                let _ = write!(&mut path, "{}", name);
+                                let _ = write!(&mut path, "{name}");
                             }
                         }
                     }

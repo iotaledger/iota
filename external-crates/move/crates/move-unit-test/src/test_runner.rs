@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{collections::BTreeMap, io::Write, marker::Send, sync::Mutex, time::Instant};
@@ -143,8 +143,7 @@ impl TestRunner {
             move_stdlib_natives::all_natives(
                 AccountAddress::from_hex_literal("0x1").unwrap(),
                 move_stdlib_natives::GasParameters::zeros(),
-                // silent
-                false,
+                false, // silent
             )
         });
         Ok(Self {
@@ -219,7 +218,7 @@ struct TestOutput<'a, 'b, W> {
     test_info: &'a BTreeMap<ModuleId, NamedCompiledModule>,
 }
 
-impl<'a, 'b, W: Write> TestOutput<'a, 'b, W> {
+impl<W: Write> TestOutput<'_, '_, W> {
     fn pass(&self, fn_name: &str) {
         writeln!(
             self.writer.lock().unwrap(),
@@ -262,7 +261,7 @@ impl SharedTestingConfig {
         arguments: Vec<MoveValue>,
     ) -> (
         VMResult<ChangeSet>,
-        VMResult<NativeContextExtensions>,
+        VMResult<NativeContextExtensions<'_>>,
         VMResult<Vec<Vec<u8>>>,
         TestRunInfo,
     ) {

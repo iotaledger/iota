@@ -174,7 +174,7 @@ fragment DynamicFieldsSelect on DynamicFieldConnection {
 
 //# create-checkpoint
 
-//# run-graphql --cursors @{obj_5_0,1} @{obj_5_0,2}
+//# run-graphql --cursors bcs(@{obj_5_0},1) bcs(@{obj_5_0},2)
 fragment DynamicFieldSelect on DynamicField {
   name {
     bcs
@@ -285,7 +285,7 @@ fragment DynamicFieldSelect on DynamicField {
 
 //# create-checkpoint
 
-//# run-graphql --cursors @{obj_5_0,2} @{obj_5_0,3}
+//# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},3)
 fragment DynamicFieldSelect on DynamicField {
   name {
     bcs
@@ -346,7 +346,7 @@ fragment DynamicFieldsSelect on DynamicFieldConnection {
 
 //# create-checkpoint
 
-//# run-graphql --cursors @{obj_5_0,2} @{obj_5_0,4}
+//# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},4)
 fragment DynamicFieldSelect on DynamicField {
   name {
     bcs
@@ -447,7 +447,7 @@ fragment DynamicFieldSelect on DynamicField {
 
 //# create-checkpoint
 
-//# run-graphql --cursors @{obj_5_0,2} @{obj_5_0,4}
+//# run-graphql --cursors bcs(@{obj_5_0},2) bcs(@{obj_5_0},4)
 fragment DynamicFieldSelect on DynamicField {
   name {
     bcs

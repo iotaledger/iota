@@ -1,0 +1,10 @@
+[package]
+name = "J"
+edition = "2024"
+
+[dependencies]
+# this is relative to the temp directory where this whole tree shaking dir is copied to
+Iota = { local = "../../system-packages/iota-framework", override = true }
+
+[addresses]
+j = "0x0"

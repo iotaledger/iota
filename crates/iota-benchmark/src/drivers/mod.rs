@@ -42,7 +42,7 @@ impl FromStr for Interval {
 impl std::fmt::Display for Interval {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Interval::Count(count) => f.write_str(format!("{}", count).as_str()),
+            Interval::Count(count) => f.write_str(format!("{count}").as_str()),
             Interval::Time(d) => {
                 if *d == Duration::MAX {
                     f.write_str("unbounded")
@@ -124,6 +124,8 @@ pub struct BenchmarkStats {
     pub duration: Duration,
     /// Number of transactions that ended in an error
     pub num_error_txes: u64,
+    /// Number of transactions that ended in an error but were expected
+    pub num_expected_error_txes: u64,
     /// Number of transactions that were executed successfully
     pub num_success_txes: u64,
     /// Total number of commands in transactions that executed successfully
@@ -137,6 +139,7 @@ impl BenchmarkStats {
     pub fn update(&mut self, duration: Duration, sample_stat: &BenchmarkStats) {
         self.duration = duration;
         self.num_error_txes += sample_stat.num_error_txes;
+        self.num_expected_error_txes += sample_stat.num_expected_error_txes;
         self.num_success_txes += sample_stat.num_success_txes;
         self.num_success_cmds += sample_stat.num_success_cmds;
         self.total_gas_used += sample_stat.total_gas_used;
@@ -155,6 +158,7 @@ impl BenchmarkStats {
                 "tps",
                 "cps",
                 "error%",
+                "expected error%",
                 "latency (min)",
                 "latency (p50)",
                 "latency (p99)",
@@ -168,6 +172,10 @@ impl BenchmarkStats {
         row.add_cell(Cell::new(
             (100 * self.num_error_txes) as f32
                 / (self.num_error_txes + self.num_success_txes) as f32,
+        ));
+        row.add_cell(Cell::new(
+            (100 * self.num_expected_error_txes) as f32
+                / (self.num_expected_error_txes + self.num_success_txes) as f32,
         ));
         row.add_cell(Cell::new(self.latency_ms.histogram.min()));
         row.add_cell(Cell::new(self.latency_ms.histogram.value_at_quantile(0.5)));
@@ -255,8 +263,8 @@ impl BenchmarkCmp<'_> {
         let speedup = 1.0 + diff_ratio;
         Comparison {
             name: "tps".to_string(),
-            old_value: format!("{:.2}", old_tps),
-            new_value: format!("{:.2}", new_tps),
+            old_value: format!("{old_tps:.2}"),
+            new_value: format!("{new_tps:.2}"),
             diff,
             diff_ratio,
             speedup,
@@ -272,8 +280,8 @@ impl BenchmarkCmp<'_> {
         let speedup = 1.0 / (1.0 + diff_ratio);
         Comparison {
             name: "error_rate".to_string(),
-            old_value: format!("{:.2}", old_error_rate),
-            new_value: format!("{:.2}", new_error_rate),
+            old_value: format!("{old_error_rate:.2}"),
+            new_value: format!("{new_error_rate:.2}"),
             diff,
             diff_ratio,
             speedup,
@@ -287,8 +295,8 @@ impl BenchmarkCmp<'_> {
         let speedup = 1.0 / (1.0 + diff_ratio);
         Comparison {
             name: "min_latency".to_string(),
-            old_value: format!("{:.2}", old),
-            new_value: format!("{:.2}", new),
+            old_value: format!("{old:.2}"),
+            new_value: format!("{new:.2}"),
             diff,
             diff_ratio,
             speedup,
@@ -302,8 +310,8 @@ impl BenchmarkCmp<'_> {
         let speedup = 1.0 / (1.0 + diff_ratio);
         Comparison {
             name: "p25_latency".to_string(),
-            old_value: format!("{:.2}", old),
-            new_value: format!("{:.2}", new),
+            old_value: format!("{old:.2}"),
+            new_value: format!("{new:.2}"),
             diff,
             diff_ratio,
             speedup,
@@ -317,8 +325,8 @@ impl BenchmarkCmp<'_> {
         let speedup = 1.0 / (1.0 + diff_ratio);
         Comparison {
             name: "p50_latency".to_string(),
-            old_value: format!("{:.2}", old),
-            new_value: format!("{:.2}", new),
+            old_value: format!("{old:.2}"),
+            new_value: format!("{new:.2}"),
             diff,
             diff_ratio,
             speedup,
@@ -332,8 +340,8 @@ impl BenchmarkCmp<'_> {
         let speedup = 1.0 / (1.0 + diff_ratio);
         Comparison {
             name: "p75_latency".to_string(),
-            old_value: format!("{:.2}", old),
-            new_value: format!("{:.2}", new),
+            old_value: format!("{old:.2}"),
+            new_value: format!("{new:.2}"),
             diff,
             diff_ratio,
             speedup,
@@ -347,8 +355,8 @@ impl BenchmarkCmp<'_> {
         let speedup = 1.0 / (1.0 + diff_ratio);
         Comparison {
             name: "p90_latency".to_string(),
-            old_value: format!("{:.2}", old),
-            new_value: format!("{:.2}", new),
+            old_value: format!("{old:.2}"),
+            new_value: format!("{new:.2}"),
             diff,
             diff_ratio,
             speedup,
@@ -362,8 +370,8 @@ impl BenchmarkCmp<'_> {
         let speedup = 1.0 / (1.0 + diff_ratio);
         Comparison {
             name: "p99_latency".to_string(),
-            old_value: format!("{:.2}", old),
-            new_value: format!("{:.2}", new),
+            old_value: format!("{old:.2}"),
+            new_value: format!("{new:.2}"),
             diff,
             diff_ratio,
             speedup,
@@ -377,8 +385,8 @@ impl BenchmarkCmp<'_> {
         let speedup = 1.0 / (1.0 + diff_ratio);
         Comparison {
             name: "p999_latency".to_string(),
-            old_value: format!("{:.2}", old),
-            new_value: format!("{:.2}", new),
+            old_value: format!("{old:.2}"),
+            new_value: format!("{new:.2}"),
             diff,
             diff_ratio,
             speedup,
@@ -392,8 +400,8 @@ impl BenchmarkCmp<'_> {
         let speedup = 1.0 / (1.0 + diff_ratio);
         Comparison {
             name: "max_latency".to_string(),
-            old_value: format!("{:.2}", old),
-            new_value: format!("{:.2}", new),
+            old_value: format!("{old:.2}"),
+            new_value: format!("{new:.2}"),
             diff,
             diff_ratio,
             speedup,

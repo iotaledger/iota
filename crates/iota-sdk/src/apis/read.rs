@@ -17,8 +17,9 @@ use iota_json_rpc_types::{
     DryRunTransactionBlockResponse, DynamicFieldPage, IotaData, IotaGetPastObjectRequest,
     IotaMoveNormalizedModule, IotaObjectDataOptions, IotaObjectResponse, IotaObjectResponseQuery,
     IotaPastObjectResponse, IotaTransactionBlockEffects, IotaTransactionBlockResponse,
-    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery, ObjectsPage,
-    ProtocolConfigResponse, TransactionBlocksPage, TransactionFilter,
+    IotaTransactionBlockResponseOptions, IotaTransactionBlockResponseQuery,
+    IotaTransactionBlockResponseQueryV2, ObjectsPage, ProtocolConfigResponse,
+    TransactionBlocksPage, TransactionFilter,
 };
 use iota_types::{
     base_types::{IotaAddress, ObjectID, SequenceNumber, TransactionDigest},
@@ -448,14 +449,11 @@ impl ReadApi {
             .get_object_with_options(object_id, IotaObjectDataOptions::default().with_bcs())
             .await?
             .into_object()
-            .map_err(|e| {
-                Error::Data(format!("Can't get bcs of object {:?}: {:?}", object_id, e))
-            })?;
+            .map_err(|e| Error::Data(format!("Can't get bcs of object {object_id:?}: {e:?}")))?;
         // unwrap: requested bcs data
         let move_object = resp.bcs.unwrap();
         let raw_move_obj = move_object.try_into_move().ok_or(Error::Data(format!(
-            "Object {:?} is not a MoveObject",
-            object_id
+            "Object {object_id:?} is not a MoveObject"
         )))?;
         Ok(raw_move_obj.bcs_bytes)
     }
@@ -515,10 +513,27 @@ impl ReadApi {
         limit: impl Into<Option<usize>>,
         descending_order: bool,
     ) -> IotaRpcResult<TransactionBlocksPage> {
+        let query_v2 = IotaTransactionBlockResponseQueryV2 {
+            filter: query.filter.as_ref().map(|f| f.as_v2()),
+            options: query.options,
+        };
+        self.query_transaction_blocks_v2(query_v2, cursor, limit, descending_order)
+            .await
+    }
+
+    /// Get filtered transaction blocks information.
+    /// Results are paginated.
+    pub async fn query_transaction_blocks_v2(
+        &self,
+        query: IotaTransactionBlockResponseQueryV2,
+        cursor: impl Into<Option<TransactionDigest>>,
+        limit: impl Into<Option<usize>>,
+        descending_order: bool,
+    ) -> IotaRpcResult<TransactionBlocksPage> {
         Ok(self
             .api
             .http
-            .query_transaction_blocks(query, cursor.into(), limit.into(), Some(descending_order))
+            .query_transaction_blocks_v2(query, cursor.into(), limit.into(), Some(descending_order))
             .await?)
     }
 
@@ -566,6 +581,21 @@ impl ReadApi {
         cursor: impl Into<Option<TransactionDigest>>,
         descending_order: bool,
     ) -> impl Stream<Item = IotaTransactionBlockResponse> + '_ {
+        let query_v2 = IotaTransactionBlockResponseQueryV2 {
+            filter: query.filter.as_ref().map(|f| f.as_v2()),
+            options: query.options,
+        };
+
+        self.get_transactions_stream_v2(query_v2, cursor, descending_order)
+    }
+
+    /// Get a stream of transactions.
+    pub fn get_transactions_stream_v2(
+        &self,
+        query: IotaTransactionBlockResponseQueryV2,
+        cursor: impl Into<Option<TransactionDigest>>,
+        descending_order: bool,
+    ) -> impl Stream<Item = IotaTransactionBlockResponse> + '_ {
         let cursor = cursor.into();
 
         stream::unfold(
@@ -575,7 +605,7 @@ impl ReadApi {
                     Some((item, (data, cursor, false, query)))
                 } else if (cursor.is_none() && first) || cursor.is_some() {
                     let page = self
-                        .query_transaction_blocks(
+                        .query_transaction_blocks_v2(
                             query.clone(),
                             cursor,
                             Some(100),

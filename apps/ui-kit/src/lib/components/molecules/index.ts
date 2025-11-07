@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 export * from './address';
+export * from './asset-media-renderer';
 export * from './chip';
 export * from './segmented-button';
 export * from './title';
@@ -15,3 +16,4 @@ export * from './table-header-cell';
 export * from './search';
 export * from './card';
 export * from './display-stats';
+export * from './visual-asset-card';

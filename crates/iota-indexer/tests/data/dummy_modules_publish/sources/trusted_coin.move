@@ -19,7 +19,7 @@ module examples::trusted_coin {
         // Get a treasury cap for the coin and give it to the transaction
         // sender
         let (treasury_cap, metadata) = coin::create_currency<TRUSTED_COIN>(witness, 2, b"TRUSTED", b"Trusted Coin", b"Trusted Coin for test", option::none(), ctx);
-        transfer::public_freeze_object(metadata);
+        transfer::public_transfer(metadata, tx_context::sender(ctx));
         transfer::public_transfer(treasury_cap, tx_context::sender(ctx))
     }
 

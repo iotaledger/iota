@@ -1,18 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use std::collections::BTreeMap;
 
 use move_binary_format::{
-    errors::{bounds_error, PartialVMError},
+    IndexKind,
+    errors::{PartialVMError, bounds_error},
     file_format::{
         AddressIdentifierIndex, CompiledModule, DatatypeHandleIndex, FunctionHandleIndex,
         IdentifierIndex, ModuleHandleIndex, SignatureIndex, StructDefinitionIndex, TableIndex,
     },
     internals::ModuleIndex,
-    IndexKind,
 };
 use move_core_types::vm_status::StatusCode;
 use proptest::{

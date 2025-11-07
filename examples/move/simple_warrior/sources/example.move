@@ -39,6 +39,23 @@ module simple_warrior::example {
         option::extract(&mut warrior.sword)
     }
 
+    public fun destroy_sword(sword: Sword) {
+        let Sword { id, strength: _ } = sword;
+        object::delete(id);
+    }
+
+    public fun destroy_warrior(warrior: Warrior) {
+        let Warrior { id, sword } = warrior;
+        object::delete(id);
+
+        if (option::is_none(&sword)) {
+            sword.destroy_none();
+        } else {
+            let Sword { id, strength: _ } = option::destroy_some(sword);
+            object::delete(id);
+        }
+    }
+
     // === Tests ===
     #[test_only] use iota::test_scenario as ts;
 

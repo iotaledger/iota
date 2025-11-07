@@ -12,8 +12,7 @@ use diesel::{
     query_dsl::LoadQuery,
 };
 use iota_indexer::{
-    indexer_reader::IndexerReader, run_query_async, run_query_repeatable_async,
-    spawn_read_only_blocking,
+    read::IndexerReader, run_query_async, run_query_repeatable_async, spawn_read_only_blocking,
 };
 use tracing::error;
 
@@ -65,7 +64,7 @@ impl QueryExecutor for PgExecutor {
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
         if let Err(e) = &result {
-            error!("DB query error: {e:?}");
+            error!("db query error: {e:?}");
         }
         result.map_err(|e| Error::Internal(e.to_string()))
     }
@@ -89,7 +88,7 @@ impl QueryExecutor for PgExecutor {
         self.metrics
             .observe_db_data(instant.elapsed(), result.is_ok());
         if let Err(e) = &result {
-            error!("DB query error: {e:?}");
+            error!("db query error: {e:?}");
         }
         result.map_err(|e| Error::Internal(e.to_string()))
     }
@@ -204,7 +203,7 @@ mod tests {
     use diesel::QueryDsl;
     use iota_framework::BuiltInFramework;
     use iota_indexer::{
-        db::{get_pool_connection, new_connection_pool, reset_database},
+        db::{ConnectionPoolConfig, get_pool_connection, new_connection_pool, reset_database},
         models::objects::StoredObject,
         schema::objects,
         types::IndexedObject,
@@ -216,11 +215,11 @@ mod tests {
     #[test]
     fn test_query_cost() {
         let connection_config = ConnectionConfig::default();
-        let pool = new_connection_pool(
-            &connection_config.db_url,
-            Some(connection_config.db_pool_size),
-        )
-        .unwrap();
+        let connection_pool_config = ConnectionPoolConfig {
+            pool_size: connection_config.db_pool_size,
+            ..Default::default()
+        };
+        let pool = new_connection_pool(&connection_config.db_url, &connection_pool_config).unwrap();
         let mut conn = get_pool_connection(&pool).unwrap();
         reset_database(&mut conn).unwrap();
 

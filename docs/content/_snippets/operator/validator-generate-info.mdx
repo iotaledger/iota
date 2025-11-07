@@ -14,13 +14,19 @@ storing the private key controlling the validator rewards on the node.
 
 See [Install IOTA](https://docs.iota.org/developer/getting-started/install-iota) on how to install the `iota` CLI and [Connect to an IOTA Network](https://docs.iota.org/developer/getting-started/connect) on how to select the correct environment (Mainnet or Testnet).
 
-#### 1.2. Generate a new key pair
+#### 1.2. Generate a Validator Account
+
+Validators are owned and controlled by an Ed25519 address. You can create a new address, import an existing one or use your Ledger hardware wallet to control a Validator.
+You can skip this step if you already have an account configured that you want to use for the Validator.
+
+<Tabs>
+
+<TabItem label="Generate new keypair" value="generate">
 
 ```bash
-iota client new-address
+iota client new-address --alias <ALIAS>
 ```
 This generates a new key pair and stores the files within the standard working config folder, `~/.iota/iota_config/` (in Unix).
-You can skip this step if you already have an account configured. If you would like to import an existing keypair see `iota keytool import -h`.
 
 Executing the above command provides the key pair info as output, e.g.:
 
@@ -28,7 +34,7 @@ Executing the above command provides the key pair info as output, e.g.:
 ╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮
 │ Created new keypair and saved it to keystore.                                                          │
 ├─────────────────────────┬──────────────────────────────────────────────────────────────────────────────┤
-│ alias                   │ intelligent-chalcedony                                                       │
+│ alias                   │ <ALIAS>                                                                      │
 │ address                 │ 0x3607bc87821a13d861e1e09cd5a2525b272f8dbc3e00556a8baf940a39120f32           │
 │ publicBase64Key         │ m6mBnT0tq9CA1zgdwy9y6ag2e8sWyzHVAoca+zLKJq8=                                 │
 │ publicBase64KeyWithFlag │ AJupgZ09LavQgNc4HcMvcumoNnvLFssx1QKHGvsyyiav                                 │
@@ -37,12 +43,63 @@ Executing the above command provides the key pair info as output, e.g.:
 ╰─────────────────────────┴──────────────────────────────────────────────────────────────────────────────╯
 ```
 
+</TabItem>
+
+<TabItem label="Import from mnemonic" value="import">
+
+```bash
+iota keytool import "glimpse hard relax method kid deliver nominee wait brief surprise speed pond" ed25519 --alias <ALIAS>
+```
+This imports an existing key pair using the given mnemonic and stores the files within the standard working config folder, `~/.iota/iota_config/` (in Unix).
+
+Executing the above command provides the key pair info as output, e.g.:
+
+```bash
+╭─────────────────────────┬──────────────────────────────────────────────────────────────────────╮
+│ alias                   │  <ALIAS>                                                             │
+│ iotaAddress             │  0x3607bc87821a13d861e1e09cd5a2525b272f8dbc3e00556a8baf940a39120f32  │
+│ publicBase64Key         │  m6mBnT0tq9CA1zgdwy9y6ag2e8sWyzHVAoca+zLKJq8=                        │
+│ publicBase64KeyWithFlag │  AJupgZ09LavQgNc4HcMvcumoNnvLFssx1QKHGvsyyiav                        │
+│ keyScheme               │  ed25519                                                             │
+│ flag                    │  0                                                                   │
+│ peerId                  │  9ba9819d3d2dabd080d7381dc32f72e9a8367bcb16cb31d502871afb32ca26af    │
+╰─────────────────────────┴──────────────────────────────────────────────────────────────────────╯
+```
+
+</TabItem>
+
+<TabItem label="Use Ledger hardware wallet" value="ledger">
+
+```bash
+iota keytool import-ledger --alias <ALIAS>
+```
+This imports an existing public key from the connected Ledger hardware wallet and stores the reference to it within the standard working config folder, `~/.iota/iota_config/` (in Unix).
+
+Executing the above command provides the key pair info as output, e.g.:
+
+```bash
+╭─────────────────────────┬──────────────────────────────────────────────────────────────────────╮
+│ alias                   │  <ALIAS>                                                             │
+│ iotaAddress             │  0x3607bc87821a13d861e1e09cd5a2525b272f8dbc3e00556a8baf940a39120f32  │
+│ publicBase64Key         │  m6mBnT0tq9CA1zgdwy9y6ag2e8sWyzHVAoca+zLKJq8=                        │
+│ publicBase64KeyWithFlag │  AJupgZ09LavQgNc4HcMvcumoNnvLFssx1QKHGvsyyiav                        │
+│ keyScheme               │  ed25519                                                             │
+│ flag                    │  0                                                                   │
+│ peerId                  │  9ba9819d3d2dabd080d7381dc32f72e9a8367bcb16cb31d502871afb32ca26af    │
+│ externalSource          │  ledger                                                              │
+│ derivationPath          │  m/44'/4218'/0'/0'/0'                                                │
+╰─────────────────────────┴──────────────────────────────────────────────────────────────────────╯
+```
+
+</TabItem>
+
+</Tabs>
+
 - `alias`: A human-readable identifier to use within the CLI scope to refer to a key pair.
 - `address`: The public address representing the key pair.
 - `publicBase64Key`: The public key, base64 encoded.
 - `publicBase64KeyWithFlag`: The public key prefixed with the scheme flag byte, base64 encoded.
 - `keyScheme`: The cryptographic scheme used to derive the keypair; the `ed25519` is the standard scheme, used most of the time, while the `BLS12381` scheme is used for the `authority_key`.
-- `recoveryPhrase`: A list of 12 words used by the cryptographic scheme used to derive the key pair.
 
 :::info
 From now on, this key pair will be referred to as `account-key`.
@@ -53,7 +110,7 @@ From now on, this key pair will be referred to as `account-key`.
 This makes that key pair active in the CLI.
 
 ```bash
-iota client switch --address <alias>
+iota client switch --address <ALIAS>
 ```
 
 #### 1.4. Generate the validator data
@@ -75,9 +132,9 @@ iota validator make-validator-info \
 - `project_url`: The validator project URL, e.g., `https://www.iota.org`.
 - `host_name`: The host name that is used to generate the validator `network_address`, `p2p-address` and `primary_address`, e.g., `validator1.iota.org`.
 
-This command generates a `validator.info` file and 4 key pair files in the same directory where the command was executed. All keys but the `account.key` will need to be copied over to the validator node and included in the YAML configuration of the node. See [Validator Node Configuration](https://docs.iota.org/operator/validator-node/configuration).
+This command generates a `validator.info` file and up to 4 key pair files in the same directory where the command was executed. All keys but the `account.key` will need to be copied over to the validator node and included in the YAML configuration of the node. See [Validator Node Configuration](https://docs.iota.org/operator/validator-node/configuration).
 
-- `account.key` contains an ed25519 private key _(keep this one private)_.
+- `account.key` contains an ed25519 private key _(keep this one private)_. This file will be skipped if you used a Ledger hardware wallet.
 - `network.key` contains an ed25519 private key _(copy over to the validator node)_.
 - `authority.key` contains a BLS12381 private key _(copy over to the validator node)_.
 - `protocol.key`contains an ed25519 private key _(copy over to the validator node)_.

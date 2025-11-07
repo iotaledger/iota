@@ -1,0 +1,278 @@
+#cookie-library-content #skcm-cookie-library {
+    display: flex;
+    flex-direction: column;
+}
+
+#cookie-library-content #skcm-cookie-library * {
+    --dark: #131f37;
+    --primary: #374151;
+    color: #111827;
+}
+
+/* Dark theme support */
+[data-theme="dark"] #cookie-library-content #skcm-cookie-library * {
+    color: white;
+    --dark: white;
+    --primary: #e5e7eb;
+}
+
+#skcm-cookie-library#skcm-cookie-library {
+    display: flex;
+    flex-direction: column;
+    gap: 2.5rem;
+}
+
+#skcm-cookie-library#skcm-cookie-library * {
+    --medium: #374151;
+}
+
+#skcm-cookie-library#skcm-cookie-library table tbody tr td a {
+    color: #2563eb;
+    transition: color 0.15s ease-in-out;
+}
+
+#skcm-cookie-library#skcm-cookie-library table tbody tr td a:hover {
+    opacity: 0.8;
+}
+
+[data-theme="dark"] #skcm-cookie-library#skcm-cookie-library table tbody tr td a {
+    color: #60a5fa;
+}
+
+#skcm-cookie-library#skcm-cookie-library h4 {
+    margin: 0;
+    font-weight: 600;
+}
+
+#skcm-cookie-library#skcm-cookie-library #skcm-cookie-library__preferences {
+    margin-top: 1.5rem;
+}
+
+#skcm-cookie-library#skcm-cookie-library #skcm-cookie-library__preferences label {
+    margin-top: 0;
+    margin-bottom: 0;
+    text-transform: none;
+}
+
+#skcm-cookie-library#skcm-cookie-library #skcm-cookie-library__preferences label input {
+    margin-right: 0.25rem;
+}
+
+#skcm-cookie-library#skcm-cookie-library #skcm-cookie-library__preferences__button {
+    margin-top: 2.5rem;
+    font-size: 0.875rem;
+    background-color: #f3f4f6;
+    color: #111827;
+    text-transform: none;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition: background-color 0.15s ease-in-out;
+    border: 0;
+    cursor: pointer;
+}
+
+#skcm-cookie-library#skcm-cookie-library #skcm-cookie-library__preferences__button:hover {
+    opacity: 0.8;
+}
+
+[data-theme="dark"] #skcm-cookie-library#skcm-cookie-library #skcm-cookie-library__preferences__button {
+    background-color: #374151;
+    color: white;
+}
+
+#skcm-cookie-library__necessary-cookies {
+    width: 100%;
+}
+
+#skcm-additional-cookies-table#skcm-additional-cookies-table,
+#skcm-necessary-cookies-table#skcm-necessary-cookies-table {
+    border-collapse: separate;
+    border-spacing: 0;
+    border-radius: 8px;
+    margin: 2rem 0;
+    border: 1px solid #e5e7eb;
+    width: 100%;
+    overflow: hidden;
+    background: white;
+    table-layout: fixed;
+}
+
+[data-theme="dark"] #skcm-additional-cookies-table#skcm-additional-cookies-table,
+[data-theme="dark"] #skcm-necessary-cookies-table#skcm-necessary-cookies-table {
+    border-color: #374151;
+    background: transparent;
+}
+
+#skcm-additional-cookies-table#skcm-additional-cookies-table th, #skcm-necessary-cookies-table#skcm-necessary-cookies-table th{
+    font-weight: 600;
+    border-top-width: 0;
+}
+
+#skcm-necessary-cookies-table :is(th, td):nth-child(1) {
+  width: 15%;
+}
+#skcm-necessary-cookies-table :is(th, td):nth-child(2) {
+  width: 80%;
+}
+#skcm-necessary-cookies-table :is(th, td):nth-child(3) {
+  width: 5%;
+}
+
+#skcm-additional-cookies-table :is(th, td):nth-child(1) {
+  width: 15%;
+}
+#skcm-additional-cookies-table :is(th, td):nth-child(2) {
+  width: 12%;
+}
+#skcm-additional-cookies-table :is(th, td):nth-child(3) {
+  width: 15%;
+}
+#skcm-additional-cookies-table :is(th, td):nth-child(4) {
+  width: 58%;
+}
+#skcm-additional-cookies-table :is(th, td):nth-child(5),
+#skcm-additional-cookies-table :is(th, td):nth-child(6) {
+  width: 10%;
+}
+
+@media (max-width: 768px) {
+    #skcm-additional-cookies-table#skcm-additional-cookies-table,
+    #skcm-necessary-cookies-table#skcm-necessary-cookies-table {
+        display: block;
+        overflow-x: auto;
+        white-space: nowrap;
+        table-layout: auto;
+    }
+}
+
+#skcm-additional-cookies-table#skcm-additional-cookies-table th,
+#skcm-necessary-cookies-table#skcm-necessary-cookies-table th {
+    background-color: #f8fafc;
+    padding: 12px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    text-align: left;
+    border: none;
+    border-bottom: 1px solid #e2e8f0;
+    letter-spacing: 0.05em;
+}
+
+[data-theme="dark"] #skcm-additional-cookies-table#skcm-additional-cookies-table th,
+[data-theme="dark"] #skcm-necessary-cookies-table#skcm-necessary-cookies-table th {
+    background-color: #1e293b;
+    color: #94a3b8;
+    border-bottom-color: #334155;
+}
+
+#skcm-additional-cookies-table#skcm-additional-cookies-table td,
+#skcm-necessary-cookies-table#skcm-necessary-cookies-table td {
+    padding: 16px;
+    font-size: 14px;
+    color: #334155;
+    background-color: white;
+    border: none;
+    border-bottom: 1px solid #f1f5f9;
+    vertical-align: top;
+    line-height: 1.5;
+}
+
+[data-theme="dark"] #skcm-additional-cookies-table#skcm-additional-cookies-table td,
+[data-theme="dark"] #skcm-necessary-cookies-table#skcm-necessary-cookies-table td {
+    background-color: transparent;
+    color: #cbd5e1;
+    border-bottom-color: #334155;
+}
+
+#skcm-additional-cookies-table#skcm-additional-cookies-table tr:last-child td,
+#skcm-necessary-cookies-table#skcm-necessary-cookies-table tr:last-child td {
+    border-bottom: none;
+}
+
+#skcm-additional-cookies-table#skcm-additional-cookies-table td:first-child,
+#skcm-necessary-cookies-table#skcm-necessary-cookies-table td:first-child {
+    font-size: 13px;
+    color: #131f37;
+    font-weight: 500;
+    word-break: break-all;
+}
+
+[data-theme="dark"] #skcm-additional-cookies-table#skcm-additional-cookies-table td:first-child,
+[data-theme="dark"] #skcm-necessary-cookies-table#skcm-necessary-cookies-table td:first-child {
+    color: #f1f5f9;
+}
+
+#skcm-additional-cookies-table#skcm-additional-cookies-table td a,
+#skcm-necessary-cookies-table#skcm-necessary-cookies-table td a {
+    color: #2563eb;
+    text-decoration: none;
+    font-weight: 500;
+    border-bottom: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+#skcm-additional-cookies-table#skcm-additional-cookies-table td a:hover,
+#skcm-necessary-cookies-table#skcm-necessary-cookies-table td a:hover {
+    color: #1d4ed8;
+    border-bottom-color: #1d4ed8;
+}
+
+[data-theme="dark"] #skcm-additional-cookies-table#skcm-additional-cookies-table td a,
+[data-theme="dark"] #skcm-necessary-cookies-table#skcm-necessary-cookies-table td a {
+    color: #60a5fa;
+}
+
+[data-theme="dark"] #skcm-additional-cookies-table#skcm-additional-cookies-table td a:hover,
+[data-theme="dark"] #skcm-necessary-cookies-table#skcm-necessary-cookies-table td a:hover {
+    color: #93c5fd;
+    border-bottom-color: #93c5fd;
+}
+
+#skcm-additional-cookies-table#skcm-additional-cookies-table td:nth-child(5),
+#skcm-necessary-cookies-table#skcm-necessary-cookies-table td:nth-child(3) {
+    text-align: left;
+    white-space: nowrap;
+}
+
+#skcm-additional-cookies-table#skcm-additional-cookies-table td:nth-child(6),
+#skcm-necessary-cookies-table#skcm-necessary-cookies-table td:nth-child(4) {
+    text-align: left;
+    white-space: nowrap;
+}
+
+#skcm-cookie-library#skcm-cookie-library #skcm-cookie-library__preferences__button {
+    margin-top: 2.5rem;
+    font-size: 1.2rem;
+    background-color: rgb(227 234 246); 
+    color: #111827; 
+    text-transform: none;
+    padding: 0.5rem 1rem;
+    border-radius: 0.5rem;
+    transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(.4,0,.2,1);
+    transition-duration: .15s;
+    border: 0;
+    cursor: pointer;
+    font-weight: 500;
+    display: inline-block;
+}
+
+#skcm-cookie-library#skcm-cookie-library #skcm-cookie-library__preferences__button:hover {
+    background-color: rgb(210 220 236);
+    opacity: 0.9;
+}
+
+[data-theme="dark"] #skcm-cookie-library#skcm-cookie-library #skcm-cookie-library__preferences__button {
+    background-color: rgb(30 41 59); 
+    color: white;
+}
+
+[data-theme="dark"] #skcm-cookie-library#skcm-cookie-library #skcm-cookie-library__preferences__button:hover {
+    background-color: rgb(44 55 73); 
+}
+
+#skcm-additional-cookies-table#skcm-additional-cookies-table td:first-child,
+#skcm-necessary-cookies-table#skcm-necessary-cookies-table td:first-child {
+    font-weight: 600; 
+}
+

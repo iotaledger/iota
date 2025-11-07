@@ -12,6 +12,7 @@ use anyhow::Result;
 use fastcrypto::hash::MultisetHash;
 use iota_protocol_config::ProtocolConfig;
 use once_cell::sync::OnceCell;
+use prometheus::Histogram;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
@@ -43,8 +44,6 @@ use crate::{
 
 pub type CheckpointSequenceNumber = u64;
 pub type CheckpointTimestamp = u64;
-
-use iota_metrics::histogram::Histogram;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CheckpointRequest {
@@ -258,10 +257,12 @@ impl CheckpointSummary {
             .map(|e| e.next_epoch_committee.as_slice())
     }
 
-    pub fn report_checkpoint_age_ms(&self, metrics: &Histogram) {
+    pub fn report_checkpoint_age(&self, metrics: &Histogram) {
         SystemTime::now()
             .duration_since(self.timestamp())
-            .map(|latency| metrics.report(latency.as_millis() as u64))
+            .map(|latency| {
+                metrics.observe(latency.as_secs_f64());
+            })
             .tap_err(|err| {
                 warn!(
                     checkpoint_seq = self.sequence_number,
@@ -566,6 +567,7 @@ impl FullCheckpointContents {
             user_signatures,
         }
     }
+
     pub fn from_contents_and_execution_data(
         contents: CheckpointContents,
         execution_data: impl Iterator<Item = ExecutionData>,
@@ -576,7 +578,8 @@ impl FullCheckpointContents {
             user_signatures: contents.into_v1().user_signatures,
         }
     }
-    pub fn from_checkpoint_contents<S>(
+
+    pub fn try_from_checkpoint_contents<S>(
         store: S,
         contents: CheckpointContents,
     ) -> Result<Option<Self>, crate::storage::error::Error>
@@ -586,8 +589,8 @@ impl FullCheckpointContents {
         let mut transactions = Vec::with_capacity(contents.size());
         for tx in contents.iter() {
             if let (Some(t), Some(e)) = (
-                store.get_transaction(&tx.transaction)?,
-                store.get_transaction_effects(&tx.transaction)?,
+                store.try_get_transaction(&tx.transaction)?,
+                store.try_get_transaction_effects(&tx.transaction)?,
             ) {
                 transactions.push(ExecutionData::new((*t).clone().into_inner(), e))
             } else {

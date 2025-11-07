@@ -1,6 +1,6 @@
 // Copyright (c) The Diem Core Contributors
 // Copyright (c) The Move Contributors
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 use move_binary_format::errors::VMResult;
@@ -110,10 +110,14 @@ fn return_u64() {
 
 #[test]
 fn return_u64_bool() {
-    expect_success(&[], "(): (u64, bool)", "(42, true)", vec![], vec![], &[
-        MoveTypeLayout::U64,
-        MoveTypeLayout::Bool,
-    ])
+    expect_success(
+        &[],
+        "(): (u64, bool)",
+        "(42, true)",
+        vec![],
+        vec![],
+        &[MoveTypeLayout::U64, MoveTypeLayout::Bool],
+    )
 }
 
 #[test]

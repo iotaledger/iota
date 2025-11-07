@@ -99,6 +99,15 @@ fn main() -> Result<()> {
                 .codec_path(codec_path)
                 .build(),
         )
+        .method(
+            Method::builder()
+                .name("handle_capability_notification_v1")
+                .route_name("CapabilityNotificationV1")
+                .input_type("iota_types::messages_grpc::HandleCapabilityNotificationRequestV1")
+                .output_type("iota_types::messages_grpc::HandleCapabilityNotificationResponseV1")
+                .codec_path(codec_path)
+                .build(),
+        )
         .build();
 
     Builder::new()
@@ -121,10 +130,10 @@ fn build_anemo_services(out_dir: &Path) {
         .package("iota")
         .method(
             anemo_build::manual::Method::builder()
-                .name("get_known_peers")
-                .route_name("GetKnownPeers")
+                .name("get_known_peers_v2")
+                .route_name("GetKnownPeersV2")
                 .request_type("()")
-                .response_type("crate::discovery::GetKnownPeersResponse")
+                .response_type("crate::discovery::GetKnownPeersResponseV2")
                 .codec_path(codec_path)
                 .build(),
         )

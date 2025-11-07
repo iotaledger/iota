@@ -1,0 +1,213 @@
+---
+title: Update Metadata in Dynamic Notarizations
+sidebar_label: Update Metadata
+description: Update the updatable metadata of a Dynamic Notarization.
+teams:
+  - iotaledger/identity
+tags:
+  - notarization
+  - dynamic-notarization
+  - how-to
+---
+
+## Update Metadata in Dynamic Notarizations
+
+This guide demonstrates how to update the updatable metadata of a Dynamic Notarization. Metadata updates are independent of state updates and do not affect the version counter.
+
+### Prerequisites
+
+- A Dynamic Notarization already created and published to the IOTA network
+- The notarization must not be update-locked
+- Sufficient funds for gas costs
+
+### Understanding Metadata Types
+
+Dynamic notarizations have two types of metadata:
+
+- **Immutable Description**: Set at creation time and cannot be changed
+- **Updatable Metadata**: Can be modified after creation
+
+### 1. Get the Notarization Client
+
+First, ensure you have a funded notarization client with the necessary permissions.
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/utils/utils.rs#L27
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/util.ts#L26
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 2. Create a Dynamic Notarization with Metadata
+
+Create a dynamic notarization with initial updatable metadata:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/06_update_metadata.rs#L16-L28
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/06_update_metadata.ts#L16-L24
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 3. Check Current Metadata
+
+Before updating, inspect the current metadata state:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/06_update_metadata.rs#L34-L38
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/06_update_metadata.ts#L26-L32
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 4. Update Metadata
+
+Update the metadata with new content. You can set it to a new value or clear it entirely:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/06_update_metadata.rs#L64-L67
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/06_update_metadata.ts#L59-L61
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+### 5. Clear Metadata
+
+You can also clear the metadata by setting it to `None`:
+
+<div className={'hide-code-block-extras'}>
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/06_update_metadata.rs#L56
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/06_update_metadata.ts#L49
+```
+
+</TabItem>
+</Tabs>
+</div>
+
+## Key Features of Metadata Updates
+
+### Version Counter Independence
+
+Unlike state updates, metadata updates do **not** affect the state version counter:
+
+- State version count remains unchanged after metadata updates
+- Only state content updates increment the version counter
+
+### Timestamp Behavior
+
+Metadata updates do **not** change the "last state change" timestamp:
+
+- Creation timestamp remains unchanged
+- Last state change timestamp is only updated by state content changes
+- Metadata changes have their own tracking mechanism
+
+### Immutable vs Updatable
+
+- **Immutable Description**: Cannot be changed after creation
+- **Updatable Metadata**: Can be modified, cleared, or reset multiple times
+
+### Metadata Operations
+
+You can perform several operations on updatable metadata:
+
+- **Set new value**: Replace existing metadata with new content
+- **Clear metadata**: Set to `None` to remove metadata
+- **Multiple updates**: Update as many times as needed
+
+## Error Handling
+
+Metadata updates may fail if:
+
+- The notarization is update-locked (locked notarizations cannot be updated)
+- Insufficient gas funds
+- Network connectivity issues
+
+:::note
+
+Metadata updates are allowed on dynamic notarizations even when they have transfer locks. Only update locks prevent metadata modifications.
+
+:::
+
+## Full Example Code
+
+<Tabs groupId="language" queryString>
+<TabItem value="rust" label="Rust">
+
+```rust reference
+https://github.com/iotaledger/notarization/tree/v0.1/examples/06_update_metadata.rs
+```
+
+</TabItem>
+<TabItem value="typescript-node" label="Typescript (Node.js)">
+
+```ts reference
+https://github.com/iotaledger/notarization/tree/v0.1/bindings/wasm/notarization_wasm/examples/src/06_update_metadata.ts
+```
+
+</TabItem>
+</Tabs>
+
+## Running Examples Locally
+
+In order to run the examples, you will need to run an IOTA network locally.
+
+If you want to use something different, you will need to modify the API and faucet endpoints in the examples to match your setup. 

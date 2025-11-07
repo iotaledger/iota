@@ -14,13 +14,15 @@ use iota_config::{
     node::{
         AuthorityKeyPairWithPath, AuthorityOverloadConfig, AuthorityStorePruningConfig,
         CheckpointExecutorConfig, DBCheckpointConfig, DEFAULT_GRPC_CONCURRENCY_LIMIT,
-        ExecutionCacheConfig, ExpensiveSafetyCheckConfig, Genesis, KeyPairWithPath, RunWithRange,
-        StateArchiveConfig, StateSnapshotConfig, default_enable_index_processing,
-        default_end_of_epoch_broadcast_channel_capacity, default_zklogin_oauth_providers,
+        ExecutionCacheConfig, ExecutionCacheType, ExpensiveSafetyCheckConfig, Genesis,
+        GrpcApiConfig, KeyPairWithPath, RunWithRange, StateArchiveConfig, StateSnapshotConfig,
+        default_enable_index_processing, default_end_of_epoch_broadcast_channel_capacity,
+        default_zklogin_oauth_providers,
     },
-    p2p::{P2pConfig, SeedPeer, StateSyncConfig},
+    p2p::{DiscoveryConfig, P2pConfig, SeedPeer, StateSyncConfig},
     verifier_signing_config::VerifierSigningConfig,
 };
+use iota_names::config::IotaNamesConfig;
 use iota_types::{
     crypto::{AuthorityKeyPair, AuthorityPublicKeyBytes, IotaKeyPair, NetworkKeyPair},
     multiaddr::Multiaddr,
@@ -43,11 +45,14 @@ pub struct ValidatorConfigBuilder {
     force_unpruned_checkpoints: bool,
     jwk_fetch_interval: Option<Duration>,
     authority_overload_config: Option<AuthorityOverloadConfig>,
+    execution_cache_type: Option<ExecutionCacheType>,
+    execution_cache_config: Option<ExecutionCacheConfig>,
     data_ingestion_dir: Option<PathBuf>,
     policy_config: Option<PolicyConfig>,
     firewall_config: Option<RemoteFirewallConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
+    discovery_config: Option<DiscoveryConfig>,
 }
 
 impl ValidatorConfigBuilder {
@@ -87,6 +92,16 @@ impl ValidatorConfigBuilder {
         self
     }
 
+    pub fn with_execution_cache_type(mut self, execution_cache_type: ExecutionCacheType) -> Self {
+        self.execution_cache_type = Some(execution_cache_type);
+        self
+    }
+
+    pub fn with_execution_cache_config(mut self, config: ExecutionCacheConfig) -> Self {
+        self.execution_cache_config = Some(config);
+        self
+    }
+
     pub fn with_data_ingestion_dir(mut self, path: PathBuf) -> Self {
         self.data_ingestion_dir = Some(path);
         self
@@ -115,11 +130,16 @@ impl ValidatorConfigBuilder {
         self
     }
 
+    pub fn with_discovery_config(mut self, discovery_config: DiscoveryConfig) -> Self {
+        self.discovery_config = Some(discovery_config);
+        self
+    }
+
     pub fn build_without_genesis(self, validator: ValidatorGenesisConfig) -> NodeConfig {
         let key_path = get_key_path(&validator.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
+            .unwrap_or_else(|| tempfile::tempdir().unwrap().keep());
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
         let db_path = config_directory
@@ -136,6 +156,7 @@ impl ValidatorConfigBuilder {
             max_submit_position: self.max_submit_position,
             submit_delay_step_override_millis: self.submit_delay_step_override_millis,
             parameters: Default::default(),
+            starfish_parameters: Default::default(),
         };
 
         let p2p_config = P2pConfig {
@@ -152,6 +173,8 @@ impl ValidatorConfigBuilder {
                 checkpoint_content_timeout_ms: Some(10_000),
                 ..Default::default()
             }),
+            // Use discovery config if provided
+            discovery: self.discovery_config,
             ..Default::default()
         };
 
@@ -198,7 +221,6 @@ impl ValidatorConfigBuilder {
             metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
             db_checkpoint_config: Default::default(),
-            indirect_objects_threshold: usize::MAX,
             // By default, expensive checks will be enabled in debug build, but not in release
             // build.
             expensive_safety_check_config: ExpensiveSafetyCheckConfig::default(),
@@ -212,20 +234,28 @@ impl ValidatorConfigBuilder {
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: None,
             enable_rest_api: true,
+            rest: Some(iota_rest_api::Config {
+                enable_unstable_apis: Some(true),
+                ..Default::default()
+            }),
             jwk_fetch_interval_seconds: self
                 .jwk_fetch_interval
                 .map(|i| i.as_secs())
                 .unwrap_or(3600),
             zklogin_oauth_providers: default_zklogin_oauth_providers(),
             authority_overload_config: self.authority_overload_config.unwrap_or_default(),
+            execution_cache: self.execution_cache_type.unwrap_or_default(),
+            execution_cache_config: self.execution_cache_config.unwrap_or_default(),
             run_with_range: None,
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
             firewall_config: self.firewall_config,
-            execution_cache: ExecutionCacheConfig::default(),
             enable_validator_tx_finalizer: true,
             verifier_signing_config: VerifierSigningConfig::default(),
+            enable_db_write_stall: None,
             iota_names_config: None,
+            enable_grpc_api: false,
+            grpc_api_config: None,
         }
     }
 
@@ -271,6 +301,10 @@ pub struct FullnodeConfigBuilder {
     policy_config: Option<PolicyConfig>,
     fw_config: Option<RemoteFirewallConfig>,
     data_ingestion_dir: Option<PathBuf>,
+    disable_pruning: bool,
+    iota_names_config: Option<IotaNamesConfig>,
+    grpc_api_config: Option<GrpcApiConfig>,
+    discovery_config: Option<DiscoveryConfig>,
 }
 
 impl FullnodeConfigBuilder {
@@ -302,6 +336,11 @@ impl FullnodeConfigBuilder {
 
     pub fn with_db_checkpoint_config(mut self, db_checkpoint_config: DBCheckpointConfig) -> Self {
         self.db_checkpoint_config = Some(db_checkpoint_config);
+        self
+    }
+
+    pub fn with_disable_pruning(mut self, disable_pruning: bool) -> Self {
+        self.disable_pruning = disable_pruning;
         self
     }
 
@@ -386,6 +425,21 @@ impl FullnodeConfigBuilder {
         self
     }
 
+    pub fn with_iota_names_config(mut self, config: Option<IotaNamesConfig>) -> Self {
+        self.iota_names_config = config;
+        self
+    }
+
+    pub fn with_grpc_api_config(mut self, config: GrpcApiConfig) -> Self {
+        self.grpc_api_config = Some(config);
+        self
+    }
+
+    pub fn with_discovery_config(mut self, discovery_config: DiscoveryConfig) -> Self {
+        self.discovery_config = Some(discovery_config);
+        self
+    }
+
     pub fn build_from_parts<R: rand::RngCore + rand::CryptoRng>(
         self,
         rng: &mut R,
@@ -405,7 +459,7 @@ impl FullnodeConfigBuilder {
         let key_path = get_key_path(&validator_config.authority_key_pair);
         let config_directory = self
             .config_directory
-            .unwrap_or_else(|| tempfile::tempdir().unwrap().into_path());
+            .unwrap_or_else(|| tempfile::tempdir().unwrap().keep());
 
         let migration_tx_data_path =
             Some(config_directory.join(IOTA_GENESIS_MIGRATION_TX_DATA_FILENAME));
@@ -440,6 +494,8 @@ impl FullnodeConfigBuilder {
                     checkpoint_content_timeout_ms: Some(10_000),
                     ..Default::default()
                 }),
+                // Use discovery config if provided
+                discovery: self.discovery_config,
                 ..Default::default()
             }
         };
@@ -448,12 +504,18 @@ impl FullnodeConfigBuilder {
             let rpc_port = self
                 .rpc_port
                 .unwrap_or_else(|| local_ip_utils::get_available_port(&ip));
-            format!("{}:{}", ip, rpc_port).parse().unwrap()
+            format!("{ip}:{rpc_port}").parse().unwrap()
         });
 
         let checkpoint_executor_config = CheckpointExecutorConfig {
             data_ingestion_dir: self.data_ingestion_dir,
             ..Default::default()
+        };
+
+        let mut pruning_config = AuthorityStorePruningConfig::default();
+        if self.disable_pruning {
+            pruning_config.set_num_epochs_to_retain_for_checkpoints(None);
+            pruning_config.set_num_epochs_to_retain(u64::MAX);
         };
 
         NodeConfig {
@@ -486,14 +548,13 @@ impl FullnodeConfigBuilder {
             grpc_load_shed: None,
             grpc_concurrency_limit: None,
             p2p_config,
-            authority_store_pruning_config: AuthorityStorePruningConfig::default(),
+            authority_store_pruning_config: pruning_config,
             end_of_epoch_broadcast_channel_capacity:
                 default_end_of_epoch_broadcast_channel_capacity(),
             checkpoint_executor_config,
             metrics: None,
             supported_protocol_versions: self.supported_protocol_versions,
             db_checkpoint_config: self.db_checkpoint_config.unwrap_or_default(),
-            indirect_objects_threshold: usize::MAX,
             expensive_safety_check_config: self
                 .expensive_safety_check_config
                 .unwrap_or_else(ExpensiveSafetyCheckConfig::new_enable_all),
@@ -507,6 +568,10 @@ impl FullnodeConfigBuilder {
             transaction_kv_store_read_config: Default::default(),
             transaction_kv_store_write_config: Default::default(),
             enable_rest_api: true,
+            rest: Some(iota_rest_api::Config {
+                enable_unstable_apis: Some(true),
+                ..Default::default()
+            }),
             // note: not used by fullnodes.
             jwk_fetch_interval_seconds: 3600,
             zklogin_oauth_providers: default_zklogin_oauth_providers(),
@@ -515,11 +580,15 @@ impl FullnodeConfigBuilder {
             jsonrpc_server_type: None,
             policy_config: self.policy_config,
             firewall_config: self.fw_config,
-            execution_cache: ExecutionCacheConfig::default(),
+            execution_cache: ExecutionCacheType::default(),
+            execution_cache_config: ExecutionCacheConfig::default(),
             // This is a validator specific feature.
             enable_validator_tx_finalizer: false,
             verifier_signing_config: VerifierSigningConfig::default(),
-            iota_names_config: None,
+            enable_db_write_stall: None,
+            iota_names_config: self.iota_names_config,
+            enable_grpc_api: self.grpc_api_config.is_some(),
+            grpc_api_config: self.grpc_api_config,
         }
     }
 

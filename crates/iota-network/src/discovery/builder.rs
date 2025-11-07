@@ -9,7 +9,9 @@ use std::{
 
 use anemo::codegen::InboundRequestLayer;
 use anemo_tower::rate_limit;
+use fastcrypto::traits::KeyPair;
 use iota_config::p2p::P2pConfig;
+use iota_types::crypto::NetworkKeyPair;
 use tap::Pipe;
 use tokio::{
     sync::{oneshot, watch},
@@ -58,7 +60,7 @@ impl Builder {
 
         // Apply rate limits from configuration as needed.
         if let Some(limit) = discovery_config.get_known_peers_rate_limit {
-            discovery_server = discovery_server.add_layer_for_get_known_peers(
+            discovery_server = discovery_server.add_layer_for_get_known_peers_v2(
                 InboundRequestLayer::new(rate_limit::RateLimitLayer::new(
                     governor::Quota::per_second(limit),
                     rate_limit::WaitMode::Block,
@@ -86,6 +88,7 @@ impl Builder {
             our_info: None,
             connected_peers: HashMap::default(),
             known_peers: HashMap::default(),
+            address_verification_cooldown: HashMap::default(),
         }
         .pipe(RwLock::new)
         .pipe(Arc::new);
@@ -119,7 +122,11 @@ pub struct UnstartedDiscovery {
 }
 
 impl UnstartedDiscovery {
-    pub(super) fn build(self, network: anemo::Network) -> (DiscoveryEventLoop, Handle) {
+    pub(super) fn build(
+        self,
+        network: anemo::Network,
+        keypair: NetworkKeyPair,
+    ) -> (DiscoveryEventLoop, Handle) {
         let Self {
             handle,
             config,
@@ -149,6 +156,7 @@ impl UnstartedDiscovery {
                 discovery_config: Arc::new(discovery_config),
                 allowlisted_peers,
                 network,
+                keypair,
                 tasks: JoinSet::new(),
                 pending_dials: Default::default(),
                 dial_seed_peers_task: None,
@@ -161,8 +169,9 @@ impl UnstartedDiscovery {
         )
     }
 
-    pub fn start(self, network: anemo::Network) -> Handle {
-        let (event_loop, handle) = self.build(network);
+    pub fn start(self, network: anemo::Network, keypair: NetworkKeyPair) -> Handle {
+        assert_eq!(network.peer_id().0, *keypair.public().0.as_bytes());
+        let (event_loop, handle) = self.build(network, keypair);
         tokio::spawn(event_loop.start());
 
         handle

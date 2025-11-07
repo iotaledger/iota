@@ -17,7 +17,7 @@ use crate::{
     consumer::{NodeMetric, convert_to_remote_write, populate_labels},
     histogram_relay::HistogramRelay,
     middleware::LenDelimProtobuf,
-    peers::IotaPeer,
+    peers::AllowedPeer,
 };
 
 static HANDLER_HITS: Lazy<CounterVec> = Lazy::new(|| {
@@ -51,7 +51,7 @@ pub async fn publish_metrics(
     Extension(labels): Extension<Labels>,
     Extension(client): Extension<ReqwestClient>,
     ConnectInfo(addr): ConnectInfo<SocketAddr>,
-    Extension(IotaPeer { name, public_key }): Extension<IotaPeer>,
+    Extension(AllowedPeer { name, public_key }): Extension<AllowedPeer>,
     Extension(relay): Extension<HistogramRelay>,
     LenDelimProtobuf(data): LenDelimProtobuf,
 ) -> (StatusCode, &'static str) {
