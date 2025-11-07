@@ -930,7 +930,7 @@ impl NodeMetrics {
                 registry
             ).unwrap(),
             commit_sync_fetch_missing_transactions: register_int_counter_vec_with_registry!(
-                "commit_sync_fetch_missing_block_headers",
+                "commit_sync_fetch_missing_transactions",
                 "Number of committed transactions that are missing when processing transactions via commit sync.",
                 &["authority"],
                 registry
