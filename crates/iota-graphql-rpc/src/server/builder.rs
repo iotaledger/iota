@@ -1176,7 +1176,7 @@ pub mod tests {
     }
 
     /// Execute a GraphQL request with `limits` in place, expecting an error to
-    /// be returned. Returns the list of errors returned.
+    /// be returned. Returns a text representation of all the errors triggered.
     async fn execute_for_error(limits: Limits, request: Request) -> String {
         let service_config = ServiceConfig {
             limits,

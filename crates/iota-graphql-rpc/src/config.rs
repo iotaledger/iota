@@ -298,7 +298,7 @@ impl ServiceConfig {
     /// The maximum bytes allowed for the read part of GraphQL queries.
     ///
     /// In case of mutations or `dryRunTransactionBlocks` the `txBytes` and
-    /// signatures are not included in this limit.
+    /// `signatures` are not included in this limit.
     async fn max_query_payload_size(&self) -> u32 {
         self.limits.max_query_payload_size
     }

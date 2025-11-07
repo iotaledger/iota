@@ -314,6 +314,8 @@ impl<'a> LimitsTraversal<'a> {
         for value in tx_arg_values {
             let cost = value?.cost(self.variables, &mut self.tx_variables_used);
             if cost > self.tx_payload_budget as usize {
+                // Ensure that the caller is aware that the budget is spent.
+                self.tx_payload_budget = 0;
                 return Err(self.tx_payload_size_error());
             } else {
                 self.tx_payload_budget -= cost as u32;
@@ -405,15 +407,15 @@ impl<'a> LimitsTraversal<'a> {
         Ok(())
     }
 
-    /// Error returned if transaction payloads exceed limit. Also sets the
-    /// transaction payload budget to zero to indicate it has been spent
-    /// (This is done to prevent future checks for smaller arguments from
-    /// succeeding even though a previous larger argument has already
-    /// failed).
+    /// Error returned if transaction payloads exceed limit.
     fn tx_payload_size_error(&mut self) -> ServerError {
-        self.tx_payload_budget = 0;
-        self.reporter
-            .payload_size_error("Transaction payload too large")
+        self.reporter.payload_size_error(
+            format!(
+                "Transaction payload too large: exceeds {}",
+                self.reporter.limits.max_tx_payload_size
+            )
+            .as_str(),
+        )
     }
 
     /// If the field `f` is a connection, extract its page size, otherwise
