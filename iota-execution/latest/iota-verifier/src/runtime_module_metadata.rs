@@ -9,7 +9,10 @@
 //! deserializable and must satisfy any additional checks imposed by the runtime
 //! metadata version.
 
-use iota_types::{error::ExecutionError, move_package::RuntimeModuleMetadataV1};
+use iota_types::{
+    error::ExecutionError,
+    move_package::{RuntimeModuleMetadata, RuntimeModuleMetadataWrapper},
+};
 use move_binary_format::{file_format::CompiledModule, file_format_common::IOTA_METADATA_KEY};
 
 use crate::verification_failure;
@@ -19,7 +22,8 @@ use crate::verification_failure;
 /// If the module contains runtime metadata, it must satisfy the following:
 /// 1. The module metadata must contain at most one metadata item, which is
 ///    indexed by the IOTA metadata key.
-/// 2. The metadata item must be deserializable into `RuntimeModuleMetadataV1`.
+/// 2. The metadata item must be deserializable into
+///    `RuntimeModuleMetadataWrapper`.
 /// 3. The deserialized metadata must satisfy any additional checks imposed by
 ///    the runtime metadata version.
 pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
@@ -37,11 +41,16 @@ pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
                     .to_string(),
             ));
         }
-        let metadata =
-            bcs::from_bytes::<RuntimeModuleMetadataV1>(&iota_metadata.value).map_err(|err| {
+        let metadata = bcs::from_bytes::<RuntimeModuleMetadataWrapper>(&iota_metadata.value)
+            .map_err(|err| {
                 verification_failure(format!(
-                    "Failed to deserialize runtime IOTA module metadata: {}",
-                    err
+                    "Failed to read bcs bytes for IOTA module metadata: {err}",
+                ))
+            })?
+            .try_into()
+            .map_err(|err| {
+                verification_failure(format!(
+                    "Failed to deserialize runtime IOTA module metadata from wrapper: {err}",
                 ))
             })?;
         verify_runtime_metadata(module, &metadata)?;
@@ -51,8 +60,8 @@ pub fn verify_module(module: &CompiledModule) -> Result<(), ExecutionError> {
 }
 
 fn verify_runtime_metadata(
-    module: &CompiledModule,
-    _metadata: &RuntimeModuleMetadataV1,
+    _module: &CompiledModule,
+    _metadata: &RuntimeModuleMetadata,
 ) -> Result<(), ExecutionError> {
     // Currently no checks are implemented for the runtime metadata.
     // Future checks can be added here as needed.

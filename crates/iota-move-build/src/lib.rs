@@ -22,7 +22,10 @@ use iota_types::{
     base_types::ObjectID,
     error::{IotaError, IotaResult},
     is_system_package,
-    move_package::{FnInfo, FnInfoKey, FnInfoMap, MovePackage, RuntimeModuleMetadataV1},
+    move_package::{
+        FnInfo, FnInfoKey, FnInfoMap, MovePackage, RuntimeModuleMetadata,
+        RuntimeModuleMetadataWrapper,
+    },
 };
 use iota_verifier::verifier as iota_bytecode_verifier;
 use move_binary_format::{
@@ -356,7 +359,7 @@ fn fill_metadata(package: &mut MoveCompiledPackage, _fn_info_map: &FnInfoMap) ->
         .iter_mut()
         .map(|unit| &mut unit.unit.module)
     {
-        let runtime_metadata = RuntimeModuleMetadataV1::default();
+        let runtime_metadata = RuntimeModuleMetadata::default();
         // for fn_def in &module.function_defs {
         //    let fn_handle = module.function_handle_at(fn_def.function);
         //    let fn_name = module.identifier_at(fn_handle.name);
@@ -373,7 +376,7 @@ fn fill_metadata(package: &mut MoveCompiledPackage, _fn_info_map: &FnInfoMap) ->
         if !runtime_metadata.is_empty() {
             module.metadata.push(move_core_types::metadata::Metadata {
                 key: IOTA_METADATA_KEY.to_vec(),
-                value: runtime_metadata.to_bcs_bytes(),
+                value: RuntimeModuleMetadataWrapper::from(runtime_metadata).to_bcs_bytes(),
             });
         }
     }
