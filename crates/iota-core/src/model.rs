@@ -12,8 +12,6 @@
 //!   learner.warmup();
 //!   let (pred, attn) = learner.predict(&seqs, h_anchor);
 //!   let avg_loss = learner.train_step(batch_seqs, batch_h, batch_ylog)?;
-//!
-//! You build `seqs` as Vec<Tensor> where each Tensor is (T,F) for one object.
 
 use tch::{
     Device, IndexOp, Tensor,

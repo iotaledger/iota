@@ -2,7 +2,7 @@
 // Architecture: best‑effort, non‑blocking update + train workers on bounded
 // channels; inference reads current histories, then locks the learner briefly
 // only for the forward pass. Staleness decay nudges results toward RGP when
-// objects go quiet.
+// objects go unmutated for a while.
 
 use serde::Serialize;
 use std::{
@@ -191,7 +191,7 @@ pub struct RawTxItem {
 }
 
 // -------------------------------
-// Audit logger (optional; used by tracker elsewhere)
+// Audit logger (optional; used by tracker)
 // -------------------------------
 pub const AUDIT_LOG_PATH: &str = "congestion_audit.jsonl";
 
@@ -245,7 +245,6 @@ const WIN: usize = model::T as usize;
 
 // Read-only inference snapshot built from trainer weights.
 struct GasInfer {
-    vs: nn::VarStore,
     model: model::PriceModel,
 }
 
@@ -266,7 +265,7 @@ fn build_infer_from_trainer(trainer: &model::GasLearner) -> Option<GasInfer> {
     if vs.load(&tmp).is_err() {
         return None;
     }
-    Some(GasInfer { vs, model })
+    Some(GasInfer { model })
 }
 
 struct HistState {
@@ -384,7 +383,6 @@ impl HistState {
 
 pub struct InNodeModelUpdater {
     hist: Arc<Mutex<HistState>>, // histories and timing
-    learner: Arc<Mutex<model::GasLearner>>, // trainer/infer model
     tx_update: SyncSender<CpUpdateBatch>,
     tx_train: SyncSender<TrainTxBatch>,
     // Snapshot for inference (read-only GasInfer)
@@ -519,12 +517,12 @@ impl InNodeModelUpdater {
                 }
             });
         }
-        Self { hist, learner, tx_update, tx_train, inference, store }
+        Self { hist, tx_update, tx_train, inference, store }
     }
 
     pub fn predict_for_objects(&self, object_ids: &[ObjectID], reference_gas_price: u64) -> Option<u64> {
         // Build sequences and timing without holding learner lock
-        let (seqs, h_anchor, stale_sec_opt) = {
+        let (seqs, h_anchor, _stale_sec_opt) = {
             let st = self.hist.lock().ok()?;
             let mut seqs: Vec<Tensor> = Vec::new();
             let mut h_anchor: f32 = 0.0;
@@ -577,7 +575,6 @@ impl ModelUpdater for InNodeModelUpdater {
 }
 
 // Export aggregator weights from the learner's VarStore.
-// (removed) export_agg_params: reverted aggregator export path
 
 impl InNodeModelUpdater {
     /// Returns a non-blocking reader that uses the lock-free snapshot.
@@ -607,7 +604,6 @@ impl ModelStore {
         let next = WeightsSnap { version: cur.version + 1, per_obj_tip: next_map };
         self.shared.store(Arc::new(next));
     }
-    // (removed) publish_embeddings / publish_agg: reverted
 }
 
 #[derive(Clone)]
@@ -618,6 +614,7 @@ impl ModelReader {
     pub fn predict_for_tx(&self, tx: &TransactionData, reference_gas_price: u64) -> u64 {
         let snap = self.0.shared.load();
         // Compute max tip
+        // TODO(We need a better rule)
         let mut max_tip = 0u64;
         for obj in tx.shared_input_objects().into_iter().filter(|o| o.mutable).map(|o| o.id) {
             if let Some(t) = snap.per_obj_tip.get(&obj) { max_tip = max_tip.max(*t); }
@@ -625,6 +622,3 @@ impl ModelReader {
         reference_gas_price.saturating_add(max_tip)
     }
 }
-
-// ---------- Pure-Rust aggregator inference ----------
-// (removed) gelu/infer_agg: reverted aggregator inference
