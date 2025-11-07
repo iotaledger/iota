@@ -18,6 +18,8 @@ use crate::{
     types::IndexerResult,
 };
 
+const UPDATE_WATERMARKS_LOWER_BOUNDS_TASK_INTERVAL: Duration = Duration::from_secs(5);
+
 pub struct Pruner {
     pub store: PgIndexerStore,
     pub partition_manager: PgPartitionManager,
@@ -230,7 +232,7 @@ async fn update_watermarks_lower_bounds_task(
     retention_policies: HashMap<PrunableTable, u64>,
     cancel: CancellationToken,
 ) -> IndexerResult<()> {
-    let mut interval = tokio::time::interval(Duration::from_secs(5));
+    let mut interval = tokio::time::interval(UPDATE_WATERMARKS_LOWER_BOUNDS_TASK_INTERVAL);
     loop {
         tokio::select! {
             _ = cancel.cancelled() => {
