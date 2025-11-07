@@ -409,13 +409,8 @@ impl<'a> LimitsTraversal<'a> {
 
     /// Error returned if transaction payloads exceed limit.
     fn tx_payload_size_error(&mut self) -> ServerError {
-        self.reporter.payload_size_error(
-            format!(
-                "Transaction payload too large: exceeds {}",
-                self.reporter.limits.max_tx_payload_size
-            )
-            .as_str(),
-        )
+        self.reporter
+            .payload_size_error("Transaction payload too large")
     }
 
     /// If the field `f` is a connection, extract its page size, otherwise
