@@ -49,3 +49,22 @@ export const Default: Story = {
         },
     },
 };
+
+export const ExtendedRadioButton: Story = {
+    args: {
+        label: 'Label',
+        supportingLabel: '(Supporting label)',
+        body: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+    },
+    argTypes: {
+        label: {
+            control: 'text',
+        },
+        isChecked: {
+            control: 'boolean',
+        },
+        isDisabled: {
+            control: 'boolean',
+        },
+    },
+};

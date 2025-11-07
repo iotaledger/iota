@@ -4,7 +4,7 @@
 
 use std::{
     cmp::{max, min},
-    collections::{BTreeMap, BTreeSet, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, VecDeque},
     mem,
     ops::Bound::{Excluded, Included, Unbounded},
     panic,
@@ -15,7 +15,7 @@ use std::{
 use bytes::Bytes;
 use itertools::Itertools as _;
 use starfish_config::AuthorityIndex;
-use tokio::time::Instant;
+use tokio::{sync::mpsc::UnboundedSender, time::Instant};
 use tracing::{debug, error, info, trace, warn};
 
 use crate::{
@@ -28,15 +28,56 @@ use crate::{
         GENESIS_COMMIT_INDEX, SubDagBase, TrustedCommit, load_pending_subdag_from_store,
     },
     context::Context,
+    cordial_knowledge::CordialKnowledgeMessage,
     leader_scoring::{ReputationScores, ScoringSubdag},
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
 };
 
-/// If a shard from a block created by authority v1 is useful to authority v2 at
-/// round r, then shards from v1 will be sent to v2 up to round r +
-/// MAX_ROUND_GAP_FOR_USEFUL_SHARDS.
-const MAX_ROUND_GAP_FOR_USEFUL_SHARDS: usize = 5;
+/// Represents the source from which transactions were received and added to the
+/// DAG state. This is used for metrics tracking and debugging.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum TransactionSource {
+    /// Transactions received via the transaction synchronizer component.
+    /// This synchronizer periodically fetches missing transactions to ensure
+    /// nodes stay up-to-date.
+    TransactionSynchronizer,
+
+    /// Data received via block streaming from peers in the network.
+    /// This is the primary method for receiving real-time blocks and
+    /// transactions as they're created.
+    BlockStreaming,
+
+    /// Transactions reconstructed from erasure-coded shards.
+    /// Used when full transaction data isn't available, but enough shards
+    /// have been collected to reconstruct it.
+    ShardReconstructor,
+
+    /// Data added during testing.
+    /// Only used in test code.
+    #[cfg(test)]
+    Test,
+}
+
+impl TransactionSource {
+    /// Returns the string label used for metrics reporting.
+    /// This ensures consistency with existing metrics that may be monitored.
+    pub(crate) fn as_str(&self) -> &'static str {
+        match self {
+            TransactionSource::TransactionSynchronizer => "Transactions synchronizer",
+            TransactionSource::BlockStreaming => "Block streaming",
+            TransactionSource::ShardReconstructor => "Shard reconstructor",
+            #[cfg(test)]
+            TransactionSource::Test => "test",
+        }
+    }
+}
+
+impl std::fmt::Display for TransactionSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
 
 /// DagState provides the API to write and read accepted blocks from the DAG.
 /// Only uncommitted and last committed blocks are cached in memory.
@@ -57,14 +98,17 @@ pub(crate) struct DagState {
     /// are kept in memory.
     recent_block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
 
-    /// Contains recent transactions. It contains
-    /// MAX_TRANSACTIONS_ACK_DEPTH + MAX_LINEARIZER_DEPTH =
-    /// (protocol_config.gc_depth * 2) from the round of the last consumed
-    /// commit. Note: all transactions in blocks below that round are
-    /// evicted from memory.
-    recent_transactions: BTreeMap<BlockRef, VerifiedTransactions>,
-    /// Contains recent shards with their Merkle proofs.
-    recent_shards: BTreeMap<BlockRef, Bytes>,
+    /// Contains recent verified transactions per authority. To access a
+    /// transaction with a given block_ref, one needs to read first the
+    /// entry with index block_ref.author. Evicted using the minimum between
+    /// GC round for the last solid leader round evicted rounds by
+    /// authority.
+    recent_transactions_by_authority: Vec<BTreeMap<BlockRef, VerifiedTransactions>>,
+    /// Contains recent own serialized shards with their Merkle proofs per
+    /// authority. To access own shard for a given block_ref, one
+    /// needs to read first the entry with index block_ref.author.
+    /// Eviction is aligned with headers
+    recent_shards_by_authority: Vec<BTreeMap<BlockRef, Bytes>>,
     /// Indexes recent block headers refs by their authorities.
     /// Vec position corresponds to the authority index.
     recent_headers_refs_by_authority: Vec<BTreeSet<BlockRef>>,
@@ -112,27 +156,6 @@ pub(crate) struct DagState {
     /// corresponding blocks
     pending_acknowledgments: BTreeSet<BlockRef>,
 
-    // TODO: add metrics for recent_dag_cordial_knowledge and block_headers_not_known_by_authority
-    // and pending_acknowledgments
-    /// Keeps track of the most recent BlockHeaderDAG cordial
-    /// knowledge (who knows which blocks) for each authority. This is a helper
-    /// structure that is used primarily for traversing the recent DAG. This
-    /// struct is evicted after flushing the dag state to storage and is not
-    /// persisted. To access the cordial knowledge of a given block_ref, one
-    /// shall retrieve it from `recent_dag_cordial_knowledge[block_ref.
-    /// author][(block_ref.round, block_ref.digest)]`. The value is a tuple
-    /// of (parents, who knows the block header).
-    recent_dag_cordial_knowledge:
-        Vec<BTreeMap<(Round, BlockHeaderDigest), (Vec<BlockRef>, HashSet<AuthorityIndex>)>>,
-    /// Keeps tracks of block headers that are not known by the authority.
-    /// Is used to ensure that we send block headers that are really needed
-    /// to the authority, and not the ones that they already know.
-    block_headers_not_known_by_authority: Vec<BTreeSet<BlockRef>>,
-
-    /// Keeps tracks of all shards we know and haven't sent yet to the
-    /// authority.
-    shards_not_known_by_authority: Vec<BTreeSet<BlockRef>>,
-
     /// Transactions to be flushed to storage.
     transactions_to_write: Vec<VerifiedTransactions>,
     block_headers_to_write: Vec<VerifiedBlockHeader>,
@@ -149,6 +172,9 @@ pub(crate) struct DagState {
 
     /// The number of cached rounds
     cached_rounds: Round,
+
+    /// Cordial Knowledge sender
+    cordial_knowledge_sender: Option<UnboundedSender<CordialKnowledgeMessage>>,
 }
 
 impl DagState {
@@ -200,20 +226,20 @@ impl DagState {
                 });
         }
 
-        tracing::info!(
+        info!(
             "DagState was initialized with the following state: \
             {last_commit:?}; {last_committed_rounds:?}; {} unscored committed subdags;",
             unscored_committed_subdags.len()
         );
 
-        scoring_subdag.add_subdags(std::mem::take(&mut unscored_committed_subdags));
+        scoring_subdag.add_subdags(mem::take(&mut unscored_committed_subdags));
 
         let mut state = Self {
             context,
             genesis,
             recent_block_headers: BTreeMap::new(),
-            recent_transactions: BTreeMap::new(),
-            recent_shards: BTreeMap::new(),
+            recent_transactions_by_authority: vec![BTreeMap::new(); num_authorities],
+            recent_shards_by_authority: vec![BTreeMap::new(); num_authorities],
             recent_headers_refs_by_authority: vec![BTreeSet::new(); num_authorities],
             threshold_clock,
             highest_accepted_round: 0,
@@ -228,13 +254,11 @@ impl DagState {
             commits_to_write: vec![],
             commit_info_to_write: vec![],
             pending_acknowledgments: BTreeSet::new(),
-            recent_dag_cordial_knowledge: vec![BTreeMap::new(); num_authorities],
-            block_headers_not_known_by_authority: vec![BTreeSet::new(); num_authorities],
-            shards_not_known_by_authority: vec![BTreeSet::new(); num_authorities],
             scoring_subdag,
             store: store.clone(),
             cached_rounds,
             evicted_rounds: vec![0; num_authorities],
+            cordial_knowledge_sender: None,
         };
 
         for (i, round) in last_committed_rounds.into_iter().enumerate() {
@@ -274,6 +298,13 @@ impl DagState {
         state
     }
 
+    pub fn set_cordial_knowledge_sender(
+        &mut self,
+        sender: UnboundedSender<CordialKnowledgeMessage>,
+    ) {
+        self.cordial_knowledge_sender = Some(sender);
+    }
+
     /// Accepts a block header into DagState and keeps it in memory.
     pub(crate) fn accept_block_header(&mut self, block_header: VerifiedBlockHeader) {
         assert_ne!(
@@ -300,7 +331,7 @@ impl DagState {
         self.context
             .metrics
             .node_metrics
-            .accepted_block_time_drift_ms
+            .accepted_block_header_time_drift_ms
             .with_label_values(&[hostname])
             .inc_by(block_header.timestamp_ms().saturating_sub(now));
 
@@ -334,10 +365,13 @@ impl DagState {
             .inc();
     }
 
-    pub(crate) fn add_transactions(&mut self, transactions: VerifiedTransactions, source: &str) {
+    pub(crate) fn add_transactions(
+        &mut self,
+        transactions: VerifiedTransactions,
+        source: TransactionSource,
+    ) {
         let block_ref = transactions.block_ref();
-        if self
-            .recent_transactions
+        if self.recent_transactions_by_authority[block_ref.author]
             .insert(block_ref, transactions.clone())
             .is_none()
         {
@@ -345,7 +379,7 @@ impl DagState {
                 .metrics
                 .node_metrics
                 .accepted_transactions
-                .with_label_values(&[source])
+                .with_label_values(&[source.as_str()])
                 .inc();
             tracing::debug!("Adding transactions for block ref: {block_ref}");
             let has_transactions = transactions.has_transactions();
@@ -379,26 +413,29 @@ impl DagState {
 
     pub(crate) fn add_shard(&mut self, shard: VerifiedOwnShard) {
         let block_ref = shard.block_ref;
-        if self
-            .recent_shards
+        if self.recent_shards_by_authority[block_ref.author]
             .insert(block_ref, shard.serialized_shard)
             .is_none()
         {
-            tracing::debug!("Adding shard for block ref: {block_ref}");
-            for authority_index in 0..self.shards_not_known_by_authority.len() {
-                // we are going to send shard to every authority except our own and the author
-                // of the block
-                if (authority_index == block_ref.author.value())
-                    || (authority_index == self.context.own_index.value())
-                {
-                    continue;
+            debug!("Adding shard for block ref: {block_ref}");
+            if let Some(sender) = &self.cordial_knowledge_sender {
+                let cordial_message = CordialKnowledgeMessage::NewShard(block_ref);
+                if let Err(e) = sender.send(cordial_message) {
+                    warn!("Failed to send cordial knowledge update: {e}");
                 }
-                self.shards_not_known_by_authority[authority_index].insert(block_ref);
             }
         }
     }
 
-    pub fn update_last_solid_commit_leader_round(&mut self, last_solid_commit_leader_round: Round) {
+    #[cfg_attr(not(test), expect(dead_code))]
+    pub(crate) fn last_solid_commit_leader_round(&self) -> Option<Round> {
+        self.last_solid_commit_leader_round
+    }
+
+    pub(crate) fn update_last_solid_commit_leader_round(
+        &mut self,
+        last_solid_commit_leader_round: Round,
+    ) {
         let max_commit_round = self
             .last_committed_rounds
             .iter()
@@ -442,91 +479,17 @@ impl DagState {
             .highest_accepted_authority_round
             .with_label_values(&[hostname])
             .set(highest_accepted_round_for_author as i64);
-        self.update_cordial_knowledge(block_header);
+        if let Some(sender) = &self.cordial_knowledge_sender {
+            let cordial_message = CordialKnowledgeMessage::NewHeader(block_header.clone());
+            if let Err(e) = sender.send(cordial_message) {
+                warn!("Failed to send cordial knowledge update: {e}");
+            }
+        }
     }
 
     fn update_transaction_metadata(&mut self, transaction: &VerifiedTransactions) {
-        self.recent_transactions
+        self.recent_transactions_by_authority[transaction.block_ref().author]
             .insert(transaction.block_ref(), transaction.clone());
-    }
-
-    /// Updates the cordial knowledge about which authorities know which block
-    /// headers after accepting a new block header. In particular, it
-    /// traverses the DAG from the given block header and updates the
-    /// knowledge for the corresponding authority.
-    fn update_cordial_knowledge(&mut self, block_header: &VerifiedBlockHeader) {
-        let block_reference = block_header.reference();
-        let block_author = block_reference.author;
-        let round_digest = (block_reference.round, block_reference.digest);
-
-        // Collect parents of the block header, which are not genesis
-        let parents = block_header
-            .ancestors()
-            .iter()
-            .filter(|parent| parent.round > GENESIS_ROUND)
-            .cloned()
-            .collect::<Vec<_>>();
-
-        // If the block header is in the recent_dag_cordial_knowledge, then
-        // don't update it
-        if self.recent_dag_cordial_knowledge[block_author.value()].contains_key(&round_digest) {
-            return;
-        }
-
-        // update information about block_reference
-        self.recent_dag_cordial_knowledge[block_author.value()].insert(
-            round_digest,
-            (
-                parents,
-                vec![block_reference.author, self.context.own_index]
-                    .into_iter()
-                    .collect::<HashSet<_>>(),
-            ),
-        );
-
-        // Assume that only this authority and the author know the block header
-        for authority_index in 0..self.block_headers_not_known_by_authority.len() {
-            if authority_index == self.context.own_index.value()
-                || authority_index == block_reference.author.value()
-            {
-                continue;
-            }
-            self.block_headers_not_known_by_authority[authority_index].insert(block_reference);
-        }
-
-        // traverse the DAG from block_reference and update the blocks known by the
-        // author of this block
-        let mut buffer = vec![block_reference];
-
-        while let Some(traversed_block_reference) = buffer.pop() {
-            let traversed_block_author = traversed_block_reference.author;
-            let traversed_block_round_digest = (
-                traversed_block_reference.round,
-                traversed_block_reference.digest,
-            );
-            let (parents, _) = self.recent_dag_cordial_knowledge[traversed_block_author.value()]
-                .get(&traversed_block_round_digest)
-                .expect("We should expect having an element with given BlockRef")
-                .clone();
-            for parent in parents {
-                let traversed_parent_author = parent.author;
-                let traversed_parent_round_digest = (parent.round, parent.digest);
-
-                if self.recent_dag_cordial_knowledge[traversed_parent_author.value()]
-                    .contains_key(&traversed_parent_round_digest)
-                {
-                    let (_, who_knows_given_parent) = self.recent_dag_cordial_knowledge
-                        [traversed_parent_author.value()]
-                    .get_mut(&traversed_parent_round_digest)
-                    .expect("We should have this value as it is checked");
-                    if who_knows_given_parent.insert(block_author) {
-                        self.block_headers_not_known_by_authority[block_author.value()]
-                            .remove(&parent);
-                        buffer.push(parent);
-                    }
-                }
-            }
-        }
     }
 
     /// Accepts block headers into DagState and keeps it in memory.
@@ -546,7 +509,7 @@ impl DagState {
     /// Gets transactions by checking cached recent transactions in memory, then
     /// storage. An element is None when the corresponding transaction is not
     /// found.
-    pub(crate) fn get_transactions(
+    pub(crate) fn get_verified_transactions(
         &self,
         block_refs: &[BlockRef],
     ) -> Vec<Option<VerifiedTransactions>> {
@@ -565,7 +528,9 @@ impl DagState {
                 }
                 continue;
             }
-            if let Some(transaction) = self.recent_transactions.get(block_ref) {
+            if let Some(transaction) =
+                self.recent_transactions_by_authority[block_ref.author].get(block_ref)
+            {
                 transactions[index] = Some(transaction.clone());
                 continue;
             }
@@ -582,13 +547,70 @@ impl DagState {
             .collect::<Vec<_>>();
         let store_results = self
             .store
-            .read_transactions(&missing_refs)
+            .read_verified_transactions(&missing_refs)
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
         self.context
             .metrics
             .node_metrics
             .dag_state_store_read_count
-            .with_label_values(&["get_transactions"])
+            .with_label_values(&["get_verified_transactions"])
+            .inc();
+
+        for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
+            transactions[index] = result;
+        }
+
+        transactions
+    }
+
+    /// Gets serialized transactions by checking cached recent transactions in
+    /// memory, then storage. An element is None when the corresponding
+    /// transaction is not found.
+    pub(crate) fn get_serialized_transactions(
+        &self,
+        block_refs: &[BlockRef],
+    ) -> Vec<Option<Bytes>> {
+        let mut transactions = vec![None; block_refs.len()];
+        let mut missing = Vec::new();
+
+        for (index, block_ref) in block_refs.iter().enumerate() {
+            if block_ref.round == GENESIS_ROUND {
+                // Allow the caller to handle the invalid genesis ancestor error.
+                if let Some(transaction) = self
+                    .genesis
+                    .get(block_ref)
+                    .map(|block| block.verified_transactions.clone())
+                {
+                    transactions[index] = Some(transaction.serialized().clone());
+                }
+                continue;
+            }
+            if let Some(transaction) =
+                self.recent_transactions_by_authority[block_ref.author].get(block_ref)
+            {
+                transactions[index] = Some(transaction.serialized().clone());
+                continue;
+            }
+            missing.push((index, block_ref));
+        }
+
+        if missing.is_empty() {
+            return transactions;
+        }
+
+        let missing_refs = missing
+            .iter()
+            .map(|(_, block_ref)| **block_ref)
+            .collect::<Vec<_>>();
+        let store_results = self
+            .store
+            .read_serialized_transactions(&missing_refs)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+        self.context
+            .metrics
+            .node_metrics
+            .dag_state_store_read_count
+            .with_label_values(&["get_serialized_transactions"])
             .inc();
 
         for ((index, _), result) in missing.into_iter().zip(store_results.into_iter()) {
@@ -600,16 +622,19 @@ impl DagState {
 
     /// Gets a block header by checking cached recent blocks then storage.
     /// Returns None when the block is not found.
-    pub(crate) fn get_block_header(&self, reference: &BlockRef) -> Option<VerifiedBlockHeader> {
-        self.get_block_headers(&[*reference])
+    pub(crate) fn get_verified_block_header(
+        &self,
+        reference: &BlockRef,
+    ) -> Option<VerifiedBlockHeader> {
+        self.get_verified_block_headers(&[*reference])
             .pop()
             .expect("Exactly one element should be returned")
     }
 
-    /// Gets block headers by checking genesis, cached recent block headers in
-    /// memory, then storage. An element is None when the corresponding
-    /// block header is not found.
-    pub(crate) fn get_block_headers(
+    /// Gets verified block headers by checking genesis, cached recent block
+    /// headers in memory, then storage. An element is None when the
+    /// corresponding block header is not found.
+    pub(crate) fn get_verified_block_headers(
         &self,
         block_refs: &[BlockRef],
     ) -> Vec<Option<VerifiedBlockHeader>> {
@@ -623,8 +648,8 @@ impl DagState {
                 }
                 continue;
             }
-            if let Some(block) = self.recent_block_headers.get(block_ref) {
-                block_headers[index] = Some(block.clone());
+            if let Some(block_header) = self.recent_block_headers.get(block_ref) {
+                block_headers[index] = Some(block_header.clone());
                 continue;
             }
             missing_headers.push((index, block_ref));
@@ -640,14 +665,65 @@ impl DagState {
             .collect::<Vec<_>>();
         let store_results = self
             .store
-            .read_block_headers(&missing_refs)
+            .read_verified_block_headers(&missing_refs)
             .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
 
         self.context
             .metrics
             .node_metrics
             .dag_state_store_read_count
-            .with_label_values(&["get_block_headers"])
+            .with_label_values(&["get_verified_block_headers"])
+            .inc();
+
+        for ((index, _), result) in missing_headers.into_iter().zip(store_results.into_iter()) {
+            block_headers[index] = result;
+        }
+
+        block_headers
+    }
+
+    /// Gets serialized block headers by checking genesis, cached recent block
+    /// headers in memory, then storage. An element is None when the
+    /// corresponding block header is not found.
+    pub(crate) fn get_serialized_block_headers(
+        &self,
+        block_refs: &[BlockRef],
+    ) -> Vec<Option<Bytes>> {
+        let mut block_headers: Vec<Option<Bytes>> = vec![None; block_refs.len()];
+        let mut missing_headers = Vec::new();
+        for (index, block_ref) in block_refs.iter().enumerate() {
+            if block_ref.round == GENESIS_ROUND {
+                // Allow the caller to handle the invalid genesis ancestor error.
+                if let Some(block) = self.genesis.get(block_ref) {
+                    block_headers[index] = Some(block.verified_block_header.serialized().clone());
+                }
+                continue;
+            }
+            if let Some(block) = self.recent_block_headers.get(block_ref) {
+                block_headers[index] = Some(block.serialized().clone());
+                continue;
+            }
+            missing_headers.push((index, block_ref));
+        }
+
+        if missing_headers.is_empty() {
+            return block_headers;
+        }
+
+        let missing_refs = missing_headers
+            .iter()
+            .map(|(_, block_ref)| **block_ref)
+            .collect::<Vec<_>>();
+        let store_results = self
+            .store
+            .read_serialized_block_headers(&missing_refs)
+            .unwrap_or_else(|e| panic!("Failed to read from storage: {e:?}"));
+
+        self.context
+            .metrics
+            .node_metrics
+            .dag_state_store_read_count
+            .with_label_values(&["get_serialized_block_headers"])
             .inc();
 
         for ((index, _), result) in missing_headers.into_iter().zip(store_results.into_iter()) {
@@ -680,6 +756,16 @@ impl DagState {
         }
 
         block_headers
+    }
+    /// Gets shards by checking cached recent shards in memory.
+    pub(crate) fn get_cached_shards(&self, block_refs: &[BlockRef]) -> Vec<Option<Bytes>> {
+        let mut shards: Vec<Option<Bytes>> = vec![None; block_refs.len()];
+        for (index, block_ref) in block_refs.iter().enumerate() {
+            if let Some(shard) = self.recent_shards_by_authority[block_ref.author].get(block_ref) {
+                shards[index] = Some(shard.clone());
+            }
+        }
+        shards
     }
 
     /// Gets all uncommitted block headers in a slot.
@@ -755,7 +841,7 @@ impl DagState {
                 break;
             }
             let block_ref = linked.pop_last().unwrap();
-            let Some(block) = self.get_block_header(&block_ref) else {
+            let Some(block) = self.get_verified_block_header(&block_ref) else {
                 panic!("Block Header {block_ref:?} should exist in DAG!");
             };
             linked.extend(
@@ -766,7 +852,8 @@ impl DagState {
                     .cloned(),
             );
         }
-        let block_headers = self.get_block_headers(&linked.iter().cloned().collect::<Vec<_>>());
+        let block_headers =
+            self.get_verified_block_headers(&linked.iter().cloned().collect::<Vec<_>>());
         block_headers
             .into_iter()
             .map(|opt| opt.unwrap_or_else(|| panic!("Block should exist in DAG!")))
@@ -784,8 +871,7 @@ impl DagState {
                 .recent_block_headers
                 .get(last)
                 .expect("Block header should exist for the most recent blocks");
-            let transactions = self
-                .recent_transactions
+            let transactions = self.recent_transactions_by_authority[last.author]
                 .get(last)
                 .expect("Transactions should exist for the most recent blocks");
             return VerifiedBlock::new(header.clone(), transactions.clone());
@@ -842,7 +928,8 @@ impl DagState {
             Unbounded,
         )) {
             let header_opt = self.recent_block_headers.get(block_ref);
-            let transactions_opt = self.recent_transactions.get(block_ref);
+            let transactions_opt =
+                self.recent_transactions_by_authority[block_ref.author].get(block_ref);
             if let (Some(header), Some(transactions)) = (header_opt, transactions_opt) {
                 blocks.push(VerifiedBlock::new(header.clone(), transactions.clone()));
             } else {
@@ -1123,7 +1210,7 @@ impl DagState {
                 }
                 continue;
             }
-            if self.recent_transactions.contains_key(&block_ref) {
+            if self.recent_transactions_by_authority[block_ref.author].contains_key(&block_ref) {
                 exist[index] = true;
             } else {
                 missing.push((index, block_ref));
@@ -1280,224 +1367,7 @@ impl DagState {
         self.commit_info_to_write
             .push((last_commit.reference(), commit_info));
     }
-    /// Removes and returns up to `MAX_HEADERS_PER_BUNDLE` block references that
-    /// the given authority has not yet seen, limited to rounds strictly
-    /// below `round_upper_bound_exclusive`.
-    ///
-    /// Side effects:
-    /// - Updates `block_headers_not_known_by_authority` so these refs are no
-    ///   longer considered "unknown" for the authority.
-    /// - Marks the given authority as knowing these blocks inside
-    ///   `recent_dag_cordial_knowledge`.
-    ///
-    /// Returns:
-    /// - A vector of `BlockRef`s corresponding to the unknown blocks that were
-    ///   revealed to the authority.
-    fn take_unknown_block_refs_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-    ) -> Vec<BlockRef> {
-        let mut set =
-            mem::take(&mut self.block_headers_not_known_by_authority[authority_index.value()]);
 
-        let split_point = {
-            let round_bound = BlockRef::new(
-                round_upper_bound_exclusive,
-                AuthorityIndex::MIN,
-                BlockHeaderDigest::MIN,
-            );
-            let nth_element = set
-                .iter()
-                .nth(self.context.parameters.max_headers_per_bundle)
-                .map_or(round_bound, |x| *x);
-            min(nth_element, round_bound)
-        };
-
-        self.block_headers_not_known_by_authority[authority_index.value()] =
-            set.split_off(&split_point);
-        let mut block_refs: Vec<BlockRef> = vec![];
-        for block_ref in set.into_iter() {
-            block_refs.push(block_ref);
-            let opt_block_knowledge = self.recent_dag_cordial_knowledge[block_ref.author.value()]
-                .get_mut(&(block_ref.round, block_ref.digest));
-            let (_, who_knows_given_block) = opt_block_knowledge
-                .expect("We expect block ref to be in recent dag cordial knowledge");
-            who_knows_given_block.insert(authority_index);
-        }
-        block_refs
-    }
-
-    /// Removes and returns up to `context.parameters.max_headers_per_bundle`
-    /// block references that the given authority has not yet seen, limited
-    /// to rounds strictly below `round_upper_bound_exclusive` and filtered
-    /// by the provided authors `useful_authorities`.
-    ///
-    /// Side effects:
-    /// - Updates `block_headers_not_known_by_authority` so these refs are no
-    ///   longer considered "unknown" for the authority.
-    /// - Marks the given authority as knowing these blocks inside
-    ///   `recent_dag_cordial_knowledge`.
-    ///
-    /// Returns:
-    /// - A vector of `BlockRef`s corresponding to the unknown blocks that were
-    ///   revealed to the authority.
-    fn take_useful_block_refs_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-        useful_authorities: BTreeSet<AuthorityIndex>,
-    ) -> Vec<BlockRef> {
-        let set = &mut self.block_headers_not_known_by_authority[authority_index.value()];
-
-        // Collect candidate block_refs we want to take out
-        let mut to_take = Vec::new();
-
-        for block_ref in set.iter() {
-            if to_take.len() >= self.context.parameters.max_headers_per_bundle
-                || block_ref.round >= round_upper_bound_exclusive
-            {
-                break;
-            }
-            if useful_authorities.contains(&block_ref.author) {
-                to_take.push(*block_ref);
-            }
-        }
-
-        // Remove the references from the set and update cordial knowledge
-        for block_ref in &to_take {
-            set.remove(block_ref);
-
-            if let Some((_, who_knows_given_block)) = self.recent_dag_cordial_knowledge
-                [block_ref.author.value()]
-            .get_mut(&(block_ref.round, block_ref.digest))
-            {
-                who_knows_given_block.insert(authority_index);
-            } else {
-                warn!("Block_ref {block_ref} missing in recent_dag_cordial_knowledge");
-            }
-        }
-
-        to_take
-    }
-
-    fn take_block_refs_of_useful_shards_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-        useful_authorities: BTreeSet<AuthorityIndex>,
-    ) -> Vec<BlockRef> {
-        let set = &mut self.shards_not_known_by_authority[authority_index.value()];
-
-        // Collect candidate block_refs we want to take out
-        let mut to_take = Vec::new();
-
-        for block_ref in set.iter() {
-            if to_take.len() >= self.context.parameters.max_shards_per_bundle
-                || block_ref.round >= round_upper_bound_exclusive
-            {
-                break;
-            }
-            if useful_authorities.contains(&block_ref.author) {
-                to_take.push(*block_ref);
-            }
-        }
-
-        // Remove the references from the set and update cordial knowledge
-        for block_ref in &to_take {
-            set.remove(block_ref);
-        }
-
-        to_take
-    }
-
-    /// Retrieves up to `MAX_HEADERS_PER_BUNDLE` previously unknown block
-    /// headers for the given authority, restricted to rounds strictly below
-    /// `round_upper_bound_exclusive`.
-    ///
-    /// This builds on [`take_unknown_block_refs_for_authority`], resolving the
-    /// returned block references into full `VerifiedBlockHeader`s.
-    ///
-    /// Panics if any of the block headers are missing from `DagState` or disk.
-    pub(crate) fn take_unknown_headers_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-    ) -> Vec<VerifiedBlockHeader> {
-        let block_refs = self
-            .take_unknown_block_refs_for_authority(authority_index, round_upper_bound_exclusive);
-
-        self.get_block_headers(&block_refs)
-            .into_iter()
-            .map(|opt| opt.expect("All headers should be in DagState or on disk"))
-            .collect()
-    }
-    /// Retrieves up to `MAX_HEADERS_PER_BUNDLE` unknown block headers for the
-    /// given authority, but only those authored by peers listed in
-    /// `useful_authorities`. Excludes blocks from other authorities.
-    ///
-    /// This builds on [`take_unknown_block_refs_for_authority`], filtering the
-    /// result with `useful_authorities` and resolving the returned block
-    /// references into full `VerifiedBlockHeader`s.
-    ///
-    /// Panics if any of the block headers are missing from `DagState` or disk.
-    pub(crate) fn take_useful_headers_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-        useful_authorities: BTreeSet<AuthorityIndex>,
-    ) -> Vec<VerifiedBlockHeader> {
-        let block_refs = self.take_useful_block_refs_for_authority(
-            authority_index,
-            round_upper_bound_exclusive,
-            useful_authorities,
-        );
-
-        self.get_block_headers(&block_refs)
-            .into_iter()
-            .map(|opt| opt.expect("All headers should be in DagState or on disk"))
-            .collect()
-    }
-
-    pub(crate) fn take_useful_shards_for_authority(
-        &mut self,
-        authority_index: AuthorityIndex,
-        round_upper_bound_exclusive: Round,
-        useful_authorities: BTreeSet<AuthorityIndex>,
-    ) -> Vec<Bytes> {
-        let block_refs = self.take_block_refs_of_useful_shards_for_authority(
-            authority_index,
-            round_upper_bound_exclusive,
-            useful_authorities,
-        );
-        block_refs
-            .iter()
-            .map(|block_ref| {
-                self.recent_shards
-                    .get(block_ref)
-                    .expect("Shard should be in DagState")
-                    .clone()
-            })
-            .collect::<Vec<_>>()
-    }
-
-    pub(crate) fn get_useful_shards_authors(
-        last_useful_round: Vec<Round>,
-        block_round: Round,
-    ) -> BTreeSet<AuthorityIndex> {
-        let mut useful_shard_authors = BTreeSet::new();
-        for (i, round) in last_useful_round.iter().enumerate() {
-            // Check that block_round >= round to avoid underflow. This can happen if we've
-            // received a block from a more recent round than the block we are about to
-            // send, especially during startup when we're sending older blocks.
-            if block_round >= *round
-                && block_round - round <= MAX_ROUND_GAP_FOR_USEFUL_SHARDS as u32
-            {
-                useful_shard_authors.insert(AuthorityIndex::from(i as u8));
-            }
-        }
-        useful_shard_authors
-    }
     pub(crate) fn take_commit_votes(&mut self, limit: usize) -> Vec<CommitVote> {
         let mut votes = Vec::new();
         while !self.pending_commit_votes.is_empty() && votes.len() < limit {
@@ -1530,28 +1400,38 @@ impl DagState {
 
     /// Clean up old shards. Used after flushing.
     pub(crate) fn evict_shards(&mut self) {
-        self.recent_shards
-            .retain(|block_ref, _| block_ref.round > self.evicted_rounds[block_ref.author]);
+        for (authority_index, _) in self.context.committee.authorities() {
+            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+
+            // Evict everything below split_key
+            let split_key =
+                BlockRef::new(eviction_round + 1, authority_index, BlockHeaderDigest::MIN);
+            self.recent_shards_by_authority[authority_index] =
+                self.recent_shards_by_authority[authority_index].split_off(&split_key);
+        }
     }
 
-    /// Function removes stalled transactions that are older than  "last consume
-    /// leader round minus MAX_TRANSACTIONS_ACK_DEPTH
+    /// Function removes stalled transactions that are older than the minimum
+    /// between "last solid leader round minus MAX_TRANSACTIONS_ACK_DEPTH
     /// (protocol_config.gc_depth) minus MAX_LINEARIZER_DEPTH
-    /// (protocol_config.gc_depth)"
+    /// (protocol_config.gc_depth)" and the eviction round of corresponding
+    /// authority
     pub(crate) fn evict_transactions(&mut self) {
         let transaction_gc_round = self.gc_round_for_last_solid_commit();
-        let header_eviction_round = self.calculate_authority_eviction_round(self.context.own_index);
-        let transaction_eviction_round = min(transaction_gc_round, header_eviction_round + 1);
-        // Construct a dummy BlockRef with the minimum round to split on.
-        // All entries < dummy will be removed.
-        let lower_bound = BlockRef::new(
-            transaction_eviction_round,
-            AuthorityIndex::ZERO,
-            BlockHeaderDigest::MIN,
-        );
+        for (authority_index, _) in self.context.committee.authorities() {
+            let eviction_round = self.calculate_authority_eviction_round(authority_index);
+            // Take minimum between transaction_gc_round and eviction_round
+            let transaction_eviction_round = min(transaction_gc_round, eviction_round + 1);
 
-        // Remove entries with round < min_round
-        self.recent_transactions = self.recent_transactions.split_off(&lower_bound);
+            // Evict everything below split_key
+            let split_key = BlockRef::new(
+                transaction_eviction_round,
+                authority_index,
+                BlockHeaderDigest::MIN,
+            );
+            self.recent_transactions_by_authority[authority_index] =
+                self.recent_transactions_by_authority[authority_index].split_off(&split_key);
+        }
     }
 
     /// Return the garbage collection round with respect to the last solid
@@ -1581,27 +1461,20 @@ impl DagState {
         self.pending_acknowledgments = self.pending_acknowledgments.split_off(&lower_bound);
     }
 
-    /// Evicts old cordial knowledge and pending acknowledgments. It is aligned
+    /// Evicts old cordial knowledge from CordialKnowledge. It is aligned
     /// with the eviction method, thereby should be called every time the
     /// eviction happens.
     pub(crate) fn evict_cordial_knowledge(&mut self) {
-        // === 1. Evict from recent_dag_cordial_knowledge ===
-        for (authority_index, map) in self.recent_dag_cordial_knowledge.iter_mut().enumerate() {
-            let evict_round = self.evicted_rounds[authority_index];
-
-            // Only keep entries with round > evict_round
-            let keep_from = (evict_round + 1, BlockHeaderDigest::MIN);
-            *map = map.split_off(&keep_from);
-        }
-        // === 2. Evict from block_headers_not_known_by_authority ===
-        for authority_index in 0..self.context.committee.size() {
-            let old_set = &mut self.block_headers_not_known_by_authority[authority_index];
-            old_set.retain(|block_ref| block_ref.round > self.evicted_rounds[block_ref.author]);
-        }
-        // === 3. Evict from shards_not_known_by_authority ===
-        for authority_index in 0..self.context.committee.size() {
-            let old_set = &mut self.shards_not_known_by_authority[authority_index];
-            old_set.retain(|block_ref| block_ref.round > self.evicted_rounds[block_ref.author]);
+        if let Some(cordial_knowledge_sender) = &self.cordial_knowledge_sender {
+            let mut eviction_rounds = vec![];
+            for (authority_index, _) in self.context.committee.authorities() {
+                let eviction_round = self.calculate_authority_eviction_round(authority_index);
+                eviction_rounds.push(eviction_round);
+            }
+            let cordial_message = CordialKnowledgeMessage::EvictBelow(eviction_rounds);
+            if let Err(e) = cordial_knowledge_sender.send(cordial_message) {
+                warn!("Failed to send cordial knowledge eviction message: {e}");
+            }
         }
     }
 
@@ -1774,12 +1647,18 @@ impl DagState {
         metrics
             .dag_state_recent_headers
             .set(self.recent_block_headers.len() as i64);
-        metrics
-            .dag_state_recent_shards
-            .set(self.recent_shards.len() as i64);
-        metrics
-            .dag_state_recent_transactions
-            .set(self.recent_transactions.len() as i64);
+        metrics.dag_state_recent_shards.set(
+            self.recent_shards_by_authority
+                .iter()
+                .map(BTreeMap::len)
+                .sum::<usize>() as i64,
+        );
+        metrics.dag_state_recent_transactions.set(
+            self.recent_transactions_by_authority
+                .iter()
+                .map(BTreeMap::len)
+                .sum::<usize>() as i64,
+        );
         metrics.dag_state_recent_refs.set(
             self.recent_headers_refs_by_authority
                 .iter()
@@ -1946,7 +1825,7 @@ mod test {
         // Check uncommitted block headers that exist.
         for (block_ref, block_header) in &block_headers {
             assert_eq!(
-                &dag_state.get_block_header(block_ref).unwrap(),
+                &dag_state.get_verified_block_header(block_ref).unwrap(),
                 block_header
             );
         }
@@ -1955,7 +1834,7 @@ mod test {
         let last_ref = block_headers.keys().last().unwrap();
         assert!(
             dag_state
-                .get_block_header(&BlockRef::new(
+                .get_verified_block_header(&BlockRef::new(
                     last_ref.round,
                     last_ref.author,
                     BlockHeaderDigest::MIN
@@ -2415,7 +2294,7 @@ mod test {
         genesis_refs.extend(block_refs);
         block_refs = genesis_refs;
 
-        let result = dag_state.get_block_headers(&block_refs);
+        let result = dag_state.get_verified_block_headers(&block_refs);
 
         let mut expected_headers = block_headers
             .clone()
@@ -2452,7 +2331,7 @@ mod test {
                 BlockHeaderDigest::default(),
             ),
         );
-        let result = dag_state.get_block_headers(&block_refs);
+        let result = dag_state.get_verified_block_headers(&block_refs);
 
         // Then all should be found apart from the last one
         expected_headers.insert(3, None);
@@ -2483,7 +2362,7 @@ mod test {
         let later_commits = commits.split_off(5);
         dag_state.accept_block_headers(dag_builder.block_headers(1..=5));
         for verified_transactions in dag_builder.transactions(1..=5).into_iter() {
-            dag_state.add_transactions(verified_transactions, "test");
+            dag_state.add_transactions(verified_transactions, TransactionSource::Test);
         }
 
         for commit in commits.clone() {
@@ -2504,7 +2383,7 @@ mod test {
         // Add the rest of the block headers, transaction, and commits to the dag state
         dag_state.accept_block_headers(dag_builder.block_headers(6..=num_rounds));
         for verified_transactions in dag_builder.transactions(6..=num_rounds).into_iter() {
-            dag_state.add_transactions(verified_transactions, "test");
+            dag_state.add_transactions(verified_transactions, TransactionSource::Test);
         }
         for commit in later_commits.clone() {
             dag_state.add_commit(commit);
@@ -2520,7 +2399,7 @@ mod test {
             .collect::<Vec<_>>();
 
         let result = dag_state
-            .get_block_headers(&block_refs)
+            .get_verified_block_headers(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -2539,7 +2418,7 @@ mod test {
 
         // All transactions should be found in DagState.
         let result = dag_state
-            .get_transactions(&block_refs)
+            .get_verified_transactions(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -2571,7 +2450,7 @@ mod test {
             .map(|block_header| block_header.reference())
             .collect::<Vec<_>>();
         let result = dag_state
-            .get_block_headers(&block_refs)
+            .get_verified_block_headers(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -2579,7 +2458,7 @@ mod test {
         // Transactions from the first 5 rounds should be found in DagState.
         let vec_transactions = dag_builder.transactions(1..=5);
         let result = dag_state
-            .get_transactions(&block_refs)
+            .get_verified_transactions(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -2599,13 +2478,13 @@ mod test {
             .map(|block_header| block_header.reference())
             .collect::<Vec<_>>();
         let retrieved_block_headers = dag_state
-            .get_block_headers(&block_refs)
+            .get_verified_block_headers(&block_refs)
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
         assert!(retrieved_block_headers.is_empty());
         let retrieved_transactions = dag_state
-            .get_transactions(&block_refs)
+            .get_verified_transactions(&block_refs)
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
@@ -3098,7 +2977,8 @@ mod test {
                     )
                     .unwrap();
             } else {
-                dag_state.add_transactions(block.verified_transactions.clone(), "test");
+                dag_state
+                    .add_transactions(block.verified_transactions.clone(), TransactionSource::Test);
             }
         });
 
@@ -3196,7 +3076,7 @@ mod test {
 
         dag_state.accept_block_headers(dag_builder.block_headers(1..=num_rounds));
         for verified_transactions in dag_builder.transactions(1..=num_rounds).into_iter() {
-            dag_state.add_transactions(verified_transactions, "test");
+            dag_state.add_transactions(verified_transactions, TransactionSource::Test);
         }
 
         for commit in commits.clone() {
@@ -3257,7 +3137,7 @@ mod test {
         let expected_transactions_in_dag = dag_builder.transactions(gc_round + 1..=num_rounds);
         // All transactions should be found in DagState or store.
         let result = dag_state
-            .get_transactions(&block_refs_with_transactions_in_dag)
+            .get_verified_transactions(&block_refs_with_transactions_in_dag)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -3277,7 +3157,7 @@ mod test {
 
         // All transactions should be found in DagState or store.
         let result = dag_state
-            .get_transactions(&block_refs)
+            .get_verified_transactions(&block_refs)
             .into_iter()
             .map(|b| b.unwrap())
             .collect::<Vec<_>>();
@@ -3289,7 +3169,7 @@ mod test {
                 .metrics
                 .node_metrics
                 .dag_state_store_read_count
-                .with_label_values(&["get_transactions"])
+                .with_label_values(&["get_verified_transactions"])
                 .get(),
             1,
             "dag_state_store_read_count for get_transactions should be one"
@@ -3368,7 +3248,7 @@ mod test {
 
         // add transactions for all blocks
         blocks.into_iter().for_each(|block| {
-            dag_state.add_transactions(block.verified_transactions, "test");
+            dag_state.add_transactions(block.verified_transactions, TransactionSource::Test);
         });
 
         assert!(dag_state.pending_acknowledgments.is_empty());
@@ -3410,7 +3290,7 @@ mod test {
                     transaction_commitment,
                     serialized,
                 );
-                dag_state.add_transactions(verified_transaction, "test");
+                dag_state.add_transactions(verified_transaction, TransactionSource::Test);
             }
         }
         assert_eq!(

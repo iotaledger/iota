@@ -3,293 +3,18 @@
  * bundles Infima by default. Infima is a CSS framework designed to
  * work well for content-centric websites.
  */
+
+ /* All dark and light theme styles have been consolidated under a single [data-theme="dark"] 
+ and [data-theme="light"] structure for easier maintenance and consistency. */
+
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+@import 'variable.css';
 
-/* You can override the default Infima variables here. */
-:root {
-  --ifm-color-primary: #4ca2ff;
-  --ifm-color-primary-dark: #2b91ff;
-  --ifm-color-primary-darker: #1a88ff;
-  --ifm-color-primary-darkest: #006fe8;
-  --ifm-color-primary-light: #6db3ff;
-  --ifm-color-primary-lighter: #7ebcff;
-  --ifm-color-primary-lightest: #afd6ff;
-  --ifm-code-font-size: 95%;
-  --ifm-background-color-dark: black;
-  --ifm-navbar-background-color: #030f1c;
-  --ifm-navbar-sidebar-link-color: #141414;
-  --ifm-background-color-dark: black;
-  --ifm-navbar-background-color: #030f1c;
-  --ifm-navbar-height: 4.5rem;
-  --ifm-spacing-horizontal: 1.875rem;
-  --ifm-font-size-base: 0.9375rem;
-  --ifm-line-height-base: 1.5rem;
-  --ifm-font-family-base: "Inter", sans-serif;
-  --ifm-menu-color: #011829;
-  --ifm-menu-color-background-active: transparent;
-  --ifm-hover-overlay: var(--ifm-color-emphasis-100);
-  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
-  --iota-black: #111111;
-  --iota-blue: #6fbcf0;
-  --iota-blue-bright: #00f9fb;
-  --iota-blue-light: #e1f3ff;
-  --iota-blue-lighter: #b4c2d0;
-  --iota-blue-dark: 52 99 151;
-  --iota-blue-darker: #303846;
-  --iota-hero: #0284ad;
-  --iota-hero-dark: #007195;
-  --iota-iota-steel: #a0b6c3;
-  --iota-steel-dark: #758f9e;
-  --iota-steel-darker: #566873;
-  --iota-header-nav: #2a4362;
-  --iota-success: #2dd7a7;
-  --iota-success-dark: #008c65;
-  --iota-success-light: #d5f7ee;
-  --iota-issue: #ff794b;
-  --iota-issue-dark: #eb5a29;
-  --iota-issue-light: #ffece5;
-  --iota-warning: #f2bd24;
-  --iota-warning-dark: #8d6e15;
-  --iota-warning-light: #fff8e2;
-  --iota-code: #845ed6;
-  --iota-gray-35: #fefefe;
-  --iota-gray-40: #f7f8f8;
-  --iota-gray-45: #ebeced;
-  --iota-gray-50: #e9eaeb;
-  --iota-gray-55: #d7d8da;
-  --iota-gray-60: #c3c5c8;
-  --iota-gray-65: #9c9fa4;
-  --iota-gray-70: #898d93;
-  --iota-gray-75: #767a81;
-  --iota-gray-80: #636870;
-  --iota-gray-85: #5a6573;
-  --iota-gray-90: #383f47;
-  --iota-gray-95: #2a3645;
-  --iota-gray-100: #182435;
-  --iota-link-color: #1068a6;
-  --iota-link-color-dark: #057fd1;
-  --iota-link-color-light: #1f98e9;
-  --iota-ghost-white: #f8f8ff;
-  --iota-ghost-dark: #282a36;
-  --iota-white: 255 255 255;
-  --iota-card-dark: 13 20 37;
-  --iota-card-darker: 0 23 49;
-  --iota-blue-primary: #4da2ff;
-  --iota-gray: #abbdcc;
-  --iota-white: #f7f7f8;
-  --iota-button-hover: #1a88ff;
-  --iota-line: rgba(247, 247, 248, 0.1);
-  --iota-max-width-desktop: 1162px;
-  --iota-dark-blue-bkg: #011829;
-  --iota-cards-border-color: rgba(0, 0, 0, 0.1);
-  --iota-cards-background: #f6f8f9;
-  --iota-cards-header: #4da2ff;
-  --iota-cards-copy: #91a3b1;
-  --iota-cards-background-hover: #ebf1f5;
+/* ---------------------- Base Styles ---------------------- */
 
-  --primaryFont: "Inter", sans-serif;
-  --headerFont: "Twkeverett", sans-serif;
-  --monoFont: "Twkeverett Mono", monospace;
-}
-
-[data-theme="dark"] {
-  --iota-cards-border-color: rgba(255, 255, 255, 0.1);
-  --iota-cards-background: rgba(40, 40, 40, 0.8);
-  --iota-cards-background-hover: rgba(32, 32, 32, 0.8);
-  --iota-cards-header: #4da2ff;
-  --iota-cards-copy: #abbdcc;
-}
-
-/* For readability concerns, you should choose a lighter palette in dark mode. */
-html[data-theme="dark"] {
-  --ifm-color-primary: #4ca2ff;
-  --ifm-color-primary-dark: #2b91ff;
-  --ifm-color-primary-darker: #1a88ff;
-  --ifm-color-primary-darkest: #006fe8;
-  --ifm-color-primary-light: #6db3ff;
-  --ifm-color-primary-lighter: #7ebcff;
-  --ifm-color-primary-lightest: #afd6ff;
-  --ifm-background-color: #030f1c;
-  --ifm-menu-color: var(--iota-white);
-  --ifm-menu-color-background-active: transparent;
-  --ifm-navbar-sidebar-link-color: #f7f7f8;
-  --ifm-navbar-sidebar-background-color: black;
-  --ifm-hover-overlay: var(--ifm-color-emphasis-100);
-}
-
-.active-scroll-spy {
-  @apply bg-iota-ghost-white dark:bg-iota-ghost-dark rounded-lg;
-}
-
-/* Inverts the image in the stadards/closed-loop-token.mdx in dark mode. */
-[data-theme="dark"] img.balance-coin-token {
-  filter: invert(1);
-}
-
-.table-of-contents__link--active {
-  color: #525860;
-  font-weight: 600;
-}
-/* Hide ToC from imported READMEs */
-.hidden-text{
-  display: none;
-}
-
-[data-theme="dark"] .table-of-contents__link--active {
-  color: white;
-}
-
-/** navbar overrides */
-[data-theme="light"] .clean-btn:hover {
-    background-color: #525860;
-}
-
-[data-theme="dark"] .menu__link--active {
-  font-weight: bold;
-  color: #3b82f6;
-}
-
-@media (min-width: 997px) {
-  [data-theme="light"] .menu__link:hover,
-  [data-theme="light"] .menu__link--active{
-    font-weight: bold;
-    color: #3b82f6
-  }
-}
-@media (max-width: 996px) {
-.navbar-sidebar,
-  .menu__link {
-    color: rgba(255, 255, 255, 0.7);
-  }
-
-  [data-theme="light"] .menu__list-item-collapsible--active,
-  [data-theme="light"] .menu__link--active {
-    font-weight: bold;
-    color: #3b82f6;
-  }
-
-  [data-theme="light"] .menu__list-item-collapsible:hover,
-  [data-theme="light"] .menu__link:hover{
-    background-color: rgba(255,255,255,0.2);
-    color: white;
-  }
-  [data-theme="light"] .menu__link:after,
-  [data-theme="light"] .menu__caret:before{
-    filter: invert(100%);
-
-  }
-}
-
-[data-theme="light"] .pagination-nav__label--next .pagination-nav__sublabel {
-  color: white;
-  font-weight: 500;
-}
-
-.pagination-nav__label--blue,
-.pagination-nav__sublabel--blue {
-  color: white;
-}
-
-.pagination-nav {
-  display: flex;
-  justify-content: space-between;
-}
-
-[data-theme="light"] .pagination-nav__link {
-  border: 1px solid #d8e1f4;
-  color: var(--iota-gray-100);
-  font-weight: 900;
-}
-
-[data-theme="light"] .pagination-nav__link--next {
-  color: white !important;
-}
-
-.pagination-nav__link--next:hover {
-  color: white !important;
-}
-
-[data-theme="light"] .pagination-nav__link--next .pagination-nav__sublabel  {
-  color: white !important;
-}
-
-.pagination-nav__link {
-  background-color: transparent;
-  border-radius: 0px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  display: flex;
-  align-items: end;
-  flex-direction: column;
-  width: fit-content;
-  min-width: 240px;
-  color: white;
-}
-
-.pagination-nav__link--next {
-  background-color: #0101ff;
-  border: none !important;
-  display: flex;
-  align-items: start;
-  flex-direction: column;
-  justify-content: space-between !important;
-  transition: all 0.1s ease;
-}
-
-.pagination-nav__link--next:hover {
-  background-color: #0000d6;
-}
-
-.page-nav-content-light {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  color: white !important;
-  flex-direction: row-reverse;
-}
-
-.page-nav-content-blue {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 100%;
-  color: white !important;
-}
-
-.page-nav-arrow--light,
-.pagination-nav__sublabel--light {
-  color: white;
-}
-
-.pagination-nav__label--light {
-  color: black;
-}
-
-[data-theme="dark"] .page-nav-arrow--light,
-.pagination-nav__sublabel--light,
-.pagination-nav__label--light {
-  color: white;
-}
-
-[data-theme="light"] .page-nav-arrow--light,
-.pagination-nav__label--light {
-  color: black;
-}
-
-[data-theme="light"] .pagination-nav__sublabel--light {
-  color: #909fbe;
-}
-
-[data-theme="dark"] .pagination-nav__label--light {
-  color: white;
-}
-html[data-theme="dark"] {
-  background-color: var(--iota-black);
-}
-
-/** setup global style overrides */
 body {
   font-family: var(--primaryFont);
 }
@@ -415,10 +140,24 @@ h4 {
   }
 }
 
-/** Navbar overrides **/
+.active-scroll-spy {
+  @apply bg-iota-ghost-white dark:bg-iota-ghost-dark rounded-lg;
+}
+
+.table-of-contents__link--active {
+  color: #525860;
+  font-weight: 600;
+}
+
+.hidden-text {
+  display: none;
+}
+
+/* ---------------------- Navbar Overrides ---------------------- */
+
 .navbar {
   border-bottom: 1px solid var(--iota-line);
-  background-color: black;
+  background-color: var(--iota-black);
 }
 
 .navbar__title {
@@ -435,22 +174,20 @@ h4 {
 
 .navbar__items .navbar__brand {
   width: 17%;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ifm-navbar-foreground-color);
 }
 
 .navbar__items .navbar__item.navbar__link {
-  /* font-family: var(--headerFont); */
   font-size: 0.9375rem;
   font-weight: 500;
   line-height: 1.125rem;
   letter-spacing: -0.02em;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--ifm-navbar-foreground-color);
 }
-
 
 .navbar__items .navbar__item.navbar__link--active {
   font-weight: bold;
-  color:white;
+  color: var(--iota-white);
 }
 
 .navbar__items_wrapper {
@@ -472,12 +209,16 @@ h4 {
 
 .DocSearch-Button {
   width: 12.5rem;
-  border: solid 1px rgba(247, 247, 248, 0.1) !important;
+  border: solid 1px var(--iota-gray-95) !important;
   padding: 1rem 1.1rem 1rem 1.25rem !important;
 }
 
+[data-theme="light"] .clean-btn:hover {
+  background-color: var(--iota-gray-80) !important;
+}
+
 [data-theme="dark"] .DocSearch-Button {
-  color: var(--iota-white) !important;
+  color: var(--iota-gray) !important;
 }
 
 [data-theme="light"] .DocSearch-Button {
@@ -495,22 +236,78 @@ h4 {
   margin-left: auto;
 }
 
-
 .DocSearch-Button-Keys {
   display: none !important;
 }
 
-.grid-card {
-  row-gap: 1rem;
-  column-gap: 1rem;
+/* ---------------------- Pagination Navigation ---------------------- */
+
+.pagination-nav {
+  display: flex;
+  justify-content: space-between;
 }
 
-.markdown h1:first-child {
-  margin-top: 1rem;
+[data-theme="light"],
+[data-theme="dark"] {
+  .pagination-nav__label,
+  .pagination-nav__sublabel,
+  .pagination-nav__label--blue,
+  .pagination-nav__sublabel--blue,
+  .pagination-nav__label--light,
+  .pagination-nav__sublabel--light {
+    color: var(--iota-white) !important;
+  }
 }
 
-/** Globals **/
-.button{
+.pagination-nav__link {
+  background-color: var(--ifm-color-primary-darker);
+  display: flex;
+  align-items: end;
+  flex-direction: column;
+  width: fit-content;
+  min-width: 240px;
+  font-weight: 900;
+  color: var(--iota-white);
+}
+
+.pagination-nav__link--next {
+  background-color: var(--ifm-color-primary-darker);
+  display: flex;
+  align-items: start;
+  flex-direction: column;
+  justify-content: space-between !important;
+}
+
+.pagination-nav__link--next:hover {
+  background-color: var(--ifm-color-primary-darkest);
+  color: var(--iota-white);
+}
+
+.page-nav-content-light,
+.page-nav-content-blue {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  color: var(--iota-white) !important;
+}
+
+.page-nav-content-light {
+  flex-direction: row-reverse;
+}
+
+.page-nav-arrow--light,
+.pagination-nav__sublabel--light {
+  color: var(--iota-white);
+}
+
+.pagination-nav__label--light {
+  color: var(--iota-white);
+}
+
+/* ---------------------- Buttons ---------------------- */
+
+.button {
   text-wrap: wrap;
   color: var(--iota-white);
   background: var(--iota-hero-dark);
@@ -533,21 +330,20 @@ h4 {
   font-size: 1rem;
   font-weight: 500;
   line-height: 1.125rem;
-  transition: background-color 0.3s;
   display: flex;
   width: 170px;
   height: 56px;
   padding: 16px 12px 16px 18px;
   border-radius: 2px 0px 0px 0px;
   justify-content: space-between;
-  opacity: 0px;
   align-items: center;
   justify-content: center;
   gap: 1rem;
+  align-items: center;
 }
 
 .button-cta:hover {
-  background-color: var(--iota-button-hover);
+  background-color: var(--ifm-color-primary-darker);
   color: var(--iota-white);
   text-decoration: none;
 }
@@ -566,10 +362,9 @@ h4 {
 }
 
 .footer {
-  background-color: black;
+  background-color: var(--ifm-background-color-dark);
 }
 
-/** colors **/
 .text-white {
   color: var(--iota-white);
 }
@@ -578,13 +373,21 @@ h4 {
   color: var(--iota-gray);
 }
 
-/*------------Jargon---------------*/
-/* Add a dashed line under jargon terms */
+.grid-card {
+  row-gap: 1rem;
+  column-gap: 1rem;
+}
+
+.markdown h1:first-child {
+  margin-top: 1rem;
+}
+
+/* ---------------------- Jargon Tooltip ---------------------- */
+
 .jargon-term {
   text-decoration: underline var(--ifm-color-primary-light);
 }
 
-/* Add a question mark behind/above jargon terms */
 .jargon-term::after {
   content: '?';
   font-weight: bold;
@@ -595,19 +398,16 @@ h4 {
   margin-left: 3px;
 }
 
-/* Hover behavior for the therm itself */
 .jargon-term:hover {
   position: relative;
   text-decoration: none;
   cursor: help;
 }
 
-/* Hide info by default */
 .jargon-term .jargon-info {
   display: none;
 }
 
-/* Show info on hover */
 .jargon-term:hover .jargon-info {
   display: block;
   position: absolute;
@@ -622,15 +422,40 @@ h4 {
   max-width: 450px;
   z-index: 1;
 }
-/*---------------------------------*/
-
-/* Ensure equations are scrollable on smaller screens */
+/* ---------------------- Math Overflow Fix ---------------------- */
 .katex-display {
-  overflow-x: scroll;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-wrap: break-word;
   white-space: nowrap;
 }
 
-/* Reduce font size for mobile screens */
+/* ---------------------- Responsive Media Queries ---------------------- */
+
+/* Small (≤599px) */
+@media screen and (max-width: 599px) {
+  .pagination-nav {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .pagination-nav__link {
+    width: 100%;
+  }
+
+  .DocSearch-Button {
+    width: initial;
+  }
+
+  .backgroundImage {
+    background-size: 125%;
+  }
+}
+
+/* Medium (600px–767px) */
+/* — no specific styles found for this range in original — */
+
+/* Large (768px–1049px) */
 @media screen and (max-width: 768px) {
   .katex-display {
     font-size: 0.9rem;
@@ -638,14 +463,22 @@ h4 {
   }
 }
 
-/* Optional: Set a max-width for the math elements to prevent overflow */
-.katex-display {
-  max-width: 100%;
-  overflow-wrap: break-word;
+/* Extra Large (≥1050px) */
+@media (max-width: 1050px) {
+  .navbar .button-cta {
+    display: none;
+  }
 }
 
+/* Custom Widths */
+@media screen and (min-width: 767px) {
+  .navbar__items.navbar__items--right {
+    min-width: 325px;
+  }
+}
 
-/* Icon positions */
+/* ---------------------- Navbar Icons ---------------------- */
+
 .navbar__item.navbar-icon-about,
 .navbar__item.navbar-icon-developer,
 .navbar__item.navbar-icon-operator,
@@ -682,11 +515,11 @@ h4 {
 }
 
 .navbar__item.navbar-icon-references::before {
-  content: "\f02d"; 
+  content: "\f02d";
 }
 
 .navbar__item.navbar-icon-users::before {
-  content: "\f0c0"; 
+  content: "\f0c0";
 }
 
 #skcm-cookie-disclaimer__buttons {
@@ -696,4 +529,78 @@ h4 {
 
 #skcm-cookie-disclaimer{
   border: var(--iota-gray-70) 1px solid;
+.navbar__item.navbar-icon-about::before,
+.navbar__item.navbar-icon-developer::before,
+.navbar__item.navbar-icon-operator::before,
+.navbar__item.navbar-icon-references::before,
+.navbar__item.navbar-icon-users::before {
+  font-family: 'Font Awesome 6 Free';
+  font-weight: 900;
+  position: absolute;
+  left: 1rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+}
+
+
+[data-theme="light"] {
+  
+  .clean-btn:hover {
+  background-color: var(--iota-gray-85);
+  }
+
+  .DocSearch-Button {
+  color: var(--iota-black) !important;
+  }
+
+
+ .pagination-nav__label--next .pagination-nav__sublabel {
+  color: var(--iota-white);
+  font-weight: 500;
+  }
+
+  .pagination-nav__link--next .pagination-nav__sublabel {
+    color: var(--iota-white) !important;
+  }
+
+}
+
+/* Base pagination link transition */
+.pagination-nav__link {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Unified hover effect for both prev and next */
+.pagination-nav__link--next:hover,
+.pagination-nav__link--prev:hover {
+  background-color: var(--ifm-color-primary-darkest);
+  color: var(--iota-white) !important;
+}
+
+[data-theme="dark"] {
+
+  img.balance-coin-token {
+  filter: invert(1);
+}
+
+.table-of-contents__link--active {
+  color: var(--iota-white);
+}
+
+.menu__link--active {
+  font-weight: bold;
+  color: var(--ifm-color-primary-dark);
+}
+
+ .DocSearch-Button {
+  color: var(--iota-white) !important;
+}
+
+.page-nav-arrow--light,
+.pagination-nav__sublabel--light,
+.pagination-nav__label--light {
+  color: var(--iota-white);
+}
+
 }

@@ -28,10 +28,10 @@ mod network;
 #[cfg(msim)]
 pub mod network;
 
+mod header_synchronizer;
 mod stake_aggregator;
 mod storage;
 mod subscriber;
-mod synchronizer;
 mod threshold_clock;
 #[cfg(not(msim))]
 mod transaction;
@@ -45,6 +45,7 @@ mod universal_committer;
 #[path = "tests/randomized_tests.rs"]
 mod randomized_tests;
 
+mod cordial_knowledge;
 mod data_manager;
 mod decoder;
 mod encoder;

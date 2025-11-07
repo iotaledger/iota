@@ -2,16 +2,18 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_binary_format::{
-    errors::PartialVMResult,
-    file_format::{AbilitySet, DatatypeHandleIndex, SignatureToken},
-    safe_unwrap, CompiledModule,
-};
-use move_bytecode_verifier_meter::{Meter, Scope};
 use std::{
     cmp::max,
-    collections::{btree_map::Entry, BTreeMap},
+    collections::{BTreeMap, btree_map::Entry},
 };
+
+use move_binary_format::{
+    CompiledModule,
+    errors::PartialVMResult,
+    file_format::{AbilitySet, DatatypeHandleIndex, SignatureToken},
+    safe_unwrap,
+};
+use move_bytecode_verifier_meter::{Meter, Scope};
 
 const TYPE_ARG_COST: u128 = 1;
 

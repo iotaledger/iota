@@ -97,7 +97,7 @@ impl Command {
                     })?;
 
                     client.new_owned_game(opponent_key).await.with_context(|| {
-                        format!("Error satarting new multi-sig game against {opponent}")
+                        format!("Error starting new multi-sig game against {opponent}")
                     })?
                 };
 

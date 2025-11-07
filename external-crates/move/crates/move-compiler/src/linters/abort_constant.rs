@@ -2,25 +2,25 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Lint to encourage the use of named constants with 'abort' and 'assert' for enhanced code readability.
-//! Detects cases where non-constants are used and issues a warning.
+//! Lint to encourage the use of named constants with 'abort' and 'assert' for
+//! enhanced code readability. Detects cases where non-constants are used and
+//! issues a warning.
 
-use crate::diagnostics::warning_filters::WarningFilters;
-use crate::diagnostics::DiagnosticReporter;
-use crate::linters::StyleCodes;
+use move_ir_types::location::Loc;
+use move_symbol_pool::Symbol;
+
 use crate::{
     cfgir::{
         ast as G,
         visitor::{CFGIRVisitorConstructor, CFGIRVisitorContext},
     },
     diag,
-    diagnostics::{Diagnostic, Diagnostics},
+    diagnostics::{Diagnostic, DiagnosticReporter, Diagnostics, warning_filters::WarningFilters},
     editions::FeatureGate,
     hlir::ast as H,
+    linters::StyleCodes,
     shared::CompilationEnv,
 };
-use move_ir_types::location::Loc;
-use move_symbol_pool::Symbol;
 
 pub struct AssertAbortNamedConstants;
 

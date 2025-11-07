@@ -163,7 +163,7 @@ impl ConsensusManager {
                 "mysticeti" => return ConsensusProtocol::Mysticeti,
                 "starfish" => return ConsensusProtocol::Starfish,
                 "swap_each_epoch" => {
-                    let protocol = if epoch_store.epoch() % 2 == 0 {
+                    let protocol = if epoch_store.epoch().is_multiple_of(2) {
                         ConsensusProtocol::Starfish
                     } else {
                         ConsensusProtocol::Mysticeti

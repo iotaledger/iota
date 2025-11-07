@@ -1597,13 +1597,21 @@ impl CheckpointBuilder {
                 .as_ref()
                 .map(|(_, c)| c.sequence_number + 1)
                 .unwrap_or_default();
-            let timestamp_ms = details.timestamp_ms;
+            let mut timestamp_ms = details.timestamp_ms;
             if let Some((_, last_checkpoint)) = &last_checkpoint {
                 if last_checkpoint.timestamp_ms > timestamp_ms {
-                    error!(
-                        "Unexpected decrease of checkpoint timestamp, sequence: {}, previous: {}, current: {}",
-                        sequence_number, last_checkpoint.timestamp_ms, timestamp_ms
+                    // The first consensus commit of an epoch can have zero timestamp.
+                    debug!(
+                        "Decrease of checkpoint timestamp, possibly due to epoch change. Sequence: {}, previous: {}, current: {}",
+                        sequence_number, last_checkpoint.timestamp_ms, timestamp_ms,
                     );
+                    if self
+                        .epoch_store
+                        .protocol_config()
+                        .consensus_median_timestamp_with_checkpoint_enforcement()
+                    {
+                        timestamp_ms = last_checkpoint.timestamp_ms;
+                    }
                 }
             }
 
@@ -2571,7 +2579,7 @@ impl CheckpointService {
     ) -> IotaResult {
         use crate::authority::authority_per_epoch_store::consensus_quarantine::ConsensusCommitOutput;
 
-        let mut output = ConsensusCommitOutput::new();
+        let mut output = ConsensusCommitOutput::new(0);
         epoch_store.write_pending_checkpoint(&mut output, &checkpoint)?;
         output.set_default_commit_stats_for_testing();
         epoch_store.push_consensus_output_for_tests(output);

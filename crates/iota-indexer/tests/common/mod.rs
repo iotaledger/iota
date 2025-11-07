@@ -22,13 +22,20 @@ use iota_indexer::{
     store::{PgIndexerStore, indexer_store::IndexerStore},
     test_utils::{DBInitHook, IndexerTypeConfig, create_pg_store, db_url, start_test_indexer},
 };
-use iota_json_rpc_api::{ReadApiClient, WriteApiClient};
-use iota_json_rpc_types::{IotaTransactionBlockResponseOptions, TransactionBlockBytes};
+use iota_json_rpc_api::{
+    CoinReadApiClient, ReadApiClient, TransactionBuilderClient, WriteApiClient,
+};
+use iota_json_rpc_types::{
+    IotaTransactionBlockResponse, IotaTransactionBlockResponseOptions, ObjectChange,
+    TransactionBlockBytes,
+};
 use iota_metrics::init_metrics;
+use iota_move_build::BuildConfig;
 use iota_types::{
-    base_types::{ObjectID, SequenceNumber},
-    crypto::Signature,
+    base_types::{IotaAddress, ObjectID, ObjectRef, SequenceNumber},
+    crypto::{IotaKeyPair, Signature},
     digests::TransactionDigest,
+    quorum_driver_types::ExecuteTransactionRequestType,
     utils::to_sender_signed_transaction,
 };
 use jsonrpsee::{
@@ -38,7 +45,11 @@ use jsonrpsee::{
 use simulacrum::Simulacrum;
 use tempfile::tempdir;
 use test_cluster::{TestCluster, TestClusterBuilder};
-use tokio::{runtime::Runtime, task::JoinHandle};
+use tokio::{
+    runtime::Runtime,
+    sync::{Mutex, OnceCell},
+    task::JoinHandle,
+};
 
 const DEFAULT_DB: &str = "iota_indexer";
 const DEFAULT_INDEXER_IP: &str = "127.0.0.1";
@@ -47,6 +58,7 @@ const DEFAULT_SERVER_PORT: u16 = 3000;
 pub const FIXTURES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/data");
 
 static GLOBAL_API_TEST_SETUP: OnceLock<ApiTestSetup> = OnceLock::new();
+static PACKAGE_PUBLISH_LOCK: OnceCell<Arc<Mutex<i64>>> = OnceCell::const_new();
 
 pub struct ApiTestSetup {
     pub runtime: Runtime,
@@ -190,15 +202,15 @@ pub async fn indexer_wait_for_latest_checkpoint(pg_store: &PgIndexerStore, clust
     indexer_wait_for_checkpoint(pg_store, latest_checkpoint).await;
 }
 
-/// Wait for the indexer to catch up to the given object sequence number
-pub async fn indexer_wait_for_object(
+async fn wait_for_object(
     client: &HttpClient,
     object_id: ObjectID,
     sequence_number: SequenceNumber,
-) {
+) -> anyhow::Result<()> {
     tokio::time::timeout(Duration::from_secs(30), async {
         loop {
             let Ok(obj_res) = client.get_object(object_id, None).await else {
+                tokio::time::sleep(Duration::from_millis(20)).await;
                 continue;
             };
 
@@ -210,11 +222,32 @@ pub async fn indexer_wait_for_object(
                 break;
             }
 
-            tokio::time::sleep(Duration::from_millis(100)).await;
+            tokio::time::sleep(Duration::from_millis(50)).await;
         }
     })
-    .await
-    .expect("timeout waiting for indexer to catchup to given object's sequence number");
+    .await?;
+    Ok(())
+}
+
+/// Wait for the indexer to catch up to the given object sequence number
+pub async fn indexer_wait_for_object(
+    client: &HttpClient,
+    object_id: ObjectID,
+    sequence_number: SequenceNumber,
+) {
+    wait_for_object(client, object_id, sequence_number)
+        .await
+        .expect("timeout waiting for indexer to catchup to given object's sequence number");
+}
+
+pub async fn node_wait_for_object(
+    cluster: &TestCluster,
+    object_id: ObjectID,
+    sequence_number: SequenceNumber,
+) {
+    wait_for_object(cluster.rpc_client(), object_id, sequence_number)
+        .await
+        .expect("timeout waiting for node to catchup to given object's sequence number");
 }
 
 pub async fn get_optimistic_transactions_count(pg_store: &PgIndexerStore) -> u64 {
@@ -473,4 +506,72 @@ pub async fn wait_for_objects_snapshot(
     .await
     .expect("timeout waiting for indexer to catchup to checkpoint for objects snapshot");
     Ok(())
+}
+
+pub async fn publish_test_move_package(
+    client: &HttpClient,
+    address: IotaAddress,
+    account_keypair: &IotaKeyPair,
+    test_package_name: &str,
+) -> Result<(ObjectRef, IotaTransactionBlockResponse), anyhow::Error> {
+    let _lock = PACKAGE_PUBLISH_LOCK
+        .get_or_init(async || Arc::new(tokio::sync::Mutex::new(0)))
+        .await
+        .lock()
+        .await;
+
+    let coins = client
+        .get_coins(address, None, None, Some(1))
+        .await
+        .unwrap()
+        .data;
+    let gas = &coins[0];
+
+    let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    path.extend(["tests", "data", test_package_name]);
+
+    let compiled_package = BuildConfig::new_for_testing().build(&path).unwrap();
+    let with_unpublished_deps = false;
+    let compiled_modules_bytes = compiled_package.get_package_base64(with_unpublished_deps);
+    let dependencies = compiled_package.get_dependency_storage_package_ids();
+
+    let transaction_bytes: TransactionBlockBytes = client
+        .publish(
+            address,
+            compiled_modules_bytes,
+            dependencies,
+            Some(gas.coin_object_id),
+            100_000_000.into(),
+        )
+        .await
+        .unwrap();
+
+    let signed_transaction =
+        to_sender_signed_transaction(transaction_bytes.to_data().unwrap(), account_keypair);
+    let (tx_bytes, signatures) = signed_transaction.to_tx_bytes_and_signatures();
+
+    let tx_response: IotaTransactionBlockResponse = client
+        .execute_transaction_block(
+            tx_bytes,
+            signatures,
+            Some(
+                IotaTransactionBlockResponseOptions::new()
+                    .with_object_changes()
+                    .with_events(),
+            ),
+            Some(ExecuteTransactionRequestType::WaitForLocalExecution),
+        )
+        .await
+        .unwrap();
+
+    let object_changes = tx_response.object_changes.as_ref().unwrap();
+    let package_object_ref = object_changes
+        .iter()
+        .find_map(|change| match change {
+            ObjectChange::Published { .. } => Some(change.object_ref()),
+            _ => None,
+        })
+        .unwrap();
+
+    Ok((package_object_ref, tx_response))
 }

@@ -2,19 +2,17 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::parser::lexer::{Tok, TOK_COUNT};
-
-use move_symbol_pool::Symbol;
-
-use once_cell::sync::Lazy;
 use std::collections::HashMap;
 
+use once_cell::sync::Lazy;
+
 use super::ast::{ENTRY_MODIFIER, MACRO_MODIFIER, NATIVE_MODIFIER};
+use crate::parser::lexer::{TOK_COUNT, Tok};
 
 #[derive(Clone, Debug)]
 pub struct TokenSet {
     tokens: [u8; TOK_COUNT],
-    identifiers: HashMap<Symbol, u8>,
+    identifiers: HashMap<&'static str, u8>,
 }
 
 //**************************************************************************************************
@@ -148,8 +146,8 @@ const TYPE_STOPS: &[Tok] = &[
 
 pub static TYPE_STOP_SET: Lazy<TokenSet> = Lazy::new(|| TokenSet::from(TYPE_STOPS));
 
-// including `Tok::For` here is hack for `#[syntax(for)]` attribute (similar to the one in
-// `syntax::parse_attribute`)
+// including `Tok::For` here is hack for `#[syntax(for)]` attribute (similar to
+// the one in `syntax::parse_attribute`)
 const ATTR_STARTS: &[Tok] = &[Tok::Identifier, Tok::For];
 
 pub static ATTR_START_SET: Lazy<TokenSet> = Lazy::new(|| TokenSet::from(ATTR_STARTS));
@@ -206,14 +204,14 @@ impl TokenSet {
         }
     }
 
-    pub fn add_identifier(&mut self, identifier: &str) {
-        *self.identifiers.entry(identifier.into()).or_default() += 1;
+    pub fn add_identifier(&mut self, identifier: &'static str) {
+        *self.identifiers.entry(identifier).or_default() += 1;
     }
 
     pub fn remove_identifier(&mut self, identifier: impl AsRef<str>) {
-        if let Some(entry) = self.identifiers.get_mut(&identifier.as_ref().into()) {
+        if let Some(entry) = self.identifiers.get_mut(identifier.as_ref()) {
             if *entry < 2 {
-                self.identifiers.remove(&identifier.as_ref().into());
+                self.identifiers.remove(identifier.as_ref());
             } else {
                 *entry -= 1;
             }
@@ -237,7 +235,7 @@ impl TokenSet {
             || (tok == Tok::Identifier
                 || tok == Tok::RestrictedIdentifier
                 || tok == Tok::SyntaxIdentifier)
-                && self.identifiers.contains_key(&tok_contents.as_ref().into())
+                && self.identifiers.contains_key(tok_contents.as_ref())
     }
 
     pub fn contains_any(&self, toks: &[Tok], tok_contents: impl AsRef<str>) -> bool {

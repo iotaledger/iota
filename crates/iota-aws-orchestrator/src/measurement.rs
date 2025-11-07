@@ -182,7 +182,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
     /// Create a new (empty) collection of measurements.
     pub fn new(settings: &Settings, parameters: BenchmarkParameters<T>) -> Self {
         Self {
-            machine_specs: settings.specs.clone(),
+            machine_specs: settings.node_specs.clone(),
             commit: settings.repository.commit.clone(),
             parameters,
             scrapers: HashMap::new(),

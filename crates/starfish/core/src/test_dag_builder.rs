@@ -21,7 +21,7 @@ use crate::{
     },
     commit::{CertifiedCommit, CommitDigest, TrustedCommit, WAVE_LENGTH},
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, TransactionSource},
     encoder::{ShardEncoder, create_encoder},
     leader_schedule::{LeaderSchedule, LeaderSwapTable},
     linearizer::{BlockStoreAPI, Linearizer},
@@ -362,7 +362,7 @@ impl DagBuilder {
                 // TODO: we need to request real blocks from sub_dag after we add the
                 // corresponding field and logic in sub_dag
                 let mut block_headers = vec![];
-                for block_header in sub_dag.blocks.iter() {
+                for block_header in sub_dag.headers.iter() {
                     block_headers.push(block_header.clone());
                 }
 
@@ -419,7 +419,7 @@ impl DagBuilder {
         for block_transactions in self.transactions.values() {
             dag_state
                 .write()
-                .add_transactions(block_transactions.clone(), "test");
+                .add_transactions(block_transactions.clone(), TransactionSource::Test);
         }
     }
 
@@ -741,7 +741,7 @@ impl<'a> LayerBuilder<'a> {
         assert!(self.specified_authorities.is_some());
         self.skip_ancestor_links = Some(ancestors_to_skip);
         self.fully_linked_ancestors = false;
-        self.build()
+        self
     }
 
     // Add random weak links to the current layer round using a seed, if provided
@@ -895,7 +895,7 @@ impl<'a> LayerBuilder<'a> {
         let mut dag_state = dag_state.write();
         dag_state.accept_block_headers(self.block_headers.clone());
         for transactions in self.transactions.clone() {
-            dag_state.add_transactions(transactions, "test");
+            dag_state.add_transactions(transactions, TransactionSource::Test);
         }
     }
 

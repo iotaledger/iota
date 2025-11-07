@@ -80,6 +80,10 @@ pub enum Error {
     Internal(String),
     #[error(transparent)]
     IotaNames(#[from] IotaNamesError),
+    #[error("{0}")]
+    ServerInit(String),
+    #[error("Unsupported feature: {0}")]
+    UnsupportedFeature(String),
 }
 
 impl ErrorExtensions for Error {
@@ -95,6 +99,12 @@ impl ErrorExtensions for Error {
                 e.set("code", code::INTERNAL_SERVER_ERROR);
             }
             Error::IotaNames(_) => {
+                e.set("code", code::BAD_REQUEST);
+            }
+            Error::ServerInit(_) => {
+                e.set("code", code::UNKNOWN);
+            }
+            Error::UnsupportedFeature(_) => {
                 e.set("code", code::BAD_REQUEST);
             }
         })

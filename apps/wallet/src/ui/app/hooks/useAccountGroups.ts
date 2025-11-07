@@ -17,7 +17,9 @@ export function useAccountGroups() {
     const list = () => {
         return DEFAULT_SORT_ORDER.flatMap((type) => {
             const group = sortedAndGroupedAccounts[type];
-            return Object.values(group).flat();
+            return Object.values(group)
+                .map(({ accounts }) => accounts)
+                .flat();
         });
     };
 

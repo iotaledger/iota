@@ -8,7 +8,7 @@ use futures::future::try_join_all;
 use prettytable::{Table, row};
 use tokio::time::{self, Instant};
 
-use super::client::Instance;
+use super::client::{Instance, InstanceRole};
 use crate::{
     client::ServerProviderClient,
     display,
@@ -23,9 +23,12 @@ pub struct Testbed<C> {
     settings: Settings,
     /// The client interfacing with the cloud provider.
     client: C,
-    /// The state of the testbed (reflecting accurately the state of the
-    /// machines).
-    instances: Vec<Instance>,
+    /// List of Node instances.
+    node_instances: Vec<Instance>,
+    /// List of dedicated Client instances.
+    client_instances: Option<Vec<Instance>>,
+    /// Dedicated Metrics Instance
+    metrics_instance: Option<Instance>,
 }
 
 impl<C: ServerProviderClient> Testbed<C> {
@@ -33,12 +36,20 @@ impl<C: ServerProviderClient> Testbed<C> {
     pub async fn new(settings: Settings, client: C) -> TestbedResult<Self> {
         let public_key = settings.load_ssh_public_key()?;
         client.register_ssh_public_key(public_key).await?;
-        let instances = client.list_instances().await?;
+        let node_instances = client.list_instances_by_role(InstanceRole::Node).await?;
+        let client_instances = client.list_instances_by_role(InstanceRole::Client).await?;
+        let metrics_instance = client.list_instances_by_role(InstanceRole::Metrics).await?;
 
         Ok(Self {
             settings,
             client,
-            instances,
+            node_instances,
+            client_instances: if client_instances.is_empty() {
+                None
+            } else {
+                Some(client_instances)
+            },
+            metrics_instance: metrics_instance.into_iter().next(),
         })
     }
 
@@ -49,11 +60,26 @@ impl<C: ServerProviderClient> Testbed<C> {
 
     /// Return the list of instances of the testbed.
     pub fn instances(&self) -> Vec<Instance> {
-        self.instances
-            .iter()
-            .filter(|x| self.settings.filter_instances(x))
-            .cloned()
-            .collect()
+        let mut instances = self.node_instances();
+        if let Some(instance) = self.metrics_instance() {
+            instances.push(instance);
+        }
+        if let Some(client_instances) = self.client_instances() {
+            instances.extend(client_instances);
+        }
+        instances
+    }
+    /// Return the list of Node instances of the testbed.
+    pub fn node_instances(&self) -> Vec<Instance> {
+        self.node_instances.clone()
+    }
+    /// Return the list of Client instances of the testbed.
+    pub fn client_instances(&self) -> Option<Vec<Instance>> {
+        self.client_instances.clone()
+    }
+    /// Return the Metrics Instance of the testbed.
+    pub fn metrics_instance(&self) -> Option<Instance> {
+        self.metrics_instance.clone()
     }
 
     /// Return the list of provider-specific instance setup commands.
@@ -67,8 +93,8 @@ impl<C: ServerProviderClient> Testbed<C> {
     /// Print the current status of the testbed.
     pub fn status(&self) {
         let filtered = self
-            .instances
-            .iter()
+            .instances()
+            .into_iter()
             .filter(|instance| self.settings.filter_instances(instance));
         let sorted: Vec<(_, Vec<_>)> = self
             .settings
@@ -100,7 +126,8 @@ impl<C: ServerProviderClient> Testbed<C> {
                 let private_key_file = self.settings.ssh_private_key_file.display();
                 let username = C::USERNAME;
                 let ip = instance.main_ip;
-                let connect = format!("ssh -i {private_key_file} {username}@{ip}");
+                let role = instance.role.to_string();
+                let connect = format!("[{role:<7}] ssh -i {private_key_file} {username}@{ip}");
                 if !instance.is_terminated() {
                     if instance.is_active() {
                         table.add_row(row![bFg->format!("{j}"), connect]);
@@ -127,39 +154,113 @@ impl<C: ServerProviderClient> Testbed<C> {
     /// Populate the testbed by creating the specified amount of instances per
     /// region. The total number of instances created is thus the specified
     /// amount x the number of regions.
-    pub async fn deploy(&mut self, quantity: usize, region: Option<String>) -> TestbedResult<()> {
+    pub async fn deploy(
+        &mut self,
+        quantity: usize,
+        region: Option<String>,
+        skip_monitoring: bool,
+        dedicated_clients: usize,
+    ) -> TestbedResult<()> {
         display::action(format!("Deploying instances ({quantity} per region)"));
 
-        let instances = match region {
+        let mut instances = vec![];
+
+        if !skip_monitoring {
+            let metrics_region = match &region {
+                Some(region) => region.clone(),
+                None => self
+                    .settings
+                    .regions
+                    .first()
+                    .expect("At least one region must be present")
+                    .clone(),
+            };
+            let metrics_instance = self
+                .client
+                .create_instance(metrics_region, InstanceRole::Metrics)
+                .await?;
+            instances.push(metrics_instance);
+        }
+
+        let node_instances = match &region {
             Some(x) => {
-                try_join_all((0..quantity).map(|_| self.client.create_instance(x.clone()))).await?
+                try_join_all(
+                    (0..quantity)
+                        .map(|_| self.client.create_instance(x.clone(), InstanceRole::Node)),
+                )
+                .await?
             }
             None => {
                 try_join_all(self.settings.regions.iter().flat_map(|region| {
-                    (0..quantity).map(|_| self.client.create_instance(region.clone()))
+                    (0..quantity).map(|_| {
+                        self.client
+                            .create_instance(region.clone(), InstanceRole::Node)
+                    })
+                }))
+                .await?
+            }
+        };
+        instances.extend(node_instances);
+
+        let client_instances = match (&region, dedicated_clients) {
+            (_, 0) => vec![],
+            (Some(x), _) => {
+                try_join_all(
+                    (0..dedicated_clients)
+                        .map(|_| self.client.create_instance(x.clone(), InstanceRole::Client)),
+                )
+                .await?
+            }
+            (None, dedicated_clients) => {
+                try_join_all(self.settings.regions.iter().flat_map(|region| {
+                    (0..dedicated_clients).map(|_| {
+                        self.client
+                            .create_instance(region.clone(), InstanceRole::Client)
+                    })
                 }))
                 .await?
             }
         };
 
+        instances.extend(client_instances);
+
         // Wait until the instances are booted.
         if cfg!(not(test)) {
             self.wait_until_reachable(instances.iter()).await?;
         }
-        self.instances = self.client.list_instances().await?;
+        let node_instances = self
+            .client
+            .list_instances_by_role(InstanceRole::Node)
+            .await?;
+        let client_instances = self
+            .client
+            .list_instances_by_role(InstanceRole::Client)
+            .await?;
+        let metrics_instance = self
+            .client
+            .list_instances_by_role(InstanceRole::Metrics)
+            .await?;
+        self.node_instances = node_instances;
+        self.client_instances = if client_instances.is_empty() {
+            None
+        } else {
+            Some(client_instances)
+        };
+        self.metrics_instance = metrics_instance.into_iter().next();
 
         display::done();
         Ok(())
     }
 
     /// Destroy all instances of the testbed.
-    pub async fn destroy(&mut self) -> TestbedResult<()> {
+    pub async fn destroy(&mut self, keep_monitoring: bool) -> TestbedResult<()> {
         display::action("Destroying testbed");
 
         try_join_all(
-            self.instances
-                .drain(..)
-                .map(|instance| self.client.delete_instance(instance)),
+            self.instances()
+                .iter()
+                .filter(|i| !(keep_monitoring && i.role == InstanceRole::Metrics))
+                .map(|instance| self.client.delete_instance(instance.clone())),
         )
         .await?;
 
@@ -169,22 +270,67 @@ impl<C: ServerProviderClient> Testbed<C> {
 
     /// Start the specified number of instances in each region. Returns an error
     /// if there are not enough available instances.
-    pub async fn start(&mut self, quantity: usize) -> TestbedResult<()> {
+    pub async fn start(
+        &mut self,
+        quantity: usize,
+        dedicated_clients: usize,
+        skip_monitoring: bool,
+    ) -> TestbedResult<()> {
         display::action("Booting instances");
 
         // Gather available instances.
         let mut available = Vec::new();
+
         for region in &self.settings.regions {
+            #[cfg(not(test))]
             available.extend(
-                self.instances
+                self.node_instances
                     .iter()
                     .filter(|x| {
-                        x.is_inactive() && &x.region == region && self.settings.filter_instances(x)
+                        x.is_stopped() && &x.region == region && self.settings.filter_instances(x)
                     })
                     .take(quantity)
                     .cloned()
                     .collect::<Vec<_>>(),
             );
+            #[cfg(test)]
+            available.extend(
+                self.client
+                    .instances()
+                    .iter()
+                    .filter(|i| i.role == InstanceRole::Node)
+                    .filter(|x| {
+                        x.is_stopped() && &x.region == region && self.settings.filter_instances(x)
+                    })
+                    .take(quantity)
+                    .cloned()
+                    .collect::<Vec<_>>(),
+            );
+        }
+        if !skip_monitoring {
+            if let Some(metrics_instance) = &self.metrics_instance {
+                if metrics_instance.is_inactive() {
+                    available.push(metrics_instance.clone());
+                }
+            }
+        }
+        if dedicated_clients > 0 {
+            for region in &self.settings.regions {
+                available.extend(
+                    self.client_instances
+                        .clone()
+                        .unwrap()
+                        .iter()
+                        .filter(|x| {
+                            x.is_inactive()
+                                && &x.region == region
+                                && self.settings.filter_instances(x)
+                        })
+                        .take(dedicated_clients)
+                        .cloned()
+                        .collect::<Vec<_>>(),
+                );
+            }
         }
 
         // Start instances.
@@ -194,26 +340,63 @@ impl<C: ServerProviderClient> Testbed<C> {
         if cfg!(not(test)) {
             self.wait_until_reachable(available.iter()).await?;
         }
-        self.instances = self.client.list_instances().await?;
+        let node_instances = self
+            .client
+            .list_instances_by_role(InstanceRole::Node)
+            .await?;
+        let client_instances = self
+            .client
+            .list_instances_by_role(InstanceRole::Client)
+            .await?;
+        let metrics_instance = self
+            .client
+            .list_instances_by_role(InstanceRole::Metrics)
+            .await?;
+        self.node_instances = node_instances;
+        self.client_instances = if client_instances.is_empty() {
+            None
+        } else {
+            Some(client_instances)
+        };
+        self.metrics_instance = metrics_instance.into_iter().next();
 
         display::done();
         Ok(())
     }
 
     /// Stop all instances of the testbed.
-    pub async fn stop(&mut self) -> TestbedResult<()> {
+    pub async fn stop(&mut self, keep_monitoring: bool) -> TestbedResult<()> {
         display::action("Stopping instances");
 
         // Stop all instances.
         self.client
-            .stop_instances(self.instances.iter().filter(|i| i.is_active()))
+            .stop_instances(
+                self.instances().iter().filter(|i| {
+                    i.is_active() && !(i.role == InstanceRole::Metrics && keep_monitoring)
+                }),
+            )
             .await?;
 
         // Wait until the instances are stopped.
         loop {
-            let instances = self.client.list_instances().await?;
+            let mut instances = self
+                .client
+                .list_instances_by_role(InstanceRole::Node)
+                .await?;
+            let client_instances = self
+                .client
+                .list_instances_by_role(InstanceRole::Client)
+                .await?;
+            instances.extend(client_instances);
+            if !keep_monitoring {
+                let metrics_instance = self
+                    .client
+                    .list_instances_by_role(InstanceRole::Metrics)
+                    .await?;
+                instances.extend(metrics_instance);
+            }
+
             if instances.iter().all(|x| x.is_inactive()) {
-                self.instances = instances;
                 break;
             }
         }
@@ -227,8 +410,9 @@ impl<C: ServerProviderClient> Testbed<C> {
     where
         I: Iterator<Item = &'a Instance> + Clone,
     {
-        let instances_ids: Vec<_> = instances.map(|x| x.id.clone()).collect();
-
+        let instance_region_and_ids = instances
+            .map(|x| (x.region.clone(), x.id.clone()))
+            .collect::<Vec<_>>();
         let mut interval = time::interval(Duration::from_secs(5));
         interval.tick().await; // The first tick returns immediately.
 
@@ -237,21 +421,21 @@ impl<C: ServerProviderClient> Testbed<C> {
             let now = interval.tick().await;
             let elapsed = now.duration_since(start).as_secs_f64().ceil() as u64;
             display::status(format!("{elapsed}s"));
+            let instances = self
+                .client
+                .list_instances_by_region_and_ids(instance_region_and_ids.clone())
+                .await?;
 
-            let instances = self.client.list_instances().await?;
-            let futures = instances
-                .iter()
-                .filter(|x| instances_ids.contains(&x.id))
-                .map(|instance| {
-                    let private_key_file = self.settings.ssh_private_key_file.clone();
-                    SshConnection::new(
-                        instance.ssh_address(),
-                        C::USERNAME,
-                        private_key_file,
-                        None,
-                        None,
-                    )
-                });
+            let futures = instances.iter().map(|instance| {
+                let private_key_file = self.settings.ssh_private_key_file.clone();
+                SshConnection::new(
+                    instance.ssh_address(),
+                    C::USERNAME,
+                    private_key_file,
+                    None,
+                    None,
+                )
+            });
             if try_join_all(futures).await.is_ok() {
                 break;
             }
@@ -262,7 +446,11 @@ impl<C: ServerProviderClient> Testbed<C> {
 
 #[cfg(test)]
 mod test {
-    use crate::{client::test_client::TestClient, settings::Settings, testbed::Testbed};
+    use crate::{
+        client::{InstanceRole, ServerProviderClient, test_client::TestClient},
+        settings::Settings,
+        testbed::Testbed,
+    };
 
     #[tokio::test]
     async fn deploy() {
@@ -270,13 +458,13 @@ mod test {
         let client = TestClient::new(settings.clone());
         let mut testbed = Testbed::new(settings, client).await.unwrap();
 
-        testbed.deploy(5, None).await.unwrap();
+        testbed.deploy(5, None, true, 0).await.unwrap();
 
         assert_eq!(
-            testbed.instances.len(),
+            testbed.node_instances.len(),
             5 * testbed.settings.number_of_regions()
         );
-        for (i, instance) in testbed.instances.iter().enumerate() {
+        for (i, instance) in testbed.node_instances.iter().enumerate() {
             assert_eq!(i.to_string(), instance.id);
         }
     }
@@ -287,9 +475,9 @@ mod test {
         let client = TestClient::new(settings.clone());
         let mut testbed = Testbed::new(settings, client).await.unwrap();
 
-        testbed.destroy().await.unwrap();
+        testbed.destroy(false).await.unwrap();
 
-        assert_eq!(testbed.instances.len(), 0);
+        assert_eq!(testbed.node_instances.len(), 0);
     }
 
     #[tokio::test]
@@ -297,23 +485,27 @@ mod test {
         let settings = Settings::new_for_test();
         let client = TestClient::new(settings.clone());
         let mut testbed = Testbed::new(settings, client).await.unwrap();
-        testbed.deploy(5, None).await.unwrap();
-        testbed.stop().await.unwrap();
+        testbed.deploy(5, None, true, 0).await.unwrap();
+        testbed.stop(false).await.unwrap();
 
-        let result = testbed.start(2).await;
+        let result = testbed.start(2, 0, false).await;
 
         assert!(result.is_ok());
         for region in &testbed.settings.regions {
             let active = testbed
-                .instances
+                .client
+                .instances()
                 .iter()
+                .filter(|i| i.role == InstanceRole::Node)
                 .filter(|x| x.is_active() && &x.region == region)
                 .count();
             assert_eq!(active, 2);
 
             let inactive = testbed
-                .instances
+                .client
+                .instances()
                 .iter()
+                .filter(|i| i.role == InstanceRole::Node)
                 .filter(|x| x.is_inactive() && &x.region == region)
                 .count();
             assert_eq!(inactive, 3);
@@ -325,11 +517,11 @@ mod test {
         let settings = Settings::new_for_test();
         let client = TestClient::new(settings.clone());
         let mut testbed = Testbed::new(settings, client).await.unwrap();
-        testbed.deploy(5, None).await.unwrap();
-        testbed.start(2).await.unwrap();
+        testbed.deploy(5, None, true, 0).await.unwrap();
+        testbed.start(2, 0, false).await.unwrap();
 
-        testbed.stop().await.unwrap();
+        testbed.stop(false).await.unwrap();
 
-        assert!(testbed.instances.iter().all(|x| x.is_inactive()))
+        assert!(testbed.client.instances().iter().all(|x| x.is_inactive()))
     }
 }

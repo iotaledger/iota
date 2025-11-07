@@ -156,6 +156,14 @@ pub enum TestbedAction {
         #[arg(long)]
         instances: usize,
 
+        // Skips deployment of a Metrics instance
+        #[arg(long, action, default_value = "false", global = true)]
+        skip_monitoring: bool,
+
+        /// The number of instances running exclusively load generators.
+        #[arg(long, value_name = "INT", default_value = "0", global = true)]
+        dedicated_clients: usize,
+
         /// The region where to deploy the instances. If this parameter is not
         /// specified, the command deploys the specified number of
         /// instances in all regions listed in the setting file.
@@ -169,13 +177,29 @@ pub enum TestbedAction {
         /// Number of instances to deploy.
         #[arg(long, default_value = "200")]
         instances: usize,
+
+        // Skips deployment of a Metrics instance
+        #[arg(long, action, default_value = "false", global = true)]
+        skip_monitoring: bool,
+
+        /// The number of instances running exclusively load generators.
+        #[arg(long, value_name = "INT", default_value = "0", global = true)]
+        dedicated_clients: usize,
     },
 
     /// Stop an existing testbed (without destroying the instances).
-    Stop,
+    Stop {
+        /// Keeps the monitoring instance running
+        #[arg(long, action, default_value = "false", global = true)]
+        keep_monitoring: bool,
+    },
 
     /// Destroy the testbed and terminate all instances.
-    Destroy,
+    Destroy {
+        /// Keeps the monitoring instance running
+        #[arg(long, action, default_value = "false", global = true)]
+        keep_monitoring: bool,
+    },
 }
 
 #[derive(Parser)]
@@ -240,23 +264,35 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             TestbedAction::Status => testbed.status(),
 
             // Deploy the specified number of instances on the testbed.
-            TestbedAction::Deploy { instances, region } => testbed
-                .deploy(instances, region)
+            TestbedAction::Deploy {
+                instances,
+                dedicated_clients,
+                skip_monitoring,
+                region,
+            } => testbed
+                .deploy(instances, region, skip_monitoring, dedicated_clients)
                 .await
                 .wrap_err("Failed to deploy testbed")?,
 
             // Start the specified number of instances on an existing testbed.
-            TestbedAction::Start { instances } => testbed
-                .start(instances)
+            TestbedAction::Start {
+                instances,
+                skip_monitoring,
+                dedicated_clients,
+            } => testbed
+                .start(instances, dedicated_clients, skip_monitoring)
                 .await
                 .wrap_err("Failed to start testbed")?,
 
             // Stop an existing testbed.
-            TestbedAction::Stop => testbed.stop().await.wrap_err("Failed to stop testbed")?,
+            TestbedAction::Stop { keep_monitoring } => testbed
+                .stop(keep_monitoring)
+                .await
+                .wrap_err("Failed to stop testbed")?,
 
             // Destroy the testbed and terminal all instances.
-            TestbedAction::Destroy => testbed
-                .destroy()
+            TestbedAction::Destroy { keep_monitoring } => testbed
+                .destroy(keep_monitoring)
                 .await
                 .wrap_err("Failed to destroy testbed")?,
         },
@@ -287,7 +323,9 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 .with_timeout(timeout)
                 .with_retries(retries);
 
-            let instances = testbed.instances();
+            let node_instances = testbed.node_instances();
+            let client_instances = testbed.client_instances();
+            let metrics_instance = testbed.metrics_instance();
 
             let setup_commands = testbed
                 .setup_commands()
@@ -328,7 +366,9 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
 
             Orchestrator::new(
                 settings,
-                instances,
+                node_instances,
+                client_instances,
+                metrics_instance,
                 setup_commands,
                 protocol_commands,
                 ssh_manager,

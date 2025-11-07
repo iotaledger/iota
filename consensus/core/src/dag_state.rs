@@ -14,7 +14,7 @@ use std::{
 use consensus_config::AuthorityIndex;
 use itertools::Itertools as _;
 use tokio::time::Instant;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
 
 use crate::{
     CommittedSubDag,
@@ -118,7 +118,7 @@ impl DagState {
         let cached_rounds = context.parameters.dag_state_cached_rounds as Round;
         let num_authorities = context.committee.size();
 
-        let genesis = genesis_blocks(context.clone())
+        let genesis = genesis_blocks(&context)
             .into_iter()
             .map(|block| (block.reference(), block))
             .collect();
@@ -324,13 +324,33 @@ impl DagState {
 
         let now = self.context.clock.timestamp_utc_ms();
         if block.timestamp_ms() > now {
-            panic!(
-                "Block {:?} cannot be accepted! Block timestamp {} is greater than local timestamp {}.",
-                block,
-                block.timestamp_ms(),
-                now,
-            );
+            if self
+                .context
+                .protocol_config
+                .consensus_median_timestamp_with_checkpoint_enforcement()
+            {
+                trace!(
+                    "Block {:?} with timestamp {} is greater than local timestamp {}.",
+                    block,
+                    block.timestamp_ms(),
+                    now,
+                );
+            } else {
+                panic!(
+                    "Block {:?} cannot be accepted! Block timestamp {} is greater than local timestamp {}.",
+                    block,
+                    block.timestamp_ms(),
+                    now,
+                );
+            }
         }
+        let hostname = &self.context.committee.authority(block_ref.author).hostname;
+        self.context
+            .metrics
+            .node_metrics
+            .accepted_block_time_drift_ms
+            .with_label_values(&[hostname])
+            .inc_by(block.timestamp_ms().saturating_sub(now));
 
         // TODO: Move this check to core
         // Ensure we don't write multiple blocks per slot for our own index
@@ -821,7 +841,7 @@ impl DagState {
     // Buffers a new commit in memory and updates last committed rounds.
     // REQUIRED: must not skip over any commit index.
     pub(crate) fn add_commit(&mut self, commit: TrustedCommit) {
-        if let Some(last_commit) = &self.last_commit {
+        let time_diff = if let Some(last_commit) = &self.last_commit {
             if commit.index() <= last_commit.index() {
                 error!(
                     "New commit index {} <= last commit index {}!",
@@ -837,9 +857,19 @@ impl DagState {
                     "Commit timestamps do not monotonically increment, prev commit {last_commit:?}, new commit {commit:?}"
                 );
             }
+            commit
+                .timestamp_ms()
+                .saturating_sub(last_commit.timestamp_ms())
         } else {
             assert_eq!(commit.index(), 1);
-        }
+            0
+        };
+
+        self.context
+            .metrics
+            .node_metrics
+            .last_commit_time_diff
+            .observe(time_diff as f64);
 
         let commit_round_advanced = if let Some(previous_commit) = &self.last_commit {
             previous_commit.round() < commit.round()
@@ -1636,17 +1666,17 @@ mod test {
 
     #[tokio::test]
     #[should_panic(
-        expected = "Attempted to check for slot S8[0] that is <= the last evicted round 8"
+        expected = "Attempted to check for slot S8[0] that is <= the last gc evicted round 8"
     )]
     async fn test_contains_cached_block_at_slot_panics_when_ask_out_of_range() {
         /// Only keep elements up to 2 rounds before the last committed round
         const CACHED_ROUNDS: Round = 2;
-
+        const GC_DEPTH: u32 = 1;
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
         context
             .protocol_config
-            .set_consensus_gc_depth_for_testing(0);
+            .set_consensus_gc_depth_for_testing(GC_DEPTH);
 
         let context = Arc::new(context);
         let store = Arc::new(MemStore::new());
@@ -2516,57 +2546,6 @@ mod test {
     async fn test_get_cached_last_block_per_authority_requesting_out_of_round_range() {
         // GIVEN
         const CACHED_ROUNDS: Round = 1;
-        let (mut context, _) = Context::new_for_test(4);
-        context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
-        context
-            .protocol_config
-            .set_consensus_gc_depth_for_testing(0);
-
-        let context = Arc::new(context);
-        let store = Arc::new(MemStore::new());
-        let mut dag_state = DagState::new(context.clone(), store.clone());
-
-        // Create no blocks for authority 0
-        // Create one block (round 1) for authority 1
-        // Create two blocks (rounds 1,2) for authority 2
-        // Create three blocks (rounds 1,2,3) for authority 3
-        let mut all_blocks = Vec::new();
-        for author in 1..=3 {
-            for round in 1..=author {
-                let block = VerifiedBlock::new_for_test(TestBlock::new(round, author).build());
-                all_blocks.push(block.clone());
-                dag_state.accept_block(block);
-            }
-        }
-
-        dag_state.add_commit(TrustedCommit::new_for_test(
-            1 as CommitIndex,
-            CommitDigest::MIN,
-            0,
-            all_blocks.last().unwrap().reference(),
-            all_blocks
-                .into_iter()
-                .map(|block| block.reference())
-                .collect::<Vec<_>>(),
-        ));
-
-        // Flush the store so we keep in memory only the last 1 round from the last
-        // commit for each authority.
-        dag_state.flush();
-
-        // THEN the method should panic, as some authorities have already evicted rounds
-        // <= round 2
-        let end_round = 2;
-        dag_state.get_last_cached_block_per_authority(end_round);
-    }
-
-    #[tokio::test]
-    #[should_panic(
-        expected = "Attempted to request for blocks of rounds < 2, when the last evicted round is 1 for authority [2]"
-    )]
-    async fn test_get_cached_last_block_per_authority_requesting_out_of_round_range_gc_enabled() {
-        // GIVEN
-        const CACHED_ROUNDS: Round = 1;
         const GC_DEPTH: u32 = 1;
         let (mut context, _) = Context::new_for_test(4);
         context.parameters.dag_state_cached_rounds = CACHED_ROUNDS;
@@ -2637,7 +2616,7 @@ mod test {
 
         // WHEN no blocks exist then genesis should be returned
         {
-            let genesis = genesis_blocks(context.clone());
+            let genesis = genesis_blocks(&context);
 
             assert_eq!(dag_state.read().last_quorum(), genesis);
         }
@@ -2691,7 +2670,7 @@ mod test {
 
         // WHEN no blocks exist then genesis should be returned
         {
-            let genesis = genesis_blocks(context.clone());
+            let genesis = genesis_blocks(&context);
             let my_genesis = genesis
                 .into_iter()
                 .find(|block| block.author() == context.own_index)
@@ -2731,5 +2710,56 @@ mod test {
                 }
             }
         }
+    }
+
+    #[tokio::test]
+    #[should_panic]
+    async fn test_accept_block_panics_when_timestamp_is_ahead() {
+        // GIVEN
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(false);
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Set a timestamp for the block that is ahead of the current time
+        let block_timestamp = context.clock.timestamp_utc_ms() + 5_000;
+
+        let block = VerifiedBlock::new_for_test(
+            TestBlock::new(10, 0)
+                .set_timestamp_ms(block_timestamp)
+                .build(),
+        );
+
+        // Try to accept the block - it will panic as accepted block timestamp is ahead
+        // of the current time
+        dag_state.accept_block(block);
+    }
+
+    #[tokio::test]
+    async fn test_accept_block_not_panics_when_timestamp_is_ahead_and_median_timestamp() {
+        // GIVEN
+        let (mut context, _) = Context::new_for_test(4);
+        context
+            .protocol_config
+            .set_consensus_median_timestamp_with_checkpoint_enforcement_for_testing(true);
+
+        let context = Arc::new(context);
+        let store = Arc::new(MemStore::new());
+        let mut dag_state = DagState::new(context.clone(), store.clone());
+
+        // Set a timestamp for the block that is ahead of the current time
+        let block_timestamp = context.clock.timestamp_utc_ms() + 5_000;
+
+        let block = VerifiedBlock::new_for_test(
+            TestBlock::new(10, 0)
+                .set_timestamp_ms(block_timestamp)
+                .build(),
+        );
+
+        // Try to accept the block - it should not panic
+        dag_state.accept_block(block);
     }
 }

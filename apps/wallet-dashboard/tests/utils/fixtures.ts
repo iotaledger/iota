@@ -4,6 +4,7 @@
 /* eslint-disable no-empty-pattern */
 
 import path from 'path';
+import os from 'os';
 import { test as base, chromium, Page, type BrowserContext } from '@playwright/test';
 import { createWallet } from './wallet';
 
@@ -30,10 +31,25 @@ interface ContextOptions {
 
 async function getExtensionUrl(context: BrowserContext): Promise<string> {
     let [background] = context.serviceWorkers();
-    if (!background) {
-        background = await context.waitForEvent('serviceworker');
-    }
 
+    // If no service worker is available yet, poll for it instead of waitForEvent
+    // This avoids the issue where waitForEvent gets stuck in headless CI mode
+    if (!background) {
+        const maxAttempts = 60;
+        const delayMs = 1000;
+
+        for (let i = 0; i < maxAttempts; i++) {
+            [background] = context.serviceWorkers();
+            if (background) break;
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+
+        if (!background) {
+            throw new Error(
+                'Extension service worker failed to load after 60 seconds. Make sure the wallet extension is built correctly.',
+            );
+        }
+    }
     const extensionId = background.url().split('/')[2];
     return `chrome-extension://${extensionId}/ui.html`;
 }
@@ -82,17 +98,27 @@ export const test = base.extend<{
             const { persistent = false } = options;
 
             const isCI = !!process.env.CI;
-            const context = await chromium.launchPersistentContext('', {
+
+            const userDataDir = path.join(os.tmpdir(), `playwright-${Date.now()}`);
+
+            const launchOptions: Parameters<typeof chromium.launchPersistentContext>[1] = {
                 headless: isCI,
                 viewport: { width: 720, height: 720 },
                 args: [
                     `--disable-extensions-except=${EXTENSION_PATH}`,
                     `--load-extension=${EXTENSION_PATH}`,
-                    '--user-agent=Playwright',
                     '--window-position=0,0',
-                    ...(isCI ? ['--headless=new', '--disable-gpu'] : []),
+                    '--no-sandbox',
+                    '--disable-dev-shm-usage',
                 ],
-            });
+            };
+
+            // Only use chromium channel in CI for headless extension support (Playwright v1.49+)
+            if (isCI) {
+                launchOptions.channel = 'chromium';
+            }
+
+            const context = await chromium.launchPersistentContext(userDataDir, launchOptions);
 
             // Track non-persistent contexts for automatic cleanup
             if (!persistent) {
