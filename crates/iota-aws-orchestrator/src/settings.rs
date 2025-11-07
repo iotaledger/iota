@@ -183,10 +183,7 @@ impl Settings {
                         == self.client_specs.to_lowercase().replace('.', "")
             }
             InstanceRole::Metrics => {
-                self.regions
-                    .first()
-                    .expect("At least one region must be present")
-                    == &instance.region
+                self.regions.contains(&instance.region)
                     && instance.specs.to_lowercase().replace('.', "")
                         == self.metrics_specs.to_lowercase().replace('.', "")
             }

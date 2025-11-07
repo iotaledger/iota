@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 fn main() {
-    tonic_build::configure()
+    tonic_prost_build::configure()
         .compile_protos(
             &[
                 "proto/iota/grpc/v0/common.proto",
