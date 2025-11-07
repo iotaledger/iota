@@ -19,6 +19,10 @@ env:
   DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
   NPM_TOKEN: ''
 
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   publish:
     runs-on: ubuntu-latest
@@ -64,7 +68,9 @@ jobs:
 
       - name: Build packages
         if: steps.check-changes.outputs.has-changes == 'true'
-        run: pnpm turbo run build --filter=./sdk/*
+        run: |
+          pnpm --filter @iota/iota-sdk codegen:version
+          pnpm sdk-packages build
 
       - name: Create snapshot versions
         if: steps.check-changes.outputs.has-changes == 'true'
@@ -74,7 +80,6 @@ jobs:
           else
             pnpm changeset version
           fi
-          pnpm --filter @iota/iota-sdk codegen:version
 
       - name: Publish packages
         if: steps.check-changes.outputs.has-changes == 'true'
