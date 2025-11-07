@@ -14,7 +14,7 @@ enclosed in quotation marks, you should use an editor that supports UTF-8, not t
 		<projectSourceUrl>https://github.com/iotaledger/iota/</projectSourceUrl>
 		<bugTrackerUrl>https://github.com/iotaledger/iota/issues</bugTrackerUrl>
 		<tags>iota</tags>
-		<packageSourceUrl>https://community.chocolatey.org/packages/iota.portable</packageSourceUrl>
+		<packageSourceUrl>https://github.com/iotaledger/iota/tree/develop/chocolatey</packageSourceUrl>
 		<summary>IOTA CLI to interact with the IOTA network</summary>
 		<description>Bringing the real world to Web3 with a scalable, decentralized and programmable DLT infrastructure</description>
 		<releaseNotes>https://github.com/iotaledger/iota/releases/tag/mainnet-v$version$</releaseNotes>

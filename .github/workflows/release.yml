@@ -192,7 +192,7 @@ jobs:
           tar -cvzf ./tmp/${{ steps.create-artifact.outputs.artifact_name }}.tgz -C ${{ env.TMP_BUILD_DIR }} .
 
       - name: Publish Windows iota binary to Chocolatey
-        if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' }}
+        if: ${{ matrix.os == 'windows-latest' && github.event_name == 'release' && contains(github.ref, '-rc') }}
         shell: bash
         run: |
           choco install checksum
