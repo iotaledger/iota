@@ -1320,7 +1320,7 @@ impl IotaTestAdapter {
             .collect::<anyhow::Result<_>>()?;
 
         // Ensure first arg is AA shared (and set mutable: false)
-        let aa_arg = auth_inputs.get(0).ok_or_else(|| {
+        let aa_arg = auth_inputs.first().ok_or_else(|| {
             anyhow::anyhow!(
                 "abstract: authenticator inputs must contain at least one value for the AA call"
             )
