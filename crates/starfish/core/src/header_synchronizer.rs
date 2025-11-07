@@ -674,8 +674,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .await
             {
                 warn!(
-                    "Error while trying to fetch missing transactions via
-             transactions synchronizer: {err}"
+                    "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
                 );
             }
         }

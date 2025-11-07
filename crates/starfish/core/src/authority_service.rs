@@ -605,8 +605,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 .await
             {
                 warn!(
-                    "Errored while trying to fetch missing transactions via
-             transactions synchronizer: {err}"
+                    "Errored while trying to fetch missing transactions via transactions synchronizer: {err}"
                 );
             }
         }

@@ -342,6 +342,37 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     .join(","),
             );
 
+            // Compare transactions available in CertifiedCommits with
+            // committed_transactions in TrustedCommits
+            let mut expected_transactions = BTreeSet::new();
+            let mut available_transactions = BTreeSet::new();
+
+            for certified_commit in commits.commits() {
+                // Collect committed_transactions from the TrustedCommit
+                for block_ref in certified_commit.committed_transactions() {
+                    expected_transactions.insert(block_ref);
+                }
+
+                // Collect available transactions from VerifiedTransactions
+                for verified_txns in certified_commit.transactions() {
+                    available_transactions.insert(verified_txns.block_ref());
+                }
+            }
+
+            // Find missing transactions
+            let missing_transactions: Vec<_> = expected_transactions
+                .difference(&available_transactions)
+                .collect();
+
+            if !missing_transactions.is_empty() {
+                warn!(
+                    "Missing {} transaction after fetching commit range {:?}: {:?}",
+                    missing_transactions.len(),
+                    fetched_commit_range,
+                    missing_transactions,
+                );
+            }
+
             // If core thread cannot handle the incoming blocks, it is ok to block here.
             // Also it is possible to have missing ancestors because an equivocating
             // validator may produce blocks that are not included in commits but
@@ -374,9 +405,12 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     }
                     if !missing_committed_txns.is_empty() {
                         warn!(
-                            "Fetched blocks have {} missing committed transactions for commit range {:?}",
-                            missing_committed_txns.len(),
-                            fetched_commit_range
+                            "Missing committed transactions after adding commit range {:?} to DAG State : {}",
+                            fetched_commit_range,
+                            missing_committed_txns
+                                .iter()
+                                .map(|(b, _)| b.to_string())
+                                .join(","),
                         );
                         for (block_ref, _ack_authorities) in missing_committed_txns {
                             let hostname = &self
@@ -814,6 +848,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 .map(|block_ref| {
                     fetched_block_headers
                         .remove(block_ref)
+                        // safe to call .expect here as we make sure beforehand that all headers
+                        // from the commit are fetched
                         .expect("Block should exist")
                 })
                 .collect::<Vec<_>>();
