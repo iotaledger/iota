@@ -10,7 +10,7 @@
 /// is no compiler support for identifying/validating them. Furthermore they are
 /// resolved dynamically during execution.
 use iota_types::{
-    Identifier,
+    Identifier, TypeTag,
     auth_context::{AuthContext, AuthContextKind},
     base_types::{
         RESOLVED_ASCII_STR, RESOLVED_STD_OPTION, RESOLVED_UTF8_STR, TxContext, TxContextKind,
@@ -21,6 +21,7 @@ use iota_types::{
 use move_binary_format::{
     CompiledModule,
     file_format::{AbilitySet, SignatureToken, Visibility},
+    normalized::Type,
 };
 use move_bytecode_utils::resolve_struct;
 
@@ -127,6 +128,34 @@ pub fn verify_authenticate_func(
     }
 
     Ok(())
+}
+
+pub fn verify_authenticate_func_compatibility(
+    module: &CompiledModule,
+    function_identifier: Identifier,
+    account_type: &TypeTag,
+) -> Result<(), ExecutionError> {
+    let module_name = module.name();
+
+    let Some((_, function_definition)) =
+        module.find_function_def_by_name(function_identifier.as_str())
+    else {
+        return Err(verification_failure(format!(
+            "Authenticator function '{function_identifier}' not found in '{module_name}'"
+        )));
+    };
+
+    let function_handle = module.function_handle_at(function_definition.function);
+    let function_signature = module.signature_at(function_handle.parameters);
+
+    if function_signature.0.len() > 0 {
+        verify_account_param_type(module, &function_signature.0[0], account_type)
+            .map_err(verification_failure)
+    } else {
+        Err(verification_failure(format!(
+            "Authenticator function '{function_identifier}' must have an account argument."
+        )))
+    }
 }
 
 /// Evaluate that signature type is of [pure input](https://docs.iota.org/developer/iota-101/transactions/ptb/programmable-transaction-blocks#inputs)
@@ -251,5 +280,31 @@ fn verify_authenticate_param_type(
         // composition, but its usage must be checked before being enabled:
         // MutableReference(inner) => verify_pure_input_type(module, function_type_args, inner),
         _ => verify_pure_input_type(module, function_type_args, param),
+    }
+}
+
+fn verify_account_param_type(
+    module: &CompiledModule,
+    param: &SignatureToken,
+    account_type: &TypeTag,
+) -> Result<(), String> {
+    use SignatureToken::*;
+
+    match param {
+        Reference(ref_param) => {
+            let type_tag = Type::new(module, ref_param).into_type_tag();
+            if let Some(type_tag) = type_tag {
+                if account_type == &type_tag {
+                    return Ok(());
+                }
+            }
+
+            Err(format!(
+                "Invalid account type. Account argument type {ref_param:?} does not match the expected account type {account_type:?}"
+            ))
+        }
+        _ => Err(format!(
+            "Invalid account type. Account can only be a reference type, offending argument: {param:?}"
+        )),
     }
 }

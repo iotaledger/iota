@@ -17,7 +17,6 @@ use move_vm_types::{
     values::{StructRef, Value, VectorRef},
 };
 use smallvec::smallvec;
-use tracing::error;
 
 use crate::{NativesCostTable, get_nested_struct_field, raw_module_loader::RawModuleLoader};
 
@@ -105,12 +104,13 @@ pub fn check_auth_info_v1_compatibility(
 
     let authenticator_info = pop_arg!(args, StructRef);
 
-    let package_id = authenticator_info
+    let package_value = authenticator_info
         .borrow_field(0)?
         .value_as::<StructRef>()?
         .read_ref()?;
     let package_address =
-        get_nested_struct_field(package_id, &[0])?.value_as::<AccountAddress>()?;
+        get_nested_struct_field(package_value, &[0])?.value_as::<AccountAddress>()?;
+    let package_id = ObjectID::from(package_address);
 
     let module_name_bytes = authenticator_info
         .borrow_field(1)?
@@ -132,13 +132,32 @@ pub fn check_auth_info_v1_compatibility(
     });
     let function_identifier = Identifier::new(function_name.clone()).unwrap();
 
-    error!("package_address: {}", package_address);
-    error!("module_identifier: {}", module_identifier);
-    error!("function_identifier: {}", function_identifier);
+    // Loading module for context verifying the referenced `authenticate` function.
+    // There are two base cases when looking for an `authenticate` function. The
+    // `authenticate` function is either in the current module (which is not handled
+    // by this function as the user cannot write such a requirement down at the
+    // moment) or it must be loaded. Either because it is in a completely
+    // different package or its for this package, but a different version.
+    let raw_module_loader = &context.extensions().get::<RawModuleLoader>()?;
+    let Some(compiled_module) = raw_module_loader.get_module(&package_id, &module_identifier)
+    else {
+        return Err(
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
+                format!("Referenced module:{package_address}::{module_name} unavailable"),
+            ),
+        );
+    };
 
-    let account_type = &ty_args[0];
-
-    error!("account_type: {:?}", account_type);
+    if let Err(execution_error) = account_auth_verifier::verify_authenticate_func_compatibility(
+        &compiled_module,
+        function_identifier,
+        &context.type_to_type_tag(&ty_args[0])?,
+    ) {
+        return Err(
+            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
+                .with_message(execution_error.to_string()),
+        );
+    }
 
     Ok(NativeResult::ok(context.gas_used(), smallvec![]))
 }

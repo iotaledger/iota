@@ -89,6 +89,23 @@ fun authenticator_info_v1_double_attach() {
 }
 
 #[test]
+#[expected_failure(abort_code = account::EAuthenticatorInfoV1CompatibilityNotProven)]
+fun authenticator_info_v1_not_proven_attach() {
+    account_test_mut!(|scenario, account| {
+        let authenticator_info = create_default_authenticator_info_v1_for_testing();
+
+        let account_2 = create_test_account(scenario);
+        let compatibility_proof = account::check_auth_info_v1_compatibility(
+            &account_2,
+            authenticator_info,
+        );
+        // Attach a not proven `AuthenticatorInfoV1` instance.
+        account::attach_auth_info_v1(account.id_mut(), compatibility_proof);
+        test_utils::destroy(account_2);
+    });
+}
+
+#[test]
 #[expected_failure(abort_code = account::EAuthenticatorInfoV1NotAttached)]
 fun authenticator_info_v1_borrow_non_existent() {
     account_test!(|_, account_id| {
@@ -103,12 +120,34 @@ fun authenticator_info_v1_rotate_non_existent() {
     account_test_mut!(|_, account| {
         let authenticator_info = create_default_authenticator_info_v1_for_testing();
 
-        // Rotate a non-existing `AuthenticatorInfoV1` instance.
         let compatibility_proof = account::check_auth_info_v1_compatibility(
             account,
             authenticator_info,
         );
         account::rotate_auth_info_v1(account.id_mut(), compatibility_proof);
+    });
+}
+
+#[test]
+#[expected_failure(abort_code = account::EAuthenticatorInfoV1CompatibilityNotProven)]
+fun authenticator_info_v1_rotate_not_proven() {
+    account_test_mut!(|scenario, account| {
+        let authenticator_info = create_default_authenticator_info_v1_for_testing();
+
+        let compatibility_proof = account::check_auth_info_v1_compatibility(
+            account,
+            authenticator_info,
+        );
+        account::attach_auth_info_v1(account.id_mut(), compatibility_proof);
+
+        let account_2 = create_test_account(scenario);
+        let compatibility_proof = account::check_auth_info_v1_compatibility(
+            &account_2,
+            authenticator_info,
+        );
+        // Rotate a not proven `AuthenticatorInfoV1` instance.
+        account::rotate_auth_info_v1(account.id_mut(), compatibility_proof);
+        test_utils::destroy(account_2);
     });
 }
 
