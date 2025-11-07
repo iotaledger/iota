@@ -1,0 +1,37 @@
+## Profiling Flamegraphs
+
+Flame graphs provide a useful visualization of profiling data.
+The codebase heavily uses modular approach with message passing between various components.
+This makes analysis of flamegraphs difficult.
+The common tools (eg. `cargo flamegraph`) do not allow to distinguish between various components and asynchronous tasks.
+To alleviate this issue, we abuse code annotations with `tracing::span!` and `tracing::instrument`. 
+`telemetry-subscribers` crate implements `tracing::Subscriber` (and `tracing_subscriber::Layer`) capable of capturing time intervals which spans spend in "entered" and "exited" states per each thread/task.
+The "exited" state allows to capture time when a future (asynchronous task) is in idle/pending state and not doing any useful work.
+The profiling data captured by subscriber can be exposed via HTTP.
+Grafana Flamegraph panel is used to visualize profiling data captured by the subscriber.
+iota-node uses env variable `TRACE_FLAMEGRAPH` to enable the corresponding `tracing_subscriber::Layer` and exposes profiling data via `/flamegraph` admin server endpoint.
+
+### Setup
+
+1. Install recent version of Grafana that uses nested set model for Flamegraph panel, version 10.0 and above will work.
+2. Install [infinity](https://grafana.com/grafana/plugins/yesoreyeram-infinity-datasource/?tab=installation) JSON datasource plugin.
+3. Add Flamegraph panel and configure it:
+
+- set panel visualization type to Flame Graph
+- select infinity data source
+- Type: JSON
+- Parser: JSONata
+- Source: URL (select inline for testing)
+- Format: Table
+- Method: GET
+- URL: `http://<admin-server>/flamegraph`
+- Parsing options & Result fields
+- Rows/root: TODO
+- Columns
+  - Selector `label` as `label` format as `String`
+  - Selector `level` as `level` format as `Number`
+  - Selector `value` as `value` format as `Number`
+  - Selector `self` as `self` format as `Number`
+
+4. Set `TRACE_FLAMEGRAPH` environment variable and run iota-node, eg. `TRACE_FLAMEGRAPH=1 iota-node ...`.
+5. Now panel should show collected flame graph.

@@ -131,7 +131,8 @@ The following steps are taken during initialization:
 3. After the span filter is set up, a collection of layers is initialized. These layers send data to `tokio-console` for debugging or integrate with Prometheus for measuring span latencies.
    Each layer will be enabled or disabled based on the configuration.
 4. If OTLP tracing is enabled, an `OpenTelemetryLayer` will be set up for tracing **to either a file or an OTLP endpoint** based on environment settings.
-5. After setting up all layers, a tracing subscriber is created with the configured layers and set as the global default. Ultimately, the function creates and returns `TelemetryGuards` and `TracingHandle` structs, which manage the tracing subscriber. They are active in the main function to ensure logging and tracing throughout the application's lifecycle.
+5. If flamegraph tracing is enabled, `FlameSub` is added as the next layer.
+6. After setting up all layers, a tracing subscriber is created with the configured layers and set as the global default. Ultimately, the function creates and returns `TelemetryGuards` and `TracingHandle` structs, which manage the tracing subscriber. They are active in the main function to ensure logging and tracing throughout the application's lifecycle.
 
 ## Library Features
 
@@ -186,6 +187,8 @@ pub struct TelemetryConfig {
     pub sample_rate: f64,
     /// Add directive to include trace logs with provided target.
     pub trace_target: Option<Vec<String>>,
+    /// Enable flamegraph tracing.
+    pub enable_flamegraph: bool,
 }
 ```
 
@@ -245,6 +248,78 @@ if let Some(registry) = config.prom_registry {
 
 Latencies collected from spans are defined under the combination of the name `tracing_span_latencies_bucket` and the attribute `span_name`. Time values are saved in nanoseconds.
 Only spans that were actually triggered are collected. Here is an example of histogram latency metric collected for `finalize_checkpoint` that indicates how many nanoseconds execution of this function took.
+
+## Flamegraph Layer
+
+`FlameSub` implements `tracing::Subscriber` and `tracing_subscriber::Layer` and captures span times per each thread/task in a tree data structure that can be visualized as a flame graph.
+Currently, the main visualization tool is Grafana Flamegraph panel.
+
+1. Configure Grafana (see below).
+2. Annotate your frames with `tracing::span!` or `tracing::instrument`:
+
+```rs
+fn function() {
+    let span = tracing::trace_span!("function");
+    let _entered = span.enter();
+    // do some work
+    std::thread::sleep(std::time::Duration::from_millis(100));
+}
+async fn run_task() {
+    use tracing::Instrument as _;
+    tokio::task::spawn(async {
+        // do some work
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }.instrument(tracing::trace_span!("task"))).await;
+}
+```
+
+3. Enable flamegraph in config:
+
+```rs
+let (guards, handle) = TelemetryConfig::new()
+    .with_flamegraph()
+    .init();
+```
+
+4. Expose flamegraph profiling data via HTTP:
+
+```rs
+use tokio::net::{TcpListener, ToSocketAddrs};
+use telemetry_subscribers::TracingHandle;
+
+pub async fn run_flamegraph(handle: TracingHandle, addr: impl ToSocketAddrs) {
+    let sub = handle.flamegraph.clone().unwrap();
+    let app = axum::Router::new()
+        .route(
+            "/flamegraph",
+            get(|| axum::Json(sub.collect_nested_set())),
+        );
+    let listener = TcpListener::bind(addr).await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
+```
+
+### Configuring Grafana
+
+1. Install recent version of Grafana that uses nested set model for Flamegraph panel, version 10.0 and above will work.
+2. Install [infinity](https://grafana.com/grafana/plugins/yesoreyeram-infinity-datasource/?tab=installation) JSON datasource plugin.
+3. Add Flamegraph panel and configure it:
+
+- set panel visualization type to Flame Graph
+- select infinity data source
+- Type: JSON
+- Parser: JSONata
+- Source: URL (select inline for testing)
+- Format: Table
+- Method: GET
+- URL: `http://<admin-server>/flamegraph`
+- Parsing options & Result fields
+- Rows/root: TODO
+- Columns
+  - Selector `label` as `label` format as `String`
+  - Selector `level` as `level` format as `Number`
+  - Selector `value` as `value` format as `Number`
+  - Selector `self` as `self` format as `Number`
 
 ## Exporting Telemetry Data
 
