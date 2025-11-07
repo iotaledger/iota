@@ -328,6 +328,11 @@ impl TelemetryConfig {
         self
     }
 
+    pub fn with_flamegraph(mut self) -> Self {
+        self.enable_flamegraph = true;
+        self
+    }
+
     pub fn with_env(mut self) -> Self {
         if env::var("CRASH_ON_PANIC").is_ok() {
             self.crash_on_panic = true
@@ -359,7 +364,7 @@ impl TelemetryConfig {
         }
 
         if env::var("TRACE_FLAMEGRAPH").is_ok() {
-            self.enable_otlp_tracing = true
+            self.enable_flamegraph = true
         }
 
         self
