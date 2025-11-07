@@ -442,8 +442,8 @@ diesel::table! {
 }
 
 diesel::table! {
-    watermarks (pipeline) {
-        pipeline -> Text,
+    watermarks (entity) {
+        entity -> Text,
         epoch_hi_inclusive -> Int8,
         checkpoint_hi_inclusive -> Int8,
         tx_hi -> Int8,

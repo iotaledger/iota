@@ -18,7 +18,7 @@ use crate::{
 pub struct StoredWatermark {
     /// The table governed by this watermark, i.e `epochs`, `checkpoints`,
     /// `transactions`.
-    pub pipeline: String,
+    pub entity: String,
     /// Inclusive upper epoch bound for this entity's data. Committer updates
     /// this field. Pruner uses this to determine if pruning is necessary
     /// based on the retention policy.
@@ -53,7 +53,7 @@ pub struct StoredWatermark {
 impl StoredWatermark {
     pub fn from_upper_bound_update(entity: &str, watermark: CommitterWatermark) -> Self {
         StoredWatermark {
-            pipeline: entity.to_string(),
+            entity: entity.to_string(),
             epoch_hi_inclusive: watermark.epoch_hi_inclusive as i64,
             checkpoint_hi_inclusive: watermark.checkpoint_hi_inclusive as i64,
             tx_hi: watermark.tx_hi as i64,
@@ -63,7 +63,7 @@ impl StoredWatermark {
 
     pub fn from_lower_bound_update(entity: &str, epoch_lo: u64, reader_lo: u64) -> Self {
         StoredWatermark {
-            pipeline: entity.to_string(),
+            entity: entity.to_string(),
             epoch_lo: epoch_lo as i64,
             reader_lo: reader_lo as i64,
             ..StoredWatermark::default()
@@ -71,7 +71,7 @@ impl StoredWatermark {
     }
 
     pub fn entity(&self) -> Option<PrunableTable> {
-        PrunableTable::from_str(&self.pipeline).ok()
+        PrunableTable::from_str(&self.entity).ok()
     }
 
     /// Determine whether to set a new epoch lower bound based on the retention

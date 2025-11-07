@@ -408,7 +408,7 @@ impl PgIndexerStore {
                     watermarks::tx_hi,
                 ))
                 .filter(
-                    watermarks::pipeline
+                    watermarks::entity
                         .eq(ObjectsSnapshotHandlerTables::ObjectsSnapshot.to_string()),
                 )
                 .first::<(i64, i64, i64)>(conn)
@@ -1590,7 +1590,7 @@ impl PgIndexerStore {
             |conn| {
                 diesel::insert_into(watermarks::table)
                     .values(&upper_bound_updates)
-                    .on_conflict(watermarks::pipeline)
+                    .on_conflict(watermarks::entity)
                     .do_update()
                     .set((
                         watermarks::epoch_hi_inclusive.eq(excluded(watermarks::epoch_hi_inclusive)),
@@ -1671,7 +1671,7 @@ impl PgIndexerStore {
             |conn| {
                 diesel::insert_into(watermarks::table)
                     .values(&lower_bound_updates)
-                    .on_conflict(watermarks::pipeline)
+                    .on_conflict(watermarks::entity)
                     .do_update()
                     .set((
                         watermarks::reader_lo.eq(excluded(watermarks::reader_lo)),

@@ -1,8 +1,7 @@
 CREATE TABLE IF NOT EXISTS watermarks
 (
-    -- The pipeline governed by this watermark, i.e `epochs`, `checkpoints`,
-    -- `transactions`.
-    pipeline                    TEXT          PRIMARY KEY,
+    -- The table governed by this watermark, i.e `epochs`, `checkpoints`, `transactions`.
+    entity                      TEXT          PRIMARY KEY,
     -- Inclusive upper epoch bound for this entity's data. Committer updates
     -- this field. Pruner uses this to determine if pruning is necessary based
     -- on the retention policy.
