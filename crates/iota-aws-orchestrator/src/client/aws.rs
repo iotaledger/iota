@@ -368,19 +368,22 @@ impl ServerProviderClient for AwsClient {
     where
         I: Iterator<Item = &'a Instance> + Send,
     {
-        let mut instance_ids = HashMap::new();
-        for instance in instances {
-            instance_ids
-                .entry(&instance.region)
-                .or_insert_with(Vec::new)
-                .push(instance.id.clone());
-        }
-
-        for (region, client) in &self.clients {
-            let ids = instance_ids.remove(&region.to_string());
-            if ids.is_some() {
-                client.stop_instances().set_instance_ids(ids).send().await?;
-            }
+        let map_of_ids_by_region = instances.into_iter().fold(
+            HashMap::new(),
+            |mut acc: HashMap<String, Vec<String>>, i| {
+                acc.entry(i.region.clone()).or_default().push(i.id.clone());
+                acc
+            },
+        );
+        for (region, ids) in map_of_ids_by_region {
+            let client = self.clients.get(&region).ok_or_else(|| {
+                CloudProviderError::Request(format!("Undefined region {:?}", region))
+            })?;
+            client
+                .stop_instances()
+                .set_instance_ids(Some(ids))
+                .send()
+                .await?;
         }
         Ok(())
     }
@@ -389,7 +392,8 @@ impl ServerProviderClient for AwsClient {
         &self,
         region: S,
         role: InstanceRole,
-    ) -> CloudProviderResult<Instance>
+        quantity: usize,
+    ) -> CloudProviderResult<Vec<Instance>>
     where
         S: Into<String> + Serialize + Send,
     {
@@ -434,32 +438,43 @@ impl ServerProviderClient for AwsClient {
             .image_id(image_id)
             .instance_type(instance_type.as_str().into())
             .key_name(testbed_id)
-            .min_count(1)
-            .max_count(1)
+            .min_count(quantity as i32)
+            .max_count(quantity as i32)
             .security_groups(&self.settings.testbed_id)
             .block_device_mappings(storage)
             .tag_specifications(tags);
 
         let response = request.send().await?;
-        let instance = &response
+        let instances = response
             .instances()
-            .first()
-            .expect("AWS instances list should contain instances");
+            .iter()
+            .map(|instance| self.make_instance(region.clone(), instance))
+            .collect::<Vec<_>>();
 
-        Ok(self.make_instance(region, instance))
+        Ok(instances)
     }
 
-    async fn delete_instance(&self, instance: Instance) -> CloudProviderResult<()> {
-        let client = self.clients.get(&instance.region).ok_or_else(|| {
-            CloudProviderError::Request(format!("Undefined region {:?}", instance.region))
-        })?;
-
-        client
-            .terminate_instances()
-            .set_instance_ids(Some(vec![instance.id.clone()]))
-            .send()
-            .await?;
-
+    async fn delete_instances<'a, I>(&self, instances: I) -> CloudProviderResult<()>
+    where
+        I: Iterator<Item = &'a Instance> + Send,
+    {
+        let map_of_ids_by_region = instances.into_iter().fold(
+            HashMap::new(),
+            |mut acc: HashMap<String, Vec<String>>, i| {
+                acc.entry(i.region.clone()).or_default().push(i.id.clone());
+                acc
+            },
+        );
+        for (region, ids) in map_of_ids_by_region {
+            let client = self.clients.get(&region).ok_or_else(|| {
+                CloudProviderError::Request(format!("Undefined region {:?}", region))
+            })?;
+            client
+                .terminate_instances()
+                .set_instance_ids(Some(ids))
+                .send()
+                .await?;
+        }
         Ok(())
     }
 
