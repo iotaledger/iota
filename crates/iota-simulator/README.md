@@ -109,7 +109,7 @@ However, the fact that the validators are running on unique simulator nodes mean
 Swarm assumes a level of encapsulation that reflects what client code would actually experience in production.
 In other words, the only way to communicate with the validators when using Swarm is via the network.
 However, we have many tests that create validators and manipulate them more directly.
-https://github.com/iotaledger/iota/blob/develop/crates/iota/tests/checkpoints_tests.rs is a good example of this.
+https://github.com/iotaledger/iota/blob/develop/crates/iota-e2e-tests/tests/checkpoint_tests.rs is a good example of this.
 
 In these tests, the test code is able to break the simulator abstraction and directly manipulate the state of remote validators.
 Yet, the validators are still running on simulated nodes.
