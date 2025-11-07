@@ -7,7 +7,7 @@ tags:
 
 # IOTA Hierarchy Workshop
 
-In this workshop, we will build a **University Degree Verification system** using **IOTA Hierarchies** and **Rust**. This tutorial demonstrates a decentralized trust framework for a consortium of universities, where accreditations and attestations create a tamper-proof chain for issuing and verifying degrees.
+In this workshop, we will build a **University Degree Verification system** using **IOTA Hierarchies** and **Rust**. This workshop demonstrates a decentralized trust framework for a consortium of universities, where accreditations and attestations create a tamper-proof chain for issuing and verifying degrees.
 
 ## The Problem
 
@@ -63,7 +63,7 @@ sequenceDiagram
 
 Universities need a secure way to issue degrees that employers can verify without manual checks. With IOTA Hierarchies:
 
-In this context of a Uinversity Degree Verification Sysytem:
+In this context of a Uinversity Degree Verification System:
 
 - A **Federation** represents the consortium of universities.
 - **Root Authorities** are trusted universities (e.g., Harvard, MIT).
@@ -88,7 +88,7 @@ Before starting:
 
 ## Project Setup and Initialization
 
-Let’s set up the Rust project and initialize the environment for the IOTA Hierarchies tutorial.
+Let’s set up the Rust project and initialize the environment for the IOTA Hierarchies workshop.
 
 1. Create a New Rust Project:
 
@@ -103,16 +103,26 @@ Let’s set up the Rust project and initialize the environment for the IOTA Hier
     - Open `Cargo.toml` and add the following:
     ```toml
     [package]
-    name = "iota-hierarchies-tutorial"
+    name = "iota-hierarchies-workshop"
     version = "0.1.0"
     edition = "2021"
 
     [dependencies]
-    anyhow = "1"
-    tokio = { version = "1", features = ["full"] }
-    iota-sdk = { git = "https://github.com/iotaledger/iota-sdk", branch = "main" }
-    hierarchies = { git = "https://github.com/iotaledger/hierarchies", branch = "main" }
-    product-common = { git = "https://github.com/iotaledger/hierarchies", branch = "main", package = "product-common" }
+    anyhow = "1.0"
+    async-trait = "0.1"
+    bcs = "0.1"
+    chrono = { version = "0.4", features = ["serde"] }
+    iota-sdk = { git = "https://github.com/iotaledger/iota.git", tag = "v1.9.2", package = "iota-sdk" }
+    iota_interaction = { git = "https://github.com/iotaledger/product-core.git", default-features = false, tag = "v0.8.4", package = "iota_interaction" }
+    iota_interaction_rust = { git = "https://github.com/iotaledger/product-core.git", default-features = false, tag = "v0.8.4", package = "iota_interaction_rust" }
+    iota_interaction_ts = { git = "https://github.com/iotaledger/product-core.git", default-features = false, tag = "v0.8.4", package = "iota_interaction_ts" }
+    product_common = { git = "https://github.com/iotaledger/product-core.git", tag = "v0.8.4", default-features = false, package = "product_common" }
+    secret-storage = { git = "https://github.com/iotaledger/secret-storage", tag = "v0.3.0", default-features = false }
+    serde = { version = "1", features = ["derive"] }
+    serde_json = "1"
+    strum = { version = "0.27", default-features = false, features = ["std", "derive"] }
+    thiserror = "2.0"
+    tokio = { version = "1.46", default-features = false, features = ["sync"] }
     ```
     - These include `anyhow` (error handling), `tokio` (async runtime), `iota-sdk` (IOTA network), `hierarchies` (core framework), and `product-common` (test utilities).
 
@@ -128,7 +138,7 @@ Let’s set up the Rust project and initialize the environment for the IOTA Hier
     - Verify variables:
         - PowerShell:
 
-    ```bash
+    ```PowerShell
     $env:API_ENDPOINT="http://127.0.0.1:8545"
     $env:IOTA_HIERARCHIES_PKG_ID="<your_deployed_hierarchies_package_id>"
     ```
@@ -141,7 +151,7 @@ Let’s set up the Rust project and initialize the environment for the IOTA Hier
         ```
         - PowerShell:
 
-        ```bash
+        ```PowerShell
         $env:API_ENDPOINT
         $env:IOTA_HIERARCHIES_PKG_ID
         ```
@@ -215,12 +225,12 @@ pub async fn get_funded_client() -> Result<HierarchiesClient<InMemSigner>, anyho
 ```
 Explanation:
 
-- What it does: Defines two functions to create Hierarchies clients. `get_read_only_client` creates a client for querying the network without transactions. `get_funded_client` creates a funded client with signing capabilities for creating federations and issuing attestations.
-- Why it matters: These utilities handle boilerplate like network connection, package ID retrieval, and test funding, keeping the main code focused on Hierarchies logic.
-- Key concepts:
-    - HierarchiesClientReadOnly: For read-only operations like validation.
-    - HierarchiesClient: For write operations like creating federations or accreditations.
-    - InMemSigner: An in-memory signer for test purposes, with `request_funds` to get faucet tokens.
+- **What it does**: Defines two functions to create Hierarchies clients. `get_read_only_client` creates a client for querying the network without transactions. `get_funded_client` creates a funded client with signing capabilities for creating federations and issuing attestations.
+- **Why it matters**: These utilities handle boilerplate like network connection, package ID retrieval, and test funding, keeping the main code focused on Hierarchies logic.
+- **Key concepts**:
+    - **HierarchiesClientReadOnly**: For read-only operations like validation.
+    - **HierarchiesClient**: For write operations like creating federations or accreditations.
+    - **InMemSigner**: An in-memory signer for test purposes, with `request_funds` to get faucet tokens.
 In `main.rs`, import it with `use crate::utils::{get_funded_client, get_read_only_client};`.
 
 ### Step 2: Create the University Consortium Federation
@@ -246,10 +256,10 @@ async fn main() -> anyhow::Result<()> {
 
 Explanation:
 
-- What it does: Uses the funded client to create a new federation named "University Consortium" and prints its name.
-- Why it matters: The federation is the top-level trust anchor for the consortium, defining the rules for accreditations and attestations.
-- Key concepts:
-    - Federation: The root entity grouping trusted authorities (e.g., universities).
+- **What it does**: Uses the funded client to create a new federation named "University Consortium" and prints its name.
+- **Why it matters**: The federation is the top-level trust anchor for the consortium, defining the rules for accreditations and attestations.
+- **Key concepts**:
+    - **Federation**: The root entity grouping trusted authorities (e.g., universities).
 
 ### Step 3: Define Academic Properties
 
@@ -277,10 +287,10 @@ async fn define_properties(consortium: &Federation) -> anyhow::Result<()> {
 ```
 Explanation:
 
-- What it does: Adds three properties to the federation: "degree" (string with allowed values), "field" (string with allowed values), and "gpa" (number with no restrictions).
-- Why it matters: Properties define the structure of attestations, ensuring consistency and enabling validation (e.g., only "bachelor" is valid for "degree").
-- Key concepts:
-    - Property: A defined field with a type (String, Number) and optional allowed values for enforcement.
+- **What it does**: Adds three properties to the federation: "degree" (string with allowed values), "field" (string with allowed values), and "gpa" (number with no restrictions).
+- **Why it matters**: Properties define the structure of attestations, ensuring consistency and enabling validation (e.g., only "bachelor" is valid for "degree").
+- **Key concepts**:
+    - **Property**: A defined field with a type (String, Number) and optional allowed values for enforcement.
 
 Call this function in `main` after creating the consortium: `define_properties(&consortium).await?;`.
 
@@ -304,10 +314,10 @@ async fn add_universities(consortium: &Federation) -> anyhow::Result<()> {
 ```
 Explanation:
 
-- What it does: Creates authorities for Harvard and MIT, then adds them as root authorities to the consortium.
-- Why it matters: Root authorities are the starting point of trust; they can delegate accreditations to faculties.
-- Key concepts:
-    - Authority: An entity (e.g., university) that can be accredited or issue attestations.
+- **What it does**: Creates authorities for Harvard and MIT, then adds them as root authorities to the consortium.
+- **Why it matters**: Root authorities are the starting point of trust; they can delegate accreditations to faculties.
+- **Key concepts**:
+    - **Authority**: An entity (e.g., university) that can be accredited or issue attestations.
 Call this in `main: add_universities(&consortium).await?;`.
 
 ### Step 5: Delegate to Faculties
@@ -327,10 +337,10 @@ async fn delegate_to_faculty(harvard: &Authority) -> anyhow::Result<Authority> {
 
 Explanation:
 
-- What it does: Creates a faculty authority and accredits it "to accredit" from Harvard, allowing the faculty to further delegate.
-- Why it matters: This builds the trust hierarchy: University → Faculty.
-- Key concepts:
-    - Accreditation to Accredit: Grants delegation rights.
+- **What it does**: Creates a faculty authority and accredits it "to accredit" from Harvard, allowing the faculty to further delegate.
+- **Why it matters**: This builds the trust hierarchy: University → Faculty.
+- **Key concepts**:
+    - **Accreditation to Accredit**: Grants delegation rights.
 Call this in `main: let cs_faculty = delegate_to_faculty(&harvard).await?;`.
 
 ### Step 6: Grant Registrar Attestation Rights
@@ -348,10 +358,10 @@ async fn empower_registrar(cs_faculty: &Authority) -> anyhow::Result<Authority> 
 
 Explanation:
 
-- What it does: Creates a registrar authority and accredits it "to attest" from the faculty, allowing it to issue degrees.
-- Why it matters: Completes the hierarchy: Faculty → Registrar.
-- Key concepts:
-    - Accreditation to Attest: Grants rights to issue attestations (degrees).
+- **What it does**: Creates a registrar authority and accredits it "to attest" from the faculty, allowing it to issue degrees.
+- **Why it matters**: Completes the hierarchy: Faculty → Registrar.
+- **Key concepts**:
+    - **Accreditation to Attest**: Grants rights to issue attestations (degrees).
 Call this in `main: let registrar = empower_registrar(&cs_faculty).await?;`.
 
 ### Step 7: Issue Degrees (Create Attestations)
@@ -381,10 +391,10 @@ async fn issue_degrees(registrar: &Authority) -> anyhow::Result<()> {
 
 Explanation:
 
-- What it does: Creates attestations for Alice and Bob with property values (degree, field, GPA).
-- Why it matters: Attestations are the verifiable degrees issued to students.
-- Key concepts:
-    - Attestation: A signed claim (degree) bound to the federation's properties.
+- **What it does**: Creates attestations for Alice and Bob with property values (degree, field, GPA).
+- **Why it matters**: Attestations are the verifiable degrees issued to students.
+- **Key concepts**:
+    - **Attestation**: A signed claim (degree) bound to the federation's properties.
 
 Call this in main: issue_degrees(&registrar).await?;.
 
@@ -410,10 +420,10 @@ async fn validate_example(consortium: &Federation) -> anyhow::Result<()> {
 
 Explanation:
 
-- What it does: Validates if Alice has a bachelor in CS by checking the trust chain and properties.
-- Why it matters: Allows employers to verify degrees against the consortium's rules.
-- Key concepts:
-    - Validation: Checks attestation existence, non-revocation, and trust chain.
+- **What it does**: Validates if Alice has a bachelor in CS by checking the trust chain and properties.
+- **Why it matters**: Allows employers to verify degrees against the consortium's rules.
+- **Key concepts**:
+    - **Validation**: Checks attestation existence, non-revocation, and trust chain.
 
 Call this in main: validate_example(&consortium).await?;.
 
@@ -434,14 +444,14 @@ async fn revoke_degree(registrar: &Authority) -> anyhow::Result<()> {
 
 Explanation:
 
-- What it does: Revokes Alice's attestation, making it invalid.
-- Why it matters: Handles errors or changes (e.g., degree revocation).
-- Key concepts:
-    - Revocation: Invalidates an attestation, discoverable during validation.
+- **What it does**: Revokes Alice's attestation, making it invalid.
+- **Why it matters**: Handles errors or changes (e.g., degree revocation).
+- **Key concepts**:
+    - **Revocation**: Invalidates an attestation, discoverable during validation.
 
 Call this in main: revoke_degree(&registrar).await?;. Then re-run validation to see it fail.
 
-## Running the Tutorial
+## Running the Workshop
 
 Compile and run:
 
