@@ -44,7 +44,9 @@ use iota_types::{
         IOTA_ADDRESS_LENGTH, IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber,
     },
     committee::EpochId,
-    crypto::{AccountKeyPair, RandomnessRound, get_authority_key_pair, get_key_pair_from_rng},
+    crypto::{
+        AccountKeyPair, RandomnessRound, Signature, get_authority_key_pair, get_key_pair_from_rng,
+    },
     digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
@@ -90,6 +92,7 @@ use move_transactional_test_runner::{
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
 use rand::{Rng, SeedableRng, rngs::StdRng};
+use shared_crypto::intent::{Intent, IntentMessage};
 use tempfile::{NamedTempFile, tempdir};
 
 use crate::{
@@ -1157,6 +1160,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 Ok(merge_output(None, None))
             }
             IotaSubcommand::AbstractTransaction(AbstractTransactionCommand {
+                sponsor,
                 gas_budget,
                 gas_price,
                 gas_payment,
@@ -1172,32 +1176,28 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let (aa_sender_address, move_authenticator) =
                     self.prepare_move_authenticator_data(authenticator_inputs)?;
 
-                // 2) Gas payments
-                let payments: Vec<ObjectRef> = gas_payment
-                    .into_iter()
-                    .map(|fid| {
-                        let obj_id = self.fake_to_real_object_id(fid).ok_or_else(|| {
-                            anyhow::anyhow!(format!("abstract: unknown gas-payment object({fid})"))
-                        })?;
-                        Ok(self.get_object(&obj_id, None)?.compute_object_reference())
-                    })
-                    .collect::<anyhow::Result<_>>()?;
-
-                // 3) Build TransactionData with MoveAuthenticator & execute
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price = gas_price.unwrap_or(self.gas_price);
-                let tx_data = TransactionData::new_programmable(
+                let tx = self.move_authenticator_txn(
                     aa_sender_address,
-                    payments,
-                    ProgrammableTransaction {
-                        inputs: ptb_inputs,
-                        commands: ptb_commands,
+                    sponsor,
+                    gas_payment,
+                    move_authenticator,
+                    |sender, sponsor, gas| {
+                        TransactionData::new_programmable_allow_sponsor(
+                            sender,
+                            gas,
+                            ProgrammableTransaction {
+                                inputs: ptb_inputs,
+                                commands: ptb_commands,
+                            },
+                            gas_budget,
+                            gas_price,
+                            sponsor,
+                        )
                     },
-                    gas_budget,
-                    gas_price,
-                );
+                )?;
 
-                let tx = Transaction::from_generic_sig_data(tx_data, vec![move_authenticator]);
                 let summary = self.execute_txn(tx).await?;
                 let output = self.object_summary_output(&summary, /* summarize */ false);
                 Ok(output)
@@ -1604,7 +1604,46 @@ impl IotaTestAdapter {
             })
             .collect()
     }
-
+    
+    fn move_authenticator_txn(
+        &self,
+        aa_sender: IotaAddress,
+        sponsor: Option<String>,
+        payments: Vec<FakeID>,
+        aa_sig: GenericSignature,
+        txn_data: impl FnOnce(
+            // sender
+            IotaAddress,
+            // sponsor
+            IotaAddress,
+            // gas
+            Vec<ObjectRef>,
+        ) -> TransactionData,
+    ) -> anyhow::Result<Transaction> {
+        if let Some(sponsor) = sponsor {
+            let sponsor_acc = self.get_sender(Some(sponsor));
+            let payment_refs = self.get_payments(sponsor_acc, payments);
+            let data = txn_data(aa_sender, sponsor_acc.address, payment_refs);
+            let intent_msg = IntentMessage::new(Intent::iota_transaction(), &data);
+            let sponsor_sig = Signature::new_secure(&intent_msg, &sponsor_acc.key_pair).into();
+            Ok(Transaction::from_generic_sig_data(
+                data,
+                vec![aa_sig, sponsor_sig],
+            ))
+        } else {
+            let payments: Vec<ObjectRef> = payments
+                .into_iter()
+                .map(|fid| {
+                    let obj_id = self.fake_to_real_object_id(fid).ok_or_else(|| {
+                        anyhow::anyhow!(format!("abstract: unknown gas-payment object({fid})"))
+                    })?;
+                    Ok(self.get_object(&obj_id, None)?.compute_object_reference())
+                })
+                .collect::<anyhow::Result<_>>()?;
+            let data = txn_data(aa_sender, aa_sender, payments);
+            Ok(Transaction::from_generic_sig_data(data, vec![aa_sig]))
+        }
+    }
     fn sign_sponsor_txn(
         &self,
         sender: Option<String>,

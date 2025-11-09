@@ -143,6 +143,8 @@ pub struct ProgrammableTransactionCommand {
 
 #[derive(Debug, clap::Parser)]
 pub struct AbstractTransactionCommand {
+    #[clap(long = "sponsor")]
+    pub sponsor: Option<String>,
     #[arg(long = "gas-budget")]
     pub gas_budget: Option<u64>,
     #[arg(long)]
