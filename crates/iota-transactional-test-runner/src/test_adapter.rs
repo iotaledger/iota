@@ -1604,7 +1604,7 @@ impl IotaTestAdapter {
             })
             .collect()
     }
-    
+
     fn move_authenticator_txn(
         &self,
         aa_sender: IotaAddress,
@@ -1644,6 +1644,7 @@ impl IotaTestAdapter {
             Ok(Transaction::from_generic_sig_data(data, vec![aa_sig]))
         }
     }
+
     fn sign_sponsor_txn(
         &self,
         sender: Option<String>,
