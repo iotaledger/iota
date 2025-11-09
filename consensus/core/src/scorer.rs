@@ -169,7 +169,7 @@ impl Scorer {
                 .with_label_values(&[hostname, source, error.name()])
                 .inc();
         } else {
-            return;
+            // No scoring metrics to update.
         }
     }
 
