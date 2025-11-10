@@ -31,6 +31,7 @@ const ALLOWED_ACCOUNT_TYPES: AccountsFormType[] = [
     AccountsFormType.MnemonicSource,
     AccountsFormType.SeedSource,
     AccountsFormType.ImportPrivateKey,
+    AccountsFormType.Passkey,
     AccountsFormType.ImportLedger,
     AccountsFormType.ImportKeystone,
 ];

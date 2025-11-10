@@ -182,7 +182,9 @@ export function TransferCoinPage() {
             title={showTransactionPreview ? 'Review & Send' : 'Send'}
             closeOverlay={() => navigate('/tokens')}
             showBackButton
-            onBack={showTransactionPreview ? () => setShowTransactionPreview(false) : undefined}
+            onBack={() =>
+                showTransactionPreview ? setShowTransactionPreview(false) : navigate('/')
+            }
         >
             <div className="flex h-full w-full flex-col gap-md">
                 {showTransactionPreview && formik.values ? (

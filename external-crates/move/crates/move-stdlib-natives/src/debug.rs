@@ -102,11 +102,10 @@ pub fn make_native_print(
 }
 
 /// ****************************************************************************
-/// ********************* native fun print_stack_trace
+/// native fun print_stack_trace
 ///
 ///   gas cost: base_cost
 /// ****************************************************************************
-/// *******************
 #[derive(Debug, Clone)]
 pub struct PrintStackTraceGasParameters {
     pub base_cost: InternalGas,
@@ -164,9 +163,8 @@ pub fn make_native_print_stack_trace(
 }
 
 /// ****************************************************************************
-/// ********************* module
+/// module
 /// ****************************************************************************
-/// *******************
 #[derive(Debug, Clone)]
 pub struct GasParameters {
     pub print: PrintGasParameters,

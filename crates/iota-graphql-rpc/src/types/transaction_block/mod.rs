@@ -124,6 +124,7 @@ type Query<ST, GB> = data::Query<ST, transactions::table, GB>;
 /// The cursor returned for each `TransactionBlock` in a connection's page of
 /// results. The `checkpoint_viewed_at` will set the consistent upper bound for
 /// subsequent queries made on this cursor.
+#[allow(unused)]
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct TransactionBlockCursor {
     /// The checkpoint sequence number this was viewed at.

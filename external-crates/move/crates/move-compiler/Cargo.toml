@@ -8,7 +8,9 @@ publish = false
 description = "The definition of the Move source language, and its compiler"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
+bcs.workspace = true
 clap.workspace = true
 codespan-reporting.workspace = true
 dunce.workspace = true
@@ -26,8 +28,7 @@ stacker.workspace = true
 tempfile.workspace = true
 vfs.workspace = true
 
-bcs.workspace = true
-
+# internal dependencies
 move-binary-format.workspace = true
 move-borrow-graph.workspace = true
 move-bytecode-source-map.workspace = true
@@ -40,7 +41,10 @@ move-proc-macros.workspace = true
 move-symbol-pool.workspace = true
 
 [dev-dependencies]
+# external dependencies
 datatest-stable.workspace = true
+
+# internal dependencies
 move-stdlib.workspace = true
 
 [[test]]

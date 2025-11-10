@@ -1,0 +1,134 @@
+/* 
+===============================================================================
+Global CSS Variables
+-------------------------------------------------------------------------------
+Note: All global CSS variables used throughout the documentation have been 
+centralized in this file.
+
+⚠️ Please use only these defined variables for styling.
+➕ If a required variable does not exist, add it only in this file to 
+maintain consistency and ease of maintenance.
+===============================================================================
+*/
+
+:root {
+  /* Font Families */
+  --headerFont: "Twkeverett", sans-serif;
+  --monoFont: "Twkeverett Mono", monospace;
+  --primaryFont: "Inter", sans-serif;
+
+  /* Docusaurus + IFM Defaults */
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+  --ifm-background-color-dark: black;
+  --ifm-code-font-size: 95%;
+  --ifm-color-primary: #4ca2ff;
+  --ifm-color-primary-dark: #2b91ff;
+  --ifm-color-primary-darker: #1a88ff;
+  --ifm-color-primary-darkest: #006fe8;
+  --ifm-color-primary-head-darkest: #0101ff;
+  --ifm-color-primary-light: #6db3ff;
+  --ifm-color-primary-lighter: #7ebcff;
+  --ifm-color-primary-lightest: #afd6ff;
+  --ifm-font-family-base: "Inter", sans-serif;
+  --ifm-font-size-base: 0.9375rem;
+  --ifm-hover-overlay: var(--ifm-color-emphasis-100);
+  --ifm-line-height-base: 1.5rem;
+  --ifm-menu-color: var(--iota-dark-blue-bkg);
+  --ifm-menu-color-background-active: transparent;
+  --ifm-navbar-background-color: #030f1c;
+  --ifm-navbar-height: 4.5rem;
+  --ifm-navbar-sidebar-link-color: #141414;
+  --ifm-spacing-horizontal: 1.875rem;
+
+  /* IOTA Brand Colors */
+  --iota-black: #111111;
+  --iota-blue: #6fbcf0;
+  --iota-blue-bright: #00f9fb;
+  --iota-blue-dark: 52 99 151;
+  --iota-blue-darker: #303846;
+  --iota-blue-lighter: #b4c2d0;
+  --iota-blue-light: #e1f3ff;
+  --iota-blue-primary: #4da2ff;
+  --iota-card-dark: 13 20 37;
+  --iota-card-darker: 0 23 49;
+  --iota-cards-background: #f6f8f9;
+  --iota-cards-background-hover: #ebf1f5;
+  --iota-cards-border-color: rgba(0, 0, 0, 0.1);
+  --iota-cards-copy: #91a3b1;
+  --iota-code: #845ed6;
+  --iota-dark-blue-bkg: #011829;
+  --iota-example-import: #aaa;
+  --iota-feedback-close: #fff9;
+  --iota-feedback-container: #0000001a;
+  --iota-feedback-container-dark: #1e1e1e;
+  --iota-feedback-field: #ccc;
+  --iota-ghost-dark: #282a36;
+  --iota-ghost-white: #f8f8ff;
+  --iota-gray: #abbdcc;
+  --iota-gray-35: #fefefe;
+  --iota-gray-40: #f7f8f8;
+  --iota-gray-45: #ebeced;
+  --iota-gray-50: #e9eaeb;
+  --iota-gray-55: #d7d8da;
+  --iota-gray-60: #c3c5c8;
+  --iota-gray-65: #9c9fa4;
+  --iota-gray-70: #898d93;
+  --iota-gray-75: #767a81;
+  --iota-gray-80: #636870;
+  --iota-gray-85: #5a6573;
+  --iota-gray-90: #383f47;
+  --iota-gray-95: #2a3645;
+  --iota-gray-100: #182435;
+  --iota-header-nav: #2a4362;
+  --iota-hero: #0284ad;
+  --iota-hero-dark: #007195;
+  --iota-iota-steel: #a0b6c3;
+  --iota-issue: #ff794b;
+  --iota-issue-dark: #eb5a29;
+  --iota-issue-light: #ffece5;
+  --iota-line: rgba(247, 247, 248, 0.1);
+  --iota-link-color: #1068a6;
+  --iota-link-color-dark: #057fd1;
+  --iota-link-color-light: #1f98e9;
+  --iota-max-width-desktop: 1162px;
+  --iota-red: rgba(238, 18, 18, 0.924);
+  --iota-steel-dark: #758f9e;
+  --iota-steel-darker: #566873;
+  --iota-success: #2dd7a7;
+  --iota-success-dark: #008c65;
+  --iota-success-light: #d5f7ee;
+  --iota-imagezoom-options: rgba(0, 0, 0, 0.6);
+  --iota-warning: #f1ba13;
+  --iota-warning-dark: #8d6e15;
+  --iota-warning-light: #fff8e2;
+  --iota-white: #f7f7f8;
+  --iota-home-card-bg: #e4eaf6;
+  --iota-home-card-title: #111827;
+  --iota-hero-container: #1a1e23;
+  --iota-card-link: #374151;
+  --iota-cta-button: #0c5ac8fc;
+}
+
+/* 
+===============================================================================
+Dark Theme Overrides
+-------------------------------------------------------------------------------
+These variables override light theme defaults when [data-theme="dark"] is set.
+===============================================================================
+*/
+
+html[data-theme="dark"] {
+  --ifm-background-color: #030f1c;
+  --ifm-hover-overlay: var(--ifm-color-emphasis-100);
+  --ifm-menu-color: var(--iota-white);
+  --ifm-menu-color-background-active: transparent;
+  --ifm-navbar-sidebar-background-color: black;
+  --ifm-navbar-sidebar-link-color: #f7f7f8;
+
+  --iota-cards-background: rgba(40, 40, 40, 0.8);
+  --iota-cards-background-hover: rgba(32, 32, 32, 0.8);
+  --iota-cards-border-color: rgba(255, 255, 255, 0.1);
+  --iota-cards-copy: var(--iota-gray);
+
+  background-color: var(--iota-black);
+}

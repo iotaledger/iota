@@ -2,12 +2,11 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::path::{Path, PathBuf};
+
 use move_command_line_common::testing::insta_assert;
 use move_docgen::{Docgen, DocgenFlags, DocgenOptions};
-use move_package::compilation::model_builder;
-use move_package::BuildConfig;
-use std::path::Path;
-use std::path::PathBuf;
+use move_package::{BuildConfig, compilation::model_builder};
 use tempfile::TempDir;
 
 const ROOT_DOC_TEMPLATE_NAME: &str = "root_template.md";

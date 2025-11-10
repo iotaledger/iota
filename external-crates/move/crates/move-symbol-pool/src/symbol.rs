@@ -8,9 +8,9 @@ use std::{borrow::Cow, cmp::Ordering, fmt, num::NonZeroU64, ops::Deref};
 use serde::{de::Deserialize, ser::Serialize};
 
 use crate::{
-    pool::Entry,
-    static_symbols::{STATIC_SYMBOLS, STATIC_SYMBOL_IDX},
     SYMBOL_POOL,
+    pool::Entry,
+    static_symbols::{STATIC_SYMBOL_IDX, STATIC_SYMBOLS},
 };
 
 /// Represents a string that has been cached.
@@ -313,9 +313,9 @@ mod tests {
     use std::mem::size_of;
 
     use crate::{
-        static_symbols::{STATIC_SYMBOLS, STATIC_SYMBOL_IDX},
-        symbol::{Tag, MAX_INLINE_LEN},
         Symbol,
+        static_symbols::{STATIC_SYMBOL_IDX, STATIC_SYMBOLS},
+        symbol::{MAX_INLINE_LEN, Tag},
     };
 
     #[test]

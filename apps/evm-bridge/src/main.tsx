@@ -4,6 +4,7 @@ import './globals.css';
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { CookieManagerProvider } from '@boxfish-studio/react-cookie-manager';
 import {
     getDefaultConfig,
     darkTheme as rainbowDarkTheme,
@@ -13,6 +14,7 @@ import {
 } from '@rainbow-me/rainbowkit';
 import { darkTheme, IotaClientProvider, lightTheme, WalletProvider } from '@iota/dapp-kit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { CookieDisclaimer } from './components/disclaimer/CookieDisclaimer';
 import App from './App.tsx';
 import { ThemeProvider } from './providers/ThemeProvider.tsx';
 import { WagmiProvider } from 'wagmi';
@@ -29,6 +31,7 @@ import { Toaster } from './components/index.ts';
 import { IotaGraphQLClientProvider } from '@iota/core';
 import { growthbook, interceptProviderAnnouncements } from './lib/utils/index.ts';
 import { GrowthBookProvider } from '@growthbook/growthbook-react';
+import { getNetwork } from '@iota/iota-sdk/client';
 import { metaMaskWallet, walletConnectWallet } from '@rainbow-me/rainbowkit/wallets';
 
 // We intercept EIP-6963 announcements
@@ -72,11 +75,15 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
                                             variables: darkTheme,
                                         },
                                     ]}
+                                    chain={getNetwork(getDefaultNetwork()).chain}
                                 >
                                     <ThemeProvider appId="IOTA-evm-bridge">
                                         <RainbowKit>
-                                            <App />
-                                            <Toaster />
+                                            <CookieManagerProvider>
+                                                <App />
+                                                <Toaster />
+                                                <CookieDisclaimer />
+                                            </CookieManagerProvider>
                                         </RainbowKit>
                                     </ThemeProvider>
                                 </WalletProvider>

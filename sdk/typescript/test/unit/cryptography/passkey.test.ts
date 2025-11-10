@@ -20,7 +20,7 @@ import {
     AuthenticationCredential,
     RegistrationCredential,
 } from '../../../src/keypairs/passkey/types';
-import { fromB64 } from '../../../src/utils';
+import { fromBase64 } from '../../../src/utils';
 
 function compressedPubKeyToDerSPKI(compressedPubKey: Uint8Array): Uint8Array {
     // Combine header with the uncompressed public key coordinates.
@@ -213,7 +213,7 @@ describe('passkey signer E2E testing', () => {
         });
         const signer = await PasskeyKeypair.getPasskeyInstance(mockProvider);
 
-        const messageBytes = fromB64(
+        const messageBytes = fromBase64(
             'AAABACACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEBAQABAABnEUWt6SNz7OPa4hXLyCw9tI5Y7rNxhh5DFljH1jLT6QEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAIMqiyOLCIblSqii0TkS8PjMoj3tmA7S24hBMyonz2Op/ZxFFrekjc+zj2uIVy8gsPbSOWO6zcYYeQxZYx9Yy0+noAwAAAAAAAICWmAAAAAAAAA==',
         );
         const intentMessage = messageWithIntent('TransactionData', messageBytes);
@@ -303,11 +303,11 @@ describe('passkey signer E2E testing', () => {
     it('should verify a transaction from rust implementation', async () => {
         // generated test vector from `test_passkey_authenticator` in crates/iota-types/src/unit_tests/passkey_authenticator_test.rs
 
-        const sig = fromB64(
+        const sig = fromBase64(
             'BiVYDmenOnqS+thmz5m5SrZnWaKXZLVxgh+rri6LHXs25B0AAAAAgwF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJ4NkszMGNvSGlGMF9iczVVVjNzOEVfcGNPNkhMZ0xBb1A3ZE1uU0U5eERNIiwib3JpZ2luIjoiaHR0cHM6Ly93d3cuc3VpLmlvIiwiY3Jvc3NPcmlnaW4iOmZhbHNlfWICAJqKTgco/tSNg4BuVg/f3x+I8NLYN6QqvxHahKNe0PIhBe3EuhfZf8OL4hReW8acT1TVwmPMcnv4SWiAHaX2dAKBYTKkrLK2zLcfP/hD1aiAn/E0L3XLC4epejnzGRhTuA==',
         );
 
-        const txBytes = fromB64(
+        const txBytes = fromBase64(
             'AAABACACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgEBAQABAAAt3HtjT61oHCWWztGfhSC2ianNwi6LL2eOLPvZTdJWMgEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAIMqiyOLCIblSqii0TkS8PjMoj3tmA7S24hBMyonz2Op/Ldx7Y0+taBwlls7Rn4UgtompzcIuiy9njiz72U3SVjLoAwAAAAAAAICWmAAAAAAAAA==',
         );
         const parsed = parseSerializedPasskeySignature(sig);
@@ -319,10 +319,10 @@ describe('passkey signer E2E testing', () => {
 
     it('should verify a transaction from a real passkey output', async () => {
         // generated test vector from a real iphone passkey output from browser app
-        const sig = fromB64(
+        const sig = fromBase64(
             'BiVJlg3liA6MaHQ0Fw9kdmBbj+SuuaKGMseZXPO6gx2XYx0AAAAAhgF7InR5cGUiOiJ3ZWJhdXRobi5nZXQiLCJjaGFsbGVuZ2UiOiJCUG9qdmNZOWJKRnNqZjJoa0lJX0dndWp0U0dNNlFRVW51Unk0VXhuRVp3Iiwib3JpZ2luIjoiaHR0cDovL2xvY2FsaG9zdDo1MTczIiwiY3Jvc3NPcmlnaW4iOmZhbHNlfWIC6iBZUmJCLqIIGi0pBiEDz+bklP3wAa/dI1d2A6MdJbpY5Ro5io1JsFcAo1TRlr8l4HSOIdmzRTl5Z6eTRtuwwAJOdot913xL+tExR8gymQe0uMmQWyuJgpM5kFcbHcVSmQ==',
         );
-        const txBytes = fromB64(
+        const txBytes = fromBase64(
             'AAACAAgA8gUqAQAAAAAgxq0ACYa04TM9hVVLt1TRC4TycqR68k5AXNm7tAj38/ECAgABAQAAAQECAAABAQD0fqgf0aEoRcV3KtZGQhTJMLfkefcZUZm0FRv/o1CTSwKaP3c5GMVBY9ug8cgXS75q669v+5xLW+4KLFe1o+t4ClQ1AAAAAAAAIFnu374V6vCwfuDoQZ4di/jEzJgdUrOim0IpwVoDGluXq/FTzylxGxwQe0NAhJUaccqdd6Jlngv52iiewuhaHM9TNQAAAAAAACA3nRRejhjqviL59EEWo4Hp+GR1EL2rHlK9RLApwUwBqvR+qB/RoShFxXcq1kZCFMkwt+R59xlRmbQVG/+jUJNL6AMAAAAAAADgbzwAAAAAAAA=',
         );
         const parsed = parseSerializedPasskeySignature(sig);
@@ -346,13 +346,20 @@ describe('passkey signer E2E testing', () => {
         const address = signer.getPublicKey().toIotaAddress();
 
         const testMessage = new TextEncoder().encode('Hello world!');
-        const possiblePks = await PasskeyKeypair.signAndRecover(mockProvider, testMessage);
+        const { credentialId, pubKeys: possiblePks } = await PasskeyKeypair.signAndRecover(
+            mockProvider,
+            testMessage,
+        );
 
         const testMessage2 = new TextEncoder().encode('Hello world 2!');
-        const possiblePks2 = await PasskeyKeypair.signAndRecover(mockProvider, testMessage2);
+        const { pubKeys: possiblePks2 } = await PasskeyKeypair.signAndRecover(
+            mockProvider,
+            testMessage2,
+            [credentialId],
+        );
 
         const commonPk = findCommonPublicKey(possiblePks, possiblePks2);
-        const signer2 = new PasskeyKeypair(commonPk.toRawBytes(), mockProvider);
+        const signer2 = new PasskeyKeypair(commonPk.toRawBytes(), mockProvider, credentialId);
 
         // the address from recovered pk is the same as the one constructed from the same mock provider
         expect(signer2.getPublicKey().toIotaAddress()).toEqual(address);
