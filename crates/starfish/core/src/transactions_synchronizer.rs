@@ -92,12 +92,15 @@ impl SyncMethod {
 /// fetching from peers.
 struct LastFailureByPeer {
     inner: Mutex<Vec<Option<Instant>>>,
+    context: Context,
 }
 
 impl LastFailureByPeer {
-    fn new(committee_size: usize) -> Arc<Self> {
+    fn new(context: &Context) -> Arc<Self> {
+        let committee_size = context.committee.size();
         Arc::new(Self {
             inner: Mutex::new(vec![None; committee_size]),
+            context: context.clone(),
         })
     }
     fn update_with_new_instant(self: &Arc<Self>, peer: AuthorityIndex, new_instant: Instant) {
@@ -107,10 +110,7 @@ impl LastFailureByPeer {
 
     /// Determine which authorities are less reliable to fetch transactions.
     /// Returns less than f+1 authorities by stake.
-    fn get_excluded_authorities_by_stake(
-        self: &Arc<Self>,
-        context: &Context,
-    ) -> BTreeSet<AuthorityIndex> {
+    fn get_excluded_authorities_by_stake(self: &Arc<Self>) -> BTreeSet<AuthorityIndex> {
         let last_round_by_peer = { self.inner.lock().clone() };
 
         let mut indexed_rounds: Vec<(AuthorityIndex, Instant)> = last_round_by_peer
@@ -126,8 +126,8 @@ impl LastFailureByPeer {
         let mut excluded_authorities = BTreeSet::new();
         let mut stake = 0;
         for (authority_index, _last_instant) in indexed_rounds {
-            stake += context.committee.stake(authority_index);
-            if context.committee.reached_validity(stake) {
+            stake += self.context.committee.stake(authority_index);
+            if self.context.committee.reached_validity(stake) {
                 break;
             }
             excluded_authorities.insert(authority_index);
@@ -415,7 +415,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         let mut tasks = JoinSet::new();
         let active_requests = InflightActiveRequests::new();
-        let last_failure_by_peer = LastFailureByPeer::new(context.committee.size());
+        let last_failure_by_peer = LastFailureByPeer::new(&context);
         // Spawn the live fetcher task
         let live_fetcher_async = Self::live_fetcher(
             active_requests.clone(),
@@ -746,8 +746,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 Box::new(blocks_by_authority.into_iter())
             } else {
                 // Get less than f+1 excluded authorities by stake
-                let excluded_authorities =
-                    last_failure_by_peer.get_excluded_authorities_by_stake(&context);
+                let excluded_authorities = last_failure_by_peer.get_excluded_authorities_by_stake();
                 // Exclude authorities with latest recorded failures
                 let mut vec: Vec<_> = blocks_by_authority
                     .into_iter()
@@ -2030,6 +2029,70 @@ mod tests {
         drop(all_guards);
 
         assert_eq!(map.num_of_locked_transactions(), 0);
+    }
+
+    #[tokio::test]
+    async fn excluded_authorities_updates_and_results() {
+        telemetry_subscribers::init_for_testing();
+
+        // GIVEN a committee of 7 authorities
+        let (context, _) = Context::new_for_test(7);
+        let context = Arc::new(context);
+
+        let last_failure = LastFailureByPeer::new(&context);
+        let now = Instant::now();
+
+        // WHEN: no updates → excluded set should be empty
+        let mut excluded = last_failure.get_excluded_authorities_by_stake();
+        assert!(
+            excluded.is_empty(),
+            "Initially no authorities should be excluded"
+        );
+
+        // WHEN: authority 1 fails now
+        last_failure.update_with_new_instant(AuthorityIndex::new_for_test(1), now);
+        excluded = last_failure.get_excluded_authorities_by_stake();
+        assert!(
+            excluded.contains(&AuthorityIndex::new_for_test(1)),
+            "Authority 1 should be excluded after failure"
+        );
+
+        // WHEN: authority 2 fails later
+        last_failure.update_with_new_instant(
+            AuthorityIndex::new_for_test(2),
+            now + Duration::from_millis(50),
+        );
+        excluded = last_failure.get_excluded_authorities_by_stake();
+        assert!(
+            excluded.contains(&AuthorityIndex::new_for_test(2)),
+            "Authority 2 (latest failure) should be excluded"
+        );
+        assert!(
+            excluded.contains(&AuthorityIndex::new_for_test(1)),
+            "Authority 1 should remain excluded as an older failure"
+        );
+
+        // WHEN: authority 3 fails even later (newest)
+        last_failure.update_with_new_instant(
+            AuthorityIndex::new_for_test(3),
+            now + Duration::from_millis(100),
+        );
+        excluded = last_failure.get_excluded_authorities_by_stake();
+
+        // THEN: authority 3 should now be the first excluded one (most recent),
+        // but the total excluded stake must remain below the validity threshold.
+        assert!(
+            excluded.contains(&AuthorityIndex::new_for_test(3)),
+            "Newest failed authority (3) should be excluded"
+        );
+        assert!(
+            excluded.contains(&AuthorityIndex::new_for_test(2)),
+            "Newest failed authority (3) should be excluded"
+        );
+        assert!(
+            excluded.len() <= 2,
+            "Excluded authorities should be strictly less than f+1 stake limit"
+        );
     }
 
     struct MockNetworkClient {
