@@ -7,3 +7,4 @@ export * from './url';
 export * from './keypair';
 export * from './browser';
 export * from './transform';
+export * from './cookieConsent';

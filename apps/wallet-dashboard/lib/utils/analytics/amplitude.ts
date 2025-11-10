@@ -13,6 +13,7 @@ const IS_PROD_ENV = process.env.NEXT_PUBLIC_BUILD_ENV == 'production';
 export const persistableStorage = new PersistableStorage<UserSession>();
 
 export async function initAmplitude() {
+    // TODO
     await ampli.load({
         environment: 'iotawalletdashboard',
         // Flip this if you'd like to test Amplitude locally
