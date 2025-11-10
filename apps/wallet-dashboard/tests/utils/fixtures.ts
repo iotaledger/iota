@@ -99,7 +99,8 @@ export const test = base.extend<{
 
             const isCI = !!process.env.CI;
 
-            const userDataDir = path.join(os.tmpdir(), `playwright-${Date.now()}`);
+            const uniqueId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}}`;
+            const userDataDir = path.join(os.tmpdir(), `playwright-${uniqueId}`);
 
             const launchOptions: Parameters<typeof chromium.launchPersistentContext>[1] = {
                 headless: isCI,
