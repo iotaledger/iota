@@ -125,7 +125,7 @@ impl LastFailureByPeer {
 
         let mut excluded_authorities = BTreeSet::new();
         let mut stake = 0;
-        for (authority_index, last_instant) in indexed_rounds {
+        for (authority_index, _last_instant) in indexed_rounds {
             stake += context.committee.stake(authority_index);
             if context.committee.reached_validity(stake) {
                 break;
