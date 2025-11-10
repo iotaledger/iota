@@ -394,7 +394,6 @@ services:
       - --num-coins=10
       - --amount=200000000000
       - --max-request-per-second=50
-      - --batch-request-size=1000
       - --ttl-expiration=150
     ports:
       - "127.0.0.1:5003:5003/tcp"
