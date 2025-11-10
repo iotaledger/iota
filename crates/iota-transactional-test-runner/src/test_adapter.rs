@@ -62,7 +62,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::{ObjectStore, ReadStore, RestStateReader},
     transaction::{
-        Argument, CallArg, Command, ObjectArg, ProgrammableTransaction, Transaction,
+        Argument, CallArg, Command, ProgrammableTransaction, Transaction,
         TransactionData, TransactionKind, VerifiedTransaction,
     },
     utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
