@@ -1314,37 +1314,32 @@ impl IotaTestAdapter {
     ) -> anyhow::Result<(IotaAddress, GenericSignature)> {
         // Resolve authenticator inputs
         let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
-        let mut auth_inputs: Vec<CallArg> = auth_inputs_resolved
+        let auth_inputs: Vec<CallArg> = auth_inputs_resolved
             .into_iter()
             .map(|arg| arg.into_call_arg(self))
             .collect::<anyhow::Result<_>>()?;
 
         // Ensure first arg is AA shared (and set mutable: false)
-        let aa_arg = auth_inputs.first().ok_or_else(|| {
-            anyhow::anyhow!(
-                "abstract: authenticator inputs must contain at least one value for the AA call"
-            )
-        })?;
+        let aa_arg = auth_inputs
+            .first()
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "abstract: authenticator inputs must contain at least one value for the AA call"
+                )
+            })?
+            .clone();
         let aa_shared_objects = aa_arg.shared_objects();
         let aa_shared_object = aa_shared_objects.first().ok_or_else(|| {
             anyhow::anyhow!("abstract: authenticator input must be a shared object representing the abstract account")
         })?;
         let aa_sender_addr = aa_shared_object.id.into();
-        let aa_arg_immutable = CallArg::Object(ObjectArg::SharedObject {
-            id: aa_shared_object.id,
-            initial_shared_version: aa_shared_object.initial_shared_version,
-            mutable: false,
-        });
-
-        // Replace first argument with the immutable variant of Abstract Account
-        auth_inputs[0] = aa_arg_immutable.clone();
 
         Ok((
             aa_sender_addr,
             GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
                 auth_inputs,
                 vec![],
-                aa_arg_immutable,
+                aa_arg,
             )),
         ))
     }
