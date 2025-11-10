@@ -106,8 +106,11 @@ impl LastFailureByPeer {
     }
 
     /// Determine which authorities are less reliable to fetch transactions.
-    /// Leave at least f+1 authorities.
-    fn get_excluded_authorities(self: &Arc<Self>) -> BTreeSet<AuthorityIndex> {
+    /// Returns less than f+1 authorities by stake.
+    fn get_excluded_authorities_by_stake(
+        self: &Arc<Self>,
+        context: &Context,
+    ) -> BTreeSet<AuthorityIndex> {
         let last_round_by_peer = { self.inner.lock().clone() };
 
         let mut indexed_rounds: Vec<(AuthorityIndex, Instant)> = last_round_by_peer
@@ -120,13 +123,15 @@ impl LastFailureByPeer {
 
         indexed_rounds.sort_by_key(|&(_, instant)| std::cmp::Reverse(instant));
 
-        // Exclude at most 2/3 of authorities with latest failures
-        let exclude_count = 2 * (last_round_by_peer.len() - 1) / 3;
-        let excluded_authorities: BTreeSet<AuthorityIndex> = indexed_rounds
-            .into_iter()
-            .take(exclude_count)
-            .map(|(idx, _)| idx)
-            .collect();
+        let mut excluded_authorities = BTreeSet::new();
+        let mut stake = 0;
+        for (authority_index, last_instant) in indexed_rounds {
+            stake += context.committee.stake(authority_index);
+            if context.committee.reached_validity(stake) {
+                break;
+            }
+            excluded_authorities.insert(authority_index);
+        }
 
         excluded_authorities
     }
@@ -740,7 +745,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 // Stable order for tests
                 Box::new(blocks_by_authority.into_iter())
             } else {
-                let excluded_authorities = last_failure_by_peer.get_excluded_authorities();
+                // Get less than f+1 excluded authorities by stake
+                let excluded_authorities =
+                    last_failure_by_peer.get_excluded_authorities_by_stake(&context);
                 // Exclude authorities with latest recorded failures
                 let mut vec: Vec<_> = blocks_by_authority
                     .into_iter()
