@@ -370,10 +370,7 @@ impl TransactionsSynchronizerHandle {
 ///    periodic basis or is triggered immediately after explicit fetches
 ///    described in (1), ensuring continued transaction retrieval if gaps
 ///    persist.
-pub(crate) struct TransactionsSynchronizer<
-    C: NetworkClient,
-    D: CoreThreadDispatcher,
-> {
+pub(crate) struct TransactionsSynchronizer<C: NetworkClient, D: CoreThreadDispatcher> {
     context: Arc<Context>,
     commands_receiver: Receiver<Command>,
     live_fetch_requests: Sender<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
@@ -387,9 +384,7 @@ pub(crate) struct TransactionsSynchronizer<
     last_failure_by_peer: Arc<LastFailureByPeer>,
 }
 
-impl<C: NetworkClient, D: CoreThreadDispatcher>
-    TransactionsSynchronizer<C, D>
-{
+impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
     /// Starts the transactions synchronizer, which is responsible for fetching
     /// transactions from other authorities and managing transaction
     /// synchronization tasks.
@@ -1143,7 +1138,6 @@ mod tests {
             BlockHeaderDigest, BlockRef, TransactionsCommitment, VerifiedBlock,
             VerifiedBlockHeader, VerifiedOwnShard, VerifiedTransactions,
         },
-        block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange},
         context::Context,
         core::ReasonToCreateBlock,
@@ -1159,7 +1153,6 @@ mod tests {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1170,7 +1163,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         let mut encoder = create_encoder(&context);
@@ -1261,7 +1253,6 @@ mod tests {
         // GIVEN
         let (context, _) = Context::new_for_test(LIVE_FETCH_TRANSACTIONS_CONCURRENCY * 3);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1272,7 +1263,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         let mut encoder = create_encoder(&context);
@@ -1379,7 +1369,6 @@ mod tests {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1390,7 +1379,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         let mut encoder = create_encoder(&context);
@@ -1500,7 +1488,6 @@ mod tests {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1511,7 +1498,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         let mut encoder = create_encoder(&context);
@@ -1610,7 +1596,6 @@ mod tests {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1621,7 +1606,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         let mut encoder = create_encoder(&context);
@@ -1722,7 +1706,6 @@ mod tests {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1733,7 +1716,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         let mut encoder = create_encoder(&context);
@@ -1834,7 +1816,6 @@ mod tests {
         // GIVEN
         let (context, _) = Context::new_for_test(4);
         let context = Arc::new(context);
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let core_dispatcher = Arc::new(MockCoreThreadDispatcher::new());
         let network_client = Arc::new(MockNetworkClient::new());
         let store = Arc::new(MemStore::new());
@@ -1845,7 +1826,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         let mut encoder = create_encoder(&context);
