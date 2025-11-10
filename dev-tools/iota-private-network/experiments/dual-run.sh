@@ -60,7 +60,7 @@ PAUSE_BETWEEN_STEPS=180 # seconds
 # parameter sequences (same length)
 R_LIST=(25 26 33 33)   # percent restarts
 X_LIST=(10 15 10 10)   # percent block
-L_LIST=(10 15 10 10)    # percent nodes with loss
+L_LIST=(10 15 10 10)   # percent nodes with loss
 
 
 run_experiment() {
