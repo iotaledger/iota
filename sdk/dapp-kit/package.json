@@ -32,7 +32,6 @@
         "build": "build-dapp-kit",
         "test": "pnpm test:typecheck && pnpm vitest run",
         "test:typecheck": "tsc -b ./test",
-        "prepublishOnly": "pnpm build",
         "size": "size-limit",
         "analyze": "size-limit --why",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
