@@ -813,8 +813,8 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             if let Err(err) = result {
                 last_failure_by_peer.update_with_new_instant(peer, Instant::now());
                 warn!(
-                    "[{}] Error when fetching and processing transactions from authority: {err}",
-                    sync_method.get_string()
+                    "[{}] Error when fetching and processing transactions from authority {peer}: {err}",
+                    sync_method.get_string(),
                 );
             }
         }
