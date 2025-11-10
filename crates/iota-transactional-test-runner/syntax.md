@@ -27,6 +27,7 @@
   - [`view-checkpoint`](#view-checkpoint)
   - [`run-graphql`](#run-graphql)
   - [`bench`](#bench)
+  - [`abstract`](#abstract)
 - [How `run_test` Compares a Move File With the Corresponding `.snap` File](#how-run_test-compares-a-move-file-with-the-corresponding-snap-file)
   - [Adapter Creation in `create_adapter`](#adapter-creation-in-create_adapter)
   - [Execution Process in `run_tasks_with_adapter`](#execution-process-in-run_tasks_with_adapter)
@@ -1414,6 +1415,159 @@ task 1 'publish'. lines 3-15:
 created: object(1,0), object(1,1)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, storage_cost: 7220000,  storage_rebate: 0, non_refundable_storage_fee: 0
+```
+
+### `abstract`
+
+The `abstract` subcommand (`AbstractTransaction` in Rust) extends the capabilities of programmable transactions by allowing them to be executed through an Abstract Account (AA) authentication by a Move-based authenticator (`MoveAuthenticator`).
+Unlike programmable, where the sender directly signs the transaction with a system signature, abstract enables account abstraction — the sender is represented by a Abstract Account object itself.
+
+#### Syntax
+
+```
+//# abstract [OPTIONS]
+```
+
+#### Options
+
+```
+--sponsor <SPONSOR> (optional): account that pays for gas. If omitted, you must provide --gas-payment and that coin must be owned by the Abstract Account (AA).
+--gas-payment <OBJECT_ID>: coin object used to pay gas. Required when --sponsor is not provided.
+--auth-inputs <AUTH_INPUTS>: arguments to build the MoveAuthenticator. The first value must be the AA shared object (immutable).
+--ptb-inputs <PTB_INPUTS>: inputs passed to the PTB (Programmable Transaction Block) body.
+--gas-budget <GAS_BUDGET> (optional): maximum gas units for execution.
+--gas-price <GAS_PRICE> (optional): gas price per unit.
+```
+
+#### Example
+
+```move
+//# init --addresses test=0x0 --accounts A
+
+//# publish --sender A
+module test::abstract_account;
+
+use iota::account::{Self, AuthenticatorInfoV1};
+use iota::auth_context::AuthContext;
+use iota::dynamic_field;
+
+#[error(code = 0)]
+const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be signed by the account.";
+
+public struct AbstractAccount has key {
+    id: UID,
+}
+
+public struct OwnerPublicKey has copy, drop, store {}
+
+public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
+    let mut account = AbstractAccount { id: object::new(ctx) };
+    account::attach_auth_info_v1(&mut account.id, authenticator);
+    dynamic_field::add(&mut account.id, OwnerPublicKey {}, public_key);
+    iota::transfer::share_object(account);
+}
+
+public fun ensure_tx_sender_is_account(self: &AbstractAccount, ctx: &TxContext) {
+    assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
+}
+
+public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx: &TxContext) {
+    ensure_tx_sender_is_account(account, ctx);
+}
+
+//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate"
+//> 0: iota::account::create_auth_info_v1(Input(1), Input(2), Input(3));
+//> 1: test::abstract_account::create(Input(0), Result(0));
+
+//# view-object 2,2
+
+//# set-address a_account object(2,2)
+
+//# programmable --sender A --inputs 7000000000 @a_account
+//> 0: SplitCoins(Gas, [Input(0)]);
+//> 1: TransferObjects([Result(0)], Input(1));
+
+//# view-object 5,0
+
+//# abstract --gas-payment 5,0 --auth-inputs immshared(2,2) --ptb-inputs 100 @A
+//> 0: SplitCoins(Gas, [Input(0)]);
+//> 1: TransferObjects([Result(0)], Input(1));
+```
+
+- Authenticator Inputs (--auth-inputs)
+The first authenticator input (`immshared(2,2)`) must be the Abstract Account immutable shared object.
+The following authenticator inputs (e.g., x"...") represent any required verification payloads, such as a user signature or session data.
+These values are passed into the MoveAuthenticator automatically and used by the Move runtime during authentication.
+- PTB Inputs (--ptb-inputs)
+These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
+The PTB commands (//> ...) operate as in the programmable command.
+
+`.snap` output:
+
+```
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 9 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 8-38:
+//# publish --sender A
+created: object(1,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9386000,  storage_rebate: 0, non_refundable_storage_fee: 0
+
+task 2, lines 40-42:
+//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate"
+//> 0: iota::account::create_auth_info_v1(Input(1), Input(2), Input(3));
+//> 1: test::abstract_account::create(Input(0), Result(0));
+created: object(2,0), object(2,1), object(2,2)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7030000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 44:
+//# view-object 2,2
+Owner: Shared( 3 )
+Version: 3
+Contents: test::abstract_account::AbstractAccount {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,2),
+        },
+    },
+}
+
+task 5, lines 48-50:
+//# programmable --sender A --inputs 7000000000 @a_account
+//> 0: SplitCoins(Gas, [Input(0)]);
+//> 1: TransferObjects([Result(0)], Input(1));
+created: object(5,0)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 6, line 52:
+//# view-object 5,0
+Owner: Account Address ( a_account )
+Version: 4
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(5,0),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 7000000000u64,
+    },
+}
+
+task 7, lines 54-56:
+//# abstract --gas-payment 5,0 --auth-inputs immshared(2,2) --ptb-inputs 100 @A
+created: object(7,0)
+mutated: object(5,0)
+unchanged_shared: object(2,2)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 ```
 
 ## How `run_test` Compares a Move File With the Corresponding `.snap` File
