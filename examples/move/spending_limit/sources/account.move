@@ -9,9 +9,12 @@ use iota::auth_context::{AuthContext, tx_commands, tx_inputs};
 use iota::balance::{Self, Balance};
 use iota::bcs;
 use iota::coin::{Self, Coin};
+use iota::dynamic_field;
+use iota::iota::IOTA;
 use iota::programmable_transaction::{
     move_call_data,
     command_to_int,
+    pure_data,
     arguments,
     package_id,
     function_name,
@@ -23,7 +26,6 @@ use iota::programmable_transaction::{
     is_shared_object,
     shared_object_data
 };
-use iotaccount::iotaccount;
 use spending_limit::spending_limit;
 use std::ascii;
 use std::type_name::{get, get_address};
@@ -34,10 +36,13 @@ use std::type_name::{get, get_address};
 const EInsufficientBalanceReserve: vector<u8> = b"Insufficient balance reserve.";
 
 #[error(code = 1)]
-const EUnauthorizedWithdrawCall: vector<u8> = b"Unauthorized withdraw_from_balance_reserve call.";
+const EUnauthorizedWithdrawCall: vector<u8> = b"Unauthorized withdraw_from_balance call.";
 
 #[error(code = 2)]
-const EInvalidArgumentType: vector<u8> = b"Invalid argument type.";
+const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be signed by the account.";
+
+#[error(code = 3)]
+const EInvalidAmount: vector<u8> = b"Invalid amount in withdraw command.";
 
 // === Constants ===
 
@@ -50,8 +55,13 @@ public struct SpendLimit has key {
 // Marker for the gas reserve balance (outside spending limit).
 public struct BalanceReserveKey has copy, drop, store {}
 
-public struct BalanceReserve<phantom T> has store {
-    balance: Balance<T>,
+public struct BalanceReserve has store {
+    balance: Balance<IOTA>,
+}
+
+public struct WithdrawProof {
+    account_id: ID,
+    amount: u64,
 }
 
 // === Events ===
@@ -74,6 +84,14 @@ public fun create(
     );
     // Attach public key using the owner_public_key module.
     owner_public_key::attach(&mut id, public_key);
+    // Initialize balance reserve.
+    dynamic_field::add(
+        &mut id,
+        BalanceReserveKey {},
+        BalanceReserve {
+            balance: balance::zero<IOTA>(),
+        },
+    );
     // Attach spending limit.
     spending_limit::attach(
         &mut id,
@@ -88,115 +106,115 @@ public fun authenticate(
     signature: vector<u8>,
     auth_ctx: &AuthContext,
     ctx: &TxContext,
-) {
-    iotaccount::ensure_tx_sender_is_account_id(&account.id, ctx);
-
+): WithdrawProof {
     owner_public_key::authenticate_ed25519(&account.id, signature, ctx.digest());
 
-    assert!(has_right_package_id_and_withdraw_call(auth_ctx, ctx), EUnauthorizedWithdrawCall);
+    let total_amount = validate_and_calculate_withdrawals(auth_ctx, ctx);
+    assert!(total_amount > 0, EUnauthorizedWithdrawCall);
 
-    let actual_amount = extract_withdraw_amount(auth_ctx);
+    spending_limit::authenticate_with_amount(&account.id, total_amount);
 
-    spending_limit::authenticate_with_amount(&account.id, actual_amount);
+    WithdrawProof {
+        account_id: object::id(account),
+        amount: total_amount,
+    }
 }
 
 public fun withdraw_from_balance_reserve(
-    self: &mut iotaccount::IOTAccount,
-    amount: u64,
+    self: &mut SpendLimit,
+    proof: WithdrawProof,
     ctx: &mut TxContext,
 ): Coin<iota::iota::IOTA> {
-    iotaccount::ensure_tx_sender_is_account(self, ctx);
 
-    let reserve: &mut BalanceReserve<iota::iota::IOTA> = self.borrow_field_mut(
+    // Consume and validate proof
+    let WithdrawProof { account_id, amount } = proof;
+    assert!(object::id(self) == account_id, EUnauthorizedWithdrawCall);
+
+    let reserve: &mut BalanceReserve = borrow_field_mut(
+        self,
         BalanceReserveKey {},
         ctx,
     );
 
     assert!(balance::value(&reserve.balance) >= amount, EInsufficientBalanceReserve);
-
     let withdrawn_balance = balance::split(&mut reserve.balance, amount);
     coin::from_balance(withdrawn_balance, ctx)
 }
 
-fun extract_withdraw_amount(auth_ctx: &AuthContext): u64 {
+// Validates withdraw calls and calculates total withdrawal amount.
+// Returns the total amount from all valid withdraw commands.
+// Returns 0 if no valid withdraw commands are found.
+public(package) fun validate_and_calculate_withdrawals(auth_ctx: &AuthContext, ctx: &TxContext): u64 {
     let commands = tx_commands(auth_ctx);
     let inputs = tx_inputs(auth_ctx);
+    let mut total_amount = 0u64;
+    let mut i = 0;
+    let len = commands.length();
 
-    // Find the withdraw_from_balance_reserve call
-    let withdraw_idx = commands.find_index!(|cmd| {
-        if (command_to_int(cmd) != 0) {
-            false
-        } else {
+    while (i < len) {
+        let cmd = &commands[i];
+
+        if (command_to_int(cmd) == 0) {
             let call = move_call_data(cmd);
-            function_name(call) == &ascii::string(b"withdraw_from_balance_reserve")
-        }
-    });
 
-    // Ensure we found the withdraw call
-    assert!(option::is_some(&withdraw_idx), EUnauthorizedWithdrawCall);
+            if (is_valid_withdraw_call(call, auth_ctx, ctx)) {
+                // Extract amount inline
+                let args = arguments(call);
+                assert!(args.length() > 1, EInvalidAmount);
+                let amount_arg = &args[1];
+                let input_idx = argument_input(amount_arg);
+                assert!((input_idx as u64) < inputs.length(), EInvalidAmount);
+                let call_arg = &inputs[(input_idx as u64)];
+                let bytes = pure_data(call_arg);
+                // u64 is 8 bytes
+                assert!(bytes.length() == 8, EInvalidAmount);
+                let mut bcs_stream = bcs::new(*bytes);
+                let amount = bcs_stream.peel_u64();
+                assert!(amount > 0, EInvalidAmount);
 
-    // Get the command at that index
-    let cmd_index = option::destroy_some(withdraw_idx);
-    let cmd = commands.borrow(cmd_index);
-    let call = move_call_data(cmd);
+                total_amount = total_amount + amount;
+            };
+        };
 
-    // Extract the amount argument (second arg after self)
-    let args = arguments(call);
-    assert!(args.length() >= 2, EInvalidArgumentType);
+        i = i + 1;
+    };
 
-    let amount_arg = args.borrow(1);
-    let input_ix = argument_input(amount_arg) as u64;
-
-    assert!(input_ix < inputs.length(), EInvalidArgumentType);
-
-    let call_arg = inputs.borrow(input_ix);
-    assert!(is_pure_data(call_arg), EInvalidArgumentType);
-
-    let pure_bytes = call_arg.pure_data();
-    let mut bcs_reader = bcs::new(*pure_bytes);
-    return bcs::peel_u64(&mut bcs_reader)
+    total_amount
 }
 
-public fun has_right_package_id_and_withdraw_call(
+// Helper function to validate if a MoveCall is a valid withdraw call
+fun is_valid_withdraw_call(
+    call: &ProgrammableMoveCall,
     auth_ctx: &AuthContext,
-    ctx: &iota::tx_context::TxContext,
+    ctx: &TxContext,
 ): bool {
-    let commands = tx_commands(auth_ctx);
-    let hit = commands.find_index!(|cmd| {
-        if (command_to_int(cmd) != 0) {
-            return false
-        };
+    // Check first argument equals sender
+    if (!first_arg_equals_sender(call, auth_ctx, ctx)) {
+        return false
+    };
 
-        let call = move_call_data(cmd);
+    // Check if the function is withdraw_from_balance_reserve
+    if (function_name(call) != &ascii::string(b"withdraw_from_balance_reserve")) {
+        return false
+    };
 
-        // Check first argument equals sender
-        if (!first_arg_equals_sender(call, auth_ctx, ctx)) {
-            return false
-        };
+    // Check if the module is account
+    if (module_name(call) != &ascii::string(b"account")) {
+        return false
+    };
 
-        // Check if the function is withdraw_from_balance_reserve
-        if (function_name(call) != &ascii::string(b"withdraw_from_balance_reserve")) {
-            return false
-        };
+    // Extract the package ID from the call (convert ID -> address)
+    let call_package_id = package_id(call);
+    let call_package_addr = object::id_to_address(call_package_id);
 
-        if (module_name(call) != &ascii::string(b"account")) {
-            return false
-        };
+    let expected_type = get<SpendLimit>();
+    let expected_addr_string = get_address(&expected_type);
 
-        // Extract the package ID from the call (convert ID -> address)
-        let call_package_id = package_id(call);
-        let call_package_addr = object::id_to_address(call_package_id);
+    // Convert the ASCII string to an address for comparison
+    let expected_package_addr = iota::address::from_ascii_bytes(expected_addr_string.as_bytes());
 
-        let expected_type = get<SpendLimit>();
-        let expected_addr_string = get_address(&expected_type);
-
-        // Convert the ASCII string to an address for comparison
-        let expected_package_addr = iota::address::from_ascii_bytes(expected_addr_string.as_bytes());
-
-        // Compare the two addresses
-        call_package_addr == expected_package_addr
-    });
-    option::is_some(&hit)
+    // Compare the two addresses
+    call_package_addr == expected_package_addr
 }
 
 fun first_arg_equals_sender(
@@ -222,7 +240,7 @@ fun first_arg_equals_sender(
     };
     let carg = inputs.borrow(input_ix);
 
-    // I guess it's not expected to have like a pure input...
+    // Pure data argument cannot be equal to sender
     if (is_pure_data(carg)) {
         return false
     };
@@ -247,6 +265,31 @@ fun first_arg_equals_sender(
     };
 
     false
+}
+
+public fun ensure_tx_sender_is_account(self: &SpendLimit, ctx: &TxContext) {
+    assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
+}
+
+public fun deposit_to_reserve(self: &mut SpendLimit, coin: Coin<IOTA>, ctx: &TxContext) {
+    let reserve = borrow_field_mut<BalanceReserveKey, BalanceReserve>(
+        self,
+        BalanceReserveKey {},
+        ctx,
+    );
+    balance::join(&mut reserve.balance, coin::into_balance(coin));
+}
+
+public fun borrow_field_mut<Name: copy + drop + store, Value: store>(
+    self: &mut SpendLimit,
+    name: Name,
+    ctx: &TxContext,
+): &mut Value {
+    // Check that the sender of this transaction is the account.
+    ensure_tx_sender_is_account(self, ctx);
+
+    // Borrow the related dynamic field.
+    dynamic_field::borrow_mut(&mut self.id, name)
 }
 
 // === View Functions ===
@@ -278,3 +321,12 @@ public fun authenticator_info(account: &SpendLimit): &AuthenticatorInfoV1 {
 // === Private Functions ===
 
 // === Test Functions ===
+
+// Useless function to test withdrawals in programmable transactions calling this function instead of withdraw_from_balance_reserve.
+#[test_only]
+public fun random_function_that_does_nothing(_number: u16) {}
+
+#[test_only]
+public fun destroy_withdraw_proof_for_testing(proof: WithdrawProof) {
+    let WithdrawProof { account_id: _, amount: _ } = proof;
+}
