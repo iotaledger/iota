@@ -9,9 +9,11 @@
 //! `iota-execution/latest/iota-move-natives/src/raw_module_loader/mod.rs`in an
 //! e2e environment.
 
+use std::str::FromStr;
+
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS,
+    IOTA_FRAMEWORK_ADDRESS, TypeTag,
     base_types::{ObjectID, ObjectRef},
     effects::{TransactionEffects, TransactionEvents},
     transaction::CallArg,
@@ -115,7 +117,7 @@ macro_rules! gen_simtest_expect_fail {
         async fn $function_name() {
             let env = TestEnvironment::new().await;
             let (effects, _) = env
-                .create_auth_info_using("signature", "at_least_two_args")
+                .create_auth_info_using(stringify!($module_name), stringify!($function_name))
                 .await
                 .unwrap();
             assert!(effects.status().is_err());
@@ -173,11 +175,16 @@ pass::{
 }
 fail::{
     has_to_be_public_auth_function,
-    at_least_two_args,
+    without_account,
+    without_auth_context,
+    without_tx_context,
+    account_cant_be_value,
     auth_context_cant_be_value,
-    auth_context_cant_be_mutable_ref,
     tx_context_cant_be_value,
+    account_cant_be_mutable_ref,
+    auth_context_cant_be_mutable_ref,
     tx_context_cant_be_mutable_ref,
+    account_isnt_struct,
     auth_context_isnt_struct,
     tx_context_isnt_struct,
     with_signer
@@ -265,6 +272,7 @@ impl TestEnvironment {
                 "create_auth_info_v1",
                 arguments,
             )
+            .with_type_args(vec![account_type_tag(&self.package_id)])
             .build();
 
         let transaction = self.cluster.wallet.sign_transaction(&transaction_data);
@@ -282,4 +290,8 @@ async fn publish_move_package(test_cluster: &TestCluster) -> ObjectRef {
     .iter()
     .collect();
     publish_package(&test_cluster.wallet, path).await
+}
+
+fn account_type_tag(package_id: &ObjectID) -> TypeTag {
+    TypeTag::from_str(format!("{package_id}::account::Account").as_str()).unwrap()
 }

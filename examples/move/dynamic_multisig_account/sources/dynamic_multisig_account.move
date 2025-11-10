@@ -47,7 +47,7 @@ public fun create(
     members_addresses: vector<address>,
     members_weights: vector<u64>,
     threshold: u64,
-    authenticator: AuthenticatorInfoV1,
+    authenticator: AuthenticatorInfoV1<DynamicMultisigAccount>,
     ctx: &mut TxContext,
 ) {
     // Create a `Members` instance.
@@ -119,7 +119,9 @@ public fun total_approves(self: &DynamicMultisigAccount, transaction_digest: vec
 }
 
 /// Immutably borrows the account authenticator.
-public fun authenticator(self: &DynamicMultisigAccount): &AuthenticatorInfoV1 {
+public fun authenticator(
+    self: &DynamicMultisigAccount,
+): &AuthenticatorInfoV1<DynamicMultisigAccount> {
     account::borrow_auth_info_v1(&self.id)
 }
 
@@ -181,7 +183,7 @@ public fun update_account_data(
     members_addresses: vector<address>,
     members_weights: vector<u64>,
     threshold: u64,
-    authenticator: AuthenticatorInfoV1,
+    authenticator: AuthenticatorInfoV1<DynamicMultisigAccount>,
     ctx: &TxContext,
 ) {
     // Check that the sender of this transaction is the account.

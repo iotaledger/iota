@@ -14,11 +14,11 @@ use move_vm_types::{
     loaded_data::runtime_types::Type,
     natives::function::NativeResult,
     pop_arg,
-    values::{StructRef, Value, VectorRef},
+    values::{Value, VectorRef},
 };
 use smallvec::smallvec;
 
-use crate::{NativesCostTable, get_nested_struct_field, raw_module_loader::RawModuleLoader};
+use crate::{NativesCostTable, raw_module_loader::RawModuleLoader};
 
 #[derive(Copy, Clone, Debug)]
 pub struct CheckAuthInfoV1ImplCostParams {
@@ -30,7 +30,7 @@ pub fn check_auth_info_v1(
     ty_args: Vec<Type>,
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
-    debug_assert!(ty_args.is_empty());
+    debug_assert!(ty_args.len() == 1);
     debug_assert!(args.len() == 3);
 
     // charge gas
@@ -82,73 +82,7 @@ pub fn check_auth_info_v1(
         );
     };
 
-    if let Err(execution_error) =
-        account_auth_verifier::verify_authenticate_func(&compiled_module, function_identifier)
-    {
-        return Err(
-            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
-                .with_message(execution_error.to_string()),
-        );
-    }
-
-    Ok(NativeResult::ok(context.gas_used(), smallvec![]))
-}
-
-pub fn check_auth_info_v1_compatibility(
-    context: &mut NativeContext,
-    ty_args: Vec<Type>,
-    mut args: VecDeque<Value>,
-) -> PartialVMResult<NativeResult> {
-    debug_assert!(ty_args.len() == 1);
-    debug_assert!(args.len() == 1);
-
-    let authenticator_info = pop_arg!(args, StructRef);
-
-    let package_value = authenticator_info
-        .borrow_field(0)?
-        .value_as::<StructRef>()?
-        .read_ref()?;
-    let package_address =
-        get_nested_struct_field(package_value, &[0])?.value_as::<AccountAddress>()?;
-    let package_id = ObjectID::from(package_address);
-
-    let module_name_bytes = authenticator_info
-        .borrow_field(1)?
-        .value_as::<StructRef>()?
-        .borrow_field(0)?
-        .value_as::<VectorRef>()?;
-    let module_name = String::from(unsafe {
-        std::str::from_utf8_unchecked(module_name_bytes.as_bytes_ref().as_slice())
-    });
-    let module_identifier = Identifier::new(module_name.clone()).unwrap();
-
-    let function_name_bytes = authenticator_info
-        .borrow_field(2)?
-        .value_as::<StructRef>()?
-        .borrow_field(0)?
-        .value_as::<VectorRef>()?;
-    let function_name = String::from(unsafe {
-        std::str::from_utf8_unchecked(function_name_bytes.as_bytes_ref().as_slice())
-    });
-    let function_identifier = Identifier::new(function_name.clone()).unwrap();
-
-    // Loading module for context verifying the referenced `authenticate` function.
-    // There are two base cases when looking for an `authenticate` function. The
-    // `authenticate` function is either in the current module (which is not handled
-    // by this function as the user cannot write such a requirement down at the
-    // moment) or it must be loaded. Either because it is in a completely
-    // different package or its for this package, but a different version.
-    let raw_module_loader = &context.extensions().get::<RawModuleLoader>()?;
-    let Some(compiled_module) = raw_module_loader.get_module(&package_id, &module_identifier)
-    else {
-        return Err(
-            PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR).with_message(
-                format!("Referenced module:{package_address}::{module_name} unavailable"),
-            ),
-        );
-    };
-
-    if let Err(execution_error) = account_auth_verifier::verify_authenticate_func_compatibility(
+    if let Err(execution_error) = account_auth_verifier::verify_authenticate_func(
         &compiled_module,
         function_identifier,
         &context.type_to_type_tag(&ty_args[0])?,

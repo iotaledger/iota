@@ -110,7 +110,7 @@ fun authenticator_info_v1_not_proven_attach() {
 fun authenticator_info_v1_borrow_non_existent() {
     account_test!(|_, account_id| {
         // Borrow a non-existing `AuthenticatorInfoV1` instance.
-        account::borrow_auth_info_v1(account_id);
+        account::borrow_auth_info_v1<TestAccount>(account_id);
     });
 }
 
@@ -155,7 +155,7 @@ fun create_test_account(scenario: &mut Scenario): TestAccount {
     TestAccount { id: object::new(test_scenario::ctx(scenario)) }
 }
 
-fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
+fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<TestAccount> {
     account::create_auth_info_v1_for_testing(
         @0x1,
         ascii::string(b"module"),

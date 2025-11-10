@@ -1351,9 +1351,6 @@ auth_info_v1_key
 check_auth_info_v1
 	fun
 	0x2::account
-native_check_auth_info_v1_compatibility
-	fun
-	0x2::account
 ProgrammableMoveCall
 	public struct
 	0x2::programmable_transaction

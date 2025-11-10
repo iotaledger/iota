@@ -61,7 +61,11 @@ public struct FunctionKeysName has copy, drop, store {}
 fun fk_store_key(): FunctionKeysName { FunctionKeysName {} }
 
 /// Creates a new `IOTAccount` as a shared object with the given authenticator.
-public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
+public fun create(
+    public_key: vector<u8>,
+    authenticator: AuthenticatorInfoV1<IOTAccount>,
+    ctx: &mut TxContext,
+) {
     let account = builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
         .add_dynamic_field(fk_store_key(), build_fn_keys_store(ctx))
@@ -173,7 +177,7 @@ public fun borrow_public_key(account: &IOTAccount): &vector<u8> {
 #[test_only]
 public fun create_without_fk_store(
     public_key: vector<u8>,
-    authenticator: AuthenticatorInfoV1,
+    authenticator: AuthenticatorInfoV1<IOTAccount>,
     ctx: &mut TxContext,
 ) {
     let account = builder(authenticator, ctx)

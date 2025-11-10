@@ -39,6 +39,7 @@ use crate::verification_failure;
 pub fn verify_authenticate_func(
     module: &CompiledModule,
     function_identifier: Identifier,
+    account_type: &TypeTag,
 ) -> Result<(), ExecutionError> {
     let module_name = module.name();
 
@@ -70,12 +71,18 @@ pub fn verify_authenticate_func(
     let function_handle = module.function_handle_at(function_definition.function);
     let function_signature = module.signature_at(function_handle.parameters);
 
-    // at least two arguments
-    if function_signature.0.len() < 2 {
+    // at least three arguments
+    if function_signature.0.len() < 3 {
         return Err(verification_failure(format!(
-            "Authenticator function '{function_identifier}' must require at least &AuthContext and &TxContext arguments."
+            "Authenticator function '{function_identifier}' must require at least: an account reference, &AuthContext and &TxContext arguments."
         )));
     }
+
+    // The first parameter must match the authenticated account type.
+    // Additional restrictions on the first argument type are enforced in the
+    // following check.
+    verify_account_type(module, &function_signature.0[0], account_type)
+        .map_err(verification_failure)?;
 
     // Apart from AuthContext and TxContext we only require that the arguments are
     // not mutable references. They can be mutable values, as their mutability
@@ -128,34 +135,6 @@ pub fn verify_authenticate_func(
     }
 
     Ok(())
-}
-
-pub fn verify_authenticate_func_compatibility(
-    module: &CompiledModule,
-    function_identifier: Identifier,
-    account_type: &TypeTag,
-) -> Result<(), ExecutionError> {
-    let module_name = module.name();
-
-    let Some((_, function_definition)) =
-        module.find_function_def_by_name(function_identifier.as_str())
-    else {
-        return Err(verification_failure(format!(
-            "Authenticator function '{function_identifier}' not found in '{module_name}'"
-        )));
-    };
-
-    let function_handle = module.function_handle_at(function_definition.function);
-    let function_signature = module.signature_at(function_handle.parameters);
-
-    if function_signature.0.len() > 0 {
-        verify_account_param_type(module, &function_signature.0[0], account_type)
-            .map_err(verification_failure)
-    } else {
-        Err(verification_failure(format!(
-            "Authenticator function '{function_identifier}' must have an account argument."
-        )))
-    }
 }
 
 /// Evaluate that signature type is of [pure input](https://docs.iota.org/developer/iota-101/transactions/ptb/programmable-transaction-blocks#inputs)
@@ -283,7 +262,9 @@ fn verify_authenticate_param_type(
     }
 }
 
-fn verify_account_param_type(
+/// Verify that the first parameter type of the authenticate function matches
+/// the account type.
+fn verify_account_type(
     module: &CompiledModule,
     param: &SignatureToken,
     account_type: &TypeTag,

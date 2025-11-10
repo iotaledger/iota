@@ -20,18 +20,19 @@ const EAuthenticatorInfoV1CompatibilityNotProven: vector<u8> =
 /// authenticate function.
 public struct AuthenticatorInfoV1Key has copy, drop, store {}
 
-/// Contains a validated information about an authenticate function.
+/// Represents a validated authenticate function.
+/// `Account` is a phantom type representing the account type which can be authenticated.
 #[allow(unused_field)]
-public struct AuthenticatorInfoV1 has copy, drop, store {
+public struct AuthenticatorInfoV1<phantom Account: key> has copy, drop, store {
     package: ID,
     module_name: ascii::String,
     function_name: ascii::String,
 }
 
 /// Represents a proof of compatibility between `AuthenticatorInfoV1` and an account.
-public struct AuthenticatorInfoV1CompatibilityProof has drop {
+public struct AuthenticatorInfoV1CompatibilityProof<phantom Account: key> has drop {
     account_id: ID,
-    authenticator: AuthenticatorInfoV1,
+    authenticator: AuthenticatorInfoV1<Account>,
 }
 
 /// Create an "AuthenticatorInfoV1" using an `authenticate` function defined outside of this version of the package
@@ -47,12 +48,12 @@ public struct AuthenticatorInfoV1CompatibilityProof has drop {
 /// it does not collide with any compile time restrictions.
 ///
 /// This function cannot be used in `move unit tests` as there is no mechanism to refer to the package being tested.
-public fun create_auth_info_v1(
+public fun create_auth_info_v1<Account: key>(
     package: address,
     module_name: ascii::String,
     function_name: ascii::String,
-): AuthenticatorInfoV1 {
-    check_auth_info_v1(package, module_name.as_bytes(), function_name.as_bytes());
+): AuthenticatorInfoV1<Account> {
+    check_auth_info_v1<Account>(package, module_name.as_bytes(), function_name.as_bytes());
     AuthenticatorInfoV1 {
         package: object::id_from_address(package),
         module_name,
@@ -64,9 +65,8 @@ public fun create_auth_info_v1(
 /// Returns a proof that can be used to attach or rotate the `authenticator` to the `account`.
 public fun check_auth_info_v1_compatibility<Account: key>(
     account: &Account,
-    authenticator: AuthenticatorInfoV1,
-): AuthenticatorInfoV1CompatibilityProof {
-    native_check_auth_info_v1_compatibility<Account>(&authenticator);
+    authenticator: AuthenticatorInfoV1<Account>,
+): AuthenticatorInfoV1CompatibilityProof<Account> {
     AuthenticatorInfoV1CompatibilityProof {
         account_id: object::id(account),
         authenticator,
@@ -75,7 +75,10 @@ public fun check_auth_info_v1_compatibility<Account: key>(
 
 /// Attach the `authenticator` instance to the account.
 /// It will be added as a dynamic field specified by the `AuthenticatorInfoV1Key` name.
-public fun attach_auth_info_v1(account_id: &mut UID, proof: AuthenticatorInfoV1CompatibilityProof) {
+public fun attach_auth_info_v1<Account: key>(
+    account_id: &mut UID,
+    proof: AuthenticatorInfoV1CompatibilityProof<Account>,
+) {
     assert!(account_id.as_inner() == proof.account_id, EAuthenticatorInfoV1CompatibilityNotProven);
     assert!(!has_auth_info_v1(account_id), EAuthenticatorInfoV1AlreadyAttached);
 
@@ -85,10 +88,10 @@ public fun attach_auth_info_v1(account_id: &mut UID, proof: AuthenticatorInfoV1C
 /// Rotate the account-related authenticator.
 /// The `authenticator` instance will replace the account dynamic field specified by the `AuthenticatorInfoV1Key` name;
 /// the previous value will be returned.
-public fun rotate_auth_info_v1(
+public fun rotate_auth_info_v1<Account: key>(
     account_id: &mut UID,
-    proof: AuthenticatorInfoV1CompatibilityProof,
-): AuthenticatorInfoV1 {
+    proof: AuthenticatorInfoV1CompatibilityProof<Account>,
+): AuthenticatorInfoV1<Account> {
     assert!(account_id.as_inner() == proof.account_id, EAuthenticatorInfoV1CompatibilityNotProven);
     assert!(has_auth_info_v1(account_id), EAuthenticatorInfoV1NotAttached);
 
@@ -101,7 +104,7 @@ public fun rotate_auth_info_v1(
 
 /// Borrow the account-related authenticator.
 /// The dynamic field specified by the `AuthenticatorInfoV1Key` name will be returned.
-public fun borrow_auth_info_v1(account_id: &UID): &AuthenticatorInfoV1 {
+public fun borrow_auth_info_v1<Account: key>(account_id: &UID): &AuthenticatorInfoV1<Account> {
     assert!(has_auth_info_v1(account_id), EAuthenticatorInfoV1NotAttached);
     dynamic_field::borrow(account_id, auth_info_v1_key())
 }
@@ -115,22 +118,18 @@ fun auth_info_v1_key(): AuthenticatorInfoV1Key {
     AuthenticatorInfoV1Key {}
 }
 
-native fun check_auth_info_v1(
+native fun check_auth_info_v1<Account: key>(
     package: address,
     module_name: &vector<u8>,
     function_name: &vector<u8>,
 );
 
-native fun native_check_auth_info_v1_compatibility<Account: key>(
-    authenticator: &AuthenticatorInfoV1,
-);
-
 /// Creates an `AuthenticatorInfoV1` instance for testing, skipping validation.
 #[test_only]
-public fun create_auth_info_v1_for_testing(
+public fun create_auth_info_v1_for_testing<Account: key>(
     package: address,
     module_name: ascii::String,
     function_name: ascii::String,
-): AuthenticatorInfoV1 {
+): AuthenticatorInfoV1<Account> {
     AuthenticatorInfoV1 { package: package.to_id(), module_name, function_name }
 }

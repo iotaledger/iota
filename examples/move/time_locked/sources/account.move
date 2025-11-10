@@ -37,7 +37,7 @@ public struct TimeLocked has key {
 public fun create(
     public_key: vector<u8>,
     unlock_time: u64,
-    authenticator: AuthenticatorInfoV1,
+    authenticator: AuthenticatorInfoV1<TimeLocked>,
     ctx: &mut TxContext,
 ) {
     let mut id = object::new(ctx);
