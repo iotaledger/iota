@@ -34,7 +34,6 @@ use tracing::{debug, info, warn};
 use crate::{
     Transaction, VerifiedBlockHeader,
     block_header::{BlockRef, TransactionsCommitment, VerifiedTransactions},
-    block_verifier::BlockVerifier,
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::{DagState, TransactionSource},
@@ -373,7 +372,6 @@ impl TransactionsSynchronizerHandle {
 ///    persist.
 pub(crate) struct TransactionsSynchronizer<
     C: NetworkClient,
-    V: BlockVerifier,
     D: CoreThreadDispatcher,
 > {
     context: Arc<Context>,
@@ -384,14 +382,13 @@ pub(crate) struct TransactionsSynchronizer<
     active_requests: Arc<InflightActiveRequests>,
     fetch_transactions_scheduler_task: JoinSet<()>,
     network_client: Arc<C>,
-    block_verifier: Arc<V>,
     inflight_transactions_map: Arc<InflightTransactionsMap>,
     commands_sender: Sender<Command>,
     last_failure_by_peer: Arc<LastFailureByPeer>,
 }
 
-impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
-    TransactionsSynchronizer<C, V, D>
+impl<C: NetworkClient, D: CoreThreadDispatcher>
+    TransactionsSynchronizer<C, D>
 {
     /// Starts the transactions synchronizer, which is responsible for fetching
     /// transactions from other authorities and managing transaction
@@ -400,7 +397,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         network_client: Arc<C>,
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
-        block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
     ) -> Arc<TransactionsSynchronizerHandle> {
         let (commands_sender, commands_receiver) =
@@ -424,7 +420,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             core_dispatcher.clone(),
             dag_state.clone(),
             live_fetch_receiver,
-            block_verifier.clone(),
             inflight_transactions_map.clone(),
             last_failure_by_peer.clone(),
         );
@@ -442,7 +437,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 fetch_transactions_scheduler_task: JoinSet::new(),
                 active_requests,
                 network_client,
-                block_verifier,
                 inflight_transactions_map,
                 commands_sender: commands_sender_clone,
                 dag_state,
@@ -536,7 +530,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         core_dispatcher: Arc<D>,
         dag_state: Arc<RwLock<DagState>>,
         mut receiver: Receiver<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>>,
-        block_verifier: Arc<V>,
         inflight_transactions_map: Arc<InflightTransactionsMap>,
         last_failure_by_peer: Arc<LastFailureByPeer>,
     ) {
@@ -557,7 +550,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     let inflight_transactions_map = inflight_transactions_map.clone();
                     let network_client = network_client.clone();
                     let core_dispatcher = core_dispatcher.clone();
-                    let block_verifier = block_verifier.clone();
                     let dag_state = dag_state.clone();
                     let last_failure_by_peer = last_failure_by_peer.clone();
                     tokio::spawn(async move {
@@ -568,7 +560,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                             network_client,
                             missing_transactions_block_refs,
                             core_dispatcher,
-                            block_verifier,
                             dag_state,
                             last_failure_by_peer,
                             SyncMethod::Live,
@@ -649,7 +640,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         let network_client = self.network_client.clone();
         let core_dispatcher = self.core_dispatcher.clone();
         let commands_sender = self.commands_sender.clone();
-        let block_verifier = self.block_verifier.clone();
         let dag_state = self.dag_state.clone();
         let inflight_transactions_map = self.inflight_transactions_map.clone();
         let active_requests = self.active_requests.clone();
@@ -672,7 +662,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     network_client,
                     missing_transactions,
                     core_dispatcher,
-                    block_verifier,
                     dag_state,
                     last_failure_by_round,
                     SyncMethod::Periodic,
@@ -699,7 +688,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         network_client: Arc<C>,
         missing_transactions: BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
         core_dispatcher: Arc<D>,
-        block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
         last_failure_by_peer: Arc<LastFailureByPeer>,
         sync_method: SyncMethod,
@@ -777,7 +765,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 let context = context.clone();
                 let network_client = network_client.clone();
                 let core_dispatcher = core_dispatcher.clone();
-                let block_verifier = block_verifier.clone();
                 let dag_state = dag_state.clone();
                 request_futures.push(async move {
                     let result = Self::fetch_and_process_transactions_from_authority(
@@ -786,7 +773,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                         transactions_guard,
                         network_client,
                         core_dispatcher,
-                        block_verifier,
                         dag_state,
                         sync_method,
                         active_request_guard,
@@ -827,7 +813,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         transactions_guard: TransactionsGuard,
         network_client: Arc<C>,
         core_dispatcher: Arc<D>,
-        block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
         sync_method: SyncMethod,
         _active_guard: ActiveRequestGuard,
@@ -863,7 +848,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
             transactions_guard,
             core_dispatcher.clone(),
             context,
-            block_verifier.clone(),
             dag_state.clone(),
             sync_method,
         )
@@ -974,7 +958,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
         requested_transactions_guard: TransactionsGuard,
         core_dispatcher: Arc<D>,
         context: Arc<Context>,
-        block_verifier: Arc<V>,
         dag_state: Arc<RwLock<DagState>>,
         sync_method: SyncMethod,
     ) -> ConsensusResult<()> {
@@ -1006,13 +989,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                         .expect("block header for requested transactions must exist");
                     block_headers_map.insert(block_header.reference(), block_header);
                 }
-
-                let block_verifier = block_verifier.clone();
                 let context_cloned = context.clone();
                 move || {
                     Self::verify_transactions(
                         serialized_transactions,
-                        block_verifier,
                         peer_index,
                         block_headers_map,
                         context_cloned,
@@ -1077,7 +1057,6 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
     fn verify_transactions(
         serialized_transactions_bytes: Vec<Bytes>,
-        block_verifier: Arc<V>,
         peer_index: AuthorityIndex,
         block_headers_map: BTreeMap<BlockRef, VerifiedBlockHeader>,
         context: Arc<Context>,
@@ -1116,12 +1095,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                 });
             }
 
-            // Step 3: Deserialize and verify the actual transactions vector.
+            // Step 3: Deserialize the actual transactions vector. We are ensure that they
+            // are verified since the quorum already acknowledged and verified
             let transactions: Vec<Transaction> =
                 bcs::from_bytes(&serialized_transactions.serialized_transactions)
                     .map_err(ConsensusError::MalformedTransactions)?;
-
-            block_verifier.check_and_verify_transactions(&transactions)?;
 
             // Step 4: Create a VerifiedTransactions instance containing both the verified
             // transactions and their original serialized form for efficient re-sharing
