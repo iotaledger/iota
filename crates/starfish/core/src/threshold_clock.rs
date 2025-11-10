@@ -33,7 +33,7 @@ impl ThresholdClock {
     /// accordingly.
     pub(crate) fn add_block(&mut self, block: BlockRef) {
         match block.round.cmp(&self.round) {
-            // Blocks with round less then what we currently build are irrelevant here
+            // Blocks with round less than what we currently build are irrelevant here
             Ordering::Less => {}
             // If we processed block for round r, we also have stored 2f+1 blocks from r-1
             Ordering::Greater => {

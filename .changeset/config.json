@@ -8,6 +8,7 @@
 	"baseBranch": "develop",
 	"updateInternalDependencies": "minor",
 	"privatePackages": false,
+	"provenance": true,
 	"ignore": [
 		"iota-wallet",
 		"iota-explorer",

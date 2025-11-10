@@ -285,7 +285,7 @@ impl DisseminationWorker {
     /// structs in batches. It waits for
     /// TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS, then drain the channel of
     /// messages and disseminate them. With this approach, one acquire locks
-    /// in a predicted way while loosing some reactiveness. Instead of
+    /// in a predicted way while losing some reactiveness. Instead of
     /// potentially 10000 write locks, it could be up to 1 sec /
     /// TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS
     async fn run(mut self) {
