@@ -356,6 +356,11 @@ struct FeatureFlags {
     // If true, enables the authentication of account using Move code.
     #[serde(skip_serializing_if = "is_false")]
     move_auth: bool,
+
+    // If true, it allows metadata bytes indexed with the iota key in a compiled module
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_false")]
+    iota_metadata_module_bytes: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1238,6 +1243,10 @@ impl ProtocolConfig {
 
     pub fn move_auth(&self) -> bool {
         self.feature_flags.move_auth
+    }
+
+    pub fn iota_metadata_module_bytes(&self) -> bool {
+        self.feature_flags.iota_metadata_module_bytes
     }
 
     pub fn max_transaction_size_bytes(&self) -> u64 {
@@ -2245,6 +2254,7 @@ impl ProtocolConfig {
                         // === Native Function Costs ===
                         // `account` module
                         cfg.check_auth_info_v1_cost_base = Some(1000);
+                        cfg.feature_flags.iota_metadata_module_bytes = true;
                     }
                 }
                 // Use this template when making changes:
