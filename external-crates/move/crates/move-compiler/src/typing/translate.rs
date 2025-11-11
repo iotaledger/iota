@@ -3,18 +3,28 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    sync::{Arc, Mutex},
+};
+
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+use rayon::prelude::*;
+
 use crate::{
-    diag,
-    diagnostics::{codes::*, Diagnostic},
+    FullyCompiledProgram, diag,
+    diagnostics::{Diagnostic, codes::*},
     editions::{FeatureGate, Flavor},
     expansion::ast::{
-        AbilitySet, Attribute, AttributeName_, AttributeValue_, Attribute_, DottedUsage, Fields,
+        AbilitySet, Attribute, Attribute_, AttributeName_, AttributeValue_, DottedUsage, Fields,
         Friend, ModuleAccess_, ModuleIdent, ModuleIdent_, Mutability, Value_, Visibility,
     },
-    ice, ice_assert,
+    ice, ice_assert, iota_mode,
     naming::ast::{
         self as N, BlockLabel, DatatypeTypeParameter, IndexSyntaxMethods, ResolvedUseFuns, TParam,
-        TParamID, Type, TypeName, TypeName_, Type_,
+        TParamID, Type, Type_, TypeName, TypeName_,
     },
     parser::ast::{
         Ability_, BinOp, BinOp_, ConstantName, DatatypeName, DocComment, Field, FunctionName,
@@ -29,26 +39,16 @@ use crate::{
         unique_map::UniqueMap,
         *,
     },
-    iota_mode,
     typing::{
         ast::{self as T},
         core::{
-            self, global_use_funs, public_testing_visibility, report_visibility_error, Context,
-            ModuleContext, PublicForTesting, ResolvedFunctionType, Subst,
+            self, Context, ModuleContext, PublicForTesting, ResolvedFunctionType, Subst,
+            global_use_funs, public_testing_visibility, report_visibility_error,
         },
         dependency_ordering, expand, infinite_instantiations, macro_expand, match_analysis,
         recursive_datatypes,
         syntax_methods::validate_syntax_methods,
     },
-    FullyCompiledProgram,
-};
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use rayon::prelude::*;
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    sync::{Arc, Mutex},
 };
 
 //**************************************************************************************************
@@ -149,12 +149,12 @@ fn extract_macros(
             } else {
                 None
             }
-        })  
+        })
     })
 }
 
 fn modules(
-     compilation_env: &CompilationEnv,
+    compilation_env: &CompilationEnv,
     info: &mut NamingProgramInfo,
     all_macro_definitions: &UniqueMap<ModuleIdent, UniqueMap<FunctionName, N::Sequence>>,
     mut modules: UniqueMap<ModuleIdent, N::ModuleDefinition>,
@@ -165,7 +165,7 @@ fn modules(
     // the typing machinery makes it much easier to enforce the typeclass-like
     // constraints. We also update the program info to reflect any changes that
     // happened.
-   for (mident, mdef) in modules.key_cloned_iter_mut() {
+    for (mident, mdef) in modules.key_cloned_iter_mut() {
         let context = ModuleContext::new(
             compilation_env,
             info,
@@ -177,7 +177,7 @@ fn modules(
     for (mident, mdef) in modules.key_cloned_iter() {
         info.set_module_syntax_methods(mident, mdef.syntax_methods.clone());
     }
- let typed_modules = Mutex::new(UniqueMap::new());
+    let typed_modules = Mutex::new(UniqueMap::new());
     let all_new_friends = Mutex::new(BTreeMap::new());
     let used_module_members = Mutex::new(BTreeMap::new());
     modules.into_par_iter().for_each(|(ident, mdef)| {
@@ -4121,11 +4121,11 @@ fn annotated_error_const(context: &mut Context, e: &mut T::Exp, abort_or_assert_
         if let Some(err_attribute) = attributes.get_(&known_attributes::ErrorAttribute.into()) {
             let attribute_fmt_msg = || {
                 format!(
-                "Expected only an error code or nothing for an error annotation, e.g., '{}' or '{}({} = <num>)'",
-                ErrorAttribute::ERROR,
-                ErrorAttribute::ERROR,
-                ErrorAttribute::CODE,
-            )
+                    "Expected only an error code or nothing for an error annotation, e.g., '{}' or '{}({} = <num>)'",
+                    ErrorAttribute::ERROR,
+                    ErrorAttribute::ERROR,
+                    ErrorAttribute::CODE,
+                )
             };
             let error_code = match &err_attribute.value {
                 Attribute_::Name(_) => None,
@@ -4958,7 +4958,7 @@ fn unused_module_members(
         }
         reporter.push_warning_filter_scope(fun.warning_filter);
 
-         let members = used_module_members.get(mident);
+        let members = used_module_members.get(mident);
         if fun.entry.is_none()
             && matches!(fun.visibility, Visibility::Internal)
             && (members.is_none() || !members.unwrap().contains(name))

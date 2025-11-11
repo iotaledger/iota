@@ -2,18 +2,20 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    diagnostics::{
-        codes::{Category, DiagnosticInfo, ExternalPrefix, Severity, UnusedItem},
-        Diagnostic, DiagnosticCode,
-    },
-    shared::{known_attributes, AstDebug},
-};
-use move_symbol_pool::Symbol;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     hash::Hash,
     sync::Arc,
+};
+
+use move_symbol_pool::Symbol;
+
+use crate::{
+    diagnostics::{
+        Diagnostic, DiagnosticCode,
+        codes::{Category, DiagnosticInfo, ExternalPrefix, Severity, UnusedItem},
+    },
+    shared::{AstDebug, known_attributes},
 };
 
 pub const FILTER_ALL: &str = "all";
@@ -70,12 +72,15 @@ pub struct WarningFiltersScope(WarningFiltersScope_);
 
 #[derive(PartialEq, Eq, Clone, Debug)]
 enum WarningFiltersScope_ {
-    /// Unsafe and should be used only for internal purposes, such as ide annotations
+    /// Unsafe and should be used only for internal purposes, such as ide
+    /// annotations
     Empty,
-    /// The top-level warning filters given to the compiler instance. They are leaked as they will
-    /// be needed for the lifetime of the compiler instance.
+    /// The top-level warning filters given to the compiler instance. They are
+    /// leaked as they will be needed for the lifetime of the compiler
+    /// instance.
     Static(&'static WarningFiltersBuilder),
-    /// A user-defined warning filter scope, with a reference to the previous scope
+    /// A user-defined warning filter scope, with a reference to the previous
+    /// scope
     Node(Arc<WarningFiltersScopeNode>),
 }
 
@@ -88,14 +93,16 @@ struct WarningFiltersScopeNode {
 }
 
 #[derive(Debug, Clone)]
-/// An intern table for warning filters. The underlying `Box` is not moved, so the pointer to the
-/// filter is stable.
-/// Safety: This table should not be dropped as long as any `WarningFilters` are alive
+/// An intern table for warning filters. The underlying `Box` is not moved, so
+/// the pointer to the filter is stable.
+/// Safety: This table should not be dropped as long as any `WarningFilters` are
+/// alive
 pub struct WarningFiltersTable(HashSet<Box<WarningFiltersBuilder>>);
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 /// An unsafe pointer into the intern table for warning filters.
-/// Safety: The `WarningFiltersTable` must be held as long as any `WarningFilters`s are alive.
+/// Safety: The `WarningFiltersTable` must be held as long as any
+/// `WarningFilters`s are alive.
 pub struct WarningFilters(*const WarningFiltersBuilder);
 unsafe impl Send for WarningFilters {}
 unsafe impl Sync for WarningFilters {}
@@ -127,13 +134,15 @@ enum UnprefixedWarningFilters {
 pub enum WarningFilter {
     /// Filters all warnings
     All(ExternalPrefix),
-    /// Filters all warnings of a specific category. Only known filters have names.
+    /// Filters all warnings of a specific category. Only known filters have
+    /// names.
     Category {
         prefix: ExternalPrefix,
         category: u8,
         name: Option<WellKnownFilterName>,
     },
-    /// Filters a single warning, as defined by codes below. Only known filters have names.
+    /// Filters a single warning, as defined by codes below. Only known filters
+    /// have names.
     Code {
         prefix: ExternalPrefix,
         category: u8,
@@ -151,8 +160,8 @@ pub type WellKnownFilterName = &'static str;
 
 impl WarningFiltersScope {
     /// Create a new scope with the given top-level warning filter, if any.
-    /// A `&'static WarningFiltersBuilder` is used to avoid cloning the filter table for each
-    /// new top-level scope needed
+    /// A `&'static WarningFiltersBuilder` is used to avoid cloning the filter
+    /// table for each new top-level scope needed
     pub(crate) const fn root(
         top_level_warning_filter_opt: Option<&'static WarningFiltersBuilder>,
     ) -> Self {
@@ -290,9 +299,10 @@ impl WarningFiltersBuilder {
                 .or_insert_with(UnprefixedWarningFilters::new)
                 .union(filters);
         }
-        // if there is a dependency code filter on the stack, it means we are filtering dependent
-        // code and this information must be preserved when stacking up additional filters (which
-        // involves union of the current filter with the new one)
+        // if there is a dependency code filter on the stack, it means we are filtering
+        // dependent code and this information must be preserved when stacking
+        // up additional filters (which involves union of the current filter
+        // with the new one)
         self.for_dependency = self.for_dependency || other.for_dependency;
     }
 
@@ -381,7 +391,8 @@ impl UnprefixedWarningFilters {
     }
 
     /// Add a specific filter to the filter map.
-    /// If filter_code is None, then the filter applies to all codes in the filter_category.
+    /// If filter_code is None, then the filter applies to all codes in the
+    /// filter_category.
     fn add(
         &mut self,
         filter_category: u8,

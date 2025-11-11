@@ -2,12 +2,14 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::compatibility::{Enum, Function, InclusionCheck, Struct};
 use std::rc::Rc;
+
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
 };
+
+use crate::compatibility::{Enum, Function, InclusionCheck, Struct};
 
 pub trait InclusionCheckMode: Default {
     type Error;

@@ -4766,7 +4766,12 @@ export type ServiceConfig = {
    * single query.
    */
   maxQueryNodes: Scalars['Int']['output'];
-  /** Maximum length of a query payload string. */
+  /**
+   * The maximum bytes allowed for the read part of GraphQL queries.
+   *
+   * In case of mutations or `dryRunTransactionBlocks` the `txBytes` and
+   * `signatures` are not included in this limit.
+   */
   maxQueryPayloadSize: Scalars['Int']['output'];
   /** Maximum number of candidates to scan when gathering a page of results. */
   maxScanLimit: Scalars['Int']['output'];
@@ -4775,6 +4780,18 @@ export type ServiceConfig = {
    * `TransactionBlockFilter`.
    */
   maxTransactionIds: Scalars['Int']['output'];
+  /**
+   * The maximum bytes allowed for transactions in queries.
+   *
+   * This corresponds to the `txBytes` and `signatures` fields of the GraphQL
+   * mutation `executeTransactionBlock` node, or the `txBytes` of a
+   * `dryRunTransactionBlock`.
+   *
+   * By default, this is set to the value of the maximum transaction bytes
+   * (including the signatures) allowed by the protocol, plus the Base64
+   * overhead (roughly 1/3 of the original string).
+   */
+  maxTransactionPayloadSize: Scalars['Int']['output'];
   /**
    * Maximum nesting allowed in type arguments in Move Types resolved by this
    * service.
@@ -4826,7 +4843,7 @@ export type Shared = {
 export type SharedInput = {
   __typename?: 'SharedInput';
   address: Scalars['IotaAddress']['output'];
-  /** The version that this this object was shared at. */
+  /** The version at which this object was shared.​ */
   initialSharedVersion: Scalars['UInt53']['output'];
   /**
    * Controls whether the transaction block can reference the shared object
@@ -5187,7 +5204,7 @@ export type StorageFund = {
    * storage rebates.
    *
    * The system maintains an invariant that the sum of all storage fees into
-   * the storage fund is equal to the sum of of all storage rebates out,
+   * the storage fund is equal to the sum of all storage rebates out,
    * the total storage rebates remaining, and the non-refundable balance.
    */
   nonRefundableBalance?: Maybe<Scalars['BigInt']['output']>;

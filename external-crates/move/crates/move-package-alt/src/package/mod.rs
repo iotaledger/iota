@@ -12,10 +12,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use lockfile::{Lockfile, Publication};
 use serde::{Deserialize, Serialize};
 
 use crate::flavor::MoveFlavor;
-use lockfile::{Lockfile, Publication};
 
 pub type EnvironmentName = String;
 pub type PackageName = String;
@@ -30,20 +30,22 @@ pub struct Package<F: MoveFlavor> {
 
 impl<F: MoveFlavor> Package<F> {
     /// Load a package from the manifest and lock files in directory [path].
-    /// Makes a best effort to translate old-style packages into the current format,
+    /// Makes a best effort to translate old-style packages into the current
+    /// format,
     ///
     /// Fails if [path] does not exist, or if it doesn't contain a manifest
     pub fn load(path: impl AsRef<Path>) -> anyhow::Result<Self> {
         todo!()
     }
 
-    /// The path to the root directory of this package. This path is guaranteed to exist
-    /// and contain a manifest file.
+    /// The path to the root directory of this package. This path is guaranteed
+    /// to exist and contain a manifest file.
     pub fn path(&self) -> &Path {
         todo!()
     }
 
-    /// Return the metadata for the most recent published version in the given environemtn
+    /// Return the metadata for the most recent published version in the given
+    /// environemtn
     pub fn publication_for(&self, env: EnvironmentName) -> Option<Publication<F>> {
         todo!()
     }

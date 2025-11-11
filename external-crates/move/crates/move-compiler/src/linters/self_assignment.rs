@@ -2,8 +2,12 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Detects and reports explicit self-assignments in code, such as `x = x;`, which are generally unnecessary
-//! and could indicate potential errors or misunderstandings in the code logic.
+//! Detects and reports explicit self-assignments in code, such as `x = x;`,
+//! which are generally unnecessary and could indicate potential errors or
+//! misunderstandings in the code logic.
+use move_ir_types::location::Loc;
+use move_proc_macros::growing_stack;
+
 use super::StyleCodes;
 use crate::{
     diag,
@@ -13,8 +17,6 @@ use crate::{
         visitor::{same_local, simple_visitor},
     },
 };
-use move_ir_types::location::Loc;
-use move_proc_macros::growing_stack;
 
 simple_visitor!(
     SelfAssignment,

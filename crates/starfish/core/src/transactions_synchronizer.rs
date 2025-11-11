@@ -904,7 +904,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     .iter()
                     .cloned()
                     .collect();
-                let block_headers_vec = dag_state.read().get_block_headers(&block_refs);
+                let block_headers_vec = dag_state.read().get_verified_block_headers(&block_refs);
                 let mut block_headers_map = BTreeMap::new();
                 for block_header_opt in block_headers_vec.into_iter() {
                     let block_header = block_header_opt

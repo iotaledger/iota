@@ -59,6 +59,7 @@ pub struct Cluster {
 pub async fn start_cluster(
     graphql_connection_config: ConnectionConfig,
     internal_data_source_rpc_port: Option<u16>,
+    service_config: ServiceConfig,
 ) -> Cluster {
     let data_ingestion_path = tempfile::tempdir().unwrap().keep();
     let db_url = graphql_connection_config.db_url.clone();
@@ -87,6 +88,7 @@ pub async fn start_cluster(
         graphql_connection_config.clone(),
         Some(fn_rpc_url),
         Some(cancellation_token.clone()),
+        Some(service_config),
     )
     .await;
 
@@ -165,6 +167,7 @@ pub async fn serve_executor(
         // this does not provide access to the node write api
         Some(format!("http://{executor_server_url}")),
         Some(cancellation_token.clone()),
+        None,
     )
     .await;
 
@@ -236,11 +239,12 @@ pub async fn start_graphql_server_with_fn_rpc(
     graphql_connection_config: ConnectionConfig,
     fn_rpc_url: Option<String>,
     cancellation_token: Option<CancellationToken>,
+    service_config: Option<ServiceConfig>,
 ) -> JoinHandle<()> {
     let cancellation_token = cancellation_token.unwrap_or_default();
     let mut server_config = ServerConfig {
         connection: graphql_connection_config,
-        service: ServiceConfig::test_defaults(),
+        service: service_config.unwrap_or_else(ServiceConfig::test_defaults),
         ..ServerConfig::default()
     };
     if let Some(fn_rpc_url) = fn_rpc_url {
@@ -352,13 +356,6 @@ impl Cluster {
     /// Waits for the indexer to prune a given checkpoint.
     pub async fn wait_for_checkpoint_pruned(&self, checkpoint: u64, base_timeout: Duration) {
         wait_for_graphql_checkpoint_pruned(&self.graphql_client, checkpoint, base_timeout).await
-    }
-
-    /// Sends a cancellation signal to the graphql and indexer services and
-    /// waits for them to shutdown.
-    pub async fn cleanup_resources(self) {
-        self.cancellation_token.cancel();
-        let _ = join!(self.graphql_server_join_handle, self.indexer_join_handle);
     }
 
     /// Builds a transaction that transfers IOTA for testing.

@@ -25,6 +25,7 @@
     },
     "dependencies": {
         "@amplitude/analytics-browser": "^1.10.3",
+        "@boxfish-studio/react-cookie-manager": "^1.0.5",
         "@growthbook/growthbook": "^1.0.0",
         "@growthbook/growthbook-react": "^1.0.0",
         "@hookform/resolvers": "^3.9.0",

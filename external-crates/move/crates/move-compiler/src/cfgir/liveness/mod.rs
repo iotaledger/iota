@@ -13,7 +13,7 @@ use state::*;
 
 use super::{
     absint::*,
-    cfg::{MutForwardCFG, MutReverseCFG, ReverseCFG, CFG},
+    cfg::{CFG, MutForwardCFG, MutReverseCFG, ReverseCFG},
     locals,
 };
 use crate::{
@@ -166,10 +166,11 @@ fn exp(state: &mut LivenessState, parent_e: &Exp) {
 //**************************************************************************************************
 
 /// This pass:
-/// - Switches the last inferred `copy` to a `move`.
-///   It will error if the `copy` was specified by the user
-/// - Reports an error if an assignment/let was not used
-///   Switches it to an `Ignore` if it has the drop ability (helps with error messages for borrows)
+/// - Switches the last inferred `copy` to a `move`. It will error if the `copy`
+///   was specified by the user
+/// - Reports an error if an assignment/let was not used Switches it to an
+///   `Ignore` if it has the drop ability (helps with error messages for
+///   borrows)
 pub fn last_usage(context: &super::CFGContext, cfg: &mut MutForwardCFG) {
     let super::CFGContext {
         infinite_loop_starts,
@@ -191,11 +192,11 @@ mod last_usage {
     use move_proc_macros::growing_stack;
 
     use crate::{
-        cfgir::{liveness::state::LivenessState, CFGContext},
+        cfgir::{CFGContext, liveness::state::LivenessState},
         diag,
         hlir::{
             ast::*,
-            translate::{display_var, DisplayVar},
+            translate::{DisplayVar, display_var},
         },
     };
 
@@ -392,10 +393,10 @@ mod last_usage {
 /// (2)  The reference is live in ALL predecessors (otherwise the borrow checker
 /// will release them)
 ///
-/// Because of this, `build_forward_intersections` intersects all of the forward post states of
-/// predecessors.
-/// Then `release_dead_refs_block` adds a release at the beginning of the block if the reference
-/// satisfies (1) and (2)
+/// Because of this, `build_forward_intersections` intersects all of the forward
+/// post states of predecessors.
+/// Then `release_dead_refs_block` adds a release at the beginning of the block
+/// if the reference satisfies (1) and (2)
 pub fn release_dead_refs(
     context: &super::CFGContext,
     locals_pre_states: &BTreeMap<Label, locals::state::LocalStates>,

@@ -15,7 +15,7 @@ use std::{
 };
 
 use codespan_reporting::files::SimpleFiles;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_spanned::Spanned;
 
 use super::{FileHandle, PackageResult};
@@ -25,9 +25,9 @@ thread_local! {
     static PARSING_FILE: RefCell<Option<FileHandle>> = const { RefCell::new(None) };
 }
 
-/// A located value contains both a file location and a span. Located values (and data structures
-/// that contain them) can only be deserialized inside of [with_file]; attempting to deserialize
-/// outside of `with_file` will panic
+/// A located value contains both a file location and a span. Located values
+/// (and data structures that contain them) can only be deserialized inside of
+/// [with_file]; attempting to deserialize outside of `with_file` will panic
 #[derive(Serialize, Debug, Clone)]
 pub struct Located<T> {
     // TODO: use move-compiler::shared::files to avoid copying PathBufs everywhere
