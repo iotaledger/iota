@@ -48,7 +48,6 @@ pub(crate) struct EndOfEpochTransaction {
 pub(crate) enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpochTransaction),
     ChangeEpochV2(ChangeEpochTransactionV2),
-    ChangeEpochV4(ChangeEpochTransactionV4),
     AuthenticatorStateCreate(AuthenticatorStateCreateTransaction),
     AuthenticatorStateExpire(AuthenticatorStateExpireTransaction),
 }
@@ -62,8 +61,6 @@ pub(crate) struct ChangeEpochTransaction {
 }
 
 // System transaction for advancing the epoch.
-// This version includes the computation_charge_burned field for when
-// protocol_defined_base_fee is enabled in the protocol config.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ChangeEpochTransactionV2 {
     /// The next (to become) epoch ID.
@@ -93,6 +90,9 @@ pub(crate) struct ChangeEpochTransactionV2 {
     /// Vector of active validator indices eligible to take part in committee
     /// selection because they support the new, target protocol version.
     pub eligible_active_validators: Option<Vec<u64>>,
+    /// Scores relative to the epoch being finalized. Each value corresponds to
+    /// an authority, ordered by the ending epoch's AuthorityIndex.
+    pub scores: Option<Vec<u64>>,
     /// The checkpoint sequence number this was viewed at.
     pub checkpoint_viewed_at: u64,
 }
@@ -113,6 +113,7 @@ impl ChangeEpochTransactionV2 {
             epoch_start_timestamp_ms: native.epoch_start_timestamp_ms,
             system_packages: native.system_packages,
             eligible_active_validators: None,
+            scores: None,
             checkpoint_viewed_at,
         }
     }
@@ -132,51 +133,11 @@ impl ChangeEpochTransactionV2 {
             epoch_start_timestamp_ms: native.epoch_start_timestamp_ms,
             system_packages: native.system_packages,
             eligible_active_validators: Some(native.eligible_active_validators),
+            scores: None,
             checkpoint_viewed_at,
         }
     }
-}
 
-// System transaction for advancing the epoch.
-// This version includes the scores field for when
-// the scorer is enabled in the protocol config.
-#[derive(Clone, PartialEq, Eq)]
-pub(crate) struct ChangeEpochTransactionV4 {
-    /// The next (to become) epoch ID.
-    pub epoch: EpochId,
-    /// The protocol version in effect in the new epoch.
-    pub protocol_version: ProtocolVersion,
-    /// The total amount of gas charged for storage during the epoch.
-    pub storage_charge: u64,
-    /// The total amount of gas charged for computation during the epoch.
-    pub computation_charge: u64,
-    /// The burned component of the total computation/execution costs.
-    pub computation_charge_burned: u64,
-    /// The amount of storage rebate refunded to the txn senders.
-    pub storage_rebate: u64,
-    /// The amount of storage rebate that is burnt due to the
-    /// gas_price. It's given that storage_rebate + non_refundable_storage_fee
-    /// is always equal to the storage_charge of the tx.
-    pub non_refundable_storage_fee: u64,
-    /// Unix timestamp from the start of the epoch as milliseconds
-    pub epoch_start_timestamp_ms: u64,
-    /// System packages (specifically framework and move stdlib) that are
-    /// written by the execution of this transaction. Validators must write
-    /// out the modules below.  Modules are provided with the version they
-    /// will be upgraded to, their modules in serialized form (which include
-    /// their package ID), and a list of their transitive dependencies.
-    pub system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-    /// Vector of active validator indices eligible to take part in committee
-    /// selection because they support the new, target protocol version.
-    pub eligible_active_validators: Option<Vec<u64>>,
-    /// Scores relative to the epoch being finalized. Each value corresponds to
-    /// an authority, ordered by the ending epoch's AuthorityIndex.
-    pub scores: Vec<u64>,
-    /// The checkpoint sequence number this was viewed at.
-    pub checkpoint_viewed_at: u64,
-}
-
-impl ChangeEpochTransactionV4 {
     pub fn new_with_native_v4(
         native: NativeChangeEpochTransactionV4,
         checkpoint_viewed_at: u64,
@@ -191,8 +152,8 @@ impl ChangeEpochTransactionV4 {
             non_refundable_storage_fee: native.non_refundable_storage_fee,
             epoch_start_timestamp_ms: native.epoch_start_timestamp_ms,
             system_packages: native.system_packages,
-            eligible_active_validators: None,
-            scores: native.scores,
+            eligible_active_validators: Some(native.eligible_active_validators),
+            scores: Some(native.scores),
             checkpoint_viewed_at,
         }
     }
@@ -465,115 +426,12 @@ impl ChangeEpochTransactionV2 {
             .as_ref()
             .map(|v| v.iter().map(|id| BigInt::from(*id)).collect())
     }
-}
 
-/// A system transaction that updates epoch information on-chain (increments the
-/// current epoch). Executed by the system once per epoch, without using gas.
-/// Epoch change transactions cannot be submitted by users, because validators
-/// will refuse to sign them.
-#[Object]
-impl ChangeEpochTransactionV4 {
-    /// The next (to become) epoch.
-    async fn epoch(&self, ctx: &Context<'_>) -> Result<Option<Epoch>> {
-        Epoch::query(ctx, Some(self.epoch), self.checkpoint_viewed_at)
-            .await
-            .extend()
-    }
-
-    /// The protocol version in effect in the new epoch.
-    async fn protocol_version(&self) -> UInt53 {
-        self.protocol_version.as_u64().into()
-    }
-
-    /// The total amount of gas charged for storage during the previous epoch
-    /// (in NANOS).
-    async fn storage_charge(&self) -> BigInt {
-        BigInt::from(self.storage_charge)
-    }
-
-    /// The total amount of gas charged for computation during the previous
-    /// epoch (in NANOS).
-    async fn computation_charge(&self) -> BigInt {
-        BigInt::from(self.computation_charge)
-    }
-
-    /// The total amount of gas burned for computation during the previous
-    /// epoch (in NANOS).
-    async fn computation_charge_burned(&self) -> BigInt {
-        BigInt::from(self.computation_charge_burned)
-    }
-
-    /// The IOTA returned to transaction senders for cleaning up objects (in
-    /// NANOS).
-    async fn storage_rebate(&self) -> BigInt {
-        BigInt::from(self.storage_rebate)
-    }
-
-    /// The total gas retained from storage fees, that will not be returned by
-    /// storage rebates when the relevant objects are cleaned up (in NANOS).
-    async fn non_refundable_storage_fee(&self) -> BigInt {
-        BigInt::from(self.non_refundable_storage_fee)
-    }
-
-    /// Time at which the next epoch will start.
-    async fn start_timestamp(&self) -> Result<DateTime, Error> {
-        DateTime::from_ms(self.epoch_start_timestamp_ms as i64)
-    }
-
-    /// System packages (specifically framework and move stdlib) that are
-    /// written before the new epoch starts, to upgrade them on-chain.
-    /// Validators write these packages out when running the transaction.
-    async fn system_packages(
-        &self,
-        ctx: &Context<'_>,
-        first: Option<u64>,
-        after: Option<CPackage>,
-        last: Option<u64>,
-        before: Option<CPackage>,
-    ) -> Result<Connection<String, MovePackage>> {
-        let page = Page::from_params(ctx.data_unchecked(), first, after, last, before)?;
-
-        let mut connection = Connection::new(false, false);
-        let Some(consistent_page) = page
-            .paginate_consistent_indices(self.system_packages.len(), self.checkpoint_viewed_at)?
-        else {
-            return Ok(connection);
-        };
-
-        connection.has_previous_page = consistent_page.has_previous_page;
-        connection.has_next_page = consistent_page.has_next_page;
-
-        for c in consistent_page.cursors {
-            let (version, modules, deps) = &self.system_packages[c.ix];
-            let compiled_modules = modules
-                .iter()
-                .map(|bytes| CompiledModule::deserialize_with_defaults(bytes))
-                .collect::<PartialVMResult<Vec<_>>>()
-                .map_err(|e| Error::Internal(format!("Failed to deserialize system modules: {e}")))
-                .extend()?;
-
-            let native = NativeObject::new_system_package(
-                &compiled_modules,
-                *version,
-                deps.clone(),
-                TransactionDigest::ZERO,
-            );
-
-            let runtime_id = native.id();
-            let object = Object::from_native(IotaAddress::from(runtime_id), native, c.c, None);
-            let package = MovePackage::try_from(&object)
-                .map_err(|_| Error::Internal("Failed to create system package".to_string()))
-                .extend()?;
-
-            connection.edges.push(Edge::new(c.encode_cursor(), package));
-        }
-
-        Ok(connection)
-    }
-
-    // The validator scores at the end of the epoch.
-    async fn scores(&self) -> Vec<BigInt> {
-        self.scores.iter().map(|s| BigInt::from(*s)).collect()
+    /// The validator scores at the end of the epoch.
+    async fn scores(&self) -> Option<Vec<BigInt>> {
+        self.scores
+            .as_ref()
+            .map(|v| v.iter().map(|s| BigInt::from(*s)).collect())
     }
 }
 
@@ -613,7 +471,7 @@ impl EndOfEpochTransactionKind {
                 ce,
                 checkpoint_viewed_at,
             )),
-            N::ChangeEpochV4(ce) => K::ChangeEpochV4(ChangeEpochTransactionV4::new_with_native_v4(
+            N::ChangeEpochV4(ce) => K::ChangeEpochV2(ChangeEpochTransactionV2::new_with_native_v4(
                 ce,
                 checkpoint_viewed_at,
             )),
