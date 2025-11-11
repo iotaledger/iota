@@ -33,12 +33,13 @@ export function initSentry() {
             }),
         ],
         tracesSampleRate: SENTRY_SAMPLE_RATE,
-
+        // Browser extensions
         denyUrls: [
-            // Browser extensions
             /extensions\//i,
             /^chrome(?:-extension)?:\/\//i,
             /^moz-extension:\/\//i,
+            /^safari-(?:web-)?extension:\/\//i,
+            /^edge:\/\//i,
             /<anonymous>/,
         ],
         allowUrls: [/.*\.iota\.org/i, /.*\.iota\.cafe/i, /.*\.iotaledger\.net/i],
