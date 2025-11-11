@@ -99,7 +99,7 @@ pub(super) struct Graph<S> {
 ///
 /// 2. Hash map indexed by Tid serves as a mutex guard itself preventing
 ///    different threads from accessing the same call graph making inner Mutex
-///    unneccessary. Currently, the implementation uses Mutex to avoid unsafe
+///    unnecessary. Currently, the implementation uses Mutex to avoid unsafe
 ///    code.
 pub struct Flames<S> {
     /// Each call graph is associated with a thread/task.

@@ -18,7 +18,8 @@ async fn main() {
     .instrument(tracing::trace_span!("iota_benchmark::flamegraph"))
     .await;
 
-    // follow instructions in telemetry-subscribers README how to setup grafana to visualize the flamegraphs
+    // follow instructions in telemetry-subscribers README how to setup grafana to
+    // visualize the flamegraphs
     println!(
         "{}",
         serde_json::to_string_pretty(&sub.get_nested_sets("iota-benchmark::flamegraph")).unwrap()
