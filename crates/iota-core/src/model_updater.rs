@@ -393,9 +393,9 @@ pub struct InNodeModelUpdater {
 
 impl InNodeModelUpdater {
     pub fn new() -> Self {
-        // Pin Torch to 1 thread to limit CPU under sustained load.
-        tch::set_num_threads(1);
-        tch::set_num_interop_threads(1);
+        // Torch threading is controlled via environment variables.
+        // To limit CPU usage, set these before starting the node:
+        //   TORCH_NUM_INTEROP_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
 
         // State and learner
         let hist = Arc::new(Mutex::new(HistState::new()));
