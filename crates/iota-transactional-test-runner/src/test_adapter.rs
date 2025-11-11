@@ -64,7 +64,7 @@ use iota_types::{
         TransactionKind, VerifiedTransaction,
     },
     utils::{
-        to_sender_signed_transaction, to_sender_signed_transaction_with_aa_sponsor,
+        to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor,
         to_sender_signed_transaction_with_multi_signers,
     },
 };
@@ -1169,12 +1169,12 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 ptb_inputs,
                 authenticator_inputs,
             }) => {
-                // 1) Parse and resolve ptb, auth inputs.
-                // Build MoveAuthenticator.
-                // Parse pth commands.
-                // Extract Abstract Account address.
+                // Parse and resolve ptb inputs.
                 let (ptb_inputs, ptb_commands) = self.prepare_ptb_data(data, ptb_inputs)?;
 
+                // Parse and resolve auth inputs.
+                // Build MoveAuthenticator.
+                // Extract Abstract Account address.
                 let (aa_sender_address, move_authenticator) =
                     self.prepare_move_authenticator_data(authenticator_inputs)?;
 
@@ -1185,6 +1185,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                     key_pair: None,
                     gas: aa_sender_address.into(),
                 };
+
                 let tx = self.sign_sponsor_txn(
                     &aa_sender,
                     sponsor,
@@ -1326,7 +1327,6 @@ impl IotaTestAdapter {
             .map(|arg| arg.into_call_arg(self))
             .collect::<anyhow::Result<_>>()?;
 
-        // Ensure first arg is AA shared (and set mutable: false)
         let aa_arg = auth_inputs
             .first()
             .ok_or_else(|| {
@@ -1631,7 +1631,7 @@ impl IotaTestAdapter {
 
         if let Some(aa_sig) = aa_sig {
             let sponsor_keypair = sponsor.key_pair.as_ref().map(|v| v as &dyn Signer<_>);
-            to_sender_signed_transaction_with_aa_sponsor(data, aa_sig, sponsor_keypair)
+            to_sender_signed_transaction_with_optional_sponsor(data, aa_sig, sponsor_keypair)
         } else {
             if sender.address == sponsor.address {
                 to_sender_signed_transaction(
