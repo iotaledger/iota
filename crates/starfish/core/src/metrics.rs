@@ -98,6 +98,7 @@ pub(crate) fn test_metrics() -> Arc<Metrics> {
 }
 
 pub(crate) struct NodeMetrics {
+    pub(crate) delay_in_sending_blocks: Histogram,
     pub(crate) block_commit_latency: Histogram,
     pub(crate) proposed_blocks: IntCounterVec,
     pub(crate) proposed_block_size: Histogram,
@@ -135,6 +136,10 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
+    pub(crate) cordial_knowledge_buffer_size: IntGauge,
+    pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
+    pub(crate) cordial_knowledge_rounds: IntGaugeVec,
+    pub(crate) cordial_knowledge_useful_shards: IntGauge,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) fetch_block_headers_scheduler_inflight: IntGauge,
@@ -223,6 +228,12 @@ pub(crate) struct NodeMetrics {
 impl NodeMetrics {
     pub(crate) fn new(registry: &Registry) -> Self {
         Self {
+            delay_in_sending_blocks: register_histogram_with_registry!(
+                "delay_in_sending_blocks",
+                "The time taken between block creation and block sending.",
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
+            ).unwrap(),
             block_commit_latency: register_histogram_with_registry!(
                 "block_commit_latency",
                 "The time taken between block creation and block commit.",
@@ -437,6 +448,28 @@ impl NodeMetrics {
             dag_state_recent_refs: register_int_gauge_with_registry!(
                 "dag_state_recent_refs",
                 "Number of recent refs cached in the DagState",
+                registry,
+            ).unwrap(),
+            cordial_knowledge_buffer_size: register_int_gauge_with_registry!(
+                "cordial_knowledge_buffer_size",
+                "Size of the cordial knowledge buffer received",
+                registry,
+            ).unwrap(),
+            cordial_knowledge_useful_shards: register_int_gauge_with_registry!(
+            "cordial_knowledge_useful_shards",
+            "The number of authorities with useful shards",
+            registry,
+            ).unwrap(),
+            cordial_knowledge_processed_messages: register_int_counter_vec_with_registry!(
+                "cordial_knowledge_processed_messages",
+                "Number of Cordial Knowledge messages processed",
+                &["type"],
+                registry,
+            ).unwrap(),
+            cordial_knowledge_rounds: register_int_gauge_vec_with_registry!(
+                "cordial_knowledge_rounds",
+                "Number of rounds in DAG of Cordial Knowledge stored per authority",
+                &["authority"],
                 registry,
             ).unwrap(),
             dag_state_store_read_count: register_int_counter_vec_with_registry!(

@@ -38,7 +38,7 @@ use crate::{
     commit::{CertifiedCommits, PendingSubDag},
     commit_observer::CommitObserver,
     context::Context,
-    dag_state::DagState,
+    dag_state::{DagState, TransactionSource},
     encoder::{ShardEncoder, create_encoder},
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
@@ -383,7 +383,7 @@ impl Core {
     pub(crate) fn add_transactions(
         &mut self,
         transactions: Vec<VerifiedTransactions>,
-        source: &str,
+        source: TransactionSource,
     ) -> ConsensusResult<()> {
         let _scope = monitored_scope("Core::add_transactions");
         let _s = self

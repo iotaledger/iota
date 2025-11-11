@@ -18,7 +18,7 @@ export function ThemeSettings() {
     const navigate = useNavigate();
 
     return (
-        <Overlay showModal title="Theme" closeOverlay={() => navigate('/')} showBackButton>
+        <Overlay showModal title="Theme" closeOverlay={() => navigate('/tokens')} showBackButton>
             <div className="flex w-full flex-col">
                 {THEME_ENTRIES.map(([label, value]) => (
                     <div className="px-md" key={value}>

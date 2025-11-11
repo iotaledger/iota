@@ -1,5 +1,5 @@
 // Copyright (c) Mysten Labs, Inc.
-// Modifications Copyright (c) 2024 IOTA Stiftung
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 import { ampli, type AddedAccountsProperties } from '_src/shared/analytics/ampli';
@@ -8,6 +8,8 @@ import { useMutation } from '@tanstack/react-query';
 import { useAccountsFormContext, AccountsFormType, type AccountsFormValues } from '_components';
 import { useBackgroundClient } from './useBackgroundClient';
 import { AccountType } from '_src/background/accounts/account';
+
+import { useCreatePasskeyAccount } from './useCreatePasskeyAccount';
 
 function validateAccountFormValues<T extends AccountsFormType>(
     createType: T,
@@ -33,6 +35,7 @@ function validateAccountFormValues<T extends AccountsFormType>(
 enum AmpliAccountType {
     Derived = 'Derived',
     ImportPrivateKey = 'Private Key',
+    Passkey = 'Passkey',
     Ledger = 'Ledger',
     Keystone = 'Keystone',
 }
@@ -40,6 +43,8 @@ enum AmpliAccountType {
 export function useCreateAccountsMutation() {
     const backgroundClient = useBackgroundClient();
     const [accountsFormValuesRef, setAccountFormValues] = useAccountsFormContext();
+    const { createPasskeyAccount } = useCreatePasskeyAccount();
+
     const CREATE_TYPE_TO_AMPLI_ACCOUNT: Record<
         AccountsFormType,
         AddedAccountsProperties['accountType']
@@ -50,6 +55,8 @@ export function useCreateAccountsMutation() {
         [AccountsFormType.MnemonicSource]: AmpliAccountType.Derived,
         [AccountsFormType.SeedSource]: AmpliAccountType.Derived,
         [AccountsFormType.ImportPrivateKey]: AmpliAccountType.ImportPrivateKey,
+        [AccountsFormType.Passkey]: AmpliAccountType.Passkey,
+        [AccountsFormType.ImportPasskey]: AmpliAccountType.Passkey,
         [AccountsFormType.ImportLedger]: AmpliAccountType.Ledger,
         [AccountsFormType.ImportKeystone]: AmpliAccountType.Keystone,
     };
@@ -129,6 +136,25 @@ export function useCreateAccountsMutation() {
                 createdAccounts = await backgroundClient.createAccounts({
                     type: AccountType.PrivateKeyDerived,
                     keyPair: accountsFormValues.keyPair,
+                    password: password!,
+                });
+            } else if (
+                type === AccountsFormType.Passkey &&
+                validateAccountFormValues(type, accountsFormValues, password)
+            ) {
+                const { address, publicKey, providerOptions, credentialId } =
+                    await createPasskeyAccount({
+                        username: accountsFormValues.username,
+                        authenticatorAttachment: accountsFormValues.authenticatorAttachment,
+                        isRestore: accountsFormValues.isRestoreAccount,
+                    });
+
+                createdAccounts = await backgroundClient.createAccounts({
+                    type: AccountType.PasskeyDerived,
+                    address,
+                    publicKey,
+                    providerOptions,
+                    credentialId,
                     password: password!,
                 });
             } else if (

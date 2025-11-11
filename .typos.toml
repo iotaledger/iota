@@ -43,6 +43,7 @@ tring = "tring"
 transferer = "transferrer"
 # not in the correction dictionary
 checkpoitn = "checkpoint"
+typ = "typ"
 
 [default.extend-identifiers]
 numer = "numer"

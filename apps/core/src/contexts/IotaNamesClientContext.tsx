@@ -15,7 +15,7 @@ export const IotaNamesClientProvider: React.FC<React.PropsWithChildren> = ({ chi
     const { iotaGraphQLClient } = useIotaGraphQLClientContext();
 
     // The GraphQL client is too expensive to memoize
-    // but we know for sure it will only be recrated when the network changes
+    // but we know for sure it will only be recreated when the network changes
     const iotaNamesClient = useMemo(() => {
         if (!iotaGraphQLClient) return null;
 
