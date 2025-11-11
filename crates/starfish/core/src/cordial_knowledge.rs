@@ -100,6 +100,10 @@ pub(crate) struct CordialKnowledge {
     /// Sender of updates for ConnectionKnowledges. Updates are produced by
     /// CordialKnowledge
     dissemination_sender: UnboundedSender<Vec<Vec<ConnectionKnowledgeMessage>>>,
+    /// Each Connection Knowledge corresponds to one peer. Upon reception of a
+    /// message from CordialKnowledge, we propagate the respected
+    /// information for each connection.
+    connection_knowledges: Vec<Arc<RwLock<ConnectionKnowledge>>>,
 }
 
 /// High-level messages sent to the CordialKnowledge task.
@@ -295,7 +299,7 @@ impl DisseminationWorker {
     /// TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS
     async fn run(mut self) {
         const TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS: Duration = Duration::from_millis(5);
-        const NUM_WORKERS: usize = 4; // Adjust as needed
+        const NUM_WORKERS: usize = 1; // Adjust as needed
 
         // Create channels for workers
         let mut worker_senders = Vec::new();
@@ -351,13 +355,11 @@ impl DisseminationWorker {
                 if start >= end || start >= aggregated.len() {
                     continue; // Skip invalid/empty chunk
                 }
-                let msgs_chunk = aggregated.drain(start..end).collect::<Vec<_>>();
+                let msgs_chunk = aggregated.drain(0..end-start).collect::<Vec<_>>();
                 if let Err(e) = worker_senders[i].send(WorkerMsg { start, msgs_chunk }) {
                     debug!("Failed to send WorkerMsg to worker {}: {:?}", i, e);
                 }
             }
-
-            tokio::time::sleep(TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS).await;
         }
     }
 }
@@ -403,6 +405,7 @@ impl CordialKnowledge {
                 dissemination_sender,
                 cordial_knowledge: vec![BTreeMap::new(); num_authorities],
                 last_useful_shards_from_peer_round: vec![None; num_authorities],
+                connection_knowledges: connection_knowledges.clone()
             },
             connection_knowledges,
             cordial_knowledge_sender,
@@ -457,18 +460,71 @@ impl CordialKnowledge {
     async fn run(mut self) {
         debug!("Cordial Knowledge main loop started");
 
+        const NUM_WORKERS: usize = 1; // Adjust as needed
+
+        // Create channels for workers
+        let mut worker_senders = Vec::new();
+        let connection_knowledges = Arc::new(self.connection_knowledges.clone());
+        for _ in 0..NUM_WORKERS {
+            let connection_knowledges = Arc::clone(&connection_knowledges);
+            let (tx, mut rx) = unbounded_channel::<WorkerMsg>();
+            worker_senders.push(tx);
+            tokio::spawn(async move {
+                while let Some(WorkerMsg { start, msgs_chunk }) = rx.recv().await {
+                    for (offset, msgs) in msgs_chunk.into_iter().enumerate() {
+                        let index = start + offset;
+                        if !msgs.is_empty() {
+                            let mut guard = connection_knowledges[index].write();
+                            guard.process_vec_messages(msgs);
+                        }
+                    }
+                }
+            });
+        }
+
         loop {
+
             match self.cordial_knowledge_receiver.recv().await {
                 Some(msg) => {
-                    self.process_message(msg);
-
+                    let mut batch = vec![msg];
+                    while let Ok(msg) = self.cordial_knowledge_receiver.try_recv() {
+                        batch.push(msg);
+                        if batch.len() >= 10 {
+                            break;
+                        }
+                    }
                     // Report the buffer size after processing the first message
-                    let buffer_size = self.cordial_knowledge_receiver.len() + 1;
                     self.context
                         .metrics
                         .node_metrics
                         .cordial_knowledge_buffer_size
-                        .set(buffer_size as i64);
+                        .observe(batch.len() as f64);
+                    let mut vec_connection_knowledge_msgs_batch: Vec<Vec<_>> =
+                        (0..self.context.committee.size())
+                            .map(|_| Vec::new())
+                            .collect();
+
+                    for msg in batch {
+                        if let Some(vec_connection_knowledge_msgs) = self.process_message(msg) {
+                            for (index, msgs) in vec_connection_knowledge_msgs.into_iter().enumerate() {
+                                vec_connection_knowledge_msgs_batch[index].extend(msgs);
+                            }
+                        }
+                    }
+
+                    let num_connections = vec_connection_knowledge_msgs_batch.len();
+                    let chunk_size = num_connections.div_ceil(NUM_WORKERS);
+                    for i in 0..NUM_WORKERS {
+                        let start = i * chunk_size;
+                        let end = min(start + chunk_size, num_connections);
+                        if start >= end || start >= num_connections {
+                            continue; // Skip invalid/empty chunk
+                        }
+                        let msgs_chunk = vec_connection_knowledge_msgs_batch.drain(0..end-start).collect::<Vec<_>>();
+                        if let Err(e) = worker_senders[i].send(WorkerMsg { start, msgs_chunk }) {
+                            debug!("Failed to send WorkerMsg to worker {}: {:?}", i, e);
+                        }
+                    }
                 }
                 None => {
                     debug!("Cordial Knowledge channel closed; exiting loop");
@@ -481,7 +537,7 @@ impl CordialKnowledge {
     }
 
     /// Processes a single high-level cordial knowledge message.
-    fn process_message(&mut self, cordial_knowledge_message: CordialKnowledgeMessage) {
+    fn process_message(&mut self, cordial_knowledge_message: CordialKnowledgeMessage) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         // Report the type of message
         self.context
             .metrics
@@ -499,9 +555,8 @@ impl CordialKnowledge {
                 self.handle_useful_shards_from(useful_shards_from_peer)
             }
         };
-        if let Some(vec_msgs) = vec_connection_knowledge_msgs {
-            let _ = self.dissemination_sender.send(vec_msgs);
-        }
+        vec_connection_knowledge_msgs
+
     }
 
     // Helper function to update authority rounds if the new round is greater

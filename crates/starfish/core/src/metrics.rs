@@ -140,7 +140,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
-    pub(crate) cordial_knowledge_buffer_size: IntGauge,
+    pub(crate) cordial_knowledge_buffer_size: Histogram,
     pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
     pub(crate) cordial_knowledge_worker_batch_size: Histogram,
     pub(crate) dag_state_store_read_count: IntCounterVec,
@@ -464,7 +464,7 @@ impl NodeMetrics {
                 "Number of recent refs cached in the DagState",
                 registry,
             ).unwrap(),
-            cordial_knowledge_buffer_size: register_int_gauge_with_registry!(
+            cordial_knowledge_buffer_size: register_histogram_with_registry!(
                 "cordial_knowledge_buffer_size",
                 "Size of the cordial knowledge buffer received",
                 registry,

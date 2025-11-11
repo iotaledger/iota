@@ -17,6 +17,7 @@ use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::sync::{Mutex, broadcast, mpsc::Sender};
+use tokio::time::sleep;
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
@@ -649,9 +650,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // new blocks.
         Ok(Box::pin(missed_blocks.chain({
             broadcasted_blocks.filter_map(move |block| {
+
                 let context = context.clone();
                 let connection_knowledge = connection_knowledge.clone();
                 async move {
+                    //tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     let ts = block.timestamp_ms();
 
                     let block_bundle = {
