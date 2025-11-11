@@ -441,7 +441,7 @@ impl Core {
         // Commit observer is called with an empty vector of new leaders to check if all
         // transactions are available for any currently pending subdags, without
         // creating any new commits.
-        self.commit_observer.handle_commit(Vec::new())?;
+        self.commit_observer.handle_committed_leaders(Vec::new())?;
 
         Ok(())
     }
@@ -910,8 +910,9 @@ impl Core {
             );
 
             // TODO: refcount subdags
-            let (subdags, missing_transactions_refs) =
-                self.commit_observer.handle_commit(sequenced_leaders)?;
+            let (subdags, missing_transactions_refs) = self
+                .commit_observer
+                .handle_committed_leaders(sequenced_leaders)?;
 
             // Check for duplicates before extending
             assert!(
