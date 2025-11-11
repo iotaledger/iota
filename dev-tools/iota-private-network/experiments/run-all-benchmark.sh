@@ -293,7 +293,7 @@ log "Grafana URL: http://localhost:3000/dashboards"
 cd - >/dev/null
 
 # --- 5) Launch combined latency + fuzz watcher in background ---
-./network-benchmark.sh \
+./network-benchmark \
     -n "$NUM_VALIDATORS" \
     -s "$SEED" \
     -b "$PERCENT_BLOCK" \
