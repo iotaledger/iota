@@ -46,17 +46,6 @@ impl Measurement {
         let br = std::io::BufReader::new(text.as_bytes());
         let parsed = Scrape::parse(br.lines()).expect("Failed to parse Prometheus metrics");
 
-        // Get all unique workload types in the scraped data.
-        let workloads: std::collections::HashSet<String> = parsed
-            .samples
-            .iter()
-            .filter_map(|sample| sample.labels.get("workload").map(ToString::to_string))
-            .collect();
-
-        if workloads.is_empty() {
-            return HashMap::new();
-        }
-
         // Pre-group samples by workload to avoid repeated iteration
         let mut samples_by_workload: HashMap<String, Vec<&prometheus_parse::Sample>> =
             HashMap::new();
@@ -67,6 +56,11 @@ impl Measurement {
                     .or_default()
                     .push(sample);
             }
+        }
+
+        if samples_by_workload.is_empty() {
+            // No workload labels found; return empty measurements
+            return HashMap::new();
         }
 
         // Also get the global timestamp (without workload label) as fallback
@@ -81,11 +75,9 @@ impl Measurement {
             .unwrap_or_default();
 
         // Extract the measurement for each workload.
-        workloads
+        samples_by_workload
             .into_iter()
-            .filter_map(|workload| {
-                let workload_samples = samples_by_workload.get(&workload)?;
-
+            .map(|(workload, workload_samples)| {
                 let buckets: HashMap<_, _> = workload_samples
                     .iter()
                     .find(|x| x.metric == M::LATENCY_BUCKETS)
@@ -152,7 +144,7 @@ impl Measurement {
                     squared_sum,
                 };
 
-                Some((workload, measurement))
+                (workload, measurement)
             })
             .collect()
     }
