@@ -5,16 +5,14 @@ use std::sync::OnceLock;
 
 use tonic::transport::Channel;
 
-use super::{checkpoint::CheckpointClient, event::EventClient};
+use crate::LedgerClient;
 
 /// gRPC client factory for IOTA node operations.
 pub struct NodeClient {
     /// Shared gRPC channel for all service clients
     channel: Channel,
-    /// Cached checkpoint client (singleton)
-    checkpoint_client: OnceLock<CheckpointClient>,
-    /// Cached event client (singleton)
-    event_client: OnceLock<EventClient>,
+    /// Cached ledger client (singleton)
+    ledger_client: OnceLock<LedgerClient>,
 }
 
 impl NodeClient {
@@ -24,8 +22,7 @@ impl NodeClient {
 
         Ok(Self {
             channel,
-            checkpoint_client: OnceLock::new(),
-            event_client: OnceLock::new(),
+            ledger_client: OnceLock::new(),
         })
     }
 
@@ -41,32 +38,17 @@ impl NodeClient {
     // Service Client Factories
     // ========================================
 
-    /// Get a checkpoint service client.
+    /// Get a ledger service client.
     ///
-    /// Returns `Some(CheckpointClient)` if the node supports checkpoint
+    /// Returns `Some(LedgerClient)` if the node supports ledger-related
     /// operations, `None` otherwise. The client is created only once and
     /// cached for subsequent calls.
-    pub fn checkpoint_client(&self) -> Option<CheckpointClient> {
-        // For now, always return Some since checkpoint service is always available
+    pub fn ledger_service_client(&self) -> Option<super::ledger::LedgerClient> {
+        // For now, always return Some since ledger service is always available
         // In the future, this could check node capabilities first
         Some(
-            self.checkpoint_client
-                .get_or_init(|| CheckpointClient::new(self.channel.clone()))
-                .clone(),
-        )
-    }
-
-    /// Get an event service client.
-    ///
-    /// Returns `Some(EventClient)` if the node supports event streaming
-    /// operations, `None` otherwise. The client is created only once and
-    /// cached for subsequent calls.
-    pub fn event_client(&self) -> Option<EventClient> {
-        // For now, always return Some since event service is always available
-        // In the future, this could check node capabilities first
-        Some(
-            self.event_client
-                .get_or_init(|| EventClient::new(self.channel.clone()))
+            self.ledger_client
+                .get_or_init(|| LedgerClient::new(self.channel.clone()))
                 .clone(),
         )
     }

@@ -3,31 +3,29 @@
 
 use iota_json_rpc_types::IotaEvent;
 
-use crate::v0::{common as grpc_common, events as grpc_events};
+use crate::v0::{bcs as grpc_bcs, event as grpc_event, types as grpc_types};
 
 // Convert IotaEvent to protobuf Event
-impl From<&IotaEvent> for grpc_events::Event {
+impl From<&IotaEvent> for grpc_event::Event {
     fn from(event: &IotaEvent) -> Self {
-        grpc_events::Event {
-            event_id: Some(grpc_events::EventId {
-                event_seq: event.id.event_seq,
-                tx_digest: Some(grpc_common::TransactionDigest {
-                    digest: event.id.tx_digest.into_inner().to_vec(),
-                }),
+        grpc_event::Event {
+            bcs: Some(grpc_bcs::BcsData {
+                data: bcs::to_bytes(&event)
+                    .expect("BCS serialization should not fail")
+                    .into(),
             }),
-            package_id: Some(grpc_common::Address {
-                address: event.package_id.to_vec(),
+            package_id: Some(grpc_types::Address {
+                address: event.package_id.into_bytes().to_vec().into(),
             }),
-            transaction_module: event.transaction_module.to_string(),
-            sender: Some(grpc_common::Address {
-                address: event.sender.to_vec(),
+            module: Some(event.transaction_module.to_string()),
+            sender: Some(grpc_types::Address {
+                address: event.sender.to_vec().into(),
             }),
-            type_name: event.type_.to_string(),
-            parsed_json: event.parsed_json.to_string(),
-            timestamp_ms: event.timestamp_ms,
-            event_data: Some(grpc_common::BcsData {
-                data: event.bcs.bytes().to_vec(),
+            event_type: Some(event.type_.to_string()),
+            bcs_contents: Some(grpc_bcs::BcsData {
+                data: event.bcs.clone().into_bytes().into(),
             }),
+            json_contents: None, // TODO: fill in JSON contents
         }
     }
 }
