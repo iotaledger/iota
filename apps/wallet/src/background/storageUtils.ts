@@ -13,9 +13,9 @@ import { v4 as uuidV4 } from 'uuid';
 import Browser from 'webextension-polyfill';
 import type { Storage } from 'webextension-polyfill';
 
-const SESSION_STORAGE: Storage.LocalStorageArea | null =
-    // @ts-expect-error chrome
-    global?.chrome?.storage?.session || null;
+// @ts-expect-error chrome
+const SESSION_STORAGE = (global?.chrome?.storage?.session ||
+    null) as Storage.LocalStorageArea | null;
 
 async function getFromStorage<T>(
     storage: Storage.LocalStorageArea,
