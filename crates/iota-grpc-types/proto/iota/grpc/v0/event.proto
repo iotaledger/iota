@@ -1,35 +1,44 @@
-// Copyright (c) 2025 IOTA Stiftung
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
 syntax = "proto3";
 
-package iota.grpc.v0.events;
+package iota.grpc.v0.event;
 
-import "common.proto";
+import "google/protobuf/struct.proto";
 
-service EventService {
-  rpc StreamEvents (EventStreamRequest) returns (stream iota.grpc.v0.common.Event);
+import "iota/grpc/v0/bcs.proto";
+import "iota/grpc/v0/types.proto";
+
+// An event.
+message Event {
+  // This Event serialized as BCS.
+  optional iota.grpc.v0.bcs.BcsData bcs = 1;
+
+  // Package ID of the top-level function invoked by a `MoveCall` command that triggered this
+  // event to be emitted.
+  optional iota.grpc.v0.types.Address package_id = 2;
+  
+  // Module name of the top-level function invoked by a `MoveCall` command that triggered this
+  // event to be emitted.
+  optional string module = 3;
+
+  // iota.grpc.v0.types.Address of the account that sent the transaction where this event was emitted.
+  optional iota.grpc.v0.types.Address sender = 4;
+
+  // The type of the event emitted.
+  optional string event_type = 5;
+
+  // BCS serialized bytes of the event.
+  optional iota.grpc.v0.bcs.BcsData bcs_contents = 6;
+
+  // JSON rendering of the event.
+  // TODO: mention "type_and_fields_from_move_event_data" in the comment of the backend
+  optional google.protobuf.Value json_contents = 7;
 }
 
-message EventStreamRequest {
-  EventFilter filter = 1;
-}
-
-// Rich event filter that supports gRPC event filtering
-message EventFilter {
-  oneof filter {
-    iota.grpc.v0.common.AllFilter all = 1;
-    iota.grpc.v0.common.AddressFilter sender = 2;
-    iota.grpc.v0.common.TransactionDigestFilter transaction = 3;
-    iota.grpc.v0.common.MoveModuleFilter move_module = 4;
-    iota.grpc.v0.common.MoveEventTypeFilter move_event_type = 5;
-    iota.grpc.v0.common.MoveEventModuleFilter move_event_module = 6;
-    TimeRangeFilter time_range = 7;
-  }
-}
-
-// Filter by timestamp range
-message TimeRangeFilter {
-  uint64 start_time = 1;       // Start time in milliseconds since epoch (inclusive)
-  uint64 end_time = 2;         // End time in milliseconds since epoch (exclusive)
+// A list of events.
+message Events {
+  repeated Event events = 1;
 }

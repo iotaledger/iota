@@ -6,15 +6,16 @@
 
 use std::{collections::HashMap, path::PathBuf};
 
-use prost_types::FileDescriptorSet;
+use crate::generate_fields::FileDescriptorWithPackageVersion;
 
+mod dependency_graph;
 mod generate_fields;
 
 fn main() {
     let root_dir = PathBuf::from(std::env!("CARGO_MANIFEST_DIR"));
 
     let proto_dir = root_dir
-        .join("../iota-grpc-types/proto/iota/grpc/v0")
+        .join("../iota-grpc-types/proto")
         .canonicalize()
         .unwrap();
     let out_dir = root_dir
@@ -54,9 +55,33 @@ fn main() {
     // Sort files by name to have deterministic codegen output
     fds.file.sort_by(|a, b| a.name.cmp(&b.name));
 
-    tonic_prost_build::configure()
+    // Define boxing configuration
+    let boxed_types = vec![
+        ".iota.grpc.v0.types.TypeTagVector.inner_type".to_string(),
+        ".iota.grpc.v0.filter.AllEventFilter.filters".to_string(),
+        ".iota.grpc.v0.filter.AnyEventFilter.filters".to_string(),
+        ".iota.grpc.v0.filter.NotEventFilter.filter".to_string(),
+        ".iota.grpc.v0.filter.AllTransactionFilter.filters".to_string(),
+        ".iota.grpc.v0.filter.AnyTransactionFilter.filters".to_string(),
+        ".iota.grpc.v0.filter.NotTransactionFilter.filter".to_string(),
+        ".iota.grpc.v0.ledger_service.TransactionResult.result.transaction".to_string(),
+        "json_contents".to_string(),
+    ];
+
+    let mut tonic_prost_builder = tonic_prost_build::configure()
         .build_client(true)
         .build_server(true)
+        .bytes(".");
+
+    // apply all boxed types
+    for boxed_type in &boxed_types {
+        tonic_prost_builder = tonic_prost_builder.boxed(boxed_type);
+    }
+
+    tonic_prost_builder
+        .message_attribute(".iota.rpc", "#[non_exhaustive]")
+        .enum_attribute(".iota.rpc", "#[non_exhaustive]")
+        .btree_map(".")
         .out_dir(&out_dir)
         .compile_protos(&proto_files, std::slice::from_ref(&proto_dir))
         .unwrap();
@@ -65,6 +90,11 @@ fn main() {
     for entry in std::fs::read_dir(&out_dir).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
+
+        // ignore google proto files
+        if path.to_str().unwrap().contains("google") {
+            continue;
+        }
 
         if path.extension().and_then(|s| s.to_str()) == Some("rs")
             && !path
@@ -83,15 +113,11 @@ fn main() {
                 );
             }
 
-            // Fix clippy::module_inception warning for nested modules with same name
-            // This pattern appears in generated protobuf files like:
-            //   pub struct Foo { ... }
-            //   pub mod foo { ... }
-            // We need to add #[allow(clippy::module_inception)] before such modules
-            if content.contains("/// Nested message and enum types in") {
+            // reduce awesomeness of google xD
+            if content.contains("super::super::super::super::super::google") {
                 content = content.replace(
-                    "/// Nested message and enum types in",
-                    "#[allow(clippy::module_inception)]\n/// Nested message and enum types in",
+                    "super::super::super::super::super::google",
+                    "super::super::google",
                 );
             }
 
@@ -100,19 +126,33 @@ fn main() {
     }
 
     // Group files by package for field info generation
-    let mut packages: HashMap<String, FileDescriptorSet> = HashMap::new();
+    let mut packages: HashMap<String, FileDescriptorWithPackageVersion> = HashMap::new();
     for mut file in fds.file {
         // Clear source code info as it's not needed for field generation
         file.source_code_info = None;
-        packages
-            .entry(file.package().to_owned())
-            .or_default()
-            .file
-            .push(file);
+
+        let package = packages.entry(file.package().to_owned()).or_default();
+
+        package.fd_set.file.push(file.clone());
+
+        // get the version from the file path
+        package.version = file
+            .name
+            .as_ref()
+            .and_then(|name| {
+                // Extract version from file path like "iota/grpc/v0/types.proto" -> "v0"
+                name.split('/').find(|part| {
+                    part.starts_with('v')
+                        && part.len() > 1
+                        && part[1..].chars().all(|c| c.is_ascii_digit())
+                })
+            })
+            .unwrap_or("v0")
+            .to_string();
     }
 
     // Generate field constants and MessageFields impls
-    generate_fields::generate_field_info(&packages, &out_dir);
+    generate_fields::generate_field_info(&packages, &out_dir, &boxed_types);
 
     let status = std::process::Command::new("git")
         .arg("diff")

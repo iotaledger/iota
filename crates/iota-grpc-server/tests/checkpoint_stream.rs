@@ -8,7 +8,7 @@ use std::{
 };
 
 use iota_config::{local_ip_utils, node::GrpcApiConfig};
-use iota_grpc_client::{CheckpointClient, CheckpointContent, NodeClient};
+use iota_grpc_client::{LedgerClient, NodeClient};
 use iota_grpc_server::{
     CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, EventSubscriber, GrpcReader,
     GrpcServerHandle, start_grpc_server,
@@ -368,7 +368,7 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     config_customizer: impl FnOnce(&mut GrpcApiConfig),
 ) -> (
     GrpcServerHandle,
-    CheckpointClient,
+    LedgerClient,
     Arc<Mutex<HashSet<CheckpointSequenceNumber>>>,
 ) {
     let mock = Arc::new(MockRestStateReader::new_from_iter(checkpoint_range));
@@ -398,13 +398,13 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
     .expect("Failed to start gRPC server");
 
     let server_addr = server_handle.address();
-    let client = NodeClient::connect(&format!("http://{server_addr}"))
+    let ledger_service_client = NodeClient::connect(&format!("http://{server_addr}"))
         .await
         .expect("Failed to connect to gRPC server")
-        .checkpoint_client()
-        .expect("Checkpoint client should be available");
+        .ledger_service_client()
+        .expect("Ledger service client should be available");
 
-    (server_handle, client, checkpoints)
+    (server_handle, ledger_service_client, checkpoints)
 }
 
 // Helper function to spawn a background checkpoint sender for summaries and
