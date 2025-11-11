@@ -64,7 +64,7 @@ pub struct BinaryConfig {
     pub max_binary_format_version: u32,
     pub min_binary_format_version: u32,
     pub check_no_extraneous_bytes: bool,
-    pub allow_iota_metadata_bytes: bool,
+    pub check_iota_metadata_bytes: bool,
     pub table_config: TableConfig,
 }
 
@@ -73,14 +73,14 @@ impl BinaryConfig {
         max_binary_format_version: u32,
         min_binary_format_version: u32,
         check_no_extraneous_bytes: bool,
-        allow_iota_metadata_bytes: bool,
+        check_iota_metadata_bytes: bool,
         table_config: TableConfig,
     ) -> Self {
         Self {
             max_binary_format_version,
             min_binary_format_version,
             check_no_extraneous_bytes,
-            allow_iota_metadata_bytes,
+            check_iota_metadata_bytes,
             table_config,
         }
     }
@@ -96,7 +96,7 @@ impl BinaryConfig {
             max_binary_format_version,
             min_binary_format_version,
             check_no_extraneous_bytes,
-            allow_iota_metadata_bytes: false,
+            check_iota_metadata_bytes: false,
             table_config: TableConfig::legacy(),
         }
     }
@@ -105,13 +105,13 @@ impl BinaryConfig {
     /// check"
     pub fn with_extraneous_bytes_check(
         check_no_extraneous_bytes: bool,
-        allow_iota_metadata_bytes: bool,
+        check_iota_metadata_bytes: bool,
     ) -> Self {
         Self {
             max_binary_format_version: VERSION_MAX,
             min_binary_format_version: VERSION_1,
             check_no_extraneous_bytes,
-            allow_iota_metadata_bytes,
+            check_iota_metadata_bytes,
             table_config: TableConfig::legacy(),
         }
     }
@@ -123,7 +123,7 @@ impl BinaryConfig {
             max_binary_format_version: VERSION_MAX,
             min_binary_format_version: VERSION_1,
             check_no_extraneous_bytes: true,
-            allow_iota_metadata_bytes: true,
+            check_iota_metadata_bytes: true,
             table_config: TableConfig::legacy(),
         }
     }
