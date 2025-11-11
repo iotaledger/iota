@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet, VecDeque},
     mem,
     net::SocketAddr,
     sync::{Arc, Mutex},
@@ -11,7 +11,7 @@ use std::{
 };
 
 use async_graphql::{
-    Name, Positioned, Response, ServerError, ServerResult, Variables,
+    Name, Pos, Positioned, Response, ServerError, ServerResult, Variables,
     extensions::{Extension, ExtensionContext, ExtensionFactory, NextParseQuery, NextRequest},
     parser::types::{
         DocumentOperations, ExecutableDocument, Field, FragmentDefinition, OperationDefinition,
@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use axum::http::HeaderName;
 use iota_graphql_rpc_headers::LIMITS_HEADER;
 use serde::Serialize;
-use tracing::info;
+use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
@@ -32,6 +32,15 @@ use crate::{
     error::{code, graphql_error, graphql_error_at_pos},
     metrics::Metrics,
 };
+
+const DRY_RUN_TX_BLOCK: &str = "dryRunTransactionBlock";
+const EXECUTE_TX_BLOCK: &str = "executeTransactionBlock";
+
+/// The size of the query payload in bytes.
+///
+/// This is resolved from the `Content-Length` request header:
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct PayloadSize(pub u64);
 
 pub(crate) const CONNECTION_FIELDS: [&str; 2] = ["edges", "nodes"];
 
@@ -47,21 +56,112 @@ struct QueryLimitsCheckerExt {
 /// Only display usage information if this header was in the request.
 pub(crate) struct ShowUsage;
 
+/// Builds error messages and reports them to tracing.
+struct Reporter<'a> {
+    limits: &'a Limits,
+    query_id: &'a Uuid,
+    session_id: &'a SocketAddr,
+}
+
+impl<'a> Reporter<'a> {
+    fn new(ctx: &'a ExtensionContext<'a>) -> Self {
+        let cfg: &ServiceConfig = ctx.data_unchecked();
+        Self {
+            limits: &cfg.limits,
+            query_id: ctx.data_unchecked(),
+            session_id: ctx.data_unchecked(),
+        }
+    }
+
+    /// Error returned if a fragment is referred to but not found in the
+    /// document.
+    fn fragment_not_found_error(&self, name: &Name, pos: Pos) -> ServerError {
+        self.graphql_error_at_pos(
+            code::BAD_USER_INPUT,
+            format!("Fragment {name} referred to but not found in document"),
+            pos,
+        )
+    }
+
+    /// Error returned if output node estimate exceeds limit.
+    fn output_node_error(&self) -> ServerError {
+        self.graphql_error(
+            code::BAD_USER_INPUT,
+            format!(
+                "Estimated output nodes exceeds {}",
+                self.limits.max_output_nodes
+            ),
+        )
+    }
+
+    /// Error returned if the payload size exceeds the limit.
+    fn payload_size_error(&self, message: &str) -> ServerError {
+        self.graphql_error(
+            code::BAD_USER_INPUT,
+            format!(
+                "{message}. Requests are limited to {max_tx_payload} bytes or fewer on \
+                 transaction payloads (all inputs to executeTransactionBlock or \
+                 dryRunTransactionBlock) and the rest of the request (the query part) must be \
+                 {max_query_payload} bytes or fewer.",
+                max_tx_payload = self.limits.max_tx_payload_size,
+                max_query_payload = self.limits.max_query_payload_size,
+            ),
+        )
+    }
+
+    /// Build a GraphQL Server Error and also log it.
+    fn graphql_error(&self, code: &str, message: String) -> ServerError {
+        self.log_error(code, &message);
+        graphql_error(code, message)
+    }
+
+    /// Like `graphql_error` but for an error at a specific position in the
+    /// query.
+    fn graphql_error_at_pos(&self, code: &str, message: String, pos: Pos) -> ServerError {
+        self.log_error(code, &message);
+        graphql_error_at_pos(code, message, pos)
+    }
+
+    /// Log an error (used before returning an error response.
+    fn log_error(&self, error_code: &str, message: &str) {
+        if error_code == code::INTERNAL_SERVER_ERROR {
+            error!(
+                query_id = %self.query_id,
+                session_id = %self.session_id,
+                error_code,
+                "Internal error while checking limits: {message}",
+            );
+        } else {
+            info!(
+                query_id = %self.query_id,
+                session_id = %self.session_id,
+                error_code,
+                "Limits error: {message}",
+            );
+        }
+    }
+}
+
 /// State for traversing a document to check for limits. Holds on to
 /// environments for looking up variables and fragments, limits, and the
 /// remainder of the limit that can be used.
 struct LimitsTraversal<'a> {
-    // Environments for resolving lookups in the document
+    /// Environments for resolving lookups in the document
     fragments: &'a HashMap<Name, Positioned<FragmentDefinition>>,
     variables: &'a Variables,
 
-    // Relevant limits from the service configuration
-    default_page_size: u32,
-    max_input_nodes: u32,
-    max_output_nodes: u32,
-    max_depth: u32,
+    /// Creates and traces errors
+    reporter: &'a Reporter<'a>,
+    /// Raw size of the request
+    payload_size: u64,
+    /// Variables that are used in transaction execution and dry-runs.
+    ///
+    /// If these variables are used multiple times, the size of their
+    /// contents should not be double-counted.
+    tx_variables_used: HashSet<&'a Name>,
 
-    // Remaining budget for the traversal
+    /// Remaining budget for the traversal
+    tx_payload_budget: u32,
     input_budget: u32,
     output_budget: u32,
     depth_seen: u32,
@@ -86,44 +186,69 @@ impl ShowUsage {
 
 impl<'a> LimitsTraversal<'a> {
     fn new(
-        limits: &Limits,
+        PayloadSize(payload_size): PayloadSize,
+        reporter: &'a Reporter<'a>,
         fragments: &'a HashMap<Name, Positioned<FragmentDefinition>>,
         variables: &'a Variables,
     ) -> Self {
         Self {
             fragments,
             variables,
-            default_page_size: limits.default_page_size,
-            max_input_nodes: limits.max_query_nodes,
-            max_output_nodes: limits.max_output_nodes,
-            max_depth: limits.max_query_depth,
-            input_budget: limits.max_query_nodes,
-            output_budget: limits.max_output_nodes,
+            payload_size,
+            reporter,
+            input_budget: reporter.limits.max_query_nodes,
+            output_budget: reporter.limits.max_output_nodes,
+            tx_payload_budget: reporter.limits.max_tx_payload_size,
+            tx_variables_used: HashSet::new(),
             depth_seen: 0,
         }
     }
 
     /// Main entrypoint for checking all limits.
-    fn check_document(&mut self, doc: &ExecutableDocument) -> ServerResult<()> {
+    fn check_document(&mut self, doc: &'a ExecutableDocument) -> ServerResult<()> {
+        // First, check the size of the query inputs. This is done using a non-recursive
+        // algorithm in case the input has too many nodes or is too deep. This
+        // allows subsequent checks to be implemented recursively.
         for (_name, op) in doc.operations.iter() {
             self.check_input_limits(op)?;
+        }
+        // Then gather inputs to transaction execution and dry-run nodes, and make sure
+        // these are within budget, cumulatively.
+        for (_name, op) in doc.operations.iter() {
+            self.check_tx_payload(op)?;
+        }
+        // Next, with the transaction payloads accounted for, ensure the remaining query
+        // is within the size limit.
+        let limits = self.reporter.limits;
+        let tx_payload_size = (limits.max_tx_payload_size - self.tx_payload_budget) as u64;
+        let query_payload_size = self.payload_size - tx_payload_size;
+        if query_payload_size > limits.max_query_payload_size as u64 {
+            let message = format!("Query part too large: {query_payload_size} bytes");
+            return Err(self.reporter.payload_size_error(&message));
+        }
+        // Finally, run output node estimation, to check that the output won't contain
+        // too many nodes, in the worst case.
+        for (_name, op) in doc.operations.iter() {
             self.check_output_limits(op)?;
         }
+
         Ok(())
     }
 
     /// Test that the operation meets input limits (number of nodes and depth).
     fn check_input_limits(&mut self, op: &Positioned<OperationDefinition>) -> ServerResult<()> {
+        let limits = self.reporter.limits;
+
         let mut next_level = vec![];
         let mut curr_level = vec![];
-        let mut depth_budget = self.max_depth;
+        let mut depth_budget = limits.max_query_depth;
 
         next_level.extend(&op.node.selection_set.node.items);
         while let Some(next) = next_level.first() {
             if depth_budget == 0 {
-                return Err(graphql_error_at_pos(
+                return Err(self.reporter.graphql_error_at_pos(
                     code::BAD_USER_INPUT,
-                    format!("Query nesting is over {}", self.max_depth),
+                    format!("Query nesting is over {}", limits.max_query_depth),
                     next.pos,
                 ));
             } else {
@@ -134,9 +259,9 @@ impl<'a> LimitsTraversal<'a> {
 
             for selection in curr_level.drain(..) {
                 if self.input_budget == 0 {
-                    return Err(graphql_error_at_pos(
+                    return Err(self.reporter.graphql_error_at_pos(
                         code::BAD_USER_INPUT,
-                        format!("Query has over {} nodes", self.max_input_nodes),
+                        format!("Query has over {} nodes", limits.max_query_nodes),
                         selection.pos,
                     ));
                 } else {
@@ -154,13 +279,10 @@ impl<'a> LimitsTraversal<'a> {
 
                     Selection::FragmentSpread(fs) => {
                         let name = &fs.node.fragment_name.node;
-                        let def = self.fragments.get(name).ok_or_else(|| {
-                            graphql_error_at_pos(
-                                code::INTERNAL_SERVER_ERROR,
-                                format!("Fragment {name} referred to but not found in document"),
-                                fs.pos,
-                            )
-                        })?;
+                        let def = self
+                            .fragments
+                            .get(name)
+                            .ok_or_else(|| self.reporter.fragment_not_found_error(name, fs.pos))?;
 
                         next_level.extend(&def.node.selection_set.node.items);
                     }
@@ -168,7 +290,37 @@ impl<'a> LimitsTraversal<'a> {
             }
         }
 
-        self.depth_seen = self.depth_seen.max(self.max_depth - depth_budget);
+        self.depth_seen = self.depth_seen.max(limits.max_query_depth - depth_budget);
+        Ok(())
+    }
+
+    /// Test that inputs to `executeTransactionBlock` and
+    /// `dryRunTransactionBlock` take up less space than the service's
+    /// transaction payload limit, cumulatively.
+    ///
+    /// This check must be done after the input limit check, because it relies
+    /// on the query depth being bounded to protect it from recursing too
+    /// deeply.
+    fn check_tx_payload(&mut self, op: &'a Positioned<OperationDefinition>) -> ServerResult<()> {
+        let tx_arg_values = op
+            .node
+            .selection_set
+            .node
+            .items
+            .iter()
+            .flat_map(|selection| {
+                TxArgValueIter::new(&selection.node, self.fragments, self.reporter)
+            });
+        for value in tx_arg_values {
+            let cost = value?.cost(self.variables, &mut self.tx_variables_used);
+            if cost > self.tx_payload_budget as usize {
+                // Ensure that the caller is aware that the budget is spent.
+                self.tx_payload_budget = 0;
+                return Err(self.tx_payload_size_error());
+            } else {
+                self.tx_payload_budget -= cost as u32;
+            }
+        }
         Ok(())
     }
 
@@ -234,28 +386,31 @@ impl<'a> LimitsTraversal<'a> {
 
             // Just recurse through fragments, because they are inlined into their "call site".
             Selection::InlineFragment(f) => {
-                for selection in f.node.selection_set.node.items.iter() {
+                for selection in &f.node.selection_set.node.items {
                     self.traverse_selection_for_output(selection, multiplicity, page_size)?;
                 }
             }
 
             Selection::FragmentSpread(fs) => {
                 let name = &fs.node.fragment_name.node;
-                let def = self.fragments.get(name).ok_or_else(|| {
-                    graphql_error_at_pos(
-                        code::INTERNAL_SERVER_ERROR,
-                        format!("Fragment {name} referred to but not found in document"),
-                        fs.pos,
-                    )
-                })?;
+                let def = self
+                    .fragments
+                    .get(name)
+                    .ok_or_else(|| self.reporter.fragment_not_found_error(name, fs.pos))?;
 
-                for selection in def.node.selection_set.node.items.iter() {
+                for selection in &def.node.selection_set.node.items {
                     self.traverse_selection_for_output(selection, multiplicity, page_size)?;
                 }
             }
         }
 
         Ok(())
+    }
+
+    /// Error returned if transaction payloads exceed limit.
+    fn tx_payload_size_error(&mut self) -> ServerError {
+        self.reporter
+            .payload_size_error("Transaction payload too large")
     }
 
     /// If the field `f` is a connection, extract its page size, otherwise
@@ -272,7 +427,7 @@ impl<'a> LimitsTraversal<'a> {
         let page_size = match (self.resolve_u64(first), self.resolve_u64(last)) {
             (Some(f), Some(l)) => f.max(l),
             (Some(p), _) | (_, Some(p)) => p,
-            (None, None) => self.default_page_size as u64,
+            (None, None) => self.reporter.limits.default_page_size as u64,
         };
 
         Ok(Some(
@@ -354,22 +509,217 @@ impl<'a> LimitsTraversal<'a> {
     /// but still have budget left over).
     fn output_node_error(&mut self) -> ServerError {
         self.output_budget = 0;
-        graphql_error(
-            code::BAD_USER_INPUT,
-            format!("Estimated output nodes exceeds {}", self.max_output_nodes),
-        )
+        self.reporter.output_node_error()
     }
 
     /// Finish the traversal and report its usage.
     fn finish(self, query_payload: u32) -> Usage {
+        let limits = self.reporter.limits;
         Usage {
-            input_nodes: self.max_input_nodes - self.input_budget,
-            output_nodes: self.max_output_nodes - self.output_budget,
+            input_nodes: limits.max_query_nodes - self.input_budget,
+            output_nodes: limits.max_output_nodes - self.output_budget,
             depth: self.depth_seen,
             variables: self.variables.len() as u32,
             fragments: self.fragments.len() as u32,
             query_payload,
         }
+    }
+}
+
+#[derive(Debug)]
+enum ParsedValue<'a> {
+    /// An unresolved GraphQL [`Value`].
+    GraphQL(&'a Value),
+    /// A resolved value in a GraphQL query.
+    Resolved(&'a ConstValue),
+}
+
+struct VariableUsage {
+    /// Cost of a single use of the variable.
+    cost: usize,
+    /// Number of times a variable is used in a parsed value.
+    count: usize,
+}
+
+impl VariableUsage {
+    fn new(cost: usize) -> Self {
+        Self { cost, count: 1 }
+    }
+
+    fn increase_count(&mut self) {
+        self.count += 1;
+    }
+}
+
+/// Cost report for a parsed value.
+#[derive(Default)]
+struct ValueCostReport<'a> {
+    /// Total cost before deducting reused variables.
+    gross: usize,
+    /// Variable usage while parsing the value.
+    variables_used: HashMap<&'a Name, VariableUsage>,
+}
+
+impl<'a> ValueCostReport<'a> {
+    fn new(cost: usize) -> Self {
+        Self {
+            gross: cost,
+            variables_used: HashMap::new(),
+        }
+    }
+
+    fn add_variable(&mut self, name: &'a Name, cost: usize) {
+        self.variables_used
+            .entry(name)
+            .and_modify(|usage| usage.increase_count())
+            .or_insert_with(|| VariableUsage::new(cost));
+    }
+
+    fn merge_report(&mut self, other: ValueCostReport<'a>) {
+        self.gross += other.gross;
+        for (name, usage) in other.variables_used {
+            self.variables_used
+                .entry(name)
+                .and_modify(|existing| {
+                    existing.count += usage.count;
+                })
+                .or_insert(usage);
+        }
+    }
+}
+
+/// A parsed transaction argument value.
+struct TxArgValue<'a>(ParsedValue<'a>);
+
+impl<'a> TxArgValue<'a> {
+    /// Cost of the value after deducting reused variables
+    fn cost(
+        self,
+        document_variables: &'a Variables,
+        used_variables: &mut HashSet<&'a Name>,
+    ) -> usize {
+        let cost_report = self.cost_report(document_variables);
+        let mut net_cost = cost_report.gross;
+        for (name, VariableUsage { cost, count }) in &cost_report.variables_used {
+            if used_variables.insert(name) {
+                // variable not used before, deduct only repeated uses
+                net_cost -= (count - 1) * cost
+            } else {
+                // variable already used, deduct all uses
+                net_cost -= count * cost
+            }
+        }
+        net_cost
+    }
+
+    /// Evaluate the cost report for transaction argument values.
+    fn cost_report(self, variables: &'a Variables) -> ValueCostReport<'a> {
+        use ConstValue as CV;
+        use ParsedValue::{GraphQL, Resolved};
+        use Value as V;
+
+        match self.0 {
+            GraphQL(V::String(s)) | Resolved(CV::String(s)) => {
+                // Pay for the string, plus the quotes around it.
+                ValueCostReport::new(s.len() + 2)
+            }
+            GraphQL(V::List(vs)) => {
+                // Pay for the opening and closing brackets and every comma up-front so that
+                // deeply nested lists are not free.
+                let mut cost = ValueCostReport::new(vs.len().saturating_sub(1) + 2);
+                for value in vs {
+                    cost.merge_report(Self(ParsedValue::GraphQL(value)).cost_report(variables));
+                }
+                cost
+            }
+            Resolved(CV::List(vs)) => {
+                // Follows the `GraphQL` list evaluation.
+                let mut cost = ValueCostReport::new(vs.len().saturating_sub(1) + 2);
+                for value in vs {
+                    cost.merge_report(Self(ParsedValue::Resolved(value)).cost_report(variables));
+                }
+                cost
+            }
+            GraphQL(V::Variable(name)) => {
+                if let Some(value) = variables.get(name) {
+                    let mut cost = Self(ParsedValue::Resolved(value)).cost_report(variables);
+                    cost.add_variable(name, cost.gross);
+                    return cost;
+                }
+                Default::default()
+            }
+            _ => {
+                // Transaction payloads cannot be any of these types.
+                //
+                // From a limits perspective, it is safe to ignore these
+                // values here, because they will still
+                // be counted as part of the query payload (and so are still
+                // subject to a limit).
+                Default::default()
+            }
+        }
+    }
+}
+
+/// Iterator over transaction argument values.
+///
+/// Traverses a selection on the `dryRunTransactionBlock` or
+/// `executeTransactionBlock` query paths to find all argument values.
+struct TxArgValueIter<'a> {
+    selections: VecDeque<&'a Selection>,
+    arguments: VecDeque<TxArgValue<'a>>,
+    fragments: &'a HashMap<Name, Positioned<FragmentDefinition>>,
+    reporter: &'a Reporter<'a>,
+}
+
+impl<'a> TxArgValueIter<'a> {
+    fn new(
+        selection: &'a Selection,
+        fragments: &'a HashMap<Name, Positioned<FragmentDefinition>>,
+        reporter: &'a Reporter<'a>,
+    ) -> Self {
+        Self {
+            selections: VecDeque::from([selection]),
+            arguments: VecDeque::new(),
+            fragments,
+            reporter,
+        }
+    }
+}
+
+impl<'a> Iterator for TxArgValueIter<'a> {
+    type Item = Result<TxArgValue<'a>, ServerError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(value) = self.arguments.pop_front() {
+            return Some(Ok(value));
+        }
+        let selection = self.selections.pop_front()?;
+        match selection {
+            Selection::Field(f) => {
+                let name = &f.node.name.node;
+                if name == DRY_RUN_TX_BLOCK || name == EXECUTE_TX_BLOCK {
+                    for (_name, value) in &f.node.arguments {
+                        self.arguments
+                            .push_back(TxArgValue(ParsedValue::GraphQL(&value.node)));
+                    }
+                }
+            }
+            Selection::InlineFragment(f) => {
+                self.selections
+                    .extend(f.node.selection_set.node.items.iter().map(|s| &s.node));
+            }
+
+            Selection::FragmentSpread(fs) => {
+                let name = &fs.node.fragment_name.node;
+                let Some(def) = self.fragments.get(name) else {
+                    return Some(Err(self.reporter.fragment_not_found_error(name, fs.pos)));
+                };
+                self.selections
+                    .extend(def.node.selection_set.node.items.iter().map(|s| &s.node));
+            }
+        }
+        self.next()
     }
 }
 
@@ -423,32 +773,18 @@ impl Extension for QueryLimitsCheckerExt {
         variables: &Variables,
         next: NextParseQuery<'_>,
     ) -> ServerResult<ExecutableDocument> {
-        let query_id: &Uuid = ctx.data_unchecked();
-        let session_id: &SocketAddr = ctx.data_unchecked();
         let metrics: &Metrics = ctx.data_unchecked();
-        let cfg: &ServiceConfig = ctx.data_unchecked();
+        let payload_size: &PayloadSize = ctx.data_unchecked();
+        let reporter = Reporter::new(ctx);
         let instant = Instant::now();
 
-        if query.len() > cfg.limits.max_query_payload_size as usize {
-            metrics
-                .request_metrics
-                .query_payload_too_large_size
-                .observe(query.len() as f64);
-            info!(
-                query_id = %query_id,
-                session_id = %session_id,
-                error_code = code::BAD_USER_INPUT,
-                "Query payload is too large: {}",
-                query.len()
-            );
+        // Make sure the request meets a basic size limit before trying to parse it.
+        let max_payload_size = reporter.limits.max_query_payload_size as u64
+            + reporter.limits.max_tx_payload_size as u64;
 
-            return Err(graphql_error(
-                code::BAD_USER_INPUT,
-                format!(
-                    "Query payload is too large. The maximum allowed is {} bytes",
-                    cfg.limits.max_query_payload_size
-                ),
-            ));
+        if payload_size.0 > max_payload_size {
+            let message = format!("Overall request too large: {} bytes", payload_size.0);
+            return Err(reporter.payload_size_error(&message));
         }
 
         // Document layout of the query
@@ -467,7 +803,8 @@ impl Extension for QueryLimitsCheckerExt {
             }
         }
 
-        let mut traversal = LimitsTraversal::new(&cfg.limits, &doc.fragments, variables);
+        let mut traversal =
+            LimitsTraversal::new(*payload_size, &reporter, &doc.fragments, variables);
         let res = traversal.check_document(&doc);
         let usage = traversal.finish(query.len() as u32);
         metrics.query_validation_latency(instant.elapsed());

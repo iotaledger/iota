@@ -2,12 +2,22 @@ name: Changesets Publish
 
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g., latest, experimental, dev)"
+        required: true
+        type: string
+      create_snapshot:
+        description: "Create snapshot release (when true, uses --snapshot)."
+        required: true
+        type: boolean
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+concurrency: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.inputs.tag }}
 
 env:
   IOTA_NETWORKS: ${{ secrets.CHANGESETS_IOTA_NETWORKS }}
   DEFAULT_NETWORK: ${{ secrets.CHANGESETS_DEFAULT_NETWORK }}
+  NPM_TOKEN: ""
 
 permissions:
   id-token: write
@@ -21,19 +31,92 @@ jobs:
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           fetch-depth: 0
+
       - uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
       - name: Install Nodejs
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: "20"
           cache: "pnpm"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Update npm
         run: npm install -g npm@latest
+
       - name: Uninstall yarn # https://github.com/postmanlabs/postman-code-generators/issues/792
-        run: npm uninstall -g yarn || true
+        run: |
+          YARN_PATH=$(which yarn || true)
+          if [ -n "$YARN_PATH" ]; then
+            echo "Removing Yarn at $YARN_PATH"
+            sudo rm -f "$YARN_PATH"
+          fi
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Check for pending changesets
+        id: check-changes
+        run: |
+          if [ -n "$(ls -A .changeset/*.md 2>/dev/null | grep -v README.md)" ]; then
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            echo "Found pending changesets:"
+            ls -1 .changeset/*.md 2>/dev/null | grep -v README.md | head -5
+          else
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "No pending changesets found"
+          fi
+
       - name: Build packages
-        run: pnpm turbo run build --filter=./sdk/*
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: |
+          pnpm --filter @iota/iota-sdk codegen:version
+          pnpm sdk-packages build
+
+      - name: Create snapshot versions
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: |
+          if [ "${{ github.event.inputs.create_snapshot }}" = "true" ]; then
+            pnpm changeset version --snapshot ${{ github.event.inputs.tag }}
+          else
+            pnpm changeset version
+          fi
+
       - name: Publish packages
-        run: pnpm changeset-publish --no-git-tag
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: |
+          if [ "${{ github.event.inputs.create_snapshot }}" = "true" ]; then
+            pnpm changeset publish --snapshot --tag ${{ github.event.inputs.tag }}
+          else
+            pnpm changeset publish
+          fi
+
+      - name: Create summary
+        if: steps.check-changes.outputs.has-changes == 'true'
+        run: |
+          echo "## Snapshot Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "**Tag:** \`${{ github.event.inputs.tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Snapshot:** \`${{ github.event.inputs.create_snapshot }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Commit:** \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Published Packages" >> $GITHUB_STEP_SUMMARY
+          echo "Check the workflow logs for detailed package versions." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Installation" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event.inputs.create_snapshot }}" = "true" ]; then
+            echo "Install snapshot packages using:" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @iota/iota-sdk@${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+            echo "npm install @iota/dapp-kit@${{ github.event.inputs.tag }}" >> $GITHUB_STEP_SUMMARY
+            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "Published packages are official releases; install via the published versions." >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: No changes detected
+        if: steps.check-changes.outputs.has-changes == 'false'
+        run: |
+          echo "## No Pending Changesets" >> $GITHUB_STEP_SUMMARY
+          echo "No pending changesets found. Snapshot release skipped." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "To create a changeset, run \`pnpm changeset\` and select the packages you want to release."
