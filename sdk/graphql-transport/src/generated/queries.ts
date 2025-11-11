@@ -6192,6 +6192,13 @@ export type GetStakesByIdsQuery = { __typename?: 'Query', objects: { __typename?
 
 export type Rpc_Stake_FieldsFragment = { __typename?: 'StakedIota', principal?: any | null, stakeStatus: StakeStatus, address: any, estimatedReward?: any | null, activatedEpoch?: { __typename?: 'Epoch', epochId: any, referenceGasPrice?: any | null } | null, requestedEpoch?: { __typename?: 'Epoch', epochId: any } | null, contents?: { __typename?: 'MoveValue', json: any } | null };
 
+export type TransactionBlocksByDigestsQueryVariables = Exact<{
+  digests: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+
+export type TransactionBlocksByDigestsQuery = { __typename?: 'Query', transactionBlocksByDigests: Array<{ __typename?: 'TransactionBlock', digest?: string | null } | null> };
+
 export type QueryTransactionBlocksQueryVariables = Exact<{
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
@@ -8705,6 +8712,13 @@ export const GetStakesByIdsDocument = new TypedDocumentString(`
   address
   estimatedReward
 }`) as unknown as TypedDocumentString<GetStakesByIdsQuery, GetStakesByIdsQueryVariables>;
+export const TransactionBlocksByDigestsDocument = new TypedDocumentString(`
+    query TransactionBlocksByDigests($digests: [String!]!) {
+  transactionBlocksByDigests(digests: $digests) {
+    digest
+  }
+}
+    `) as unknown as TypedDocumentString<TransactionBlocksByDigestsQuery, TransactionBlocksByDigestsQueryVariables>;
 export const QueryTransactionBlocksDocument = new TypedDocumentString(`
     query queryTransactionBlocks($first: Int, $last: Int, $before: String, $after: String, $showBalanceChanges: Boolean = false, $showEffects: Boolean = false, $showRawEffects: Boolean = false, $showEvents: Boolean = false, $showInput: Boolean = false, $showObjectChanges: Boolean = false, $showRawInput: Boolean = false, $filter: TransactionBlockFilter) {
   transactionBlocks(
