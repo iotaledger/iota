@@ -8,12 +8,14 @@ use std::{
 };
 
 use parking_lot::RwLock;
-use starfish_config::AuthorityIndex;
+use starfish_config::{AuthorityIndex, Stake};
 use tracing::instrument;
 
 use crate::{
     Round,
-    block_header::{BlockHeaderAPI, BlockHeaderDigest, BlockRef, VerifiedBlockHeader},
+    block_header::{
+        BlockHeaderAPI, BlockHeaderDigest, BlockRef, BlockTimestampMs, VerifiedBlockHeader,
+    },
     commit::{Commit, CommitAPI, PendingSubDag, TrustedCommit, sort_sub_dag_blocks},
     context::Context,
     dag_state::DagState,
@@ -32,7 +34,7 @@ impl BlockStoreAPI
     for parking_lot::lock_api::RwLockReadGuard<'_, parking_lot::RawRwLock, DagState>
 {
     fn get_block_headers(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
-        DagState::get_block_headers(self, refs)
+        DagState::get_verified_block_headers(self, refs)
     }
 }
 
@@ -80,7 +82,6 @@ impl Linearizer {
         let last_commit_digest = dag_state_guard.last_commit_digest();
         let last_commit_timestamp_ms = dag_state_guard.last_commit_timestamp_ms();
         let last_committed_rounds = dag_state_guard.last_committed_rounds();
-        let timestamp_ms = leader_block.timestamp_ms().max(last_commit_timestamp_ms);
 
         // Now linearize the sub-dag starting from the leader block
         let to_commit = Self::linearize_sub_dag(
@@ -88,6 +89,14 @@ impl Linearizer {
             last_committed_rounds,
             &dag_state_guard,
             self.context.protocol_config.gc_depth(),
+        );
+
+        // Calculate commit timestamp using median of leader's parents (NEW mode)
+        let timestamp_ms = Self::calculate_commit_timestamp(
+            &self.context,
+            &dag_state_guard,
+            &leader_block,
+            last_commit_timestamp_ms,
         );
 
         drop(dag_state_guard);
@@ -313,13 +322,98 @@ impl Linearizer {
 
         acknowledged_map
     }
+
+    /// Calculates the commit's timestamp using the median of leader's parents
+    /// (leader.round - 1) timestamps by stake. To ensure that commit timestamp
+    /// monotonicity is respected, it is compared against the
+    /// `last_commit_timestamp_ms` and the maximum of the two is returned.
+    pub(crate) fn calculate_commit_timestamp(
+        context: &Context,
+        dag_state: &impl BlockStoreAPI,
+        leader_block: &VerifiedBlockHeader,
+        last_commit_timestamp_ms: BlockTimestampMs,
+    ) -> BlockTimestampMs {
+        // Select leaders' parent blocks (blocks at round - 1)
+        let block_refs = leader_block
+            .ancestors()
+            .iter()
+            .filter(|block_ref| block_ref.round == leader_block.round() - 1)
+            .cloned()
+            .collect::<Vec<_>>();
+
+        // Get the blocks from dag state which should not fail
+        let block_headers = dag_state
+            .get_block_headers(&block_refs)
+            .into_iter()
+            .map(|block_opt| block_opt.expect("We should have all block headers in dag state."));
+
+        let timestamp_ms = median_timestamp_by_stake(context, block_headers).unwrap_or_else(|e| {
+            panic!(
+                "Cannot compute median timestamp for leader block {:?} ancestors: {}",
+                leader_block.reference(),
+                e
+            )
+        });
+
+        // Always make sure that commit timestamps are monotonic, so override if
+        // necessary
+        timestamp_ms.max(last_commit_timestamp_ms)
+    }
+}
+
+/// Computes the median timestamp of the blocks weighted by the stake of their
+/// authorities. This function assumes each block comes from a different
+/// authority of the same round. Error is returned if no blocks are provided or
+///  the total stake is less than a quorum threshold.
+pub(crate) fn median_timestamp_by_stake(
+    context: &Context,
+    block_headers: impl Iterator<Item = VerifiedBlockHeader>,
+) -> Result<BlockTimestampMs, String> {
+    let mut total_stake = 0;
+    let mut timestamps = vec![];
+    for header in block_headers {
+        let stake = context.committee.authority(header.author()).stake;
+        timestamps.push((header.timestamp_ms(), stake));
+        total_stake += stake;
+    }
+
+    if timestamps.is_empty() {
+        return Err("No block headers provided".to_string());
+    }
+    if total_stake < context.committee.quorum_threshold() {
+        return Err(format!(
+            "Total stake {} < quorum threshold {}",
+            total_stake,
+            context.committee.quorum_threshold()
+        )
+        .to_string());
+    }
+
+    Ok(median_timestamps_by_stake_inner(timestamps, total_stake))
+}
+
+fn median_timestamps_by_stake_inner(
+    mut timestamps: Vec<(BlockTimestampMs, Stake)>,
+    total_stake: Stake,
+) -> BlockTimestampMs {
+    timestamps.sort_by_key(|(ts, _)| *ts);
+
+    let mut cumulative_stake = 0;
+    for (ts, stake) in &timestamps {
+        cumulative_stake += stake;
+        if cumulative_stake > total_stake / 2 {
+            return *ts;
+        }
+    }
+
+    timestamps.last().unwrap().0
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
-        CommitIndex,
+        CommitIndex, TestBlockHeader,
         commit::{CommitDigest, WAVE_LENGTH},
         context::Context,
         leader_schedule::{LeaderSchedule, LeaderSwapTable},
@@ -361,26 +455,41 @@ mod tests {
         for (idx, subdag) in commits.into_iter().enumerate() {
             tracing::info!("{subdag:?}");
             assert_eq!(subdag.leader, leaders[idx].reference());
-            assert_eq!(subdag.timestamp_ms, leaders[idx].timestamp_ms());
+
+            let block_refs = leaders[idx]
+                .ancestors()
+                .iter()
+                .filter(|block_ref| block_ref.round == leaders[idx].round() - 1)
+                .cloned()
+                .collect::<Vec<_>>();
+            let blocks = dag_state
+                .read()
+                .get_block_headers(&block_refs)
+                .into_iter()
+                .map(|block_opt| block_opt.expect("We should have all blocks in dag state."));
+            let expected_ts = median_timestamp_by_stake(&context, blocks).unwrap();
+
+            assert_eq!(subdag.timestamp_ms, expected_ts);
+
             if idx == 0 {
                 // First subdag includes the leader block only and no committed data
-                assert_eq!(subdag.blocks.len(), 1);
+                assert_eq!(subdag.headers.len(), 1);
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 1 {
                 // Genesis blocks are included in the first commit
-                assert_eq!(subdag.blocks.len(), num_authorities);
+                assert_eq!(subdag.headers.len(), num_authorities);
                 // Transactions from genesis are not committed
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else {
                 // Every subdag after will be missing the leader block from the previous
                 // committed subdag
-                assert_eq!(subdag.blocks.len(), num_authorities);
+                assert_eq!(subdag.headers.len(), num_authorities);
                 // Every subdag after the first one will have all the committed transactions
                 // from 2 rounds before the leader round
                 assert_eq!(subdag.committed_transaction_refs.len(), num_authorities);
             }
-            for block in subdag.blocks.iter() {
-                assert!(block.round() <= leaders[idx].round());
+            for header in subdag.headers.iter() {
+                assert!(header.round() <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
@@ -510,8 +619,8 @@ mod tests {
             0,
             first_leader.reference(),
             block_headers_wave_1
-                .into_iter()
-                .map(|block| block.reference())
+                .iter()
+                .map(|block_header| block_header.reference())
                 .collect(),
             vec![],
         );
@@ -563,23 +672,36 @@ mod tests {
         let subdag = &commit[0];
         tracing::info!("{subdag:?}");
         assert_eq!(subdag.leader, leader.reference());
-        assert_eq!(subdag.timestamp_ms, leader.timestamp_ms());
         assert_eq!(subdag.commit_ref.index, expected_second_commit.index());
+
+        let expected_ts = median_timestamp_by_stake(
+            &context,
+            subdag.headers.iter().filter_map(|header| {
+                if header.round() == subdag.leader.round - 1 {
+                    Some(header.clone())
+                } else {
+                    None
+                }
+            }),
+        )
+        .unwrap();
+
+        assert_eq!(subdag.timestamp_ms, expected_ts);
 
         // Using the same sorting as used in CommittedSubDag::sort
         block_refs_wave_2
             .sort_by(|a, b| a.round.cmp(&b.round).then_with(|| a.author.cmp(&b.author)));
         assert_eq!(
             subdag
-                .blocks
+                .headers
                 .clone()
                 .into_iter()
                 .map(|b| b.reference())
                 .collect::<Vec<_>>(),
             block_refs_wave_2
         );
-        for block in subdag.blocks.iter() {
-            assert!(block.round() <= expected_second_commit.leader().round);
+        for header in subdag.headers.iter() {
+            assert!(header.round() <= expected_second_commit.leader().round);
         }
     }
 
@@ -652,14 +774,30 @@ mod tests {
 
             tracing::info!("{subdag:?}");
             assert_eq!(subdag.leader, leaders[idx].reference());
-            assert_eq!(subdag.timestamp_ms, leaders[idx].timestamp_ms());
+
+            let block_refs = leaders[idx]
+                .ancestors()
+                .iter()
+                .filter(|block_ref| block_ref.round == leaders[idx].round() - 1)
+                .cloned()
+                .collect::<Vec<_>>();
+            let blocks = dag_state
+                .read()
+                .get_block_headers(&block_refs)
+                .into_iter()
+                .map(|block_opt| block_opt.expect("We should have all blocks in dag state."));
+
+            let expected_ts = median_timestamp_by_stake(&context, blocks).unwrap();
+
+            assert_eq!(subdag.timestamp_ms, expected_ts);
+
             if idx == 0 {
                 // First subdag includes the leader block only
-                assert_eq!(subdag.blocks.len(), 1);
+                assert_eq!(subdag.headers.len(), 1);
                 // First subdag does not commit any transactions
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 1 {
-                assert_eq!(subdag.blocks.len(), 3);
+                assert_eq!(subdag.headers.len(), 3);
                 // The second subdag does not commit any transactions either yet
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 2 {
@@ -669,7 +807,7 @@ mod tests {
                 //   missing
                 // * 2 blocks on round 2, again as no commit happened on round 3, we commit the
                 //   "sub dag" of leader of round 3, which will be another 2 blocks
-                assert_eq!(subdag.blocks.len(), 6);
+                assert_eq!(subdag.headers.len(), 6);
 
                 // We commit transactions from:
                 // * 3 blocks on round 1, as no commit happened on round 3 since the leader was
@@ -689,9 +827,9 @@ mod tests {
                 }
             } else {
                 // we expect to see all blocks of round >= 1
-                assert_eq!(subdag.blocks.len(), 6);
+                assert_eq!(subdag.headers.len(), 6);
                 assert!(
-                    subdag.blocks.iter().all(|block| block.round() >= 1),
+                    subdag.headers.iter().all(|block| block.round() >= 1),
                     "Found blocks that are of round < 1."
                 );
 
@@ -707,8 +845,8 @@ mod tests {
                     assert_eq!(authors, (0..=3).map(AuthorityIndex::new_for_test).collect());
                 }
             }
-            for block in subdag.blocks.iter() {
-                assert!(block.round() <= leaders[idx].round());
+            for header in subdag.headers.iter() {
+                assert!(header.round() <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
@@ -778,5 +916,154 @@ mod tests {
                 assert_eq!(ack_authors.len(), 4);
             }
         }
+    }
+
+    #[tokio::test]
+    async fn test_calculate_commit_timestamp() {
+        let timestamp_1 = 3_000;
+        let timestamp_2 = 3_000;
+        let timestamp_3 = 6_000;
+        // GIVEN
+        telemetry_subscribers::init_for_testing();
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        let store = Arc::new(MemStore::new());
+        let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
+        let ancestors = vec![
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(4, 0).set_timestamp_ms(1_000).build(),
+            ),
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(4, 1).set_timestamp_ms(2_000).build(),
+            ),
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(4, 2).set_timestamp_ms(3_000).build(),
+            ),
+            VerifiedBlockHeader::new_for_test(
+                TestBlockHeader::new(4, 3).set_timestamp_ms(4_000).build(),
+            ),
+        ];
+        let leader_block = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(5, 0)
+                .set_timestamp_ms(5_000)
+                .set_ancestors(
+                    ancestors
+                        .iter()
+                        .map(|block| block.reference())
+                        .collect::<Vec<_>>(),
+                )
+                .build(),
+        );
+        {
+            let mut dag_state_guard = dag_state.write();
+            for block in &ancestors {
+                dag_state_guard.accept_block_header(block.clone());
+            }
+        }
+        let last_commit_timestamp_ms = 0;
+        // WHEN
+        let dag_state_guard = dag_state.read();
+
+        let timestamp = Linearizer::calculate_commit_timestamp(
+            &context,
+            &dag_state_guard,
+            &leader_block,
+            last_commit_timestamp_ms,
+        );
+        assert_eq!(timestamp, timestamp_1);
+        // AND skip the block of authority 0 and round 4.
+        let leader_block = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(5, 0)
+                .set_timestamp_ms(5_000)
+                .set_ancestors(
+                    ancestors
+                        .iter()
+                        .skip(1)
+                        .map(|block| block.reference())
+                        .collect::<Vec<_>>(),
+                )
+                .build(),
+        );
+        let timestamp = Linearizer::calculate_commit_timestamp(
+            &context,
+            &dag_state_guard,
+            &leader_block,
+            last_commit_timestamp_ms,
+        );
+        assert_eq!(timestamp, timestamp_2);
+        // AND set the `last_commit_timestamp_ms` to 6_000
+        let last_commit_timestamp_ms = 6_000;
+        let timestamp = Linearizer::calculate_commit_timestamp(
+            &context,
+            &dag_state_guard,
+            &leader_block,
+            last_commit_timestamp_ms,
+        );
+        assert_eq!(timestamp, timestamp_3);
+        // AND there is only one ancestor block to commit
+        let (context, _) = Context::new_for_test(1);
+        let leader_block = VerifiedBlockHeader::new_for_test(
+            TestBlockHeader::new(5, 0)
+                .set_timestamp_ms(5_000)
+                .set_ancestors(
+                    ancestors
+                        .iter()
+                        .take(1)
+                        .map(|block| block.reference())
+                        .collect::<Vec<_>>(),
+                )
+                .build(),
+        );
+        let last_commit_timestamp_ms = 0;
+        let timestamp = Linearizer::calculate_commit_timestamp(
+            &context,
+            &dag_state_guard,
+            &leader_block,
+            last_commit_timestamp_ms,
+        );
+        assert_eq!(timestamp, 1_000);
+    }
+    #[test]
+    fn test_median_timestamps_by_stake() {
+        // One total stake.
+        let timestamps = vec![(1_000, 1)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 1), 1_000);
+        // Odd number of total stakes.
+        let timestamps = vec![(1_000, 1), (2_000, 1), (3_000, 1)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 3), 2_000);
+        // Even the number of total stakes.
+        let timestamps = vec![(1_000, 1), (2_000, 1), (3_000, 1), (4_000, 1)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 4), 3_000);
+        // Even number of total stakes, different order.
+        let timestamps = vec![(4_000, 1), (3_000, 1), (1_000, 1), (2_000, 1)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 4), 3_000);
+        // Unequal stakes.
+        let timestamps = vec![(2_000, 2), (4_000, 2), (1_000, 3), (3_000, 3)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 10), 3_000);
+        // Unequal stakes.
+        let timestamps = vec![
+            (500, 2),
+            (4_000, 2),
+            (2_500, 3),
+            (1_000, 5),
+            (3_000, 3),
+            (2_000, 4),
+        ];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 19), 2_000);
+        // One authority dominates.
+        let timestamps = vec![(1_000, 1), (2_000, 1), (3_000, 1), (4_000, 1), (5_000, 10)];
+        assert_eq!(median_timestamps_by_stake_inner(timestamps, 14), 5_000);
+    }
+    #[tokio::test]
+    async fn test_median_timestamps_by_stake_errors() {
+        let num_authorities = 4;
+        let context = Arc::new(Context::new_for_test(num_authorities).0);
+        // No blocks provided
+        let err = median_timestamp_by_stake(&context, vec![].into_iter()).unwrap_err();
+        assert_eq!(err, "No block headers provided");
+        // Blocks provided but total stake is less than a quorum threshold
+        let block = VerifiedBlockHeader::new_for_test(TestBlockHeader::new(5, 0).build());
+        let err = median_timestamp_by_stake(&context, vec![block].into_iter()).unwrap_err();
+        assert_eq!(err, "Total stake 1 < quorum threshold 3");
     }
 }

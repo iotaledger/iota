@@ -918,6 +918,7 @@ async fn start(
             graphql_connection_config,
             Some(fullnode_url.clone()),
             None, // it will be initialized by default
+            None, // resolves to default service config
         )
         .await;
         info!("GraphQL started");

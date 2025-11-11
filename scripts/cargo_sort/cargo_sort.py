@@ -350,9 +350,7 @@ if __name__ == '__main__':
     internal_crates_dict["iota-rust-sdk"] = None
 
     # ignored folders
-    ignored_folders = [
-        "external-crates",
-    ]
+    ignored_folders = []
     
     find_and_process_toml_files(args.target, internal_crates_dict, ignored_folders, args.debug)
 

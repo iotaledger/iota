@@ -1,5 +1,11 @@
 # @iota/apps-ui-icons
 
+## 0.5.0
+
+### Minor Changes
+
+-   83fd8ac: add passkey icon
+
 ## 0.4.2
 
 ### Patch Changes

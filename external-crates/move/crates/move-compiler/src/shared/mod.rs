@@ -3,6 +3,24 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fmt,
+    hash::Hash,
+    path::PathBuf,
+    sync::{
+        Arc, Mutex, OnceLock, RwLock,
+        atomic::{AtomicUsize, Ordering as AtomicOrdering},
+    },
+};
+
+use clap::*;
+use move_command_line_common::files::FileHash;
+use move_ir_types::location::*;
+use move_symbol_pool::Symbol;
+use petgraph::{algo::astar as petgraph_astar, graphmap::DiGraphMap};
+use vfs::{VfsError, VfsPath};
+
 use crate::{
     cfgir::{
         ast as G,
@@ -10,44 +28,28 @@ use crate::{
     },
     command_line as cli,
     diagnostics::{
+        DiagnosticReporter, Diagnostics, DiagnosticsFormat,
         codes::{DiagnosticsID, Severity},
         warning_filters::{
-            FilterName, FilterPrefix, WarningFilter, WarningFiltersBuilder, WarningFiltersScope,
-            WarningFiltersTable, FILTER_ALL,
+            FILTER_ALL, FilterName, FilterPrefix, WarningFilter, WarningFiltersBuilder,
+            WarningFiltersScope, WarningFiltersTable,
         },
-        DiagnosticReporter, Diagnostics, DiagnosticsFormat,
     },
-    editions::{check_feature_or_error, feature_edition_error_msg, Edition, FeatureGate, Flavor},
+    editions::{Edition, FeatureGate, Flavor, check_feature_or_error, feature_edition_error_msg},
     expansion::ast as E,
     hlir::ast as H,
+    iota_mode,
     naming::ast as N,
     parser::ast as P,
     shared::{
         files::{FileName, MappedFiles},
         ide::IDEInfo,
     },
-    iota_mode,
     typing::{
         ast as T,
         visitor::{TypingVisitor, TypingVisitorObj},
     },
 };
-use clap::*;
-use move_command_line_common::files::FileHash;
-use move_ir_types::location::*;
-use move_symbol_pool::Symbol;
-use petgraph::{algo::astar as petgraph_astar, graphmap::DiGraphMap};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt,
-    hash::Hash,
-    path::PathBuf,
-    sync::{
-        atomic::{AtomicUsize, Ordering as AtomicOrdering},
-        Arc, Mutex, OnceLock, RwLock,
-    },
-};
-use vfs::{VfsError, VfsPath};
 
 pub mod ast_debug;
 pub mod files;
@@ -61,21 +63,17 @@ pub mod unique_map;
 pub mod unique_set;
 
 pub use ast_debug::AstDebug;
-
-//**************************************************************************************************
-// Numbers
-//**************************************************************************************************
-
-pub use move_core_types::parsing::parser::{
-    parse_address_number as parse_address, parse_u128, parse_u16, parse_u256, parse_u32, parse_u64,
-    parse_u8, NumberFormat,
-};
-
 //**************************************************************************************************
 // Address
 //**************************************************************************************************
-
 pub use move_core_types::parsing::address::NumericalAddress;
+//**************************************************************************************************
+// Numbers
+//**************************************************************************************************
+pub use move_core_types::parsing::parser::{
+    NumberFormat, parse_address_number as parse_address, parse_u8, parse_u16, parse_u32, parse_u64,
+    parse_u128, parse_u256,
+};
 
 pub fn parse_named_address(s: &str) -> anyhow::Result<(String, NumericalAddress)> {
     let before_after = s.split('=').collect::<Vec<_>>();
@@ -1057,8 +1055,8 @@ impl SaveHook {
 ///   of the macro and how it disassembles and pushes values across its
 ///   computation.
 ///
-/// Examples of usage can be found in `expansion/`, `naming/`, `typing/`, and `hlir/`, in their
-/// respective `translation.rs` implementations.
+/// Examples of usage can be found in `expansion/`, `naming/`, `typing/`, and
+/// `hlir/`, in their respective `translation.rs` implementations.
 macro_rules! process_binops {
     ($optype:ty,
      $valtype:ty,

@@ -48,7 +48,7 @@ impl Worker for ObjectsSnapshotWorker {
             .await
             .map_err(|_| {
                 IndexerError::MpscChannel(
-                    "Failed to send checkpoint object changes, receiver half closed".into(),
+                    "failed to send checkpoint object changes, receiver half closed".into(),
                 )
             })?;
         Ok(())

@@ -31,7 +31,7 @@ use crate::{
     connection::ScanConnection,
     data::{self, DataLoader, Db, DbConnection, QueryExecutor},
     error::Error,
-    server::{builder::get_fullnode_client, watermark_task::Watermark},
+    server::{builder::get_write_api, watermark_task::Watermark},
     types::{
         address::Address,
         base64::Base64,
@@ -124,6 +124,7 @@ type Query<ST, GB> = data::Query<ST, transactions::table, GB>;
 /// The cursor returned for each `TransactionBlock` in a connection's page of
 /// results. The `checkpoint_viewed_at` will set the consistent upper bound for
 /// subsequent queries made on this cursor.
+#[allow(unused)]
 #[derive(Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub(crate) struct TransactionBlockCursor {
     /// The checkpoint sequence number this was viewed at.
@@ -266,10 +267,10 @@ impl TransactionBlock {
             // dry-run transactions are never indexed
             return Ok(Some(false));
         };
-        let fullnode_client = get_fullnode_client(ctx)?;
+        let write_api = get_write_api(ctx).extend()?;
         Ok(Some(
-            fullnode_client
-                .http()
+            write_api
+                .fullnode_client()
                 .is_transaction_indexed_on_node(digest)
                 .await?,
         ))

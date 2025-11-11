@@ -17,6 +17,7 @@ import { formatEther } from 'viem';
 import { IOTA_DECIMALS, parseAmount } from '@iota/iota-sdk/utils';
 import { useCoinMetadata } from '@iota/core';
 import { useGetAllBalancesL2 } from '../../../hooks/useGetAllBalancesL2';
+import { ampli } from '../../../shared/analytics';
 
 export function DepositLayer2() {
     const queryClient = useQueryClient();
@@ -105,6 +106,10 @@ export function DepositLayer2() {
             if (!receivingAddress || !depositAmount || !iscContractAddress) {
                 throw Error('Transaction is missing');
             }
+            ampli.sentFromL2ToL1({
+                amount: depositAmount,
+                coinType: selectedCoinType,
+            });
             const params = buildDepositL2Parameters(receivingAddress, amount, selectedCoinType);
             await writeContractAsync({
                 abi: iscAbi,

@@ -380,7 +380,6 @@ macro_rules! tracing_feature_disabled {
     ( $( $tt:tt )* ) => {};
 }
 
-
 pub const fn is_tracing_feature_enabled() -> bool {
     #[cfg(feature = "tracing")]
     {

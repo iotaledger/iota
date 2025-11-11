@@ -3,25 +3,26 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    annotations::Annotations,
-    stackless_bytecode::{AttrId, Bytecode, Label},
-};
-use itertools::Itertools;
-use move_binary_format::file_format::CodeOffset;
-use move_model::{
-    model::{DatatypeId, FunId, FunctionEnv, FunctionVisibility, GlobalEnv, Loc, ModuleEnv},
-    symbol::{Symbol, SymbolPool},
-    ty::{Type, TypeDisplayContext},
-};
-
-use crate::function_target_pipeline::FunctionVariant;
-use move_model::ast::TempIndex;
 use std::{
     cell::RefCell,
     collections::{BTreeMap, BTreeSet},
     fmt,
     ops::Range,
+};
+
+use itertools::Itertools;
+use move_binary_format::file_format::CodeOffset;
+use move_model::{
+    ast::TempIndex,
+    model::{DatatypeId, FunId, FunctionEnv, FunctionVisibility, GlobalEnv, Loc, ModuleEnv},
+    symbol::{Symbol, SymbolPool},
+    ty::{Type, TypeDisplayContext},
+};
+
+use crate::{
+    annotations::Annotations,
+    function_target_pipeline::FunctionVariant,
+    stackless_bytecode::{AttrId, Bytecode, Label},
 };
 
 /// A FunctionTarget is a drop-in replacement for a FunctionEnv which allows to
@@ -466,9 +467,10 @@ impl FunctionData {
 pub type AnnotationFormatter = dyn Fn(&FunctionTarget<'_>, CodeOffset) -> Option<String>;
 
 impl FunctionTarget<'_> {
-    /// Register a formatter. Each function target processor which introduces new annotations
-    /// should register a formatter in order to get is value printed when a function target
-    /// is displayed for debugging or testing.
+    /// Register a formatter. Each function target processor which introduces
+    /// new annotations should register a formatter in order to get is value
+    /// printed when a function target is displayed for debugging or
+    /// testing.
     pub fn register_annotation_formatter(&self, formatter: Box<AnnotationFormatter>) {
         self.annotation_formatters.borrow_mut().push(formatter);
     }

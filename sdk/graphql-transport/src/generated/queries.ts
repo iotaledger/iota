@@ -2445,7 +2445,7 @@ export type MoveModuleEdge = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObject = IMoveObject & IObject & IOwner & {
@@ -2590,7 +2590,7 @@ export type MoveObject = IMoveObject & IObject & IOwner & {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectBalanceArgs = {
@@ -2600,7 +2600,7 @@ export type MoveObjectBalanceArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectBalancesArgs = {
@@ -2613,7 +2613,7 @@ export type MoveObjectBalancesArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectCoinsArgs = {
@@ -2627,7 +2627,7 @@ export type MoveObjectCoinsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicFieldArgs = {
@@ -2637,7 +2637,7 @@ export type MoveObjectDynamicFieldArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicFieldsArgs = {
@@ -2650,7 +2650,7 @@ export type MoveObjectDynamicFieldsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectDynamicObjectFieldArgs = {
@@ -2660,7 +2660,7 @@ export type MoveObjectDynamicObjectFieldArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectIotaNamesDefaultNameArgs = {
@@ -2670,7 +2670,7 @@ export type MoveObjectIotaNamesDefaultNameArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectIotaNamesRegistrationsArgs = {
@@ -2683,7 +2683,7 @@ export type MoveObjectIotaNamesRegistrationsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectObjectsArgs = {
@@ -2697,7 +2697,7 @@ export type MoveObjectObjectsArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectReceivedTransactionBlocksArgs = {
@@ -2712,7 +2712,7 @@ export type MoveObjectReceivedTransactionBlocksArgs = {
 
 /**
  * The representation of an object as a Move Object, which exposes additional
- * information (content, module that governs it, version, is transferrable,
+ * information (content, module that governs it, version, is transferable,
  * etc.) about this object.
  */
 export type MoveObjectStakedIotasArgs = {
@@ -3193,6 +3193,23 @@ export type MoveValue = {
   json: Scalars['JSON']['output'];
   /** The value's Move type. */
   type: MoveType;
+};
+
+/**
+ * The result of a move-view function call.
+ *
+ * Execution errors are captured in the `error` field, in which
+ * case the `results` field will be `None`.
+ *
+ * On success, the `results` field will contain the return values of the
+ * move view function, and the `error` field will be `None`.
+ */
+export type MoveViewResult = {
+  __typename?: 'MoveViewResult';
+  /** Execution error from executing the move view call. */
+  error?: Maybe<Scalars['String']['output']>;
+  /** The return values of the move view function. */
+  results?: Maybe<Array<Scalars['JSON']['output']>>;
 };
 
 /**
@@ -4361,6 +4378,7 @@ export type Query = {
    * its original ID with the package at `address`.
    */
   latestPackage?: Maybe<MovePackage>;
+  moveViewCall: MoveViewResult;
   /**
    * The object corresponding to the given address at the (optionally) given
    * version. When no version is given, the latest version is returned.
@@ -4553,6 +4571,13 @@ export type QueryLatestPackageArgs = {
 };
 
 
+export type QueryMoveViewCallArgs = {
+  arguments?: InputMaybe<Array<Scalars['JSON']['input']>>;
+  functionName: Scalars['String']['input'];
+  typeArgs?: InputMaybe<Array<Scalars['String']['input']>>;
+};
+
+
 export type QueryObjectArgs = {
   address: Scalars['IotaAddress']['input'];
   version?: InputMaybe<Scalars['UInt53']['input']>;
@@ -4741,7 +4766,12 @@ export type ServiceConfig = {
    * single query.
    */
   maxQueryNodes: Scalars['Int']['output'];
-  /** Maximum length of a query payload string. */
+  /**
+   * The maximum bytes allowed for the read part of GraphQL queries.
+   *
+   * In case of mutations or `dryRunTransactionBlocks` the `txBytes` and
+   * `signatures` are not included in this limit.
+   */
   maxQueryPayloadSize: Scalars['Int']['output'];
   /** Maximum number of candidates to scan when gathering a page of results. */
   maxScanLimit: Scalars['Int']['output'];
@@ -4750,6 +4780,18 @@ export type ServiceConfig = {
    * `TransactionBlockFilter`.
    */
   maxTransactionIds: Scalars['Int']['output'];
+  /**
+   * The maximum bytes allowed for transactions in queries.
+   *
+   * This corresponds to the `txBytes` and `signatures` fields of the GraphQL
+   * mutation `executeTransactionBlock` node, or the `txBytes` of a
+   * `dryRunTransactionBlock`.
+   *
+   * By default, this is set to the value of the maximum transaction bytes
+   * (including the signatures) allowed by the protocol, plus the Base64
+   * overhead (roughly 1/3 of the original string).
+   */
+  maxTransactionPayloadSize: Scalars['Int']['output'];
   /**
    * Maximum nesting allowed in type arguments in Move Types resolved by this
    * service.
@@ -4801,7 +4843,7 @@ export type Shared = {
 export type SharedInput = {
   __typename?: 'SharedInput';
   address: Scalars['IotaAddress']['output'];
-  /** The version that this this object was shared at. */
+  /** The version at which this object was shared.​ */
   initialSharedVersion: Scalars['UInt53']['output'];
   /**
    * Controls whether the transaction block can reference the shared object
@@ -5162,7 +5204,7 @@ export type StorageFund = {
    * storage rebates.
    *
    * The system maintains an invariant that the sum of all storage fees into
-   * the storage fund is equal to the sum of of all storage rebates out,
+   * the storage fund is equal to the sum of all storage rebates out,
    * the total storage rebates remaining, and the non-refundable balance.
    */
   nonRefundableBalance?: Maybe<Scalars['BigInt']['output']>;
@@ -6220,6 +6262,15 @@ export type PaginateTransactionBlockListsQuery = { __typename?: 'Query', transac
 export type Paginate_Transaction_ListsFragment = { __typename?: 'TransactionBlock', effects?: { __typename?: 'TransactionBlockEffects', events?: { __typename?: 'EventConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Event', json: any, bcs: any, timestamp?: any | null, sendingModule?: { __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } } | null, sender?: { __typename?: 'Address', address: any } | null, type: { __typename?: 'MoveType', repr: string } }> }, balanceChanges?: { __typename?: 'BalanceChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'BalanceChange', amount?: any | null, coinType?: { __typename?: 'MoveType', repr: string } | null, owner?: { __typename?: 'Owner', asObject?: { __typename?: 'Object', address: any } | null, asAddress?: { __typename?: 'Address', address: any } | null } | null }> }, objectChanges?: { __typename?: 'ObjectChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'ObjectChange', address: any, inputState?: { __typename?: 'Object', version: any, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null } | null, outputState?: { __typename?: 'Object', asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null, asMovePackage?: { __typename?: 'MovePackage', modules?: { __typename?: 'MoveModuleConnection', nodes: Array<{ __typename?: 'MoveModule', name: string }> } | null } | null } | null }> } } | null };
 
 export type Rpc_Transaction_FieldsFragment = { __typename?: 'TransactionBlock', digest?: string | null, signatures?: Array<any> | null, rawTransaction?: any | null, sender?: { __typename?: 'Address', address: any } | null, effects?: { __typename?: 'TransactionBlockEffects', bcs?: any, timestamp?: any | null, events?: { __typename?: 'EventConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'Event', json: any, bcs: any, timestamp?: any | null, sendingModule?: { __typename?: 'MoveModule', name: string, package: { __typename?: 'MovePackage', address: any } } | null, sender?: { __typename?: 'Address', address: any } | null, type: { __typename?: 'MoveType', repr: string } }> }, checkpoint?: { __typename?: 'Checkpoint', sequenceNumber: any } | null, balanceChanges?: { __typename?: 'BalanceChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'BalanceChange', amount?: any | null, coinType?: { __typename?: 'MoveType', repr: string } | null, owner?: { __typename?: 'Owner', asObject?: { __typename?: 'Object', address: any } | null, asAddress?: { __typename?: 'Address', address: any } | null } | null }> }, objectChanges?: { __typename?: 'ObjectChangeConnection', pageInfo: { __typename?: 'PageInfo', hasNextPage: boolean, endCursor?: string | null }, nodes: Array<{ __typename?: 'ObjectChange', address: any, inputState?: { __typename?: 'Object', version: any, asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null } | null, outputState?: { __typename?: 'Object', asMoveObject?: { __typename?: 'MoveObject', contents?: { __typename?: 'MoveValue', type: { __typename?: 'MoveType', repr: string } } | null } | null, asMovePackage?: { __typename?: 'MovePackage', modules?: { __typename?: 'MoveModuleConnection', nodes: Array<{ __typename?: 'MoveModule', name: string }> } | null } | null } | null }> } } | null };
+
+export type ViewQueryVariables = Exact<{
+  functionName: Scalars['String']['input'];
+  typeArgs?: InputMaybe<Array<Scalars['String']['input']> | Scalars['String']['input']>;
+  arguments?: InputMaybe<Array<Scalars['JSON']['input']> | Scalars['JSON']['input']>;
+}>;
+
+
+export type ViewQuery = { __typename?: 'Query', moveViewCall: { __typename?: 'MoveViewResult', error?: string | null, results?: Array<any> | null } };
 
 export class TypedDocumentString<TResult, TVariables>
   extends String
@@ -9092,3 +9143,15 @@ fragment PAGINATE_TRANSACTION_LISTS on TransactionBlock {
     }
   }
 }`) as unknown as TypedDocumentString<PaginateTransactionBlockListsQuery, PaginateTransactionBlockListsQueryVariables>;
+export const ViewDocument = new TypedDocumentString(`
+    query View($functionName: String!, $typeArgs: [String!], $arguments: [JSON!]) {
+  moveViewCall(
+    functionName: $functionName
+    typeArgs: $typeArgs
+    arguments: $arguments
+  ) {
+    error
+    results
+  }
+}
+    `) as unknown as TypedDocumentString<ViewQuery, ViewQueryVariables>;

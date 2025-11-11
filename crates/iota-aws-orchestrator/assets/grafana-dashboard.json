@@ -18,14 +18,13 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 3,
+  "id": 1,
   "links": [],
-  "liveNow": false,
   "panels": [
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -33,12 +32,14 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -47,6 +48,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -54,6 +56,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -69,7 +72,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               },
               {
                 "color": "red",
@@ -95,15 +98,17 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "sum(rate(latency_s_count[$__rate_interval]))",
@@ -118,7 +123,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -126,12 +131,14 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -140,6 +147,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -147,6 +155,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -162,7 +171,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               },
               {
                 "color": "red",
@@ -188,15 +197,17 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg(latency_s_sum/latency_s_count)",
@@ -211,7 +222,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -219,12 +230,14 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -233,6 +246,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -240,6 +254,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -255,7 +270,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               },
               {
                 "color": "red",
@@ -281,15 +296,17 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg(histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket[$__rate_interval]))))",
@@ -304,7 +321,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -312,12 +329,14 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -326,6 +345,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -333,6 +353,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -348,7 +369,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               },
               {
                 "color": "red",
@@ -374,15 +395,17 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "avg(histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket[$__rate_interval]))))",
@@ -397,7 +420,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -405,12 +428,14 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -419,6 +444,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -426,6 +452,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -441,7 +468,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               },
               {
                 "color": "red",
@@ -467,15 +494,17 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "rate(latency_s_count[$__rate_interval])",
@@ -491,7 +520,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -499,12 +528,14 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -513,6 +544,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -520,6 +552,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -535,7 +568,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               },
               {
                 "color": "red",
@@ -561,15 +594,17 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "latency_s_sum/latency_s_count",
@@ -585,7 +620,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -593,12 +628,14 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -607,6 +644,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -614,6 +652,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -629,7 +668,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               },
               {
                 "color": "red",
@@ -655,15 +694,17 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-0\"}[$__rate_interval])))",
@@ -674,7 +715,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-1\"}[$__rate_interval])))",
@@ -686,7 +727,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-2\"}[$__rate_interval])))",
@@ -698,7 +739,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-3\"}[$__rate_interval])))",
@@ -710,7 +751,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-4\"}[$__rate_interval])))",
@@ -722,7 +763,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-5\"}[$__rate_interval])))",
@@ -734,7 +775,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-6\"}[$__rate_interval])))",
@@ -746,7 +787,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-7\"}[$__rate_interval])))",
@@ -758,7 +799,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-8\"}[$__rate_interval])))",
@@ -770,7 +811,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.5, sum by(le) (rate(latency_s_bucket{job=\"client-9\"}[$__rate_interval])))",
@@ -786,7 +827,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "Fixed-UID-testbed"
+        "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
@@ -794,12 +835,14 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMin": 0,
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -808,6 +851,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -815,6 +859,7 @@
               "type": "linear"
             },
             "showPoints": "auto",
+            "showValues": false,
             "spanNulls": false,
             "stacking": {
               "group": "A",
@@ -830,7 +875,7 @@
             "steps": [
               {
                 "color": "green",
-                "value": null
+                "value": 0
               },
               {
                 "color": "red",
@@ -856,15 +901,17 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "12.2.0",
       "targets": [
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-0\"}[$__rate_interval])))",
@@ -875,7 +922,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-1\"}[$__rate_interval])))",
@@ -887,7 +934,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-2\"}[$__rate_interval])))",
@@ -899,7 +946,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-3\"}[$__rate_interval])))",
@@ -911,7 +958,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-4\"}[$__rate_interval])))",
@@ -923,7 +970,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-5\"}[$__rate_interval])))",
@@ -935,7 +982,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-6\"}[$__rate_interval])))",
@@ -947,7 +994,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-7\"}[$__rate_interval])))",
@@ -959,7 +1006,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-8\"}[$__rate_interval])))",
@@ -971,7 +1018,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "editorMode": "code",
           "expr": "histogram_quantile(0.95, sum by(le) (rate(latency_s_bucket{job=\"client-9\"}[$__rate_interval])))",
@@ -983,7 +1030,7 @@
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "Fixed-UID-testbed"
+            "uid": "prometheus"
           },
           "expr": "",
           "hide": false,
@@ -996,9 +1043,9 @@
       "type": "timeseries"
     }
   ],
+  "preload": false,
   "refresh": "5s",
-  "schemaVersion": 38,
-  "style": "dark",
+  "schemaVersion": 42,
   "tags": [],
   "templating": {
     "list": []
@@ -1009,8 +1056,7 @@
   },
   "timepicker": {},
   "timezone": "",
-  "title": "10-nodes-testbed",
+  "title": "testbed",
   "uid": "b0a9b2f0-dfea-443f-992b-693eae1cf335",
-  "version": 8,
-  "weekStart": ""
+  "version": 1
 }

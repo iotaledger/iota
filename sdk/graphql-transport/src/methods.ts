@@ -10,6 +10,7 @@ import type {
     IotaClient,
     IotaMoveNormalizedModule,
     IotaTransactionKind,
+    IotaMoveViewCallResults,
 } from '@iota/iota-sdk/client';
 import { Transaction } from '@iota/iota-sdk/transactions';
 import { normalizeStructTag, normalizeIotaAddress, parseStructTag } from '@iota/iota-sdk/utils';
@@ -65,6 +66,7 @@ import {
     QueryTransactionBlocksDocument,
     TransactionBlockKindInput,
     TryGetPastObjectDocument,
+    ViewDocument,
 } from './generated/queries.js';
 import { mapJsonToBcs } from './mappers/bcs.js';
 import { mapGraphQLCheckpointToRpcCheckpoint } from './mappers/checkpoint.js';
@@ -1473,6 +1475,30 @@ export const RPC_METHODS: {
             (data) => data.isTransactionIndexedOnNode,
         );
         return isTransactionIndexedOnNode;
+    },
+
+    async view(transport, [functionName, typeArgs, callArgs]): Promise<IotaMoveViewCallResults> {
+        return await transport.graphqlQuery(
+            {
+                query: ViewDocument,
+                variables: {
+                    functionName,
+                    typeArgs,
+                    arguments: callArgs,
+                },
+            },
+            (data) => {
+                if (data.moveViewCall.error) {
+                    return {
+                        executionError: data.moveViewCall.error,
+                    } as IotaMoveViewCallResults;
+                } else {
+                    return {
+                        functionReturnValues: data.moveViewCall.results,
+                    } as IotaMoveViewCallResults;
+                }
+            },
+        );
     },
 };
 

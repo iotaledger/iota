@@ -24,7 +24,6 @@
         "clean": "rm -rf tsconfig.tsbuildinfo ./dist",
         "dev": "pnpm build --watch",
         "build": "build-package",
-        "prepublishOnly": "pnpm build",
         "test": "vitest run",
         "test:watch": "vitest",
         "prettier:check": "prettier -c --ignore-unknown --ignore-path=../../.prettierignore --ignore-path=.prettierignore .",
@@ -34,10 +33,7 @@
         "lint": "pnpm run eslint:check && pnpm run prettier:check",
         "lint:fix": "pnpm run eslint:fix && pnpm run prettier:fix"
     },
-    "repository": {
-        "type": "git",
-        "url": "git+https://github.com/iotaledger/iota.git"
-    },
+    "repository": "https://github.com/iotaledger/iota",
     "keywords": [
         "bcs",
         "libra",

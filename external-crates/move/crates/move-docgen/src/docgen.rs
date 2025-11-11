@@ -3,7 +3,15 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::code_writer::{CodeWriter, CodeWriterLabel};
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt::Write as FmtWrite,
+    fs::{self, File},
+    io::{Read, Write},
+    path::{Path, PathBuf},
+    process::{Command, Stdio},
+};
+
 use clap::*;
 use itertools::Itertools;
 use move_binary_format::file_format;
@@ -19,22 +27,15 @@ use move_compiler::{
 use move_core_types::{account_address::AccountAddress, runtime_value::MoveValue};
 use move_ir_types::location::*;
 use move_model_2::{
-    display as model_display,
+    ModuleId, QualifiedMemberId, display as model_display,
     source_model::{self, Model},
-    ModuleId, QualifiedMemberId,
 };
 use move_symbol_pool::Symbol;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    fmt::Write as FmtWrite,
-    fs::{self, File},
-    io::{Read, Write},
-    path::{Path, PathBuf},
-    process::{Command, Stdio},
-};
+
+use crate::code_writer::{CodeWriter, CodeWriterLabel};
 
 /// The maximum number of subheadings that are allowed
 const MAX_SUBSECTIONS: usize = 6;
@@ -449,8 +450,9 @@ impl<'env> Docgen<'env> {
         }
     }
 
-    /// Computes file location for a module. This considers if the module is a dependency
-    /// and if so attempts to locate already generated documentation for it.
+    /// Computes file location for a module. This considers if the module is a
+    /// dependency and if so attempts to locate already generated
+    /// documentation for it.
     fn compute_output_file(&mut self, module_env: source_model::Module<'_>) -> String {
         let output_path = PathBuf::from(&self.options.output_directory);
         let package_name = match module_env.package().name() {
@@ -1474,10 +1476,10 @@ impl<'env> Docgen<'env> {
             None
         };
         let try_func_struct_or_const = |module: source_model::Module<'_>, name: Symbol| {
-            // Below we only resolve a simple name to a hyperref if it is followed by a ( or <,
-            // or if it is a named constant in the module.
-            // Otherwise we get too many false positives where names are resolved to functions
-            // but are actually fields.
+            // Below we only resolve a simple name to a hyperref if it is followed by a ( or
+            // <, or if it is a named constant in the module.
+            // Otherwise we get too many false positives where names are resolved to
+            // functions but are actually fields.
             module
                 .maybe_member(name)
                 .map(|_member| self.ref_for_module_item(module, name))

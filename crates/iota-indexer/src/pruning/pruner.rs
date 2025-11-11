@@ -135,7 +135,7 @@ impl Pruner {
                 if let Some(epochs_to_keep) = self.table_retention(table_name) {
                     if last_seen_max_epoch != *max_partition {
                         error!(
-                            "Epochs are out of sync for table {table_name}: max_epoch={last_seen_max_epoch}, max_partition={max_partition}",
+                            "epochs are out of sync for table {table_name}: max_epoch={last_seen_max_epoch}, max_partition={max_partition}",
                         );
                     }
                     for epoch in
@@ -167,7 +167,7 @@ impl Pruner {
                 }
                 info!("Pruning epoch {}", epoch);
                 if let Err(err) = self.store.prune_epoch(epoch).await {
-                    error!("Failed to prune epoch {epoch}: {err}");
+                    error!("failed to prune epoch {epoch}: {err}");
                     break;
                 };
                 self.metrics.last_pruned_epoch.set(epoch as i64);

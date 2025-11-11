@@ -2126,7 +2126,7 @@ type MoveModuleEdge {
 
 """
 The representation of an object as a Move Object, which exposes additional
-information (content, module that governs it, version, is transferrable,
+information (content, module that governs it, version, is transferable,
 etc.) about this object.
 """
 type MoveObject implements IMoveObject & IObject & IOwner {
@@ -2706,6 +2706,26 @@ type MoveValue {
 	layout of the type is known by the client.
 	"""
 	json: JSON!
+}
+
+"""
+The result of a move-view function call.
+
+Execution errors are captured in the `error` field, in which
+case the `results` field will be `None`.
+
+On success, the `results` field will contain the return values of the
+move view function, and the `error` field will be `None`.
+"""
+type MoveViewResult {
+	"""
+	Execution error from executing the move view call.
+	"""
+	error: String
+	"""
+	The return values of the move view function.
+	"""
+	results: [JSON!]
 }
 
 """
@@ -3567,6 +3587,7 @@ type Query {
 	Configuration for this RPC service
 	"""
 	serviceConfig: ServiceConfig!
+	moveViewCall(functionName: String!, typeArgs: [String!], arguments: [JSON!]): MoveViewResult!
 	"""
 	Simulate running a transaction to inspect its effects without
 	committing to them on-chain.
@@ -3912,7 +3933,22 @@ type ServiceConfig {
 	"""
 	requestTimeoutMs: Int!
 	"""
-	Maximum length of a query payload string.
+	The maximum bytes allowed for transactions in queries.
+	
+	This corresponds to the `txBytes` and `signatures` fields of the GraphQL
+	mutation `executeTransactionBlock` node, or the `txBytes` of a
+	`dryRunTransactionBlock`.
+	
+	By default, this is set to the value of the maximum transaction bytes
+	(including the signatures) allowed by the protocol, plus the Base64
+	overhead (roughly 1/3 of the original string).
+	"""
+	maxTransactionPayloadSize: Int!
+	"""
+	The maximum bytes allowed for the read part of GraphQL queries.
+	
+	In case of mutations or `dryRunTransactionBlocks` the `txBytes` and
+	`signatures` are not included in this limit.
 	"""
 	maxQueryPayloadSize: Int!
 	"""
@@ -3961,7 +3997,7 @@ A Move object that's shared.
 type SharedInput {
 	address: IotaAddress!
 	"""
-	The version that this this object was shared at.
+	The version at which this object was shared.​
 	"""
 	initialSharedVersion: UInt53!
 	"""
@@ -4288,7 +4324,7 @@ type StorageFund {
 	storage rebates.
 	
 	The system maintains an invariant that the sum of all storage fees into
-	the storage fund is equal to the sum of of all storage rebates out,
+	the storage fund is equal to the sum of all storage rebates out,
 	the total storage rebates remaining, and the non-refundable balance.
 	"""
 	nonRefundableBalance: BigInt
