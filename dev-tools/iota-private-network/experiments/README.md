@@ -17,6 +17,8 @@ All orchestration is done via `run-all.sh`, which internally uses `network-fuzz.
 
 - Linux host
 - Docker (v20.10+)
+- **gaiadocker/iproute2** image (for `tc netem` commands)
+- **nicolaka/netshoot** image (for `iptables` testing)
 - `sudo` access on the host (for `iptables` and `tc` via `nsenter`)
 - `docker compose` for Grafana
 
@@ -77,9 +79,6 @@ Supported flags:
 
 - `-t <topology>`\
   Topology / latency profile for the fuzz script. Accepted values:
-
-  - `true` → high geo-distributed RTTs (`geo-high`)
-  - `false` → low geo-distributed RTTs (`geo-low`)
   - `ring`
   - `star`
   - `non-triangle`

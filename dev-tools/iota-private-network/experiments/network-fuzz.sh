@@ -206,7 +206,7 @@ build_latencies(){
         continue
       fi
       case "$mode" in
-        geo-high)      base=$(rtt_lookup "$i" "$j" RTT_GEO) ;;
+        geo-high)      raw=$(rtt_lookup "$i" "$j" RTT_GEO); base=$(( raw / 2 )); (( base < 1 )) && base=1 ;;
         geo-low)       raw=$(rtt_lookup "$i" "$j" RTT_GEO); base=$(( raw / 8 )); (( base < 1 )) && base=1 ;;
         ring)          base=$(rtt_lookup "$i" "$j" RTT_RING) ;;
         star)          base=$(rtt_lookup "$i" "$j" RTT_STAR) ;;
