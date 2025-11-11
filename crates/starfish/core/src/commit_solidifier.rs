@@ -171,7 +171,7 @@ impl CommitSolidifier {
         (committed_subdags, missing.into_iter().collect())
     }
 
-    /// Internal method to retrieve all transactions commited to PendingSubDag
+    /// Internal method to retrieve all transactions committed to PendingSubDag
     /// and form CommittedSubDAG if all of them are locally available
     ///
     /// # Arguments
@@ -316,16 +316,16 @@ mod tests {
             selective_dag_state
         }
 
-        /// Creates a DataManager with a selective DAG state
-        fn create_selective_manager(
+        /// Creates a CommitSolidifier with a selective DAG state
+        fn create_selective_commit_solidifier(
             &self,
             included_rounds: Vec<u32>,
             excluded_blocks: Vec<(u32, usize)>,
         ) -> (CommitSolidifier, Arc<RwLock<DagState>>) {
             let selective_dag_state =
                 self.create_selective_dag_state(included_rounds, excluded_blocks);
-            let manager = CommitSolidifier::new(selective_dag_state.clone());
-            (manager, selective_dag_state)
+            let commit_solidifier = CommitSolidifier::new(selective_dag_state.clone());
+            (commit_solidifier, selective_dag_state)
         }
 
         /// Adds missing transactions for specific blocks back to the DAG state
@@ -520,7 +520,7 @@ mod tests {
     #[tokio::test]
     async fn test_happy_path_commit() {
         let setup = Arc::new(TestSetup::new(3));
-        let mut manager = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         let subdag = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -532,20 +532,21 @@ mod tests {
             .with_committed_refs_from_round(1)
             .build();
 
-        let (committed, missing) = manager.try_get_solid_sub_dags(&[subdag]);
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[subdag]);
         assert_eq!(committed.len(), 1);
         assert!(missing.is_empty());
-        assert_eq!(manager.last_solid_committed_index, 1);
-        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(commit_solidifier.last_solid_committed_index, 1);
+        assert!(commit_solidifier.pending_subdags.is_empty());
     }
 
     #[tokio::test]
     async fn test_missing_blocks() {
         let setup = Arc::new(TestSetup::new(3));
-        let (mut manager, _selective_dag_state) = setup.create_selective_manager(
-            vec![1, 2, 3],
-            vec![(1, 0)], // Exclude the first transaction from round 1
-        );
+        let (mut commit_solidifier, _selective_dag_state) = setup
+            .create_selective_commit_solidifier(
+                vec![1, 2, 3],
+                vec![(1, 0)], // Exclude the first transaction from round 1
+            );
 
         let subdag = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -557,24 +558,25 @@ mod tests {
             .with_committed_refs(vec![setup.dag_builder.block_headers(1..=1)[0].reference()]) // Commit
             .build();
 
-        let (committed, missing) = manager.try_get_solid_sub_dags(&[subdag]);
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[subdag]);
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
         assert_eq!(
             missing[0],
             setup.dag_builder.block_headers(1..=1)[0].reference()
         );
-        assert_eq!(manager.pending_subdags.len(), 1);
-        assert_eq!(manager.last_solid_committed_index, 0);
+        assert_eq!(commit_solidifier.pending_subdags.len(), 1);
+        assert_eq!(commit_solidifier.last_solid_committed_index, 0);
     }
 
     #[tokio::test]
     async fn test_commit_after_missing_blocks_arrive() {
         let setup = Arc::new(TestSetup::new(3));
-        let (mut manager, selective_dag_state) = setup.create_selective_manager(
-            vec![1, 2, 3],
-            vec![(1, 0)], // Exclude the first transactions from round 1
-        );
+        let (mut commit_solidifier, selective_dag_state) = setup
+            .create_selective_commit_solidifier(
+                vec![1, 2, 3],
+                vec![(1, 0)], // Exclude the first transactions from round 1
+            );
 
         let subdag = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -587,7 +589,8 @@ mod tests {
             .build();
 
         // The first attempt should fail due to a missing block
-        let (committed, missing) = manager.try_get_solid_sub_dags(std::slice::from_ref(&subdag));
+        let (committed, missing) =
+            commit_solidifier.try_get_solid_sub_dags(std::slice::from_ref(&subdag));
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
 
@@ -595,17 +598,17 @@ mod tests {
         setup.add_missing_transactions(&selective_dag_state, &[(1, 0)]);
 
         // The second attempt should succeed
-        let (committed, missing) = manager.try_get_solid_sub_dags(&[]);
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[]);
         assert_eq!(committed.len(), 1);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.is_empty());
-        assert_eq!(manager.last_solid_committed_index, 1);
+        assert!(commit_solidifier.pending_subdags.is_empty());
+        assert_eq!(commit_solidifier.last_solid_committed_index, 1);
     }
 
     #[tokio::test]
     async fn test_multiple_subdags_in_order() {
         let setup = Arc::new(TestSetup::new(4));
-        let mut manager = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -623,17 +626,17 @@ mod tests {
             .with_committed_refs_from_round(2)
             .build();
 
-        let (committed, missing) = manager.try_get_solid_sub_dags(&[subdag1, subdag2]);
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[subdag1, subdag2]);
         assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.is_empty());
-        assert_eq!(manager.last_solid_committed_index, 2);
+        assert!(commit_solidifier.pending_subdags.is_empty());
+        assert_eq!(commit_solidifier.last_solid_committed_index, 2);
     }
 
     #[tokio::test]
     async fn test_out_of_order_subdags() {
         let setup = Arc::new(TestSetup::new(4));
-        let mut manager = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -653,36 +656,36 @@ mod tests {
 
         // Submit out of order
         let (committed, missing) =
-            manager.try_get_solid_sub_dags(&[subdag2.clone(), subdag1.clone()]);
+            commit_solidifier.try_get_solid_sub_dags(&[subdag2.clone(), subdag1.clone()]);
         assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.is_empty());
-        assert_eq!(manager.last_solid_committed_index, 2);
+        assert!(commit_solidifier.pending_subdags.is_empty());
+        assert_eq!(commit_solidifier.last_solid_committed_index, 2);
 
         // The second call should be no-op
-        let (committed, missing) = manager.try_get_solid_sub_dags(&[]);
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[]);
         assert!(committed.is_empty());
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.is_empty());
-        assert_eq!(manager.last_solid_committed_index, 2);
+        assert!(commit_solidifier.pending_subdags.is_empty());
+        assert_eq!(commit_solidifier.last_solid_committed_index, 2);
     }
 
     #[tokio::test]
     async fn test_empty_subdag_commit() {
         let setup = Arc::new(TestSetup::new(2));
-        let mut manager = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
-        let (committed, missing) = manager.try_get_solid_sub_dags(&[]);
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[]);
         assert!(committed.is_empty());
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.is_empty());
-        assert_eq!(manager.last_solid_committed_index, 0);
+        assert!(commit_solidifier.pending_subdags.is_empty());
+        assert_eq!(commit_solidifier.last_solid_committed_index, 0);
     }
 
     #[tokio::test]
     async fn test_duplicate_subdag_commit() {
         let setup = Arc::new(TestSetup::new(3));
-        let mut manager = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -695,17 +698,17 @@ mod tests {
             .build();
 
         let (committed, missing) =
-            manager.try_get_solid_sub_dags(&[subdag1.clone(), subdag1.clone()]);
+            commit_solidifier.try_get_solid_sub_dags(&[subdag1.clone(), subdag1.clone()]);
         assert_eq!(committed.len(), 1);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.is_empty());
-        assert_eq!(manager.last_solid_committed_index, 1);
+        assert!(commit_solidifier.pending_subdags.is_empty());
+        assert_eq!(commit_solidifier.last_solid_committed_index, 1);
     }
 
     #[tokio::test]
     async fn test_out_of_order_commit_calls() {
         let setup = Arc::new(TestSetup::new(4));
-        let mut manager = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(3, 0)
@@ -724,18 +727,20 @@ mod tests {
             .build();
 
         // First submit subdag2 (index 2)
-        let (committed, missing) = manager.try_get_solid_sub_dags(std::slice::from_ref(&subdag2));
+        let (committed, missing) =
+            commit_solidifier.try_get_solid_sub_dags(std::slice::from_ref(&subdag2));
         assert!(committed.is_empty());
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.contains_key(&2));
-        assert_eq!(manager.last_solid_committed_index, 0);
+        assert!(commit_solidifier.pending_subdags.contains_key(&2));
+        assert_eq!(commit_solidifier.last_solid_committed_index, 0);
 
         // Then submit subdag1 (index 1) - should commit both
-        let (committed, missing) = manager.try_get_solid_sub_dags(std::slice::from_ref(&subdag1));
+        let (committed, missing) =
+            commit_solidifier.try_get_solid_sub_dags(std::slice::from_ref(&subdag1));
         assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
-        assert!(manager.pending_subdags.is_empty());
-        assert_eq!(manager.last_solid_committed_index, 2);
+        assert!(commit_solidifier.pending_subdags.is_empty());
+        assert_eq!(commit_solidifier.last_solid_committed_index, 2);
     }
 
     #[tokio::test]
@@ -743,10 +748,11 @@ mod tests {
         telemetry_subscribers::init_for_testing();
 
         let setup = Arc::new(TestSetup::new(4));
-        let (mut manager, selective_dag_state) = setup.create_selective_manager(
-            vec![1, 2, 3, 4],
-            vec![(1, 0), (2, 0)], // Exclude the first transactions from rounds 1 and 2
-        );
+        let (mut commit_solidifier, selective_dag_state) = setup
+            .create_selective_commit_solidifier(
+                vec![1, 2, 3, 4],
+                vec![(1, 0), (2, 0)], // Exclude the first transactions from rounds 1 and 2
+            );
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(2, 0)
@@ -770,46 +776,50 @@ mod tests {
             .build();
 
         // Initial commit attempts
-        let (committed, missing) = manager.try_get_solid_sub_dags(std::slice::from_ref(&subdag3));
+        let (committed, missing) =
+            commit_solidifier.try_get_solid_sub_dags(std::slice::from_ref(&subdag3));
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
-        assert_eq!(manager.pending_subdags.len(), 1);
+        assert_eq!(commit_solidifier.pending_subdags.len(), 1);
 
-        let (committed, missing) = manager.try_get_solid_sub_dags(std::slice::from_ref(&subdag2));
+        let (committed, missing) =
+            commit_solidifier.try_get_solid_sub_dags(std::slice::from_ref(&subdag2));
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
-        assert_eq!(manager.pending_subdags.len(), 2);
+        assert_eq!(commit_solidifier.pending_subdags.len(), 2);
 
-        let (committed, missing) = manager.try_get_solid_sub_dags(std::slice::from_ref(&subdag1));
+        let (committed, missing) =
+            commit_solidifier.try_get_solid_sub_dags(std::slice::from_ref(&subdag1));
         assert!(missing.is_empty());
         assert_eq!(committed.len(), 1); // subdag1 can commit
         assert_eq!(committed[0].commit_ref, subdag1.commit_ref);
-        assert_eq!(manager.pending_subdags.len(), 2);
+        assert_eq!(commit_solidifier.pending_subdags.len(), 2);
 
         // Add missing block from round 1
         setup.add_missing_transactions(&selective_dag_state, &[(1, 0)]);
-        let (committed, _missing) = manager.try_get_solid_sub_dags(&[]);
+        let (committed, _missing) = commit_solidifier.try_get_solid_sub_dags(&[]);
         assert_eq!(committed.len(), 1); // subdag2 commits
         assert_eq!(committed[0].commit_ref, subdag2.commit_ref);
-        assert_eq!(manager.last_solid_committed_index, 2);
+        assert_eq!(commit_solidifier.last_solid_committed_index, 2);
 
         // Add missing block from round 2
         setup.add_missing_transactions(&selective_dag_state, &[(2, 0)]);
-        let (committed, _missing) = manager.try_get_solid_sub_dags(&[]);
+        let (committed, _missing) = commit_solidifier.try_get_solid_sub_dags(&[]);
         assert_eq!(committed.len(), 1); // subdag3 commits
         assert_eq!(committed[0].commit_ref, subdag3.commit_ref);
-        assert_eq!(manager.last_solid_committed_index, 3);
-        assert!(manager.pending_subdags.is_empty());
+        assert_eq!(commit_solidifier.last_solid_committed_index, 3);
+        assert!(commit_solidifier.pending_subdags.is_empty());
     }
 
     #[tokio::test]
     #[should_panic(expected = "Duplicate missing blockref detected")]
     async fn test_duplicate_missing_refs_panic() {
         let setup = Arc::new(TestSetup::new(4));
-        let (mut manager, _selective_dag_state) = setup.create_selective_manager(
-            vec![1, 2, 3, 4],
-            vec![(1, 0)], // Exclude the first transactions from round 1
-        );
+        let (mut commit_solidifier, _selective_dag_state) = setup
+            .create_selective_commit_solidifier(
+                vec![1, 2, 3, 4],
+                vec![(1, 0)], // Exclude the first transactions from round 1
+            );
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(2, 0)
@@ -836,16 +846,17 @@ mod tests {
             .build();
 
         // This should panic due to a duplicate missing block ref
-        manager.try_get_solid_sub_dags(&[subdag1, subdag2, subdag3]);
+        commit_solidifier.try_get_solid_sub_dags(&[subdag1, subdag2, subdag3]);
     }
 
     #[tokio::test]
     async fn test_gaps_in_subdags_sequence() {
         let setup = Arc::new(TestSetup::new(5));
-        let (mut manager, selective_dag_state) = setup.create_selective_manager(
-            vec![1, 2, 3, 4, 5],
-            vec![(1, 0), (3, 0)], // Exclude first transactions from rounds 1 and 3
-        );
+        let (mut commit_solidifier, selective_dag_state) = setup
+            .create_selective_commit_solidifier(
+                vec![1, 2, 3, 4, 5],
+                vec![(1, 0), (3, 0)], // Exclude first transactions from rounds 1 and 3
+            );
 
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
             .leader(1, 0)
@@ -875,7 +886,7 @@ mod tests {
             .build();
 
         // Initial commit - should commit first two, buffer the rest
-        let (committed, missing) = manager.try_get_solid_sub_dags(&[
+        let (committed, missing) = commit_solidifier.try_get_solid_sub_dags(&[
             subdag1.clone(),
             subdag2.clone(),
             subdag3.clone(),
@@ -883,51 +894,53 @@ mod tests {
         ]);
         assert_eq!(committed.len(), 2);
         assert_eq!(missing.len(), 2);
-        assert_eq!(manager.pending_subdags.len(), 2);
-        assert_eq!(manager.last_solid_committed_index, 2);
+        assert_eq!(commit_solidifier.pending_subdags.len(), 2);
+        assert_eq!(commit_solidifier.last_solid_committed_index, 2);
 
         // Add missing transaction for subdag3
         setup.add_missing_transactions(&selective_dag_state, &[(1, 0)]);
-        let (committed, _missing) = manager.try_get_solid_sub_dags(&[]);
+        let (committed, _missing) = commit_solidifier.try_get_solid_sub_dags(&[]);
         assert_eq!(committed.len(), 1); // subdag3 commits
-        assert_eq!(manager.last_solid_committed_index, 3);
+        assert_eq!(commit_solidifier.last_solid_committed_index, 3);
 
         // Add missing transaction for subdag5
         setup.add_missing_transactions(&selective_dag_state, &[(3, 0)]);
-        let (committed, _missing) = manager.try_get_solid_sub_dags(&[]);
+        let (committed, _missing) = commit_solidifier.try_get_solid_sub_dags(&[]);
         assert!(committed.is_empty()); // subdag5 can't commit due to a gap (missing index 4)
-        assert_eq!(manager.pending_subdags.len(), 1); // subdag5 still pending
-        assert_eq!(manager.last_solid_committed_index, 3); // Unchanged
+        assert_eq!(commit_solidifier.pending_subdags.len(), 1); // subdag5 still pending
+        assert_eq!(commit_solidifier.last_solid_committed_index, 3); // Unchanged
     }
 
     #[tokio::test]
     async fn test_set_last_committed_index() {
         let setup = Arc::new(TestSetup::new(3));
-        let mut manager = CommitSolidifier::new(setup.dag_state.clone());
+        let mut commit_solidifier = CommitSolidifier::new(setup.dag_state.clone());
 
         // Initially should be 0
-        assert_eq!(manager.last_solid_committed_index, 0);
+        assert_eq!(commit_solidifier.last_solid_committed_index, 0);
 
         // Set to a new value
-        manager.set_last_committed_index(5);
-        assert_eq!(manager.last_solid_committed_index, 5);
+        commit_solidifier.set_last_committed_index(5);
+        assert_eq!(commit_solidifier.last_solid_committed_index, 5);
 
         // Can set to a lower value
-        manager.set_last_committed_index(3);
-        assert_eq!(manager.last_solid_committed_index, 3);
+        commit_solidifier.set_last_committed_index(3);
+        assert_eq!(commit_solidifier.last_solid_committed_index, 3);
 
         // Can set to 0
-        manager.set_last_committed_index(0);
-        assert_eq!(manager.last_solid_committed_index, 0);
+        commit_solidifier.set_last_committed_index(0);
+        assert_eq!(commit_solidifier.last_solid_committed_index, 0);
     }
 
     #[tokio::test]
     async fn test_get_missing_transaction_data() {
         let setup = Arc::new(TestSetup::new(4));
-        let (mut manager, selective_dag_state) = setup.create_selective_manager(
-            vec![1, 2, 3, 4],
-            vec![(1, 0), (2, 1)], // Exclude transactions from round 1 block 0 and round 2 block 1
-        );
+        let (mut commit_solidifier, selective_dag_state) = setup
+            .create_selective_commit_solidifier(
+                vec![1, 2, 3, 4],
+                vec![(1, 0), (2, 1)], /* Exclude transactions from round 1 block 0 and round 2
+                                       * block 1 */
+            );
 
         // Create subdags that reference the missing transactions
         let subdag1 = SubDagBuilder::new(setup.clone(), 1)
@@ -942,11 +955,11 @@ mod tests {
             .with_committed_refs(vec![setup.dag_builder.block_headers(2..=2)[1].reference()])
             .build();
 
-        // Add subdags to manager
-        manager.try_get_solid_sub_dags(&[subdag1, subdag2]);
+        // Add subdags to commit_solidifier
+        commit_solidifier.try_get_solid_sub_dags(&[subdag1, subdag2]);
 
         // Get missing transactions
-        let missing = manager.get_missing_transaction_data();
+        let missing = commit_solidifier.get_missing_transaction_data();
         assert_eq!(missing.len(), 2);
         assert!(missing.contains(&setup.dag_builder.block_headers(1..=1)[0].reference()));
         assert!(missing.contains(&setup.dag_builder.block_headers(2..=2)[1].reference()));
@@ -955,7 +968,7 @@ mod tests {
         setup.add_missing_transactions(&selective_dag_state, &[(1, 0)]);
 
         // Check missing transactions again
-        let missing = manager.get_missing_transaction_data();
+        let missing = commit_solidifier.get_missing_transaction_data();
         assert_eq!(missing.len(), 1);
         assert!(missing.contains(&setup.dag_builder.block_headers(2..=2)[1].reference()));
 
@@ -963,7 +976,7 @@ mod tests {
         setup.add_missing_transactions(&selective_dag_state, &[(2, 1)]);
 
         // Should now have no missing transactions
-        let missing = manager.get_missing_transaction_data();
+        let missing = commit_solidifier.get_missing_transaction_data();
         assert!(missing.is_empty());
     }
 }
