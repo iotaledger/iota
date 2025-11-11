@@ -250,6 +250,62 @@ impl<T> ArenaTree<T> {
         }
         acc
     }
+    /// Depth-first folding of an accumulator from init value using combining
+    /// function taking as input the accumulator value, node id, its parent
+    /// node id, level, index as a child in its parent's list of children.
+    pub fn dfs_fold2<U, V, E, F, G>(
+        &self,
+        acc: &mut U,
+        child_init: E,
+        mut enter_node: F,
+        mut visit_child: G,
+    ) where
+        E: FnOnce() -> V,
+        F: FnMut(&mut U, V, NodeId, Level) -> V,
+        G: FnMut(&mut U, &V, NodeId) -> V,
+    {
+        if !self.is_empty() {
+            let mut stack = Vec::new();
+            let root = NodeId::default();
+            let child_init = enter_node(acc, child_init(), root, 0);
+            stack.push((
+                ChildId {
+                    parent_id: root,
+                    child_no: 0,
+                },
+                child_init,
+            ));
+            while let Some((
+                ChildId {
+                    parent_id,
+                    child_no,
+                },
+                child_acc,
+            )) = stack.pop()
+            {
+                let parent = &self[parent_id];
+                if child_no < parent.children.len() {
+                    let child_id = parent.children[child_no];
+                    let next_child_acc = visit_child(acc, &child_acc, child_id);
+                    stack.push((
+                        ChildId {
+                            parent_id,
+                            child_no: child_no + 1,
+                        },
+                        next_child_acc,
+                    ));
+                    let child_init = enter_node(acc, child_acc, child_id, stack.len());
+                    stack.push((
+                        ChildId {
+                            parent_id: child_id,
+                            child_no: 0,
+                        },
+                        child_init,
+                    ));
+                }
+            }
+        }
+    }
 
     /// Tree is normalized if depth-first walk traverses nodes in order they are
     /// internally stored.

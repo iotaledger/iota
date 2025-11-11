@@ -32,9 +32,8 @@ use tracing_subscriber::{EnvFilter, Layer, Registry, filter, fmt, layer::Subscri
 use crate::file_exporter::{CachedOpenFile, FileExporter};
 
 mod file_exporter;
-mod flamegraph;
+pub mod flamegraph;
 pub mod span_latency_prom;
-
 pub use flamegraph::FlameSub;
 
 /// Alias for a type-erased error type.
