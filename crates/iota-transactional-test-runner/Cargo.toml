@@ -51,7 +51,6 @@ move-transactional-test-runner = { path = "../../external-crates/move/crates/mov
 move-vm-runtime = { path = "../../external-crates/move/crates/move-vm-runtime" }
 simulacrum.workspace = true
 telemetry-subscribers.workspace = true
-shared-crypto.workspace = true
 typed-store.workspace = true
 
 [target.'cfg(msim)'.dependencies]

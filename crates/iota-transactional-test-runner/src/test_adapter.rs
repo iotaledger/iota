@@ -20,7 +20,7 @@ use criterion::Criterion;
 use fastcrypto::{
     ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding},
-    traits::ToFromBytes,
+    traits::{Signer, ToFromBytes},
 };
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
@@ -44,9 +44,7 @@ use iota_types::{
         IOTA_ADDRESS_LENGTH, IotaAddress, ObjectID, ObjectRef, SequenceNumber, VersionNumber,
     },
     committee::EpochId,
-    crypto::{
-        AccountKeyPair, RandomnessRound, Signature, get_authority_key_pair, get_key_pair_from_rng,
-    },
+    crypto::{AccountKeyPair, RandomnessRound, get_authority_key_pair, get_key_pair_from_rng},
     digests::{ConsensusCommitDigest, TransactionDigest, TransactionEventsDigest},
     effects::{TransactionEffects, TransactionEffectsAPI, TransactionEvents},
     event::Event,
@@ -62,10 +60,13 @@ use iota_types::{
     signature::GenericSignature,
     storage::{ObjectStore, ReadStore, RestStateReader},
     transaction::{
-        Argument, CallArg, Command, ProgrammableTransaction, Transaction,
-        TransactionData, TransactionKind, VerifiedTransaction,
+        Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
+        TransactionKind, VerifiedTransaction,
     },
-    utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
+    utils::{
+        to_sender_signed_transaction, to_sender_signed_transaction_with_aa_sponsor,
+        to_sender_signed_transaction_with_multi_signers,
+    },
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -92,7 +93,6 @@ use move_transactional_test_runner::{
 use move_vm_runtime::session::SerializedReturnValues;
 use once_cell::sync::Lazy;
 use rand::{Rng, SeedableRng, rngs::StdRng};
-use shared_crypto::intent::{Intent, IntentMessage};
 use tempfile::{NamedTempFile, tempdir};
 
 use crate::{
@@ -271,7 +271,7 @@ impl AdapterInitConfig {
 #[derive(Debug)]
 struct TestAccount {
     address: IotaAddress,
-    key_pair: AccountKeyPair,
+    key_pair: Option<AccountKeyPair>,
     gas: ObjectID,
 }
 
@@ -804,10 +804,12 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 let summary = if !dev_inspect && !dry_run {
                     let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                     let gas_price = gas_price.unwrap_or(self.gas_price);
+                    let sender = self.get_sender(sender);
                     let transaction = self.sign_sponsor_txn(
                         sender,
                         sponsor,
                         gas_payment.unwrap_or_default(),
+                        None,
                         |sender, sponsor, gas| {
                             TransactionData::new_programmable_allow_sponsor(
                                 sender,
@@ -1178,11 +1180,16 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price = gas_price.unwrap_or(self.gas_price);
-                let tx = self.move_authenticator_txn(
-                    aa_sender_address,
+                let aa_sender = TestAccount {
+                    address: aa_sender_address,
+                    key_pair: None,
+                    gas: aa_sender_address.into(),
+                };
+                let tx = self.sign_sponsor_txn(
+                    &aa_sender,
                     sponsor,
                     gas_payment,
-                    move_authenticator,
+                    Some(move_authenticator),
                     |sender, sponsor, gas| {
                         TransactionData::new_programmable_allow_sponsor(
                             sender,
@@ -1196,7 +1203,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                             sponsor,
                         )
                     },
-                )?;
+                );
 
                 let summary = self.execute_txn(tx).await?;
                 let output = self.object_summary_output(&summary, /* summarize */ false);
@@ -1572,7 +1579,8 @@ impl IotaTestAdapter {
             Vec<ObjectRef>,
         ) -> TransactionData,
     ) -> Transaction {
-        self.sign_sponsor_txn(sender, None, vec![], move |sender, _, gas| {
+        let sender = self.get_sender(sender);
+        self.sign_sponsor_txn(sender, None, vec![], None, move |sender, _, gas| {
             txn_data(sender, gas)
         })
     }
@@ -1600,51 +1608,12 @@ impl IotaTestAdapter {
             .collect()
     }
 
-    fn move_authenticator_txn(
-        &self,
-        aa_sender: IotaAddress,
-        sponsor: Option<String>,
-        payments: Vec<FakeID>,
-        aa_sig: GenericSignature,
-        txn_data: impl FnOnce(
-            // sender
-            IotaAddress,
-            // sponsor
-            IotaAddress,
-            // gas
-            Vec<ObjectRef>,
-        ) -> TransactionData,
-    ) -> anyhow::Result<Transaction> {
-        if let Some(sponsor) = sponsor {
-            let sponsor_acc = self.get_sender(Some(sponsor));
-            let payment_refs = self.get_payments(sponsor_acc, payments);
-            let data = txn_data(aa_sender, sponsor_acc.address, payment_refs);
-            let intent_msg = IntentMessage::new(Intent::iota_transaction(), &data);
-            let sponsor_sig = Signature::new_secure(&intent_msg, &sponsor_acc.key_pair).into();
-            Ok(Transaction::from_generic_sig_data(
-                data,
-                vec![aa_sig, sponsor_sig],
-            ))
-        } else {
-            let payments: Vec<ObjectRef> = payments
-                .into_iter()
-                .map(|fid| {
-                    let obj_id = self.fake_to_real_object_id(fid).ok_or_else(|| {
-                        anyhow::anyhow!(format!("abstract: unknown gas-payment object({fid})"))
-                    })?;
-                    Ok(self.get_object(&obj_id, None)?.compute_object_reference())
-                })
-                .collect::<anyhow::Result<_>>()?;
-            let data = txn_data(aa_sender, aa_sender, payments);
-            Ok(Transaction::from_generic_sig_data(data, vec![aa_sig]))
-        }
-    }
-
     fn sign_sponsor_txn(
         &self,
-        sender: Option<String>,
+        sender: &TestAccount,
         sponsor: Option<String>,
         payment: Vec<FakeID>,
+        aa_sig: Option<GenericSignature>,
         txn_data: impl FnOnce(
             // sender
             IotaAddress,
@@ -1654,20 +1623,30 @@ impl IotaTestAdapter {
             Vec<ObjectRef>,
         ) -> TransactionData,
     ) -> Transaction {
-        let sender = self.get_sender(sender);
         let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
 
-        let payment_refs = self.get_payments(sponsor, payment);
+        let payment_refs = self.get_payments(&sponsor, payment);
 
         let data = txn_data(sender.address, sponsor.address, payment_refs);
 
-        if sender.address == sponsor.address {
-            to_sender_signed_transaction(data, &sender.key_pair)
+        if let Some(aa_sig) = aa_sig {
+            let sponsor_keypair = sponsor.key_pair.as_ref().map(|v| v as &dyn Signer<_>);
+            to_sender_signed_transaction_with_aa_sponsor(data, aa_sig, sponsor_keypair)
         } else {
-            to_sender_signed_transaction_with_multi_signers(
-                data,
-                vec![&sender.key_pair, &sponsor.key_pair],
-            )
+            if sender.address == sponsor.address {
+                to_sender_signed_transaction(
+                    data,
+                    sender.key_pair.as_ref().expect("Sender key pair missing"),
+                )
+            } else {
+                to_sender_signed_transaction_with_multi_signers(
+                    data,
+                    vec![
+                        sender.key_pair.as_ref().expect("Sender key pair missing"),
+                        sponsor.key_pair.as_ref().expect("Sponsor key pair missing"),
+                    ],
+                )
+            }
         }
     }
 
@@ -2348,7 +2327,7 @@ async fn init_val_fullnode_executor(
         );
         let test_account = TestAccount {
             address,
-            key_pair,
+            key_pair: Some(key_pair),
             gas: obj.id(),
         };
         objects.push(obj);
@@ -2476,7 +2455,7 @@ async fn init_sim_executor(
             name.to_owned(),
             TestAccount {
                 address: addr,
-                key_pair: kp,
+                key_pair: Some(kp),
                 gas: o.id(),
             },
         );
@@ -2488,7 +2467,7 @@ async fn init_sim_executor(
         .unwrap();
     let default_account = TestAccount {
         address: default_account_kp.0,
-        key_pair: default_account_kp.1,
+        key_pair: Some(default_account_kp.1),
         gas: o.id(),
     };
     objects.push(o.clone());
@@ -2497,7 +2476,7 @@ async fn init_sim_executor(
         let o = sim.store().owned_objects(v_addr).next().unwrap();
         let validator_account = TestAccount {
             address: v_addr,
-            key_pair: v_key,
+            key_pair: Some(v_key),
             gas: o.id(),
         };
         objects.push(o.clone());

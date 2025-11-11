@@ -120,6 +120,22 @@ pub fn to_sender_signed_transaction(
     to_sender_signed_transaction_with_multi_signers(data, vec![signer])
 }
 
+pub fn to_sender_signed_transaction_with_aa_sponsor(
+    data: TransactionData,
+    authenticator: GenericSignature,
+    sponsor: Option<&dyn Signer<Signature>>,
+) -> Transaction {
+    let mut signatures = vec![authenticator];
+    if let Some(sponsor) = sponsor {
+        let sponsor_sig =
+            Transaction::signature_from_signer(data.clone(), Intent::iota_transaction(), sponsor)
+                .into();
+        signatures.push(sponsor_sig);
+    };
+
+    Transaction::from_generic_sig_data(data, signatures)
+}
+
 pub fn to_sender_signed_transaction_with_multi_signers(
     data: TransactionData,
     signers: Vec<&dyn Signer<Signature>>,
