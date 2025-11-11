@@ -40,7 +40,16 @@ unchanged_shared: object(2,2)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
 task 6, line 52:
-//# view-object 7,0
-Error: task 6, lines 52-52
-//# view-object 7,0
-. Unbound fake id 7,0
+//# view-object 5,0
+Owner: Account Address ( A )
+Version: 4
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(5,0),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 100u64,
+    },
+}

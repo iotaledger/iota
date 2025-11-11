@@ -49,4 +49,4 @@ public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx:
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 
-//# view-object 7,0
+//# view-object 5,0

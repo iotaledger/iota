@@ -50,21 +50,13 @@ public fun authenticate_ed25519(
 
     // Check the signature.
     assert!(
-        ed25519::ed25519_verify(&signature, borrow_public_key(account), &digest),
+        ed25519::ed25519_verify(
+            &signature,
+            dynamic_field::borrow(&account.id, OwnerPublicKey {}),
+            &digest,
+        ),
         EEd25519VerificationFailed,
     );
-}
-
-public fun borrow_field<Name: copy + drop + store, Value: store>(
-    self: &AbstractAccount,
-    name: Name,
-): &Value {
-    dynamic_field::borrow(&self.id, name)
-}
-
-/// An utility function to borrow the account-related public key.
-public fun borrow_public_key(account: &AbstractAccount): &vector<u8> {
-    borrow_field(account, OwnerPublicKey {})
 }
 
 //# programmable --sender A --inputs x"cc62332e34bb2d5cd69f60efbb2a36cb916c7eb458301ea36636c4dbb012bd88" @test "abstract_account" "authenticate_ed25519"
