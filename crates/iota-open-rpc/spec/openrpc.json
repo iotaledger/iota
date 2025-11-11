@@ -1327,6 +1327,7 @@
                 "enable_poseidon": true,
                 "enable_vdf": true,
                 "hardened_otw_check": true,
+                "iota_metadata_module_bytes": false,
                 "minimize_child_object_mutations": false,
                 "native_charging_v2": true,
                 "no_extraneous_module_bytes": true,

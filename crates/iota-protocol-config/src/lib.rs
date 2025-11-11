@@ -372,6 +372,11 @@ struct FeatureFlags {
     // If true, then transactions are committed only for traversed headers
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_only_for_traversed_headers: bool,
+
+    // If true, it allows metadata bytes indexed with the iota key in a compiled module
+    // This flag is used to provide the correct MoveVM configuration for clients.
+    #[serde(skip_serializing_if = "is_false")]
+    iota_metadata_module_bytes: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1261,6 +1266,10 @@ impl ProtocolConfig {
 
     pub fn passkey_auth(&self) -> bool {
         self.feature_flags.passkey_auth
+    }
+
+    pub fn iota_metadata_module_bytes(&self) -> bool {
+        self.feature_flags.iota_metadata_module_bytes
     }
 
     pub fn max_transaction_size_bytes(&self) -> u64 {
@@ -2314,6 +2323,9 @@ impl ProtocolConfig {
                     // Enable committing transactions only for traversed headers in Starfish
                     cfg.feature_flags
                         .consensus_commit_transactions_only_for_traversed_headers = true;
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        cfg.feature_flags.iota_metadata_module_bytes = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
