@@ -242,13 +242,13 @@ fn deserialize_trailing_bytes() {
         // ok with flag false
         CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(false, true),
+            &BinaryConfig::with_extraneous_bytes_check(false),
         )
         .unwrap();
         // error with flag true
         let status_code = CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(true, true),
+            &BinaryConfig::with_extraneous_bytes_check(true),
         )
         .unwrap_err()
         .major_status();
@@ -288,13 +288,13 @@ fn no_metadata() {
         // ok with flag false
         CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(false, true),
+            &BinaryConfig::with_extraneous_bytes_check(false),
         )
         .unwrap();
         // error with flag true
         let status_code = CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(true, true),
+            &BinaryConfig::with_extraneous_bytes_check(true),
         )
         .unwrap_err()
         .major_status();
@@ -342,7 +342,7 @@ fn iota_metadata() {
     let test_success = |bytes| {
         CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(true, true),
+            &BinaryConfig::with_extraneous_bytes_check(true),
         )
         .unwrap();
     };
@@ -350,7 +350,7 @@ fn iota_metadata() {
         // error with flag true
         let status_code = CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(true, true),
+            &BinaryConfig::with_extraneous_bytes_check(true),
         )
         .unwrap_err()
         .major_status();
@@ -429,7 +429,7 @@ fn enum_version_lie() {
     let test = |bytes, expected_status| {
         let status_code = CompiledModule::deserialize_with_config(
             bytes,
-            &BinaryConfig::with_extraneous_bytes_check(true, true),
+            &BinaryConfig::with_extraneous_bytes_check(true),
         )
         .unwrap_err()
         .major_status();
@@ -476,11 +476,8 @@ fn deserialize_empty_enum_fails() {
     module.enum_defs[0].variants = vec![];
     let mut bin = vec![];
     module.serialize(&mut bin).unwrap();
-    CompiledModule::deserialize_with_config(
-        &bin,
-        &BinaryConfig::with_extraneous_bytes_check(true, true),
-    )
-    .unwrap_err();
+    CompiledModule::deserialize_with_config(&bin, &BinaryConfig::with_extraneous_bytes_check(true))
+        .unwrap_err();
 }
 
 #[test]

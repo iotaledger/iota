@@ -25,10 +25,7 @@ use crate::{
 impl CompiledModule {
     /// Deserialize a &[u8] slice into a `CompiledModule` instance.
     pub fn deserialize_with_defaults(binary: &[u8]) -> BinaryLoaderResult<Self> {
-        Self::deserialize_with_config(
-            binary,
-            &BinaryConfig::with_extraneous_bytes_check(false, false),
-        )
+        Self::deserialize_with_config(binary, &BinaryConfig::with_extraneous_bytes_check(false))
     }
 
     /// Deserialize a &[u8] slice into a `CompiledModule` instance with settings
@@ -46,10 +43,7 @@ impl CompiledModule {
     // exposed as a public function to enable testing the deserializer
     #[doc(hidden)]
     pub fn deserialize_no_check_bounds(binary: &[u8]) -> BinaryLoaderResult<Self> {
-        deserialize_compiled_module(
-            binary,
-            &BinaryConfig::with_extraneous_bytes_check(false, true),
-        )
+        deserialize_compiled_module(binary, &BinaryConfig::with_extraneous_bytes_check(false))
     }
 }
 

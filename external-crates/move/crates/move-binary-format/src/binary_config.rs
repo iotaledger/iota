@@ -96,22 +96,19 @@ impl BinaryConfig {
             max_binary_format_version,
             min_binary_format_version,
             check_no_extraneous_bytes,
-            check_iota_metadata_bytes: false,
+            check_iota_metadata_bytes: check_no_extraneous_bytes,
             table_config: TableConfig::legacy(),
         }
     }
 
     /// Run always with the max version but with controllable "extraneous bytes
     /// check"
-    pub fn with_extraneous_bytes_check(
-        check_no_extraneous_bytes: bool,
-        check_iota_metadata_bytes: bool,
-    ) -> Self {
+    pub fn with_extraneous_bytes_check(check_no_extraneous_bytes: bool) -> Self {
         Self {
             max_binary_format_version: VERSION_MAX,
             min_binary_format_version: VERSION_1,
             check_no_extraneous_bytes,
-            check_iota_metadata_bytes,
+            check_iota_metadata_bytes: check_no_extraneous_bytes,
             table_config: TableConfig::legacy(),
         }
     }
