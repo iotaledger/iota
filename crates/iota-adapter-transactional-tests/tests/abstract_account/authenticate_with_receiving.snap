@@ -8,22 +8,6 @@ A: object(0,0)
 
 task 1, lines 8-24:
 //# publish --sender A
-warning[W09002]: unused variable
-   ┌─ /var/folders/ch/x8jp_zxs3s90q3f1n7r59m340000gp/T/tmp.dx0jbQfzGb/.tmpqQhT7a:17:5
-   │
-17 │     account: &AbstractAccount,
-   │     ^^^^^^^ Unused parameter 'account'. Consider removing or prefixing with an underscore: '_account'
-   │
-   = This warning can be suppressed with '#[allow(unused_variable)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
-
-warning[W09002]: unused variable
-   ┌─ /var/folders/ch/x8jp_zxs3s90q3f1n7r59m340000gp/T/tmp.dx0jbQfzGb/.tmpqQhT7a:20:5
-   │
-20 │     ctx: &TxContext,
-   │     ^^^ Unused parameter 'ctx'. Consider removing or prefixing with an underscore: '_ctx'
-   │
-   = This warning can be suppressed with '#[allow(unused_variable)]' applied to the 'module' or module member ('const', 'fun', or 'struct')
-
 created: object(1,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 5950800,  storage_rebate: 0, non_refundable_storage_fee: 0

@@ -17,10 +17,10 @@ public struct AbstractAccount has key {
 }
 
 public fun authenticate_receive_coin(
-    account: &AbstractAccount,
+    _account: &AbstractAccount,
     _coin: transfer::Receiving<Coin<IOTA>>,
     _: &AuthContext,
-    ctx: &TxContext,
+    _ctx: &TxContext,
 ) {}
 
 //# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate_receive_coin"
