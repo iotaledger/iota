@@ -157,57 +157,16 @@ impl CongestionTracker {
         congestion_txs_data: &[TxData],
         clearing_txs_data: &[TxData],
     ) {
-        // Single pass over both congested and clearing txs to build:
-        // - touched set
-        // - per-checkpoint stats (counts + flags)
-        // - raw training items and per-object min clearing map (clearing only)
+        // 1) Build touched set
         let mut touched: std::collections::HashSet<ObjectID> = std::collections::HashSet::new();
-        let mut stats: HashMap<ObjectID, ObjectCheckpointStats> = HashMap::new();
-        let mut raw_txs: Vec<RawTxItem> =
-            Vec::with_capacity(congestion_txs_data.len() + clearing_txs_data.len());
-        let mut per_obj_min_clearing: HashMap<ObjectID, u64> = HashMap::new();
-
-        for (is_congested, tx) in congestion_txs_data
-            .iter()
-            .map(|t| (true, t))
-            .chain(clearing_txs_data.iter().map(|t| (false, t)))
-        {
-            // touched set
+        for tx in congestion_txs_data {
             touched.extend(tx.objects.iter().cloned());
-
-            // stats per object
-            for oid in &tx.objects {
-                let entry = stats.entry(*oid).or_default();
-                if is_congested {
-                    entry.was_congested = true;
-                    entry.congested_tx_count += 1;
-                } else {
-                    entry.was_cleared = true;
-                    entry.clearing_tx_count += 1;
-                }
-            }
-
-            // raw training items
-            raw_txs.push(RawTxItem {
-                tx_digest: tx.digest.to_string(),
-                is_congested,
-                gas_price: tx.gas_price,
-                gas_price_feedback: if is_congested { tx.gas_price_feedback } else { None },
-                touched_objects: tx.objects.clone(),
-            });
-
-            // per-object minimum clearing price (only for clearing txs)
-            if !is_congested {
-                for oid in &tx.objects {
-                    per_obj_min_clearing
-                        .entry(*oid)
-                        .and_modify(|m| *m = (*m).min(tx.gas_price))
-                        .or_insert(tx.gas_price);
-                }
-            }
+        }
+        for tx in clearing_txs_data {
+            touched.extend(tx.objects.iter().cloned());
         }
 
-        // Build snapshots from current cache using the touched set (semantics preserved)
+        // 2) Build snapshots from current cache
         let mut snapshots: HashMap<ObjectID, ObjectSnapshot> = HashMap::new();
         for oid in &touched {
             if let Some(info) = self.get_congestion_info(*oid) {
@@ -224,7 +183,24 @@ impl CongestionTracker {
             }
         }
 
-        // Post update batch first, as before
+        // 3) Build per-checkpoint stats
+        let mut stats: HashMap<ObjectID, ObjectCheckpointStats> = HashMap::new();
+        for tx in congestion_txs_data {
+            for oid in &tx.objects {
+                let entry = stats.entry(*oid).or_default();
+                entry.was_congested = true;
+                entry.congested_tx_count += 1;
+            }
+        }
+        for tx in clearing_txs_data {
+            for oid in &tx.objects {
+                let entry = stats.entry(*oid).or_default();
+                entry.was_cleared = true;
+                entry.clearing_tx_count += 1;
+            }
+        }
+
+        // 4) Post update batch
         let update_batch = build_cp_update_batch(
             checkpoint.timestamp_ms,
             self.reference_gas_price,
@@ -234,7 +210,35 @@ impl CongestionTracker {
         );
         self.model_updater.post_update(update_batch);
 
-        // Post train batch (if any)
+        // 5) Build raw tx items and per-object min clearing for training
+        let mut raw_txs: Vec<RawTxItem> = Vec::with_capacity(
+            congestion_txs_data.len() + clearing_txs_data.len(),
+        );
+        let mut per_obj_min_clearing: HashMap<ObjectID, u64> = HashMap::new();
+        for tx in congestion_txs_data {
+            raw_txs.push(RawTxItem {
+                tx_digest: tx.digest.to_string(),
+                is_congested: true,
+                gas_price: tx.gas_price,
+                gas_price_feedback: tx.gas_price_feedback,
+                touched_objects: tx.objects.clone(),
+            });
+        }
+        for tx in clearing_txs_data {
+            raw_txs.push(RawTxItem {
+                tx_digest: tx.digest.to_string(),
+                is_congested: false,
+                gas_price: tx.gas_price,
+                gas_price_feedback: None,
+                touched_objects: tx.objects.clone(),
+            });
+            for oid in &tx.objects {
+                per_obj_min_clearing
+                    .entry(*oid)
+                    .and_modify(|m| *m = (*m).min(tx.gas_price))
+                    .or_insert(tx.gas_price);
+            }
+        }
         if let Some(train_batch) = build_train_tx_batch(
             checkpoint.timestamp_ms,
             self.reference_gas_price,
