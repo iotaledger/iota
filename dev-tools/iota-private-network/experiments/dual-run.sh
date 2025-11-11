@@ -71,7 +71,7 @@ run_experiment() {
     FUZZ_ROUND_SPAN="${FUZZ_ROUND_SPAN}" \
     HEAL_EVERY_ROUND="${HEAL_EVERY_ROUND}" \
     HEAL_NUM_ROUNDS="${HEAL_NUM_ROUNDS}" \
-    ./run-all-v1.sh \
+    ./run-all-fuzz.sh \
       -n "${NUM_VALIDATORS}" \
       -p "${PROTO}" \
       -t "${TOPOLOGY}" \

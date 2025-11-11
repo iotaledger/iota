@@ -9,15 +9,15 @@
 set -euo pipefail
 
 
-# Prevent concurrent runs of run-all.sh
-exec {RUNALL_LOCKFD}>/tmp/run-all.lock
+# Prevent concurrent runs of run-all-fuzz.sh
+exec {RUNALL_LOCKFD}>/tmp/run-all-fuzz.lock
 if ! flock -n "$RUNALL_LOCKFD"; then
-  echo "Another run-all.sh is already running. Exiting."
+  echo "Another run-all-fuzz.sh is already running. Exiting."
   exit 1
 fi
 
 # --- Pre-clean lingering fuzzers & state (safe, idempotent) ---
-echo "[run-all] Pre-clean: killing old fuzzers and clearing state..."
+echo "[run-all-fuzz] Pre-clean: killing old fuzzers and clearing state..."
 
 # 1) Kill any existing network-fuzz.sh process groups (root-owned too)
 sudo pkill -TERM -f 'network-fuzz\.sh' 2>/dev/null || true
@@ -25,7 +25,7 @@ sleep 1
 sudo pkill -KILL -f 'network-fuzz\.sh' 2>/dev/null || true
 
 # 2) Remove old stop/lock files (they auto-release FDs, but be thorough)
-sudo rm -f /tmp/network-fuzz.stop /tmp/network-fuzz.lock /tmp/network-fuzz-single.lock /tmp/run-all.lock 2>/dev/null || true
+sudo rm -f /tmp/network-fuzz.stop /tmp/network-fuzz.lock /tmp/network-fuzz-single.lock /tmp/run-all-fuzz.lock 2>/dev/null || true
 
 # 3) Clear iptables fuzz rules (v4) if any
 nums=$(sudo iptables -L DOCKER-USER -n --line-numbers 2>/dev/null | awk '/fuzzdrop:/{print $1}' | sort -rn)
@@ -46,9 +46,9 @@ while pgrep -af 'network-fuzz\.sh' >/dev/null && [ $timeout -gt 0 ]; do
   sleep 1; timeout=$((timeout-1))
 done
 if pgrep -af 'network-fuzz\.sh' >/dev/null; then
-  echo "[run-all] WARNING: fuzzers still detected; proceeding but results may be tainted."
+  echo "[run-all-fuzz] WARNING: fuzzers still detected; proceeding but results may be tainted."
 else
-  echo "[run-all] Pre-clean complete."
+  echo "[run-all-fuzz] Pre-clean complete."
 fi
 
 PARENT_BASHPID=${BASHPID}
@@ -199,7 +199,7 @@ kill_spammer_processes() {
     fi
 
     # ---- Remove old lock files ----
-    rm -f /tmp/spammer-*.lock /tmp/spammer.lock /tmp/network-fuzz*.lock /tmp/run-all.lock 2>/dev/null || true
+    rm -f /tmp/spammer-*.lock /tmp/spammer.lock /tmp/network-fuzz*.lock /tmp/run-all-fuzz.lock 2>/dev/null || true
 }
 
 trap cleanup_and_kill SIGINT SIGTERM EXIT
