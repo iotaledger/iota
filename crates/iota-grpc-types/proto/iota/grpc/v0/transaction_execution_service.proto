@@ -1,0 +1,63 @@
+// Copyright (c) Mysten Labs, Inc.
+// Modifications Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package iota.grpc.v0.transaction_execution_service;
+
+import "google/protobuf/field_mask.proto";
+import "google/protobuf/struct.proto";
+
+import "iota/grpc/v0/command.proto";
+import "iota/grpc/v0/signatures.proto";
+import "iota/grpc/v0/transaction.proto";
+
+service TransactionExecutionService {
+  rpc ExecuteTransaction(ExecuteTransactionRequest) returns (ExecuteTransactionResponse);
+  rpc SimulateTransaction(SimulateTransactionRequest) returns (SimulateTransactionResponse);
+}
+
+message ExecuteTransactionRequest {
+  // The transaction to execute.
+  optional iota.grpc.v0.transaction.Transaction transaction = 1;
+
+  // Set of `iota.grpc.v0.signatures.UserSignature`s authorizing the execution of the provided
+  // transaction.
+  optional iota.grpc.v0.signatures.UserSignatures signatures = 2;
+
+  // Mask specifying which fields to read.
+  // If no mask is specified, defaults to `effects.status,checkpoint`.
+  optional google.protobuf.FieldMask read_mask = 3;
+}
+
+// Response message for `NodeService.ExecuteTransaction`.
+message ExecuteTransactionResponse {
+  optional iota.grpc.v0.transaction.ExecutedTransaction transaction = 1;
+}
+
+message SimulateTransactionRequest {
+  optional iota.grpc.v0.transaction.Transaction transaction = 1;
+
+  // Individual check modes that can be enabled/disabled
+  enum TransactionCheckModes {
+    /// WARNING! Using this mode will bypass all normal checks around Move entry functions! This
+    /// includes the various rules for function arguments, meaning any object can be created just from
+    /// BCS bytes!
+    DISABLE_VM_CHECKS = 0;
+  }
+
+  // List of checks to disable. If empty, all checks are enabled (default).
+  repeated TransactionCheckModes tx_checks = 2;
+
+  // Perform gas budget estimation and include the budget in the response.
+  optional bool estimate_gas_budget = 3;
+
+  // Mask specifying which fields to read.
+  optional google.protobuf.FieldMask read_mask = 4;
+}
+
+message SimulateTransactionResponse {
+  optional iota.grpc.v0.transaction.ExecutedTransaction transaction = 1;
+  optional iota.grpc.v0.command.CommandResults command_results = 2;
+}

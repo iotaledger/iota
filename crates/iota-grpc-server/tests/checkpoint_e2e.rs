@@ -5,10 +5,10 @@ use std::time::Duration;
 
 use futures::StreamExt;
 use iota_config::local_ip_utils;
-use iota_grpc_client::{CheckpointClient, NodeClient};
+use iota_grpc_client::{LedgerClient, NodeClient};
 use test_cluster::{TestCluster, TestClusterBuilder};
 
-async fn setup_test_cluster_and_client() -> (TestCluster, CheckpointClient) {
+async fn setup_test_cluster_and_client() -> (TestCluster, LedgerClient) {
     let localhost = local_ip_utils::localhost_for_testing();
     let grpc_port = local_ip_utils::get_available_port(&localhost);
     let grpc_addr = format!("{localhost}:{grpc_port}");
@@ -25,11 +25,11 @@ async fn setup_test_cluster_and_client() -> (TestCluster, CheckpointClient) {
         .await
         .expect("connect gRPC");
 
-    let checkpoint_client = client
-        .checkpoint_client()
-        .expect("Checkpoint client should be available");
+    let ledger_service_client = client
+        .ledger_service_client()
+        .expect("Ledger service client should be available");
 
-    (cluster, checkpoint_client)
+    (cluster, ledger_service_client)
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

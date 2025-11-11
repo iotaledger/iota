@@ -9,7 +9,7 @@ use iota_grpc_types::{
         CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
         CheckpointData as GrpcCheckpointData,
     },
-    v0::{checkpoints as grpc_checkpoints, common as grpc_common},
+    v0::{bcs as grpc_bcs, ledger_service as grpc_ledger_service},
 };
 use iota_json_rpc_types::{EventFilter, IotaEvent};
 use iota_types::{
@@ -197,7 +197,9 @@ impl EventSubscriber for () {
 }
 
 // Type aliases and utility types
-pub type CheckpointStreamResult = Result<grpc_checkpoints::Checkpoint, Status>;
+pub type ObjectsStreamResult = Result<grpc_ledger_service::GetObjectsResponse, Status>;
+pub type TransactionsStreamResult = Result<grpc_ledger_service::GetTransactionsResponse, Status>;
+pub type CheckpointStreamResult = Result<grpc_ledger_service::CheckpointData, Status>;
 
 // Storage abstraction traits for gRPC access
 // These traits provide an abstraction layer over the storage backend,
@@ -302,7 +304,7 @@ impl GrpcReader {
     }
 
     /// Generic checkpoint streaming implementation that works with checkpoint
-    /// data and summaries.
+    /// data.
     fn create_checkpoint_stream<T>(
         &self,
         mut rx: Receiver<Arc<T>>,
@@ -337,12 +339,10 @@ impl GrpcReader {
                 if start <= latest {
                     if let Some(item) = fetch_historical(&reader, start) {
                         debug!("[profile][grpc] Fetched checkpoint {data_type_name} for index {start} from DB.");
-                        let sequence_number = get_sequence_number(&item);
-                        let response = grpc_common::BcsData::serialize_from(&*item)
-                            .map(|data| grpc_checkpoints::Checkpoint {
-                                sequence_number,
-                                bcs_data: Some(data),
-                                is_full,
+                        // TODO: implementation
+                        let response = grpc_bcs::BcsData::serialize_from(&*item)
+                            .map(|_data| grpc_ledger_service::CheckpointData {
+                                payload: None,
                             })
                             .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))?;
                         yield response;
@@ -371,12 +371,11 @@ impl GrpcReader {
                         debug!("[profile][grpc] Get checkpoint {data_type_name} for index {} from broadcast channel", get_sequence_number(&item));
                         let sequence_number = get_sequence_number(&item);
                         if start == sequence_number {
-                            let response = grpc_common::BcsData::serialize_from(&*item)
-                                .map(|data| grpc_checkpoints::Checkpoint {
-                                    sequence_number,
-                                    bcs_data: Some(data),
-                                    is_full,
-                                })
+                            // TODO: implementation
+                            let response = grpc_bcs::BcsData::serialize_from(&*item)
+                                .map(|_data| grpc_ledger_service::CheckpointData {
+                                payload: None,
+                            })
                                 .map_err(|e| Status::internal(format!("BCS serialization error: {e}")))?;
                             yield response;
                             if start == end {
@@ -424,31 +423,6 @@ impl GrpcReader {
                 reader
                     .get_full_checkpoint_data(seq)
                     .map(GrpcCheckpointData::from)
-                    .map(Arc::new)
-            },
-            |item| item.sequence_number(),
-        )
-    }
-
-    /// Create a checkpoint stream for checkpoint summaries
-    pub fn create_checkpoint_summary_stream(
-        &self,
-        rx: Receiver<Arc<GrpcCertifiedCheckpointSummary>>,
-        start_sequence_number: Option<u64>,
-        end_sequence_number: Option<u64>,
-        cancellation_token: CancellationToken,
-    ) -> impl futures::Stream<Item = CheckpointStreamResult> + Send {
-        self.create_checkpoint_stream(
-            rx,
-            start_sequence_number,
-            end_sequence_number,
-            false,
-            cancellation_token,
-            |reader, seq| {
-                reader
-                    .state_reader
-                    .get_checkpoint_summary(seq)
-                    .map(GrpcCertifiedCheckpointSummary::from)
                     .map(Arc::new)
             },
             |item| item.sequence_number(),
