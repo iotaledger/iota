@@ -34,10 +34,88 @@ docker pull nicolaka/netshoot
 ```
 
 ---
+## Main Benchmark Script
 
-## Main Script: `run-all.sh`
+`run-all-benchmark.sh` automates the full workflow:
 
-`run-all.sh` automates the full workflow:
+1. Optionally rebuilds the `iota-node` and `iota-tools` Docker images.
+2. Bootstraps the validator network.
+3. Runs the private network.
+4. Runs grafana (available at `http:://localhost:3030/dashboards`)
+5. Applies network latencies and controlled disruptions (packet loss, connection blocking, validator restarts).
+6. Periodically collects logs and saves them with timestamps.
+
+Supports the following flags:
+
+- `-n <NUM>`: number of validators (default: `4`; any number between `4` and `19` is supported)
+- `-p <protocol>`: consensus protocol (default: `mysticeti`; another option: `starfish`)
+- `-b <true|false>`: rebuild Docker images before running (default: `true`)
+- `-g <true|false>`: enable geodistributed large network latencies (default: `false`)
+- `-s <SEED>`: seed for pseudorandom disruptions (default: `42`)
+- `-x <PERCENT_BLOCK>`: percent of validator pairs to block connections (default: `0`)
+- `-l <PERCENT_NETEM>`: percent of validators to apply packet loss (default: `0`)
+- `-r <PERCENT_RESTART>`: percent of validators to restart periodically (default: `0`)
+- `-t <RUN_DURATION>`: total experiment duration in seconds (default: `3600`)
+- `-m`: optional flag to output network metric statistics (packets and bytes).
+- `-S <true|false>`: enable the transaction spammer (default: `false`)
+- `-T <TPS>`: transactions per second used by the spammer (default: `100`)
+- `-Z <TRX_SIZE>`: number of shared objects per transaction for the spammer (default: `10`)
+- `-C <spammer_type>`: type of spammer to use (default: `stress`; another option: `iota-spammer`)
+
+The script should be run from inside the `iota/dev-tools/iota-private-network/experiments/` directory.
+
+**Usage:**
+
+```bash
+# Run default 4-validator Mysticeti network with small latencies without any additional disruptions
+./run-all-benchmark.sh
+
+# Run 10-validator Starfish network with large geodistributed latencies for one hour without rebuilding images
+./run-all-benchmark.sh -n 10 -p starfish -g true -b false
+
+# Run 19-validator Starfish network with geodistributed latencies, 10% blocked connections, 5% chances for packet loss, 10% for restarts and running for 2 hours
+./run-all-benchmark.sh -n 19 -p starfish -g true -x 10 -l 5 -r 10 -t 7200
+```
+---
+
+## Optional Transaction Spammer
+
+The experiment suite can optionally include a transaction spammer to generate load on the validator network during the run.
+It supports two types of spammer tools, by default the stress test from the iota benchmark, and optionally the `iota-spammer` from a private repository.
+
+### With default spammer enabled:
+
+```bash
+./run-all-benchmark.sh -n 4 -p mysticeti -S true -T 500
+```
+
+This will load the default spammer with a TPS of 500.
+
+### Required Setup for optional Spammer
+
+To enable the optional spammer set `-S true` and '-C iota-spammer' you must clone the following **private** repository:
+
+```
+https://github.com/iotaledger/iota-spammer
+```
+
+Place it at the following relative path from `run-all-benchmark.sh`, or update the path in the script accordingly:
+
+```
+../../../iota-spammer
+```
+
+The optional spammer allows a special transaction type, called `sizable`, and can be used as follows:
+
+```bash
+./run-all-benchmark.sh -n 4 -p mysticeti -S true -T 100 -Z 10KiB
+```
+
+This will launch the spammer from the external repository with the configured transaction rate, TPS=100, and size, 10KiB.
+
+## Main Fuzz Script: `run-all-fuzz.sh`
+
+`run-all-fuzz.sh` automates the full workflow:
 
 1. Optionally rebuilds the `iota-node`, `iota-tools`, and `iota-indexer` Docker images.
 2. Bootstraps the validator network.
@@ -63,7 +141,7 @@ iota/dev-tools/iota-private-network/experiments/
 ## Usage
 
 ```
-./run-all.sh [options]
+./run-all-fuzz.sh [options]
 ```
 
 Supported flags:
@@ -138,7 +216,7 @@ These environment variables fine-tune how `network-fuzz.sh` behaves (they are pa
 
 - `FUZZ_RESTART_DURATION`\
   Duration (seconds) to stop validators during restart rounds.\
-  Passed as `-d` to `network-fuzz.sh` (default inside `run-all.sh`: `120`).
+  Passed as `-d` to `network-fuzz.sh` (default inside `run-all-fuzz.sh`: `120`).
 
 - `HEAL_EVERY_ROUND`\
   If `> 0`, every `HEAL_EVERY_ROUND`-th fuzz round becomes a “heal window”.
@@ -150,7 +228,7 @@ These environment variables fine-tune how `network-fuzz.sh` behaves (they are pa
 
 ## Internal Fuzzing Script: `network-fuzz.sh` (Overview)
 
-You normally don’t call `network-fuzz.sh` directly; `run-all.sh` does it for you.\
+You normally don’t call `network-fuzz.sh` directly; `run-all-fuzz.sh` does it for you.\
 Conceptual behavior:
 
 - Builds a latency matrix `LAT_MS[i|j]` based on the chosen topology (`geo-high`, `geo-low`, `ring`, `star`, `non-triangle`, `random`).
@@ -166,7 +244,7 @@ Conceptual behavior:
   - optionally runs heal rounds (removing all `fuzzdrop:` rules and zeroing packet loss).
 
 All drops installed by the fuzz script are tagged with\
-`-m comment --comment "fuzzdrop:..."` and cleaned up by the fuzz cleanup logic and by `run-all.sh` before and after runs.
+`-m comment --comment "fuzzdrop:..."` and cleaned up by the fuzz cleanup logic and by `run-all-fuzz.sh` before and after runs.
 
 ---
 
@@ -175,7 +253,7 @@ All drops installed by the fuzz script are tagged with\
 ### 1. Default 4-validator Mysticeti network, low latencies, no extra disruptions
 
 ```
-./run-all.sh
+./run-all-fuzz.sh
 ```
 
 - 4 validators
@@ -187,7 +265,7 @@ All drops installed by the fuzz script are tagged with\
 ### 2. 10-validator Starfish network, high geo-distributed latencies, 1-hour run, no rebuild
 
 ```
-./run-all.sh \
+./run-all-fuzz.sh \
   -n 10 \
   -p starfish \
   -b false \
@@ -200,7 +278,7 @@ Here `-t true` maps to `geo-high`.
 ### 3. 19-validator Starfish, geo-high RTTs, 10% blocked pairs, 5% loss, 10% restarts, 2-hour run
 
 ```
-./run-all.sh \
+./run-all-fuzz.sh \
   -n 19 \
   -p starfish \
   -b true \
@@ -221,7 +299,7 @@ Here `-t true` maps to `geo-high`.
 FUZZ_TTL=3600 \
 HEAL_EVERY_ROUND=3 \
 HEAL_NUM_ROUNDS=1 \
-./run-all.sh \
+./run-all-fuzz.sh \
   -n 19 \
   -p starfish \
   -t geo-high \
@@ -251,7 +329,7 @@ Two modes are supported:
 ### Enable default stress benchmark spammer
 
 ```
-./run-all.sh -n 4 -p mysticeti -S true -T 500
+./run-all-fuzz.sh -n 4 -p mysticeti -S true -T 500
 ```
 
 - Starts `faucet-1`.
@@ -268,16 +346,16 @@ To use the `iota-spammer`:
    git clone https://github.com/iotaledger/iota-spammer
    ```
 
-2. Place it at the following relative path from `run-all.sh`, or adjust the `SPAMMER_SCRIPT` path in `run-all.sh`:
+2. Place it at the following relative path from `run-all-fuzz.sh`, or adjust the `SPAMMER_SCRIPT` path in `run-all-fuzz.sh`:
 
    ```
    ../../../iota-spammer
    ```
 
-3. Run `run-all.sh` with `SPAMMER_TYPE=iota-spammer`:
+3. Run `run-all-fuzz.sh` with `SPAMMER_TYPE=iota-spammer`:
 
    ```
-   ./run-all.sh \
+   ./run-all-fuzz.sh \
      -n 4 \
      -p mysticeti \
      -S true \
@@ -311,7 +389,7 @@ Logs are written to `logs/spammer.log`.
 - Spammer logs (if enabled):
   - `logs/spammer.log`
 
-On exit, `run-all.sh`:
+On exit, `run-all-fuzz.sh`:
 
 - kills fuzz and spam processes,
 - runs `cleanup.sh` (external script) to tear down Docker containers,
