@@ -6,7 +6,6 @@ import '@fontsource-variable/inter';
 import { ErrorBoundary } from '_components';
 import { initAppType, setAppViewType } from '_redux/slices/app';
 import {
-    AppType,
     getFromLocationSearch,
     getAppViewType,
     ExtensionViewType,
