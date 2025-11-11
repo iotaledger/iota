@@ -451,6 +451,9 @@ impl DagState {
             .gap_to_available_commit
             .set(gap as i64);
     }
+    pub(crate) fn update_pending_commit_votes(&mut self, solid_commit_refs: Vec<CommitRef>) {
+        self.pending_commit_votes.extend(solid_commit_refs);
+    }
 
     /// Updates internal metadata for accepted block header.
     fn update_block_header_metadata(&mut self, block_header: &VerifiedBlockHeader) {
@@ -1345,7 +1348,6 @@ impl DagState {
                 .set((*round).into());
         }
 
-        self.pending_commit_votes.push_back(commit.reference());
         self.commits_to_write.push(commit);
     }
 

@@ -94,7 +94,7 @@ impl CommitSolidifier {
                 .entry(subdag.commit_ref.index)
                 .or_insert_with(|| subdag.clone());
         }
-        let mut committed = Vec::new();
+        let mut committed_subdags = Vec::new();
         let mut last_committed = self.last_solid_committed_index;
         let mut missing = BTreeSet::new();
 
@@ -108,7 +108,7 @@ impl CommitSolidifier {
             };
             match self.try_get_one_solid_sub_dag_internal(pending_subdag) {
                 Ok(committed_subdag) => {
-                    committed.push(committed_subdag);
+                    committed_subdags.push(committed_subdag);
                     self.pending_subdags.remove(&next_index);
                     last_committed = next_index;
                 }
@@ -126,16 +126,21 @@ impl CommitSolidifier {
 
         // Update dag state with the round of the leader in the last committed subdag
         // This will allow to evict transactions from the DAG state
-        if !committed.is_empty() {
-            let mut dag_state_guard = self.dag_state.write();
-
-            dag_state_guard.update_last_solid_commit_leader_round(
-                committed
+        // In addition, update with the latest solid_commit_refs which are used for
+        // commit syncer
+        if !committed_subdags.is_empty() {
+            let solid_commit_refs = committed_subdags
+                .iter()
+                .map(|subdag| subdag.commit_ref)
+                .collect();
+            let mut dag_state = self.dag_state.write();
+            dag_state.update_last_solid_commit_leader_round(
+                committed_subdags
                     .last()
                     .expect("We should expect at least one committed subdag")
                     .leader_round(),
             );
-            drop(dag_state_guard);
+            dag_state.update_pending_commit_votes(solid_commit_refs);
         }
 
         // Update last_committed_index
@@ -163,7 +168,7 @@ impl CommitSolidifier {
             }
         }
 
-        (committed, missing.into_iter().collect())
+        (committed_subdags, missing.into_iter().collect())
     }
 
     /// Internal method to retrieve all transactions commited to PendingSubDag
