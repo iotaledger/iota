@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::max,
+    cmp::{max, min},
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
     time::Duration,
@@ -269,6 +269,11 @@ pub struct DisseminationWorker {
     dissemination_receiver: UnboundedReceiver<Vec<Vec<ConnectionKnowledgeMessage>>>,
 }
 
+struct WorkerMsg {
+    start: usize,
+    msgs_chunk: Vec<Vec<ConnectionKnowledgeMessage>>,
+}
+
 impl DisseminationWorker {
     fn new(
         context: Arc<Context>,
@@ -290,9 +295,30 @@ impl DisseminationWorker {
     /// TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS
     async fn run(mut self) {
         const TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS: Duration = Duration::from_millis(5);
+        const NUM_WORKERS: usize = 4; // Adjust as needed
+
+        // Create channels for workers
+        let mut worker_senders = Vec::new();
+        let connection_knowledges = Arc::new(self.connection_knowledges.clone());
+        for _ in 0..NUM_WORKERS {
+            let connection_knowledges = Arc::clone(&connection_knowledges);
+            let (tx, mut rx) = unbounded_channel::<WorkerMsg>();
+            worker_senders.push(tx);
+            tokio::spawn(async move {
+                while let Some(WorkerMsg { start, msgs_chunk }) = rx.recv().await {
+                    for (offset, msgs) in msgs_chunk.into_iter().enumerate() {
+                        let index = start + offset;
+                        if !msgs.is_empty() {
+                            let mut guard = connection_knowledges[index].write();
+                            guard.process_vec_messages(msgs);
+                        }
+                    }
+                }
+            });
+        }
+
         debug!("Dissemination Worker loop started");
         loop {
-            // Step 1: Wait for the first message in async
             let first_batch_msgs = match self.dissemination_receiver.recv().await {
                 Some(batch) => batch,
                 None => {
@@ -301,11 +327,8 @@ impl DisseminationWorker {
                 }
             };
             let mut num_batches = 1;
-
-            // Step 2: Initialize aggregation and add first batch
             let mut aggregated: Vec<Vec<ConnectionKnowledgeMessage>> = first_batch_msgs;
 
-            // Step 3: Drain the channel in sync and aggregate messages
             while let Ok(batch) = self.dissemination_receiver.try_recv() {
                 for (i, msgs) in batch.into_iter().enumerate() {
                     aggregated[i].extend(msgs);
@@ -319,19 +342,16 @@ impl DisseminationWorker {
                 .cordial_knowledge_worker_batch_size
                 .observe(num_batches as f64);
 
-            // Step 4: Process everything
-            for (connection_knowledge, msgs) in self
-                .connection_knowledges
-                .iter()
-                .zip(aggregated.into_iter())
-            {
-                if !msgs.is_empty() {
-                    let mut guard = connection_knowledge.write();
-                    guard.process_vec_messages(msgs);
-                }
+            // Distribute work to workers
+            let num_connections = self.connection_knowledges.len();
+            let chunk_size = num_connections.div_ceil(NUM_WORKERS);
+            for i in 0..NUM_WORKERS {
+                let start = i * chunk_size;
+                let end = min(start + chunk_size, num_connections);
+                let msgs_chunk = aggregated.drain(start..end).collect::<Vec<_>>();
+                let _ = worker_senders[i].send(WorkerMsg { start, msgs_chunk });
             }
 
-            // Step 5: Sleep for short time before checking again
             tokio::time::sleep(TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS).await;
         }
     }
