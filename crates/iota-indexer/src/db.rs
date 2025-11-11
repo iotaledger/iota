@@ -95,7 +95,7 @@ impl<T: R2D2Connection + 'static> diesel::r2d2::CustomizeConnection<T, diesel::r
                 || {
                     Err(diesel::r2d2::Error::QueryError(
                         diesel::result::Error::DeserializationError(
-                            "Failed to downcast connection to PgConnection"
+                            "failed to downcast connection to PgConnection"
                                 .to_string()
                                 .into(),
                         ),
@@ -134,7 +134,7 @@ pub fn new_connection_pool(
         .build(manager)
         .map_err(|e| {
             IndexerError::PgConnectionPoolInit(format!(
-                "Failed to initialize connection pool for {db_url} with error: {e:?}"
+                "failed to initialize connection pool for {db_url} with error: {e:?}"
             ))
         })
 }
@@ -142,7 +142,7 @@ pub fn new_connection_pool(
 pub fn get_pool_connection(pool: &ConnectionPool) -> Result<PoolConnection, IndexerError> {
     pool.get().map_err(|e| {
         IndexerError::PgPoolConnection(format!(
-            "Failed to get connection from PG connection pool with error: {e:?}"
+            "failed to get connection from PG connection pool with error: {e:?}"
         ))
     })
 }
@@ -152,7 +152,7 @@ pub fn reset_database(conn: &mut PoolConnection) -> Result<(), anyhow::Error> {
         conn.as_any_mut()
             .downcast_mut::<PoolConnection>()
             .map_or_else(
-                || Err(anyhow!("Failed to downcast connection to PgConnection")),
+                || Err(anyhow!("failed to downcast connection to PgConnection")),
                 |pg_conn| {
                     setup_postgres::reset_database(pg_conn)?;
                     Ok(())
@@ -193,14 +193,14 @@ pub async fn check_prunable_tables_valid(conn: &mut PoolConnection) -> Result<()
 
     let result: Vec<TableName> = diesel::sql_query(select_parent_tables)
         .load(conn)
-        .map_err(|e| IndexerError::DbMigration(format!("Failed to fetch tables: {e}")))?;
+        .map_err(|e| IndexerError::DbMigration(format!("failed to fetch tables: {e}")))?;
 
     let parent_tables_from_db: HashSet<_> = result.into_iter().map(|t| t.table_name).collect();
 
     for key in PrunableTable::iter() {
         if !parent_tables_from_db.contains(key.as_ref()) {
             return Err(IndexerError::Generic(format!(
-                "Invalid retention policy override provided for table {key}: does not exist in the database",
+                "invalid retention policy override provided for table {key}: does not exist in the database",
             )));
         }
     }
@@ -285,7 +285,7 @@ pub mod setup_postgres {
     /// Execute all unapplied migrations.
     pub fn run_migrations(conn: &mut PoolConnection) -> Result<(), anyhow::Error> {
         conn.run_pending_migrations(MIGRATIONS)
-            .map_err(|e| anyhow!("Failed to run migrations {e}"))?;
+            .map_err(|e| anyhow!("failed to run migrations {e}"))?;
         Ok(())
     }
 
@@ -313,7 +313,7 @@ pub mod setup_postgres {
         info!("Starting compatibility check");
         let migrations: Vec<Box<dyn Migration<Pg>>> = MIGRATIONS.migrations().map_err(|err| {
             IndexerError::DbMigration(format!(
-                "Failed to fetch local migrations from schema: {err}"
+                "failed to fetch local migrations from schema: {err}"
             ))
         })?;
 
@@ -343,26 +343,16 @@ pub mod setup_postgres {
         // We check that the local migrations is a prefix of the applied migrations.
         if local_migrations.len() > applied_migrations.len() {
             return Err(IndexerError::DbMigration(format!(
-                "The number of local migrations is greater than the number of applied migrations. Local migrations: {local_migrations:?}, Applied migrations: {applied_migrations:?}",
+                "the number of local migrations is greater than the number of applied migrations. Local migrations: {local_migrations:?}, Applied migrations: {applied_migrations:?}",
             )));
         }
         for (local_migration, applied_migration) in local_migrations.iter().zip(&applied_migrations)
         {
             if local_migration != applied_migration {
                 return Err(IndexerError::DbMigration(format!(
-                    "The next applied migration `{applied_migration:?}` diverges from the local migration `{local_migration:?}`",
+                    "the next applied migration `{applied_migration:?}` diverges from the local migration `{local_migration:?}`",
                 )));
             }
-            // let store = PgIndexerStore::new(blocking_cp,
-            // indexer_metrics.clone());
-            // return Indexer::start_reader(
-            //     &indexer_config,
-            //     store,
-            //     &registry,
-            //     db_url.to_string(),
-            //     indexer_metrics,
-            // )
-            // .await;
         }
         Ok(())
     }

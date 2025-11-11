@@ -3,15 +3,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
+    CompiledModule,
     binary_config::{BinaryConfig, TableConfig},
     file_format::{
-        basic_test_module, basic_test_module_with_enum, Bytecode, CodeUnit, EnumDefInstantiation,
-        EnumDefInstantiationIndex, EnumDefinitionIndex, JumpTableInner, SignatureIndex,
-        VariantHandle, VariantHandleIndex, VariantInstantiationHandle,
-        VariantInstantiationHandleIndex, VariantJumpTable, VariantJumpTableIndex,
+        Bytecode, CodeUnit, EnumDefInstantiation, EnumDefInstantiationIndex, EnumDefinitionIndex,
+        JumpTableInner, SignatureIndex, VariantHandle, VariantHandleIndex,
+        VariantInstantiationHandle, VariantInstantiationHandleIndex, VariantJumpTable,
+        VariantJumpTableIndex, basic_test_module, basic_test_module_with_enum,
     },
     file_format_common::*,
-    CompiledModule,
 };
 
 #[test]
@@ -39,8 +39,8 @@ fn enum_serialize_version_invalid() {
         });
         let mut v = vec![];
         assert!(module.serialize_with_version(VERSION_6, &mut v).is_err());
-        // Serialization version does not take into account the bytecode version that it is
-        // specified in the module, only the version that is supplied to the
+        // Serialization version does not take into account the bytecode version that it
+        // is specified in the module, only the version that is supplied to the
         // `serialize_with_version` function.
         module.version = VERSION_6;
         assert!(module.serialize_with_version(VERSION_MAX, &mut v).is_ok());
@@ -151,16 +151,19 @@ fn versions_serialization_round_trip() {
     }
 }
 
-// Test that the serialization version is upgraded to the version specified during serialization
-// and not the version specified in the module if an override is provided.
+// Test that the serialization version is upgraded to the version specified
+// during serialization and not the version specified in the module if an
+// override is provided.
 #[test]
 fn serialization_upgrades_version() {
     let mut module = basic_test_module();
     let mut m_bytes = vec![];
     module.version = VERSION_6;
-    assert!(module
-        .serialize_with_version(VERSION_MAX, &mut m_bytes)
-        .is_ok());
+    assert!(
+        module
+            .serialize_with_version(VERSION_MAX, &mut m_bytes)
+            .is_ok()
+    );
     let v_max_bytes = BinaryFlavor::encode_version(VERSION_MAX).to_le_bytes();
     let v_6_bytes = BinaryFlavor::encode_version(VERSION_6).to_le_bytes();
     assert_eq!(
@@ -179,9 +182,11 @@ fn serialization_upgrades_version() {
 fn serialization_upgrades_version_no_override() {
     let module = basic_test_module();
     let mut m_bytes = vec![];
-    assert!(module
-        .serialize_with_version(module.version, &mut m_bytes)
-        .is_ok());
+    assert!(
+        module
+            .serialize_with_version(module.version, &mut m_bytes)
+            .is_ok()
+    );
     let v_max_bytes = BinaryFlavor::encode_version(VERSION_MAX).to_le_bytes();
     assert_eq!(
         m_bytes[BinaryConstants::MOVE_MAGIC_SIZE

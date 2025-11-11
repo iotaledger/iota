@@ -6,7 +6,7 @@
 //! implementations for the consensus protocol.
 //!
 //! Having an abstract network interface allows
-//! - simplying the semantics of sending data and serving requests over the
+//! - simplifying the semantics of sending data and serving requests over the
 //!   network
 //! - hiding implementation specific types and semantics from the consensus
 //!   protocol
@@ -36,6 +36,7 @@ use crate::{
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
+
 // Tonic generated RPC stubs.
 mod tonic_gen {
     include!(concat!(env!("OUT_DIR"), "/consensus.ConsensusService.rs"));

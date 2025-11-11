@@ -316,6 +316,7 @@ export class UiConnection extends Connection {
                                 await LedgerAccount.createNew({
                                     password: payload.sourceStrategy.password,
                                     ...address,
+                                    mainPublicKey: payload.sourceStrategy.mainPublicKey,
                                 }),
                             );
                         }

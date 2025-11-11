@@ -187,7 +187,8 @@ impl DataManager {
     ) -> Result<CommittedSubDag, Vec<BlockRef>> {
         let dag_state = self.dag_state.read();
         // Get transactions and check if any are missing
-        let transaction_results = dag_state.get_transactions(&subdag.committed_transaction_refs);
+        let transaction_results =
+            dag_state.get_verified_transactions(&subdag.committed_transaction_refs);
         let mut missing = Vec::new();
         for (i, tx_opt) in transaction_results.iter().enumerate() {
             if tx_opt.is_none() {
@@ -204,7 +205,7 @@ impl DataManager {
 
             Ok(CommittedSubDag::new(
                 subdag.leader,
-                subdag.base.blocks.clone(),
+                subdag.base.headers.clone(),
                 transactions,
                 subdag.timestamp_ms,
                 subdag.commit_ref,
@@ -227,7 +228,7 @@ mod tests {
         block_header::{BlockRef, genesis_block_headers, genesis_blocks},
         commit::{CommitRef, PendingSubDag},
         context::Context,
-        dag_state::DagState,
+        dag_state::{DagState, TransactionSource},
         test_dag_builder::DagBuilder,
     };
 
@@ -282,11 +283,14 @@ mod tests {
 
             // Add genesis blocks if round 0 is included
             if included_rounds.contains(&0) {
-                let genesis_blocks = genesis_blocks(self.context.clone());
+                let genesis_blocks = genesis_blocks(&self.context);
                 for (i, block) in genesis_blocks.iter().enumerate() {
                     state.accept_block_header(block.verified_block_header.clone());
                     if !excluded_transactions.contains(&(0, i)) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 }
             }
@@ -301,7 +305,10 @@ mod tests {
                 for (i, block) in blocks.iter().enumerate() {
                     state.accept_block_header(block.verified_block_header.clone());
                     if !excluded_transactions.contains(&(round, i)) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 }
             }
@@ -331,14 +338,20 @@ mod tests {
             let mut state = dag_state.write();
             for &(round, block_index) in blocks {
                 if round == 0 {
-                    let genesis_blocks = genesis_blocks(self.context.clone());
+                    let genesis_blocks = genesis_blocks(&self.context);
                     if let Some(block) = genesis_blocks.get(block_index) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 } else {
                     let blocks = self.dag_builder.blocks(round..=round);
                     if let Some(block) = blocks.get(block_index) {
-                        state.add_transactions(block.verified_transactions.clone(), "test");
+                        state.add_transactions(
+                            block.verified_transactions.clone(),
+                            TransactionSource::Test,
+                        );
                     }
                 }
             }
@@ -410,7 +423,7 @@ mod tests {
 
         fn with_committed_refs_from_round(mut self, round: u32) -> Self {
             let refs = if round == 0 {
-                genesis_blocks(self.setup.context.clone())
+                genesis_blocks(&self.setup.context)
                     .iter()
                     .map(|b| b.reference())
                     .collect()
@@ -434,7 +447,7 @@ mod tests {
         fn build(self) -> PendingSubDag {
             // Get leader block
             let leader = if self.leader_round == 0 {
-                genesis_blocks(self.setup.context.clone())[self.leader_index].reference()
+                genesis_blocks(&self.setup.context)[self.leader_index].reference()
             } else {
                 self.setup
                     .dag_builder
@@ -447,7 +460,7 @@ mod tests {
 
             for spec in &self.block_specs {
                 let headers = if spec.round == 0 {
-                    genesis_block_headers(self.setup.context.clone())
+                    genesis_block_headers(&self.setup.context)
                 } else {
                     self.setup
                         .dag_builder
@@ -473,7 +486,7 @@ mod tests {
 
             // Add a leader block if not already included
             let leader_header = if self.leader_round == 0 {
-                genesis_blocks(self.setup.context.clone())[self.leader_index]
+                genesis_blocks(&self.setup.context)[self.leader_index]
                     .verified_block_header
                     .clone()
             } else {
@@ -575,7 +588,7 @@ mod tests {
             .build();
 
         // The first attempt should fail due to a missing block
-        let (committed, missing) = manager.try_commit(&[subdag.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag));
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
 
@@ -710,14 +723,14 @@ mod tests {
             .build();
 
         // First submit subdag2 (index 2)
-        let (committed, missing) = manager.try_commit(&[subdag2.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag2));
         assert!(committed.is_empty());
         assert!(missing.is_empty());
         assert!(manager.pending_subdags.contains_key(&2));
         assert_eq!(manager.last_committed_index, 0);
 
         // Then submit subdag1 (index 1) - should commit both
-        let (committed, missing) = manager.try_commit(&[subdag1.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag1));
         assert_eq!(committed.len(), 2);
         assert!(missing.is_empty());
         assert!(manager.pending_subdags.is_empty());
@@ -756,17 +769,17 @@ mod tests {
             .build();
 
         // Initial commit attempts
-        let (committed, missing) = manager.try_commit(&[subdag3.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag3));
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
         assert_eq!(manager.pending_subdags.len(), 1);
 
-        let (committed, missing) = manager.try_commit(&[subdag2.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag2));
         assert!(committed.is_empty());
         assert_eq!(missing.len(), 1);
         assert_eq!(manager.pending_subdags.len(), 2);
 
-        let (committed, missing) = manager.try_commit(&[subdag1.clone()]);
+        let (committed, missing) = manager.try_commit(std::slice::from_ref(&subdag1));
         assert!(missing.is_empty());
         assert_eq!(committed.len(), 1); // subdag1 can commit
         assert_eq!(committed[0].commit_ref, subdag1.commit_ref);

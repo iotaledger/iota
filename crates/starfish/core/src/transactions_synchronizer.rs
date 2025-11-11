@@ -37,7 +37,7 @@ use crate::{
     block_verifier::BlockVerifier,
     context::Context,
     core_thread::CoreThreadDispatcher,
-    dag_state::DagState,
+    dag_state::{DagState, TransactionSource},
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
     network::{NetworkClient, SerializedTransactions},
@@ -904,7 +904,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
                     .iter()
                     .cloned()
                     .collect();
-                let block_headers_vec = dag_state.read().get_block_headers(&block_refs);
+                let block_headers_vec = dag_state.read().get_verified_block_headers(&block_refs);
                 let mut block_headers_map = BTreeMap::new();
                 for block_header_opt in block_headers_vec.into_iter() {
                     let block_header = block_header_opt
@@ -969,7 +969,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher>
 
         // Add the transactions to the core
         core_dispatcher
-            .add_transactions(transactions, "Transactions synchronizer")
+            .add_transactions(transactions, TransactionSource::TransactionSynchronizer)
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
 
@@ -1073,6 +1073,7 @@ mod tests {
         block_verifier::NoopBlockVerifier,
         commit::{CertifiedCommits, CommitRange},
         context::Context,
+        core::ReasonToCreateBlock,
         core_thread::CoreError,
         dag_state::DagState,
         network::{BlockBundleStream, NetworkClient, SerializedTransactions},
@@ -2047,7 +2048,7 @@ mod tests {
         async fn add_transactions(
             &self,
             transactions: Vec<VerifiedTransactions>,
-            _source: &'static str,
+            _source: TransactionSource,
         ) -> Result<(), CoreError> {
             let mut txns = self.transactions.lock().await;
 
@@ -2106,7 +2107,7 @@ mod tests {
         async fn new_block(
             &self,
             _round: Round,
-            _force: bool,
+            _reason: ReasonToCreateBlock,
         ) -> Result<BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>, CoreError> {
             unimplemented!()
         }

@@ -129,7 +129,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
                     .collect();
                 self.persist(batch).await.map_err(|e| {
                     IndexerError::PostgresWrite(format!(
-                        "Failed to load transformed data into DB for handler {}: {e}",
+                        "failed to load transformed data into DB for handler {}: {e}",
                         self.name()
                     ))
                 })?;
@@ -137,7 +137,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
             }
         }
         Err(IndexerError::ChannelClosed(format!(
-            "Checkpoint channel is closed unexpectedly for handler {}",
+            "checkpoint channel is closed unexpectedly for handler {}",
             self.name()
         )))
     }

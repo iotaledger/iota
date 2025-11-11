@@ -18,7 +18,7 @@
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
-  "id": 8,
+  "id": 4,
   "links": [],
   "liveNow": false,
   "panels": [
@@ -58,7 +58,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red"
+                "color": "red",
+                "value": null
               },
               {
                 "color": "#EAB839",
@@ -155,7 +156,7 @@
           "zoom": 1
         }
       },
-      "pluginVersion": "11.2.1",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -275,7 +276,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               }
             ]
           }
@@ -306,7 +308,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.1",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -341,7 +343,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               }
             ]
           }
@@ -372,7 +375,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.1",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -404,7 +407,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               }
             ]
           }
@@ -435,7 +439,7 @@
         "textMode": "value",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.1",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -471,7 +475,8 @@
             "mode": "percentage",
             "steps": [
               {
-                "color": "red"
+                "color": "red",
+                "value": null
               },
               {
                 "color": "orange",
@@ -509,7 +514,7 @@
         "showThresholdMarkers": true,
         "sizing": "auto"
       },
-      "pluginVersion": "11.2.1",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -544,7 +549,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               }
             ]
           }
@@ -575,7 +581,7 @@
         "textMode": "auto",
         "wideLayout": true
       },
-      "pluginVersion": "11.2.1",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -604,13 +610,11 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -641,7 +645,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -706,7 +711,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "red"
+                "color": "red",
+                "value": null
               },
               {
                 "color": "orange",
@@ -747,7 +753,7 @@
         "showThresholdMarkers": true,
         "sizing": "auto"
       },
-      "pluginVersion": "11.2.1",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -779,13 +785,11 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -816,7 +820,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -876,13 +881,11 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -913,7 +916,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -972,13 +976,11 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -1009,7 +1011,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1080,7 +1083,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1111,7 +1115,7 @@
         "frameIndex": 47,
         "showHeader": true
       },
-      "pluginVersion": "11.2.1",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -1132,7 +1136,6 @@
     },
     {
       "datasource": {
-        "default": false,
         "type": "prometheus",
         "uid": "prometheus"
       },
@@ -1142,13 +1145,11 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -1179,7 +1180,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1216,7 +1218,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "avg by(host) (irate(consensus_block_timestamp_drift_wait_ms[5m]))",
+          "expr": "avg by(host) (irate(consensus_block_timestamp_drift_ms[5m]))",
           "instant": false,
           "legendFormat": "__auto",
           "range": true,
@@ -1228,58 +1230,45 @@
     },
     {
       "datasource": {
-        "default": false,
         "type": "prometheus",
         "uid": "prometheus"
       },
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
+            "fillOpacity": 70,
             "hideFrom": {
               "legend": false,
               "tooltip": false,
               "viz": false
             },
             "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
+            "lineWidth": 0,
+            "spanNulls": false
           },
           "mappings": [],
+          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
+              },
+              {
+                "color": "yellow",
+                "value": 10
+              },
+              {
+                "color": "orange",
+                "value": 20
               },
               {
                 "color": "red",
-                "value": 80
+                "value": 40
               }
             ]
           }
@@ -1292,17 +1281,20 @@
         "x": 12,
         "y": 28
       },
-      "id": 170,
+      "id": 171,
       "options": {
+        "alignValue": "left",
         "legend": {
-          "calcs": [],
           "displayMode": "list",
           "placement": "bottom",
           "showLegend": true
         },
+        "mergeValues": false,
+        "rowHeight": 0.9,
+        "showValue": "auto",
         "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
+          "mode": "single",
+          "sort": "none"
         }
       },
       "targets": [
@@ -1312,15 +1304,28 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "consensus_rejected_future_blocks",
+          "expr": "count by (host) (\n  rate(consensus_block_timestamp_drift_ms[5m]) > 100\n) > 10",
           "instant": false,
-          "legendFormat": "__auto",
+          "legendFormat": "Number of authorities \"{{host}}\" is delaying blocks of ",
           "range": true,
           "refId": "A"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "editorMode": "code",
+          "expr": "count by (authority) (\n  rate(consensus_block_timestamp_drift_ms[5m]) > 100\n) > 10",
+          "hide": false,
+          "instant": false,
+          "legendFormat": "Number of nodes delaying blocks of \"{{authority}}\"",
+          "range": true,
+          "refId": "B"
         }
       ],
-      "title": "Rejected Future Blocks",
-      "type": "timeseries"
+      "title": "Nodes with incorrect system clock",
+      "type": "state-timeline"
     },
     {
       "datasource": {
@@ -1351,7 +1356,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "yellow",
@@ -1428,6 +1434,7 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
+      "description": "Authorities committing less blocks than network median for all authorities. ",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1445,24 +1452,20 @@
             "spanNulls": false
           },
           "mappings": [],
-          "noValue": "0",
           "thresholds": {
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "red",
+                "value": null
+              },
+              {
+                "color": "orange",
+                "value": 5
               },
               {
                 "color": "yellow",
                 "value": 10
-              },
-              {
-                "color": "orange",
-                "value": 20
-              },
-              {
-                "color": "red",
-                "value": 40
               }
             ]
           }
@@ -1475,7 +1478,7 @@
         "x": 12,
         "y": 36
       },
-      "id": 171,
+      "id": 173,
       "options": {
         "alignValue": "left",
         "legend": {
@@ -1498,27 +1501,14 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "count by (host) (\n  rate(consensus_block_timestamp_drift_wait_ms[5m]) > 100\n) > 10",
+          "expr": "  avg(irate(consensus_committed_messages[2m])) by (authority)\n  <\n  scalar(\n    quantile(0.5, avg(irate(consensus_committed_messages[2m])) by (authority)) / 2\n  )\n",
           "instant": false,
-          "legendFormat": "Number of authorities \"{{host}}\" is delaying blocks of ",
+          "legendFormat": "__auto",
           "range": true,
           "refId": "A"
-        },
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "count by (authority) (\n  rate(consensus_block_timestamp_drift_wait_ms[5m]) > 100\n) > 10",
-          "hide": false,
-          "instant": false,
-          "legendFormat": "Number of nodes delaying blocks of \"{{authority}}\"",
-          "range": true,
-          "refId": "B"
         }
       ],
-      "title": "Nodes with incorrect system clock",
+      "title": "Authorities committing relatively little blocks",
       "type": "state-timeline"
     },
     {
@@ -1533,13 +1523,11 @@
             "mode": "palette-classic"
           },
           "custom": {
-            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
-            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -1570,7 +1558,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1628,88 +1617,6 @@
         "type": "prometheus",
         "uid": "prometheus"
       },
-      "description": "Authorities committing less blocks than network median for all authorities. ",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "fillOpacity": 70,
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineWidth": 0,
-            "spanNulls": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red"
-              },
-              {
-                "color": "orange",
-                "value": 5
-              },
-              {
-                "color": "yellow",
-                "value": 10
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 44
-      },
-      "id": 173,
-      "options": {
-        "alignValue": "left",
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": true
-        },
-        "mergeValues": false,
-        "rowHeight": 0.9,
-        "showValue": "auto",
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "  avg(irate(consensus_committed_messages[2m])) by (authority)\n  <\n  scalar(\n    quantile(0.5, avg(irate(consensus_committed_messages[2m])) by (authority)) / 2\n  )\n",
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Authorities committing relatively little blocks",
-      "type": "state-timeline"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -1729,7 +1636,8 @@
             "mode": "absolute",
             "steps": [
               {
-                "color": "green"
+                "color": "green",
+                "value": null
               },
               {
                 "color": "red",
@@ -1984,7 +1892,7 @@
           }
         ]
       },
-      "pluginVersion": "11.2.1",
+      "pluginVersion": "10.1.1",
       "targets": [
         {
           "datasource": {
@@ -2197,7 +2105,7 @@
       "type": "table"
     },
     {
-      "collapsed": false,
+      "collapsed": true,
       "gridPos": {
         "h": 1,
         "w": 24,
@@ -2205,304 +2113,304 @@
         "y": 60
       },
       "id": 67,
-      "panels": [],
+      "panels": [
+        {
+          "datasource": {
+            "default": false,
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "This metric calculates, for each authority, the fraction of 2-minute intervals over the past 24 hours in which the authority committed at least one consensus message.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "percentage",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 80
+                  },
+                  {
+                    "color": "green",
+                    "value": 90
+                  }
+                ]
+              },
+              "unit": "percentunit"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 0,
+            "y": 61
+          },
+          "id": 96,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "desc"
+            }
+          },
+          "pluginVersion": "11.2.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "disableTextWrap": false,
+              "editorMode": "code",
+              "exemplar": true,
+              "expr": "sum(\n  count_over_time((sum(irate(consensus_committed_messages[2m])) by (authority) > 0 )[24h:2m])\n) by (authority)\n/\n(count_over_time(sum(irate(consensus_committed_messages[2m])) by (authority)[24h:2m]))",
+              "format": "time_series",
+              "fullMetaSearch": false,
+              "includeNullMetadata": true,
+              "instant": true,
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A",
+              "useBackend": false
+            }
+          ],
+          "title": "Consensus Reliability (24 hour)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "default": false,
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "description": "Rate of total number of committed consensus messages",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 12,
+            "x": 12,
+            "y": 61
+          },
+          "id": 68,
+          "options": {
+            "legend": {
+              "calcs": [
+                "last"
+              ],
+              "displayMode": "list",
+              "placement": "right",
+              "showLegend": false
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "asc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "avg(irate(consensus_committed_messages[2m])) by (authority)",
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Committed Messages Rate",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "default": false,
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "thresholds"
+              },
+              "custom": {
+                "fillOpacity": 70,
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineWidth": 0,
+                "spanNulls": false
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 5
+                  },
+                  {
+                    "color": "#EAB839",
+                    "value": 10
+                  },
+                  {
+                    "color": "green",
+                    "value": 15
+                  },
+                  {
+                    "color": "#6ED0E0",
+                    "value": 25
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 19,
+            "w": 24,
+            "x": 0,
+            "y": 69
+          },
+          "id": 74,
+          "options": {
+            "alignValue": "left",
+            "legend": {
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "mergeValues": false,
+            "rowHeight": 0.9,
+            "showValue": "never",
+            "tooltip": {
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "avg(irate(consensus_committed_messages[2m])) by (authority)",
+              "instant": false,
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "type": "state-timeline"
+        }
+      ],
       "title": "Committee",
       "type": "row"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "This metric calculates, for each authority, the fraction of 2-minute intervals over the past 24 hours in which the authority committed at least one consensus message.",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "percentage",
-            "steps": [
-              {
-                "color": "red"
-              },
-              {
-                "color": "orange",
-                "value": 80
-              },
-              {
-                "color": "green",
-                "value": 90
-              }
-            ]
-          },
-          "unit": "percentunit"
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 0,
-        "y": 61
-      },
-      "id": 96,
-      "options": {
-        "legend": {
-          "calcs": [],
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "desc"
-        }
-      },
-      "pluginVersion": "11.2.1",
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "disableTextWrap": false,
-          "editorMode": "code",
-          "exemplar": true,
-          "expr": "sum(\n  count_over_time((sum(irate(consensus_committed_messages[2m])) by (authority) > 0 )[24h:2m])\n) by (authority)\n/\n(count_over_time(sum(irate(consensus_committed_messages[2m])) by (authority)[24h:2m]))",
-          "format": "time_series",
-          "fullMetaSearch": false,
-          "includeNullMetadata": true,
-          "instant": true,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A",
-          "useBackend": false
-        }
-      ],
-      "title": "Consensus Reliability (24 hour)",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "description": "Rate of total number of committed consensus messages",
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "palette-classic"
-          },
-          "custom": {
-            "axisBorderShow": false,
-            "axisCenteredZero": false,
-            "axisColorMode": "text",
-            "axisLabel": "",
-            "axisPlacement": "auto",
-            "barAlignment": 0,
-            "barWidthFactor": 0.6,
-            "drawStyle": "line",
-            "fillOpacity": 0,
-            "gradientMode": "none",
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineInterpolation": "linear",
-            "lineWidth": 1,
-            "pointSize": 5,
-            "scaleDistribution": {
-              "type": "linear"
-            },
-            "showPoints": "auto",
-            "spanNulls": false,
-            "stacking": {
-              "group": "A",
-              "mode": "none"
-            },
-            "thresholdsStyle": {
-              "mode": "off"
-            }
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "green"
-              },
-              {
-                "color": "red",
-                "value": 80
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 8,
-        "w": 12,
-        "x": 12,
-        "y": 61
-      },
-      "id": 68,
-      "options": {
-        "legend": {
-          "calcs": [
-            "last"
-          ],
-          "displayMode": "list",
-          "placement": "right",
-          "showLegend": false
-        },
-        "tooltip": {
-          "mode": "multi",
-          "sort": "asc"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "avg(irate(consensus_committed_messages[2m])) by (authority)",
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "title": "Committed Messages Rate",
-      "type": "timeseries"
-    },
-    {
-      "datasource": {
-        "default": false,
-        "type": "prometheus",
-        "uid": "prometheus"
-      },
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "custom": {
-            "fillOpacity": 70,
-            "hideFrom": {
-              "legend": false,
-              "tooltip": false,
-              "viz": false
-            },
-            "insertNulls": false,
-            "lineWidth": 0,
-            "spanNulls": false
-          },
-          "mappings": [],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red"
-              },
-              {
-                "color": "dark-orange",
-                "value": 5
-              },
-              {
-                "color": "#EAB839",
-                "value": 10
-              },
-              {
-                "color": "green",
-                "value": 15
-              },
-              {
-                "color": "#6ED0E0",
-                "value": 25
-              }
-            ]
-          }
-        },
-        "overrides": []
-      },
-      "gridPos": {
-        "h": 19,
-        "w": 24,
-        "x": 0,
-        "y": 69
-      },
-      "id": 74,
-      "options": {
-        "alignValue": "left",
-        "legend": {
-          "displayMode": "list",
-          "placement": "bottom",
-          "showLegend": false
-        },
-        "mergeValues": false,
-        "rowHeight": 0.9,
-        "showValue": "never",
-        "tooltip": {
-          "mode": "single",
-          "sort": "none"
-        }
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "prometheus"
-          },
-          "editorMode": "code",
-          "expr": "avg(irate(consensus_committed_messages[2m])) by (authority)",
-          "instant": false,
-          "legendFormat": "__auto",
-          "range": true,
-          "refId": "A"
-        }
-      ],
-      "type": "state-timeline"
     },
     {
       "collapsed": true,
@@ -2510,7 +2418,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 88
+        "y": 61
       },
       "id": 107,
       "panels": [
@@ -2579,7 +2487,7 @@
             "h": 5,
             "w": 24,
             "x": 0,
-            "y": 62
+            "y": 70
           },
           "id": 125,
           "options": {
@@ -2676,7 +2584,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 67
+            "y": 75
           },
           "id": 114,
           "options": {
@@ -2776,7 +2684,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 67
+            "y": 75
           },
           "id": 108,
           "options": {
@@ -2878,7 +2786,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 75
+            "y": 83
           },
           "id": 112,
           "options": {
@@ -2977,7 +2885,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 75
+            "y": 83
           },
           "id": 111,
           "options": {
@@ -3078,7 +2986,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 83
+            "y": 91
           },
           "id": 116,
           "options": {
@@ -3178,7 +3086,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 83
+            "y": 91
           },
           "id": 135,
           "options": {
@@ -3279,7 +3187,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 91
+            "y": 99
           },
           "id": 113,
           "options": {
@@ -3378,7 +3286,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 91
+            "y": 99
           },
           "id": 109,
           "options": {
@@ -3478,7 +3386,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 99
+            "y": 107
           },
           "id": 110,
           "options": {
@@ -3568,7 +3476,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 99
+            "y": 107
           },
           "id": 115,
           "options": {
@@ -3614,7 +3522,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 89
+        "y": 62
       },
       "id": 95,
       "panels": [
@@ -3708,7 +3616,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 63
+            "y": 71
           },
           "id": 138,
           "options": {
@@ -3835,7 +3743,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 63
+            "y": 71
           },
           "id": 160,
           "options": {
@@ -3937,7 +3845,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 71
+            "y": 79
           },
           "id": 140,
           "options": {
@@ -4039,7 +3947,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 71
+            "y": 79
           },
           "id": 161,
           "options": {
@@ -4159,7 +4067,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 79
+            "y": 87
           },
           "id": 118,
           "options": {
@@ -4257,7 +4165,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 79
+            "y": 87
           },
           "id": 106,
           "options": {
@@ -4359,7 +4267,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 87
+            "y": 95
           },
           "id": 139,
           "options": {
@@ -4461,7 +4369,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 87
+            "y": 95
           },
           "id": 162,
           "options": {
@@ -4563,7 +4471,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 95
+            "y": 103
           },
           "id": 163,
           "options": {
@@ -4665,7 +4573,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 95
+            "y": 103
           },
           "id": 141,
           "options": {
@@ -4787,7 +4695,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 103
+            "y": 111
           },
           "id": 78,
           "options": {
@@ -4904,7 +4812,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 103
+            "y": 111
           },
           "id": 76,
           "options": {
@@ -5021,7 +4929,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 111
+            "y": 119
           },
           "id": 92,
           "options": {
@@ -5139,7 +5047,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 111
+            "y": 119
           },
           "id": 137,
           "options": {
@@ -5236,7 +5144,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 119
+            "y": 127
           },
           "id": 105,
           "options": {
@@ -5359,7 +5267,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 119
+            "y": 127
           },
           "id": 136,
           "options": {
@@ -5401,7 +5309,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 90
+        "y": 63
       },
       "id": 166,
       "panels": [
@@ -5470,7 +5378,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 64
+            "y": 72
           },
           "id": 164,
           "options": {
@@ -5571,7 +5479,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 64
+            "y": 72
           },
           "id": 167,
           "options": {
@@ -5672,7 +5580,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 72
+            "y": 80
           },
           "id": 165,
           "options": {
@@ -5773,7 +5681,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 72
+            "y": 80
           },
           "id": 168,
           "options": {
@@ -5819,7 +5727,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 91
+        "y": 64
       },
       "id": 127,
       "panels": [
@@ -5888,7 +5796,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 65
+            "y": 73
           },
           "id": 128,
           "options": {
@@ -5985,7 +5893,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 65
+            "y": 73
           },
           "id": 129,
           "options": {
@@ -6082,7 +5990,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 73
+            "y": 81
           },
           "id": 130,
           "options": {
@@ -6179,7 +6087,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 73
+            "y": 81
           },
           "id": 133,
           "options": {
@@ -6276,7 +6184,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 81
+            "y": 89
           },
           "id": 131,
           "options": {
@@ -6373,7 +6281,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 81
+            "y": 89
           },
           "id": 134,
           "options": {
@@ -6415,7 +6323,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 92
+        "y": 65
       },
       "id": 126,
       "panels": [
@@ -6484,7 +6392,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 274
+            "y": 282
           },
           "id": 158,
           "options": {
@@ -6581,7 +6489,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 274
+            "y": 282
           },
           "id": 159,
           "options": {
@@ -6682,7 +6590,7 @@
             "h": 8,
             "w": 24,
             "x": 0,
-            "y": 282
+            "y": 290
           },
           "id": 120,
           "options": {
@@ -6779,7 +6687,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 290
+            "y": 298
           },
           "id": 122,
           "options": {
@@ -6876,7 +6784,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 290
+            "y": 298
           },
           "id": 121,
           "options": {
@@ -6973,7 +6881,7 @@
             "h": 8,
             "w": 12,
             "x": 0,
-            "y": 298
+            "y": 306
           },
           "id": 124,
           "options": {
@@ -7070,7 +6978,7 @@
             "h": 8,
             "w": 12,
             "x": 12,
-            "y": 298
+            "y": 306
           },
           "id": 123,
           "options": {
@@ -7114,7 +7022,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 93
+        "y": 66
       },
       "id": 7,
       "panels": [
@@ -7178,7 +7086,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 275
+            "y": 283
           },
           "id": 51,
           "options": {
@@ -7318,7 +7226,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 275
+            "y": 283
           },
           "id": 61,
           "options": {
@@ -7462,7 +7370,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 275
+            "y": 283
           },
           "id": 64,
           "options": {
@@ -7557,7 +7465,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 283
+            "y": 291
           },
           "id": 1,
           "options": {
@@ -7652,7 +7560,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 283
+            "y": 291
           },
           "id": 28,
           "options": {
@@ -7747,7 +7655,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 283
+            "y": 291
           },
           "id": 11,
           "options": {
@@ -7841,7 +7749,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 291
+            "y": 299
           },
           "id": 6,
           "options": {
@@ -7936,7 +7844,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 291
+            "y": 299
           },
           "id": 60,
           "options": {
@@ -8032,7 +7940,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 291
+            "y": 299
           },
           "id": 58,
           "options": {
@@ -8129,7 +8037,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 299
+            "y": 307
           },
           "id": 29,
           "options": {
@@ -8225,7 +8133,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 299
+            "y": 307
           },
           "id": 31,
           "options": {
@@ -8267,7 +8175,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 94
+        "y": 67
       },
       "id": 23,
       "panels": [
@@ -8334,7 +8242,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 224
+            "y": 232
           },
           "id": 24,
           "options": {
@@ -8429,7 +8337,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 224
+            "y": 232
           },
           "id": 25,
           "options": {
@@ -8523,7 +8431,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 224
+            "y": 232
           },
           "id": 21,
           "options": {
@@ -8566,7 +8474,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 95
+        "y": 68
       },
       "id": 15,
       "panels": [
@@ -8581,13 +8489,11 @@
                 "mode": "palette-classic"
               },
               "custom": {
-                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
-                "barWidthFactor": 0.6,
                 "drawStyle": "line",
                 "fillOpacity": 0,
                 "gradientMode": "none",
@@ -8618,7 +8524,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -8634,7 +8541,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 277
+            "y": 69
           },
           "id": 18,
           "options": {
@@ -8677,13 +8584,11 @@
                 "mode": "palette-classic"
               },
               "custom": {
-                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
-                "barWidthFactor": 0.6,
                 "drawStyle": "line",
                 "fillOpacity": 0,
                 "gradientMode": "none",
@@ -8714,7 +8619,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -8730,7 +8636,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 277
+            "y": 69
           },
           "id": 13,
           "options": {
@@ -8778,13 +8684,11 @@
                 "mode": "palette-classic"
               },
               "custom": {
-                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
-                "barWidthFactor": 0.6,
                 "drawStyle": "line",
                 "fillOpacity": 0,
                 "gradientMode": "none",
@@ -8815,7 +8719,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -8831,7 +8736,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 277
+            "y": 69
           },
           "id": 16,
           "options": {
@@ -8932,7 +8837,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 285
+            "y": 77
           },
           "id": 19,
           "options": {
@@ -9028,7 +8933,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 285
+            "y": 77
           },
           "id": 14,
           "options": {
@@ -9129,7 +9034,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 285
+            "y": 77
           },
           "id": 17,
           "options": {
@@ -9230,7 +9135,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 293
+            "y": 85
           },
           "id": 42,
           "options": {
@@ -9326,7 +9231,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 293
+            "y": 85
           },
           "id": 59,
           "options": {
@@ -9422,7 +9327,7 @@
             "h": 8,
             "w": 8,
             "x": 16,
-            "y": 293
+            "y": 85
           },
           "id": 50,
           "options": {
@@ -9463,7 +9368,7 @@
         "h": 1,
         "w": 24,
         "x": 0,
-        "y": 96
+        "y": 69
       },
       "id": 44,
       "panels": [
@@ -9472,19 +9377,18 @@
             "type": "prometheus",
             "uid": "prometheus"
           },
+          "description": "Summing up bandwidth used by all requests and responses - inbound and outbound. ",
           "fieldConfig": {
             "defaults": {
               "color": {
                 "mode": "palette-classic"
               },
               "custom": {
-                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
-                "barWidthFactor": 0.6,
                 "drawStyle": "line",
                 "fillOpacity": 0,
                 "gradientMode": "none",
@@ -9515,7 +9419,98 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 11,
+            "w": 24,
+            "x": 0,
+            "y": 70
+          },
+          "id": 177,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "mode": "multi",
+              "sort": "none"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "sum(irate(consensus_outbound_response_size_sum[2m])+ irate(consensus_outbound_request_size_sum[2m])+irate(consensus_inbound_response_size_sum[2m])+ irate(consensus_inbound_request_size_sum[2m]))",
+              "legendFormat": "{{host}} {{route}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Consensus Bandwidth Usage",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -9530,7 +9525,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 70
+            "y": 81
           },
           "id": 47,
           "options": {
@@ -9552,7 +9547,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(iota_inbound_requests[1m])",
+              "expr": "rate(consensus_inbound_requests[1m])",
               "legendFormat": "{{host}} {{route}}",
               "range": true,
               "refId": "A"
@@ -9572,13 +9567,11 @@
                 "mode": "palette-classic"
               },
               "custom": {
-                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
-                "barWidthFactor": 0.6,
                 "drawStyle": "line",
                 "fillOpacity": 0,
                 "gradientMode": "none",
@@ -9609,7 +9602,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -9625,7 +9619,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 70
+            "y": 81
           },
           "id": 48,
           "options": {
@@ -9647,7 +9641,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "irate(iota_inbound_request_latency_sum[2m])",
+              "expr": "irate(consensus_inbound_request_latency_sum[2m])",
               "legendFormat": "{{host}} {{route}}",
               "range": true,
               "refId": "A"
@@ -9667,13 +9661,11 @@
                 "mode": "palette-classic"
               },
               "custom": {
-                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
-                "barWidthFactor": 0.6,
                 "drawStyle": "line",
                 "fillOpacity": 0,
                 "gradientMode": "none",
@@ -9704,7 +9696,102 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 81
+          },
+          "id": 175,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "irate(consensus_inbound_response_size_sum[2m]) + irate(consensus_inbound_request_size_sum[2m])",
+              "legendFormat": "{{host}} {{route}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Inbound Request+Response Size",
+          "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -9719,7 +9806,7 @@
             "h": 8,
             "w": 8,
             "x": 0,
-            "y": 78
+            "y": 89
           },
           "id": 45,
           "options": {
@@ -9741,7 +9828,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "rate(iota_outbound_requests[1m])",
+              "expr": "rate(consensus_outbound_requests[1m])",
               "legendFormat": "{{host}}({{route}})",
               "range": true,
               "refId": "A"
@@ -9761,13 +9848,11 @@
                 "mode": "palette-classic"
               },
               "custom": {
-                "axisBorderShow": false,
                 "axisCenteredZero": false,
                 "axisColorMode": "text",
                 "axisLabel": "",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
-                "barWidthFactor": 0.6,
                 "drawStyle": "line",
                 "fillOpacity": 0,
                 "gradientMode": "none",
@@ -9798,7 +9883,8 @@
                 "mode": "absolute",
                 "steps": [
                   {
-                    "color": "green"
+                    "color": "green",
+                    "value": null
                   },
                   {
                     "color": "red",
@@ -9814,7 +9900,7 @@
             "h": 8,
             "w": 8,
             "x": 8,
-            "y": 78
+            "y": 89
           },
           "id": 46,
           "options": {
@@ -9836,7 +9922,7 @@
                 "uid": "prometheus"
               },
               "editorMode": "code",
-              "expr": "irate(iota_outbound_request_latency_sum[2m])",
+              "expr": "irate(consensus_outbound_request_latency_sum[2m])",
               "legendFormat": "{{host}} {{route}}",
               "range": true,
               "refId": "A"
@@ -9844,14 +9930,109 @@
           ],
           "title": "Outbound Request Latency",
           "type": "timeseries"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 0,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "insertNulls": false,
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": {
+                  "type": "linear"
+                },
+                "showPoints": "auto",
+                "spanNulls": false,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                },
+                "thresholdsStyle": {
+                  "mode": "off"
+                }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 80
+                  }
+                ]
+              },
+              "unit": "bytes"
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 8,
+            "w": 8,
+            "x": 16,
+            "y": 89
+          },
+          "id": 176,
+          "options": {
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": false
+            },
+            "tooltip": {
+              "mode": "single",
+              "sort": "desc"
+            }
+          },
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "prometheus"
+              },
+              "editorMode": "code",
+              "expr": "irate(consensus_outbound_response_size_sum[2m]) + irate(consensus_outbound_request_size_sum[2m])",
+              "legendFormat": "{{host}} {{route}}",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "Outbound Request+Response Size",
+          "type": "timeseries"
         }
       ],
-      "title": "Inbound / Outbound",
+      "title": "Inbound / Outbound Network Metrics",
       "type": "row"
     }
   ],
-  "refresh": "",
-  "schemaVersion": 39,
+  "refresh": false,
+  "schemaVersion": 38,
+  "style": "dark",
   "tags": [],
   "templating": {
     "list": [
@@ -9876,6 +10057,6 @@
   "timezone": "Europe/Berlin",
   "title": "IOTA Consensus Overview",
   "uid": "eeigyzrajocg0fconsensus3",
-  "version": 8,
+  "version": 15,
   "weekStart": ""
 }

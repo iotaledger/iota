@@ -7,17 +7,18 @@ license = "Apache-2.0"
 publish = false
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
+bcs.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+# internal dependencies
 move-binary-format.workspace = true
 move-command-line-common.workspace = true
 move-core-types.workspace = true
 move-ir-types.workspace = true
 move-symbol-pool.workspace = true
-
-bcs.workspace = true
-
-serde.workspace = true
-serde_json.workspace = true
 
 [features]
 default = []

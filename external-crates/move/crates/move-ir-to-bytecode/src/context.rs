@@ -5,8 +5,9 @@
 
 use std::{clone::Clone, collections::HashMap, hash::Hash};
 
-use anyhow::{bail, format_err, Result};
+use anyhow::{Result, bail, format_err};
 use move_binary_format::{
+    CompiledModule,
     file_format::{
         AbilitySet, AddressIdentifierIndex, CodeOffset, Constant, ConstantPoolIndex,
         DatatypeHandle, DatatypeHandleIndex, DatatypeTyParameter, EnumDefInstantiation,
@@ -18,7 +19,6 @@ use move_binary_format::{
         TableIndex, VariantHandle, VariantHandleIndex, VariantInstantiationHandle,
         VariantInstantiationHandleIndex,
     },
-    CompiledModule,
 };
 use move_bytecode_source_map::source_map::SourceMap;
 use move_core_types::{
@@ -189,8 +189,9 @@ impl StoredCompiledDependency {
 }
 
 pub(crate) enum CompiledDependency<'a> {
-    /// Simple `CompiledDependencyView` where the borrowed `CompiledModule` is held elsewhere,
-    /// Commonly, it is borrowed from outside of the compilers API
+    /// Simple `CompiledDependencyView` where the borrowed `CompiledModule` is
+    /// held elsewhere, Commonly, it is borrowed from outside of the
+    /// compilers API
     Borrowed(CompiledDependencyView<'a>),
     /// `Stored` holds the `CompiledModule` as well as the
     /// `CompiledDependencyView` into the module uses `rental` for a self

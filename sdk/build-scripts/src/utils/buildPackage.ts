@@ -78,6 +78,7 @@ async function buildCJS(
         entryPoints,
         outdir: 'dist/cjs',
         sourcemap: true,
+        outbase: 'src',
         define: await embedIotaEnvVars(),
         ...buildOptions,
     });
@@ -110,6 +111,7 @@ async function buildESM(
         entryPoints,
         outdir: 'dist/esm',
         sourcemap: true,
+        outbase: 'src',
         define: await embedIotaEnvVars(),
         ...buildOptions,
     });

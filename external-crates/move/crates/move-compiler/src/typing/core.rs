@@ -50,7 +50,7 @@ use crate::{
 pub struct UseFunsScope<'env, 'outer> {
     color: Option<Color>,
     count: usize,
-    use_funs: UseFunsScope_<'env, 'outer>
+    use_funs: UseFunsScope_<'env, 'outer>,
 }
 
 pub type UsedMethods = BTreeSet<(TypeName, Name)>;
@@ -65,7 +65,6 @@ enum FoundMethod<'outer, 'local> {
     Outer(&'outer N::UseFun, &'local mut UsedMethods),
     Local(&'local mut N::UseFun),
 }
-
 
 pub enum Constraint {
     AbilityConstraint {
@@ -125,13 +124,15 @@ pub struct ModuleContext<'env> {
     deprecations: Deprecations,
     pub current_package: Option<Symbol>,
     pub current_module: Option<ModuleIdent>,
-    /// collects all friends that should be added over the course of 'public(package)' calls
-    /// structured as (defining module, new friend, location) where `new friend` is usually the
-    /// context's current module. Note there may be more than one location in practice, but
+    /// collects all friends that should be added over the course of
+    /// 'public(package)' calls structured as (defining module, new friend,
+    /// location) where `new friend` is usually the context's current
+    /// module. Note there may be more than one location in practice, but
     /// tracking a single one is sufficient for error reporting.
     pub new_friends: BTreeSet<(ModuleIdent, Loc)>,
-    /// collects all used module members (functions and constants) but it's a superset of these in
-    /// that it may contain other identifiers that do not in fact represent a function or a constant
+    /// collects all used module members (functions and constants) but it's a
+    /// superset of these in that it may contain other identifiers that do
+    /// not in fact represent a function or a constant
     pub used_module_members: BTreeMap<ModuleIdent_, BTreeSet<Symbol>>,
 }
 
@@ -139,13 +140,15 @@ pub struct Context<'env, 'outer> {
     pub outer: &'outer ModuleContext<'env>,
 
     pub reporter: DiagnosticReporter<'env>,
-    /// collects all friends that should be added over the course of 'public(package)' calls
-    /// structured as (defining module, new friend, location) where `new friend` is usually the
-    /// context's current module. Note there may be more than one location in practice, but
+    /// collects all friends that should be added over the course of
+    /// 'public(package)' calls structured as (defining module, new friend,
+    /// location) where `new friend` is usually the context's current
+    /// module. Note there may be more than one location in practice, but
     /// tracking a single one is sufficient for error reporting.
     pub new_friends: BTreeSet<(ModuleIdent, Loc)>,
-    /// collects all used module members (functions and constants) but it's a superset of these in
-    /// that it may contain other identifiers that do not in fact represent a function or a constant
+    /// collects all used module members (functions and constants) but it's a
+    /// superset of these in that it may contain other identifiers that do
+    /// not in fact represent a function or a constant
     pub used_module_members: BTreeMap<ModuleIdent_, BTreeSet<Symbol>>,
     // for generating new variables during match compilation
     next_match_var_id: usize,
@@ -288,7 +291,7 @@ macro_rules! add_use_funs_scope {
                         // suppress unused warning
                         prev.mark_used(tn, &method);
                     }
-                    }) else {
+                }) else {
                     continue;
                 };
                 if same_target {
@@ -378,8 +381,9 @@ fn use_funs_find_method<'local>(
     let cur_color = use_funs.last().unwrap().color;
     use_funs.iter_mut().rev().find_map(|scope| {
         // scope color is None for global scope, which is always in consideration
-        // otherwise, the color must match the current color. In practice, we are preventing
-        // macro scopes from interfering with each the scopes in which they are expanded
+        // otherwise, the color must match the current color. In practice, we are
+        // preventing macro scopes from interfering with each the scopes in
+        // which they are expanded
         if scope.color.is_some() && scope.color != cur_color {
             return None;
         }
@@ -636,7 +640,8 @@ impl<'env> ModuleContext<'env> {
         constants.get(n).expect("ICE should have failed in naming")
     }
 
-    /// Find all valid fields in scope for a given `TypeName`. This is used for autocomplete.
+    /// Find all valid fields in scope for a given `TypeName`. This is used for
+    /// autocomplete.
     pub fn find_all_fields(&self, tn: &TypeName) -> Vec<(Symbol, N::Type)> {
         debug_print!(self.debug.autocomplete_resolution, (msg "fields"), ("name" => tn));
         let fields_info = match &tn.value {
@@ -813,8 +818,8 @@ impl<'env, 'outer> Context<'env, 'outer> {
     ) {
         let in_same_module = self.is_current_module(mident);
         if let Some(deprecation) = self.deprecations().get_deprecation(*mident, name) {
-            // Don't register a warning if we are in the module that is deprecated and the actual
-            // member is not deprecated.
+            // Don't register a warning if we are in the module that is deprecated and the
+            // actual member is not deprecated.
             if deprecation.location == AttributePosition::Module && in_same_module {
                 return;
             }
@@ -824,7 +829,7 @@ impl<'env, 'outer> Context<'env, 'outer> {
     }
 
     pub fn add_use_funs_scope(&mut self, new_scope: N::UseFuns) {
-          add_use_funs_scope!(self, new_scope)
+        add_use_funs_scope!(self, new_scope)
     }
 
     pub fn pop_use_funs_scope(&mut self) -> N::UseFuns {
@@ -847,7 +852,8 @@ impl<'env, 'outer> Context<'env, 'outer> {
         tn: &TypeName,
         method: Name,
     ) -> Option<(ModuleIdent, FunctionName)> {
-          self.find_method_impl(tn, &method, |mut use_fun| use_fun.mark_used(tn, &method)).map(|use_fun| use_fun.target_function)
+        self.find_method_impl(tn, &method, |mut use_fun| use_fun.mark_used(tn, &method))
+            .map(|use_fun| use_fun.target_function)
     }
 
     /// true iff it is safe to expand,
@@ -1064,7 +1070,7 @@ impl<'env, 'outer> Context<'env, 'outer> {
 
     // `loc` indicates the location that caused the add to occur
     fn record_current_module_as_friend(&mut self, m: &ModuleIdent, loc: Loc) {
-         if !self.is_current_module(m) {
+        if !self.is_current_module(m) {
             self.new_friends.insert((*m, loc));
         }
     }
@@ -1121,7 +1127,7 @@ impl<'env, 'outer> Context<'env, 'outer> {
         self.next_match_var_id
     }
 
-        pub fn finish(
+    pub fn finish(
         self,
     ) -> (
         BTreeSet<(ModuleIdent, Loc)>,
@@ -1199,7 +1205,6 @@ impl<'env, 'outer> Context<'env, 'outer> {
         different
     }
 
-   
     pub fn add_ide_info(&mut self, loc: Loc, info: IDEAnnotation) {
         self.ide_info.add_ide_annotation(loc, info);
     }
@@ -1963,7 +1968,7 @@ fn check_function_visibility(
 ) {
     let in_current_module = context.is_current_module(m);
     let public_for_testing =
-       public_testing_visibility(context.env(), context.current_package(), f, entry_opt);
+        public_testing_visibility(context.env(), context.current_package(), f, entry_opt);
     let is_testing_context = context.is_testing_context();
     let supports_public_package = context
         .env()
@@ -2235,7 +2240,6 @@ fn solve_ability_constraint(
 ) {
     let ty = unfold_type(&context.subst, ty);
     let ty_abilities = infer_abilities(context.info(), &context.subst, ty.clone());
-
 
     let (declared_loc_opt, declared_abilities, ty_args) = debug_abilities_info(context, &ty);
     for constraint in constraints {

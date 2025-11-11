@@ -4,14 +4,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 extern crate test_generation;
+use std::collections::HashMap;
+
 use move_binary_format::file_format::{
-    empty_module, Ability, AbilitySet, Bytecode, CompiledModule, DatatypeHandle,
-    DatatypeHandleIndex, FieldDefinition, FieldHandle, FieldHandleIndex, IdentifierIndex,
-    ModuleHandleIndex, SignatureToken, StructDefinition, StructDefinitionIndex,
-    StructFieldInformation, TableIndex, TypeSignature,
+    Ability, AbilitySet, Bytecode, CompiledModule, DatatypeHandle, DatatypeHandleIndex,
+    FieldDefinition, FieldHandle, FieldHandleIndex, IdentifierIndex, ModuleHandleIndex,
+    SignatureToken, StructDefinition, StructDefinitionIndex, StructFieldInformation, TableIndex,
+    TypeSignature, empty_module,
 };
 use move_core_types::identifier::Identifier;
-use std::collections::HashMap;
 use test_generation::{
     abilities,
     abstract_state::{AbstractState, AbstractValue, CallGraph},

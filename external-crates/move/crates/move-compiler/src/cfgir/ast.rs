@@ -19,7 +19,7 @@ use crate::{
         BaseType, Command, Command_, EnumDefinition, FunctionSignature, Label, SingleType,
         StructDefinition, Var, Visibility,
     },
-    parser::ast::{ConstantName, DatatypeName, FunctionName, TargetKind, ENTRY_MODIFIER},
+    parser::ast::{ConstantName, DatatypeName, ENTRY_MODIFIER, FunctionName, TargetKind},
     shared::{ast_debug::*, program_info::TypingProgramInfo, unique_map::UniqueMap},
 };
 
@@ -32,7 +32,8 @@ use crate::{
 #[derive(Debug, Clone)]
 pub struct Program {
     pub info: Arc<TypingProgramInfo>,
-    /// Safety: This table should not be dropped as long as any `WarningFilters` are alive
+    /// Safety: This table should not be dropped as long as any `WarningFilters`
+    /// are alive
     pub warning_filters_table: Arc<WarningFiltersTable>,
     pub modules: UniqueMap<ModuleIdent, ModuleDefinition>,
 }

@@ -27,7 +27,7 @@ export function ResetWarningPage() {
     }
 
     function handleClose() {
-        navigate('/');
+        navigate('/tokens');
     }
 
     function handleNext() {

@@ -374,6 +374,11 @@ pub struct DiscoveryConfig {
     /// If unspecified, this will default to `300` seconds (5 minutes).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cooldown_cleanup_interval_sec: Option<u64>,
+
+    /// Whether to allow private IP and local DNS addresses (e.g., 192.168.0.1,
+    /// localhost, .local) when verifying peer addresses.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub allow_private_addresses: Option<bool>,
 }
 
 impl DiscoveryConfig {
@@ -458,6 +463,12 @@ impl DiscoveryConfig {
         self.address_verification_failure_cooldown_sec
             .unwrap_or(600)
             > 0
+    }
+
+    /// Whether to allow private IP and local DNS addresses (e.g., 192.168.0.1,
+    /// localhost, .local) when verifying peer addresses.
+    pub fn allow_private_addresses(&self) -> bool {
+        self.allow_private_addresses.unwrap_or(false)
     }
 }
 

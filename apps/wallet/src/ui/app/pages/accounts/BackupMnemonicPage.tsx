@@ -90,7 +90,7 @@ export function BackupMnemonicPage() {
                         </div>
                         <div className="pt-sm--rs" />
                         <Button
-                            onClick={() => navigate('/')}
+                            onClick={() => navigate('/tokens')}
                             type={ButtonType.Primary}
                             disabled={!mnemonicBackedUp}
                             text="Open Wallet"

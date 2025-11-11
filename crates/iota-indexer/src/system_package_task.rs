@@ -55,7 +55,7 @@ impl SystemPackageTask {
                         }) {
                         Ok(epoch) => epoch,
                         Err(e) => {
-                            tracing::error!("Failed to fetch latest epoch: {:?}", e);
+                            tracing::error!("failed to fetch latest epoch: {e:?}");
                             continue;
                         }
                     };

@@ -18,7 +18,7 @@ use crate::{
     expansion::ast::{Address, ModuleIdent, ModuleIdent_},
     naming::ast as N,
     parser::ast::FunctionName,
-    shared::{known_attributes::NativeAttribute, Identifier},
+    shared::{Identifier, known_attributes::NativeAttribute},
 };
 
 /// verify fake native attribute usage usage
