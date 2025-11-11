@@ -27,9 +27,8 @@ import { Window, windowRemovedStream } from './window';
 import { SidePanel } from '_src/polyfills/sidepanel';
 
 const PERMISSIONS_STORAGE_KEY = 'permissions';
-const PERMISSION_UI_URL = (isSidePanel: boolean = false) =>
-    `${Browser.runtime.getURL('ui.html')}${isSidePanel ? '?type=sidepanel&' : ''}#/dapp/connect/`;
-const PERMISSION_UI_URL_REGEX = new RegExp(`${PERMISSION_UI_URL()}([0-9a-f-]+$)`, 'i');
+const PERMISSION_UI_URL = `${Browser.runtime.getURL('ui.html')}#/dapp/connect/`;
+const PERMISSION_UI_URL_REGEX = new RegExp(`${PERMISSION_UI_URL}([0-9a-f-]+$)`, 'i');
 
 type PermissionEvents = {
     connectedAccountsChanged: {
@@ -42,8 +41,8 @@ class Permissions {
     #events = mitt<PermissionEvents>();
     #_permissionWindows: Map<string, number> = new Map();
 
-    public static getUiUrl(permissionID: string, isSidePanel?: boolean) {
-        return `${PERMISSION_UI_URL(isSidePanel)}${encodeURIComponent(permissionID)}`;
+    public static getUiUrl(permissionID: string) {
+        return `${PERMISSION_UI_URL}${encodeURIComponent(permissionID)}`;
     }
 
     public static isPermissionUiUrl(url: string) {
@@ -182,7 +181,7 @@ class Permissions {
         );
 
         if (await SidePanel.isEnabled()) {
-            await SidePanel.enableAndGoTo(Permissions.getUiUrl(pRequest.id, true));
+            await SidePanel.enableAndGoTo(Permissions.getUiUrl(pRequest.id));
             this.#_permissionWindows.set(pRequest.id, -3154731);
             return null;
         }

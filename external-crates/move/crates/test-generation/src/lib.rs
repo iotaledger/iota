@@ -17,7 +17,7 @@ pub mod transitions;
 use std::{fs, io::Write, panic, thread};
 
 use bytecode_generator::BytecodeGenerator;
-use crossbeam_channel::{bounded, unbounded, Receiver, Sender};
+use crossbeam_channel::{Receiver, Sender, bounded, unbounded};
 use getrandom::getrandom;
 use module_generation::generate_module;
 use move_binary_format::{
@@ -40,7 +40,7 @@ use move_vm_runtime::move_vm::MoveVM;
 use move_vm_test_utils::{DeltaStorage, InMemoryStorage};
 use move_vm_types::gas::UnmeteredGasMeter;
 use once_cell::sync::Lazy;
-use rand::{rngs::StdRng, Rng, SeedableRng};
+use rand::{Rng, SeedableRng, rngs::StdRng};
 use tracing::{debug, error, info};
 
 use crate::config::{Args, EXECUTE_UNVERIFIED_MODULE, RUN_ON_VM};
@@ -138,7 +138,7 @@ fn execute_function_in_module(
         let vm = MoveVM::new(move_stdlib_natives::all_natives(
             AccountAddress::from_hex_literal("0x1").unwrap(),
             move_stdlib_natives::GasParameters::zeros(),
-            /* silent debug */ true,
+            true, // silent debug
         ))
         .unwrap();
 
@@ -238,8 +238,8 @@ pub fn module_frame_generation(
     let generation_options = config::module_generation_settings();
     let mut rng = StdRng::from_seed(seed);
     let mut module = generate_module(&mut rng, generation_options.clone());
-    // Either get the number of iterations provided by the user, or iterate "infinitely"--up to
-    // u128::MAX number of times.
+    // Either get the number of iterations provided by the user, or iterate
+    // "infinitely"--up to u128::MAX number of times.
     let iters = num_iters.map(|x| x as u128).unwrap_or_else(|| u128::MAX);
 
     while generated < iters && sender.send(module).is_ok() {

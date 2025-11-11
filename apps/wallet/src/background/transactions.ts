@@ -18,15 +18,12 @@ import Browser from 'webextension-polyfill';
 
 import { Window } from './window';
 import { SidePanel } from '_src/polyfills/sidepanel';
+import { Tab } from './tab';
+import { getDB } from './db';
+import { NEW_TAB_ACCOUNT_TYPES } from '_src/shared/accountTypes';
 
 const STALE_TRANSACTION_MILLISECONDS = 1000 * 60 * 60 * 3; // 3 hours
 const TX_STORE_KEY = 'transactions';
-
-function openTxWindow(requestID: string) {
-    return new Window(
-        Browser.runtime.getURL('ui.html') + `#/dapp/approve/${encodeURIComponent(requestID)}`,
-    );
-}
 
 class Transactions {
     private _txResponseMessages = new Subject<TransactionRequestResponse>();
@@ -49,6 +46,7 @@ class Transactions {
                 justSign: true,
                 data: sign.transaction,
                 account: sign.account,
+                chain: sign.chain,
             },
             connection.origin,
             connection.originFavIcon,
@@ -157,13 +155,16 @@ class Transactions {
         origin: string,
         favIcon?: string,
     ) {
+        const requestingAddress =
+            request.type === 'transaction' ? request.account : request.accountAddress;
+
         const txRequest = this.createTransactionRequest(request, origin, favIcon);
         await this.storeTransactionRequest(txRequest);
 
         if (await SidePanel.isEnabled()) {
             SidePanel.enableAndGoTo(
                 Browser.runtime.getURL('ui.html') +
-                    `?type=sidepanel&#/dapp/approve/${encodeURIComponent(txRequest.id)}`,
+                    `#/dapp/approve/${encodeURIComponent(txRequest.id)}`,
             );
             const txResponseMessage = this._txResponseMessages.pipe(
                 filter((msg) => msg.txID === txRequest.id),
@@ -174,9 +175,7 @@ class Transactions {
                     take(1),
                     map(async (response) => {
                         await this.removeTransactionRequest(txRequest.id);
-                        await SidePanel.enableAndGoTo(
-                            Browser.runtime.getURL('ui.html') + `?type=sidepanel`,
-                        );
+                        await SidePanel.enableAndGoTo(Browser.runtime.getURL('ui.html'));
                         if (response) {
                             const { approved, txResult, txSigned, txResultError } = response;
                             if (approved) {
@@ -193,7 +192,7 @@ class Transactions {
             );
         }
 
-        const popUp = openTxWindow(txRequest.id);
+        const popUp = await getNewTabOrWindow(requestingAddress, txRequest.id);
         const popUpClose = (await popUp.show()).pipe(
             take(1),
             map<number, false>(() => false),
@@ -208,6 +207,7 @@ class Transactions {
                 map(async (response) => {
                     await this.removeTransactionRequest(txRequest.id);
                     if (response) {
+                        await popUp.close();
                         const { approved, txResult, txSigned, txResultError } = response;
                         if (approved) {
                             txRequest.approved = approved;
@@ -222,6 +222,21 @@ class Transactions {
             ),
         );
     }
+}
+
+async function getNewTabOrWindow(address: string, txRequestId: string) {
+    const allAccounts = await (await getDB()).accounts.toArray();
+    const walletAccount = allAccounts.find((a) => a.address === address);
+
+    if (!walletAccount) {
+        throw new Error('Missing account');
+    }
+
+    const shouldUseTab = NEW_TAB_ACCOUNT_TYPES.includes(walletAccount.type);
+    const url =
+        Browser.runtime.getURL('ui.html') + `#/dapp/approve/${encodeURIComponent(txRequestId)}`;
+
+    return shouldUseTab ? new Tab(url) : new Window(url);
 }
 
 const transactions = new Transactions();

@@ -44,6 +44,8 @@ import { useTheme, getCustomNetwork, FAQ_LINK, ToS_LINK, DISCORD_SUPPORT_LINK } 
 import { useSidePanel } from '_src/ui/app/hooks/useSidePanel';
 import { useSidePanelMutation } from '_src/ui/app/hooks/useSidePanelMutation';
 import { SidePanel } from '_src/polyfills/sidepanel';
+import { ExtensionViewType } from '_src/ui/app/redux/slices/app/appType';
+import { openInNewTab } from '_src/shared/utils';
 
 export function MenuList() {
     const { themePreference } = useTheme();
@@ -58,7 +60,8 @@ export function MenuList() {
     const autoLockInterval = useAutoLockMinutes();
     const sidePanel = useSidePanel();
     const sidePanelMutation = useSidePanelMutation();
-    const isAppPopup = useAppSelector((state) => state.app.isAppViewPopup);
+    const extensionType = useAppSelector((state) => state.app.extensionViewType);
+    console.log(sidePanelMutation.error, sidePanelMutation.data);
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
@@ -132,6 +135,17 @@ export function MenuList() {
             subtitle: themeSubtitle,
             onClick: onThemeClick,
         },
+        {
+            title: 'Get Support',
+            icon: <Discord />,
+            onClick: onSupportClick,
+        },
+        {
+            title: 'Expand View',
+            icon: <Expand />,
+            onClick: () => openInNewTab('/tokens'),
+            hidden: extensionType != ExtensionViewType.Popup,
+        },
         ...(SidePanel.isSupported()
             ? [
                   {
@@ -141,18 +155,6 @@ export function MenuList() {
                   },
               ]
             : []),
-        {
-            title: 'Get Support',
-            icon: <Discord />,
-            onClick: onSupportClick,
-        },
-        {
-            title: 'Expand View',
-            icon: <Expand />,
-            onClick: () =>
-                window.open(window.location.href.split('?')[0], '_blank', 'noopener noreferrer'),
-            hidden: !isAppPopup,
-        },
         {
             title: 'FAQ',
             icon: <Info />,

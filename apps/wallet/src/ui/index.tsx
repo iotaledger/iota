@@ -4,11 +4,12 @@
 
 import '@fontsource-variable/inter';
 import { ErrorBoundary } from '_components';
-import { initAppType, setIsAppViewPopup } from '_redux/slices/app';
+import { initAppType, setAppViewType } from '_redux/slices/app';
 import {
     AppType,
     getFromLocationSearch,
-    getIsAppViewPopup,
+    getAppViewType,
+    ExtensionViewType,
 } from '_src/ui/app/redux/slices/app/appType';
 import { initAmplitude } from '_src/shared/analytics/amplitude';
 import { setAttributes } from '_src/shared/experimentation/features';
@@ -48,7 +49,7 @@ async function init() {
         Object.defineProperty(window, 'store', { value: store });
     }
     store.dispatch(initAppType(getFromLocationSearch()));
-    store.dispatch(setIsAppViewPopup(getIsAppViewPopup()));
+    store.dispatch(setAppViewType(getAppViewType()));
     await thunkExtras.background.init(store.dispatch);
     const { network, customRpc } = store.getState().app;
     setAttributes({ network, customRpc });
@@ -71,7 +72,7 @@ function renderApp() {
 
 function AppWrapper() {
     const network = useAppSelector(({ app: { network, customRpc } }) => `${network}_${customRpc}`);
-    const appType = useAppSelector((state) => state.app.appType);
+    const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
     return (
         <GrowthBookProvider growthbook={growthbook}>
             <HashRouter>
@@ -114,12 +115,12 @@ function AppWrapper() {
                                                                     <div
                                                                         className={cn(
                                                                             'relative flex h-screen flex-col flex-nowrap items-center justify-center overflow-hidden',
-                                                                            appType ===
-                                                                                AppType.SidePanel
+                                                                            extensionViewType ===
+                                                                                ExtensionViewType.SidePanel
                                                                                 ? 'min-h-sidepanel-minimum max-h-sidepanel-height w-sidepanel-width'
                                                                                 : 'max-h-popup-height min-h-popup-minimum w-popup-width',
-                                                                            appType !==
-                                                                                AppType.Popup &&
+                                                                            extensionViewType !==
+                                                                                ExtensionViewType.Popup &&
                                                                                 'rounded-xl shadow-lg',
                                                                         )}
                                                                     >

@@ -8,12 +8,13 @@ export function useSidePanelMutation() {
         mutationKey: ['set sidepanel mutation'],
         mutationFn: async (enable: boolean) => {
             if (enable) {
-                await SidePanel.open('ui.html?type=sidepanel');
+                await SidePanel.open('ui.html');
             } else {
+                await SidePanel.disable();
                 await SidePanel.close();
             }
         },
-        onSuccess: () => {
+        onSettled: () => {
             queryClient.invalidateQueries({ exact: true, queryKey: SIDE_PANEL_QUERY_KEY });
         },
     });

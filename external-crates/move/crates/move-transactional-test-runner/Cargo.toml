@@ -8,6 +8,7 @@ publish = false
 description = "Transactional testing framework for Move"
 
 [dependencies]
+# external dependencies
 anyhow.workspace = true
 async-trait.workspace = true
 clap.workspace = true
@@ -17,6 +18,7 @@ regex.workspace = true
 tempfile.workspace = true
 tokio.workspace = true
 
+# internal dependencies
 move-binary-format.workspace = true
 move-bytecode-source-map.workspace = true
 move-cli.workspace = true

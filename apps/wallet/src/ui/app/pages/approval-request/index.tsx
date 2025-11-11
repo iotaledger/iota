@@ -7,18 +7,19 @@ import {
     isTransactionApprovalRequest,
 } from '_src/shared/messaging/messages/payloads/transactions/approvalRequest';
 import { useEffect, useMemo } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { Loading } from '_components';
 import { useAppSelector } from '_hooks';
 import { type RootState } from '../../redux/rootReducer';
 import { txRequestsSelectors } from '../../redux/slices/transaction-requests';
 import { SignMessageRequest } from './SignMessageRequest';
 import { TransactionRequest } from './transaction-request';
-import { AppType, getFromLocationSearch } from '../../redux/slices/app/appType';
+import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { SidePanel } from '_src/polyfills/sidepanel';
 
 export function ApprovalRequestPage() {
     const { requestID } = useParams();
+    const navigate = useNavigate();
     const requestSelector = useMemo(
         () => (state: RootState) =>
             (requestID && txRequestsSelectors.selectById(state, requestID)) || null,
@@ -28,15 +29,18 @@ export function ApprovalRequestPage() {
     const requestsLoading = useAppSelector(
         ({ transactionRequests }) => !transactionRequests.initialized,
     );
+    const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
+
     useEffect(() => {
         if (!requestsLoading && (!request || (request && request.approved !== null))) {
-            if (getFromLocationSearch() == AppType.SidePanel) {
-                SidePanel.enableAndGoTo(`${location.pathname}?type=sidepanel`);
+            if (extensionViewType === ExtensionViewType.SidePanel) {
+                SidePanel.enableAndGoTo(`${location.pathname}`);
             } else {
-                window.close();
+                navigate('/tokens');
             }
         }
-    }, [requestsLoading, request]);
+    }, [request, requestsLoading]);
+
     return (
         <Loading loading={requestsLoading}>
             {request ? (

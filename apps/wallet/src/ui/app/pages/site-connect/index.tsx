@@ -19,11 +19,12 @@ import { useParams } from 'react-router-dom';
 import { PageMainLayoutTitle } from '../../shared/page-main-layout/PageMainLayoutTitle';
 import { InfoBox, InfoBoxStyle, InfoBoxType } from '@iota/apps-ui-kit';
 import { Warning, Info } from '@iota/apps-ui-icons';
-import { AppType, getFromLocationSearch } from '../../redux/slices/app/appType';
+import { ExtensionViewType } from '../../redux/slices/app/appType';
 import { SidePanel } from '_src/polyfills/sidepanel';
 
 export function SiteConnectPage() {
     const { requestID } = useParams();
+    const extensionViewType = useAppSelector((state) => state.app.extensionViewType);
     const permissionsInitialized = useAppSelector(({ permissions }) => permissions.initialized);
     const loading = !permissionsInitialized;
     const permissionSelector = useMemo(
@@ -50,8 +51,8 @@ export function SiteConnectPage() {
     });
 
     function close() {
-        if (getFromLocationSearch() == AppType.SidePanel) {
-            SidePanel.enableAndGoTo(`${location.pathname}?type=sidepanel`);
+        if (extensionViewType === ExtensionViewType.SidePanel) {
+            SidePanel.enableAndGoTo(`${location.pathname}`);
         } else {
             window.close();
         }

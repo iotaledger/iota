@@ -8,8 +8,10 @@ publish = false
 description = "Move bytecode verifier"
 
 [dependencies]
+# external dependencies
 petgraph.workspace = true
 
+# internal dependencies
 move-abstract-interpreter.workspace = true
 move-abstract-stack.workspace = true
 move-binary-format.workspace = true

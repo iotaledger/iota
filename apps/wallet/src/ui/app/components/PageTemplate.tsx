@@ -12,6 +12,7 @@ interface PageTemplateProps {
     onClose?: () => void;
     isTitleCentered?: boolean;
     showBackButton?: boolean;
+    onBack?: () => void;
 }
 
 export function PageTemplate({
@@ -20,9 +21,16 @@ export function PageTemplate({
     onClose,
     isTitleCentered,
     showBackButton,
+    onBack,
 }: PageTemplateProps) {
     const navigate = useNavigate();
-    const handleBack = useCallback(() => navigate(-1), [navigate]);
+    const handleBack = useCallback(() => {
+        if (onBack) {
+            onBack();
+        } else {
+            navigate(-1);
+        }
+    }, [navigate]);
     return (
         <div className="flex h-full w-full flex-col">
             {title && (

@@ -22,6 +22,8 @@ import {
 } from '@iota/apps-ui-kit';
 import { useNavigate } from 'react-router-dom';
 import { Stake } from '@iota/apps-ui-icons';
+import { useShouldOpenInNewTab } from '_src/ui/app/hooks';
+import { openInNewTab } from '_src/shared/utils';
 
 export function TokenStakingOverview({
     accountAddress,
@@ -31,6 +33,7 @@ export function TokenStakingOverview({
     disabled?: boolean;
 }) {
     const navigate = useNavigate();
+    const shouldOpenNewTab = useShouldOpenInNewTab();
     const { data: delegatedStake, isPending } = useGetDelegatedStake({
         address: accountAddress,
         staleTime: DELEGATED_STAKES_QUERY_STALE_TIME,
@@ -45,7 +48,12 @@ export function TokenStakingOverview({
     });
 
     function handleOnClick() {
-        navigate('/stake');
+        if (shouldOpenNewTab) {
+            openInNewTab('/stake');
+        } else {
+            navigate('/stake');
+        }
+
         ampli.clickedStakeIota({
             isCurrentlyStaking: totalDelegatedStake > 0,
             sourceFlow: 'Home page',

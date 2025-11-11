@@ -48,7 +48,7 @@
     "devDependencies": {
         "@amplitude/ampli": "^1.31.5",
         "@amplitude/analytics-types": "^0.20.0",
-        "@playwright/test": "^1.46.1",
+        "@playwright/test": "^1.56.1",
         "@sentry/react": "^7.120.3",
         "@sentry/webpack-plugin": "^1.21.0",
         "@svgr/webpack": "^7.0.0",

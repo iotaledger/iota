@@ -5,11 +5,16 @@
 
 #![forbid(unsafe_code)]
 
-use crate::tasks::{
-    taskify, InitCommand, PrintBytecodeCommand, PublishCommand, RunCommand, SyntaxChoice,
-    TaskCommand, TaskInput,
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    fmt::{Debug, Write as FmtWrite},
+    future::Future,
+    io::Write,
+    path::Path,
+    sync::Arc,
 };
-use anyhow::{anyhow, Result};
+
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use clap::Parser;
 use move_binary_format::file_format::CompiledModule;
@@ -20,35 +25,32 @@ use move_command_line_common::{
     insta_assert,
 };
 use move_compiler::{
-    compiled_unit::AnnotatedCompiledUnit,
-    diagnostics::{warning_filters::WarningFiltersBuilder, Diagnostics},
-    editions::{Edition, Flavor},
-    shared::{files::MappedFiles, NumericalAddress, PackageConfig},
     FullyCompiledProgram,
-};
-use move_core_types::parsing::{
-    address::ParsedAddress,
-    types::ParsedType,
-    values::{ParsableValue, ParsedValue},
+    compiled_unit::AnnotatedCompiledUnit,
+    diagnostics::{Diagnostics, warning_filters::WarningFiltersBuilder},
+    editions::{Edition, Flavor},
+    shared::{NumericalAddress, PackageConfig, files::MappedFiles},
 };
 use move_core_types::{
     account_address::AccountAddress,
     identifier::{IdentStr, Identifier},
     language_storage::{ModuleId, TypeTag},
+    parsing::{
+        address::ParsedAddress,
+        types::ParsedType,
+        values::{ParsableValue, ParsedValue},
+    },
 };
 use move_disassembler::disassembler::{Disassembler, DisassemblerOptions};
 use move_ir_types::location::Spanned;
 use move_symbol_pool::Symbol;
 use move_vm_runtime::session::SerializedReturnValues;
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    fmt::{Debug, Write as FmtWrite},
-    future::Future,
-    io::Write,
-    path::Path,
-    sync::Arc,
-};
 use tempfile::NamedTempFile;
+
+use crate::tasks::{
+    InitCommand, PrintBytecodeCommand, PublishCommand, RunCommand, SyntaxChoice, TaskCommand,
+    TaskInput, taskify,
+};
 
 pub struct CompiledState {
     pre_compiled_deps: Option<Arc<FullyCompiledProgram>>,
@@ -704,8 +706,9 @@ pub fn compile_ir_module(
         .into_compiled_module(&code)
 }
 
-/// Creates an adapter for the given tasks, using the first task command to initialize the adapter
-/// if it is a `TaskCommand::Init`. Returns the adapter and the output string.
+/// Creates an adapter for the given tasks, using the first task command to
+/// initialize the adapter if it is a `TaskCommand::Init`. Returns the adapter
+/// and the output string.
 pub async fn create_adapter<'a, Adapter>(
     path: &Path,
     fully_compiled_program_opt: Option<Arc<FullyCompiledProgram>>,
@@ -798,8 +801,8 @@ where
     .collect::<VecDeque<_>>();
     assert!(!tasks.is_empty());
 
-    // Pop off init command if present, this has already been handled before this function was
-    // called to initialize the adapter
+    // Pop off init command if present, this has already been handled before this
+    // function was called to initialize the adapter
     if let Some(TaskCommand::Init(_, _)) = tasks.front().map(|t| &t.command) {
         tasks.pop_front();
     }
@@ -815,8 +818,8 @@ where
     Ok(())
 }
 
-/// Convenience function that creates an adapter and runs the tasks, to be used when a caller does
-/// not need to extend the adapter.
+/// Convenience function that creates an adapter and runs the tasks, to be used
+/// when a caller does not need to extend the adapter.
 pub async fn run_test_impl<'a, Adapter>(
     path: &Path,
     fully_compiled_program_opt: Option<Arc<FullyCompiledProgram>>,

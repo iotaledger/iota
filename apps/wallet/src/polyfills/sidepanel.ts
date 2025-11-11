@@ -44,7 +44,5 @@ export class SidePanel {
 
         // @ts-expect-error `close` does indeed exist, not sure why its not included in the types
         await chrome.sidePanel.close({ windowId: window.id });
-
-        this.disable();
     }
 }

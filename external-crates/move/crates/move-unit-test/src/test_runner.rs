@@ -143,8 +143,7 @@ impl TestRunner {
             move_stdlib_natives::all_natives(
                 AccountAddress::from_hex_literal("0x1").unwrap(),
                 move_stdlib_natives::GasParameters::zeros(),
-                // silent
-                false,
+                false, // silent
             )
         });
         Ok(Self {

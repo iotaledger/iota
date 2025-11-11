@@ -316,7 +316,8 @@ def do_generate(from_, to):
     root = git("rev-parse", "--show-toplevel")
     os.chdir(root)
 
-    protocol_version = extract_protocol_version(to) or "XX"
+    protocol_version_from = extract_protocol_version(from_) or "XX"
+    protocol_version_to = extract_protocol_version(to) or "XX"
 
     commits = git(
         "log",
@@ -340,18 +341,22 @@ def do_generate(from_, to):
     # Print the impact areas we know about first
     for impacted in NOTE_ORDER:
         notes = results.pop(impacted, None)
-        if not notes:
+        if not notes and impacted != "Protocol":
             continue
 
         print(f"## {impacted}")
 
         if impacted == "Protocol":
-            print(f"#### IOTA Protocol Version in this release: `{protocol_version}`")
+            if protocol_version_from == protocol_version_to:
+                print(f"\n#### This release does not introduce a new protocol version (current version: `{protocol_version_to}`)")
+            else:
+                print(f"\n#### This release introduces protocol version `{protocol_version_to}`")
         print()
 
-        for pr, note in reversed(notes):
-            print_changelog(pr, note)
-            print()
+        if notes:
+            for pr, note in reversed(notes):
+                print_changelog(pr, note)
+                print()
 
     # Print any remaining impact areas
     for impacted, notes in results.items():
