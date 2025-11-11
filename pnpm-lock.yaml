@@ -111,22 +111,22 @@ importers:
         version: link:../../sdk/typescript
       '@nestjs/cache-manager':
         specifier: ^3.0.1
-        version: 3.0.1(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1))(cache-manager@7.2.4)(keyv@5.5.3)(rxjs@7.8.1)
+        version: 3.0.1(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1))(cache-manager@7.2.4)(keyv@5.5.3)(rxjs@7.8.1)
       '@nestjs/common':
         specifier: ^11.1.6
-        version: 11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+        version: 11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
       '@nestjs/config':
         specifier: ^4.0.2
-        version: 4.0.2(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(rxjs@7.8.1)
+        version: 4.0.2(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(rxjs@7.8.1)
       '@nestjs/core':
         specifier: ^11.1.6
-        version: 11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+        version: 11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1)
       '@nestjs/platform-express':
         specifier: ^11.1.6
-        version: 11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6)
+        version: 11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8)
       '@nestjs/schedule':
         specifier: ^6.0.1
-        version: 6.0.1(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1))
+        version: 6.0.1(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1))
       cache-manager:
         specifier: ^7.2.4
         version: 7.2.4
@@ -145,7 +145,7 @@ importers:
         version: 10.1.4(chokidar@3.6.0)(typescript@5.6.2)
       '@nestjs/testing':
         specifier: ^10.0.0
-        version: 10.4.4(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6))
+        version: 10.4.4(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8))
       '@types/express':
         specifier: ^4.17.17
         version: 4.17.21
@@ -320,10 +320,16 @@ importers:
         version: 5.4.15(@types/node@22.15.31)(sass@1.86.0)(terser@5.34.0)
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.15.31)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
+        version: 2.1.9(@types/node@22.15.31)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
 
   apps/evm-bridge:
     dependencies:
+      '@amplitude/analytics-browser':
+        specifier: ^1.10.3
+        version: 1.13.6
+      '@boxfish-studio/react-cookie-manager':
+        specifier: ^1.0.5
+        version: 1.0.5
       '@growthbook/growthbook':
         specifier: ^1.0.0
         version: 1.2.0
@@ -394,9 +400,15 @@ importers:
         specifier: ^4.4.1
         version: 4.5.5(@types/react@18.3.9)(immer@9.0.21)(react@18.3.1)
     devDependencies:
+      '@amplitude/ampli':
+        specifier: ^1.31.5
+        version: 1.35.0
+      '@amplitude/analytics-types':
+        specifier: ^0.20.0
+        version: 0.20.0
       '@playwright/test':
-        specifier: ^1.46.1
-        version: 1.53.0
+        specifier: ^1.56.1
+        version: 1.56.1
       '@types/node':
         specifier: ^20.14.10
         version: 20.16.9
@@ -436,6 +448,9 @@ importers:
       '@amplitude/analytics-types':
         specifier: ^0.20.0
         version: 0.20.0
+      '@boxfish-studio/react-cookie-manager':
+        specifier: ^1.0.5
+        version: 1.0.5
       '@fontsource-variable/inter':
         specifier: ^5.0.5
         version: 5.1.0
@@ -561,8 +576,8 @@ importers:
         specifier: ^7.22.9
         version: 7.25.2
       '@playwright/test':
-        specifier: ^1.46.1
-        version: 1.47.2
+        specifier: ^1.56.1
+        version: 1.56.1
       '@testing-library/dom':
         specifier: ^10.3.1
         version: 10.4.0
@@ -592,7 +607,7 @@ importers:
         version: 10.4.20(postcss@8.4.47)
       happy-dom:
         specifier: ^20.0.0
-        version: 20.0.0
+        version: 20.0.10
       onchange:
         specifier: ^7.1.0
         version: 7.1.0
@@ -619,7 +634,7 @@ importers:
         version: 4.3.0(rollup@4.30.1)(typescript@5.6.2)(vite@5.4.15(@types/node@20.16.9)(sass@1.86.0)(terser@5.34.0))
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
+        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
 
   apps/ui-icons:
     devDependencies:
@@ -938,8 +953,8 @@ importers:
         specifier: ^0.20.0
         version: 0.20.0
       '@playwright/test':
-        specifier: ^1.46.1
-        version: 1.47.2
+        specifier: ^1.56.1
+        version: 1.56.1
       '@sentry/react':
         specifier: ^7.120.3
         version: 7.120.3(react@18.3.1)
@@ -1002,7 +1017,7 @@ importers:
         version: 3.0.2
       happy-dom:
         specifier: ^20.0.0
-        version: 20.0.0
+        version: 20.0.10
       html-webpack-plugin:
         specifier: ^5.5.3
         version: 5.6.0(webpack@5.95.0(@swc/core@1.7.28)(webpack-cli@5.1.4))
@@ -1050,7 +1065,7 @@ importers:
         version: 4.3.2(typescript@5.6.2)(vite@5.4.15(@types/node@20.16.9)(sass@1.79.3)(terser@5.34.0))
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.79.3)(terser@5.34.0)
+        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.79.3)(terser@5.34.0)
       web-ext:
         specifier: ^8.3.0
         version: 8.3.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -1072,6 +1087,9 @@ importers:
       '@amplitude/analytics-types':
         specifier: ^0.20.0
         version: 0.20.0
+      '@boxfish-studio/react-cookie-manager':
+        specifier: ^1.0.5
+        version: 1.0.5
       '@growthbook/growthbook':
         specifier: ^1.0.0
         version: 1.2.0
@@ -1101,7 +1119,7 @@ importers:
         version: link:../../sdk/wallet-standard
       '@sentry/nextjs':
         specifier: ^7.120.3
-        version: 7.120.3(next@14.2.32(@babel/core@7.26.10)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.86.0))(react@18.3.1)(webpack@5.95.0)
+        version: 7.120.3(next@14.2.32(@babel/core@7.26.10)(@playwright/test@1.56.1)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.86.0))(react@18.3.1)(webpack@5.95.0)
       '@tanstack/react-query':
         specifier: ^5.50.1
         version: 5.56.2(react@18.3.1)
@@ -1116,7 +1134,7 @@ importers:
         version: 2.4.6(react@18.3.1)
       next:
         specifier: 14.2.32
-        version: 14.2.32(@babel/core@7.26.10)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.86.0)
+        version: 14.2.32(@babel/core@7.26.10)(@playwright/test@1.56.1)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.86.0)
       react:
         specifier: ^18.3.1
         version: 18.3.1
@@ -1128,8 +1146,8 @@ importers:
         specifier: ^1.31.5
         version: 1.35.0
       '@playwright/test':
-        specifier: ^1.46.1
-        version: 1.47.2
+        specifier: ^1.56.1
+        version: 1.56.1
       '@tanstack/react-query-devtools':
         specifier: ^5.58.0
         version: 5.58.0(@tanstack/react-query@5.56.2(react@18.3.1))(react@18.3.1)
@@ -1398,8 +1416,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@boxfish-studio/react-cookie-manager':
-        specifier: ^1.0.2
-        version: 1.0.2
+        specifier: ^1.0.5
+        version: 1.0.5
       '@docusaurus/core':
         specifier: 3.7.0
         version: 3.7.0(@mdx-js/react@3.0.1(@types/react@18.3.9)(react@18.3.1))(bufferutil@4.0.9)(eslint@8.57.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.6.2)(utf-8-validate@5.0.10)
@@ -1569,7 +1587,7 @@ importers:
         version: 5.6.2
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.15.31)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
+        version: 2.1.9(@types/node@22.15.31)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
 
   sdk/build-scripts:
     dependencies:
@@ -1713,7 +1731,7 @@ importers:
         version: 5.4.15(@types/node@22.15.31)(sass@1.86.0)(terser@5.34.0)
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.15.31)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
+        version: 2.1.9(@types/node@22.15.31)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
 
   sdk/graphql-transport:
     dependencies:
@@ -1771,7 +1789,7 @@ importers:
         version: 5.6.2
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
+        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
       wait-on:
         specifier: ^8.0.1
         version: 8.0.1(debug@4.3.7)
@@ -1817,7 +1835,7 @@ importers:
         version: 4.5.4(@types/node@20.16.9)(rollup@4.30.1)(typescript@5.8.3)(vite@5.4.15(@types/node@20.16.9)(sass@1.86.0)(terser@5.34.0))
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.8.3))(sass@1.86.0)(terser@5.34.0)
+        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.8.3))(sass@1.86.0)(terser@5.34.0)
       zod:
         specifier: ^3.21.4
         version: 3.23.8
@@ -1851,7 +1869,7 @@ importers:
         version: 5.4.15(@types/node@22.15.31)(sass@1.86.0)(terser@5.34.0)
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.15.31)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
+        version: 2.1.9(@types/node@22.15.31)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
       wait-on:
         specifier: ^8.0.1
         version: 8.0.1(debug@4.3.7)
@@ -1891,7 +1909,7 @@ importers:
         version: 5.6.2
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
+        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
 
   sdk/move-bytecode-template:
     devDependencies:
@@ -1906,7 +1924,7 @@ importers:
         version: 5.6.2
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@22.15.31)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
+        version: 2.1.9(@types/node@22.15.31)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
       wasm-pack:
         specifier: ^0.13.0
         version: 0.13.0
@@ -1943,7 +1961,7 @@ importers:
         version: 5.8.3
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.8.3))(sass@1.86.0)(terser@5.34.0)
+        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.8.3))(sass@1.86.0)(terser@5.34.0)
 
   sdk/typescript:
     dependencies:
@@ -2046,7 +2064,7 @@ importers:
         version: 5.4.15(@types/node@20.16.9)(sass@1.86.0)(terser@5.34.0)
       vitest:
         specifier: ^2.1.9
-        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
+        version: 2.1.9(@types/node@20.16.9)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0)
       wait-on:
         specifier: ^8.0.1
         version: 8.0.1(debug@4.3.7)
@@ -3501,8 +3519,8 @@ packages:
   '@blakeembrey/template@1.2.0':
     resolution: {integrity: sha512-w/63nURdkRPpg3AXbNr7lPv6HgOuVDyefTumiXsbXxtIwcuk5EXayWR5OpSwDjsQPgaYsfUSedMduaNOjAYY8A==}
 
-  '@boxfish-studio/react-cookie-manager@1.0.2':
-    resolution: {integrity: sha512-2UZPvRNy+uakMpHXrg+2MiKUFk1PanoZ5YbX8kM09Bhs9zd4L/XQD0IF4OAxz6fWEZxcwSxRIj8KwxkyvNwS/A==}
+  '@boxfish-studio/react-cookie-manager@1.0.5':
+    resolution: {integrity: sha512-0NI3lnm0ByfmbvIFD2n/HlFZTxwW4mQ88tqcZBjjOymOzQWGWCqDY/k35Ooj1qo2gqRnEOa945hNuYuiDh207A==}
 
   '@braintree/sanitize-url@6.0.4':
     resolution: {integrity: sha512-s3jaWicZd0pkP0jf5ysyHUI/RE7MHos6qlToFcGWXVp+ykHOy77OUMrfbgJ9it2C5bow7OIQwYYaHjk9XlBQ2A==}
@@ -3519,8 +3537,8 @@ packages:
   '@bundled-es-modules/tough-cookie@0.1.6':
     resolution: {integrity: sha512-dvMHbL464C0zI+Yqxbz6kZ5TOEp7GLW+pry/RWndAR8MJQAXZ2rPmIs8tziTZjeIyhSNZgZbCePtfSbdWqStJw==}
 
-  '@cacheable/utils@2.1.0':
-    resolution: {integrity: sha512-ZdxfOiaarMqMj+H7qwlt5EBKWaeGihSYVHdQv5lUsbn8MJJOTW82OIwirQ39U5tMZkNvy3bQE+ryzC+xTAb9/g==}
+  '@cacheable/utils@2.2.0':
+    resolution: {integrity: sha512-7xaQayO3msdVcxXLYcLU5wDqJBNdQcPPPHr6mdTEIQI7N7TbtSVVTpWOTfjyhg0L6AQwQdq7miKdWtTDBoBldQ==}
 
   '@changesets/apply-release-plan@7.0.5':
     resolution: {integrity: sha512-1cWCk+ZshEkSVEZrm2fSj1Gz8sYvxgUL4Q78+1ZZqeqfuevPTPk033/yUZ3df8BKMohkqqHfzj0HOOrG0KtXTw==}
@@ -6139,8 +6157,8 @@ packages:
       '@swc/core':
         optional: true
 
-  '@nestjs/common@11.1.6':
-    resolution: {integrity: sha512-krKwLLcFmeuKDqngG2N/RuZHCs2ycsKcxWIDgcm7i1lf3sQ0iG03ci+DsP/r3FcT/eJDFsIHnKtNta2LIi7PzQ==}
+  '@nestjs/common@11.1.8':
+    resolution: {integrity: sha512-bbsOqwld/GdBfiRNc4nnjyWWENDEicq4SH+R5AuYatvf++vf1x5JIsHB1i1KtfZMD3eRte0D4K9WXuAYil6XAg==}
     peerDependencies:
       class-transformer: '>=0.4.1'
       class-validator: '>=0.13.2'
@@ -6158,8 +6176,8 @@ packages:
       '@nestjs/common': ^10.0.0 || ^11.0.0
       rxjs: ^7.1.0
 
-  '@nestjs/core@11.1.6':
-    resolution: {integrity: sha512-siWX7UDgErisW18VTeJA+x+/tpNZrJewjTBsRPF3JVxuWRuAB1kRoiJcxHgln8Lb5UY9NdvklITR84DUEXD0Cg==}
+  '@nestjs/core@11.1.8':
+    resolution: {integrity: sha512-7riWfmTmMhCJHZ5ZiaG+crj4t85IPCq/wLRuOUSigBYyFT2JZj0lVHtAdf4Davp9ouNI8GINBDt9h9b5Gz9nTw==}
     engines: {node: '>= 20'}
     peerDependencies:
       '@nestjs/common': ^11.0.0
@@ -6176,8 +6194,8 @@ packages:
       '@nestjs/websockets':
         optional: true
 
-  '@nestjs/platform-express@11.1.6':
-    resolution: {integrity: sha512-HErwPmKnk+loTq8qzu1up+k7FC6Kqa8x6lJ4cDw77KnTxLzsCaPt+jBvOq6UfICmfqcqCCf3dKXg+aObQp+kIQ==}
+  '@nestjs/platform-express@11.1.8':
+    resolution: {integrity: sha512-rL6pZH9BW7BnL5X2eWbJMtt86uloAKjFgyY5+L2UkizgfEp7rgAs0+Z1z0BcW2Pgu5+q8O7RKPNyHJ/9ZNz/ZQ==}
     peerDependencies:
       '@nestjs/common': ^11.0.0
       '@nestjs/core': ^11.0.0
@@ -6534,13 +6552,8 @@ packages:
     resolution: {integrity: sha512-cq8o4cWH0ibXh9VGi5P20Tu9XF/0fFXl9EUinr9QfTM7a7p0oTA4iJRCQWppXR1Pg8dSM0UCItCkPwsk9qWWYA==}
     engines: {node: ^12.20.0 || ^14.18.0 || >=16.0.0}
 
-  '@playwright/test@1.47.2':
-    resolution: {integrity: sha512-jTXRsoSPONAs8Za9QEQdyjFn+0ZQFjCiIztAIF6bi1HqhBzG9Ma7g1WotyiGqFSBRZjIEqMdT8RUlbk1QVhzCQ==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  '@playwright/test@1.53.0':
-    resolution: {integrity: sha512-15hjKreZDcp7t6TL/7jkAo6Df5STZN09jGiv5dbP9A6vMVncXRqE7/B2SncsyOwrkZRBH2i6/TPOL8BVmm3c7w==}
+  '@playwright/test@1.56.1':
+    resolution: {integrity: sha512-vSMYtL/zOcFpvJCW71Q/OEGQb7KYBPAdKh35WNSkaZA75JlAO8ED8UN6GUNTm3drWomcbcqRPFqQbLae8yBTdg==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -12695,8 +12708,8 @@ packages:
     engines: {node: '>=0.4.7'}
     hasBin: true
 
-  happy-dom@20.0.0:
-    resolution: {integrity: sha512-GkWnwIFxVGCf2raNrxImLo397RdGhLapj5cT3R2PT7FwL62Ze1DROhzmYW7+J3p9105DYMVenEejEbnq5wA37w==}
+  happy-dom@20.0.10:
+    resolution: {integrity: sha512-6umCCHcjQrhP5oXhrHQQvLB0bwb1UzHAHdsXy+FjtKoYjUhmNZsQL8NivwM1vDvNEChJabVrUYxUnp/ZdYmy2g==}
     engines: {node: '>=20.0.0'}
 
   has-bigints@1.0.2:
@@ -14087,8 +14100,8 @@ packages:
   lit@3.3.0:
     resolution: {integrity: sha512-DGVsqsOIHBww2DqnuZzW7QsuCdahp50ojuDaBPC7jUDRpYoH0z7kHBBYZewRzer75FwtrkmkKk7iOAwSaWdBmw==}
 
-  load-esm@1.0.2:
-    resolution: {integrity: sha512-nVAvWk/jeyrWyXEAs84mpQCYccxRqgKY4OznLuJhJCa0XsPSfdOIr2zvBZEj3IHEHbX97jjscKRRV539bW0Gpw==}
+  load-esm@1.0.3:
+    resolution: {integrity: sha512-v5xlu8eHD1+6r8EHTg6hfmO97LN8ugKtiXcy5e6oN72iD2r6u0RPfLl6fxM+7Wnh2ZRq15o0russMst44WauPA==}
     engines: {node: '>=13.2.0'}
 
   load-tsconfig@0.2.5:
@@ -15507,9 +15520,8 @@ packages:
   path-to-regexp@6.3.0:
     resolution: {integrity: sha512-Yhpw4T9C6hPpgPeA28us07OJeqZ5EzQTkbfwuhsUg0c237RomFoETJgmp2sa3F/41gfLE6G5cqcYwznmeEeOlQ==}
 
-  path-to-regexp@8.2.0:
-    resolution: {integrity: sha512-TdrF7fW9Rphjq4RjrW0Kp2AW0Ahwu9sRGTkS6bvDi0SCwZlEZYmcfDbEsTz8RVk0EHIS/Vd1bv3JhG+1xZuAyQ==}
-    engines: {node: '>=16'}
+  path-to-regexp@8.3.0:
+    resolution: {integrity: sha512-7jdwVIRtsP8MYpdXSwOS0YdD0Du+qOoF/AEPIt88PcCFrZCzx41oxku1jD88hZBwbNUIEfpqvuhjFaMAqMTWnA==}
 
   path-type@4.0.0:
     resolution: {integrity: sha512-gDKb8aZMDeD/tZWs9P6+q0J9Mwkdl6xMV8TjnGP3qJVJ06bdMgkbBlLU8IdfOsIsFz2BW1rNVT3XuNEl8zPAvw==}
@@ -15652,23 +15664,13 @@ packages:
     resolution: {integrity: sha512-nDywThFk1i4BQK4twPQ6TA4RT8bDY96yeuCVBWL3ePARCiEKDRSrNGbFIgUJpLp+XeIR65v8ra7WuJOFUBtkMA==}
     engines: {node: '>=8'}
 
-  playwright-core@1.47.2:
-    resolution: {integrity: sha512-3JvMfF+9LJfe16l7AbSmU555PaTl2tPyQsVInqm3id16pdDfvZ8TTZ/pyzmkbDrZTQefyzU7AIHlZqQnxpqHVQ==}
+  playwright-core@1.56.1:
+    resolution: {integrity: sha512-hutraynyn31F+Bifme+Ps9Vq59hKuUCz7H1kDOcBs+2oGguKkWTU50bBWrtz34OUWmIwpBTWDxaRPXrIXkgvmQ==}
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright-core@1.53.0:
-    resolution: {integrity: sha512-mGLg8m0pm4+mmtB7M89Xw/GSqoNC+twivl8ITteqvAndachozYe2ZA7srU6uleV1vEdAHYqjq+SV8SNxRRFYBw==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  playwright@1.47.2:
-    resolution: {integrity: sha512-nx1cLMmQWqmA3UsnjaaokyoUpdVaaDhJhMoxX2qj3McpjnsqFHs516QAKYhqHAgOP+oCFTEOCOAaD1RgD/RQfA==}
-    engines: {node: '>=18'}
-    hasBin: true
-
-  playwright@1.53.0:
-    resolution: {integrity: sha512-ghGNnIEYZC4E+YtclRn4/p6oYbdPiASELBIYkBXfaTVKreQUYbMUYQDwS12a8F0/HtIjr/CkGjtwABeFPGcS4Q==}
+  playwright@1.56.1:
+    resolution: {integrity: sha512-aFi5B0WovBHTEvpM3DzXTUaeN6eN0qWnTkKx4NQaH4Wvcmc153PdaY2UBdSYKaGYw+UyWXSVyxDUg5DoPEttjw==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -18070,7 +18072,7 @@ packages:
   superagent@8.1.2:
     resolution: {integrity: sha512-6WTxW1EB6yCxV5VFOIPQruWGHqc3yI7hEmZK6h+pyk69Lk/Ut7rLUY6W/ONF2MjBuGjvmMiIpsrVJ2vjrHlslA==}
     engines: {node: '>=6.4.0 <13 || >=14'}
-    deprecated: Please upgrade to superagent v10.2.2+, see release notes at https://github.com/forwardemail/superagent/releases/tag/v10.2.2 - maintenance is supported by Forward Email @ https://forwardemail.net
+    deprecated: Please upgrade to v9.0.0+ as we have fixed a public vulnerability with formidable dependency. Note that v9.0.0+ requires Node.js v14.18.0+. See https://github.com/ladjs/superagent/pull/1800 for insight. This project is supported and maintained by the team at Forward Email @ https://forwardemail.net
 
   superstruct@1.0.4:
     resolution: {integrity: sha512-7JpaAoX2NGyoFlI9NBh66BQXGONc+uE+MRS5i2iOBKuS4e+ccgMDjATgZldkah+33DakBxDHiss9kvUcGAO8UQ==}
@@ -20007,8 +20009,8 @@ snapshots:
       '@amplitude/identify': 1.10.2
       '@amplitude/node': 1.10.2
       '@amplitude/types': 1.10.2
-      '@babel/parser': 7.25.6
-      '@babel/traverse': 7.25.6
+      '@babel/parser': 7.27.0
+      '@babel/traverse': 7.27.0
       '@oclif/command': 1.8.36(supports-color@8.1.1)
       '@oclif/config': 1.18.17(supports-color@8.1.1)
       '@oclif/errors': 1.3.6
@@ -20027,7 +20029,7 @@ snapshots:
       chalk: 2.4.2
       client-oauth2: 4.3.3
       conf: 6.2.4
-      debug: 4.3.7
+      debug: 4.4.1(supports-color@8.1.1)
       dotenv: 8.6.0
       fs-extra: 8.1.0
       get-port: 5.1.1
@@ -20067,7 +20069,7 @@ snapshots:
       '@amplitude/plugin-page-view-tracking-browser': 1.0.13
       '@amplitude/plugin-web-attribution-browser': 1.0.13
       '@amplitude/ua-parser-js': 0.7.33
-      tslib: 2.7.0
+      tslib: 2.8.1
 
   '@amplitude/analytics-client-common@0.7.0':
     dependencies:
@@ -20536,7 +20538,7 @@ snapshots:
 
   '@babel/helper-simple-access@7.24.7':
     dependencies:
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
       '@babel/types': 7.25.6
     transitivePeerDependencies:
       - supports-color
@@ -20607,7 +20609,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.25.2
       '@babel/helper-plugin-utils': 7.24.8
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
     transitivePeerDependencies:
       - supports-color
 
@@ -20615,7 +20617,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.26.10
       '@babel/helper-plugin-utils': 7.24.8
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
     transitivePeerDependencies:
       - supports-color
 
@@ -20688,7 +20690,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.25.2
       '@babel/helper-plugin-utils': 7.24.8
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
     transitivePeerDependencies:
       - supports-color
 
@@ -20696,7 +20698,7 @@ snapshots:
     dependencies:
       '@babel/core': 7.26.10
       '@babel/helper-plugin-utils': 7.24.8
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
     transitivePeerDependencies:
       - supports-color
 
@@ -20986,7 +20988,7 @@ snapshots:
       '@babel/helper-plugin-utils': 7.24.8
       '@babel/helper-remap-async-to-generator': 7.25.0(@babel/core@7.25.2)
       '@babel/plugin-syntax-async-generators': 7.8.4(@babel/core@7.25.2)
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
     transitivePeerDependencies:
       - supports-color
 
@@ -20996,7 +20998,7 @@ snapshots:
       '@babel/helper-plugin-utils': 7.24.8
       '@babel/helper-remap-async-to-generator': 7.25.0(@babel/core@7.26.10)
       '@babel/plugin-syntax-async-generators': 7.8.4(@babel/core@7.26.10)
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
     transitivePeerDependencies:
       - supports-color
 
@@ -21123,7 +21125,7 @@ snapshots:
       '@babel/helper-compilation-targets': 7.25.2
       '@babel/helper-plugin-utils': 7.24.8
       '@babel/helper-replace-supers': 7.25.0(@babel/core@7.25.2)
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
       globals: 11.12.0
     transitivePeerDependencies:
       - supports-color
@@ -21135,7 +21137,7 @@ snapshots:
       '@babel/helper-compilation-targets': 7.25.2
       '@babel/helper-plugin-utils': 7.24.8
       '@babel/helper-replace-supers': 7.25.0(@babel/core@7.26.10)
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
       globals: 11.12.0
     transitivePeerDependencies:
       - supports-color
@@ -21326,7 +21328,7 @@ snapshots:
       '@babel/core': 7.25.2
       '@babel/helper-compilation-targets': 7.25.2
       '@babel/helper-plugin-utils': 7.24.8
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
     transitivePeerDependencies:
       - supports-color
 
@@ -21335,7 +21337,7 @@ snapshots:
       '@babel/core': 7.26.10
       '@babel/helper-compilation-targets': 7.25.2
       '@babel/helper-plugin-utils': 7.24.8
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
     transitivePeerDependencies:
       - supports-color
 
@@ -21468,7 +21470,7 @@ snapshots:
       '@babel/helper-module-transforms': 7.25.2(@babel/core@7.25.2)
       '@babel/helper-plugin-utils': 7.24.8
       '@babel/helper-validator-identifier': 7.24.7
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
     transitivePeerDependencies:
       - supports-color
 
@@ -21478,7 +21480,7 @@ snapshots:
       '@babel/helper-module-transforms': 7.25.2(@babel/core@7.26.10)
       '@babel/helper-plugin-utils': 7.24.8
       '@babel/helper-validator-identifier': 7.24.7
-      '@babel/traverse': 7.25.6
+      '@babel/traverse': 7.27.0
     transitivePeerDependencies:
       - supports-color
 
@@ -22522,7 +22524,7 @@ snapshots:
 
   '@blakeembrey/template@1.2.0': {}
 
-  '@boxfish-studio/react-cookie-manager@1.0.2':
+  '@boxfish-studio/react-cookie-manager@1.0.5':
     dependencies:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
@@ -22545,7 +22547,7 @@ snapshots:
       '@types/tough-cookie': 4.0.5
       tough-cookie: 4.1.4
 
-  '@cacheable/utils@2.1.0':
+  '@cacheable/utils@2.2.0':
     dependencies:
       keyv: 5.5.3
 
@@ -26272,10 +26274,10 @@ snapshots:
       pump: 3.0.2
       tar-fs: 2.1.1
 
-  '@nestjs/cache-manager@3.0.1(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1))(cache-manager@7.2.4)(keyv@5.5.3)(rxjs@7.8.1)':
+  '@nestjs/cache-manager@3.0.1(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1))(cache-manager@7.2.4)(keyv@5.5.3)(rxjs@7.8.1)':
     dependencies:
-      '@nestjs/common': 11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
-      '@nestjs/core': 11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@nestjs/common': 11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@nestjs/core': 11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1)
       cache-manager: 7.2.4
       keyv: 5.5.3
       rxjs: 7.8.1
@@ -26308,11 +26310,11 @@ snapshots:
       - uglify-js
       - webpack-cli
 
-  '@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)':
+  '@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)':
     dependencies:
       file-type: 21.0.0
       iterare: 1.2.1
-      load-esm: 1.0.2
+      load-esm: 1.0.3
       reflect-metadata: 0.2.2
       rxjs: 7.8.1
       tslib: 2.8.1
@@ -26322,44 +26324,44 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@nestjs/config@4.0.2(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(rxjs@7.8.1)':
+  '@nestjs/config@4.0.2(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(rxjs@7.8.1)':
     dependencies:
-      '@nestjs/common': 11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@nestjs/common': 11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
       dotenv: 16.4.7
       dotenv-expand: 12.0.1
       lodash: 4.17.21
       rxjs: 7.8.1
 
-  '@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1)':
+  '@nestjs/core@11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1)':
     dependencies:
-      '@nestjs/common': 11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@nestjs/common': 11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
       '@nuxt/opencollective': 0.4.1
       fast-safe-stringify: 2.1.1
       iterare: 1.2.1
-      path-to-regexp: 8.2.0
+      path-to-regexp: 8.3.0
       reflect-metadata: 0.2.2
       rxjs: 7.8.1
       tslib: 2.8.1
       uid: 2.0.2
     optionalDependencies:
-      '@nestjs/platform-express': 11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6)
+      '@nestjs/platform-express': 11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8)
 
-  '@nestjs/platform-express@11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6)':
+  '@nestjs/platform-express@11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8)':
     dependencies:
-      '@nestjs/common': 11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
-      '@nestjs/core': 11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@nestjs/common': 11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@nestjs/core': 11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1)
       cors: 2.8.5
       express: 5.1.0
       multer: 2.0.2
-      path-to-regexp: 8.2.0
+      path-to-regexp: 8.3.0
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
-  '@nestjs/schedule@6.0.1(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1))':
+  '@nestjs/schedule@6.0.1(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1))':
     dependencies:
-      '@nestjs/common': 11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
-      '@nestjs/core': 11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@nestjs/common': 11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@nestjs/core': 11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1)
       cron: 4.3.3
 
   '@nestjs/schematics@10.1.4(chokidar@3.6.0)(typescript@5.3.3)':
@@ -26384,13 +26386,13 @@ snapshots:
     transitivePeerDependencies:
       - chokidar
 
-  '@nestjs/testing@10.4.4(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6))':
+  '@nestjs/testing@10.4.4(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8))':
     dependencies:
-      '@nestjs/common': 11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
-      '@nestjs/core': 11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.6)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@nestjs/common': 11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1)
+      '@nestjs/core': 11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/platform-express@11.1.8)(reflect-metadata@0.2.2)(rxjs@7.8.1)
       tslib: 2.7.0
     optionalDependencies:
-      '@nestjs/platform-express': 11.1.6(@nestjs/common@11.1.6(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.6)
+      '@nestjs/platform-express': 11.1.8(@nestjs/common@11.1.8(class-validator@0.14.1)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@11.1.8)
 
   '@next/env@14.2.32': {}
 
@@ -26759,13 +26761,9 @@ snapshots:
 
   '@pkgr/core@0.1.1': {}
 
-  '@playwright/test@1.47.2':
+  '@playwright/test@1.56.1':
     dependencies:
-      playwright: 1.47.2
-
-  '@playwright/test@1.53.0':
-    dependencies:
-      playwright: 1.53.0
+      playwright: 1.56.1
 
   '@pnpm/config.env-replace@1.1.0': {}
 
@@ -28282,7 +28280,7 @@ snapshots:
       '@sentry/types': 6.19.7
       tslib: 1.14.1
 
-  '@sentry/nextjs@7.120.3(next@14.2.32(@babel/core@7.26.10)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.86.0))(react@18.3.1)(webpack@5.95.0)':
+  '@sentry/nextjs@7.120.3(next@14.2.32(@babel/core@7.26.10)(@playwright/test@1.56.1)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.86.0))(react@18.3.1)(webpack@5.95.0)':
     dependencies:
       '@rollup/plugin-commonjs': 24.0.0(rollup@2.79.2)
       '@sentry/core': 7.120.3
@@ -28294,7 +28292,7 @@ snapshots:
       '@sentry/vercel-edge': 7.120.3
       '@sentry/webpack-plugin': 1.21.0
       chalk: 3.0.0
-      next: 14.2.32(@babel/core@7.26.10)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.86.0)
+      next: 14.2.32(@babel/core@7.26.10)(@playwright/test@1.56.1)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.86.0)
       react: 18.3.1
       resolve: 1.22.8
       rollup: 2.79.2
@@ -32244,7 +32242,7 @@ snapshots:
 
   cache-manager@7.2.4:
     dependencies:
-      '@cacheable/utils': 2.1.0
+      '@cacheable/utils': 2.2.0
       keyv: 5.5.3
 
   cacheable-lookup@7.0.0: {}
@@ -35621,7 +35619,7 @@ snapshots:
     optionalDependencies:
       uglify-js: 3.19.3
 
-  happy-dom@20.0.0:
+  happy-dom@20.0.10:
     dependencies:
       '@types/node': 20.16.9
       '@types/whatwg-mimetype': 3.0.2
@@ -37402,7 +37400,7 @@ snapshots:
       lit-element: 4.2.0
       lit-html: 3.3.0
 
-  load-esm@1.0.2: {}
+  load-esm@1.0.3: {}
 
   load-tsconfig@0.2.5: {}
 
@@ -38757,7 +38755,7 @@ snapshots:
 
   neotraverse@0.6.15: {}
 
-  next@14.2.32(@babel/core@7.26.10)(@playwright/test@1.47.2)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.86.0):
+  next@14.2.32(@babel/core@7.26.10)(@playwright/test@1.56.1)(babel-plugin-macros@3.1.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(sass@1.86.0):
     dependencies:
       '@next/env': 14.2.32
       '@swc/helpers': 0.5.5
@@ -38778,7 +38776,7 @@ snapshots:
       '@next/swc-win32-arm64-msvc': 14.2.32
       '@next/swc-win32-ia32-msvc': 14.2.32
       '@next/swc-win32-x64-msvc': 14.2.32
-      '@playwright/test': 1.47.2
+      '@playwright/test': 1.56.1
       sass: 1.86.0
     transitivePeerDependencies:
       - '@babel/core'
@@ -39413,7 +39411,7 @@ snapshots:
 
   path-to-regexp@6.3.0: {}
 
-  path-to-regexp@8.2.0: {}
+  path-to-regexp@8.3.0: {}
 
   path-type@4.0.0: {}
 
@@ -39576,19 +39574,11 @@ snapshots:
     dependencies:
       find-up: 3.0.0
 
-  playwright-core@1.47.2: {}
+  playwright-core@1.56.1: {}
 
-  playwright-core@1.53.0: {}
-
-  playwright@1.47.2:
+  playwright@1.56.1:
     dependencies:
-      playwright-core: 1.47.2
-    optionalDependencies:
-      fsevents: 2.3.2
-
-  playwright@1.53.0:
-    dependencies:
-      playwright-core: 1.53.0
+      playwright-core: 1.56.1
     optionalDependencies:
       fsevents: 2.3.2
 
@@ -40828,7 +40818,7 @@ snapshots:
   react-remove-scroll-bar@2.3.6(@types/react@18.3.9)(react@18.3.1):
     dependencies:
       react: 18.3.1
-      react-style-singleton: 2.2.3(@types/react@18.3.9)(react@18.3.1)
+      react-style-singleton: 2.2.1(@types/react@18.3.9)(react@18.3.1)
       tslib: 2.8.1
     optionalDependencies:
       '@types/react': 18.3.9
@@ -40844,10 +40834,10 @@ snapshots:
   react-remove-scroll@2.5.4(@types/react@18.3.9)(react@18.3.1):
     dependencies:
       react: 18.3.1
-      react-remove-scroll-bar: 2.3.8(@types/react@18.3.9)(react@18.3.1)
-      react-style-singleton: 2.2.3(@types/react@18.3.9)(react@18.3.1)
+      react-remove-scroll-bar: 2.3.6(@types/react@18.3.9)(react@18.3.1)
+      react-style-singleton: 2.2.1(@types/react@18.3.9)(react@18.3.1)
       tslib: 2.8.1
-      use-callback-ref: 1.3.3(@types/react@18.3.9)(react@18.3.1)
+      use-callback-ref: 1.3.2(@types/react@18.3.9)(react@18.3.1)
       use-sidecar: 1.1.2(@types/react@18.3.9)(react@18.3.1)
     optionalDependencies:
       '@types/react': 18.3.9
@@ -41514,7 +41504,7 @@ snapshots:
       depd: 2.0.0
       is-promise: 4.0.0
       parseurl: 1.3.3
-      path-to-regexp: 8.2.0
+      path-to-regexp: 8.3.0
     transitivePeerDependencies:
       - supports-color
 
@@ -41543,7 +41533,7 @@ snapshots:
 
   rxjs@7.8.1:
     dependencies:
-      tslib: 2.7.0
+      tslib: 2.8.1
 
   sade@1.8.1:
     dependencies:
@@ -43941,7 +43931,7 @@ snapshots:
       sass: 1.86.0
       terser: 5.34.0
 
-  vitest@2.1.9(@types/node@20.16.9)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.79.3)(terser@5.34.0):
+  vitest@2.1.9(@types/node@20.16.9)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.79.3)(terser@5.34.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(msw@2.4.9(typescript@5.6.2))(vite@5.4.15(@types/node@20.16.9)(sass@1.79.3)(terser@5.34.0))
@@ -43965,7 +43955,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 20.16.9
-      happy-dom: 20.0.0
+      happy-dom: 20.0.10
       jsdom: 24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - less
@@ -43978,7 +43968,7 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@2.1.9(@types/node@20.16.9)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0):
+  vitest@2.1.9(@types/node@20.16.9)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(msw@2.4.9(typescript@5.6.2))(vite@5.4.15(@types/node@20.16.9)(sass@1.86.0)(terser@5.34.0))
@@ -44002,7 +43992,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 20.16.9
-      happy-dom: 20.0.0
+      happy-dom: 20.0.10
       jsdom: 24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - less
@@ -44015,7 +44005,7 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@2.1.9(@types/node@20.16.9)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.8.3))(sass@1.86.0)(terser@5.34.0):
+  vitest@2.1.9(@types/node@20.16.9)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.8.3))(sass@1.86.0)(terser@5.34.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(msw@2.4.9(typescript@5.8.3))(vite@5.4.15(@types/node@20.16.9)(sass@1.86.0)(terser@5.34.0))
@@ -44039,7 +44029,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 20.16.9
-      happy-dom: 20.0.0
+      happy-dom: 20.0.10
       jsdom: 24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - less
@@ -44052,7 +44042,7 @@ snapshots:
       - supports-color
       - terser
 
-  vitest@2.1.9(@types/node@22.15.31)(happy-dom@20.0.0)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0):
+  vitest@2.1.9(@types/node@22.15.31)(happy-dom@20.0.10)(jsdom@24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10))(msw@2.4.9(typescript@5.6.2))(sass@1.86.0)(terser@5.34.0):
     dependencies:
       '@vitest/expect': 2.1.9
       '@vitest/mocker': 2.1.9(msw@2.4.9(typescript@5.6.2))(vite@5.4.15(@types/node@22.15.31)(sass@1.86.0)(terser@5.34.0))
@@ -44076,7 +44066,7 @@ snapshots:
       why-is-node-running: 2.3.0
     optionalDependencies:
       '@types/node': 22.15.31
-      happy-dom: 20.0.0
+      happy-dom: 20.0.10
       jsdom: 24.1.3(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     transitivePeerDependencies:
       - less

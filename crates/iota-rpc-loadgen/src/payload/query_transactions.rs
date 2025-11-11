@@ -28,7 +28,7 @@ impl<'a> ProcessPayload<'a, &'a QueryTransactionBlocks> for RpcCommandProcessor 
         let clients = self.get_clients().await?;
         let address_type = &op.address_type;
         if op.addresses.is_empty() {
-            warn!("No addresses provided, skipping query");
+            warn!("no addresses provided, skipping query");
             return Ok(());
         }
         let filters = {
@@ -75,8 +75,7 @@ impl<'a> ProcessPayload<'a, &'a QueryTransactionBlocks> for RpcCommandProcessor 
                         (Some(first_cursor), Some(second_cursor)) => {
                             if first_cursor != second_cursor {
                                 warn!(
-                                    "Cursors are not the same, received {} vs {}. Selecting the first cursor to continue",
-                                    first_cursor, second_cursor
+                                    "cursors are not the same, received {first_cursor} vs {second_cursor}. Selecting the first cursor to continue",
                                 );
                             }
                             Some(first_cursor)

@@ -163,7 +163,7 @@ impl ConsensusManager {
                 "mysticeti" => return ConsensusProtocol::Mysticeti,
                 "starfish" => return ConsensusProtocol::Starfish,
                 "swap_each_epoch" => {
-                    let protocol = if epoch_store.epoch() % 2 == 0 {
+                    let protocol = if epoch_store.epoch().is_multiple_of(2) {
                         ConsensusProtocol::Starfish
                     } else {
                         ConsensusProtocol::Mysticeti
@@ -181,6 +181,7 @@ impl ConsensusManager {
 
         match protocol_config.consensus_choice() {
             ConsensusChoice::Mysticeti => ConsensusProtocol::Mysticeti,
+            ConsensusChoice::Starfish => ConsensusProtocol::Starfish,
         }
     }
 }
@@ -204,7 +205,6 @@ impl ConsensusManagerTrait for ConsensusManager {
             });
             let protocol = self.pick_protocol(&epoch_store);
             info!("Starting consensus protocol {protocol:?} ...");
-            self.consensus_client.set(self.mysticeti_client.clone());
             match protocol {
                 ConsensusProtocol::Mysticeti => {
                     active[0] = true;

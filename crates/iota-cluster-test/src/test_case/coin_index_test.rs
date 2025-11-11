@@ -136,9 +136,7 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(
             total_balance,
             (old_total_balance as i128 + balance_change.amount) as u128,
-            "total_balance: {}, old_total_balance: {}, iota_balance_change.amount: {}",
-            total_balance,
-            old_total_balance,
+            "total_balance: {total_balance}, old_total_balance: {old_total_balance}, iota_balance_change.amount: {}",
             balance_change.amount
         );
         old_coin_object_count = coin_object_count;
@@ -149,13 +147,10 @@ impl TestCaseImpl for CoinIndexTest {
             client.coin_read_api().get_balance(account, None).await?;
         old_total_balance = total_balance;
 
-        info!(
-            "token package published, package: {:?}, cap: {:?}",
-            package, cap
-        );
+        info!("token package published, package: {package:?}, cap: {cap:?}",);
         let iota_type_str = "0x2::iota::IOTA";
         let coin_type_str = format!("{}::managed::MANAGED", package.0);
-        info!("coin type: {}", coin_type_str);
+        info!("coin type: {coin_type_str}");
 
         // 4. Mint 1 MANAGED coin to account, balance 10000
         let args = vec![
@@ -199,9 +194,7 @@ impl TestCaseImpl for CoinIndexTest {
         assert_eq!(
             total_balance,
             (old_total_balance as i128 + iota_balance_change.amount) as u128,
-            "total_balance: {}, old_total_balance: {}, iota_balance_change.amount: {}",
-            total_balance,
-            old_total_balance,
+            "total_balance: {total_balance}, old_total_balance: {old_total_balance}, iota_balance_change.amount: {}",
             iota_balance_change.amount
         );
         old_coin_object_count = coin_object_count;
@@ -648,7 +641,7 @@ async fn publish_managed_coin_package(
         .await?;
     let response = ctx.sign_and_execute(data, "publish ft package").await;
     let changes = response.object_changes.unwrap();
-    info!("changes: {:?}", changes);
+    info!("changes: {changes:?}");
     let pkg = changes
         .iter()
         .find(|change| matches!(change, ObjectChange::Published { .. }))

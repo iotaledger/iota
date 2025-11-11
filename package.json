@@ -15,6 +15,7 @@
 		"explorer": "turbo --filter iota-explorer",
 		"wallet": "turbo --filter ./apps/wallet",
 		"wallet-dashboard": "turbo --filter ./apps/wallet-dashboard",
+		"sdk-packages": "pnpm turbo run build --filter=./sdk/* --filter=./apps/ui-kit --filter=./apps/ui-icons",
 		"sdk": "turbo --filter ./sdk/typescript",
 		"signers": "turbo --filter ./sdk/signers",
 		"bcs": "turbo --filter ./sdk/bcs",

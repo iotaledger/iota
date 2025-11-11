@@ -29,6 +29,7 @@ import { ImportedAccount } from './importedAccount';
 import { LedgerAccount } from './ledgerAccount';
 import { MnemonicAccount } from './mnemonicAccount';
 import { SeedAccount } from './seedAccount';
+import { PasskeyAccount } from './passkeyAccount';
 import {
     MILLISECONDS_PER_SECOND,
     SECONDS_PER_MINUTE,
@@ -47,6 +48,9 @@ function toAccount(account: SerializedAccount) {
     }
     if (ImportedAccount.isOfType(account)) {
         return new ImportedAccount({ id: account.id, cachedData: account });
+    }
+    if (PasskeyAccount.isOfType(account)) {
+        return new PasskeyAccount({ id: account.id, cachedData: account });
     }
     if (LedgerAccount.isOfType(account)) {
         return new LedgerAccount({ id: account.id, cachedData: account });
@@ -274,23 +278,29 @@ export async function accountsHandleUIMessage(msg: Message, uiConnection: UiConn
             newSerializedAccounts.push(await accountSource.deriveAccount());
         } else if (type === AccountType.PrivateKeyDerived) {
             newSerializedAccounts.push(await ImportedAccount.createNew(payload.args));
+        } else if (type === AccountType.PasskeyDerived) {
+            newSerializedAccounts.push(await PasskeyAccount.createNew(payload.args));
         } else if (type === AccountType.LedgerDerived) {
             const { password, accounts } = payload.args;
             for (const aLedgerAccount of accounts) {
                 newSerializedAccounts.push(
-                    await LedgerAccount.createNew({ ...aLedgerAccount, password }),
+                    await LedgerAccount.createNew({
+                        ...aLedgerAccount,
+                        password,
+                        mainPublicKey: payload.args.mainPublicKey,
+                    }),
                 );
             }
         } else if (type === AccountType.KeystoneDerived) {
-            const { sourceID } = payload.args;
-            const accountSource = await getAccountSourceByID(payload.args.sourceID);
+            const { sourceID, accounts } = payload.args;
+            const accountSource = await getAccountSourceByID(sourceID);
             if (!accountSource) {
                 throw new Error(`Account source ${sourceID} not found`);
             }
             if (!(accountSource instanceof KeystoneAccountSource)) {
                 throw new Error(`Invalid account source type`);
             }
-            for (const account of payload.args.accounts) {
+            for (const account of accounts) {
                 newSerializedAccounts.push(
                     await KeystoneAccount.createNew({ ...account, sourceID }),
                 );

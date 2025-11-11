@@ -207,7 +207,8 @@ pub(crate) async fn reduce<W: Worker>(
         // Handle final batch processing.
         // Check if the final batch should be committed.
         // None parameter indicates no more messages available.
-        if reducer.should_close_batch(&batch, None) && !trigger_shutdown {
+        // Only check if batch is non-empty to avoid unnecessary calls.
+        if !batch.is_empty() && reducer.should_close_batch(&batch, None) && !trigger_shutdown {
             match reducer
                 .commit_with_retry(&std::mem::take(&mut batch), reset_backoff(&backoff), &token)
                 .await

@@ -106,6 +106,12 @@ pub enum TestbedError {
     #[error("Not enough instances: missing {0} instances")]
     InsufficientCapacity(usize),
 
+    #[error("Metrics instance is missing")]
+    MetricsServerMissing(),
+
+    #[error("Not enough dedicated client instances: missing {0} instances")]
+    InsufficientDedicatedClientCapacity(usize),
+
     #[error(transparent)]
     Monitor(#[from] MonitorError),
 }

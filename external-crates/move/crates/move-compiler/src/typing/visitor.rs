@@ -2,6 +2,9 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use move_ir_types::location::Loc;
+use move_proc_macros::growing_stack;
+
 use crate::{
     command_line::compiler::Visitor,
     diagnostics::warning_filters::WarningFilters,
@@ -11,8 +14,6 @@ use crate::{
     shared::CompilationEnv,
     typing::ast::{self as T, BuiltinFunction_},
 };
-use move_ir_types::location::Loc;
-use move_proc_macros::growing_stack;
 
 pub type TypingVisitorObj = Box<dyn TypingVisitor>;
 
@@ -47,21 +48,25 @@ pub trait TypingVisitorContext {
     fn push_warning_filter_scope(&mut self, filters: WarningFilters);
     fn pop_warning_filter_scope(&mut self);
 
-    /// Indicates if types should be visited during the traversal of other forms (struct and enum
-    /// definitions, function signatures, expressions, etc.). This will not visit lvalue types
-    /// unless VISIT_LVALUES is also enabled.
+    /// Indicates if types should be visited during the traversal of other forms
+    /// (struct and enum definitions, function signatures, expressions,
+    /// etc.). This will not visit lvalue types unless VISIT_LVALUES is also
+    /// enabled.
     const VISIT_TYPES: bool = false;
 
-    /// Indicates if lvalues should be visited during the traversal of sequence forms.
+    /// Indicates if lvalues should be visited during the traversal of sequence
+    /// forms.
     const VISIT_LVALUES: bool = false;
 
     /// Indicates if use_funs should be visited during the traversal.
     const VISIT_USE_FUNS: bool = false;
 
-    /// By default, the visitor will visit all modules, and all functions and constants therein.
-    /// For functions and constants, it will also visit their expressions. To change this behavior,
-    /// consider enabling `VISIT_LVALUES`, VISIT_TYPES`, and `VISIT_USE_FUNS` or overwriting one of
-    /// the `visit_<name>_custom` functions defined on this trait, as appropriate.
+    /// By default, the visitor will visit all modules, and all functions and
+    /// constants therein. For functions and constants, it will also visit
+    /// their expressions. To change this behavior, consider enabling
+    /// `VISIT_LVALUES`, VISIT_TYPES`, and `VISIT_USE_FUNS` or overwriting one
+    /// of the `visit_<name>_custom` functions defined on this trait, as
+    /// appropriate.
     fn visit(&mut self, program: &T::Program) {
         for (mident, mdef) in program.modules.key_cloned_iter() {
             self.visit_module(mident, mdef);
@@ -258,8 +263,8 @@ pub trait TypingVisitorContext {
         false
     }
 
-    /// Visit a type, including recursively. Note that this may be called manually even if
-    /// `VISIT_TYPES` is set to `false`.
+    /// Visit a type, including recursively. Note that this may be called
+    /// manually even if `VISIT_TYPES` is set to `false`.
     #[growing_stack]
     fn visit_type(&mut self, exp_loc: Option<Loc>, ty: &N::Type) {
         if self.visit_type_custom(exp_loc, ty) {
@@ -293,7 +298,8 @@ pub trait TypingVisitorContext {
 
     // -- SEQUENCES AND EXPRESSIONS --
 
-    /// Custom visit for a sequence. It will skip `visit_seq` if `visit_seq_custom` returns true.
+    /// Custom visit for a sequence. It will skip `visit_seq` if
+    /// `visit_seq_custom` returns true.
     fn visit_seq_custom(&mut self, _loc: Loc, _seq: &T::Sequence) -> bool {
         false
     }
@@ -310,8 +316,8 @@ pub trait TypingVisitorContext {
         }
     }
 
-    /// Custom visit for a sequence item. It will skip `visit_seq_item` if `visit_seq_item_custom`
-    /// returns true.
+    /// Custom visit for a sequence item. It will skip `visit_seq_item` if
+    /// `visit_seq_item_custom` returns true.
     fn visit_seq_item_custom(&mut self, _seq_item: &T::SequenceItem) -> bool {
         false
     }
@@ -343,21 +349,22 @@ pub trait TypingVisitorContext {
         }
     }
 
-    /// Visit an lvalue list. Note that this may be called manually even if `VISIT_LVALUES` is set
-    /// to `false`.
+    /// Visit an lvalue list. Note that this may be called manually even if
+    /// `VISIT_LVALUES` is set to `false`.
     fn visit_lvalue_list(&mut self, kind: &LValueKind, lvalues: &T::LValueList) {
         for lvalue in &lvalues.value {
             self.visit_lvalue(kind, lvalue);
         }
     }
 
-    /// Custom visit for an lvalue. It will skip `visit_lvalue` if `visit_lvalue_custom` returns true.
+    /// Custom visit for an lvalue. It will skip `visit_lvalue` if
+    /// `visit_lvalue_custom` returns true.
     fn visit_lvalue_custom(&mut self, _kind: &LValueKind, _lvalue: &T::LValue) -> bool {
         false
     }
 
-    /// Visit an lvalue, including recursively. Note that this may be called manually even if
-    /// `VISIT_LVALUES` is set to `false`.
+    /// Visit an lvalue, including recursively. Note that this may be called
+    /// manually even if `VISIT_LVALUES` is set to `false`.
     #[growing_stack]
     fn visit_lvalue(&mut self, kind: &LValueKind, lvalue: &T::LValue) {
         if self.visit_lvalue_custom(kind, lvalue) {
@@ -394,7 +401,8 @@ pub trait TypingVisitorContext {
         }
     }
 
-    /// Custom visit for an expression. It will skip `visit_exp` if `visit_exp_custom` returns true.
+    /// Custom visit for an expression. It will skip `visit_exp` if
+    /// `visit_exp_custom` returns true.
     fn visit_exp_custom(&mut self, _exp: &T::Exp) -> bool {
         false
     }
@@ -1295,7 +1303,8 @@ fn same_local_(lhs: &Var, rhs: &T::UnannotatedExp_) -> bool {
 }
 
 /// Assumes equal types and as such will not check type arguments for equality.
-/// Assumes function calls, assignments, and similar expressions are effectful and thus not equal.
+/// Assumes function calls, assignments, and similar expressions are effectful
+/// and thus not equal.
 pub fn same_value_exp(e1: &T::Exp, e2: &T::Exp) -> bool {
     same_value_exp_(&e1.exp.value, &e2.exp.value)
 }

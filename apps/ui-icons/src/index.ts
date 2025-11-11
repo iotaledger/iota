@@ -74,6 +74,7 @@ export { default as Play } from './Play';
 export { default as Profile } from './Profile';
 export { default as QrCode } from './QrCode';
 export { default as QuestionMarkFilled } from './QuestionMarkFilled';
+export { default as Passkey } from './Passkey';
 export { default as RadioOff } from './RadioOff';
 export { default as RadioOn } from './RadioOn';
 export { default as RecognizedBadge } from './RecognizedBadge';

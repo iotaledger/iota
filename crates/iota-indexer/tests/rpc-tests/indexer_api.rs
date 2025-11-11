@@ -1287,11 +1287,11 @@ fn test_get_dynamic_fields() -> Result<(), anyhow::Error> {
         let dynamic_fields = client
             .get_dynamic_fields(bag_object_ref.0, None, None)
             .await
-            .expect("Failed to get dynamic fields");
+            .expect("failed to get dynamic fields");
 
         assert!(
             !dynamic_fields.data.is_empty(),
-            "Dynamic field was not added"
+            "dynamic field was not added"
         );
 
         Ok(())
@@ -1428,11 +1428,11 @@ fn test_get_dynamic_field_objects() -> Result<(), anyhow::Error> {
         let dynamic_fields = client
             .get_dynamic_field_object(bag_object_ref.0, name)
             .await
-            .expect("Failed to get dynamic field object");
+            .expect("failed to get dynamic field object");
 
         assert!(
             dynamic_fields.data.is_some(),
-            "Dynamic field object was not added"
+            "dynamic field object was not added"
         );
 
         Ok(())

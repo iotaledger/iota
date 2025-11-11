@@ -22,7 +22,7 @@ export {
     getFullnodeUrl,
     getGraphQLUrl,
 } from './network.js';
-export * from './types/index.js';
+export type * from './types/index.js';
 export {
     type IotaClientOptions,
     type PaginationArguments,

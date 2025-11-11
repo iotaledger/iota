@@ -99,7 +99,7 @@ impl InputObjectTracker {
         let coins: BTreeSet<ObjectID> = txn_data.gas().iter().map(|obj_ref| obj_ref.0).collect();
         let input: BTreeSet<ObjectID> = txn_data
             .input_objects()
-            .expect("Input objects must be valid")
+            .expect("input objects must be valid")
             .iter()
             .map(|io_kind| io_kind.object_id())
             .collect();
@@ -182,7 +182,7 @@ async fn get_move_struct<T: PackageStore>(
         MoveTypeLayout::Struct(move_struct_layout) => {
             BoundedVisitor::deserialize_struct(contents, &move_struct_layout)
         }
-        _ => bail!("Object is not a move struct"),
+        _ => bail!("object is not a move struct"),
     }?;
     Ok(move_struct)
 }
@@ -203,12 +203,7 @@ fn parse_struct(
         ..Default::default()
     };
     for (k, v) in move_struct.fields {
-        parse_struct_field(
-            &format!("{}.{}", path, &k),
-            v,
-            &mut wrapped_struct,
-            all_structs,
-        );
+        parse_struct_field(&format!("{path}.{k}"), v, &mut wrapped_struct, all_structs);
     }
     all_structs.insert(path.to_string(), wrapped_struct);
 }
@@ -275,7 +270,7 @@ fn parse_struct_field(
         MoveValue::Vector(fields) => {
             for (index, field) in fields.iter().enumerate() {
                 parse_struct_field(
-                    &format!("{}[{}]", path, &index),
+                    &format!("{path}[{index}]"),
                     field.clone(),
                     curr_struct,
                     all_structs,

@@ -11,7 +11,7 @@ import {
     IotaNamesClientProvider,
 } from '@iota/core';
 import { IotaClientProvider, WalletProvider } from '@iota/dapp-kit';
-import type { Network } from '@iota/iota-sdk/client';
+import { getNetwork, type Network } from '@iota/iota-sdk/client';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import { Fragment } from 'react';
 import { Outlet, ScrollRestoration } from 'react-router-dom';
@@ -44,7 +44,11 @@ export function Layout(): JSX.Element {
             >
                 <IotaGraphQLClientProvider>
                     <IotaNamesClientProvider>
-                        <WalletProvider autoConnect enableUnsafeBurner={import.meta.env.DEV}>
+                        <WalletProvider
+                            autoConnect
+                            enableUnsafeBurner={import.meta.env.DEV}
+                            chain={getNetwork(network).chain}
+                        >
                             <KioskClientProvider>
                                 <NetworkContext.Provider value={[network, setNetwork]}>
                                     <ThemeProvider appId="iota-explorer">

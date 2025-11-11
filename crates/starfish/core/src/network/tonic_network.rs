@@ -129,7 +129,7 @@ impl NetworkClient for TonicClient {
                 }
             });
         let rate_limited_stream =
-            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_round_delay / 2)
+            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_block_delay / 2)
                 .boxed();
         Ok(rate_limited_stream)
     }
@@ -532,7 +532,7 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
                 })
             });
         let rate_limited_stream =
-            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_round_delay / 2)
+            tokio_stream::StreamExt::throttle(stream, self.context.parameters.min_block_delay / 2)
                 .boxed();
         Ok(Response::new(rate_limited_stream))
     }
@@ -1059,10 +1059,29 @@ struct PeerInfo {
 
 // Adapt MetricsCallbackMaker and MetricsResponseCallback to http.
 
+/// Calculate approximate size of HTTP headers.
+/// Note: This is an approximation of uncompressed size. Actual wire size will
+/// be smaller due to HTTP/2 HPACK compression.
+fn calculate_header_size(headers: &http::HeaderMap) -> usize {
+    headers
+        .iter()
+        .map(|(name, value)| {
+            // +4 bytes for ": " and "\r\n" separator in HTTP/1.1 format
+            name.as_str().len() + value.len() + 4
+        })
+        .sum()
+}
+
 impl SizedRequest for http::request::Parts {
     fn size(&self) -> usize {
-        // TODO: implement this.
-        0
+        let header_size = calculate_header_size(&self.headers);
+        let body_size = self
+            .headers
+            .get(http::header::CONTENT_LENGTH)
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(0);
+        header_size + body_size
     }
 
     fn route(&self) -> String {
@@ -1076,8 +1095,9 @@ impl SizedRequest for http::request::Parts {
 
 impl SizedResponse for http::response::Parts {
     fn size(&self) -> usize {
-        // TODO: implement this.
-        0
+        // Return header size only. Body size is tracked separately via
+        // ResponseHandler::on_body_chunk callback to support streaming responses.
+        calculate_header_size(&self.headers)
     }
 
     fn error_type(&self) -> Option<String> {
@@ -1099,11 +1119,19 @@ impl MakeCallbackHandler for MetricsCallbackMaker {
 
 impl ResponseHandler for MetricsResponseCallback {
     fn on_response(&mut self, response: &http::response::Parts) {
-        MetricsResponseCallback::on_response(self, response)
+        MetricsResponseCallback::on_response(self, response, &response.headers)
     }
 
     fn on_error<E>(&mut self, err: &E) {
         MetricsResponseCallback::on_error(self, err)
+    }
+
+    fn on_body_chunk<B>(&mut self, chunk: &B)
+    where
+        B: bytes::Buf,
+    {
+        let chunk_size = chunk.chunk().len();
+        self.on_chunk(chunk_size);
     }
 }
 
@@ -1118,18 +1146,6 @@ pub(crate) struct SubscribeBlockBundlesRequest {
 pub(crate) struct SubscribeBlockBundlesResponse {
     #[prost(bytes = "bytes", tag = "1")]
     serialized_block_bundle: Bytes,
-}
-
-#[derive(Clone, prost::Message)]
-pub(crate) struct SubscribeBlocksRequest {
-    #[prost(uint32, tag = "1")]
-    last_received_round: Round,
-}
-
-#[derive(Clone, prost::Message)]
-pub(crate) struct SubscribeBlocksResponse {
-    #[prost(bytes = "bytes", tag = "1")]
-    vec_serialized_blocks: Bytes,
 }
 
 #[derive(Clone, prost::Message)]
@@ -1148,6 +1164,7 @@ pub(crate) struct FetchBlockHeadersResponse {
     vec_serialized_block_header: Vec<Bytes>,
 }
 
+#[allow(unused)]
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlocksRequest {
     #[prost(bytes = "vec", repeated, tag = "1")]
@@ -1158,6 +1175,7 @@ pub(crate) struct FetchBlocksRequest {
     highest_accepted_rounds: Vec<Round>,
 }
 
+#[allow(unused)]
 #[derive(Clone, prost::Message)]
 pub(crate) struct FetchBlocksResponse {
     #[prost(bytes = "bytes", repeated, tag = "1")]

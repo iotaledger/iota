@@ -2,33 +2,26 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::{collections::HashMap, env, time::Duration};
+use std::env;
 
 use anyhow::{Context, Result};
-use async_trait::async_trait;
-use iota_data_ingestion_core::{
-    DataIngestionMetrics, IndexerExecutor, ProgressStore, ReaderOptions, WorkerPool,
-};
+use iota_data_ingestion_core::ReaderOptions;
 use iota_metrics::spawn_monitored_task;
-use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use prometheus::Registry;
 use tokio_util::sync::CancellationToken;
-use tracing::info;
-
-/// Timeout for waiting for tasks to shutdown gracefully after cancellation
-const SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(10);
+use tracing::{info, warn};
 
 use crate::{
     build_json_rpc_server,
     config::{IngestionConfig, JsonRpcConfig, RetentionConfig, SnapshotLagConfig},
     db::ConnectionPool,
     errors::IndexerError,
-    handlers::{
-        checkpoint_handler::new_handlers, objects_snapshot_handler::start_objects_snapshot_handler,
-        optimistic_pruner::OptimisticPruner, pruner::Pruner,
+    ingestion::{
+        primary::orchestration::PrimaryPipeline, snapshot::orchestration::SnapshotPipelineBuilder,
     },
     metrics::IndexerMetrics,
     processors::processor_orchestrator::ProcessorOrchestrator,
+    pruning::{optimistic_pruner::OptimisticPruner, pruner::Pruner},
     read::IndexerReader,
     store::{IndexerAnalyticalStore, IndexerStore, PgIndexerStore},
 };
@@ -51,30 +44,22 @@ impl Indexer {
         );
 
         info!("IOTA Indexer Writer config: {config:?}",);
-
-        let primary_watermark = store
-            .get_latest_checkpoint_sequence_number()
-            .await
-            .expect("Failed to get latest tx checkpoint sequence number from DB")
-            .map(|seq| seq + 1)
-            .unwrap_or_default();
         let extra_reader_options = ReaderOptions {
             batch_size: config.checkpoint_download_queue_size,
             timeout_secs: config.checkpoint_download_timeout,
             data_limit: config.checkpoint_download_queue_size_bytes,
             ..Default::default()
         };
-
-        // Start objects snapshot processor, which is a separate pipeline with its
-        // ingestion pipeline.
-        let (object_snapshot_worker, object_snapshot_watermark, mut object_snapshot_task_handle) =
-            start_objects_snapshot_handler(
-                store.clone(),
-                metrics.clone(),
-                snapshot_config,
-                cancel.clone(),
-            )
-            .await?;
+        let data_ingestion_path = config
+            .sources
+            .data_ingestion_path
+            .clone()
+            .unwrap_or(tempfile::tempdir().unwrap().keep());
+        let remote_store_url = config
+            .sources
+            .remote_store_url
+            .as_ref()
+            .map(|url| url.as_str().to_owned());
 
         if let Some(retention_config) = retention_config {
             let pruner = Pruner::new(store.clone(), retention_config, metrics.clone())?;
@@ -103,74 +88,71 @@ impl Indexer {
             store.persist_protocol_configs_and_feature_flags(chain_id)?;
         }
 
-        let mut executor = IndexerExecutor::new(
-            ShimIndexerProgressStore::new(vec![
-                ("primary".to_string(), primary_watermark),
-                ("object_snapshot".to_string(), object_snapshot_watermark),
-            ]),
-            1,
-            DataIngestionMetrics::new(&Registry::new()),
-            cancel.child_token(),
-        );
-        let worker = new_handlers(store, metrics, primary_watermark, cancel.clone()).await?;
-        let worker_pool = WorkerPool::new(
-            worker,
-            "primary".to_string(),
+        let mut primary_pipeline = PrimaryPipeline::setup(
+            store.clone(),
+            metrics.clone(),
             config.checkpoint_download_queue_size,
-            Default::default(),
-        );
+            cancel.clone(),
+        )
+        .await?;
 
-        executor.register(worker_pool).await?;
-
-        let worker_pool = WorkerPool::new(
-            object_snapshot_worker,
-            "object_snapshot".to_string(),
+        let snapshot_pipeline_builder = SnapshotPipelineBuilder::new(
+            store.clone(),
+            metrics.clone(),
+            snapshot_config,
             config.checkpoint_download_queue_size,
-            Default::default(),
-        );
-        executor.register(worker_pool).await?;
-        info!("Starting data ingestion executor...");
-        let mut executor_handle = tokio::spawn(
-            executor.run(
-                config
-                    .sources
-                    .data_ingestion_path
-                    .clone()
-                    .unwrap_or(tempfile::tempdir().unwrap().keep()),
-                config
-                    .sources
-                    .remote_store_url
-                    .as_ref()
-                    .map(|url| url.as_str().to_owned()),
-                vec![],
-                extra_reader_options,
-            ),
-        );
+            cancel.clone(),
+        )
+        .await?;
 
-        tokio::select! {
-            executor_result = &mut executor_handle => {
-                // Executor completed first - cancel snapshot task and check result
-                cancel.cancel();
-                let snapshot_result = tokio::time::timeout(
-                    SHUTDOWN_TIMEOUT,
-                    object_snapshot_task_handle
-                ).await
-                .context("timeout waiting for snapshot task to shutdown");
-                executor_result.context("failed to join data ingestion executor")?.context("data ingestion executor failed")?;
-                snapshot_result?.context("failed to join snapshot task during shutdown")?.context("snapshot task failed during shutdown")?;
-            },
-            snapshot_result = &mut object_snapshot_task_handle => {
-                // Snapshot task completed first - cancel executor and check result
-                cancel.cancel();
-                let executor_result = tokio::time::timeout(
-                    SHUTDOWN_TIMEOUT,
-                    executor_handle
-                ).await
-                .context("timeout waiting for executor to shutdown");
-                snapshot_result.context("failed to join snapshot task")?.context("snapshot task failed")?;
-                executor_result?.context("failed to join data ingestion executor during shutdown")?.context("data ingestion executor failed during shutdown")?;
-            }
+        // data_ingestion_path can only feed data to one executor,
+        // but if we have remote_store_url we can use many executors
+        let use_separate_executors = remote_store_url.is_some();
+        let snapshot_pipeline = if use_separate_executors {
+            snapshot_pipeline_builder
+                .finalize_with_dedicated_executor()
+                .await?
+        } else {
+            warn!(
+                "Sharing the same executor between Primary and Snapshot pipelines due to not \
+                 provided --remote-store-url argument. Limited possibilities for Snapshot lag \
+                 config. This may be deprecated in the future."
+            );
+            snapshot_pipeline_builder
+                .finalize_with_shared_executor(&mut primary_pipeline.executor)
+                .await?
         };
+
+        info!("Starting data ingestion executor...");
+        let mut primary_pipeline_handle = primary_pipeline
+            .run(
+                data_ingestion_path.clone(),
+                remote_store_url.clone(),
+                extra_reader_options.clone(),
+            )
+            .await;
+
+        let mut snapshot_pipeline_handle = snapshot_pipeline
+            .run(remote_store_url, extra_reader_options)
+            .await;
+
+        let mut primary_pipeline_done = false;
+        let mut snapshot_pipeline_done = false;
+        while !primary_pipeline_done || !snapshot_pipeline_done {
+            tokio::select! {
+                result = &mut primary_pipeline_handle, if !primary_pipeline_done => {
+                    result.context("failed to join primary pipeline")?.context("primary pipeline failed")?;
+                    info!("Primary pipeline finished successfully");
+                    primary_pipeline_done = true;
+                },
+                result = &mut snapshot_pipeline_handle, if !snapshot_pipeline_done => {
+                    result.context("failed to join snapshot pipeline")?.context("snapshot pipeline failed")?;
+                    info!("Snapshot pipeline finished successfully");
+                    snapshot_pipeline_done = true;
+                },
+            }
+            cancel.cancel();
+        }
 
         Ok(())
     }
@@ -189,10 +171,10 @@ impl Indexer {
         let read = IndexerReader::new(connection_pool);
         let handle = build_json_rpc_server(store, registry, read, config, metrics)
             .await
-            .expect("Json rpc server should not run into errors upon start.");
+            .expect("json rpc server should not run into errors upon start.");
         tokio::spawn(async move { handle.stopped().await })
             .await
-            .expect("Rpc server task failed");
+            .expect("rpc server task failed");
 
         Ok(())
     }
@@ -208,31 +190,6 @@ impl Indexer {
         );
         let mut processor_orchestrator = ProcessorOrchestrator::new(store, metrics);
         processor_orchestrator.run_forever().await;
-        Ok(())
-    }
-}
-
-struct ShimIndexerProgressStore {
-    watermarks: HashMap<String, CheckpointSequenceNumber>,
-}
-
-impl ShimIndexerProgressStore {
-    fn new(watermarks: Vec<(String, CheckpointSequenceNumber)>) -> Self {
-        Self {
-            watermarks: watermarks.into_iter().collect(),
-        }
-    }
-}
-
-#[async_trait]
-impl ProgressStore for ShimIndexerProgressStore {
-    type Error = IndexerError;
-
-    async fn load(&mut self, task_name: String) -> Result<CheckpointSequenceNumber, Self::Error> {
-        Ok(*self.watermarks.get(&task_name).expect("missing watermark"))
-    }
-
-    async fn save(&mut self, _: String, _: CheckpointSequenceNumber) -> Result<(), Self::Error> {
         Ok(())
     }
 }

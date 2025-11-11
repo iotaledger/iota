@@ -33,7 +33,7 @@ export function ResetPasswordPage() {
             });
             clear();
             toast.success('Password reset');
-            navigate('/');
+            navigate('/tokens');
         } catch (e) {
             toast.error((e as Error)?.message || 'Something went wrong');
         }

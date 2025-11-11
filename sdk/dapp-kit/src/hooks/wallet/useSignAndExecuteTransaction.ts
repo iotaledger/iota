@@ -23,6 +23,7 @@ import { useIotaClient } from '../useIotaClient.js';
 import { useCurrentAccount } from './useCurrentAccount.js';
 import { useCurrentWallet } from './useCurrentWallet.js';
 import { useReportTransactionEffects } from './useReportTransactionEffects.js';
+import { useCurrentChain } from './useCurrentChain.js';
 
 type UseSignAndExecuteTransactionArgs = PartialBy<
     Omit<IotaSignAndExecuteTransactionInput, 'transaction'>,
@@ -77,6 +78,7 @@ export function useSignAndExecuteTransaction<
     UseSignAndExecuteTransactionError,
     UseSignAndExecuteTransactionArgs
 > {
+    const currentChain = useCurrentChain();
     const { currentWallet, supportedIntents } = useCurrentWallet();
     const currentAccount = useCurrentAccount();
     const client = useIotaClient();
@@ -121,13 +123,14 @@ export function useSignAndExecuteTransaction<
                     'No wallet account is selected to sign the transaction with.',
                 );
             }
-            const chain = signTransactionArgs.chain ?? signerAccount?.chains[0];
 
             if (!currentWallet.features['iota:signTransaction']) {
                 throw new WalletFeatureNotSupportedError(
                     "This wallet doesn't support the `signTransaction` feature.",
                 );
             }
+
+            const chain = signTransactionArgs.chain ?? currentChain ?? signerAccount?.chains[0];
 
             const { signature, bytes } = await signTransaction(currentWallet, {
                 ...signTransactionArgs,
@@ -142,7 +145,7 @@ export function useSignAndExecuteTransaction<
                     },
                 },
                 account: signerAccount,
-                chain: signTransactionArgs.chain ?? signerAccount.chains[0],
+                chain,
             });
 
             const result = await executeTransaction({ bytes, signature });

@@ -2,9 +2,12 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Detects empty loop expressions, including `while(true) {}` and `loop {}` without exit mechanisms, highlighting potential infinite loops.
-//! Aims to identify and warn against loops that may lead to hangs or excessive resource consumption due to lack of content.
-//! Encourages adding meaningful logic within loops or ensuring proper exit conditions to improve code reliability and maintainability.
+//! Detects empty loop expressions, including `while(true) {}` and `loop {}`
+//! without exit mechanisms, highlighting potential infinite loops.
+//! Aims to identify and warn against loops that may lead to hangs or excessive
+//! resource consumption due to lack of content. Encourages adding meaningful
+//! logic within loops or ensuring proper exit conditions to improve code
+//! reliability and maintainability.
 use super::StyleCodes;
 use crate::{
     diag,
@@ -17,8 +20,8 @@ use crate::{
 simple_visitor!(
     LoopWithoutExit,
     fn visit_exp_custom(&mut self, exp: &T::Exp) -> bool {
-        // we do not care about `while` since there is another lint that handles reporting
-        // that `while (true)` should be `loop`
+        // we do not care about `while` since there is another lint that handles
+        // reporting that `while (true)` should be `loop`
         let UnannotatedExp_::Loop {
             name: _,
             has_break: false,
