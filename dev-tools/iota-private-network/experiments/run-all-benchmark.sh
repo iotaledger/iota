@@ -136,7 +136,7 @@ kill_spammer_processes() {
     pkill -9 -f 'cargo run --release -- spammer spam' 2>/dev/null || true
     pkill -9 -f 'cargo run --release --.* stress' 2>/dev/null || true
     pkill -9 -f 'spamming_fuzz_test.sh' 2>/dev/null || true
-    pkill -9 -f 'network-fuzz-disruption.sh' 2>/dev/null || true
+    pkill -9 -f 'network-benchmark.sh' 2>/dev/null || true
 
     # also remove per-user and global lock files
     rm -f /tmp/spammer-*.lock 2>/dev/null || true
@@ -293,7 +293,7 @@ log "Grafana URL: http://localhost:3000/dashboards"
 cd - >/dev/null
 
 # --- 5) Launch combined latency + fuzz watcher in background ---
-./network-fuzz-disruption.sh \
+./network-benchmark.sh \
     -n "$NUM_VALIDATORS" \
     -s "$SEED" \
     -b "$PERCENT_BLOCK" \

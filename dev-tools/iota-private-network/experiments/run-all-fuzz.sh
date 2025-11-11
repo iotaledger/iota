@@ -182,7 +182,7 @@ kill_spammer_processes() {
     pkill -9 -f 'cargo run --release -- spammer spam' 2>/dev/null || true
     pkill -9 -f 'cargo run --release --.* stress' 2>/dev/null || true
     pkill -9 -f 'spamming_fuzz_test.sh' 2>/dev/null || true
-    pkill -9 -f 'network-fuzz-disruption.sh' 2>/dev/null || true
+    pkill -9 -f 'network-benchmark.sh' 2>/dev/null || true
 
     # ---- Kill leftover fuzz/orchestrator loops ----
     pkill -TERM -f 'docker (logs|inspect|exec).*validator-' 2>/dev/null || true
