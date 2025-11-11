@@ -343,13 +343,18 @@ impl DisseminationWorker {
                 .observe(num_batches as f64);
 
             // Distribute work to workers
-            let num_connections = self.connection_knowledges.len();
+            let num_connections = aggregated.len();
             let chunk_size = num_connections.div_ceil(NUM_WORKERS);
             for i in 0..NUM_WORKERS {
                 let start = i * chunk_size;
                 let end = min(start + chunk_size, num_connections);
+                if start >= end || start >= aggregated.len() {
+                    continue; // Skip invalid/empty chunk
+                }
                 let msgs_chunk = aggregated.drain(start..end).collect::<Vec<_>>();
-                let _ = worker_senders[i].send(WorkerMsg { start, msgs_chunk });
+                if let Err(e) = worker_senders[i].send(WorkerMsg { start, msgs_chunk }) {
+                    debug!("Failed to send WorkerMsg to worker {}: {:?}", i, e);
+                }
             }
 
             tokio::time::sleep(TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS).await;
