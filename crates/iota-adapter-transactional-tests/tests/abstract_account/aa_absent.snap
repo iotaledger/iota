@@ -1,0 +1,11 @@
+---
+source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
+---
+processed 2 tasks
+
+init:
+A: object(0,0)
+
+task 1, lines 8-10:
+//# abstract --gas-payment 5,0 --ptb-inputs 100 @A
+Error: abstract: authenticator inputs must contain at least one value for the AA call
