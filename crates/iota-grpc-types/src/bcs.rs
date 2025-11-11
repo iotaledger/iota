@@ -3,15 +3,17 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::v0::common as grpc_common;
+use crate::v0::bcs as grpc_bcs;
 
-impl grpc_common::BcsData {
+impl grpc_bcs::BcsData {
     pub fn serialize_from<T>(data: &T) -> Result<Self, bcs::Error>
     where
         T: Serialize,
     {
         let serialized = bcs::to_bytes(data)?;
-        Ok(grpc_common::BcsData { data: serialized })
+        Ok(grpc_bcs::BcsData {
+            data: serialized.into(),
+        })
     }
 
     pub fn deserialize_into<T>(&self) -> Result<T, bcs::Error>

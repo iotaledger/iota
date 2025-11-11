@@ -6,15 +6,14 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use anyhow::Result;
-use iota_grpc_types::v0::{checkpoints as grpc_checkpoints, events as grpc_events};
+use iota_grpc_types::v0::ledger_service as grpc_ledger_service;
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::TcpListenerStream;
 use tokio_util::sync::CancellationToken;
 use tonic::transport::Server;
 
 use crate::{
-    CheckpointGrpcService, EventGrpcService, GrpcCheckpointDataBroadcaster,
-    GrpcCheckpointSummaryBroadcaster, GrpcReader,
+    GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster, GrpcReader, LedgerService,
 };
 
 /// Handle to control a running gRPC server
@@ -65,7 +64,7 @@ impl GrpcServerHandle {
 /// services in the future.
 pub async fn start_grpc_server(
     grpc_reader: Arc<GrpcReader>,
-    event_subscriber: Arc<dyn crate::EventSubscriber>,
+    _event_subscriber: Arc<dyn crate::EventSubscriber>, // TODO: still needed?
     config: iota_config::node::GrpcApiConfig,
     shutdown_token: CancellationToken,
 ) -> Result<GrpcServerHandle> {
@@ -78,26 +77,19 @@ pub async fn start_grpc_server(
         GrpcCheckpointSummaryBroadcaster::new(checkpoint_summary_tx);
     let checkpoint_data_broadcaster = GrpcCheckpointDataBroadcaster::new(checkpoint_data_tx);
 
-    // Create the gRPC services - both get the cancellation token directly from
+    // Create the gRPC services - get the cancellation token directly from
     // server level
-    let checkpoint_service = CheckpointGrpcService::new(
+    let ledger_service = LedgerService::new(
         grpc_reader.clone(),
         checkpoint_summary_broadcaster.clone(),
         checkpoint_data_broadcaster.clone(),
         shutdown_token.clone(),
     );
-    let event_service = EventGrpcService::new(event_subscriber, shutdown_token.clone());
 
     // Create the server with proper address binding
-    let server_builder = Server::builder()
-        .add_service(
-            grpc_checkpoints::checkpoint_service_server::CheckpointServiceServer::new(
-                checkpoint_service,
-            ),
-        )
-        .add_service(grpc_events::event_service_server::EventServiceServer::new(
-            event_service,
-        ));
+    let server_builder = Server::builder().add_service(
+        grpc_ledger_service::ledger_service_server::LedgerServiceServer::new(ledger_service),
+    );
 
     // Bind to the address to get the actual local address (especially important for
     // port 0)
