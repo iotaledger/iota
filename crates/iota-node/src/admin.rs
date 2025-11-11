@@ -456,7 +456,7 @@ async fn randomness_inject_full_sig(
 
 async fn flamegraph(State(state): State<Arc<AppState>>) -> impl axum::response::IntoResponse {
     match state.tracing_handle.get_flamegraph() {
-        Some(sub) => Ok(axum::Json(sub.get_nested_sets())),
+        Some(sub) => Ok(axum::Json(sub.get_nested_sets("iota-node"))),
         None => Err((StatusCode::NOT_FOUND, "flamegraphs are not enabled\n")),
     }
 }

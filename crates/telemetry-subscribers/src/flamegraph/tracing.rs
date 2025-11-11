@@ -3,7 +3,7 @@
 
 //! `tracing` subscriber collecting flamegraphs.
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 #[cfg(debug_assertions)]
 use super::flame::NodeId;
@@ -175,8 +175,8 @@ impl FlameSub {
     pub fn list_nested_sets(&self) -> Vec<(GraphId, f64)> {
         self.flames.list_nested_sets()
     }
-    pub fn get_nested_sets(&self) -> HashMap<GraphId, Vec<NestedSetFrame>> {
-        self.flames.get_nested_sets()
+    pub fn get_nested_sets(&self, label: &'static str) -> Vec<NestedSetFrame> {
+        self.flames.get_nested_sets(label)
     }
     pub fn get_nested_set(&self, graph_id: &str) -> Vec<NestedSetFrame> {
         self.flames.get_nested_set(graph_id)

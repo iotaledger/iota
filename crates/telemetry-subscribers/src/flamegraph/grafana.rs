@@ -3,10 +3,7 @@
 
 //! Grafana Flame Graph panel compatible data structures and traits.
 
-use std::{
-    collections::{HashMap, hash_map},
-    time::Duration,
-};
+use std::{collections::hash_map, time::Duration};
 
 use serde::Serialize;
 
@@ -39,7 +36,7 @@ pub trait NestedSetCollector<N = f64> {
 pub trait Dashboard {
     fn list_nested_sets(&self) -> Vec<(GraphId, f64)>;
     fn get_nested_set(&self, graph_id: &str) -> Vec<NestedSetFrame>;
-    fn get_nested_sets(&self) -> HashMap<GraphId, Vec<NestedSetFrame>>;
+    fn get_nested_sets(&self, label: &'static str) -> Vec<NestedSetFrame>;
 }
 
 trait FromDuration: Default + Sized {
@@ -123,7 +120,7 @@ where
             .map(|graph| graph.collect_nested_set())
             .unwrap_or_default()
     }
-    fn get_nested_sets(&self) -> HashMap<GraphId, Vec<NestedSetFrame>> {
+    fn get_nested_sets(&self, label: &'static str) -> Vec<NestedSetFrame> {
         let mut completed = self.completed.read().clone();
         let rlock = self.graphs.read();
         rlock.iter().for_each(|(_tid, Graph { graph_id, mutex })| {
@@ -137,10 +134,23 @@ where
                 }
             }
         });
+        let total = completed.values().map(|graph| graph.total()).sum::<f64>();
 
-        completed
-            .into_iter()
-            .map(|(graph_id, flame)| (graph_id, flame.collect_nested_set()))
-            .collect()
+        std::iter::once(NestedSetFrame {
+            label: label.into(),
+            level: 0,
+            value: total,
+            self_: 0.0,
+        })
+        .chain(
+            completed
+                .into_iter()
+                .flat_map(|(_, flame)| flame.collect_nested_set().into_iter())
+                .map(|mut frame| {
+                    frame.level += 1;
+                    frame
+                }),
+        )
+        .collect()
     }
 }
