@@ -578,8 +578,8 @@ fn build_common_tables(
                 check_table_size!(constant_pool, *constant_pool_max);
             }
             TableType::METADATA => {
-                if !binary.allow_iota_metadata_bytes()
-                    && (binary.check_no_extraneous_bytes() || binary.version() < VERSION_5)
+                if !binary.allow_iota_metadata_bytes() && binary.check_no_extraneous_bytes()
+                    || binary.version() < VERSION_5
                 {
                     return Err(
                         PartialVMError::new(StatusCode::MALFORMED).with_message(format!(
