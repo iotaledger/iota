@@ -40,7 +40,11 @@ use futures::{StreamExt as _, stream::FuturesOrdered};
 use iota_metrics::spawn_logged_monitored_task;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
-use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
+use rand::{
+    RngCore,
+    prelude::SliceRandom as _,
+    rngs::{OsRng, ThreadRng},
+};
 use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
@@ -366,8 +370,9 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
             if !missing_transactions.is_empty() {
                 warn!(
-                    "Missing {} transaction after fetching commit range {:?}: {:?}",
+                    "Missing {} out of {} transactions after fetching commit range {:?}: {:?}",
                     missing_transactions.len(),
+                    expected_transactions.len(),
                     fetched_commit_range,
                     missing_transactions,
                 );
@@ -735,12 +740,19 @@ impl<C: NetworkClient> CommitSyncer<C> {
         // 7. Create transaction fetch requests (will be processed concurrently with
         //    headers)
         let mut transaction_requests: FuturesOrdered<_> = if !committed_tx_refs.is_empty() {
-            let num_tx_chunks = committed_tx_refs
-                .len()
-                .div_ceil(inner.context.parameters.max_headers_per_commit_sync_fetch)
-                as u32;
+            let num_tx_chunks = committed_tx_refs.len().div_ceil(
+                inner
+                    .context
+                    .parameters
+                    .max_transactions_per_commit_sync_fetch,
+            ) as u32;
             committed_tx_refs
-                .chunks(inner.context.parameters.max_headers_per_commit_sync_fetch)
+                .chunks(
+                    inner
+                        .context
+                        .parameters
+                        .max_transactions_per_commit_sync_fetch,
+                )
                 .enumerate()
                 .map(|(i, request_block_refs)| {
                     let inner = inner.clone();
@@ -764,11 +776,9 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         //    TransactionSynchronizer will take care of fetching missing
                         //    transactions later.
                         if request_block_refs.len() < serialized_transactions.len() {
-                            return Err(ConsensusError::UnexpectedNumberOfHeadersFetched {
-                                authority: target_authority,
-                                requested: request_block_refs.len(),
-                                received_headers: serialized_transactions.len(),
-                            });
+                            return Err(ConsensusError::TooManyFetchedTransactionsReturned(
+                                target_authority,
+                            ));
                         }
                         let requested_block_refs_set: BTreeSet<_> =
                             request_block_refs.iter().cloned().collect();
