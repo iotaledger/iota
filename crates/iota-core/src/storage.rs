@@ -17,7 +17,8 @@ use iota_types::{
     object::Object,
     storage::{
         AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
-        ObjectStore, ReadStore, RestIndexes, RestStateReader, WriteStore,
+        ObjectStore, OwnedObjectInfo, ReadStore, RestIndexes, RestStateReader, TransactionInfo,
+        WriteStore,
         error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
@@ -114,15 +115,14 @@ impl ReadStore for RocksDbStore {
     fn try_get_lowest_available_checkpoint(
         &self,
     ) -> Result<CheckpointSequenceNumber, StorageError> {
-        let highest_pruned_cp = self
+        if let Some(highest_pruned_cp) = self
             .checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()
-            .map_err(Into::<StorageError>::into)?;
-
-        if highest_pruned_cp == 0 {
-            Ok(0)
-        } else {
+            .map_err(Into::<StorageError>::into)?
+        {
             Ok(highest_pruned_cp + 1)
+        } else {
+            Ok(0)
         }
     }
 
@@ -504,17 +504,12 @@ impl RestStateReader for RestReadStore {
     fn get_lowest_available_checkpoint_objects(
         &self,
     ) -> iota_types::storage::error::Result<CheckpointSequenceNumber> {
-        let highest_pruned_cp = self
+        Ok(self
             .state
             .get_object_cache_reader()
-            .try_get_highest_pruned_checkpoint()
-            .map_err(StorageError::custom)?;
-
-        if highest_pruned_cp == 0 {
-            Ok(0)
-        } else {
-            Ok(highest_pruned_cp + 1)
-        }
+            .get_highest_pruned_checkpoint()
+            .map(|cp| cp + 1)
+            .unwrap_or(0))
     }
 
     fn get_chain_identifier(&self) -> Result<iota_types::digests::ChainIdentifier> {
@@ -537,30 +532,54 @@ impl RestStateReader for RestReadStore {
 }
 
 impl RestIndexes for RestIndexStore {
-    fn get_transaction_checkpoint(
+    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<iota_types::storage::EpochInfo>> {
+        self.get_epoch_info(epoch).map_err(StorageError::custom)
+    }
+
+    fn get_transaction_info(
         &self,
         digest: &TransactionDigest,
-    ) -> iota_types::storage::error::Result<Option<CheckpointSequenceNumber>> {
+    ) -> iota_types::storage::error::Result<Option<TransactionInfo>> {
         self.get_transaction_info(digest)
             .map(|maybe_info| maybe_info.map(|info| info.checkpoint))
             .map_err(StorageError::custom)
     }
 
-    fn account_owned_objects_info_iter(
+    fn owned_objects_iter(
         &self,
         owner: IotaAddress,
-        cursor: Option<ObjectID>,
-    ) -> Result<Box<dyn Iterator<Item = AccountOwnedObjectInfo> + '_>> {
-        let iter = self.owner_iter(owner, cursor)?.map(
-            |(OwnerIndexKey { owner, object_id }, OwnerIndexInfo { version, type_ })| {
-                AccountOwnedObjectInfo {
-                    owner,
-                    object_id,
-                    version,
-                    type_,
-                }
-            },
-        );
+        object_type: Option<StructTag>,
+        cursor: Option<OwnedObjectInfo>,
+    ) -> Result<Box<dyn Iterator<Item = Result<OwnedObjectInfo, TypedStoreError>> + '_>> {
+        let cursor = cursor.map(|cursor| OwnerIndexKey {
+            owner: cursor.owner,
+            object_type: cursor.object_type,
+            inverted_balance: cursor.balance.map(std::ops::Not::not),
+            object_id: cursor.object_id,
+        });
+
+        let iter = self.owner_iter(owner, object_type, cursor)?.map(|result| {
+            result.map(
+                |(
+                    OwnerIndexKey {
+                        owner,
+                        object_id,
+                        object_type,
+                        inverted_balance,
+                    },
+                    OwnerIndexInfo { version, digest },
+                )| {
+                    OwnedObjectInfo {
+                        owner,
+                        object_type,
+                        balance: inverted_balance.map(std::ops::Not::not),
+                        object_id,
+                        version,
+                        digest,
+                    }
+                },
+            )
+        });
 
         Ok(Box::new(iter) as _)
     }
@@ -586,9 +605,11 @@ impl RestIndexes for RestIndexStore {
                 |CoinIndexInfo {
                      coin_metadata_object_id,
                      treasury_object_id,
+                     regulated_coin_metadata_object_id,
                  }| CoinInfo {
                     coin_metadata_object_id,
                     treasury_object_id,
+                    regulated_coin_metadata_object_id,
                 },
             )
             .pipe(Ok)

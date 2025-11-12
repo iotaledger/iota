@@ -310,7 +310,7 @@ impl AuthorityStorePruner {
         )?;
 
         if let Some(rest_index) = rest_index {
-            rest_index.prune(&checkpoint_content_to_prune)?;
+            rest_index.prune(checkpoint_number, &checkpoint_content_to_prune)?;
         }
         perpetual_batch.write()?;
         checkpoints_batch.write()?;
@@ -336,7 +336,9 @@ impl AuthorityStorePruner {
             .get_highest_executed_checkpoint()?
             .map(|c| (*c.sequence_number(), c.epoch))
             .unwrap_or_default();
-        let pruned_checkpoint_number = perpetual_db.get_highest_pruned_checkpoint()?;
+        let pruned_checkpoint_number = perpetual_db
+            .get_highest_pruned_checkpoint()?
+            .unwrap_or_default();
         if config.smooth && config.num_epochs_to_retain > 0 {
             max_eligible_checkpoint_number = Self::smoothed_max_eligible_checkpoint_number(
                 checkpoint_store,
@@ -381,8 +383,9 @@ impl AuthorityStorePruner {
         epoch_duration_ms: u64,
     ) -> anyhow::Result<()> {
         let _scope = monitored_scope("PruneCheckpointsForEligibleEpochs");
-        let pruned_checkpoint_number =
-            checkpoint_store.get_highest_pruned_checkpoint_seq_number()?;
+        let pruned_checkpoint_number = checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()?
+            .unwrap_or(0);
         let (last_executed_checkpoint, epoch_id) = checkpoint_store
             .get_highest_executed_checkpoint()?
             .map(|c| (*c.sequence_number(), c.epoch))
@@ -395,7 +398,9 @@ impl AuthorityStorePruner {
         if config.num_epochs_to_retain != u64::MAX {
             max_eligible_checkpoint = min(
                 max_eligible_checkpoint,
-                perpetual_db.get_highest_pruned_checkpoint()?,
+                perpetual_db
+                    .get_highest_pruned_checkpoint()?
+                    .unwrap_or_default(),
             );
         }
         if config.smooth {
