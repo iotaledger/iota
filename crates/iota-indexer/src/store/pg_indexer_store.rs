@@ -20,6 +20,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::ObjectID,
     digests::{ChainIdentifier, CheckpointDigest},
+    messages_checkpoint::CheckpointSequenceNumber,
 };
 use itertools::Itertools;
 use strum::IntoEnumIterator;
@@ -427,12 +428,12 @@ impl PgIndexerStore {
 
     fn get_latest_object_snapshot_checkpoint_sequence_number(
         &self,
-    ) -> Result<Option<u64>, IndexerError> {
+    ) -> Result<Option<CheckpointSequenceNumber>, IndexerError> {
         read_only_blocking!(&self.blocking_cp, |conn| {
             objects_snapshot::table
                 .select(max(objects_snapshot::checkpoint_sequence_number))
                 .first::<Option<i64>>(conn)
-                .map(|v| v.map(|v| v as u64))
+                .map(|v| v.map(|v| v as CheckpointSequenceNumber))
         })
         .context("Failed reading latest object snapshot checkpoint sequence number from PostgresDB")
     }
@@ -1812,7 +1813,7 @@ impl IndexerStore for PgIndexerStore {
 
     async fn get_latest_object_snapshot_checkpoint_sequence_number(
         &self,
-    ) -> Result<Option<u64>, IndexerError> {
+    ) -> Result<Option<CheckpointSequenceNumber>, IndexerError> {
         self.execute_in_blocking_worker(|this| {
             this.get_latest_object_snapshot_checkpoint_sequence_number()
         })

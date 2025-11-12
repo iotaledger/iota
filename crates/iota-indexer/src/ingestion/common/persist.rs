@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
 use iota_rest_api::CheckpointData;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -33,7 +34,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
     async fn persist(&self, batch: Vec<T>) -> IndexerResult<()>;
 
     /// Reads high watermark of the table DB.
-    async fn get_watermark_hi(&self) -> IndexerResult<Option<u64>>;
+    async fn get_watermark_hi(&self) -> IndexerResult<Option<CheckpointSequenceNumber>>;
 
     /// Sets high watermark of the table DB, also update metrics.
     async fn set_watermark_hi(&self, watermark_hi: CommitterWatermark) -> IndexerResult<()>;
