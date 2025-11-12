@@ -54,7 +54,7 @@
 //! The scan limit restricts the number of transactions considered as candidates
 //! for the results.It is analogous to the page size limit, which restricts the
 //! number of results returned to the user, but it operates at the top of the
-//! funnel rather than the top.
+//! funnel rather than the bottom.
 //!
 //! When postgres picks a poor query plan, it can end up performing a sequential
 //! scan over all candidate transactions. By limiting the size of the candidate
