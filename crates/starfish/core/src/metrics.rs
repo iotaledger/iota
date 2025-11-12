@@ -142,7 +142,6 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_refs: IntGauge,
     pub(crate) cordial_knowledge_buffer_size: Histogram,
     pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
-    pub(crate) cordial_knowledge_worker_batch_size: Histogram,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) synchronizer_fetch_block_headers_scheduler_inflight: IntGauge,
@@ -472,12 +471,6 @@ impl NodeMetrics {
                 vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
-            cordial_knowledge_worker_batch_size: register_histogram_with_registry!(
-                "cordial_knowledge_worker_batch_size",
-                "Number of connection knowledge message batches processed by worker",
-                exponential_buckets(1.0, 1.4, 20).unwrap(),
-                registry,
-            ).unwrap(),
             cordial_knowledge_processed_messages: register_int_counter_vec_with_registry!(
                 "cordial_knowledge_processed_messages",
                 "Number of Cordial Knowledge messages processed",
@@ -648,13 +641,6 @@ impl NodeMetrics {
                 vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
-            missing_ancestors_from_streaming_round_gap: register_histogram_with_registry!(
-                "missing_ancestors_from_streaming_round_gap",
-                "Round gap to missing ancestors of blocks and headers received through streaming",
-                registry,
-            ).unwrap(),
-
-
             rejected_blocks: register_int_counter_vec_with_registry!(
                 "rejected_blocks",
                 "Number of blocks rejected because last commit index is lagging quorum commit index too much",

@@ -2,10 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
-    cmp::{max, min},
+    cmp::max,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
-    time::Duration,
 };
 
 use ahash::{AHashMap, AHashSet};
@@ -97,9 +96,6 @@ pub(crate) struct CordialKnowledge {
     /// tuple of (ancestors, who knows the block header).
     cordial_knowledge:
         Vec<BTreeMap<Round, AHashMap<BlockHeaderDigest, (Ancestors, SubsetAuthorities)>>>,
-    /// Sender of updates for ConnectionKnowledges. Updates are produced by
-    /// CordialKnowledge
-    dissemination_sender: UnboundedSender<Vec<Vec<ConnectionKnowledgeMessage>>>,
     /// Each Connection Knowledge corresponds to one peer. Upon reception of a
     /// message from CordialKnowledge, we propagate the respected
     /// information for each connection.
@@ -140,7 +136,6 @@ pub struct CordialKnowledgeHandle {
     cordial_knowledge_sender: UnboundedSender<CordialKnowledgeMessage>,
     connection_knowledges: Vec<Arc<RwLock<ConnectionKnowledge>>>,
     cordial_knowledge_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
-    dissemination_handle: Mutex<Option<tokio::task::JoinHandle<()>>>,
 }
 
 impl CordialKnowledgeHandle {
@@ -167,18 +162,6 @@ impl CordialKnowledgeHandle {
                 Err(e) => return Err(e),
             }
         }
-        // Stop DisseminationWorker loop
-        let mut guard = self.dissemination_handle.lock().await;
-
-        if let Some(dissemination_handle) = guard.take() {
-            dissemination_handle.abort();
-            match dissemination_handle.await {
-                Ok(_) => (),
-                Err(e) if e.is_cancelled() => (),
-                Err(e) => return Err(e),
-            }
-        }
-
         Ok(())
     }
     /// Report from AuthorityService useful information about headers and
@@ -256,114 +239,6 @@ impl CordialKnowledgeHandle {
     }
 }
 
-/// Struct to disseminate information from CordialKnowledge to each
-/// ConnectionKnowledge. It allows to reduce contention from a single runner of
-/// CordialKnowledge. Otherwise, acquiring write locks for each update in
-/// CordialKnowledge could take a significant time. For instance, for 150
-/// validators and 20 blocks per second, we could expect almost 10000 updates in
-/// CordialKnowledge. Each update requires 150 write locks for
-/// CordialKnowledge. One write lock could take 200ns, which results in
-/// 300ms spent only for write locks.
-pub struct DisseminationWorker {
-    context: Arc<Context>,
-    /// Each Connection Knowledge corresponds to one peer. Upon reception of a
-    /// message from CordialKnowledge, we propagate the respected
-    /// information for each connection.
-    connection_knowledges: Vec<Arc<RwLock<ConnectionKnowledge>>>,
-    dissemination_receiver: UnboundedReceiver<Vec<Vec<ConnectionKnowledgeMessage>>>,
-}
-
-struct WorkerMsg {
-    start: usize,
-    msgs_chunk: Vec<Vec<ConnectionKnowledgeMessage>>,
-}
-
-impl DisseminationWorker {
-    fn new(
-        context: Arc<Context>,
-        connection_knowledges: Vec<Arc<RwLock<ConnectionKnowledge>>>,
-        dissemination_receiver: UnboundedReceiver<Vec<Vec<ConnectionKnowledgeMessage>>>,
-    ) -> Self {
-        Self {
-            context,
-            connection_knowledges,
-            dissemination_receiver,
-        }
-    }
-    /// The dissemination worker makes dissemination to ConnectionKnowledge
-    /// structs in batches. It waits for
-    /// TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS, then drain the channel of
-    /// messages and disseminate them. With this approach, one acquire locks
-    /// in a predicted way while losing some reactiveness. Instead of
-    /// potentially 10000 write locks, it could be up to 1 sec /
-    /// TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS
-    async fn run(mut self) {
-        const TIME_TO_BATCH_CONNECTION_KNOWLEDGE_MSGS: Duration = Duration::from_millis(5);
-        const NUM_WORKERS: usize = 1; // Adjust as needed
-
-        // Create channels for workers
-        let mut worker_senders = Vec::new();
-        let connection_knowledges = Arc::new(self.connection_knowledges.clone());
-        for _ in 0..NUM_WORKERS {
-            let connection_knowledges = Arc::clone(&connection_knowledges);
-            let (tx, mut rx) = unbounded_channel::<WorkerMsg>();
-            worker_senders.push(tx);
-            tokio::spawn(async move {
-                while let Some(WorkerMsg { start, msgs_chunk }) = rx.recv().await {
-                    for (offset, msgs) in msgs_chunk.into_iter().enumerate() {
-                        let index = start + offset;
-                        if !msgs.is_empty() {
-                            let mut guard = connection_knowledges[index].write();
-                            guard.process_vec_messages(msgs);
-                        }
-                    }
-                }
-            });
-        }
-
-        debug!("Dissemination Worker loop started");
-        loop {
-            let first_batch_msgs = match self.dissemination_receiver.recv().await {
-                Some(batch) => batch,
-                None => {
-                    debug!("Dissemination channel closed, worker exiting");
-                    break;
-                }
-            };
-            let mut num_batches = 1;
-            let mut aggregated: Vec<Vec<ConnectionKnowledgeMessage>> = first_batch_msgs;
-
-            while let Ok(batch) = self.dissemination_receiver.try_recv() {
-                for (i, msgs) in batch.into_iter().enumerate() {
-                    aggregated[i].extend(msgs);
-                }
-                num_batches += 1;
-            }
-
-            self.context
-                .metrics
-                .node_metrics
-                .cordial_knowledge_worker_batch_size
-                .observe(num_batches as f64);
-
-            // Distribute work to workers
-            let num_connections = aggregated.len();
-            let chunk_size = num_connections.div_ceil(NUM_WORKERS);
-            for i in 0..NUM_WORKERS {
-                let start = i * chunk_size;
-                let end = min(start + chunk_size, num_connections);
-                if start >= end || start >= aggregated.len() {
-                    continue; // Skip invalid/empty chunk
-                }
-                let msgs_chunk = aggregated.drain(0..end - start).collect::<Vec<_>>();
-                if let Err(e) = worker_senders[i].send(WorkerMsg { start, msgs_chunk }) {
-                    debug!("Failed to send WorkerMsg to worker {}: {:?}", i, e);
-                }
-            }
-        }
-    }
-}
-
 impl CordialKnowledge {
     /// Create a new CordialKnowledge instance along with its associated
     /// channels.
@@ -374,7 +249,6 @@ impl CordialKnowledge {
         Self,
         Vec<Arc<RwLock<ConnectionKnowledge>>>,
         UnboundedSender<CordialKnowledgeMessage>,
-        UnboundedReceiver<Vec<Vec<ConnectionKnowledgeMessage>>>,
     ) {
         let num_authorities = context.committee.size();
 
@@ -383,8 +257,6 @@ impl CordialKnowledge {
             UnboundedSender<CordialKnowledgeMessage>,
             UnboundedReceiver<CordialKnowledgeMessage>,
         ) = unbounded_channel();
-
-        let (dissemination_sender, dissemination_receiver) = unbounded_channel();
 
         let mut connection_knowledges = Vec::with_capacity(num_authorities);
 
@@ -402,14 +274,12 @@ impl CordialKnowledge {
             Self {
                 context,
                 cordial_knowledge_receiver,
-                dissemination_sender,
                 cordial_knowledge: vec![BTreeMap::new(); num_authorities],
                 last_useful_shards_from_peer_round: vec![None; num_authorities],
                 connection_knowledges: connection_knowledges.clone(),
             },
             connection_knowledges,
             cordial_knowledge_sender,
-            dissemination_receiver,
         )
     }
 
@@ -421,24 +291,11 @@ impl CordialKnowledge {
         dag_state: Arc<RwLock<DagState>>,
     ) -> Arc<CordialKnowledgeHandle> {
         // Build main CordialKnowledge and associated channels
-        let (
-            cordial_knowledge,
-            connection_knowledges,
-            cordial_knowledge_sender,
-            dissemination_receiver,
-        ) = CordialKnowledge::new(context.clone(), dag_state.clone());
+        let (cordial_knowledge, connection_knowledges, cordial_knowledge_sender) =
+            CordialKnowledge::new(context.clone(), dag_state.clone());
         // Spawn the main CordialKnowledge loop
         let cordial_knowledge_handle = tokio::spawn(async move {
             cordial_knowledge.run().await;
-        });
-
-        let dissemination_worker = DisseminationWorker::new(
-            context.clone(),
-            connection_knowledges.clone(),
-            dissemination_receiver,
-        );
-        let dissemination_handle = tokio::spawn(async move {
-            dissemination_worker.run().await;
         });
 
         dag_state
@@ -450,7 +307,6 @@ impl CordialKnowledge {
             cordial_knowledge_sender,
             connection_knowledges,
             cordial_knowledge_handle: Mutex::new(Some(cordial_knowledge_handle)),
-            dissemination_handle: Mutex::new(Some(dissemination_handle)),
         })
     }
 
@@ -488,9 +344,10 @@ impl CordialKnowledge {
                         }
                     }
 
-                    for (index, msgs) in vec_connection_knowledge_msgs_batch.enumerate() {
+                    for (index, msgs) in vec_connection_knowledge_msgs_batch.into_iter().enumerate()
+                    {
                         if !msgs.is_empty() {
-                            let mut guard = connection_knowledges[index].write();
+                            let mut guard = self.connection_knowledges[index].write();
                             guard.process_vec_messages(msgs);
                         }
                     }
