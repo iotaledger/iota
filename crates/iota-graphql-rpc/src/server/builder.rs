@@ -655,6 +655,8 @@ async fn subscription_handler(
         .on_upgrade(move |stream| async move {
             // create connection data with per-connection values
             let mut connection_data = Data::default();
+            // axum discards body on GET requests, being always 0
+            connection_data.insert(PayloadSize(0));
             connection_data.insert(Uuid::new_v4());
             if headers_contains_show_usage {
                 connection_data.insert(ShowUsage)
