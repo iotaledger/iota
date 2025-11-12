@@ -33,7 +33,7 @@ use crate::{
 /// Maximum round gap to consider a peer's useful shards/headers as still
 /// relevant. 40 rounds correspond to at least 2 second due to the minimum block
 /// delay
-const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 100;
+const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 40;
 
 /// Represents a subset of authorities using a bitmask.
 /// Each bit in the `low` and `high` fields corresponds to an authority index.
@@ -460,37 +460,12 @@ impl CordialKnowledge {
     async fn run(mut self) {
         debug!("Cordial Knowledge main loop started");
 
-        const NUM_WORKERS: usize = 1; // Adjust as needed
-
-        // Create channels for workers
-        let mut worker_senders = Vec::new();
-        let connection_knowledges = Arc::new(self.connection_knowledges.clone());
-        for _ in 0..NUM_WORKERS {
-            let connection_knowledges = Arc::clone(&connection_knowledges);
-            let (tx, mut rx) = unbounded_channel::<WorkerMsg>();
-            worker_senders.push(tx);
-            tokio::spawn(async move {
-                while let Some(WorkerMsg { start, msgs_chunk }) = rx.recv().await {
-                    for (offset, msgs) in msgs_chunk.into_iter().enumerate() {
-                        let index = start + offset;
-                        if !msgs.is_empty() {
-                            let mut guard = connection_knowledges[index].write();
-                            guard.process_vec_messages(msgs);
-                        }
-                    }
-                }
-            });
-        }
-
         loop {
             match self.cordial_knowledge_receiver.recv().await {
                 Some(msg) => {
                     let mut batch = vec![msg];
                     while let Ok(msg) = self.cordial_knowledge_receiver.try_recv() {
                         batch.push(msg);
-                        //if batch.len() >= 10 {
-                        //    break;
-                        //}
                     }
                     // Report the buffer size after processing the first message
                     self.context
@@ -513,19 +488,10 @@ impl CordialKnowledge {
                         }
                     }
 
-                    let num_connections = vec_connection_knowledge_msgs_batch.len();
-                    let chunk_size = num_connections.div_ceil(NUM_WORKERS);
-                    for i in 0..NUM_WORKERS {
-                        let start = i * chunk_size;
-                        let end = min(start + chunk_size, num_connections);
-                        if start >= end || start >= num_connections {
-                            continue; // Skip invalid/empty chunk
-                        }
-                        let msgs_chunk = vec_connection_knowledge_msgs_batch
-                            .drain(0..end - start)
-                            .collect::<Vec<_>>();
-                        if let Err(e) = worker_senders[i].send(WorkerMsg { start, msgs_chunk }) {
-                            debug!("Failed to send WorkerMsg to worker {}: {:?}", i, e);
+                    for (index, msgs) in vec_connection_knowledge_msgs_batch.enumerate() {
+                        if !msgs.is_empty() {
+                            let mut guard = connection_knowledges[index].write();
+                            guard.process_vec_messages(msgs);
                         }
                     }
                 }
