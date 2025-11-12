@@ -13,7 +13,6 @@ import { v4 as uuidV4 } from 'uuid';
 import Browser from 'webextension-polyfill';
 import type { Storage } from 'webextension-polyfill';
 
-// @ts-expect-error chrome
 const SESSION_STORAGE = (global?.chrome?.storage?.session ||
     null) as Storage.LocalStorageArea | null;
 
