@@ -66,10 +66,9 @@ export function getIotaApplicationErrorMessage(error: unknown) {
             error.statusCode === 0x6e04 ||
             error.statusCode === StatusCodes.CONDITIONS_OF_USE_NOT_SATISFIED
         ) {
-            // User reject tx
-            // v.1.0.0: 0x6985
-            // v.0.9.2: 0x6e04
-            return 'User rejected the transaction.'; // getAltStatusMessage(error.statusCode)
+            // 0x6e04 is a legacy code that we need to keep support for older versions of the IOTA app (0.9.X)
+            // https://github.com/LedgerHQ/ledger-device-rust-sdk/commit/7a16c29b09f1d21916b2d76c9f805580c64ff064
+            return 'User rejected the transaction.';
         } else if (error.statusCode === 0x8) {
             // v.0.9.2: 0x8
             return 'Enable Blind Signing in the IOTA app settings on your Ledger device.';
