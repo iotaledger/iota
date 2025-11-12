@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-
+use std::collections::HashSet;
 use ahash::{AHashMap, AHashSet};
 use bytes::Bytes;
 use parking_lot::RwLock;
@@ -1045,6 +1045,10 @@ impl ConnectionKnowledge {
     /// to send to the peer.
     pub fn create_bundle(&mut self, block: VerifiedBlock) -> BlockBundle {
         let block_round = block.round();
+        // Try to update ancestors since they can be still not updated
+        for ancestor_block_refs in block.ancestors() {
+            self.handle_new_header(*ancestor_block_refs);
+        }
         // 1. Own headers and shards for round up to round_upper_bound_exclusive should
         //    be marked as known
         let own_index = self.context.own_index;
