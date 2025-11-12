@@ -93,6 +93,7 @@ impl Prometheus {
     /// The commands to install prometheus.
     pub fn install_commands() -> Vec<&'static str> {
         vec![
+            "sudo apt-get update",
             "sudo apt-get -y install prometheus",
             "sudo chmod 777 -R /var/lib/prometheus/ /etc/prometheus/",
         ]
@@ -115,9 +116,12 @@ impl Prometheus {
         let mut config = vec![Self::global_configuration()];
 
         // Add configurations to scrape the clients.
+        let mut client_ips = vec![];
         let clients_metrics_path = protocol.clients_metrics_path(clients, parameters);
         for (i, (_, clients_metrics_path)) in clients_metrics_path.into_iter().enumerate() {
             let id = format!("client-{i}");
+            let node_ip = clients_metrics_path.split(":").next().unwrap().to_string();
+            client_ips.push(node_ip);
             let scrape_config = Self::scrape_configuration(&id, &clients_metrics_path);
             config.push(scrape_config);
         }
@@ -131,10 +135,19 @@ impl Prometheus {
             let scrape_config = Self::scrape_configuration(&id, &nodes_metrics_path);
             config.push(scrape_config);
         }
+
+        // Add client prometheus exporter to the config only if dedicated clients are
+        // used
+        if !node_ips.contains(client_ips.first().unwrap()) {
+            let prometheus_client_exporter_config =
+                Self::node_exporter_configuration("prometheus_exporter_clients", client_ips, 9100);
+            config.push(prometheus_client_exporter_config);
+        }
         // Add configuration to scrape prometheus exporter metrics
         let prometheus_exporter_config =
             Self::node_exporter_configuration("prometheus_exporter", node_ips, 9100);
         config.push(prometheus_exporter_config);
+
         // Make the command to configure and restart prometheus.
         [
             &format!(
@@ -174,6 +187,8 @@ impl Prometheus {
             "    static_configs:",
             "      - targets:",
             &format!("        - {ip}:{port}"),
+            "        labels:",
+            &format!("          host: {id}"),
         ]
         .join("\n")
     }
@@ -202,6 +217,8 @@ pub struct Grafana;
 impl Grafana {
     /// The path to the datasources directory.
     const DATASOURCES_PATH: &'static str = "/etc/grafana/provisioning/datasources";
+    /// The path to the dashboards directory.
+    const DASHBOARDS_PATH: &'static str = "/etc/grafana/provisioning/dashboards";
     /// The default grafana port.
     pub const DEFAULT_PORT: u16 = 3000;
 
@@ -229,6 +246,30 @@ impl Grafana {
                 Self::datasource(),
                 Self::DATASOURCES_PATH
             ),
+            &format!("(rm -r {} || true)", Self::DASHBOARDS_PATH),
+            &format!("mkdir -p {}", Self::DASHBOARDS_PATH),
+            &format!(
+                "sudo echo \"{}\" > {}/dashboards.yml",
+                Self::dashboard_provider(),
+                Self::DASHBOARDS_PATH
+            ),
+            &format!(
+                "sudo echo '{}' > {}/aws-dashboard.json",
+                include_str!("../assets/grafana-dashboard.json"),
+                Self::DASHBOARDS_PATH
+            ),
+            &format!(
+                "sudo cp -f iota/dev-tools/grafana-local/dashboards/cluster-status-dashboard.json {}",
+                Self::DASHBOARDS_PATH
+            ),
+            &format!(
+                "sudo cp -f iota/dev-tools/grafana-local/dashboards/consensus-overview.json {}",
+                Self::DASHBOARDS_PATH
+            ),
+            &format!(
+                "sudo cp -f iota/dev-tools/grafana-local/dashboards/starfish-overview.json {}",
+                Self::DASHBOARDS_PATH
+            ),
             "sudo service grafana-server restart",
         ]
         .join(" && ")
@@ -249,7 +290,27 @@ impl Grafana {
             "    orgId: 1",
             &format!("    url: http://localhost:{}", Prometheus::DEFAULT_PORT),
             "    editable: true",
-            "    uid: Fixed-UID-testbed",
+            "    uid: prometheus",
+        ]
+        .join("\n")
+    }
+
+    /// Generate the dashboard provider configuration.
+    fn dashboard_provider() -> String {
+        [
+            "apiVersion: 1",
+            "",
+            "providers:",
+            "  - name: \"testbed-dashboards\"",
+            "    orgId: 1",
+            "    folder: \"\"",
+            "    type: file",
+            "    disableDeletion: false",
+            "    editable: true",
+            "    allowUiUpdates: true",
+            "    options:",
+            &format!("      path: {}", Self::DASHBOARDS_PATH),
+            "      updateIntervalSeconds: 30",
         ]
         .join("\n")
     }

@@ -8,9 +8,11 @@ publish = false
 description = "Move language benchmarks"
 
 [dependencies]
+# external dependencies
 criterion.workspace = true
 once_cell.workspace = true
 
+# internal dependencies
 move-binary-format.workspace = true
 move-compiler.workspace = true
 move-core-types.workspace = true

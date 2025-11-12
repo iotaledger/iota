@@ -3,14 +3,28 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    collections::{BTreeMap, BTreeSet, VecDeque},
+    iter::IntoIterator,
+    sync::{Arc, Mutex},
+};
+
+use move_core_types::{
+    account_address::AccountAddress,
+    parsing::parser::{parse_u16, parse_u32, parse_u256},
+};
+use move_ir_types::location::*;
+use move_proc_macros::growing_stack;
+use move_symbol_pool::Symbol;
+
 use crate::{
-    diag,
+    FullyCompiledProgram, diag,
     diagnostics::{
-        warning_filters::{
-            WarningFilter, WarningFilters, WarningFiltersBuilder, WarningFiltersTable, FILTER_ALL,
-            FILTER_UNUSED,
-        },
         Diagnostic, DiagnosticReporter, Diagnostics,
+        warning_filters::{
+            FILTER_ALL, FILTER_UNUSED, WarningFilter, WarningFilters, WarningFiltersBuilder,
+            WarningFiltersTable,
+        },
     },
     editions::{self, Edition, FeatureGate, Flavor},
     expansion::{
@@ -21,23 +35,23 @@ use crate::{
         ast::{self as E, Address, Fields, ModuleIdent, ModuleIdent_},
         byte_string, hex_string,
         name_validation::{
-            check_restricted_name_all_cases, check_valid_address_name,
-            check_valid_function_parameter_name, check_valid_local_name,
+            IMPLICIT_IOTA_MEMBERS, IMPLICIT_IOTA_MODULES, IMPLICIT_STD_MEMBERS,
+            IMPLICIT_STD_MODULES, ModuleMemberKind, NameCase, check_restricted_name_all_cases,
+            check_valid_address_name, check_valid_function_parameter_name, check_valid_local_name,
             check_valid_module_member_alias, check_valid_module_member_name,
-            check_valid_type_parameter_name, valid_local_variable_name, ModuleMemberKind, NameCase,
-            IMPLICIT_STD_MEMBERS, IMPLICIT_STD_MODULES, IMPLICIT_IOTA_MEMBERS, IMPLICIT_IOTA_MODULES,
+            check_valid_type_parameter_name, valid_local_variable_name,
         },
         path_expander::{
-            access_result, Access, LegacyPathExpander, ModuleAccessResult, Move2024PathExpander,
-            PathExpander,
+            Access, LegacyPathExpander, ModuleAccessResult, Move2024PathExpander, PathExpander,
+            access_result,
         },
         translate::known_attributes::{DiagnosticAttribute, KnownAttribute},
     },
     ice, ice_assert,
     parser::ast::{
-        self as P, Ability, BlockLabel, ConstantName, DatatypeName, Field, FieldBindings,
-        FunctionName, ModuleName, NameAccess, Var, VariantName, ENTRY_MODIFIER, MACRO_MODIFIER,
-        NATIVE_MODIFIER,
+        self as P, Ability, BlockLabel, ConstantName, DatatypeName, ENTRY_MODIFIER, Field,
+        FieldBindings, FunctionName, MACRO_MODIFIER, ModuleName, NATIVE_MODIFIER, NameAccess, Var,
+        VariantName,
     },
     shared::{
         ide::{IDEAnnotation, IDEInfo},
@@ -46,17 +60,6 @@ use crate::{
         unique_map::UniqueMap,
         *,
     },
-    FullyCompiledProgram,
-};
-use move_core_types::account_address::AccountAddress;
-use move_core_types::parsing::parser::{parse_u16, parse_u256, parse_u32};
-use move_ir_types::location::*;
-use move_proc_macros::growing_stack;
-use move_symbol_pool::Symbol;
-use std::{
-    collections::{BTreeMap, BTreeSet, VecDeque},
-    iter::IntoIterator,
-    sync::{Arc, Mutex},
 };
 
 //**************************************************************************************************
@@ -450,8 +453,10 @@ fn default_aliases(context: &mut Context) -> AliasMapBuilder {
                 .map(|(m, mem, k)| (std_address, m, mem, k)),
         );
     }
-    // if iota is defined and the current package is in IOTA mode, add implicit iota aliases
-    if iota_address.is_some() && context.env().package_config(current_package).flavor == Flavor::Iota
+    // if iota is defined and the current package is in IOTA mode, add implicit iota
+    // aliases
+    if iota_address.is_some()
+        && context.env().package_config(current_package).flavor == Flavor::Iota
     {
         let iota_address = iota_address.unwrap();
         modules.extend(
@@ -652,8 +657,7 @@ fn definition(
             let module_addr = module_paddr.map(|addr| {
                 let address = top_level_address(
                     &mut context.defn_context,
-                    // suggest_declaration
-                    true,
+                    true, // suggest_declaration
                     addr,
                 );
                 sp(addr.loc, address)
@@ -663,8 +667,7 @@ fn definition(
         P::Definition::Address(a) => {
             let addr = top_level_address(
                 &mut context.defn_context,
-                // suggest_declaration
-                false,
+                false, // suggest_declaration
                 a.addr,
             );
             for mut m in a.modules {
@@ -818,8 +821,7 @@ fn check_module_address(
             let other_loc = other_paddr.loc;
             let other_addr = top_level_address(
                 &mut context.defn_context,
-                // suggest_declaration
-                true,
+                true, // suggest_declaration
                 other_paddr,
             );
             let msg = if addr == other_addr {
@@ -1444,8 +1446,7 @@ fn all_module_members<'a>(
                     Some(a) => top_level_address_(
                         context,
                         named_addr_map,
-                        // suggest_declaration
-                        true,
+                        true, // suggest_declaration
                         *a,
                     ),
                     // Error will be handled when the module is compiled
@@ -1457,8 +1458,7 @@ fn all_module_members<'a>(
                 let addr = top_level_address_(
                     context,
                     named_addr_map,
-                    // suggest_declaration
-                    false,
+                    false, // suggest_declaration
                     addr_def.addr,
                 );
                 for m in &addr_def.modules {

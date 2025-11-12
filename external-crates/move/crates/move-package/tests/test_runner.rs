@@ -3,9 +3,15 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
 use anyhow::bail;
 use move_command_line_common::testing::insta_assert;
 use move_package::{
+    BuildConfig,
     compilation::{build_plan::BuildPlan, compiled_package::CompiledPackageInfo},
     package_hooks::{self, PackageHooks, PackageIdentifier},
     resolution::resolution_graph::Package,
@@ -13,25 +19,21 @@ use move_package::{
         manifest_parser::parse_dependencies,
         parsed_manifest::{Dependencies, OnChainInfo, PackageDigest, SourceManifest},
     },
-    BuildConfig,
 };
 use move_symbol_pool::Symbol;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
-use tempfile::{tempdir, TempDir};
+use tempfile::{TempDir, tempdir};
 
-/// Resolve the package contained in the same directory as [path], and snapshot a value based
-/// on the extension of [path]:
+/// Resolve the package contained in the same directory as [path], and snapshot
+/// a value based on the extension of [path]:
 ///  - ".progress": the output of the progress indicator
 ///  - ".locked": the contents of the lockfile
 ///  - ".notlocked": the nonexistence of the lockfile
 ///  - ".compiled": the serialized [CompiledPackageInfo] after compilation
 ///  - ".resolved": the serialized [ResolvedGraph] after package resolution
 ///
-/// If a file named `path.with_extension("implicits")` exists, its contents are a toml file containing
-/// additional dependencies which are included as implicit dependencencies.
+/// If a file named `path.with_extension("implicits")` exists, its contents are
+/// a toml file containing additional dependencies which are included as
+/// implicit dependencencies.
 pub fn run_test(path: &Path) -> datatest_stable::Result<()> {
     if path.iter().any(|part| part == "deps_only") {
         return Ok(());
@@ -74,7 +76,8 @@ impl Test<'_> {
         Ok(())
     }
 
-    /// Return the value to be snapshotted, based on `self.kind`, as described in [run_test]
+    /// Return the value to be snapshotted, based on `self.kind`, as described
+    /// in [run_test]
     fn output(&self) -> anyhow::Result<String> {
         let out_path = self.output_dir.path().to_path_buf();
         let lock_path = out_path.join("Move.lock");

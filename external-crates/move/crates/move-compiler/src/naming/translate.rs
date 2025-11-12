@@ -1464,11 +1464,15 @@ impl std::fmt::Display for LoopType {
 
 impl std::fmt::Display for NominalBlockType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", match self {
-            NominalBlockType::Loop(_) => "loop",
-            NominalBlockType::Block => "named",
-            NominalBlockType::LambdaReturn | NominalBlockType::LambdaLoopCapture => "lambda",
-        })
+        write!(
+            f,
+            "{}",
+            match self {
+                NominalBlockType::Loop(_) => "loop",
+                NominalBlockType::Block => "named",
+                NominalBlockType::LambdaReturn | NominalBlockType::LambdaLoopCapture => "lambda",
+            }
+        )
     }
 }
 
@@ -2817,9 +2821,12 @@ fn exp(context: &mut Context, e: Box<E::Exp>) -> Box<N::Exp> {
         EE::Abort(Some(es)) => NE::Abort(exp(context, es)),
         EE::Abort(None) => {
             context.check_feature(context.current_package, FeatureGate::CleverAssertions, eloc);
-            let abort_const_expr = sp(eloc, N::Exp_::ErrorConstant {
-                line_number_loc: eloc,
-            });
+            let abort_const_expr = sp(
+                eloc,
+                N::Exp_::ErrorConstant {
+                    line_number_loc: eloc,
+                },
+            );
             NE::Abort(Box::new(abort_const_expr))
         }
         EE::Return(Some(block_name), es) => {
@@ -4042,9 +4049,12 @@ fn resolve_call(
                             FeatureGate::CleverAssertions,
                             subject_loc,
                         );
-                        args.value.push(sp(call_loc, N::Exp_::ErrorConstant {
-                            line_number_loc: subject_loc,
-                        }));
+                        args.value.push(sp(
+                            call_loc,
+                            N::Exp_::ErrorConstant {
+                                line_number_loc: subject_loc,
+                            },
+                        ));
                     }
                     B::Assert(is_macro)
                 }

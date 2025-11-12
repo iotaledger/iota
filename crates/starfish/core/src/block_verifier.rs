@@ -100,12 +100,7 @@ impl BlockVerifier for SignedBlockVerifier {
         if block.round() == 0 {
             return Err(ConsensusError::UnexpectedGenesisHeader);
         }
-        if !committee.is_valid_index(block.author()) {
-            return Err(ConsensusError::InvalidAuthorityIndex {
-                index: block.author(),
-                max: committee.size() - 1,
-            });
-        }
+        ConsensusError::quick_validation_authority_indices(&[block.author()], committee)?;
 
         // Verify the block's signature.
         block.verify_signature(&self.context)?;
@@ -127,12 +122,7 @@ impl BlockVerifier for SignedBlockVerifier {
         let mut seen_ancestors = vec![false; committee.size()];
         let mut parent_stakes = 0;
         for (i, ancestor) in block.ancestors().iter().enumerate() {
-            if !committee.is_valid_index(ancestor.author) {
-                return Err(ConsensusError::InvalidAuthorityIndex {
-                    index: ancestor.author,
-                    max: committee.size() - 1,
-                });
-            }
+            ConsensusError::quick_validation_authority_indices(&[block.author()], committee)?;
             if (i == 0 && ancestor.author != block.author())
                 || (i > 0 && ancestor.author == block.author())
             {

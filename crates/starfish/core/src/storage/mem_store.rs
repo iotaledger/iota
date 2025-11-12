@@ -7,6 +7,7 @@ use std::{
     ops::Bound::Included,
 };
 
+use bytes::Bytes;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 
@@ -99,7 +100,7 @@ impl Store for MemStore {
         Ok(())
     }
 
-    fn read_transactions(
+    fn read_verified_transactions(
         &self,
         refs: &[BlockRef],
     ) -> ConsensusResult<Vec<Option<VerifiedTransactions>>> {
@@ -116,6 +117,23 @@ impl Store for MemStore {
         Ok(transactions)
     }
 
+    fn read_serialized_transactions(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<Bytes>>> {
+        let inner = self.inner.read();
+        let transactions = refs
+            .iter()
+            .map(|r| {
+                inner
+                    .transactions
+                    .get(&(r.round, r.author, r.digest))
+                    .map(|tx| tx.serialized().clone())
+            })
+            .collect();
+        Ok(transactions)
+    }
+
     // TODO: Do we need this method or will DAGState always try to read both headers
     // and transactions separately?
     fn read_blocks(&self, refs: &[BlockRef]) -> ConsensusResult<Vec<Option<VerifiedBlock>>> {
@@ -123,8 +141,8 @@ impl Store for MemStore {
         // transactions reads
         let inner = self.inner.read();
         // Get both headers and transactions for the given references
-        let headers = self.read_block_headers(refs)?;
-        let transactions = self.read_transactions(refs)?;
+        let headers = self.read_verified_block_headers(refs)?;
+        let transactions = self.read_verified_transactions(refs)?;
         drop(inner); // Explicitly drop the read lock before combining results
 
         // Combine them into blocks if both parts exist
@@ -211,7 +229,7 @@ impl Store for MemStore {
         Ok(blocks)
     }
 
-    fn read_block_headers(
+    fn read_verified_block_headers(
         &self,
         refs: &[BlockRef],
     ) -> ConsensusResult<Vec<Option<VerifiedBlockHeader>>> {
@@ -226,6 +244,23 @@ impl Store for MemStore {
             })
             .collect();
         Ok(block_headers)
+    }
+
+    fn read_serialized_block_headers(
+        &self,
+        refs: &[BlockRef],
+    ) -> ConsensusResult<Vec<Option<Bytes>>> {
+        let inner = self.inner.read();
+        let serialized_headers = refs
+            .iter()
+            .map(|r| {
+                inner
+                    .block_headers
+                    .get(&(r.round, r.author, r.digest))
+                    .map(|header| header.serialized().clone())
+            })
+            .collect();
+        Ok(serialized_headers)
     }
 
     fn contains_block_at_slot(&self, slot: Slot) -> ConsensusResult<bool> {

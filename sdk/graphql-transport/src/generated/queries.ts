@@ -4826,7 +4826,7 @@ export type Shared = {
 export type SharedInput = {
   __typename?: 'SharedInput';
   address: Scalars['IotaAddress']['output'];
-  /** The version that this this object was shared at. */
+  /** The version at which this object was shared.​ */
   initialSharedVersion: Scalars['UInt53']['output'];
   /**
    * Controls whether the transaction block can reference the shared object
@@ -5187,7 +5187,7 @@ export type StorageFund = {
    * storage rebates.
    *
    * The system maintains an invariant that the sum of all storage fees into
-   * the storage fund is equal to the sum of of all storage rebates out,
+   * the storage fund is equal to the sum of all storage rebates out,
    * the total storage rebates remaining, and the non-refundable balance.
    */
   nonRefundableBalance?: Maybe<Scalars['BigInt']['output']>;

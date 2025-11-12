@@ -100,6 +100,8 @@ impl GasPriceFeedbackTester {
                 .set_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing(
                     max_execution_duration_per_commit,
                 );
+            // Set the allowed overshoot to 0 to simplify the test.
+            protocol_config.set_max_congestion_limit_overshoot_per_commit_for_testing(0);
         } else {
             protocol_config
                 .disable_max_accumulated_txn_cost_per_object_in_mysticeti_commit_for_testing();

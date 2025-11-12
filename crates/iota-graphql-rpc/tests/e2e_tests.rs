@@ -142,7 +142,6 @@ mod tests {
 
         let exp = format!("{{\"data\":{{\"chainIdentifier\":\"{chain_id_actual}\"}}}}");
         assert_eq!(&format!("{res}"), &exp);
-        cluster.cleanup_resources().await
     }
 
     #[tokio::test]
@@ -392,8 +391,6 @@ mod tests {
         })
         .await
         .unwrap();
-
-        cluster.cleanup_resources().await
     }
 
     #[tokio::test]
@@ -407,7 +404,6 @@ mod tests {
         assert!(
             !query_is_transaction_indexed_on_node(&cluster.graphql_client, digest.as_str()).await
         );
-        cluster.cleanup_resources().await
     }
 
     #[tokio::test]
@@ -540,8 +536,6 @@ mod tests {
             count, 1,
             "Transaction should be present in optimistic_transactions table"
         );
-
-        cluster.cleanup_resources().await
     }
 
     #[tokio::test]
@@ -664,7 +658,6 @@ mod tests {
         let binding = res.response_body().data.clone().into_json().unwrap();
         let res = binding.get("verifyZkloginSignature").unwrap();
         assert_eq!(res.get("success").unwrap(), false);
-        cluster.cleanup_resources().await
     }
 
     // TODO: add more test cases for transaction execution/dry run in transactional
@@ -753,7 +746,6 @@ mod tests {
         let indexed_on_node = tx.get("indexedOnNode").unwrap().as_bool().unwrap();
         assert!(!indexed_on_node);
         assert!(res.get("results").unwrap().is_array());
-        cluster.cleanup_resources().await
     }
 
     // Test dry run where the transaction kind is provided instead of the full
@@ -825,7 +817,6 @@ mod tests {
         // running the trasanction in which case the sender is null.
         assert!(sender_read.is_null());
         assert!(res.get("results").unwrap().is_array());
-        cluster.cleanup_resources().await
     }
 
     // Test that we can handle dry run with failures at execution stage too.
@@ -915,8 +906,6 @@ mod tests {
                 .unwrap()
                 .contains("UnusedValueWithoutDrop")
         );
-
-        cluster.cleanup_resources().await
     }
 
     #[tokio::test]
@@ -961,7 +950,6 @@ mod tests {
                 .unwrap()
                 .is_null()
         );
-        cluster.cleanup_resources().await
     }
 
     use iota_graphql_rpc::server::builder::tests::*;
@@ -976,7 +964,6 @@ mod tests {
             .wait_for_checkpoint_catchup(0, Duration::from_secs(10))
             .await;
         test_timeout_impl(&cluster).await;
-        cluster.cleanup_resources().await
     }
 
     #[tokio::test]
@@ -1024,6 +1011,5 @@ mod tests {
             .wait_for_checkpoint_catchup(0, Duration::from_secs(10))
             .await;
         test_health_check_impl().await;
-        cluster.cleanup_resources().await
     }
 }

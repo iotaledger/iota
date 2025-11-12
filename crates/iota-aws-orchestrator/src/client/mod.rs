@@ -13,6 +13,29 @@ use super::error::CloudProviderResult;
 
 pub mod aws;
 
+#[derive(Debug, Deserialize, Clone, Eq, PartialEq, Hash)]
+pub enum InstanceRole {
+    Node,
+    Client,
+    Metrics,
+}
+
+impl Display for InstanceRole {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+impl From<&str> for InstanceRole {
+    fn from(role: &str) -> Self {
+        match role {
+            "Node" => InstanceRole::Node,
+            "Client" => InstanceRole::Client,
+            "Metrics" => InstanceRole::Metrics,
+            _ => unreachable!(),
+        }
+    }
+}
 /// Represents a cloud provider instance.
 #[derive(Debug, Deserialize, Clone, Eq, PartialEq, Hash)]
 pub struct Instance {
@@ -30,6 +53,8 @@ pub struct Instance {
     pub specs: String,
     /// The current status of the instance.
     pub status: String,
+    // The role of the instance. "Node" | "Client" | "Metrics"
+    pub role: InstanceRole,
 }
 
 impl Instance {
@@ -41,6 +66,11 @@ impl Instance {
     /// Return whether the instance is inactive and not ready for use.
     pub fn is_inactive(&self) -> bool {
         !self.is_active()
+    }
+
+    // Return whether the instance is able to be started
+    pub fn is_stopped(&self) -> bool {
+        self.status.to_lowercase() == "stopped"
     }
 
     /// Return whether the instance is terminated and in the process of being
@@ -64,6 +94,7 @@ impl Instance {
             tags: Default::default(),
             specs: Default::default(),
             status: Default::default(),
+            role: InstanceRole::Node,
         }
     }
 }
@@ -73,8 +104,17 @@ pub trait ServerProviderClient: Display {
     /// The username used to connect to the instances.
     const USERNAME: &'static str;
 
-    /// List all existing instances (regardless of their status).
-    async fn list_instances(&self) -> CloudProviderResult<Vec<Instance>>;
+    /// List all existing instances (regardless of their status) filtered by
+    /// role.
+    async fn list_instances_by_role(
+        &self,
+        role: InstanceRole,
+    ) -> CloudProviderResult<Vec<Instance>>;
+
+    async fn list_instances_by_region_and_ids(
+        &self,
+        ids: Vec<(String, String)>,
+    ) -> CloudProviderResult<Vec<Instance>>;
 
     /// Start the specified instances.
     async fn start_instances<'a, I>(&self, instances: I) -> CloudProviderResult<()>
@@ -88,7 +128,11 @@ pub trait ServerProviderClient: Display {
         I: Iterator<Item = &'a Instance> + Send;
 
     /// Create an instance in a specific region.
-    async fn create_instance<S>(&self, region: S) -> CloudProviderResult<Instance>
+    async fn create_instance<S>(
+        &self,
+        region: S,
+        role: InstanceRole,
+    ) -> CloudProviderResult<Instance>
     where
         S: Into<String> + Serialize + Send;
 
@@ -101,6 +145,9 @@ pub trait ServerProviderClient: Display {
 
     /// Return provider-specific commands to setup the instance.
     async fn instance_setup_commands(&self) -> CloudProviderResult<Vec<String>>;
+
+    #[cfg(test)]
+    fn instances(&self) -> Vec<Instance>;
 }
 
 #[cfg(test)]
@@ -109,7 +156,7 @@ pub mod test_client {
 
     use serde::Serialize;
 
-    use super::{Instance, ServerProviderClient};
+    use super::{Instance, InstanceRole, ServerProviderClient};
     use crate::{error::CloudProviderResult, settings::Settings};
 
     pub struct TestClient {
@@ -136,9 +183,24 @@ pub mod test_client {
     impl ServerProviderClient for TestClient {
         const USERNAME: &'static str = "root";
 
-        async fn list_instances(&self) -> CloudProviderResult<Vec<Instance>> {
+        async fn list_instances_by_role(
+            &self,
+            _role: InstanceRole,
+        ) -> CloudProviderResult<Vec<Instance>> {
             let guard = self.instances.lock().unwrap();
             Ok(guard.clone())
+        }
+        async fn list_instances_by_region_and_ids(
+            &self,
+            regions_and_ids: Vec<(String, String)>,
+        ) -> CloudProviderResult<Vec<Instance>> {
+            let guard = self.instances.lock().unwrap();
+            let instances_by_ids = guard
+                .iter()
+                .filter(|x| regions_and_ids.contains(&(x.region.clone(), x.id.clone())))
+                .cloned()
+                .collect::<Vec<_>>();
+            Ok(instances_by_ids)
         }
 
         async fn start_instances<'a, I>(&self, instances: I) -> CloudProviderResult<()>
@@ -165,7 +227,11 @@ pub mod test_client {
             Ok(())
         }
 
-        async fn create_instance<S>(&self, region: S) -> CloudProviderResult<Instance>
+        async fn create_instance<S>(
+            &self,
+            region: S,
+            role: InstanceRole,
+        ) -> CloudProviderResult<Instance>
         where
             S: Into<String> + Serialize + Send,
         {
@@ -177,8 +243,9 @@ pub mod test_client {
                 main_ip: format!("0.0.0.{id}").parse().unwrap(),
                 private_ip: format!("0.0.0.{id}").parse().unwrap(),
                 tags: Vec::new(),
-                specs: self.settings.specs.clone(),
+                specs: self.settings.node_specs.clone(),
                 status: "running".into(),
+                role,
             };
             guard.push(instance.clone());
             Ok(instance)
@@ -196,6 +263,9 @@ pub mod test_client {
 
         async fn instance_setup_commands(&self) -> CloudProviderResult<Vec<String>> {
             Ok(Vec::new())
+        }
+        fn instances(&self) -> Vec<Instance> {
+            self.instances.lock().unwrap().clone()
         }
     }
 }

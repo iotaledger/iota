@@ -362,7 +362,7 @@ impl DagBuilder {
                 // TODO: we need to request real blocks from sub_dag after we add the
                 // corresponding field and logic in sub_dag
                 let mut block_headers = vec![];
-                for block_header in sub_dag.blocks.iter() {
+                for block_header in sub_dag.headers.iter() {
                     block_headers.push(block_header.clone());
                 }
 
@@ -741,7 +741,7 @@ impl<'a> LayerBuilder<'a> {
         assert!(self.specified_authorities.is_some());
         self.skip_ancestor_links = Some(ancestors_to_skip);
         self.fully_linked_ancestors = false;
-        self.build()
+        self
     }
 
     // Add random weak links to the current layer round using a seed, if provided
