@@ -1603,6 +1603,7 @@ export type EventEdge = {
   node: Event;
 };
 
+/** Represents optional available filters for events. */
 export type EventFilter = {
   /**
    * Events emitted by a particular module. An event is emitted by a
@@ -1626,7 +1627,12 @@ export type EventFilter = {
    * `0x2::coin::Coin<0x2::iota::IOTA>`.
    */
   eventType?: InputMaybe<Scalars['String']['input']>;
+  /** Filter down to events from transactions sent by this address. */
   sender?: InputMaybe<Scalars['IotaAddress']['input']>;
+  /**
+   * Filter down to the events from this transaction (given by its
+   * transaction digest).
+   */
   transactionDigest?: InputMaybe<Scalars['String']['input']>;
 };
 
@@ -3861,11 +3867,8 @@ export type ObjectFilter = {
   /** Filter for live objects by their current owners. */
   owner?: InputMaybe<Scalars['IotaAddress']['input']>;
   /**
-   * This field is used to specify the type of objects that should be
-   * included in the query results.
-   *
-   * Objects can be filtered by their type's package, package::module, or
-   * their fully qualified type name.
+   * Filter objects by their type's `package`, `package::module`, or their
+   * fully qualified type name.
    *
    * Generic types can be queried by either the generic type name, e.g.
    * `0x2::coin::Coin`, or by the full type name, such as
@@ -5426,21 +5429,37 @@ export type TransactionBlockEffectsUnchangedSharedObjectsArgs = {
   last?: InputMaybe<Scalars['Int']['input']>;
 };
 
+/** Represents optional available filters for transaction blocks. */
 export type TransactionBlockFilter = {
+  /** Limit to transactions that occurred strictly after the given checkpoint. */
   afterCheckpoint?: InputMaybe<Scalars['UInt53']['input']>;
+  /** Limit to transactions in the given checkpoint. */
   atCheckpoint?: InputMaybe<Scalars['UInt53']['input']>;
+  /** Limit to transaction that occurred strictly before the given checkpoint. */
   beforeCheckpoint?: InputMaybe<Scalars['UInt53']['input']>;
+  /** Limit to transactions that output a version of this object. */
   changedObject?: InputMaybe<Scalars['IotaAddress']['input']>;
+  /**
+   * Filter transactions by move function called.
+   *
+   * Calls can be filtered by the `package`, `package::module`, or the
+   * `package::module::name` of their function.
+   */
   function?: InputMaybe<Scalars['String']['input']>;
+  /** Limit to transactions that accepted the given object as an input. */
   inputObject?: InputMaybe<Scalars['IotaAddress']['input']>;
   /**
    * An input filter selecting for either system or programmable
    * transactions.
    */
   kind?: InputMaybe<TransactionBlockKindInput>;
+  /** Limit to transactions that sent an object to the given address. */
   recvAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
+  /** Limit to transactions that were signed by the given address. */
   signAddress?: InputMaybe<Scalars['IotaAddress']['input']>;
+  /** Select transactions by their digest. */
   transactionIds?: InputMaybe<Array<Scalars['String']['input']>>;
+  /** Limit to transactions that wrapped or deleted the given object. */
   wrappedOrDeletedObject?: InputMaybe<Scalars['IotaAddress']['input']>;
 };
 
