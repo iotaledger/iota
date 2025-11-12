@@ -924,7 +924,9 @@ fun test_authenticate_threshold_changed_during_update() {
 
 // --------------------------------------- Test Utilities ---------------------------------------
 
-fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
+fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<
+    DynamicMultisigAccount,
+> {
     account::create_auth_info_v1_for_testing(
         @0x1,
         ascii::string(b"module"),
@@ -932,7 +934,9 @@ fun create_default_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
     )
 }
 
-fun create_authenticator_info_v1_for_testing(function: vector<u8>): AuthenticatorInfoV1 {
+fun create_authenticator_info_v1_for_testing(
+    function: vector<u8>,
+): AuthenticatorInfoV1<DynamicMultisigAccount> {
     account::create_auth_info_v1_for_testing(
         @0x1,
         ascii::string(function),

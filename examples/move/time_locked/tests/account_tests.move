@@ -175,7 +175,7 @@ fun account_unlocked() {
 
 // --------------------------------------- Test Utilities ---------------------------------------
 
-fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
+fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<time_locked::TimeLocked> {
     iota::account::create_auth_info_v1_for_testing(
         @0x1,
         ascii::string(b"time_locked"),

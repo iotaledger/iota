@@ -45,7 +45,11 @@ public struct OwnerPublicKey has copy, drop, store {}
 /// - `authenticate_ed25519`
 /// - `authenticate_secp256k1`
 /// - `authenticate_secp256r1`
-public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
+public fun create(
+    public_key: vector<u8>,
+    authenticator: AuthenticatorInfoV1<IOTAccount>,
+    ctx: &mut TxContext,
+) {
     let account = iotaccount::builder(authenticator, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
         .finish();
@@ -109,7 +113,7 @@ public fun authenticate_secp256r1(
 public fun rotate_public_key(
     account: &mut IOTAccount,
     public_key: vector<u8>,
-    authenticator: AuthenticatorInfoV1,
+    authenticator: AuthenticatorInfoV1<IOTAccount>,
     ctx: &TxContext,
 ) {
     // Update the account owner public key dynamic field. It is expected that the field already exists.
