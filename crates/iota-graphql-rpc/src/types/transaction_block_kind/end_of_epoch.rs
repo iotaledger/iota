@@ -60,7 +60,11 @@ pub(crate) struct ChangeEpochTransaction {
     pub checkpoint_viewed_at: u64,
 }
 
-// System transaction for advancing the epoch.
+/// System transaction for advancing the epoch.
+///
+/// This represents all native `ChangeEpochTransaction{V2,V3,V4}` versions, by
+/// using optional fields to extend on existing fields in a backward compatible
+/// manner.
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) struct ChangeEpochTransactionV2 {
     /// The next (to become) epoch ID.
