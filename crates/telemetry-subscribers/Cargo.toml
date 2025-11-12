@@ -7,6 +7,9 @@ license = "Apache-2.0"
 publish = false
 description = "Library for common telemetry and observability functionality"
 
+[lints]
+workspace = true
+
 [dependencies]
 atomic_float = "1.0"
 bytes.workspace = true

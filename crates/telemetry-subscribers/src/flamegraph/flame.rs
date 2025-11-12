@@ -9,12 +9,21 @@ use std::{
 };
 
 use parking_lot::{Mutex, RwLock};
+#[cfg(msim)]
+use tokio::task::runtime_task::try_id;
+#[cfg(not(msim))]
+use tokio::task::try_id;
 
 pub use super::{arena::NodeId, callgraph::FrameLabel};
 use super::{
     callgraph::CallGraph,
     metric::{MergeMetrics, SpanMetrics},
 };
+
+#[cfg(not(msim))]
+type TaskId = tokio::task::Id;
+#[cfg(msim)]
+type TaskId = tokio::task::runtime_task::Id;
 
 /// Some async fns run inside tokio runtime as tasks and are assigned task IDs.
 /// Other async fns run inside tokio runtime but are not assigned task IDs; we
@@ -23,12 +32,12 @@ use super::{
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum Tid {
     ThreadId(std::thread::ThreadId),
-    TaskId(tokio::task::Id),
+    TaskId(TaskId),
 }
 impl Tid {
     /// Get the Tid based on current tokio task or thread.
     pub fn current() -> Tid {
-        tokio::task::try_id()
+        try_id()
             .map(Tid::TaskId)
             .unwrap_or_else(|| Tid::ThreadId(std::thread::current().id()))
     }
