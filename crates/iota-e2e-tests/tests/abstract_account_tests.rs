@@ -132,6 +132,7 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
         &tx_data,
         Intent::iota_transaction(),
     )?);
+
     // AA signature
     let aa_signature = test_env.create_move_authenticator_for_free_access()?;
 
@@ -427,11 +428,7 @@ impl TestEnvironment {
         .collect();
         let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_for_testing(
-                vec![self_call_arg.clone(), signature_call_arg],
-                vec![],
-                self_call_arg,
-            ),
+            MoveAuthenticator::new_for_testing(vec![signature_call_arg], vec![], self_call_arg),
         ))
     }
 
@@ -451,7 +448,7 @@ impl TestEnvironment {
             mutable: false,
         });
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_for_testing(vec![self_call_arg.clone()], vec![], self_call_arg),
+            MoveAuthenticator::new_for_testing(vec![], vec![], self_call_arg),
         ))
     }
 

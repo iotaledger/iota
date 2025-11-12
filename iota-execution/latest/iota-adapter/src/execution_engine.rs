@@ -1878,18 +1878,26 @@ mod checked {
     /// Construct a PTB with a single move call. This calls the authenticator
     /// function found in `AuthenticatorInfo`. The inputs for the function are
     /// found in `MoveAuthenticator`.
+    /// `MoveAuthenticator::object_to_authenticate` is added as the first
+    /// argument to the created PTB, followed by all arguments in
+    /// `MoveAuthenticator::call_args`.
     fn setup_authenticator_move_call(
         authenticator: MoveAuthenticator,
         authenticator_info: AuthenticatorInfoV1,
     ) -> Result<ProgrammableTransaction, ExecutionError> {
         let mut builder = ProgrammableTransactionBuilder::new();
 
+        let mut args = vec![authenticator.object_to_authenticate().to_owned()];
+        args.extend(authenticator.call_args().to_owned());
+
         let res = builder.move_call(
             authenticator_info.package,
-            Identifier::new(authenticator_info.module.clone()).unwrap(),
-            Identifier::new(authenticator_info.function.clone()).unwrap(),
+            Identifier::new(authenticator_info.module.clone())
+                .expect("`AuthenticatorInfoV1::module` is expected to be a valid `Identifier`"),
+            Identifier::new(authenticator_info.function.clone())
+                .expect("`AuthenticatorInfoV1::function` is expected to be a valid `Identifier`"),
             authenticator.type_arguments().to_owned(),
-            authenticator.call_args().to_owned(),
+            args,
         );
 
         assert_invariant!(
