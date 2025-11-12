@@ -162,7 +162,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
 pub struct CommitterWatermark {
     /// Highest epoch written for given table. Doesn't mean that data for the
-    /// whole epoch is persisted as it stil may be in progress.
+    /// whole epoch is persisted as it still may be in progress.
     pub epoch_hi_inclusive: u64,
     /// Highest checkpoint for which all data is already written for given
     /// table.
