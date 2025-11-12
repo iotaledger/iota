@@ -7,7 +7,7 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use std::collections::HashSet;
+
 use ahash::{AHashMap, AHashSet};
 use bytes::Bytes;
 use parking_lot::RwLock;
@@ -33,7 +33,7 @@ use crate::{
 /// Maximum round gap to consider a peer's useful shards/headers as still
 /// relevant. 40 rounds correspond to at least 2 second due to the minimum block
 /// delay
-const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 40;
+const MAX_ROUND_GAP_FOR_USEFUL_PARTS: Round = 100;
 
 /// Represents a subset of authorities using a bitmask.
 /// Each bit in the `low` and `high` fields corresponds to an authority index.
@@ -355,7 +355,7 @@ impl DisseminationWorker {
                 if start >= end || start >= aggregated.len() {
                     continue; // Skip invalid/empty chunk
                 }
-                let msgs_chunk = aggregated.drain(0..end-start).collect::<Vec<_>>();
+                let msgs_chunk = aggregated.drain(0..end - start).collect::<Vec<_>>();
                 if let Err(e) = worker_senders[i].send(WorkerMsg { start, msgs_chunk }) {
                     debug!("Failed to send WorkerMsg to worker {}: {:?}", i, e);
                 }
@@ -405,7 +405,7 @@ impl CordialKnowledge {
                 dissemination_sender,
                 cordial_knowledge: vec![BTreeMap::new(); num_authorities],
                 last_useful_shards_from_peer_round: vec![None; num_authorities],
-                connection_knowledges: connection_knowledges.clone()
+                connection_knowledges: connection_knowledges.clone(),
             },
             connection_knowledges,
             cordial_knowledge_sender,
@@ -483,15 +483,14 @@ impl CordialKnowledge {
         }
 
         loop {
-
             match self.cordial_knowledge_receiver.recv().await {
                 Some(msg) => {
                     let mut batch = vec![msg];
                     while let Ok(msg) = self.cordial_knowledge_receiver.try_recv() {
                         batch.push(msg);
-                        if batch.len() >= 10 {
-                            break;
-                        }
+                        //if batch.len() >= 10 {
+                        //    break;
+                        //}
                     }
                     // Report the buffer size after processing the first message
                     self.context
@@ -506,7 +505,9 @@ impl CordialKnowledge {
 
                     for msg in batch {
                         if let Some(vec_connection_knowledge_msgs) = self.process_message(msg) {
-                            for (index, msgs) in vec_connection_knowledge_msgs.into_iter().enumerate() {
+                            for (index, msgs) in
+                                vec_connection_knowledge_msgs.into_iter().enumerate()
+                            {
                                 vec_connection_knowledge_msgs_batch[index].extend(msgs);
                             }
                         }
@@ -520,7 +521,9 @@ impl CordialKnowledge {
                         if start >= end || start >= num_connections {
                             continue; // Skip invalid/empty chunk
                         }
-                        let msgs_chunk = vec_connection_knowledge_msgs_batch.drain(0..end-start).collect::<Vec<_>>();
+                        let msgs_chunk = vec_connection_knowledge_msgs_batch
+                            .drain(0..end - start)
+                            .collect::<Vec<_>>();
                         if let Err(e) = worker_senders[i].send(WorkerMsg { start, msgs_chunk }) {
                             debug!("Failed to send WorkerMsg to worker {}: {:?}", i, e);
                         }
@@ -537,7 +540,10 @@ impl CordialKnowledge {
     }
 
     /// Processes a single high-level cordial knowledge message.
-    fn process_message(&mut self, cordial_knowledge_message: CordialKnowledgeMessage) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
+    fn process_message(
+        &mut self,
+        cordial_knowledge_message: CordialKnowledgeMessage,
+    ) -> Option<Vec<Vec<ConnectionKnowledgeMessage>>> {
         // Report the type of message
         self.context
             .metrics
@@ -547,16 +553,15 @@ impl CordialKnowledge {
             .inc();
 
         // Handle the cordial knowledge message depending on its type
-        let vec_connection_knowledge_msgs = match cordial_knowledge_message {
+
+        match cordial_knowledge_message {
             CordialKnowledgeMessage::NewHeader(header) => self.update_cordial_knowledge(&header),
             CordialKnowledgeMessage::NewShard(block_ref) => self.prepare_new_shard_msgs(block_ref),
             CordialKnowledgeMessage::EvictBelow(round) => self.handle_evict_below(round),
             CordialKnowledgeMessage::UsefulShardsFromPeers(useful_shards_from_peer) => {
                 self.handle_useful_shards_from(useful_shards_from_peer)
             }
-        };
-        vec_connection_knowledge_msgs
-
+        }
     }
 
     // Helper function to update authority rounds if the new round is greater
@@ -1046,8 +1051,8 @@ impl ConnectionKnowledge {
     pub fn create_bundle(&mut self, block: VerifiedBlock) -> BlockBundle {
         let block_round = block.round();
         // Try to update ancestors since they can be still not updated
-        for ancestor_block_refs in block.ancestors() {
-            self.handle_new_header(*ancestor_block_refs);
+        for ancestor_block_ref in block.ancestors() {
+            self.handle_new_header(*ancestor_block_ref);
         }
         // 1. Own headers and shards for round up to round_upper_bound_exclusive should
         //    be marked as known

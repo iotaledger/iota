@@ -17,7 +17,6 @@ use iota_macros::fail_point_async;
 use parking_lot::RwLock;
 use starfish_config::AuthorityIndex;
 use tokio::sync::{Mutex, broadcast, mpsc::Sender};
-use tokio::time::sleep;
 use tokio_util::sync::ReusableBoxFuture;
 use tracing::{debug, info, warn};
 
@@ -549,6 +548,12 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .add_block_headers(additional_block_headers.clone())
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
+        self.context
+            .metrics
+            .node_metrics
+            .missing_ancestors_from_streaming
+            .with_label_values(&["headers"])
+            .observe(missing_ancestors.len() as f64);
 
         // 10. Add the block to dag, add its missing ancestors to the set
         let (missing_block_ancestors, missing_block_committed_transactions) = self
@@ -556,9 +561,23 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .add_blocks(vec![verified_block])
             .await
             .map_err(|_| ConsensusError::Shutdown)?;
+        self.context
+            .metrics
+            .node_metrics
+            .missing_ancestors_from_streaming
+            .with_label_values(&["block"])
+            .observe(missing_block_ancestors.len() as f64);
 
         missing_ancestors.extend(missing_block_ancestors);
         missing_committed_txns.extend(missing_block_committed_transactions);
+
+        for missing_block_ref in missing_ancestors.iter() {
+            self.context
+                .metrics
+                .node_metrics
+                .missing_ancestors_from_streaming_round_gap
+                .observe(block_ref.round as f64 - missing_block_ref.round as f64);
+        }
 
         // 11. Add our shard from the received block and its proof to the dag_state
         // only if it contains transactions
@@ -650,11 +669,10 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         // new blocks.
         Ok(Box::pin(missed_blocks.chain({
             broadcasted_blocks.filter_map(move |block| {
-
                 let context = context.clone();
                 let connection_knowledge = connection_knowledge.clone();
                 async move {
-                    //tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                    // tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     let ts = block.timestamp_ms();
 
                     let block_bundle = {

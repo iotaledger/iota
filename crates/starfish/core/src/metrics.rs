@@ -163,6 +163,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) received_unique_headers_from_bundles: IntCounterVec,
     pub(crate) processed_duplicated_headers_in_bundles: IntCounterVec,
     pub(crate) valid_shards_in_bundles: IntCounterVec,
+    pub(crate) missing_ancestors_from_streaming: HistogramVec,
+    pub(crate) missing_ancestors_from_streaming_round_gap: Histogram,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) skipped_empty_transaction_acknowledgments: IntCounterVec,
     pub(crate) subscribed_block_bundles: IntCounterVec,
@@ -467,6 +469,7 @@ impl NodeMetrics {
             cordial_knowledge_buffer_size: register_histogram_with_registry!(
                 "cordial_knowledge_buffer_size",
                 "Size of the cordial knowledge buffer received",
+                vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
             cordial_knowledge_worker_batch_size: register_histogram_with_registry!(
@@ -633,6 +636,19 @@ impl NodeMetrics {
                 &["authority", "source"],
                 registry,
             ).unwrap(),
+            missing_ancestors_from_streaming: register_histogram_vec_with_registry!(
+                "missing_ancestors_from_streaming",
+                "Number of missing ancestors of blocks and headers received through streaming",
+                &["source"],
+                registry,
+            ).unwrap(),
+            missing_ancestors_from_streaming_round_gap: register_histogram_with_registry!(
+                "missing_ancestors_from_streaming_round_gap",
+                "Round gap to missing ancestors of blocks and headers received through streaming",
+                registry,
+            ).unwrap(),
+
+
             rejected_blocks: register_int_counter_vec_with_registry!(
                 "rejected_blocks",
                 "Number of blocks rejected because last commit index is lagging quorum commit index too much",
