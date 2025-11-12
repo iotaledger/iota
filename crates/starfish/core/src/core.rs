@@ -495,7 +495,7 @@ impl Core {
             .collect();
 
         if !all_transactions.is_empty() {
-            self.add_transactions(all_transactions, TransactionSource::TransactionSynchronizer)?;
+            self.add_transactions(all_transactions, TransactionSource::CommitSyncer)?;
         }
 
         // Then collect and add block headers.

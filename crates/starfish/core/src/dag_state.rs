@@ -53,6 +53,10 @@ pub(crate) enum TransactionSource {
     /// have been collected to reconstruct it.
     ShardReconstructor,
 
+    /// Transactions received via commit synchronization. Transactions are
+    /// fetched for all the committed blocks in synced commits.
+    CommitSyncer,
+
     /// Data added during testing.
     /// Only used in test code.
     #[cfg(test)]
