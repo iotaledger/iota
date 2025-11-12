@@ -1496,11 +1496,11 @@ public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx:
 ```
 
 - Authenticator Inputs (--auth-inputs)
-The authenticator inputs (e.g., x"...") represent any required verification payloads, such as a user signature or session data.
-These values are passed into the MoveAuthenticator automatically and used by the Move runtime during authentication.
+  The authenticator inputs (e.g., x"...") represent any required verification payloads, such as a user signature or session data.
+  These values are passed into the MoveAuthenticator automatically and used by the Move runtime during authentication.
 - PTB Inputs (--ptb-inputs)
-These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
-The PTB commands (//> ...) operate as in the programmable command.
+  These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
+  The PTB commands (//> ...) operate as in the programmable command.
 
 `.snap` output:
 
