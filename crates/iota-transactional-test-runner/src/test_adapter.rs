@@ -1628,28 +1628,26 @@ impl IotaTestAdapter {
     ) -> Transaction {
         let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
 
-        let payment_refs = self.get_payments(&sponsor, payment);
+        let payment_refs = self.get_payments(sponsor, payment);
 
         let data = txn_data(sender.address, sponsor.address, payment_refs);
 
         if let Some(aa_sig) = aa_sig {
             let sponsor_keypair = sponsor.key_pair.as_ref().map(|v| v as &dyn Signer<_>);
             to_sender_signed_transaction_with_optional_sponsor(data, aa_sig, sponsor_keypair)
+        } else if sender.address == sponsor.address {
+            to_sender_signed_transaction(
+                data,
+                sender.key_pair.as_ref().expect("Sender key pair missing"),
+            )
         } else {
-            if sender.address == sponsor.address {
-                to_sender_signed_transaction(
-                    data,
+            to_sender_signed_transaction_with_multi_signers(
+                data,
+                vec![
                     sender.key_pair.as_ref().expect("Sender key pair missing"),
-                )
-            } else {
-                to_sender_signed_transaction_with_multi_signers(
-                    data,
-                    vec![
-                        sender.key_pair.as_ref().expect("Sender key pair missing"),
-                        sponsor.key_pair.as_ref().expect("Sponsor key pair missing"),
-                    ],
-                )
-            }
+                    sponsor.key_pair.as_ref().expect("Sponsor key pair missing"),
+                ],
+            )
         }
     }
 
