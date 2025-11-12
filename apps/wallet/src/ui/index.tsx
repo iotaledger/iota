@@ -70,8 +70,10 @@ function renderApp() {
 }
 
 function AppWrapper() {
-    const network = useAppSelector(({ app: { network, customRpc } }) => `${network}_${customRpc}`);
     const isFullscreen = useAppSelector((state) => state.app.appType === AppType.Fullscreen);
+    const { network, customRpc } = useAppSelector((state) => state.app);
+    const networkKey = `${network}_${customRpc}`;
+
     return (
         <GrowthBookProvider growthbook={growthbook}>
             <HashRouter>
@@ -81,7 +83,7 @@ function AppWrapper() {
                      * the RPC client instance (api.instance.fullNode) is updated correctly. In the future, we should look into
                      * making the API provider instance a reactive value and moving it out of the redux-thunk middleware
                      */}
-                    <Fragment key={network}>
+                    <Fragment key={networkKey}>
                         <PersistQueryClientProvider
                             client={queryClient}
                             persistOptions={{
@@ -145,6 +147,6 @@ function AppWrapper() {
 (async () => {
     await init();
     initSentry();
-    initAmplitude();
+    await initAmplitude();
     renderApp();
 })();

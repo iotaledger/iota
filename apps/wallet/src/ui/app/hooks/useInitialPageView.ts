@@ -21,11 +21,8 @@ export function useInitialPageView() {
     const isFullScreen = appType === AppType.Fullscreen;
 
     useEffect(() => {
-        ampli.identify(undefined);
         setNetworkGroup(network, customRpc);
-    }, [network, customRpc]);
 
-    useEffect(() => {
         ampli.openedWalletExtension({
             activeNetwork,
             activeAccountType: activeAccount?.type,
