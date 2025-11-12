@@ -58,7 +58,7 @@
 //!
 //! When postgres picks a poor query plan, it can end up performing a sequential
 //! scan over all candidate transactions. By limiting the size of the candidate
-//! set, we bound the work done in the worse case (whereas otherwise, the worst
+//! set, we bound the work done in the worst case (whereas otherwise, the worst
 //! case would grow with the history of the chain).
 use std::fmt::Write;
 
