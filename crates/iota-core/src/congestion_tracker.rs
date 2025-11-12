@@ -520,7 +520,7 @@ impl CongestionTracker {
 
         // Write header if the file is new
         if !file_exists {
-            writeln!(file, "checkpoint,digest,gasprice,feedback,sui,ogd,cleared")?;
+            writeln!(file, "checkpoint,digest,gasprice,feedback,sui,ogd,nn,cleared")?;
         }
 
         // Build row
