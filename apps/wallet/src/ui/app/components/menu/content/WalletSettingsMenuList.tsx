@@ -61,7 +61,6 @@ export function MenuList() {
     const sidePanel = useSidePanel();
     const sidePanelMutation = useSidePanelMutation();
     const extensionType = useAppSelector((state) => state.app.extensionViewType);
-    console.log(sidePanelMutation.error, sidePanelMutation.data);
 
     // Logout
     const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
