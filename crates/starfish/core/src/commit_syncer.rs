@@ -40,11 +40,7 @@ use futures::{StreamExt as _, stream::FuturesOrdered};
 use iota_metrics::spawn_logged_monitored_task;
 use itertools::Itertools as _;
 use parking_lot::RwLock;
-use rand::{
-    RngCore,
-    prelude::SliceRandom as _,
-    rngs::{OsRng, ThreadRng},
-};
+use rand::{prelude::SliceRandom as _, rngs::ThreadRng};
 use starfish_config::AuthorityIndex;
 use tokio::{
     runtime::Handle,
@@ -413,8 +409,8 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             "Missing committed transactions after adding commit range {:?} to DAG State : {}",
                             fetched_commit_range,
                             missing_committed_txns
-                                .iter()
-                                .map(|(b, _)| b.to_string())
+                                .keys()
+                                .map(|b| b.to_string())
                                 .join(","),
                         );
                         for (block_ref, _ack_authorities) in missing_committed_txns {

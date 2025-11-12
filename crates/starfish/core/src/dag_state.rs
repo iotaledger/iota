@@ -71,6 +71,7 @@ impl TransactionSource {
             TransactionSource::TransactionSynchronizer => "Transactions synchronizer",
             TransactionSource::BlockStreaming => "Block streaming",
             TransactionSource::ShardReconstructor => "Shard reconstructor",
+            TransactionSource::CommitSyncer => "Commit syncer",
             #[cfg(test)]
             TransactionSource::Test => "test",
         }
