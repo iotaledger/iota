@@ -342,6 +342,7 @@ impl TransactionExecutionApi {
             object_changes,
             balance_changes,
             input: resp.input,
+            suggested_gas_price_legacy: resp.suggested_gas_price_legacy,
             suggested_gas_price_with_ogd: resp.suggested_gas_price_with_ogd,
             suggested_gas_price_with_nn: resp.suggested_gas_price_with_nn,
         })

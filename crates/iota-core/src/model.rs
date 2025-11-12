@@ -84,8 +84,8 @@ impl TemporalEncoder {
 
 // ==============================
 // SetAggregator: attention + MLP head
-// head input: context(H) + mean(H) + max(H) + log(count)(1) + h_anchor(1) => 3H + 2
-// ==============================
+// head input: context(H) + mean(H) + max(H) + log(count)(1) + h_anchor(1) => 3H
+// + 2 ==============================
 pub struct SetAggregator {
     score: nn::Sequential,
     head: nn::Sequential,
@@ -153,7 +153,11 @@ impl SetAggregator {
             0,
         ); // (3H+2,)
 
-        let head_in = if train { head_in.dropout(0.1, true) } else { head_in };
+        let head_in = if train {
+            head_in.dropout(0.1, true)
+        } else {
+            head_in
+        };
         let pred = self.head.forward(&head_in.unsqueeze(0)).squeeze_dim(0); // (Q,)
         (pred, attn)
     }
@@ -174,8 +178,8 @@ impl PriceModel {
         Self { encoder, agg }
     }
 
-    /// seqs: &[Tensor] each (T,F); h_anchor: max hotness_over_ref across objects
-    /// returns (pred_log_deltas (Q,), attn (N,))
+    /// seqs: &[Tensor] each (T,F); h_anchor: max hotness_over_ref across
+    /// objects returns (pred_log_deltas (Q,), attn (N,))
     pub fn forward_tx(&self, seqs: &[Tensor], h_anchor: f32, train: bool) -> (Tensor, Tensor) {
         if seqs.is_empty() {
             let q = TAUS.len() as i64;
@@ -189,7 +193,6 @@ impl PriceModel {
         let h_anchor_t = Tensor::from(h_anchor); // scalar
         self.agg.forward(&e, &h_anchor_t, train)
     }
-
 }
 
 // ==============================
@@ -235,11 +238,14 @@ impl GasLearner {
         Ok(Self { vs, model, opt })
     }
 
-    /// One-time warm-up to avoid first-call stalls (parity with Python startup).
+    /// One-time warm-up to avoid first-call stalls (parity with Python
+    /// startup).
     pub fn warmup(&self) {
         let _ = tch::no_grad(|| {
             let dummy = Tensor::zeros([1, T, F], (Kind::Float, self.vs.device()));
-            let (_pred, _attn) = self.model.forward_tx(&[dummy.squeeze_dim(0)], 0.0f32, false);
+            let (_pred, _attn) = self
+                .model
+                .forward_tx(&[dummy.squeeze_dim(0)], 0.0f32, false);
         });
     }
 

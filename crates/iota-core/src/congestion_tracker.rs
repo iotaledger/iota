@@ -19,13 +19,15 @@ use iota_types::{
 };
 use moka::{ops::compute::Op, sync::Cache};
 use serde::Deserialize;
-use crate::model_updater::{
-    build_cp_update_batch, build_train_tx_batch, InNodeModelUpdater, ObjectCheckpointStats,
-    ObjectSnapshot, RawTxItem, ModelUpdater, ModelReader,
-};
 use tracing::info;
 
-use crate::execution_cache::TransactionCacheRead;
+use crate::{
+    execution_cache::TransactionCacheRead,
+    model_updater::{
+        InNodeModelUpdater, ModelReader, ModelUpdater, ObjectCheckpointStats, ObjectSnapshot,
+        RawTxItem, build_cp_update_batch, build_train_tx_batch,
+    },
+};
 
 /// Capacity of the congestion tracker's cache.
 const CONGESTION_TRACKER_CACHE_CAPACITY: u64 = 10_000;
@@ -55,6 +57,7 @@ struct TxData {
     gas_price_feedback: Option<u64>,
     sui_prediction: u64,
     ogd_prediction: u64,
+    nn_prediction: u64,
     cleread: bool,
 }
 
@@ -150,7 +153,8 @@ pub struct CongestionTracker {
 }
 
 impl CongestionTracker {
-    /// Compose and send model update and training batches for the given checkpoint.
+    /// Compose and send model update and training batches for the given
+    /// checkpoint.
     fn inform_model(
         &self,
         checkpoint: &VerifiedCheckpoint,
@@ -211,9 +215,8 @@ impl CongestionTracker {
         self.model_updater.post_update(update_batch);
 
         // 5) Build raw tx items and per-object min clearing for training
-        let mut raw_txs: Vec<RawTxItem> = Vec::with_capacity(
-            congestion_txs_data.len() + clearing_txs_data.len(),
-        );
+        let mut raw_txs: Vec<RawTxItem> =
+            Vec::with_capacity(congestion_txs_data.len() + clearing_txs_data.len());
         let mut per_obj_min_clearing: HashMap<ObjectID, u64> = HashMap::new();
         for tx in congestion_txs_data {
             raw_txs.push(RawTxItem {
@@ -303,7 +306,17 @@ impl CongestionTracker {
             let sui_prediction = self
                 .get_prediction_suggested_gas_price(tx_data)
                 .unwrap_or(self.reference_gas_price);
-            let ogd_prediction = self.get_suggested_gas_price_with_ogd(tx_data);
+            let ogd_prediction = self
+                .get_suggested_gas_price_with_ogd(tx_data)
+                .unwrap_or(self.reference_gas_price);
+            let nn_prediction = {
+                let this = &self;
+                Some(
+                    this.model_reader
+                        .predict_for_tx(tx_data, this.reference_gas_price),
+                )
+            }
+                .unwrap_or(self.reference_gas_price);
 
             // Skip system transactions
             if gas_price == 1 {
@@ -324,8 +337,9 @@ impl CongestionTracker {
                             .get_feedback_suggested_gas_price()
                             .unwrap_or(self.reference_gas_price),
                     ),
-                    sui_prediction: sui_prediction,
-                    ogd_prediction: ogd_prediction,
+                    sui_prediction,
+                    ogd_prediction,
+                    nn_prediction,
                     cleread: false,
                 });
             } else {
@@ -348,6 +362,7 @@ impl CongestionTracker {
                         gas_price_feedback: None,
                         sui_prediction,
                         ogd_prediction,
+                        nn_prediction,
                         cleread: true,
                     });
                 }
@@ -380,13 +395,14 @@ impl CongestionTracker {
 
         for tx in congestion_txs_data.iter().chain(clearing_txs_data.iter()) {
             info!(
-                "Checkpoint: {} | Digest: {:?} | Gas price: {} | Feedback: {} | Prediction (Sui): {:?} | Prediction (IOTA): {:?} |  Cleared: {}",
+                "Checkpoint: {} | Digest: {:?} | Gas price: {} | Feedback: {} | Prediction (Sui): {:?} | Prediction (IOTA): {:?} | Prediction (NN): {:?} | Cleared: {}",
                 tx.checkpoint,
                 tx.digest,
                 tx.gas_price,
                 tx.gas_price_feedback.unwrap_or(1000),
                 tx.sui_prediction,
                 tx.ogd_prediction,
+                tx.nn_prediction,
                 tx.cleread,
             );
 
@@ -398,6 +414,7 @@ impl CongestionTracker {
                 tx.gas_price_feedback.unwrap_or(1000),
                 tx.sui_prediction,
                 tx.ogd_prediction,
+                tx.nn_prediction,
                 tx.cleread,
             );
         }
@@ -439,40 +456,25 @@ impl CongestionTracker {
 
     /// Get the largest hotness value among all mutable input shared objects
     /// accessed by `transaction`.
-    pub fn get_suggested_gas_price_with_ogd(&self, transaction: &TransactionData) -> u64 {
-        let (_, hotness) = self
-            .get_max_hotness_per_tx(
-                transaction
-                    .shared_input_objects()
-                    .into_iter()
-                    .filter(|id| id.mutable)
-                    .map(|id| id.id),
-            )
-            .unwrap_or((ObjectID::random(), 0.0));
+    pub fn get_suggested_gas_price_with_ogd(&self, transaction: &TransactionData) -> Option<u64> {
+        let (_, hotness) = self.get_max_hotness_per_tx(
+            transaction
+                .shared_input_objects()
+                .into_iter()
+                .filter(|id| id.mutable)
+                .map(|id| id.id),
+        )?;
 
-        self.reference_gas_price + hotness as u64
-    }
-
-    /// NN-based suggested gas price using in-node model. Returns None if insufficient history.
-    pub fn get_suggested_gas_price_with_nn(&self, transaction: &TransactionData) -> Option<u64> {
-        let objects: Vec<ObjectID> = transaction
-            .shared_input_objects()
-            .into_iter()
-            .filter(|id| id.mutable)
-            .map(|id| id.id)
-            .collect();
-        if objects.is_empty() { return Some(self.reference_gas_price); }
-        Some(
-            self.model_updater
-                .predict_for_objects(&objects, self.reference_gas_price)
-                .unwrap_or(self.reference_gas_price),
-        )
+        Some(self.reference_gas_price.saturating_add(hotness as u64))
     }
 
     /// Alias expected by authority.rs for model prediction.
     /// Non-blocking: reads from lock-free snapshot of per-object tips.
-    pub fn get_model_prediction(&self, transaction: &TransactionData) -> Option<u64> {
-        Some(self.model_reader.predict_for_tx(transaction, self.reference_gas_price))
+    pub fn get_suggested_price_with_nn(&self, transaction: &TransactionData) -> Option<u64> {
+        Some(
+            self.model_reader
+                .predict_for_tx(transaction, self.reference_gas_price),
+        )
     }
 
     /// Returns a map of all objects and their hotness values.
@@ -501,6 +503,7 @@ impl CongestionTracker {
         gas_price_feedback: u64,
         prediction_sui: u64,
         prediction_ogd: u64,
+        prediction_nn: u64,
         cleared: bool,
     ) -> std::io::Result<()> {
         let mut path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -522,18 +525,19 @@ impl CongestionTracker {
 
         // Build row
         let row = format!(
-            "{},{},{},{},{},{},{}",
+            "{},{},{},{},{},{},{},{}",
             checkpoint,
             digest,
             gas_price,
             gas_price_feedback,
             prediction_sui,
             prediction_ogd,
+            prediction_nn,
             cleared
         );
 
         // Column-count check
-        if row.split(',').count() != 7 {
+        if row.split(',').count() != 8 {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
                 format!("Malformed row: {}", row),
@@ -855,6 +859,7 @@ mod tests {
                 gas_price_feedback: Some(1000),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
             TxData {
@@ -865,6 +870,7 @@ mod tests {
                 gas_price_feedback: Some(1000),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
         ];
@@ -904,6 +910,7 @@ mod tests {
                 gas_price_feedback: Some(1000),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
             TxData {
@@ -914,6 +921,7 @@ mod tests {
                 gas_price_feedback: Some(1000),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
         ];
@@ -939,6 +947,7 @@ mod tests {
             gas_price_feedback: None,
             sui_prediction: 1000,
             ogd_prediction: 1000,
+            nn_prediction: 1000,
             cleread: false,
         }];
         tracker.process_congestion_and_clearing_txs_data(
@@ -962,6 +971,7 @@ mod tests {
             digest: TransactionDigest::random(),
             sui_prediction: 1000,
             ogd_prediction: 1000,
+            nn_prediction: 1000,
             cleread: false,
         }];
         let clearing_txs_data = vec![
@@ -973,6 +983,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
             TxData {
@@ -983,6 +994,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
         ];
@@ -1014,6 +1026,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
             TxData {
@@ -1024,6 +1037,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
         ];
@@ -1049,6 +1063,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
             TxData {
@@ -1059,6 +1074,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
         ];
@@ -1071,6 +1087,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
             TxData {
@@ -1081,6 +1098,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
         ];
@@ -1117,6 +1135,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
             TxData {
@@ -1127,6 +1146,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
             TxData {
@@ -1137,6 +1157,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             },
             TxData {
@@ -1147,6 +1168,7 @@ mod tests {
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
                 gas_price_feedback: Some(1600),
+                nn_prediction: 1000,
                 cleread: false,
             },
         ];
@@ -1159,6 +1181,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: true,
             },
             TxData {
@@ -1169,6 +1192,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: true,
             },
             TxData {
@@ -1179,6 +1203,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: true,
             },
             TxData {
@@ -1189,6 +1214,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: true,
             },
         ];
@@ -1231,6 +1257,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             }],
             &[TxData {
@@ -1241,6 +1268,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: true,
             }],
         );
@@ -1256,6 +1284,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             }],
             &[TxData {
@@ -1266,6 +1295,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: true,
             }],
         );
@@ -1287,6 +1317,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             }],
             &[TxData {
@@ -1297,6 +1328,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: true,
             }],
         );
@@ -1312,6 +1344,7 @@ mod tests {
                     digest: TransactionDigest::random(),
                     sui_prediction: 1000,
                     ogd_prediction: 1000,
+                    nn_prediction: 1000,
                     cleread: false,
                 },
                 TxData {
@@ -1322,6 +1355,7 @@ mod tests {
                     digest: TransactionDigest::random(),
                     sui_prediction: 1000,
                     ogd_prediction: 1000,
+                    nn_prediction: 1000,
                     cleread: false,
                 },
             ],
@@ -1333,6 +1367,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: true,
             }],
         );
@@ -1361,6 +1396,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             }],
             &[],
@@ -1378,6 +1414,7 @@ mod tests {
                 digest: TransactionDigest::random(),
                 sui_prediction: 1000,
                 ogd_prediction: 1000,
+                nn_prediction: 1000,
                 cleread: false,
             }],
             &[],

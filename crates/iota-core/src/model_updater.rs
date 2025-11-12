@@ -4,25 +4,30 @@
 // only for the forward pass. Staleness decay nudges results toward RGP when
 // objects go unmutated for a while.
 
-use serde::Serialize;
 use std::{
     collections::{HashMap, HashSet, VecDeque},
     fs::{File, OpenOptions},
     io::Write,
     path::PathBuf,
-    sync::{Arc, Mutex},
+    sync::{
+        Arc, Mutex,
+        atomic::{AtomicU64, Ordering},
+        mpsc,
+        mpsc::{Receiver, SyncSender},
+    },
     thread,
 };
-use std::sync::{mpsc, mpsc::{SyncSender, Receiver}};
-use std::sync::atomic::{AtomicU64, Ordering};
 
-use iota_types::base_types::ObjectID;
-use iota_types::transaction::{TransactionData, TransactionDataAPI};
+use arc_swap::ArcSwap;
+use iota_types::{
+    base_types::ObjectID,
+    transaction::{TransactionData, TransactionDataAPI},
+};
+use serde::Serialize;
+use tch::nn; // VarStore for inference snapshot
+use tch::{self, IndexOp, Tensor};
 
 use crate::model;
-use tch::{self, IndexOp, Tensor};
-use tch::nn; // VarStore for inference snapshot
-use arc_swap::ArcSwap;
 
 // -------------------------------
 // Types shared with congestion tracker
@@ -118,10 +123,14 @@ pub fn build_cp_update_batch(
                 hotness_over_ref: hot / reference_gas_price as f64,
                 highest_congestion_over_ref: if highest > 0 {
                     highest as f64 / reference_gas_price as f64
-                } else { 0.0 },
+                } else {
+                    0.0
+                },
                 lowest_clearing_over_ref: if lowest > 0 {
                     lowest as f64 / reference_gas_price as f64
-                } else { 0.0 },
+                } else {
+                    0.0
+                },
             });
         } else {
             let st = stats.get(&oid).cloned().unwrap_or_default();
@@ -145,7 +154,10 @@ pub fn build_cp_update_batch(
             });
         }
     }
-    CpUpdateBatch { checkpoint_ms, rows }
+    CpUpdateBatch {
+        checkpoint_ms,
+        rows,
+    }
 }
 
 pub fn build_train_tx_batch(
@@ -157,16 +169,23 @@ pub fn build_train_tx_batch(
     let mut items = Vec::new();
     for tx in raw_txs {
         let oids: Vec<String> = tx.touched_objects.iter().map(|o| o.to_string()).collect();
-        if oids.is_empty() { continue; }
+        if oids.is_empty() {
+            continue;
+        }
         const LABEL_DELTA: u64 = 100; // nudge congested labels above RGP
         let required = if tx.is_congested {
-            let base = tx.gas_price_feedback.unwrap_or(tx.gas_price).max(reference_gas_price);
+            let base = tx
+                .gas_price_feedback
+                .unwrap_or(tx.gas_price)
+                .max(reference_gas_price);
             base.saturating_add(LABEL_DELTA)
         } else {
             let mut req = 1000u64;
             for oid in &tx.touched_objects {
                 if let Some(min_clear) = per_object_min_clearing_in_cp.get(oid) {
-                    if *min_clear > 1000 { req = req.max(*min_clear); }
+                    if *min_clear > 1000 {
+                        req = req.max(*min_clear);
+                    }
                 }
             }
             req
@@ -178,7 +197,11 @@ pub fn build_train_tx_batch(
             object_ids: oids,
         });
     }
-    if items.is_empty() { None } else { Some(TrainTxBatch { items }) }
+    if items.is_empty() {
+        None
+    } else {
+        Some(TrainTxBatch { items })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -208,13 +231,20 @@ pub struct TxAuditRow {
     pub overpay: u64,
 }
 
-pub struct AuditLogger { writer: Option<Arc<Mutex<File>>> }
+pub struct AuditLogger {
+    writer: Option<Arc<Mutex<File>>>,
+}
 impl AuditLogger {
-    pub fn new_default() -> Self { Self::new_with_path(PathBuf::from(AUDIT_LOG_PATH)) }
+    pub fn new_default() -> Self {
+        Self::new_with_path(PathBuf::from(AUDIT_LOG_PATH))
+    }
     pub fn new_with_path(path: PathBuf) -> Self {
         let writer = match OpenOptions::new().create(true).append(true).open(&path) {
             Ok(f) => Some(Arc::new(Mutex::new(f))),
-            Err(e) => { eprintln!("[congestion/audit] failed to open {:?}: {e}", path); None }
+            Err(e) => {
+                eprintln!("[congestion/audit] failed to open {:?}: {e}", path);
+                None
+            }
         };
         Self { writer }
     }
@@ -223,7 +253,10 @@ impl AuditLogger {
             let mut g = w.lock().unwrap();
             for row in rows {
                 if let Ok(line) = serde_json::to_string(row) {
-                    if let Err(e) = writeln!(g, "{}", line) { eprintln!("[congestion/audit] write error: {e}"); break; }
+                    if let Err(e) = writeln!(g, "{}", line) {
+                        eprintln!("[congestion/audit] write error: {e}");
+                        break;
+                    }
                 }
             }
             let _ = g.flush();
@@ -289,8 +322,13 @@ impl HistState {
         }
     }
     fn push_feature_row(&mut self, oid: ObjectID, feat: [f32; FEAT]) {
-        let q = self.histories.entry(oid).or_insert_with(|| VecDeque::with_capacity(WIN));
-        if q.len() == WIN { q.pop_front(); }
+        let q = self
+            .histories
+            .entry(oid)
+            .or_insert_with(|| VecDeque::with_capacity(WIN));
+        if q.len() == WIN {
+            q.pop_front();
+        }
         q.push_back(feat);
     }
     fn build_object_seq(&self, oid: &ObjectID) -> Option<Tensor> {
@@ -314,7 +352,9 @@ impl HistState {
         }
         Some(model::tensor_from_rows_txf(&slice))
     }
-    fn latest_hotness_over_ref(&self, oid: &ObjectID) -> Option<f32> { self.histories.get(oid)?.back().map(|r| r[0]) }
+    fn latest_hotness_over_ref(&self, oid: &ObjectID) -> Option<f32> {
+        self.histories.get(oid)?.back().map(|r| r[0])
+    }
 }
 
 const BASE_FEAT: usize = 9;
@@ -379,7 +419,8 @@ impl HistState {
     }
 }
 
-// Old ModelMsg removed: we now use separate bounded channels per task (update/train)
+// Old ModelMsg removed: we now use separate bounded channels per task
+// (update/train)
 
 pub struct InNodeModelUpdater {
     hist: Arc<Mutex<HistState>>, // histories and timing
@@ -410,8 +451,10 @@ impl InNodeModelUpdater {
             Arc::new(Mutex::new(build_infer_from_trainer(&l).map(Box::new)))
         };
         // Bounded channels
-        let (tx_update, rx_update): (SyncSender<CpUpdateBatch>, Receiver<CpUpdateBatch>) = mpsc::sync_channel(1024);
-        let (tx_train, rx_train): (SyncSender<TrainTxBatch>, Receiver<TrainTxBatch>) = mpsc::sync_channel(1024);
+        let (tx_update, rx_update): (SyncSender<CpUpdateBatch>, Receiver<CpUpdateBatch>) =
+            mpsc::sync_channel(1024);
+        let (tx_train, rx_train): (SyncSender<TrainTxBatch>, Receiver<TrainTxBatch>) =
+            mpsc::sync_channel(1024);
         // Lock-free store for per-object tips
         let store = Arc::new(ModelStore::new());
         // Update worker
@@ -426,7 +469,10 @@ impl InNodeModelUpdater {
                         let mut touched: HashSet<ObjectID> = HashSet::new();
                         let mut deltas: Vec<(ObjectID, u64)> = Vec::new();
                         for row in batch.rows {
-                            let oid: ObjectID = row.object_id.parse().unwrap_or_else(|_| ObjectID::from_single_byte(0));
+                            let oid: ObjectID = row
+                                .object_id
+                                .parse()
+                                .unwrap_or_else(|_| ObjectID::from_single_byte(0));
                             let feats = st.feat_from_row(oid, &row);
                             st.push_feature_row(oid, feats);
                             touched.insert(oid);
@@ -434,7 +480,12 @@ impl InNodeModelUpdater {
                             let tip = row.hotness.max(0.0).round() as u64;
                             deltas.push((oid, tip));
                         }
-                        (st.histories.keys().cloned().collect::<Vec<_>>(), touched, st.last_global_ms, deltas)
+                        (
+                            st.histories.keys().cloned().collect::<Vec<_>>(),
+                            touched,
+                            st.last_global_ms,
+                            deltas,
+                        )
                     };
                     // second pass without holding lock
                     {
@@ -471,12 +522,16 @@ impl InNodeModelUpdater {
                         let items: Vec<TrainTxItem> = {
                             let mut st = hist_tr.lock().unwrap();
                             let n = st.pending_train.len();
-                            if n == 0 { Vec::new() } else {
+                            if n == 0 {
+                                Vec::new()
+                            } else {
                                 let take = n.min(TRAIN_BATCH_CAP);
                                 st.pending_train.drain(..take).collect()
                             }
                         };
-                        if items.is_empty() { break; }
+                        if items.is_empty() {
+                            break;
+                        }
                         // build tensors
                         let (xs, hs, ys) = {
                             let st = hist_tr.lock().unwrap();
@@ -488,15 +543,30 @@ impl InNodeModelUpdater {
                                 let mut h_anchor: f32 = 0.0;
                                 let mut ok = true;
                                 for oid_s in item.object_ids.iter() {
-                                    let oid: ObjectID = match oid_s.parse() { Ok(x) => x, Err(_) => { ok = false; break; } };
+                                    let oid: ObjectID = match oid_s.parse() {
+                                        Ok(x) => x,
+                                        Err(_) => {
+                                            ok = false;
+                                            break;
+                                        }
+                                    };
                                     if let Some(seq) = st.build_object_seq(&oid) {
-                                        if let Some(h) = st.latest_hotness_over_ref(&oid) { h_anchor = h_anchor.max(h); }
+                                        if let Some(h) = st.latest_hotness_over_ref(&oid) {
+                                            h_anchor = h_anchor.max(h);
+                                        }
                                         seqs.push(seq);
-                                    } else { ok = false; break; }
+                                    } else {
+                                        ok = false;
+                                        break;
+                                    }
                                 }
                                 if ok && !seqs.is_empty() {
-                                    let y_log = (item.required_price_in_cp as f32 / item.reference_gas_price as f32).ln();
-                                    xs.push(seqs); hs.push(h_anchor); ys.push(y_log);
+                                    let y_log = (item.required_price_in_cp as f32
+                                        / item.reference_gas_price as f32)
+                                        .ln();
+                                    xs.push(seqs);
+                                    hs.push(h_anchor);
+                                    ys.push(y_log);
                                 }
                             }
                             (xs, hs, ys)
@@ -507,7 +577,9 @@ impl InNodeModelUpdater {
                                 steps_since_refresh += 1;
                                 if steps_since_refresh >= SNAPSHOT_EVERY_STEPS {
                                     if let Some(snap) = build_infer_from_trainer(&l) {
-                                        if let Ok(mut guard) = inference_tr.lock() { *guard = Some(Box::new(snap)); }
+                                        if let Ok(mut guard) = inference_tr.lock() {
+                                            *guard = Some(Box::new(snap));
+                                        }
                                     }
                                     steps_since_refresh = 0;
                                 }
@@ -517,10 +589,20 @@ impl InNodeModelUpdater {
                 }
             });
         }
-        Self { hist, tx_update, tx_train, inference, store }
+        Self {
+            hist,
+            tx_update,
+            tx_train,
+            inference,
+            store,
+        }
     }
 
-    pub fn predict_for_objects(&self, object_ids: &[ObjectID], reference_gas_price: u64) -> Option<u64> {
+    pub fn predict_for_objects(
+        &self,
+        object_ids: &[ObjectID],
+        reference_gas_price: u64,
+    ) -> Option<u64> {
         // Build sequences and timing without holding learner lock
         let (seqs, h_anchor, _stale_sec_opt) = {
             let st = self.hist.lock().ok()?;
@@ -528,15 +610,24 @@ impl InNodeModelUpdater {
             let mut h_anchor: f32 = 0.0;
             let mut min_obj_ms: Option<u64> = None;
             for oid in object_ids {
-                let seq = match st.build_object_seq(oid) { Some(s) => s, None => return None };
-                if let Some(h) = st.latest_hotness_over_ref(oid) { h_anchor = h_anchor.max(h); }
-                if let Some(ms) = st.last_ms.get(oid).copied() { min_obj_ms = Some(min_obj_ms.map(|m| m.min(ms)).unwrap_or(ms)); }
+                let seq = match st.build_object_seq(oid) {
+                    Some(s) => s,
+                    None => return None,
+                };
+                if let Some(h) = st.latest_hotness_over_ref(oid) {
+                    h_anchor = h_anchor.max(h);
+                }
+                if let Some(ms) = st.last_ms.get(oid).copied() {
+                    min_obj_ms = Some(min_obj_ms.map(|m| m.min(ms)).unwrap_or(ms));
+                }
                 seqs.push(seq);
             }
-            let stale_sec_opt = min_obj_ms.map(|ms| ((st.last_global_ms.saturating_sub(ms)) as f32) / 1000.0);
+            let stale_sec_opt =
+                min_obj_ms.map(|ms| ((st.last_global_ms.saturating_sub(ms)) as f32) / 1000.0);
             (seqs, h_anchor, stale_sec_opt)
         };
-        // Predict using read-only snapshot (no trainer lock contention). Try non-blocking lock first.
+        // Predict using read-only snapshot (no trainer lock contention). Try
+        // non-blocking lock first.
         if let Ok(guard) = self.inference.try_lock() {
             let y_log = if let Some(ref snap) = *guard {
                 let (pred, _attn) = snap.predict(&seqs, h_anchor);
@@ -550,7 +641,8 @@ impl InNodeModelUpdater {
             let price = (reference_gas_price as f32 * y_log_decayed.exp()).round() as u64;
             Some(price)
         } else {
-            // Snapshot is busy; fall back to OGD baseline: RGP + hotness_raw (hotness_over_ref * RGP)
+            // Snapshot is busy; fall back to OGD baseline: RGP + hotness_raw
+            // (hotness_over_ref * RGP)
             let hotness_raw = h_anchor * reference_gas_price as f32;
             Some(reference_gas_price.saturating_add(hotness_raw.round() as u64))
         }
@@ -562,14 +654,18 @@ impl ModelUpdater for InNodeModelUpdater {
         static DROP_UPDATES: AtomicU64 = AtomicU64::new(0);
         if let Err(_e) = self.tx_update.try_send(batch) {
             let c = DROP_UPDATES.fetch_add(1, Ordering::Relaxed) + 1;
-            if c % 1000 == 0 { eprintln!("[in-model] dropped {} update batches (channel full)", c); }
+            if c % 1000 == 0 {
+                eprintln!("[in-model] dropped {} update batches (channel full)", c);
+            }
         }
     }
     fn post_train_tx(&self, batch: TrainTxBatch) {
         static DROP_TRAINS: AtomicU64 = AtomicU64::new(0);
         if let Err(_e) = self.tx_train.try_send(batch) {
             let c = DROP_TRAINS.fetch_add(1, Ordering::Relaxed) + 1;
-            if c % 1000 == 0 { eprintln!("[in-model] dropped {} train batches (channel full)", c); }
+            if c % 1000 == 0 {
+                eprintln!("[in-model] dropped {} train batches (channel full)", c);
+            }
         }
     }
 }
@@ -578,7 +674,9 @@ impl ModelUpdater for InNodeModelUpdater {
 
 impl InNodeModelUpdater {
     /// Returns a non-blocking reader that uses the lock-free snapshot.
-    pub fn reader(&self) -> ModelReader { ModelReader(self.store.clone()) }
+    pub fn reader(&self) -> ModelReader {
+        ModelReader(self.store.clone())
+    }
 }
 
 // ================================
@@ -596,12 +694,21 @@ struct ModelStore {
 }
 
 impl ModelStore {
-    fn new() -> Self { Self { shared: ArcSwap::from_pointee(WeightsSnap::default()) } }
+    fn new() -> Self {
+        Self {
+            shared: ArcSwap::from_pointee(WeightsSnap::default()),
+        }
+    }
     fn publish_deltas(&self, deltas: &[(ObjectID, u64)]) {
         let cur = self.shared.load();
         let mut next_map = cur.per_obj_tip.clone();
-        for (oid, tip) in deltas.iter().copied() { next_map.insert(oid, tip); }
-        let next = WeightsSnap { version: cur.version + 1, per_obj_tip: next_map };
+        for (oid, tip) in deltas.iter().copied() {
+            next_map.insert(oid, tip);
+        }
+        let next = WeightsSnap {
+            version: cur.version + 1,
+            per_obj_tip: next_map,
+        };
         self.shared.store(Arc::new(next));
     }
 }
@@ -616,8 +723,15 @@ impl ModelReader {
         // Compute max tip
         // TODO(We need a better rule)
         let mut max_tip = 0u64;
-        for obj in tx.shared_input_objects().into_iter().filter(|o| o.mutable).map(|o| o.id) {
-            if let Some(t) = snap.per_obj_tip.get(&obj) { max_tip = max_tip.max(*t); }
+        for obj in tx
+            .shared_input_objects()
+            .into_iter()
+            .filter(|o| o.mutable)
+            .map(|o| o.id)
+        {
+            if let Some(t) = snap.per_obj_tip.get(&obj) {
+                max_tip = max_tip.max(*t);
+            }
         }
         reference_gas_price.saturating_add(max_tip)
     }
