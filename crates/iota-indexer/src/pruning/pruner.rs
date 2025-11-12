@@ -82,29 +82,30 @@ pub enum PrunableTable {
 impl PrunableTable {
     pub fn select_reader_lo(&self, cp: u64, tx: u64) -> u64 {
         match self {
-            PrunableTable::ObjectsHistory => cp,
-            PrunableTable::Transactions => tx,
-            PrunableTable::Events => tx,
-            PrunableTable::EventEmitPackage => tx,
-            PrunableTable::EventEmitModule => tx,
-            PrunableTable::EventSenders => tx,
-            PrunableTable::EventStructInstantiation => tx,
-            PrunableTable::EventStructModule => tx,
-            PrunableTable::EventStructName => tx,
-            PrunableTable::EventStructPackage => tx,
-            PrunableTable::TxAffectedAddresses => tx,
-            PrunableTable::TxAffectedObjects => tx,
-            PrunableTable::TxCallsPkg => tx,
-            PrunableTable::TxCallsMod => tx,
-            PrunableTable::TxCallsFun => tx,
-            PrunableTable::TxChangedObjects => tx,
-            PrunableTable::TxDigests => tx,
-            PrunableTable::TxInputObjects => tx,
-            PrunableTable::TxKinds => tx,
-            PrunableTable::TxRecipients => tx,
-            PrunableTable::TxSenders => tx,
-            PrunableTable::Checkpoints => cp,
-            PrunableTable::PrunerCpWatermark => cp,
+            PrunableTable::ObjectsHistory
+            | PrunableTable::Checkpoints
+            | PrunableTable::PrunerCpWatermark => cp,
+
+            PrunableTable::Transactions
+            | PrunableTable::Events
+            | PrunableTable::EventEmitPackage
+            | PrunableTable::EventEmitModule
+            | PrunableTable::EventSenders
+            | PrunableTable::EventStructInstantiation
+            | PrunableTable::EventStructModule
+            | PrunableTable::EventStructName
+            | PrunableTable::EventStructPackage
+            | PrunableTable::TxAffectedAddresses
+            | PrunableTable::TxAffectedObjects
+            | PrunableTable::TxCallsPkg
+            | PrunableTable::TxCallsMod
+            | PrunableTable::TxCallsFun
+            | PrunableTable::TxChangedObjects
+            | PrunableTable::TxDigests
+            | PrunableTable::TxInputObjects
+            | PrunableTable::TxKinds
+            | PrunableTable::TxRecipients
+            | PrunableTable::TxSenders => tx,
         }
     }
 }
