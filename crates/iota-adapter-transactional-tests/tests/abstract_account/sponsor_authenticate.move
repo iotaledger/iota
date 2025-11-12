@@ -22,9 +22,14 @@ public struct AbstractAccount has key {
 /// A dynamic field key for the account owner public key.
 public struct OwnerPublicKey has copy, drop, store {}
 
-public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
+public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1<AbstractAccount>, ctx: &mut TxContext) {
     let mut account = AbstractAccount { id: object::new(ctx) };
-    account::attach_auth_info_v1(&mut account.id, authenticator);
+    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
+        &account,
+        authenticator,
+    );
+
+    account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
     dynamic_field::add(&mut account.id, OwnerPublicKey {}, public_key);
     iota::transfer::share_object(account);
 }
@@ -38,14 +43,14 @@ public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx:
 }
 
 //# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate"
-//> 0: iota::account::create_auth_info_v1(Input(1), Input(2), Input(3));
+//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
 //> 1: test::abstract_account::create(Input(0), Result(0));
 
 //# view-object 2,2
 
 //# set-address a_account object(2,2)
 
-//# abstract --sponsor A --auth-inputs immshared(2,2) --ptb-inputs 100 @A
+//# abstract --account immshared(2,2) --sponsor A --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 

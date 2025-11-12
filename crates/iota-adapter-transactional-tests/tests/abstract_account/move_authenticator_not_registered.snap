@@ -10,11 +10,11 @@ task 1, lines 8-37:
 //# publish --sender A
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9089600,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9127600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
 task 2, lines 39-41:
 //# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate"
-//> 0: iota::account::create_auth_info_v1(Input(1), Input(2), Input(3));
+//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
 //> 1: test::abstract_account::create(Input(0), Result(0));
 created: object(2,0), object(2,1)
 mutated: object(0,0)
@@ -56,5 +56,5 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
 }
 
 task 7, lines 53-55:
-//# abstract --gas-payment 5,0 --auth-inputs immshared(2,1) --ptb-inputs 100 @A
-Error: Error checking transaction input objects: MoveAuthenticatorNotFound { authenticator_info_id: 0x2dcb1ceec2df932fbc09c41430e9c6a0d6a60c569ca0c5798bd5069360b5d7b0, account_object_id: object(2,1), account_object_version: SequenceNumber(3) }
+//# abstract --account immshared(2,1) --gas-payment 5,0 --ptb-inputs 100 @A
+Error: Error checking transaction input objects: MoveAuthenticatorNotFound { authenticator_info_id: 0xbf65d076eb1e59b46df5e8d8558e141593b98ea7c6986c98b06c05e00cea813e, account_object_id: object(2,1), account_object_version: SequenceNumber(3) }

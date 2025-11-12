@@ -5,6 +5,6 @@
 
 //# init --addresses test=0x0 --accounts A
 
-//# abstract --gas-payment 5,0 --ptb-inputs 100 @A
+//# abstract --account object(0,0) --gas-payment 5,0 --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));

@@ -1431,9 +1431,10 @@ Unlike programmable, where the sender directly signs the transaction with a syst
 #### Options
 
 ```
+--account <ACCOUNT>: the sender of the abstract transaction. Must be an Abstract Account (AA) shared object.
 --sponsor <SPONSOR> (optional): account that pays for gas. If omitted, you must provide --gas-payment and that coin must be owned by the Abstract Account (AA).
 --gas-payment <OBJECT_ID>: coin object used to pay gas. Required when --sponsor is not provided.
---auth-inputs <AUTH_INPUTS>: arguments to build the MoveAuthenticator. The first value must be the AA shared object (immutable).
+--auth-inputs <AUTH_INPUTS>: arguments to build the MoveAuthenticator(for instance - signature, public key etc).
 --ptb-inputs <PTB_INPUTS>: inputs passed to the PTB (Programmable Transaction Block) body.
 --gas-budget <GAS_BUDGET> (optional): maximum gas units for execution.
 --gas-price <GAS_PRICE> (optional): gas price per unit.
@@ -1489,14 +1490,13 @@ public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx:
 
 //# view-object 5,0
 
-//# abstract --gas-payment 5,0 --auth-inputs immshared(2,2) --ptb-inputs 100 @A
+//# abstract --account immshared(2,2) --gas-payment 5,0 --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 ```
 
 - Authenticator Inputs (--auth-inputs)
-The first authenticator input (`immshared(2,2)`) must be the Abstract Account immutable shared object.
-The following authenticator inputs (e.g., x"...") represent any required verification payloads, such as a user signature or session data.
+The authenticator inputs (e.g., x"...") represent any required verification payloads, such as a user signature or session data.
 These values are passed into the MoveAuthenticator automatically and used by the Move runtime during authentication.
 - PTB Inputs (--ptb-inputs)
 These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.

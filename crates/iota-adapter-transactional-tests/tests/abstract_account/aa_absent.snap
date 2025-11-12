@@ -7,5 +7,5 @@ init:
 A: object(0,0)
 
 task 1, lines 8-10:
-//# abstract --gas-payment 5,0 --ptb-inputs 100 @A
-Error: abstract: authenticator inputs must contain at least one value for the AA call
+//# abstract --account object(0,0) --gas-payment 5,0 --ptb-inputs 100 @A
+Error: abstract: account must be a shared object representing the abstract account

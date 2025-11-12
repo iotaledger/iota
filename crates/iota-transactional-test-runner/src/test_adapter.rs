@@ -64,8 +64,8 @@ use iota_types::{
         TransactionKind, VerifiedTransaction,
     },
     utils::{
-        to_sender_signed_transaction, to_sender_signed_transaction_with_optional_sponsor,
-        to_sender_signed_transaction_with_multi_signers,
+        to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
+        to_sender_signed_transaction_with_optional_sponsor,
     },
 };
 use move_binary_format::CompiledModule;
@@ -1162,6 +1162,7 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 Ok(merge_output(None, None))
             }
             IotaSubcommand::AbstractTransaction(AbstractTransactionCommand {
+                account,
                 sponsor,
                 gas_budget,
                 gas_price,
@@ -1174,17 +1175,12 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
 
                 // Parse and resolve auth inputs.
                 // Build MoveAuthenticator.
-                // Extract Abstract Account address.
-                let (aa_sender_address, move_authenticator) =
-                    self.prepare_move_authenticator_data(authenticator_inputs)?;
+                // Get Abstract Test Account
+                let (aa_sender, move_authenticator) =
+                    self.prepare_move_authenticator_data(authenticator_inputs, account)?;
 
                 let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                 let gas_price = gas_price.unwrap_or(self.gas_price);
-                let aa_sender = TestAccount {
-                    address: aa_sender_address,
-                    key_pair: None,
-                    gas: aa_sender_address.into(),
-                };
 
                 let tx = self.sign_sponsor_txn(
                     &aa_sender,
@@ -1313,13 +1309,13 @@ impl IotaTestAdapter {
         Ok((ptb_inputs, ptb_cmds))
     }
 
-    /// Build a MoveAuthenticator; forces the AA argument to be immutable
-    /// (&AbstractAccount).
-    /// Returns the AA address and MoveAuthenticator.
+    /// Build a MoveAuthenticator.
+    /// Returns the Abstract Test Account and MoveAuthenticator.
     fn prepare_move_authenticator_data(
         &mut self,
         authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
-    ) -> anyhow::Result<(IotaAddress, GenericSignature)> {
+        account: ParsedValue<IotaExtraValueArgs>,
+    ) -> anyhow::Result<(TestAccount, GenericSignature)> {
         // Resolve authenticator inputs
         let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
         let auth_inputs: Vec<CallArg> = auth_inputs_resolved
@@ -1327,22 +1323,29 @@ impl IotaTestAdapter {
             .map(|arg| arg.into_call_arg(self))
             .collect::<anyhow::Result<_>>()?;
 
-        let aa_arg = auth_inputs
-            .first()
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "abstract: authenticator inputs must contain at least one value for the AA call"
-                )
-            })?
-            .clone();
+        let aa_arg = self
+            .compiled_state()
+            .resolve_args(vec![account])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing account for MoveAuthenticator"))?;
+        let aa_arg = aa_arg.into_call_arg(self)?;
+
         let aa_shared_objects = aa_arg.shared_objects();
         let aa_shared_object = aa_shared_objects.first().ok_or_else(|| {
-            anyhow::anyhow!("abstract: authenticator input must be a shared object representing the abstract account")
+            anyhow::anyhow!(
+                "abstract: account must be a shared object representing the abstract account"
+            )
         })?;
         let aa_sender_addr = aa_shared_object.id.into();
 
+        let account = TestAccount {
+            address: aa_sender_addr,
+            key_pair: None,
+            gas: aa_sender_addr.into(),
+        };
         Ok((
-            aa_sender_addr,
+            account,
             GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
                 auth_inputs,
                 vec![],

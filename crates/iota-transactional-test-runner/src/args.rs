@@ -143,6 +143,13 @@ pub struct ProgrammableTransactionCommand {
 
 #[derive(Debug, clap::Parser)]
 pub struct AbstractTransactionCommand {
+    #[arg(
+        long = "account",
+        value_parser = ParsedValue::<IotaExtraValueArgs>::parse,
+        num_args(1),
+        action = clap::ArgAction::Append,
+    )]
+    pub account: ParsedValue<IotaExtraValueArgs>,
     #[clap(long = "sponsor")]
     pub sponsor: Option<String>,
     #[arg(long = "gas-budget")]
