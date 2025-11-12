@@ -203,7 +203,6 @@ mod tests {
     use crate::{
         BlockRef, Round, TestBlockHeader,
         block_header::VerifiedBlock,
-        block_verifier::NoopBlockVerifier,
         commit::CommitRange,
         context::Context,
         core::{CoreSignals, ReasonToCreateBlock},
@@ -286,12 +285,10 @@ mod tests {
         let start = Instant::now();
 
         let (mut signals, signal_receivers) = CoreSignals::new(context.clone());
-        let block_verifier = Arc::new(NoopBlockVerifier {});
         let transactions_synchronizer = TransactionsSynchronizer::start(
             Arc::new(FakeNetworkClient::default()),
             context.clone(),
             dispatcher.clone(),
-            block_verifier,
             Arc::new(RwLock::new(DagState::new(
                 context.clone(),
                 Arc::new(MemStore::new()),
@@ -381,13 +378,11 @@ mod tests {
             ..Default::default()
         };
         let context = Arc::new(context.with_parameters(parameters));
-        let block_verifier = Arc::new(NoopBlockVerifier {});
 
         let transactions_synchronizer = TransactionsSynchronizer::start(
             Arc::new(FakeNetworkClient::default()),
             context.clone(),
             dispatcher.clone(),
-            block_verifier.clone(),
             Arc::new(RwLock::new(DagState::new(
                 context.clone(),
                 Arc::new(MemStore::new()),
