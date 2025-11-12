@@ -323,7 +323,7 @@ impl CordialKnowledge {
                     while let Ok(msg) = self.cordial_knowledge_receiver.try_recv() {
                         batch.push(msg);
                     }
-                    // Report the buffer size after processing the first message
+                    // Report the buffer size
                     self.context
                         .metrics
                         .node_metrics
