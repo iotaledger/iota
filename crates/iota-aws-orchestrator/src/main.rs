@@ -156,7 +156,7 @@ pub enum TestbedAction {
         #[arg(long)]
         instances: usize,
 
-        // Skips deployment of a Metrics instance
+        /// Skips deployment of a Metrics instance
         #[arg(long, action, default_value = "false", global = true)]
         skip_monitoring: bool,
 
@@ -164,11 +164,10 @@ pub enum TestbedAction {
         #[arg(long, value_name = "INT", default_value = "0", global = true)]
         dedicated_clients: usize,
 
-        /// The region where to deploy the instances. If this parameter is not
-        /// specified, the command deploys the specified number of
-        /// instances in all regions listed in the setting file.
-        #[arg(long)]
-        region: Option<String>,
+        /// Attempts to prioritise cheaper spot instances
+        /// Note: stop and start commands are not available for spot instances
+        #[arg(long, action, default_value = "false", global = true)]
+        use_spot_instances: bool,
     },
 
     /// Start at most the specified number of instances per region on an
@@ -268,9 +267,14 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 instances,
                 dedicated_clients,
                 skip_monitoring,
-                region,
+                use_spot_instances,
             } => testbed
-                .deploy(instances, region, skip_monitoring, dedicated_clients)
+                .deploy(
+                    instances,
+                    skip_monitoring,
+                    dedicated_clients,
+                    use_spot_instances,
+                )
                 .await
                 .wrap_err("Failed to deploy testbed")?,
 
