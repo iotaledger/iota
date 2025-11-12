@@ -52,7 +52,7 @@
 //! ## Scan limits
 //!
 //! The scan limit restricts the number of transactions considered as candidates
-//! for the results.It is analogous to the page size limit, which restricts the
+//! for the results. It is analogous to the page size limit, which restricts the
 //! number of results returned to the user, but it operates at the top of the
 //! funnel rather than the bottom.
 //!
