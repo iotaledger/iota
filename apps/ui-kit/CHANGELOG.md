@@ -1,5 +1,15 @@
 # @iota/apps-ui-kit
 
+## 0.7.4
+
+### Patch Changes
+
+-   f1c52c0: Add description and supporting label for RadioButton
+-   ffc8261: add ref to Button component
+-   abfff2a: remove format from ui-kit
+-   Updated dependencies [83fd8ac]
+    -   @iota/apps-ui-icons@0.5.0
+
 ## 0.7.3
 
 ### Patch Changes
