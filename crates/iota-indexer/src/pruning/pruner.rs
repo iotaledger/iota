@@ -255,12 +255,14 @@ async fn update_watermarks_lower_bounds(
     cancel: &CancellationToken,
 ) -> IndexerResult<()> {
     let (watermarks, _) = store.get_watermarks().await?;
+
+    if cancel.is_cancelled() {
+        info!("Pruner watermark lower bound update task cancelled.");
+        return Ok(());
+    }
+
     let mut lower_bound_updates = vec![];
     for watermark in watermarks.iter() {
-        if cancel.is_cancelled() {
-            info!("Pruner watermark lower bound update task cancelled.");
-            return Ok(());
-        }
         let Some(prunable_table) = watermark.entity() else {
             continue;
         };
@@ -278,5 +280,6 @@ async fn update_watermarks_lower_bounds(
             .await?;
         info!("Finished updating lower bounds for watermarks");
     }
+
     Ok(())
 }
