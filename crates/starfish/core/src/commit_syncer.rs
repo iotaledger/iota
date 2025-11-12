@@ -930,7 +930,6 @@ mod tests {
             network_client.clone(),
             context.clone(),
             core_thread_dispatcher.clone(),
-            block_verifier.clone(),
             dag_state.clone(),
         );
         let mut commit_syncer = CommitSyncer::new(

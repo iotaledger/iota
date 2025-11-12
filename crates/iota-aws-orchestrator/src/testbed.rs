@@ -163,7 +163,7 @@ impl<C: ServerProviderClient> Testbed<C> {
     ) -> TestbedResult<()> {
         display::action(format!("Deploying instances ({quantity} per region)"));
 
-        let mut instances = vec![];
+        let mut instances: Vec<Instance> = vec![];
 
         if !skip_monitoring {
             let metrics_region = match &region {
@@ -177,48 +177,57 @@ impl<C: ServerProviderClient> Testbed<C> {
             };
             let metrics_instance = self
                 .client
-                .create_instance(metrics_region, InstanceRole::Metrics)
+                .create_instance(metrics_region, InstanceRole::Metrics, 1)
                 .await?;
-            instances.push(metrics_instance);
+            instances.extend(metrics_instance);
         }
 
         let node_instances = match &region {
             Some(x) => {
-                try_join_all(
-                    (0..quantity)
-                        .map(|_| self.client.create_instance(x.clone(), InstanceRole::Node)),
-                )
-                .await?
+                self.client
+                    .create_instance(x.clone(), InstanceRole::Node, quantity)
+                    .await?
             }
             None => {
-                try_join_all(self.settings.regions.iter().flat_map(|region| {
-                    (0..quantity).map(|_| {
-                        self.client
-                            .create_instance(region.clone(), InstanceRole::Node)
-                    })
-                }))
-                .await?
+                // Multi-region case — call create_instance per region in parallel
+                let tasks = self.settings.regions.iter().map(|region| {
+                    self.client
+                        .create_instance(region.clone(), InstanceRole::Node, quantity)
+                });
+
+                // Run them all concurrently, flatten Vec<Vec<Instance>> → Vec<Instance>
+                try_join_all(tasks)
+                    .await?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>()
             }
         };
         instances.extend(node_instances);
 
         let client_instances = match (&region, dedicated_clients) {
             (_, 0) => vec![],
-            (Some(x), _) => {
-                try_join_all(
-                    (0..dedicated_clients)
-                        .map(|_| self.client.create_instance(x.clone(), InstanceRole::Client)),
-                )
-                .await?
+            (Some(x), instance_quantity) => {
+                self.client
+                    .create_instance(x.clone(), InstanceRole::Client, instance_quantity)
+                    .await?
             }
-            (None, dedicated_clients) => {
-                try_join_all(self.settings.regions.iter().flat_map(|region| {
-                    (0..dedicated_clients).map(|_| {
-                        self.client
-                            .create_instance(region.clone(), InstanceRole::Client)
-                    })
-                }))
-                .await?
+            (None, instance_quantity) => {
+                // Multi-region case — call create_instance per region in parallel
+                let tasks = self.settings.regions.iter().map(|region| {
+                    self.client.create_instance(
+                        region.clone(),
+                        InstanceRole::Client,
+                        instance_quantity,
+                    )
+                });
+
+                // Run them all concurrently, flatten Vec<Vec<Instance>> → Vec<Instance>
+                try_join_all(tasks)
+                    .await?
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>()
             }
         };
 
@@ -255,14 +264,14 @@ impl<C: ServerProviderClient> Testbed<C> {
     /// Destroy all instances of the testbed.
     pub async fn destroy(&mut self, keep_monitoring: bool) -> TestbedResult<()> {
         display::action("Destroying testbed");
-
-        try_join_all(
-            self.instances()
-                .iter()
-                .filter(|i| !(keep_monitoring && i.role == InstanceRole::Metrics))
-                .map(|instance| self.client.delete_instance(instance.clone())),
-        )
-        .await?;
+        let instances_to_destroy = self
+            .instances()
+            .into_iter()
+            .filter(|i| !(keep_monitoring && i.role == InstanceRole::Metrics))
+            .collect::<Vec<_>>();
+        self.client
+            .delete_instances(instances_to_destroy.iter())
+            .await?;
 
         display::done();
         Ok(())
