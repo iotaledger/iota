@@ -1,8 +1,6 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
 use async_graphql::{Context, OutputType, ResultExt, SimpleObject, Subscription, Union};
 use futures::{Stream, StreamExt, TryStreamExt, future};
 use iota_indexer::read::IndexerReader;
@@ -126,9 +124,8 @@ impl Subscription {
 ///
 /// It ensures that when a critical data error occurs during item conversion,
 /// the resulting stream is gracefully terminated by the server.
-#[derive(Clone)]
 pub(crate) struct GraphQLStream {
-    streamer: Arc<InMemory>,
+    streamer: InMemory,
 }
 
 impl GraphQLStream {
@@ -145,9 +142,7 @@ impl GraphQLStream {
         )
         .await
         .map_err(|e| Error::Internal(format!("failed to connect to postgres: {e}")))?;
-        Ok(Self {
-            streamer: Arc::new(streamer),
-        })
+        Ok(Self { streamer })
     }
 
     /// Checks if the provided filter matches the item.
