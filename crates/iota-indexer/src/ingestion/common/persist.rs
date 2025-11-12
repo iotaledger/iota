@@ -153,14 +153,21 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
 }
 
 /// The indexer writer operates on checkpoint data, which contains information
-/// on the current epoch, checkpoint, and transaction. These three numbers form
-/// the watermark upper bound for each committed table.The reader and pruner are
-/// responsible for determining which of the three units will be used for a
-/// particular table.
+/// on the current epoch, checkpoint, and transaction.
+///
+/// These three numbers form the watermark upper bound for each committed table.
+/// The reader and pruner are responsible for determining which of the three
+/// units will be used for a particular table.
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
 pub struct CommitterWatermark {
+    /// Highest epoch written for given table. Doesn't mean that data for the
+    /// whole epoch is persisted as it stil may be in progress.
     pub epoch_hi_inclusive: u64,
+    /// Highest checkpoint for which all data is already written for given
+    /// table.
     pub checkpoint_hi_inclusive: u64,
+    /// Exclusive upper transaction sequence number bound for this table's
+    /// data.
     pub tx_hi: u64,
 }
 impl From<&IndexedCheckpoint> for CommitterWatermark {
