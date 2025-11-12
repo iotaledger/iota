@@ -13,8 +13,6 @@ const IS_PROD_ENV = process.env.NEXT_PUBLIC_BUILD_ENV == 'production';
 export const persistableStorage = new PersistableStorage<UserSession>();
 
 export async function initAmplitude() {
-    if (ampli.isLoaded) return;
-
     await ampli.load({
         environment: 'iotawalletdashboard',
         // Flip this if you'd like to test Amplitude locally
@@ -23,12 +21,6 @@ export async function initAmplitude() {
             configuration: {
                 optOut: false,
                 logLevel: IS_PROD_ENV ? LogLevel.Warn : LogLevel.None,
-                // Disable default tracking plugins that auto-send events
-                defaultTracking: {
-                    pageViews: false,
-                    formInteractions: false,
-                    fileDownloads: false,
-                },
             },
         },
     }).promise;

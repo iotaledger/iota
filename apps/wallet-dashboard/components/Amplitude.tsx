@@ -4,40 +4,39 @@
 'use client';
 
 import { ampli, initAmplitude } from '@/lib/utils/analytics';
-import { useIotaClientContext } from '@iota/dapp-kit';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+
+// Initialize Amplitude immediately when this module loads (client-side only)
+let amplitudeInitialized = false;
+let amplitudeInitPromise: Promise<void> | null = null;
+
+if (typeof window !== 'undefined' && !amplitudeInitialized) {
+    amplitudeInitialized = true;
+    amplitudeInitPromise = initAmplitude();
+}
+
+async function trackPageOpen() {
+    // Wait for initialization to complete before tracking
+    if (amplitudeInitPromise) {
+        await amplitudeInitPromise;
+    }
+
+    ampli.openedWalletDashboard({
+        pagePath: location.pathname,
+        pagePathFragment: `${location.pathname}${location.search}${location.hash}`,
+        walletDashboardRev: process.env.NEXT_PUBLIC_DASHBOARD_REV,
+    });
+}
 
 export function Amplitude() {
-    const { network } = useIotaClientContext();
+    const hasTracked = useRef(false);
 
-    // Handle network availability and changes
     useEffect(() => {
-        if (!network || !process.env.NODE_ENV) {
-            return;
+        if (!hasTracked.current) {
+            hasTracked.current = true;
+            trackPageOpen();
         }
-
-        (async () => {
-            if (!ampli.isLoaded) {
-                await initAmplitude();
-                await ampli.identify(undefined, {
-                    groups: {
-                        network: network,
-                    },
-                }).promise;
-                ampli.openedWalletDashboard({
-                    pagePath: location.pathname,
-                    pagePathFragment: `${location.pathname}${location.search}${location.hash}`,
-                    walletDashboardRev: process.env.NEXT_PUBLIC_DASHBOARD_REV,
-                });
-            } else {
-                await ampli.identify(undefined, {
-                    groups: {
-                        network: network,
-                    },
-                }).promise;
-            }
-        })();
-    }, [network]);
+    }, []);
 
     return null;
 }
