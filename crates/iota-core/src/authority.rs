@@ -1818,12 +1818,15 @@ impl AuthorityState {
         Ok((
             DryRunTransactionBlockResponse {
                 // to avoid cloning `transaction`, fields are populated in this order
-                suggested_gas_price_with_ogd: self
+                suggested_gas_price_legacy: self
                     .congestion_tracker
                     .get_prediction_suggested_gas_price(&transaction),
+                suggested_gas_price_with_ogd: self
+                    .congestion_tracker
+                    .get_suggested_gas_price_with_ogd(&transaction),
                 suggested_gas_price_with_nn: self
                     .congestion_tracker
-                    .get_model_prediction(&transaction),
+                    .get_suggested_price_with_nn(&transaction),
                 input: IotaTransactionBlockData::try_from(
                     transaction.clone(),
                     &module_cache,
