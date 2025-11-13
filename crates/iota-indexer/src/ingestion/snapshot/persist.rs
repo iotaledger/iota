@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use async_trait::async_trait;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 
 use crate::{
     config::SnapshotLagConfig,
@@ -52,8 +53,10 @@ impl Writer<TransactionObjectChangesToCommit> for ObjectSnapshotWriter {
         Ok(())
     }
 
-    async fn get_watermark_hi(&self) -> IndexerResult<Option<CommitterWatermark>> {
-        self.store.get_latest_object_snapshot_watermark().await
+    async fn get_watermark_hi(&self) -> IndexerResult<Option<CheckpointSequenceNumber>> {
+        self.store
+            .get_latest_object_snapshot_checkpoint_sequence_number()
+            .await
     }
 
     async fn set_watermark_hi(&self, watermark: CommitterWatermark) -> IndexerResult<()> {
@@ -62,7 +65,7 @@ impl Writer<TransactionObjectChangesToCommit> for ObjectSnapshotWriter {
             .await?;
         self.metrics
             .latest_object_snapshot_sequence_number
-            .set(watermark.cp as i64);
+            .set(watermark.checkpoint_hi_inclusive as i64);
         Ok(())
     }
 

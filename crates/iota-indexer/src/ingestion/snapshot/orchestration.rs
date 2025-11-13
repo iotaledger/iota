@@ -48,11 +48,7 @@ impl SnapshotPipelineBuilder {
         cancel: CancellationToken,
     ) -> IndexerResult<SnapshotPipelineBuilder> {
         let writer = ObjectSnapshotWriter::new(state.clone(), metrics.clone(), lag_config);
-        let watermark = writer
-            .get_watermark_hi()
-            .await?
-            .map(|w| w.cp)
-            .unwrap_or_default();
+        let watermark = writer.get_watermark_hi().await?.unwrap_or_default();
         Ok(SnapshotPipelineBuilder {
             writer,
             checkpoint_download_queue_size,

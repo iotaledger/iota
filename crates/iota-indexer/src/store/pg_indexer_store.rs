@@ -20,6 +20,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::ObjectID,
     digests::{ChainIdentifier, CheckpointDigest},
+    messages_checkpoint::CheckpointSequenceNumber,
 };
 use itertools::Itertools;
 use strum::IntoEnumIterator;
@@ -405,7 +406,7 @@ impl PgIndexerStore {
                 .select((
                     watermarks::epoch_hi_inclusive,
                     watermarks::checkpoint_hi_inclusive,
-                    watermarks::tx_hi_inclusive,
+                    watermarks::tx_hi,
                 ))
                 .filter(
                     watermarks::entity
@@ -416,13 +417,25 @@ impl PgIndexerStore {
                 .optional()
                 .map(|v| {
                     v.map(|(epoch, cp, tx)| CommitterWatermark {
-                        epoch: epoch as u64,
-                        cp: cp as u64,
-                        tx: tx as u64,
+                        epoch_hi_inclusive: epoch as u64,
+                        checkpoint_hi_inclusive: cp as u64,
+                        tx_hi: tx as u64,
                     })
                 })
         })
         .context("Failed reading latest object snapshot watermark from PostgresDB")
+    }
+
+    fn get_latest_object_snapshot_checkpoint_sequence_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, IndexerError> {
+        read_only_blocking!(&self.blocking_cp, |conn| {
+            objects_snapshot::table
+                .select(max(objects_snapshot::checkpoint_sequence_number))
+                .first::<Option<i64>>(conn)
+                .map(|v| v.map(|v| v as CheckpointSequenceNumber))
+        })
+        .context("Failed reading latest object snapshot checkpoint sequence number from PostgresDB")
     }
 
     fn persist_display_updates(
@@ -1596,7 +1609,7 @@ impl PgIndexerStore {
                         watermarks::epoch_hi_inclusive.eq(excluded(watermarks::epoch_hi_inclusive)),
                         watermarks::checkpoint_hi_inclusive
                             .eq(excluded(watermarks::checkpoint_hi_inclusive)),
-                        watermarks::tx_hi_inclusive.eq(excluded(watermarks::tx_hi_inclusive)),
+                        watermarks::tx_hi.eq(excluded(watermarks::tx_hi)),
                     ))
                     .execute(conn)
                     .map_err(IndexerError::from)
@@ -1796,6 +1809,15 @@ impl IndexerStore for PgIndexerStore {
     ) -> Result<Option<CommitterWatermark>, IndexerError> {
         self.execute_in_blocking_worker(|this| this.get_latest_object_snapshot_watermark())
             .await
+    }
+
+    async fn get_latest_object_snapshot_checkpoint_sequence_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, IndexerError> {
+        self.execute_in_blocking_worker(|this| {
+            this.get_latest_object_snapshot_checkpoint_sequence_number()
+        })
+        .await
     }
 
     fn persist_objects_in_existing_transaction(

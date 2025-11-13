@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use async_trait::async_trait;
 use futures::{FutureExt, StreamExt};
 use iota_rest_api::CheckpointData;
+use iota_types::messages_checkpoint::CheckpointSequenceNumber;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -33,7 +34,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
     async fn persist(&self, batch: Vec<T>) -> IndexerResult<()>;
 
     /// Reads high watermark of the table DB.
-    async fn get_watermark_hi(&self) -> IndexerResult<Option<CommitterWatermark>>;
+    async fn get_watermark_hi(&self) -> IndexerResult<Option<CheckpointSequenceNumber>>;
 
     /// Sets high watermark of the table DB, also update metrics.
     async fn set_watermark_hi(&self, watermark_hi: CommitterWatermark) -> IndexerResult<()>;
@@ -85,7 +86,7 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
         let mut next_cp_to_process = self
             .get_watermark_hi()
             .await?
-            .map(|watermark| watermark.cp.saturating_add(1))
+            .map(|watermark| watermark.saturating_add(1))
             .unwrap_or_default();
 
         loop {
@@ -108,7 +109,8 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
                             return Ok(());
                         }
                         for (watermark, data) in tuple_chunk {
-                            unprocessed.insert(watermark.cp, (watermark, data));
+                            unprocessed
+                                .insert(watermark.checkpoint_hi_inclusive, (watermark, data));
                         }
                     }
                     Some(None) => break, // Stream has ended
@@ -152,34 +154,38 @@ pub trait Writer<T: Send + Sync + 'static>: Send + Sync {
 }
 
 /// The indexer writer operates on checkpoint data, which contains information
-/// on the current epoch, checkpoint, and transaction. These three numbers form
-/// the watermark upper bound for each committed table.The reader and pruner are
-/// responsible for determining which of the three units will be used for a
-/// particular table.
+/// on the current epoch, checkpoint, and transaction.
+///
+/// These three numbers form the watermark upper bound for each committed table.
+/// The reader and pruner are responsible for determining which of the three
+/// units will be used for a particular table.
 #[derive(Clone, Copy, Ord, PartialOrd, Eq, PartialEq)]
 pub struct CommitterWatermark {
-    pub epoch: u64,
-    pub cp: u64,
-    pub tx: u64,
+    /// Highest epoch written for given table. Doesn't mean that data for the
+    /// whole epoch is persisted as it still may be in progress.
+    pub epoch_hi_inclusive: u64,
+    /// Highest checkpoint for which all data is already written for given
+    /// table.
+    pub checkpoint_hi_inclusive: u64,
+    /// Exclusive upper transaction sequence number bound for this table's
+    /// data.
+    pub tx_hi: u64,
 }
 impl From<&IndexedCheckpoint> for CommitterWatermark {
     fn from(checkpoint: &IndexedCheckpoint) -> Self {
         Self {
-            epoch: checkpoint.epoch,
-            cp: checkpoint.sequence_number,
-            tx: checkpoint.network_total_transactions.saturating_sub(1),
+            epoch_hi_inclusive: checkpoint.epoch,
+            checkpoint_hi_inclusive: checkpoint.sequence_number,
+            tx_hi: checkpoint.network_total_transactions,
         }
     }
 }
 impl From<&CheckpointData> for CommitterWatermark {
     fn from(checkpoint: &CheckpointData) -> Self {
         Self {
-            epoch: checkpoint.checkpoint_summary.epoch,
-            cp: checkpoint.checkpoint_summary.sequence_number,
-            tx: checkpoint
-                .checkpoint_summary
-                .network_total_transactions
-                .saturating_sub(1),
+            epoch_hi_inclusive: checkpoint.checkpoint_summary.epoch,
+            checkpoint_hi_inclusive: checkpoint.checkpoint_summary.sequence_number,
+            tx_hi: checkpoint.checkpoint_summary.network_total_transactions,
         }
     }
 }
