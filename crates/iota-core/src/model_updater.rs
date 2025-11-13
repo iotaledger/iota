@@ -18,14 +18,11 @@ use std::{
     thread,
 };
 
-use arc_swap::ArcSwap;
 use iota_types::{
     base_types::ObjectID,
     transaction::{TransactionData, TransactionDataAPI},
 };
 use serde::Serialize;
-use tch::nn; // VarStore for inference snapshot
-use tch::{self, IndexOp, Tensor};
 
 use crate::{gas_metrics::GasMetrics, model};
 use tch::{self, IndexOp, Tensor};

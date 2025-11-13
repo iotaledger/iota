@@ -1826,7 +1826,7 @@ impl AuthorityState {
                     .get_suggested_gas_price_with_ogd(&transaction),
                 suggested_gas_price_with_nn: self
                     .congestion_tracker
-                    .get_suggested_price_with_nn(&transaction),
+                    .get_suggested_gas_price_with_nn(&transaction),
                 input: IotaTransactionBlockData::try_from(
                     transaction.clone(),
                     &module_cache,

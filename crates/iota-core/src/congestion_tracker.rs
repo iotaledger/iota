@@ -31,11 +31,7 @@ use std::sync::Arc;
 use crate::gas_metrics::{GasMetrics, init_gas_metrics};
 
 use crate::{
-    execution_cache::TransactionCacheRead,
-    model_updater::{
-        InNodeModelUpdater, ModelReader, ModelUpdater, ObjectCheckpointStats, ObjectSnapshot,
-        RawTxItem, build_cp_update_batch, build_train_tx_batch,
-    },
+    execution_cache::TransactionCacheRead
 };
 
 /// Capacity of the congestion tracker's cache.
@@ -525,13 +521,8 @@ impl CongestionTracker {
     /// Alias expected by authority.rs for model prediction.
     /// Non-blocking: reads from lock-free snapshot of per-object tips.
     #[cfg(feature = "gas-nn")]
-    pub fn get_model_prediction(&self, transaction: &TransactionData) -> Option<u64> {
+    pub fn get_suggested_gas_price_with_nn(&self, transaction: &TransactionData) -> Option<u64> {
         Some(self.model_reader.predict_for_tx(transaction, self.reference_gas_price))
-    }
-
-    #[cfg(not(feature = "gas-nn"))]
-    pub fn get_model_prediction(&self, _transaction: &TransactionData) -> Option<u64> {
-        None
     }
 
     /// Returns a map of all objects and their hotness values.
