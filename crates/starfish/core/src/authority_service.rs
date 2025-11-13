@@ -3168,6 +3168,7 @@ mod tests {
         let context = Context {
             parameters: Parameters {
                 max_transactions_per_regular_sync_fetch: 20,
+                max_transactions_per_commit_sync_fetch: 10,
                 ..context.parameters
             },
             ..context
