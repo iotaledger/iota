@@ -140,9 +140,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) dag_state_recent_headers: IntGauge,
     pub(crate) dag_state_recent_shards: IntGauge,
     pub(crate) dag_state_recent_refs: IntGauge,
-    pub(crate) cordial_knowledge_buffer_size: IntGauge,
+    pub(crate) cordial_knowledge_message_batch_size: Histogram,
     pub(crate) cordial_knowledge_processed_messages: IntCounterVec,
-    pub(crate) cordial_knowledge_worker_batch_size: Histogram,
     pub(crate) dag_state_store_read_count: IntCounterVec,
     pub(crate) dag_state_store_write_count: IntCounter,
     pub(crate) synchronizer_fetch_block_headers_scheduler_inflight: IntGauge,
@@ -163,6 +162,8 @@ pub(crate) struct NodeMetrics {
     pub(crate) received_unique_headers_from_bundles: IntCounterVec,
     pub(crate) processed_duplicated_headers_in_bundles: IntCounterVec,
     pub(crate) valid_shards_in_bundles: IntCounterVec,
+    pub(crate) missing_ancestors_from_streaming: HistogramVec,
+    pub(crate) missing_ancestors_from_streaming_round_gap: Histogram,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) skipped_empty_transaction_acknowledgments: IntCounterVec,
     pub(crate) subscribed_block_bundles: IntCounterVec,
@@ -464,15 +465,10 @@ impl NodeMetrics {
                 "Number of recent refs cached in the DagState",
                 registry,
             ).unwrap(),
-            cordial_knowledge_buffer_size: register_int_gauge_with_registry!(
-                "cordial_knowledge_buffer_size",
-                "Size of the cordial knowledge buffer received",
-                registry,
-            ).unwrap(),
-            cordial_knowledge_worker_batch_size: register_histogram_with_registry!(
-                "cordial_knowledge_worker_batch_size",
-                "Number of connection knowledge message batches processed by worker",
-                exponential_buckets(1.0, 1.4, 20).unwrap(),
+            cordial_knowledge_message_batch_size: register_histogram_with_registry!(
+                "cordial_knowledge_message_batch_size",
+                "Size of the batch of messages sent to cordial connections",
+                vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
             cordial_knowledge_processed_messages: register_int_counter_vec_with_registry!(
@@ -631,6 +627,18 @@ impl NodeMetrics {
                 "valid_shards_in_bundles",
                 "Number of valid shards received from block bundles per sender authority",
                 &["authority", "source"],
+                registry,
+            ).unwrap(),
+            missing_ancestors_from_streaming: register_histogram_vec_with_registry!(
+                "missing_ancestors_from_streaming",
+                "Number of missing ancestors of blocks and headers received through streaming",
+                &["source"],
+                registry,
+            ).unwrap(),
+            missing_ancestors_from_streaming_round_gap: register_histogram_with_registry!(
+                "missing_ancestors_from_streaming_round_gap",
+                "Round gap to missing ancestors of blocks and headers received through streaming",
+                vec![0.0, 1.0, 2.0, 5.0, 10.0, 20.0, 40.0, 80.0, 100.0, 200.0, 400.0, 800.0, 1000.0],
                 registry,
             ).unwrap(),
             rejected_blocks: register_int_counter_vec_with_registry!(
