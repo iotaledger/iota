@@ -1038,9 +1038,6 @@ impl<C: NetworkClient> Inner<C> {
             let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
                 .map_err(ConsensusError::MalformedTransactions)?;
 
-            self.block_verifier
-                .check_and_verify_transactions(&transactions)?;
-
             // Step 3: Create a VerifiedTransactions instance and insert into map
             let verified_transactions = VerifiedTransactions::new(
                 transactions,
