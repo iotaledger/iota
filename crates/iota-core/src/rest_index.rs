@@ -203,7 +203,7 @@ impl IndexStoreTables {
 
     /// Lists all Column Families present in the on-disk database
     fn list_cfs(&self) -> Vec<String> {
-        let path = self.meta.db.path_for_pruning();
+        let path = self.meta.rocksdb.path();
         typed_store::rocks::list_tables(path.to_path_buf()).unwrap()
     }
 
@@ -225,14 +225,14 @@ impl IndexStoreTables {
 
     fn drop_cf(&mut self, cf: &str) -> Result<(), TypedStoreError> {
         self.meta
-            .db
+            .rocksdb
             .drop_cf(cf)
             .map_err(typed_store::rocks::errors::typed_store_err_from_rocks_err)
     }
 
     fn create_cf(&mut self, cf: &str) -> Result<(), TypedStoreError> {
         self.meta
-            .db
+            .rocksdb
             .create_cf(cf, &typed_store::rocks::default_db_options().options)
             .map_err(typed_store::rocks::errors::typed_store_err_from_rocks_err)
     }
@@ -446,7 +446,7 @@ impl IndexStoreTables {
         let Some(transaction) = transactions.iter().find(|tx| {
             matches!(
                 tx.transaction.intent_message().value.kind(),
-                TransactionKind::ChangeEpoch(_) | TransactionKind::EndOfEpochTransaction(_)
+                TransactionKind::EndOfEpochTransaction(_)
             )
         }) else {
             return Err(StorageError::custom(format!(
@@ -533,8 +533,6 @@ impl IndexStoreTables {
                         )?;
                     }
                     Owner::Shared { .. } | Owner::Immutable => {}
-                    // TODO: Implement support for ConsensusV2 objects.
-                    Owner::ConsensusV2 { .. } => todo!(),
                 }
             }
 
@@ -557,8 +555,6 @@ impl IndexStoreTables {
                         }
 
                         Owner::Shared { .. } | Owner::Immutable => {}
-                        // TODO: Implement support for ConsensusV2 objects.
-                        Owner::ConsensusV2 { .. } => todo!(),
                     }
                 }
 
@@ -580,8 +576,6 @@ impl IndexStoreTables {
                         }
                     }
                     Owner::Shared { .. } | Owner::Immutable => {}
-                    // TODO: Implement support for ConsensusV2 objects.
-                    Owner::ConsensusV2 { .. } => todo!(),
                 }
             }
 
@@ -800,7 +794,10 @@ impl RestIndexStore {
         owner: IotaAddress,
         object_type: Option<StructTag>,
         cursor: Option<OwnerIndexKey>,
-    ) -> Result<impl Iterator<Item = (OwnerIndexKey, OwnerIndexInfo)> + '_, TypedStoreError> {
+    ) -> Result<
+        impl Iterator<Item = Result<(OwnerIndexKey, OwnerIndexInfo), TypedStoreError>> + '_,
+        TypedStoreError,
+    > {
         self.tables.owner_iter(owner, object_type, cursor)
     }
 

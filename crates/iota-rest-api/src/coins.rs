@@ -62,6 +62,7 @@ async fn get_coin_info(
     let iota_types::storage::CoinInfo {
         coin_metadata_object_id,
         treasury_object_id,
+        regulated_coin_metadata_object_id: _,
     } = indexes
         .get_coin_info(&core_coin_type)?
         .ok_or_else(|| CoinNotFoundError(coin_type.clone()))?;

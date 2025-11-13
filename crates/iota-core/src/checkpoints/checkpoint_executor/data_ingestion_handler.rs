@@ -7,14 +7,14 @@ use std::{collections::HashMap, path::Path};
 use iota_storage::blob::{Blob, BlobEncoding};
 use iota_types::{
     effects::TransactionEffectsAPI,
-    error::{IotaError, IotaResult, UserInputError},
+    error::{IotaError, IotaResult},
     full_checkpoint_content::{CheckpointData, CheckpointTransaction},
     storage::ObjectStore,
 };
 
 use crate::{
     checkpoints::checkpoint_executor::CheckpointExecutionData,
-    execution_cache::{ObjectCacheRead, TransactionCacheRead},
+    execution_cache::TransactionCacheRead,
 };
 
 pub(crate) fn load_checkpoint_data(

@@ -793,7 +793,7 @@ impl CheckpointExecutor {
             } else {
                 load_checkpoint_data(
                     checkpoint_exec_data,
-                    self.object_cache_reader.as_ref(),
+                    self.state.get_object_store(),
                     self.transaction_cache_reader.as_ref(),
                 )
                 .expect("Failed to load full CheckpointData")

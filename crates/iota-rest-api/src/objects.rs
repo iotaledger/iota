@@ -281,16 +281,17 @@ impl TryFrom<(DynamicFieldKey, DynamicFieldIndexInfo)> for DynamicFieldInfo {
     fn try_from(value: (DynamicFieldKey, DynamicFieldIndexInfo)) -> Result<Self, Self::Error> {
         let DynamicFieldKey { parent, field_id } = value.0;
         let DynamicFieldIndexInfo {
-            dynamic_field_type,
+            dynamic_field_kind,
             name_type,
             name_value,
+            value_type: _,
             dynamic_object_id,
         } = value.1;
 
         Self {
             parent: parent.into(),
             field_id: field_id.into(),
-            dynamic_field_type: dynamic_field_type.into(),
+            dynamic_field_type: dynamic_field_kind.into(),
             name_type: type_tag_core_to_sdk(name_type)?,
             name_value,
             dynamic_object_id: dynamic_object_id.map(Into::into),

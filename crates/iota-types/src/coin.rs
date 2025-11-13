@@ -83,18 +83,16 @@ impl Coin {
     /// balance Ok(Some(u64)). If it's not a Coin, return Ok(None).
     /// The cost is 2 comparisons if not a coin, and deserialization if its a
     /// Coin.
-    pub fn extract_balance_if_coin(object: &Object) -> Result<Option<u64>, bcs::Error> {
-        match &object.data {
-            Data::Move(move_obj) => {
-                if !move_obj.is_coin() {
-                    return Ok(None);
-                }
+    pub fn extract_balance_if_coin(object: &Object) -> Result<Option<(TypeTag, u64)>, bcs::Error> {
+        let Data::Move(obj) = &object.data else {
+            return Ok(None);
+        };
+        let Some(type_) = obj.type_().coin_type_maybe() else {
+            return Ok(None);
+        };
 
-                let coin = Self::from_bcs_bytes(move_obj.contents())?;
-                Ok(Some(coin.value()))
-            }
-            _ => Ok(None), // package
-        }
+        let coin = Self::from_bcs_bytes(obj.contents())?;
+        Ok(Some((type_, coin.value())))
     }
 
     pub fn id(&self) -> &ObjectID {

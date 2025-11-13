@@ -16,9 +16,8 @@ use iota_types::{
     },
     object::Object,
     storage::{
-        AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
-        ObjectStore, OwnedObjectInfo, ReadStore, RestIndexes, RestStateReader, TransactionInfo,
-        WriteStore,
+        CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey, ObjectStore, OwnedObjectInfo,
+        ReadStore, RestIndexes, RestStateReader, TransactionInfo, WriteStore,
         error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
@@ -27,6 +26,7 @@ use move_core_types::language_storage::StructTag;
 use parking_lot::Mutex;
 use tap::Pipe;
 use tracing::instrument;
+use typed_store::TypedStoreError;
 
 use crate::{
     authority::AuthorityState,
@@ -541,7 +541,6 @@ impl RestIndexes for RestIndexStore {
         digest: &TransactionDigest,
     ) -> iota_types::storage::error::Result<Option<TransactionInfo>> {
         self.get_transaction_info(digest)
-            .map(|maybe_info| maybe_info.map(|info| info.checkpoint))
             .map_err(StorageError::custom)
     }
 

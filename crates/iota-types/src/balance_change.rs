@@ -31,7 +31,6 @@ fn coins(objects: &[Object]) -> impl Iterator<Item = (&IotaAddress, TypeTag, u64
         let address = match object.owner() {
             Owner::AddressOwner(iota_address) | Owner::ObjectOwner(iota_address) => iota_address,
             Owner::Shared { .. } | Owner::Immutable => return None,
-            Owner::ConsensusV2 { .. } => todo!(),
         };
         let (coin_type, balance) = Coin::extract_balance_if_coin(object).ok().flatten()?;
         Some((address, coin_type, balance))

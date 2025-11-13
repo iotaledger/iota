@@ -1779,7 +1779,10 @@ impl ObjectCacheRead for WritebackCache {
     }
 
     fn try_get_highest_pruned_checkpoint(&self) -> IotaResult<Option<CheckpointSequenceNumber>> {
-        self.store.perpetual_tables.get_highest_pruned_checkpoint()
+        self.store
+            .perpetual_tables
+            .get_highest_pruned_checkpoint()
+            .map_err(IotaError::from)
     }
 }
 

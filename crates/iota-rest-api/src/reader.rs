@@ -114,8 +114,9 @@ impl StateReader {
     ) -> Option<CheckpointSequenceNumber> {
         self.inner()
             .indexes()?
-            .get_transaction_checkpoint(digest)
+            .get_transaction_info(digest)
             .ok()?
+            .map(|info| info.checkpoint)
     }
 
     pub fn get_transaction_response(
