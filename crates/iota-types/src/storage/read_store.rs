@@ -10,7 +10,6 @@ use typed_store_error::TypedStoreError;
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    balance_change::{BalanceChange, derive_balance_changes},
     base_types::{EpochId, IotaAddress, ObjectID, ObjectType, SequenceNumber},
     committee::Committee,
     digests::{
@@ -850,20 +849,16 @@ pub struct CoinInfo {
 #[derive(Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]
 pub struct TransactionInfo {
     pub checkpoint: u64,
-    pub balance_changes: Vec<BalanceChange>,
     pub object_types: HashMap<ObjectID, ObjectType>,
 }
 
 impl TransactionInfo {
     pub fn new(
         _transaction: &TransactionData,
-        effects: &TransactionEffects,
         input_objects: &[Object],
         output_objects: &[Object],
         checkpoint: u64,
     ) -> TransactionInfo {
-        let balance_changes = derive_balance_changes(effects, input_objects, output_objects);
-
         let object_types = input_objects
             .iter()
             .chain(output_objects)
@@ -872,7 +867,6 @@ impl TransactionInfo {
 
         TransactionInfo {
             checkpoint,
-            balance_changes,
             object_types,
         }
     }

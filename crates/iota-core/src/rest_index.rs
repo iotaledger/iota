@@ -442,7 +442,6 @@ impl IndexStoreTables {
         for tx in &checkpoint.transactions {
             let info = TransactionInfo::new(
                 tx.transaction.transaction_data(),
-                &tx.effects,
                 &tx.input_objects,
                 &tx.output_objects,
                 checkpoint.checkpoint_summary.sequence_number,
