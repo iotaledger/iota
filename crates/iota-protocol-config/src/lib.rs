@@ -2304,8 +2304,10 @@ impl ProtocolConfig {
                     }
                 }
                 16 => {
-                    // Enables score based rewards.
-                    cfg.feature_flags.score_based_rewards = true;
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        // Enables score based rewards.
+                        cfg.feature_flags.score_based_rewards = true;
+                    }
                 }
                 // Use this template when making changes:
                 //
