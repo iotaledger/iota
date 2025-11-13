@@ -1452,52 +1452,54 @@ use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::dynamic_field;
 
-#[error(code = 0)]
-const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be signed by the account.";
-
 public struct AbstractAccount has key {
     id: UID,
 }
 
 public struct OwnerPublicKey has copy, drop, store {}
 
-public fun create(public_key: vector<u8>, authenticator: AuthenticatorInfoV1, ctx: &mut TxContext) {
+public fun create(
+    public_key: vector<u8>,
+    authenticator: AuthenticatorInfoV1<AbstractAccount>,
+    ctx: &mut TxContext,
+): address {
     let mut account = AbstractAccount { id: object::new(ctx) };
-    account::attach_auth_info_v1(&mut account.id, authenticator);
+    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
+        &account,
+        authenticator,
+    );
+    account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
     dynamic_field::add(&mut account.id, OwnerPublicKey {}, public_key);
+    let account_address = object::id_address(&account);
     iota::transfer::share_object(account);
-}
-
-public fun ensure_tx_sender_is_account(self: &AbstractAccount, ctx: &TxContext) {
-    assert!(self.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
+    account_address
 }
 
 public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx: &TxContext) {
-    ensure_tx_sender_is_account(account, ctx);
+    assert!(account.id.uid_to_address() == ctx.sender(), 0);
 }
 
-//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate"
-//> 0: iota::account::create_auth_info_v1(Input(1), Input(2), Input(3));
+//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate" 7000000000
+//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
 //> 1: test::abstract_account::create(Input(0), Result(0));
+//> 2: SplitCoins(Gas, [Input(4)]);
+//> 3: TransferObjects([Result(2)], Result(1));
 
-//# view-object 2,2
+//# view-object 2,0
 
-//# set-address a_account object(2,2)
+//# view-object 2,3
 
-//# programmable --sender A --inputs 7000000000 @a_account
+//# abstract --account immshared(2,3) --gas-payment 2,0 --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 
 //# view-object 5,0
-
-//# abstract --account immshared(2,2) --gas-payment 5,0 --ptb-inputs 100 @A
-//> 0: SplitCoins(Gas, [Input(0)]);
-//> 1: TransferObjects([Result(0)], Input(1));
 ```
 
-- Authenticator Inputs (--auth-inputs)
-  The authenticator inputs (e.g., x"...") represent any required verification payloads, such as a user signature or session data.
-  These values are passed into the MoveAuthenticator automatically and used by the Move runtime during authentication.
+- Account (--account)
+  The immutable shared object that represents Abtract Account.
+- Gas Payment (--gas-payment)
+  Coin object that must be owned by the Abstract Account (AA).
 - PTB Inputs (--ptb-inputs)
   These are inputs used inside the transaction body - for example, numeric values, objects, or addresses.
   The PTB commands (//> ...) operate as in the programmable command.
@@ -1508,48 +1510,64 @@ public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx:
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 9 tasks
+processed 7 tasks
 
 init:
 A: object(0,0)
 
-task 1, lines 8-38:
+task 1, lines 8-40:
 //# publish --sender A
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9386000,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9530400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 40-42:
-//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate"
-//> 0: iota::account::create_auth_info_v1(Input(1), Input(2), Input(3));
+task 2, lines 42-46:
+//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate" 7000000000
+//> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
 //> 1: test::abstract_account::create(Input(0), Result(0));
-created: object(2,0), object(2,1), object(2,2)
+//> 2: SplitCoins(Gas, [Input(4)]);
+//> 3: TransferObjects([Result(2)], Result(1));
+created: object(2,0), object(2,1), object(2,2), object(2,3)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 7030000,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8519600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 44:
-//# view-object 2,2
+task 3, line 48:
+//# view-object 2,0
+Owner: Account Address ( fake(2,3) )
+Version: 3
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 7000000000u64,
+    },
+}
+
+task 4, line 50:
+//# view-object 2,3
 Owner: Shared( 3 )
 Version: 3
 Contents: test::abstract_account::AbstractAccount {
     id: iota::object::UID {
         id: iota::object::ID {
-            bytes: fake(2,2),
+            bytes: fake(2,3),
         },
     },
 }
 
-task 5, lines 48-50:
-//# programmable --sender A --inputs 7000000000 @a_account
-//> 0: SplitCoins(Gas, [Input(0)]);
-//> 1: TransferObjects([Result(0)], Input(1));
+task 5, lines 52-54:
+//# abstract --account immshared(2,3) --gas-payment 2,0 --ptb-inputs 100 @A
 created: object(5,0)
-mutated: object(0,0)
+mutated: object(2,0)
+unchanged_shared: object(2,3)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 6, line 52:
+task 6, line 56:
 //# view-object 5,0
-Owner: Account Address ( a_account )
+Owner: Account Address ( A )
 Version: 4
 Contents: iota::coin::Coin<iota::iota::IOTA> {
     id: iota::object::UID {
@@ -1558,16 +1576,9 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
         },
     },
     balance: iota::balance::Balance<iota::iota::IOTA> {
-        value: 7000000000u64,
+        value: 100u64,
     },
 }
-
-task 7, lines 54-56:
-//# abstract --gas-payment 5,0 --auth-inputs immshared(2,2) --ptb-inputs 100 @A
-created: object(7,0)
-mutated: object(5,0)
-unchanged_shared: object(2,2)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 ```
 
 ## How `run_test` Compares a Move File With the Corresponding `.snap` File
