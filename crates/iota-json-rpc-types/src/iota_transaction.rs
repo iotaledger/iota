@@ -557,7 +557,7 @@ impl IotaTransactionBlockKind {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::ChangeEpochV4(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV4(e.into())
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                                 IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
@@ -642,7 +642,7 @@ impl IotaTransactionBlockKind {
                                 IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::ChangeEpochV4(e) => {
-                                IotaEndOfEpochTransactionKind::ChangeEpochV4(e.into())
+                                IotaEndOfEpochTransactionKind::ChangeEpochV2(e.into())
                             }
                             EndOfEpochTransactionKind::AuthenticatorStateCreate => {
                                 IotaEndOfEpochTransactionKind::AuthenticatorStateCreate
@@ -737,6 +737,10 @@ pub struct IotaChangeEpochV2 {
     #[serde_as(as = "Option<Vec<BigInt<u64>>>")]
     #[serde(skip_serializing_if = "Option::is_none", default)]
     pub eligible_active_validators: Option<Vec<u64>>,
+    #[schemars(with = "Option<Vec<BigInt<u64>>>")]
+    #[serde_as(as = "Option<Vec<BigInt<u64>>>")]
+    #[serde(skip_serializing_if = "Option::is_none", default)]
+    pub scores: Option<Vec<u64>>,
 }
 
 impl From<ChangeEpochV2> for IotaChangeEpochV2 {
@@ -749,6 +753,7 @@ impl From<ChangeEpochV2> for IotaChangeEpochV2 {
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
             eligible_active_validators: None,
+            scores: None,
         }
     }
 }
@@ -763,37 +768,12 @@ impl From<ChangeEpochV3> for IotaChangeEpochV2 {
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
             eligible_active_validators: Some(e.eligible_active_validators),
+            scores: None,
         }
     }
 }
 
-#[serde_as]
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct IotaChangeEpochV4 {
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch: EpochId,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub storage_charge: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub computation_charge: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub computation_charge_burned: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub storage_rebate: u64,
-    #[schemars(with = "BigInt<u64>")]
-    #[serde_as(as = "BigInt<u64>")]
-    pub epoch_start_timestamp_ms: u64,
-    #[schemars(with = "Vec<BigInt<u64>>")]
-    #[serde_as(as = "Vec<BigInt<u64>>")]
-    pub scores: Vec<u64>,
-}
-
-impl From<ChangeEpochV4> for IotaChangeEpochV4 {
+impl From<ChangeEpochV4> for IotaChangeEpochV2 {
     fn from(e: ChangeEpochV4) -> Self {
         Self {
             epoch: e.epoch,
@@ -802,7 +782,8 @@ impl From<ChangeEpochV4> for IotaChangeEpochV4 {
             computation_charge_burned: e.computation_charge_burned,
             storage_rebate: e.storage_rebate,
             epoch_start_timestamp_ms: e.epoch_start_timestamp_ms,
-            scores: e.scores,
+            eligible_active_validators: Some(e.eligible_active_validators),
+            scores: Some(e.scores),
         }
     }
 }
@@ -1833,7 +1814,6 @@ pub struct IotaEndOfEpochTransaction {
 pub enum IotaEndOfEpochTransactionKind {
     ChangeEpoch(IotaChangeEpoch),
     ChangeEpochV2(IotaChangeEpochV2),
-    ChangeEpochV4(IotaChangeEpochV4),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(IotaAuthenticatorStateExpire),
 }

@@ -300,7 +300,7 @@ pub struct ChangeEpochV4 {
     /// Vector of active validator indices eligible to take part in committee
     /// selection because they support the new, target protocol version.
     pub eligible_active_validators: Vec<u64>,
-    /// Scores relative to the epoch being finalized. Each value corresponds to
+    /// Scores for the epoch being finalized. Each value corresponds to
     /// an authority, ordered by the ending epoch's AuthorityIndex.
     pub scores: Vec<u64>,
 }
