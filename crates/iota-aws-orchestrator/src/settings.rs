@@ -12,10 +12,7 @@ use std::{
 use reqwest::Url;
 use serde::{Deserialize, Deserializer, de::Error};
 
-use crate::{
-    client::{Instance, InstanceRole},
-    error::{SettingsError, SettingsResult},
-};
+use crate::error::{SettingsError, SettingsResult};
 
 /// The git repository holding the codebase.
 #[derive(Deserialize, Clone)]
@@ -165,28 +162,6 @@ impl Settings {
                 file: ssh_public_key_file.display().to_string(),
                 message: e.to_string(),
             }),
-        }
-    }
-
-    /// Check whether the input instance matches the criteria described in the
-    /// settings.
-    pub fn filter_instances(&self, instance: &Instance) -> bool {
-        match &instance.role {
-            InstanceRole::Node => {
-                self.regions.contains(&instance.region)
-                    && instance.specs.to_lowercase().replace('.', "")
-                        == self.node_specs.to_lowercase().replace('.', "")
-            }
-            InstanceRole::Client => {
-                self.regions.contains(&instance.region)
-                    && instance.specs.to_lowercase().replace('.', "")
-                        == self.client_specs.to_lowercase().replace('.', "")
-            }
-            InstanceRole::Metrics => {
-                self.regions.contains(&instance.region)
-                    && instance.specs.to_lowercase().replace('.', "")
-                        == self.metrics_specs.to_lowercase().replace('.', "")
-            }
         }
     }
 

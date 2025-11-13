@@ -47,6 +47,9 @@ pub enum CloudProviderError {
 
     #[error("SSH key \"{0}\" not found")]
     SshKeyNotFound(String),
+
+    #[error("Spot Instances cannot be stopped: Instance Id: {0}")]
+    FailedToStopSpotInstance(String),
 }
 
 pub type SshResult<T> = Result<T, SshError>;

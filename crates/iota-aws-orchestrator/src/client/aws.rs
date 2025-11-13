@@ -12,14 +12,16 @@ use aws_sdk_ec2::{
     config::Region,
     primitives::Blob,
     types::{
-        BlockDeviceMapping, EbsBlockDevice, EphemeralNvmeSupport, Filter, ResourceType, Tag,
-        TagSpecification, VolumeType, builders::FilterBuilder,
+        BlockDeviceMapping, EbsBlockDevice, EphemeralNvmeSupport, Filter,
+        InstanceInterruptionBehavior, InstanceMarketOptionsRequest, MarketType, ResourceType,
+        SpotInstanceType, SpotMarketOptions, Tag, TagSpecification, VolumeType,
+        builders::FilterBuilder,
     },
 };
 use aws_smithy_runtime_api::client::{behavior_version::BehaviorVersion, result::SdkError};
 use serde::Serialize;
 
-use super::{Instance, InstanceRole, ServerProviderClient};
+use super::{Instance, InstanceLifecycle, InstanceRole, ServerProviderClient};
 use crate::{
     error::{CloudProviderError, CloudProviderResult},
     settings::Settings,
@@ -113,6 +115,14 @@ impl AwsClient {
             .expect("AWS instance should have a role")
             .as_str()
             .into();
+        let lifecycle: InstanceLifecycle =
+            if let Some(aws_sdk_ec2::types::InstanceLifecycleType::Spot) =
+                aws_instance.instance_lifecycle
+            {
+                InstanceLifecycle::Spot
+            } else {
+                InstanceLifecycle::OnDemand
+            };
         Instance {
             id: aws_instance
                 .instance_id()
@@ -145,6 +155,7 @@ impl AwsClient {
                     .expect("AWS status should have a name")
             ),
             role,
+            lifecycle,
         }
     }
 
@@ -268,6 +279,24 @@ impl AwsClient {
         }
         Ok(false)
     }
+    fn spot_options() -> InstanceMarketOptionsRequest {
+        InstanceMarketOptionsRequest::builder()
+            // SPOT vs CAPACITY_BLOCK
+            .market_type(MarketType::Spot)
+            .spot_options(
+                SpotMarketOptions::builder()
+                    // One-off Spot request that ends when the instance ends.
+                    .spot_instance_type(SpotInstanceType::OneTime)
+                    // What to do when AWS reclaims capacity.
+                    // For ephemeral test runs, terminate is usually fine.
+                    .instance_interruption_behavior(InstanceInterruptionBehavior::Terminate)
+                    // Usually DON'T set max_price: if omitted, you just pay current Spot price,
+                    // capped by On-Demand in most regions. Setting it can increase
+                    // interruptions.:contentReference[oaicite:4]{index=4}
+                    .build(),
+            )
+            .build()
+    }
 }
 
 #[async_trait::async_trait]
@@ -314,16 +343,9 @@ impl ServerProviderClient for AwsClient {
 
     async fn list_instances_by_region_and_ids(
         &self,
-        regions_and_ids: Vec<(String, String)>,
+        ids_by_region: &HashMap<String, Vec<String>>,
     ) -> CloudProviderResult<Vec<Instance>> {
         let mut instances = Vec::new();
-        let ids_by_region: HashMap<String, Vec<String>> =
-            regions_and_ids
-                .into_iter()
-                .fold(HashMap::new(), |mut acc, (k, v)| {
-                    acc.entry(k).or_default().push(v);
-                    acc
-                });
         for (region, client) in &self.clients {
             let request = client
                 .describe_instances()
@@ -368,14 +390,18 @@ impl ServerProviderClient for AwsClient {
     where
         I: Iterator<Item = &'a Instance> + Send,
     {
-        let map_of_ids_by_region = instances.into_iter().fold(
-            HashMap::new(),
-            |mut acc: HashMap<String, Vec<String>>, i| {
-                acc.entry(i.region.clone()).or_default().push(i.id.clone());
-                acc
-            },
-        );
-        for (region, ids) in map_of_ids_by_region {
+        let mut instance_ids: HashMap<String, Vec<String>> = HashMap::new();
+        for i in instances {
+            if i.lifecycle == InstanceLifecycle::Spot {
+                return Err(CloudProviderError::FailedToStopSpotInstance(i.id.clone()));
+            }
+            instance_ids
+                .entry(i.region.clone())
+                .or_default()
+                .push(i.id.clone());
+        }
+
+        for (region, ids) in instance_ids {
             let client = self.clients.get(&region).ok_or_else(|| {
                 CloudProviderError::Request(format!("Undefined region {:?}", region))
             })?;
@@ -393,6 +419,7 @@ impl ServerProviderClient for AwsClient {
         region: S,
         role: InstanceRole,
         quantity: usize,
+        use_spot_instances: bool,
     ) -> CloudProviderResult<Vec<Instance>>
     where
         S: Into<String> + Serialize + Send,
@@ -433,25 +460,48 @@ impl ServerProviderClient for AwsClient {
             InstanceRole::Metrics => &self.settings.metrics_specs,
             InstanceRole::Client => &self.settings.client_specs,
         };
-        let request = client
+
+        let base_request = client
             .run_instances()
             .image_id(image_id)
             .instance_type(instance_type.as_str().into())
             .key_name(testbed_id)
-            .min_count(quantity as i32)
-            .max_count(quantity as i32)
             .security_groups(&self.settings.testbed_id)
             .block_device_mappings(storage)
             .tag_specifications(tags);
-
-        let response = request.send().await?;
-        let instances = response
-            .instances()
-            .iter()
-            .map(|instance| self.make_instance(region.clone(), instance))
-            .collect::<Vec<_>>();
-
-        Ok(instances)
+        let mut collected_instances = Vec::new();
+        if use_spot_instances && role == InstanceRole::Node {
+            // first attempt to deploy sport instances
+            let request = base_request
+                .clone()
+                .min_count(1)
+                .max_count(quantity as i32)
+                .instance_market_options(Self::spot_options());
+            let result = request.send().await;
+            let instances = match result {
+                Ok(response) => response
+                    .instances()
+                    .iter()
+                    .map(|i| self.make_instance(region.clone(), i))
+                    .collect(),
+                Err(_) => Vec::new(),
+            };
+            collected_instances.extend(instances);
+        }
+        if collected_instances.len() < quantity {
+            // some instances need to be OnDemand
+            let request = base_request
+                .min_count((quantity - collected_instances.len()) as i32)
+                .max_count((quantity - collected_instances.len()) as i32);
+            let response = request.send().await?;
+            let on_demand_instances = response
+                .instances()
+                .iter()
+                .map(|instance| self.make_instance(region.clone(), instance))
+                .collect::<Vec<_>>();
+            collected_instances.extend(on_demand_instances);
+        }
+        Ok(collected_instances)
     }
 
     async fn delete_instances<'a, I>(&self, instances: I) -> CloudProviderResult<()>
