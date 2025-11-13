@@ -4566,7 +4566,7 @@ input TransactionBlockFilter {
 	"""
 	kind: TransactionBlockKindInput
 	"""
-	Limit to transactions that occured strictly after the given checkpoint.
+	Limit to transactions that occurred strictly after the given checkpoint.
 	"""
 	afterCheckpoint: UInt53
 	"""
@@ -4574,7 +4574,7 @@ input TransactionBlockFilter {
 	"""
 	atCheckpoint: UInt53
 	"""
-	Limit to transaction that occured strictly before the given checkpoint.
+	Limit to transaction that occurred strictly before the given checkpoint.
 	"""
 	beforeCheckpoint: UInt53
 	"""
