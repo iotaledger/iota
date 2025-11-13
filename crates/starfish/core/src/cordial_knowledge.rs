@@ -873,7 +873,9 @@ impl ConnectionKnowledge {
     /// to send to the peer.
     pub fn create_bundle(&mut self, block: VerifiedBlock) -> BlockBundle {
         let block_round = block.round();
-        // Try to update ancestors since they can be still not updated
+        // Try to update ancestors as they may still be pending updates.
+        // These headers will also be updated via cordial knowledge messages and may be
+        // sent again in the future. We consider this overhead negligible.
         for ancestor_block_ref in block.ancestors() {
             self.handle_new_header(*ancestor_block_ref);
         }
