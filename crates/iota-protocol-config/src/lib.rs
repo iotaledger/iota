@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 15;
+pub const MAX_PROTOCOL_VERSION: u64 = 16;
 
 // Record history of protocol version allocations here:
 //
@@ -86,6 +86,9 @@ pub const MAX_PROTOCOL_VERSION: u64 = 15;
 //             AuthorityCapabilities notification in testnet.
 // Version 15: Enable shared object transaction bursts of 10 times average load
 //             on devnet.
+// Version 16: Enable selecting committee only from active validators that
+//             support the next epoch's version and issued valid
+//             AuthorityCapabilities notification.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2293,6 +2296,12 @@ impl ProtocolConfig {
                         // load set by `max_accumulated_txn_cost_per_object_in_mysticeti_commit`.
                         cfg.max_congestion_limit_overshoot_per_commit = Some(100);
                     }
+                }
+                16 => {
+                    // Enable selecting committee only from active validators that support the
+                    // next epoch's version and issued valid AuthorityCapabilities notification.
+                    cfg.feature_flags
+                        .select_committee_supporting_next_epoch_version = true;
                 }
                 // Use this template when making changes:
                 //
