@@ -158,7 +158,7 @@ impl TransactionBlockFilter {
             )
             // If SystemTx, sender if specified must be 0x0. Conversely, if sender is 0x0, kind must be SystemTx.
             || matches!(
-                (self.kind, self.sent_address),
+                (self.kind, self.sent_address.or(self.sign_address)),
                 (Some(kind), Some(signer))
                     if (kind == TransactionBlockKindInput::SystemTx)
                         != (signer == IotaAddress::from(NativeIotaAddress::ZERO))
