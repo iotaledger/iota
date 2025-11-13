@@ -20,6 +20,7 @@ use iota_protocol_config::ProtocolConfig;
 use iota_types::{
     base_types::ObjectID,
     digests::{ChainIdentifier, CheckpointDigest},
+    messages_checkpoint::CheckpointSequenceNumber,
 };
 use itertools::Itertools;
 use strum::IntoEnumIterator;
@@ -423,6 +424,18 @@ impl PgIndexerStore {
                 })
         })
         .context("Failed reading latest object snapshot watermark from PostgresDB")
+    }
+
+    fn get_latest_object_snapshot_checkpoint_sequence_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, IndexerError> {
+        read_only_blocking!(&self.blocking_cp, |conn| {
+            objects_snapshot::table
+                .select(max(objects_snapshot::checkpoint_sequence_number))
+                .first::<Option<i64>>(conn)
+                .map(|v| v.map(|v| v as CheckpointSequenceNumber))
+        })
+        .context("Failed reading latest object snapshot checkpoint sequence number from PostgresDB")
     }
 
     fn persist_display_updates(
@@ -1796,6 +1809,15 @@ impl IndexerStore for PgIndexerStore {
     ) -> Result<Option<CommitterWatermark>, IndexerError> {
         self.execute_in_blocking_worker(|this| this.get_latest_object_snapshot_watermark())
             .await
+    }
+
+    async fn get_latest_object_snapshot_checkpoint_sequence_number(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, IndexerError> {
+        self.execute_in_blocking_worker(|this| {
+            this.get_latest_object_snapshot_checkpoint_sequence_number()
+        })
+        .await
     }
 
     fn persist_objects_in_existing_transaction(
