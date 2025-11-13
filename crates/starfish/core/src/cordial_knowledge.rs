@@ -327,7 +327,7 @@ impl CordialKnowledge {
                     self.context
                         .metrics
                         .node_metrics
-                        .cordial_knowledge_buffer_size
+                        .cordial_knowledge_message_batch_size
                         .observe(batch.len() as f64);
                     let mut vec_connection_knowledge_msgs_batch: Vec<Vec<_>> =
                         (0..self.context.committee.size())
@@ -940,8 +940,8 @@ impl ConnectionKnowledge {
                 .collect()
         };
 
-        // 4. Get useful header authors from peer. Authority is (potentially) useful if
-        //    the
+        // 4. Get useful header authors from peer.
+        // Authority is (potentially) useful if the
         // last known useful round + MAX_ROUND_GAP_FOR_USEFUL_PARTS >=
         // round_upper_bound_exclusive
         let useful_headers_authors_from_peer = self

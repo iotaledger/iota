@@ -672,7 +672,6 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                 let context = context.clone();
                 let connection_knowledge = connection_knowledge.clone();
                 async move {
-                    // tokio::time::sleep(std::time::Duration::from_millis(50)).await;
                     let ts = block.timestamp_ms();
 
                     let block_bundle = {
