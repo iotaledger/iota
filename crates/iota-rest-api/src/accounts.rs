@@ -56,17 +56,64 @@ async fn list_account_objects(
     let limit = parameters.limit();
     let start = parameters.start();
 
+    let start_info = if let Some(start_id) = start {
+        // Fetch the object to get its full OwnedObjectInfo
+        let object = state
+            .inner()
+            .get_object(&start_id)
+            .ok_or_else(|| RestError::new(axum::http::StatusCode::BAD_REQUEST, "Invalid cursor"))?;
+
+        let owner = match object.owner {
+            iota_types::object::Owner::AddressOwner(addr) => addr,
+            iota_types::object::Owner::ObjectOwner(addr) => addr,
+            iota_types::object::Owner::Shared { .. } => {
+                return Err(RestError::new(
+                    axum::http::StatusCode::BAD_REQUEST,
+                    "Cannot use shared object as cursor",
+                ));
+            }
+            iota_types::object::Owner::Immutable => {
+                return Err(RestError::new(
+                    axum::http::StatusCode::BAD_REQUEST,
+                    "Cannot use immutable object as cursor",
+                ));
+            }
+        };
+
+        Some(iota_types::storage::OwnedObjectInfo {
+            owner,
+            object_id: start_id,
+            version: object.version(),
+            object_type: object
+                .type_()
+                .ok_or_else(|| {
+                    RestError::new(
+                        axum::http::StatusCode::INTERNAL_SERVER_ERROR,
+                        "Object missing type",
+                    )
+                })?
+                .clone()
+                .into(),
+            digest: object.digest(),
+            balance: None,
+        })
+    } else {
+        None
+    };
+
     let mut object_info = indexes
-        .account_owned_objects_info_iter(address.into(), start)?
+        .owned_objects_iter(address.into(), None, start_info)?
         .take(limit + 1)
         .map(|info| {
-            AccountOwnedObjectInfo {
-                owner: info.owner.into(),
-                object_id: info.object_id.into(),
-                version: info.version.into(),
-                type_: struct_tag_core_to_sdk(info.type_.into())?,
-            }
-            .pipe(Ok)
+            info.map_err(|e| RestError::from(anyhow::anyhow!(e)))
+                .and_then(|info| {
+                    Ok(AccountOwnedObjectInfo {
+                        owner: info.owner.into(),
+                        object_id: info.object_id.into(),
+                        version: info.version.into(),
+                        type_: struct_tag_core_to_sdk(info.object_type)?,
+                    })
+                })
         })
         .collect::<Result<Vec<_>>>()?;
 
