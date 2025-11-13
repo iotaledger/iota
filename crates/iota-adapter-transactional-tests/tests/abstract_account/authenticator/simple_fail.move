@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// simple authentication using abstract account
+// simple authentication fails using abstract account
 
 //# init --addresses test=0x0 --accounts A
 
@@ -11,6 +11,7 @@ module test::abstract_account;
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::dynamic_field;
+use std::ascii;
 
 public struct AbstractAccount has key {
     id: UID,
@@ -35,8 +36,13 @@ public fun create(
     account_address
 }
 
-public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx: &TxContext) {
-    assert!(account.id.uid_to_address() == ctx.sender(), 0);
+public fun authenticate(
+    _account: &AbstractAccount,
+    msg: ascii::String,
+    _auth_ctx: &AuthContext,
+    _ctx: &TxContext,
+) {
+    assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
 //# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate" 7000000000
@@ -49,8 +55,5 @@ public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx:
 
 //# view-object 2,3
 
-//# abstract --account immshared(2,3) --gas-payment 2,0 --ptb-inputs 100 @A
+//# abstract --account immshared(2,3) --gas-payment 2,0 --auth-inputs "test" --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
-//> 1: TransferObjects([Result(0)], Input(1));
-
-//# view-object 5,0

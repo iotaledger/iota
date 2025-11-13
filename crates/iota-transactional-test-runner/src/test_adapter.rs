@@ -1170,6 +1170,9 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 ptb_inputs,
                 authenticator_inputs,
             }) => {
+                if self.is_simulator() {
+                    bail!("Abstract transactions are not supported in simulator mode");
+                }
                 // Parse and resolve ptb inputs.
                 let (ptb_inputs, ptb_commands) = self.prepare_ptb_data(data, ptb_inputs)?;
 

@@ -1421,6 +1421,7 @@ gas summary: computation_cost: 1000000, storage_cost: 7220000,  storage_rebate: 
 
 The `abstract` subcommand (`AbstractTransaction` in Rust) extends the capabilities of programmable transactions by allowing them to be executed through an Abstract Account (AA) authentication by a Move-based authenticator (`MoveAuthenticator`).
 Unlike programmable, where the sender directly signs the transaction with a system signature, abstract enables account abstraction — the sender is represented by a Abstract Account object itself.
+Doesn't support simulator mode.
 
 #### Syntax
 

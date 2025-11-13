@@ -1,18 +1,18 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 7 tasks
+processed 6 tasks
 
 init:
 A: object(0,0)
 
-task 1, lines 8-40:
+task 1, lines 8-46:
 //# publish --sender A
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9530400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9872400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 42-46:
+task 2, lines 48-52:
 //# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate" 7000000000
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
 //> 1: test::abstract_account::create(Input(0), Result(0));
@@ -22,7 +22,7 @@ created: object(2,0), object(2,1), object(2,2), object(2,3)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8519600,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 48:
+task 3, line 54:
 //# view-object 2,0
 Owner: Account Address ( fake(2,3) )
 Version: 3
@@ -37,7 +37,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 4, line 50:
+task 4, line 56:
 //# view-object 2,3
 Owner: Shared( 3 )
 Version: 3
@@ -49,24 +49,6 @@ Contents: test::abstract_account::AbstractAccount {
     },
 }
 
-task 5, lines 52-54:
-//# abstract --account immshared(2,3) --gas-payment 2,0 --ptb-inputs 100 @A
-created: object(5,0)
-mutated: object(2,0)
-unchanged_shared: object(2,3)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
-
-task 6, line 56:
-//# view-object 5,0
-Owner: Account Address ( A )
-Version: 4
-Contents: iota::coin::Coin<iota::iota::IOTA> {
-    id: iota::object::UID {
-        id: iota::object::ID {
-            bytes: fake(5,0),
-        },
-    },
-    balance: iota::balance::Balance<iota::iota::IOTA> {
-        value: 100u64,
-    },
-}
+task 5, lines 58-59:
+//# abstract --account immshared(2,3) --gas-payment 2,0 --auth-inputs "test" --ptb-inputs 100 @A
+Error: Failed to execute the Move authenticator, reason: "ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: MoveAbort(MoveLocation { module: ModuleId { address: object(1,0), name: Identifier(\"abstract_account\") }, function: 1, instruction: 7, function_name: Some(\"authenticate\") }, 0), source: Some(VMError { major_status: ABORTED, sub_status: Some(0), message: Some(\"object(1,0)::abstract_account::authenticate at offset 7\"), exec_state: None, location: Module(ModuleId { address: object(1,0), name: Identifier(\"abstract_account\") }), indices: [], offsets: [(FunctionDefinitionIndex(1), 7)] }), command: Some(0) } }".
