@@ -14,6 +14,7 @@ use tokio::{
     task::JoinHandle,
 };
 use tokio_util::sync::CancellationToken;
+use tracing::info;
 
 use crate::{
     DataIngestionMetrics, IngestionError, IngestionResult, ReaderOptions, Worker,
@@ -219,6 +220,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         reader_options: ReaderOptions,
     ) -> IngestionResult<ExecutorProgress> {
         let reader_checkpoint_number = self.progress_store.min_watermark()?;
+        let checkpoint_upper_limit = reader_options.checkpoint_upper_limit;
         let (checkpoint_reader, checkpoint_recv, gc_sender, exit_sender) =
             CheckpointReaderV1::initialize(
                 path,
@@ -238,6 +240,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                 exit_sender,
                 handle,
             },
+            checkpoint_upper_limit,
         )
         .await
     }
@@ -255,12 +258,14 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         config: CheckpointReaderConfig,
     ) -> IngestionResult<ExecutorProgress> {
         let reader_checkpoint_number = self.progress_store.min_watermark()?;
+        let checkpoint_upper_limit = config.reader_options.checkpoint_upper_limit;
 
         let checkpoint_reader = CheckpointReaderV2::new(reader_checkpoint_number, config).await?;
 
         self.run_executor_loop(
             reader_checkpoint_number,
             CheckpointReader::V2(checkpoint_reader),
+            checkpoint_upper_limit,
         )
         .await
     }
@@ -270,6 +275,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         &mut self,
         mut reader_checkpoint_number: u64,
         mut checkpoint_reader: CheckpointReader,
+        checkpoint_upper_limit: Option<u64>,
     ) -> IngestionResult<ExecutorProgress> {
         let worker_pools = std::mem::take(&mut self.pools)
             .into_iter()
@@ -277,6 +283,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
             .collect::<Vec<JoinHandle<()>>>();
 
         let mut worker_pools_shutdown_signals = vec![];
+        let mut checkpoint_limit_reached = false;
 
         loop {
             tokio::select! {
@@ -293,13 +300,27 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                             self.metrics.data_ingestion_checkpoint
                                 .with_label_values(&[&task_name])
                                 .set(watermark as i64);
+
+                            // we cancel the token when we're sure that the worker actually processed the checkpoint.
+                            if Self::is_checkpoint_upper_limit_reached(checkpoint_upper_limit.as_ref(), &watermark)
+                            {
+                                info!("checkpoint upper limit reached: last checkpoint was processed, shutdown process started");
+                                self.token.cancel();
+                            }
                         }
                         WorkerPoolStatus::Shutdown(worker_pool_name) => {
                             worker_pools_shutdown_signals.push(worker_pool_name);
                         }
                     }
                 }
-                Some(checkpoint) = checkpoint_reader.get_checkpoint(), if !self.token.is_cancelled() => {
+                Some(checkpoint) = checkpoint_reader.get_checkpoint(), if !self.token.is_cancelled() && !checkpoint_limit_reached => {
+                    // when we reach the upper limit we skip sending new checkpoints to workers.
+                    if Self::is_checkpoint_upper_limit_reached(checkpoint_upper_limit.as_ref(), &checkpoint.checkpoint_summary.sequence_number)
+                    {
+                        info!("checkpoint upper limit reached: no further checkpoints will be sent, waiting for workers to process remaining checkpoints");
+                        checkpoint_limit_reached = true;
+                        continue;
+                    }
                     for sender in &self.pool_senders {
                         sender.send(checkpoint.clone()).await.map_err(|_| {
                             IngestionError::Channel(
@@ -325,6 +346,17 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         }
 
         Ok(self.progress_store.stats())
+    }
+
+    /// Check if the current checkpoint sequence number has reached the upper
+    /// limit.
+    ///
+    /// If no upper limit is present, the function returns `false`.
+    fn is_checkpoint_upper_limit_reached(
+        checkpoint_upper_limit: Option<&CheckpointSequenceNumber>,
+        checkpoint_seq_num: &CheckpointSequenceNumber,
+    ) -> bool {
+        checkpoint_upper_limit.is_some_and(|upper_limit| checkpoint_seq_num > upper_limit)
     }
 }
 

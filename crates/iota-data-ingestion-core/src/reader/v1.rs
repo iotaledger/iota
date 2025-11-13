@@ -94,6 +94,11 @@ pub struct ReaderOptions {
     ///
     /// Default: 0.
     pub data_limit: usize,
+    /// Last checkpoint sequence number to process.
+    ///
+    /// After processing this checkpoint the framework will start the graceful
+    /// shutdown process.
+    pub checkpoint_upper_limit: Option<CheckpointSequenceNumber>,
 }
 
 impl Default for ReaderOptions {
@@ -103,6 +108,7 @@ impl Default for ReaderOptions {
             timeout_secs: 5,
             batch_size: 10,
             data_limit: 0,
+            checkpoint_upper_limit: None,
         }
     }
 }

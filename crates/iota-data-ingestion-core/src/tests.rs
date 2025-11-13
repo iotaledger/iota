@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    fs,
     path::PathBuf,
     sync::{
         Arc,
@@ -45,6 +46,36 @@ async fn add_worker_pool<W: Worker + 'static>(
     Ok(())
 }
 
+async fn run_with_reader_options(
+    indexer: IndexerExecutor<FileProgressStore>,
+    path: Option<PathBuf>,
+    duration: Option<Duration>,
+    token: CancellationToken,
+    reader_options: ReaderOptions,
+) -> IngestionResult<ExecutorProgress> {
+    match duration {
+        None => {
+            indexer
+                .run(path.unwrap_or_else(temp_dir), None, vec![], reader_options)
+                .await
+        }
+        Some(duration) => {
+            let handle = tokio::task::spawn(indexer.run(
+                path.unwrap_or_else(temp_dir),
+                None,
+                vec![],
+                reader_options,
+            ));
+            tokio::time::sleep(duration).await;
+            token.cancel();
+            handle.await.map_err(|err| IngestionError::Shutdown {
+                component: "indexer executor".into(),
+                msg: err.to_string(),
+            })?
+        }
+    }
+}
+
 async fn run(
     indexer: IndexerExecutor<FileProgressStore>,
     path: Option<PathBuf>,
@@ -57,27 +88,7 @@ async fn run(
         ..Default::default()
     };
 
-    match duration {
-        None => {
-            indexer
-                .run(path.unwrap_or_else(temp_dir), None, vec![], options)
-                .await
-        }
-        Some(duration) => {
-            let handle = tokio::task::spawn(indexer.run(
-                path.unwrap_or_else(temp_dir),
-                None,
-                vec![],
-                options,
-            ));
-            tokio::time::sleep(duration).await;
-            token.cancel();
-            handle.await.map_err(|err| IngestionError::Shutdown {
-                component: "indexer executor".into(),
-                msg: err.to_string(),
-            })?
-        }
-    }
+    run_with_reader_options(indexer, path, duration, token, options).await
 }
 
 struct ExecutorBundle {
@@ -205,6 +216,64 @@ async fn basic_flow() {
     .await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&20));
+}
+
+// Tests the graceful shutdown behavior when a checkpoint upper limit is
+// provided.
+//
+// This test verifies that:
+// 1. The framework process checkpoints not exceeding the upper limit.
+// 2. The Executor handles the upper limit correctly by not sending any more
+//    checkpoints to workers.
+// 3. The graceful shutdown is triggered by the Executor when the Worker reports
+//    the processed checkpoint matching the upper limit one, making sure to not
+//    trigger the shutdown prematurely.
+// 4. The ingestion directory should contain leftover checkpoint files, but
+//    should not contain the checkpoint file provided in the
+//    `ReaderOptions.checkpoint_upper_limit` asserting that the checkpoint file
+//    was indeed processed.
+#[tokio::test]
+async fn basic_flow_with_checkpoint_upper_limit() {
+    let mut bundle = create_executor_bundle().await;
+    add_worker_pool(&mut bundle.executor, TestWorker, 5)
+        .await
+        .unwrap();
+    let path = temp_dir();
+    for checkpoint_number in 0..25 {
+        let bytes = mock_checkpoint_data_bytes(checkpoint_number);
+        std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
+    }
+    // process until we reach the checkpoint sequence number 19. Subsequent
+    // checkpoints should be skipped.
+    let options = ReaderOptions {
+        tick_interval_ms: 10,
+        batch_size: 1,
+        checkpoint_upper_limit: Some(19),
+        ..Default::default()
+    };
+    let result = run_with_reader_options(
+        bundle.executor,
+        Some(path.clone()),
+        Some(Duration::from_secs(3)),
+        bundle.token,
+        options,
+    )
+    .await;
+    assert!(result.is_ok());
+    // expect watermark == processed_last_checkpoint + 1 == 20.
+    assert_eq!(result.unwrap().get("test"), Some(&20));
+    // assert that 19.chk was consumed (i.e. no longer in directory), while later
+    // unprocessed ones may remain.
+    assert!(
+        !fs::read_dir(path.clone()).unwrap().any(|d| d
+            .unwrap()
+            .file_name()
+            .to_str()
+            .unwrap()
+            .starts_with("19"))
+    );
+    // remove leftover checkpoint files.
+    fs::remove_dir_all(path).unwrap();
 }
 
 // Tests the graceful shutdown behavior when workers encounter persistent
