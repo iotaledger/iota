@@ -733,7 +733,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             })
             .collect();
 
-        // 7. Create transaction fetch requests (will be processed concurrently with
+        // 8. Create transaction fetch requests (will be processed concurrently with
         //    headers)
         let mut transaction_requests: FuturesOrdered<_> = if !committed_tx_refs.is_empty() {
             let num_tx_chunks = committed_tx_refs.len().div_ceil(
@@ -753,7 +753,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 .map(|(i, request_block_refs)| {
                     let inner = inner.clone();
                     async move {
-                        // 8. Send out pipelined fetch requests to avoid overloading the target
+                        // 9. Send out pipelined fetch requests to avoid overloading the target
                         //    authority.
                         sleep(timeout * i as u32 / num_tx_chunks.max(1)).await;
                         let serialized_transactions = inner
@@ -765,12 +765,12 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             )
                             .await?;
 
-                        // 9. Verify that the number of returned transactions is not greater than
-                        //    the number of requested transactions. It's OK if not all requested
-                        //    transactions are returned as long as the peer returns all the headers.
-                        //    We don't want to fail the whole fetch in this case.
-                        //    TransactionSynchronizer will take care of fetching missing
-                        //    transactions later.
+                        // 10. Verify that the number of returned transactions is not greater than
+                        //     the number of requested transactions. It's OK if not all requested
+                        //     transactions are returned as long as the peer returns all the
+                        //     headers. We don't want to fail the whole fetch in this case.
+                        //     TransactionSynchronizer will take care of fetching missing
+                        //     transactions later.
                         if request_block_refs.len() < serialized_transactions.len() {
                             return Err(ConsensusError::TooManyFetchedTransactionsReturned(
                                 target_authority,
@@ -785,7 +785,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                                 bcs::from_bytes(&serialized_bytes)
                                     .map_err(ConsensusError::MalformedTransactions)?;
 
-                            // 10. Verify the returned transactions match the requested block refs.
+                            // 11. Verify the returned transactions match the requested block refs.
                             if !requested_block_refs_set.contains(&serialized_tx.block_ref) {
                                 return Err(ConsensusError::UnexpectedTransactionForCommit {
                                     peer: target_authority,
@@ -806,7 +806,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             FuturesOrdered::new()
         };
 
-        // 8. Process header and transaction requests concurrently
+        // 12. Process header and transaction requests concurrently
         let mut fetched_block_headers = BTreeMap::new();
         let mut fetched_transactions = BTreeMap::new();
 
@@ -824,7 +824,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             }
         }
 
-        // 9. Verify transactions
+        // 13. Verify transactions
         let mut transactions_map = if !fetched_transactions.is_empty() {
             Handle::current()
                 .spawn_blocking({
@@ -844,7 +844,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
             BTreeMap::new()
         };
 
-        // 10. Now create the Certified commits by assigning the block headers and
+        // 14. Now create the Certified commits by assigning the block headers and
         //     transactions to each commit and retaining the commit votes history.
         let mut certified_commits = Vec::new();
         for commit in &commits {
