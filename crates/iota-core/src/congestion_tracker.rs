@@ -19,11 +19,16 @@ use iota_types::{
 };
 use moka::{ops::compute::Op, sync::Cache};
 use serde::Deserialize;
+#[cfg(feature = "gas-nn")]
 use crate::model_updater::{
     build_cp_update_batch, build_train_tx_batch, InNodeModelUpdater, ObjectCheckpointStats,
     ObjectSnapshot, RawTxItem, ModelUpdater, ModelReader,
 };
 use tracing::info;
+use iota_metrics::monitored_scope;
+use prometheus::Registry;
+use std::sync::Arc;
+use crate::gas_metrics::{GasMetrics, init_gas_metrics};
 
 use crate::execution_cache::TransactionCacheRead;
 
@@ -144,19 +149,27 @@ pub struct CongestionTracker {
     /// Key-value cache for storing congestion info of objects.
     object_congestion_info: Cache<ObjectID, CongestionInfo>,
     /// HTTP client for posting model updates/training batches.
+    #[cfg(feature = "gas-nn")]
     model_updater: InNodeModelUpdater,
     /// Lock-free reader for per-object tip snapshot.
+    #[cfg(feature = "gas-nn")]
     model_reader: ModelReader,
+    /// Metrics handle
+    metrics: Arc<GasMetrics>,
 }
 
 impl CongestionTracker {
     /// Compose and send model update and training batches for the given checkpoint.
+    #[cfg(feature = "gas-nn")]
     fn inform_model(
         &self,
         checkpoint: &VerifiedCheckpoint,
         congestion_txs_data: &[TxData],
         clearing_txs_data: &[TxData],
     ) {
+        let _scope = monitored_scope("CongestionTracker::inform_model");
+        let h = self.metrics.latency_component("congestion.inform_model");
+        let _t = h.start_timer();
         // 1) Build touched set
         let mut touched: std::collections::HashSet<ObjectID> = std::collections::HashSet::new();
         for tx in congestion_txs_data {
@@ -247,10 +260,26 @@ impl CongestionTracker {
         ) {
             self.model_updater.post_train_tx(train_batch);
         }
+        // Hardware sample after composing and enqueueing
+        self.metrics.record_hw_sample("congestion.inform_model");
+    }
+
+    /// Fallback when gas-nn is disabled: still record metrics, but skip NN work.
+    #[cfg(not(feature = "gas-nn"))]
+    fn inform_model(
+        &self,
+        _checkpoint: &VerifiedCheckpoint,
+        _congestion_txs_data: &[TxData],
+        _clearing_txs_data: &[TxData],
+    ) {
+        let _scope = monitored_scope("CongestionTracker::inform_model");
+        let h = self.metrics.latency_component("congestion.inform_model");
+        let _t = h.start_timer();
+        self.metrics.record_hw_sample("congestion.inform_model");
     }
     /// Create a new `CongestionTracker`. The cache capacity will be
     /// set to `CONGESTION_TRACKER_CACHE_CAPACITY`, which is `10_000`.
-    pub fn new(reference_gas_price: u64) -> Self {
+    pub fn new(reference_gas_price: u64, registry: &Registry) -> Self {
         // Remove and recreate the results folder
         let mut results_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         results_path.push("src");
@@ -260,13 +289,19 @@ impl CongestionTracker {
             let _ = std::fs::remove_dir_all(&results_path);
         }
         let _ = std::fs::create_dir_all(&results_path);
-        let model_updater = InNodeModelUpdater::new();
+        let metrics = init_gas_metrics(registry);
+        #[cfg(feature = "gas-nn")]
+        let model_updater = InNodeModelUpdater::new(metrics.clone());
+        #[cfg(feature = "gas-nn")]
         let model_reader = model_updater.reader();
         Self {
             reference_gas_price,
             object_congestion_info: Cache::new(CONGESTION_TRACKER_CACHE_CAPACITY),
+            #[cfg(feature = "gas-nn")]
             model_updater,
+            #[cfg(feature = "gas-nn")]
             model_reader,
+            metrics,
         }
     }
 
@@ -277,6 +312,9 @@ impl CongestionTracker {
         checkpoint: &VerifiedCheckpoint,
         effects: &[TransactionEffects],
     ) {
+        let _scope = monitored_scope("CongestionTracker::process_checkpoint_effects");
+        let h = self.metrics.latency_component("congestion.process_checkpoint_effects");
+        let timer = h.start_timer();
         // Containers for checkpoint's congestion and clearing transactions data.
         let mut congestion_txs_data: Vec<TxData> = Vec::with_capacity(effects.len());
         let mut clearing_txs_data: Vec<TxData> = Vec::with_capacity(effects.len());
@@ -359,6 +397,13 @@ impl CongestionTracker {
             &congestion_txs_data,
             &clearing_txs_data,
         );
+        // Record touched objects histogram
+        let mut touched: std::collections::HashSet<ObjectID> = std::collections::HashSet::new();
+        for tx in &congestion_txs_data { touched.extend(tx.objects.iter().cloned()); }
+        for tx in &clearing_txs_data { touched.extend(tx.objects.iter().cloned()); }
+        self.metrics.touched_hist().observe(touched.len() as u64);
+
+        drop(timer);
 
         if !clearing_txs_data.is_empty() {
             for tx in &mut clearing_txs_data {
@@ -454,6 +499,7 @@ impl CongestionTracker {
     }
 
     /// NN-based suggested gas price using in-node model. Returns None if insufficient history.
+    #[cfg(feature = "gas-nn")]
     pub fn get_suggested_gas_price_with_nn(&self, transaction: &TransactionData) -> Option<u64> {
         let objects: Vec<ObjectID> = transaction
             .shared_input_objects()
@@ -469,10 +515,22 @@ impl CongestionTracker {
         )
     }
 
+    /// NN disabled: no prediction.
+    #[cfg(not(feature = "gas-nn"))]
+    pub fn get_suggested_gas_price_with_nn(&self, _transaction: &TransactionData) -> Option<u64> {
+        None
+    }
+
     /// Alias expected by authority.rs for model prediction.
     /// Non-blocking: reads from lock-free snapshot of per-object tips.
+    #[cfg(feature = "gas-nn")]
     pub fn get_model_prediction(&self, transaction: &TransactionData) -> Option<u64> {
         Some(self.model_reader.predict_for_tx(transaction, self.reference_gas_price))
+    }
+
+    #[cfg(not(feature = "gas-nn"))]
+    pub fn get_model_prediction(&self, _transaction: &TransactionData) -> Option<u64> {
+        None
     }
 
     /// Returns a map of all objects and their hotness values.
@@ -591,6 +649,9 @@ impl CongestionTracker {
         congestion_txs_data: &[TxData],
         clearing_txs_data: &[TxData],
     ) {
+        let _scope = monitored_scope("CongestionTracker::process_congestion_and_clearing_txs_data");
+        let h = self.metrics.latency_component("congestion.process_cp_data");
+        let timer = h.start_timer();
         let congestion_info_map = self.compute_per_checkpoint_congestion_info(
             time,
             congestion_txs_data,
@@ -600,6 +661,7 @@ impl CongestionTracker {
             congestion_info_map,
             congestion_txs_data.len() + clearing_txs_data.len(),
         );
+        drop(timer);
     }
 
     /// Get the highest minimum clearing price, if any exists, for a list of
@@ -644,6 +706,7 @@ impl CongestionTracker {
         &self,
         mut objects: impl Iterator<Item = ObjectID>,
     ) -> Option<(ObjectID, f64)> {
+        let _scope = monitored_scope("CongestionTracker::get_max_hotness_per_tx");
         // Initialize with the first object (or return None if empty)
         let first = objects.next()?;
         let first_hotness = self
@@ -674,6 +737,9 @@ impl CongestionTracker {
         congestion_txs_data: &[TxData],
         clearing_txs_data: &[TxData],
     ) -> CongestionInfoMap {
+        let _scope = monitored_scope("CongestionTracker::compute_per_checkpoint_congestion_info");
+        let h = self.metrics.latency_component("congestion.compute_cp_info");
+        let _timer = h.start_timer();
         let mut congestion_info_map = CongestionInfoMap::new();
         let mut objects_with_mutated_hotness: Vec<ObjectID> = Vec::new();
 
@@ -785,6 +851,9 @@ impl CongestionTracker {
         congestion_info_map: CongestionInfoMap,
         number_transactions: usize,
     ) {
+        let _scope = monitored_scope("CongestionTracker::update_congestion_info_cache");
+        let h = self.metrics.latency_component("congestion.update_cache");
+        let _timer = h.start_timer();
         // Store the object IDs that are touched in this checkpoint
         let touched_objects: std::collections::HashSet<_> =
             congestion_info_map.keys().cloned().collect();
@@ -841,7 +910,7 @@ mod tests {
     #[test]
     fn congestion_tracker_process_checkpoint_txs_data() {
         let rgp_test = 1000;
-        let tracker = CongestionTracker::new(rgp_test);
+        let tracker = CongestionTracker::new(rgp_test, &prometheus::Registry::new());
         let object_1 = ObjectID::random();
         let object_2 = ObjectID::random();
 
@@ -889,7 +958,7 @@ mod tests {
     #[test]
     fn congestion_tracker_process_checkpoint_data_then_success() {
         let rgp_test = 1000;
-        let tracker = CongestionTracker::new(rgp_test);
+        let tracker = CongestionTracker::new(rgp_test, &prometheus::Registry::new());
         let object = ObjectID::random();
 
         // Congestion transactions only, no clearing ones. The highest congestion
@@ -1000,7 +1069,7 @@ mod tests {
     #[test]
     fn congestion_tracker_get_suggested_gas_price_for_multiple_objects() {
         let rgp_test = 1000;
-        let tracker = CongestionTracker::new(rgp_test);
+        let tracker = CongestionTracker::new(rgp_test, &prometheus::Registry::new());
         let object_1 = ObjectID::random();
         let object_2 = ObjectID::random();
 
@@ -1099,7 +1168,7 @@ mod tests {
     #[test]
     fn congestion_tracker_checkpoint_congestion_info_hotness_update() {
         let rgp_test = 1000;
-        let tracker = CongestionTracker::new(rgp_test);
+        let tracker = CongestionTracker::new(rgp_test, &prometheus::Registry::new());
         let obj1 = ObjectID::random();
         let obj2 = ObjectID::random();
         let obj3 = ObjectID::random();
@@ -1216,7 +1285,7 @@ mod tests {
     #[test]
     fn congestion_tracker_repeated_congestion_across_checkpoints() {
         let rgp_test = 1000;
-        let tracker = CongestionTracker::new(rgp_test);
+        let tracker = CongestionTracker::new(rgp_test, &prometheus::Registry::new());
         let obj1 = ObjectID::random();
         let obj2 = ObjectID::random();
 
@@ -1346,7 +1415,7 @@ mod tests {
     #[test]
     fn congestion_tracker_remove_cold_objects_from_cache() {
         let rgp_test = 1000;
-        let tracker = CongestionTracker::new(rgp_test);
+        let tracker = CongestionTracker::new(rgp_test, &prometheus::Registry::new());
         let obj1 = ObjectID::random();
         let obj2 = ObjectID::random();
 

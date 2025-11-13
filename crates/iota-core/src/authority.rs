@@ -2861,7 +2861,7 @@ impl AuthorityState {
             overload_info: AuthorityOverloadInfo::default(),
             validator_tx_finalizer,
             chain_identifier,
-            congestion_tracker: Arc::new(CongestionTracker::new(rgp)),
+            congestion_tracker: Arc::new(CongestionTracker::new(rgp, prometheus_registry)),
         });
 
         // Start a task to execute ready certificates.

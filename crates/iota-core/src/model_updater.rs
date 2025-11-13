@@ -19,7 +19,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use iota_types::base_types::ObjectID;
 use iota_types::transaction::{TransactionData, TransactionDataAPI};
 
-use crate::model;
+use crate::{gas_metrics::GasMetrics, model};
 use tch::{self, IndexOp, Tensor};
 use tch::nn; // VarStore for inference snapshot
 use arc_swap::ArcSwap;
@@ -389,10 +389,12 @@ pub struct InNodeModelUpdater {
     inference: Arc<Mutex<Option<Box<GasInfer>>>>,
     // Lock-free per-object tip snapshot for ultra-fast predictions
     store: Arc<ModelStore>,
+    // Metrics
+    metrics: Arc<GasMetrics>,
 }
 
 impl InNodeModelUpdater {
-    pub fn new() -> Self {
+    pub fn new(metrics: Arc<GasMetrics>) -> Self {
         // Torch threading is controlled via environment variables.
         // To limit CPU usage, set these before starting the node:
         //   TORCH_NUM_INTEROP_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1
@@ -418,8 +420,10 @@ impl InNodeModelUpdater {
         {
             let hist_up = Arc::clone(&hist);
             let store_up = Arc::clone(&store);
+            let metrics_up = metrics.clone();
             thread::spawn(move || {
                 while let Ok(batch) = rx_update.recv() {
+                    let t0 = std::time::Instant::now();
                     let (known, touched, last_ms, deltas) = {
                         let mut st = hist_up.lock().unwrap();
                         st.last_global_ms = st.last_global_ms.max(batch.checkpoint_ms);
@@ -448,6 +452,11 @@ impl InNodeModelUpdater {
                     if !deltas.is_empty() {
                         store_up.publish_deltas(&deltas);
                     }
+                    let elapsed_ms = t0.elapsed().as_millis() as u64;
+                    metrics_up
+                        .latency_component("model_updater.update_batch")
+                        .observe(elapsed_ms);
+                    metrics_up.record_hw_sample("model_updater.update_batch");
                 }
             });
         }
@@ -456,6 +465,7 @@ impl InNodeModelUpdater {
             let hist_tr = Arc::clone(&hist);
             let learner_tr = Arc::clone(&learner);
             let inference_tr = Arc::clone(&inference);
+            let metrics_tr = metrics.clone();
             thread::spawn(move || {
                 const TRAIN_BATCH_CAP: usize = 16;
                 const SNAPSHOT_EVERY_STEPS: usize = 10; // cadence: refresh snapshot every N steps
@@ -465,6 +475,9 @@ impl InNodeModelUpdater {
                     {
                         let mut st = hist_tr.lock().unwrap();
                         st.pending_train.extend(batch.items);
+                        metrics_tr
+                            .pending_train_items
+                            .set(st.pending_train.len() as i64);
                     }
                     loop {
                         // drain up to TRAIN_BATCH_CAP (also flush partials)
@@ -503,12 +516,23 @@ impl InNodeModelUpdater {
                         };
                         if !xs.is_empty() {
                             if let Ok(mut l) = learner_tr.lock() {
+                                let t0 = std::time::Instant::now();
                                 let _ = l.train_step(xs, hs, ys);
+                                let elapsed_ms = t0.elapsed().as_millis() as u64;
+                                metrics_tr
+                                    .latency_component("model_updater.train_step")
+                                    .observe(elapsed_ms);
+                                metrics_tr.record_hw_sample("model_updater.train_step");
                                 steps_since_refresh += 1;
                                 if steps_since_refresh >= SNAPSHOT_EVERY_STEPS {
+                                    let t_snap = std::time::Instant::now();
                                     if let Some(snap) = build_infer_from_trainer(&l) {
                                         if let Ok(mut guard) = inference_tr.lock() { *guard = Some(Box::new(snap)); }
                                     }
+                                    metrics_tr
+                                        .latency_component("model_updater.build_snapshot")
+                                        .observe(t_snap.elapsed().as_millis() as u64);
+                                    metrics_tr.record_hw_sample("model_updater.build_snapshot");
                                     steps_since_refresh = 0;
                                 }
                             }
@@ -517,11 +541,12 @@ impl InNodeModelUpdater {
                 }
             });
         }
-        Self { hist, tx_update, tx_train, inference, store }
+        Self { hist, tx_update, tx_train, inference, store, metrics }
     }
 
     pub fn predict_for_objects(&self, object_ids: &[ObjectID], reference_gas_price: u64) -> Option<u64> {
         // Build sequences and timing without holding learner lock
+        let t0 = std::time::Instant::now();
         let (seqs, h_anchor, _stale_sec_opt) = {
             let st = self.hist.lock().ok()?;
             let mut seqs: Vec<Tensor> = Vec::new();
@@ -548,10 +573,26 @@ impl InNodeModelUpdater {
             // Disable inference-time decay for stability under heavy churn.
             let y_log_decayed = y_log;
             let price = (reference_gas_price as f32 * y_log_decayed.exp()).round() as u64;
+            self.metrics
+                .latency_component("model_updater.predict")
+                .observe(t0.elapsed().as_millis() as u64);
+            self.metrics
+                .infer_total
+                .with_label_values(&["success"])
+                .inc();
+            self.metrics.record_hw_sample("model_updater.predict");
             Some(price)
         } else {
             // Snapshot is busy; fall back to OGD baseline: RGP + hotness_raw (hotness_over_ref * RGP)
             let hotness_raw = h_anchor * reference_gas_price as f32;
+            self.metrics
+                .latency_component("model_updater.predict")
+                .observe(t0.elapsed().as_millis() as u64);
+            self.metrics
+                .infer_total
+                .with_label_values(&["fallback"])
+                .inc();
+            self.metrics.record_hw_sample("model_updater.predict");
             Some(reference_gas_price.saturating_add(hotness_raw.round() as u64))
         }
     }
@@ -563,6 +604,16 @@ impl ModelUpdater for InNodeModelUpdater {
         if let Err(_e) = self.tx_update.try_send(batch) {
             let c = DROP_UPDATES.fetch_add(1, Ordering::Relaxed) + 1;
             if c % 1000 == 0 { eprintln!("[in-model] dropped {} update batches (channel full)", c); }
+            self.metrics
+                .batches_total
+                .with_label_values(&["update", "dropped"])
+                .inc();
+        }
+        else {
+            self.metrics
+                .batches_total
+                .with_label_values(&["update", "received"])
+                .inc();
         }
     }
     fn post_train_tx(&self, batch: TrainTxBatch) {
@@ -570,6 +621,16 @@ impl ModelUpdater for InNodeModelUpdater {
         if let Err(_e) = self.tx_train.try_send(batch) {
             let c = DROP_TRAINS.fetch_add(1, Ordering::Relaxed) + 1;
             if c % 1000 == 0 { eprintln!("[in-model] dropped {} train batches (channel full)", c); }
+            self.metrics
+                .batches_total
+                .with_label_values(&["train", "dropped"])
+                .inc();
+        }
+        else {
+            self.metrics
+                .batches_total
+                .with_label_values(&["train", "received"])
+                .inc();
         }
     }
 }

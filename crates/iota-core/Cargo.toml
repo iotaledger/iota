@@ -58,7 +58,8 @@ tokio-stream.workspace = true
 tracing.workspace = true
 twox-hash = "1.6"
 ordered-float = { version = "5.0", features = ["serde"] }
-tch = { version = "0.13", features = ["download-libtorch"] }
+tch = { version = "0.13", features = ["download-libtorch"], optional = true }
+sysinfo = "0.33"
 
 # internal dependencies
 consensus-config.workspace = true
@@ -115,6 +116,11 @@ iota-test-transaction-builder.workspace = true
 [target.'cfg(not(target_env = "msvc"))'.dev-dependencies]
 pprof = { version = "0.14", features = ["cpp", "frame-pointer"] }
 test-fuzz.workspace = true
+
+# Features
+[features]
+default = ["gas-nn"]
+gas-nn = ["dep:tch"]
 
 # moka uses `quanta` by default for timing, which is not compatible with the simulator
 [target.'cfg(msim)'.dependencies]

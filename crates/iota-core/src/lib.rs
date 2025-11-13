@@ -26,7 +26,9 @@ pub mod jsonrpc_index;
 pub mod metrics;
 pub mod mock_consensus;
 pub mod model;
+#[cfg(feature = "gas-nn")]
 pub mod model_updater;
+pub mod gas_metrics;
 pub mod module_cache_metrics;
 pub mod mysticeti_adapter;
 pub mod overload_monitor;
