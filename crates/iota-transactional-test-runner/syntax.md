@@ -1497,7 +1497,7 @@ public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx:
 ```
 
 - Account (--account)
-  The immutable shared object that represents Abtract Account.
+  The immutable shared object that represents Abstract Account.
 - Gas Payment (--gas-payment)
   Coin object that must be owned by the Abstract Account (AA).
 - PTB Inputs (--ptb-inputs)
