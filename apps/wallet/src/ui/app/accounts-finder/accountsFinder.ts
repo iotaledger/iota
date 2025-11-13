@@ -185,10 +185,15 @@ export class AccountsFinder {
 
     async runBreadthSearch() {
         // during breadth search we always start by searching for new account indexes
-        const initialAccountIndex = this.accounts?.length ? this.accounts.length : 0; // next index or start from 0;
+        let initialAccountIndex = 0;
+        const existingIndices = new Set(this.accounts?.map((a) => a.index) || []);
+        // Get the first missing account index
+        while (existingIndices.has(initialAccountIndex)) {
+            initialAccountIndex++;
+        }
 
         const foundAccounts = await recoverAccounts({
-            accountStartIndex: initialAccountIndex, // we start from the last existing account index
+            accountStartIndex: initialAccountIndex, // we start from the first missing account index
             accountGapLimit: this.accountGapLimit, // we search for the full account gap limit
             addressStartIndex: 0, // we start from the first address index
             addressGapLimit: 0, // we only search for 1 address
