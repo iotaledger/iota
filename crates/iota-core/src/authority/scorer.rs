@@ -65,21 +65,20 @@ impl Scorer {
         self.invalid_reports_count[authority as usize].fetch_add(1, Ordering::Relaxed);
     }
 
+    #[expect(dead_code)]
     pub(crate) fn update_scores(&self) {
         match self.version {
             ScorerVersion::V1 => self.update_scores_v1(),
         };
     }
 
-    #[expect(dead_code)]
-    pub(crate) fn update_received_reports_and_score(
+    pub(crate) fn update_received_reports(
         &self,
         authority: u32,
         report: &VersionedMisbehaviorReport,
     ) {
         self.received_metrics[authority as usize].update_from_report(report);
         self.metrics_missing_from[authority as usize].store(false, Ordering::Relaxed);
-        self.update_scores();
     }
 
     fn update_scores_v1(&self) {
@@ -94,6 +93,7 @@ pub(crate) enum ScorerVersion {
 pub(crate) type Scores = Vec<Score>;
 pub(crate) type Score = AtomicU64;
 
+// NOTE: the tests below are going to be finalized in a different PR
 #[cfg(test)]
 mod tests {
     use std::sync::atomic::Ordering;
