@@ -441,7 +441,7 @@ impl Core {
         // Commit observer is called with an empty vector of new leaders to check if all
         // transactions are available for any currently pending subdags, without
         // creating any new commits.
-        self.commit_observer.handle_commit(Vec::new())?;
+        self.commit_observer.handle_committed_leaders(Vec::new())?;
 
         Ok(())
     }
@@ -483,6 +483,22 @@ impl Core {
         BTreeMap<BlockRef, BTreeSet<AuthorityIndex>>,
     )> {
         let _scope = monitored_scope("Core::add_certified_commits");
+
+        // First, collect and add all transactions from certified commits.
+        // Transactions must be added before processing commits to ensure they are
+        // available when creating new commits.
+        let all_transactions: Vec<VerifiedTransactions> = certified_commits
+            .commits()
+            .iter()
+            .flat_map(|commit| commit.transactions())
+            .cloned()
+            .collect();
+
+        if !all_transactions.is_empty() {
+            self.add_transactions(all_transactions, TransactionSource::CommitSyncer)?;
+        }
+
+        // Then collect and add block headers.
         let block_headers = certified_commits
             .commits()
             .iter()
@@ -910,8 +926,9 @@ impl Core {
             );
 
             // TODO: refcount subdags
-            let (subdags, missing_transactions_refs) =
-                self.commit_observer.handle_commit(sequenced_leaders)?;
+            let (subdags, missing_transactions_refs) = self
+                .commit_observer
+                .handle_committed_leaders(sequenced_leaders)?;
 
             // Check for duplicates before extending
             assert!(

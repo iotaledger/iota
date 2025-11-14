@@ -51,8 +51,10 @@ use tokio::{
 use tracing::{debug, info, warn};
 
 use crate::{
-    CommitConsumerMonitor, CommitIndex, VerifiedBlockHeader,
-    block_header::{BlockHeaderAPI, SignedBlockHeader},
+    CommitConsumerMonitor, CommitIndex, Transaction, VerifiedBlockHeader,
+    block_header::{
+        BlockHeaderAPI, BlockRef, SignedBlockHeader, TransactionsCommitment, VerifiedTransactions,
+    },
     block_verifier::BlockVerifier,
     commit::{
         CertifiedCommit, CertifiedCommits, Commit, CommitAPI as _, CommitDigest, CommitRange,
@@ -62,10 +64,10 @@ use crate::{
     context::Context,
     core_thread::CoreThreadDispatcher,
     dag_state::DagState,
+    encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
-    network::NetworkClient,
+    network::{NetworkClient, SerializedTransactions},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
-    transactions_synchronizer::TransactionsSynchronizerHandle,
 };
 
 // Handle to stop the CommitSyncer loop.
@@ -116,7 +118,6 @@ impl<C: NetworkClient> CommitSyncer<C> {
         context: Arc<Context>,
         core_thread_dispatcher: Arc<dyn CoreThreadDispatcher>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
-        transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
         commit_consumer_monitor: Arc<CommitConsumerMonitor>,
         network_client: Arc<C>,
         block_verifier: Arc<dyn BlockVerifier>,
@@ -127,7 +128,6 @@ impl<C: NetworkClient> CommitSyncer<C> {
             core_thread_dispatcher,
             commit_vote_monitor,
             commit_consumer_monitor,
-            transactions_synchronizer,
             network_client,
             block_verifier,
             dag_state,
@@ -256,19 +256,25 @@ impl<C: NetworkClient> CommitSyncer<C> {
     ) {
         assert!(!certified_commits.commits().is_empty());
 
-        let (total_blocks_fetched, total_blocks_size_bytes) = certified_commits
-            .commits()
-            .iter()
-            .fold((0, 0), |(blocks, bytes), c| {
-                (
-                    blocks + c.block_headers().len(),
-                    bytes
-                        + c.block_headers()
-                            .iter()
-                            .map(|b| b.serialized().len())
-                            .sum::<usize>() as u64,
-                )
-            });
+        let (total_blocks_fetched, total_headers_size_bytes, total_transactions_size_bytes) =
+            certified_commits.commits().iter().fold(
+                (0, 0, 0),
+                |(blocks, header_bytes, transaction_bytes), c| {
+                    (
+                        blocks + c.block_headers().len(),
+                        header_bytes
+                            + c.block_headers()
+                                .iter()
+                                .map(|b| b.serialized().len())
+                                .sum::<usize>() as u64,
+                        transaction_bytes
+                            + c.transactions()
+                                .iter()
+                                .map(|b| b.serialized().len())
+                                .sum::<usize>() as u64,
+                    )
+                },
+            );
 
         let metrics = &self.inner.context.metrics.node_metrics;
         metrics
@@ -279,7 +285,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .inc_by(total_blocks_fetched as u64);
         metrics
             .commit_sync_total_fetched_block_headers_size
-            .inc_by(total_blocks_size_bytes);
+            .inc_by(total_headers_size_bytes);
+        metrics
+            .commit_sync_total_fetched_transactions_size
+            .inc_by(total_transactions_size_bytes);
 
         let (commit_start, commit_end) = (
             certified_commits.commits().first().unwrap().index(),
@@ -333,6 +342,38 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     .join(","),
             );
 
+            // Compare transactions available in CertifiedCommits with
+            // committed_transactions in TrustedCommits
+            let mut expected_transactions = BTreeSet::new();
+            let mut available_transactions = BTreeSet::new();
+
+            for certified_commit in commits.commits() {
+                // Collect committed_transactions from the TrustedCommit
+                for block_ref in certified_commit.committed_transactions() {
+                    expected_transactions.insert(block_ref);
+                }
+
+                // Collect available transactions from VerifiedTransactions
+                for verified_txns in certified_commit.transactions() {
+                    available_transactions.insert(verified_txns.block_ref());
+                }
+            }
+
+            // Find missing transactions
+            let missing_transactions: Vec<_> = expected_transactions
+                .difference(&available_transactions)
+                .collect();
+
+            if !missing_transactions.is_empty() {
+                warn!(
+                    "Missing {} out of {} transactions after fetching commit range {:?}: {:?}",
+                    missing_transactions.len(),
+                    expected_transactions.len(),
+                    fetched_commit_range,
+                    missing_transactions,
+                );
+            }
+
             // If core thread cannot handle the incoming blocks, it is ok to block here.
             // Also it is possible to have missing ancestors because an equivocating
             // validator may produce blocks that are not included in commits but
@@ -344,14 +385,14 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 .add_certified_commits(commits)
                 .await
             {
-                Ok((missing_blocks, missing_committed_txns)) => {
-                    if !missing_blocks.is_empty() {
+                Ok((missing_headers, missing_committed_txns)) => {
+                    if !missing_headers.is_empty() {
                         warn!(
                             "Fetched block headers have missing ancestors: {:?} for commit range {:?}",
-                            missing_blocks, fetched_commit_range
+                            missing_headers, fetched_commit_range
                         );
                     }
-                    for block_ref in missing_blocks {
+                    for block_ref in missing_headers {
                         let hostname = &self
                             .inner
                             .context
@@ -364,23 +405,25 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .inc();
                     }
                     if !missing_committed_txns.is_empty() {
-                        info!(
-                            "Fetched blocks have missing committed transactions: {:?} for commit range {:?}",
-                            missing_committed_txns, fetched_commit_range
+                        warn!(
+                            "Missing committed transactions after adding commit range {:?} to DAG State : {}",
+                            fetched_commit_range,
+                            missing_committed_txns
+                                .keys()
+                                .map(|b| b.to_string())
+                                .join(","),
                         );
-                        // TODO: https://github.com/iotaledger/iota/issues/8376
-                        // Decide whether to rely on periodic transactions
-                        // synchronizer or make use of live one
-                        if let Err(err) = self
-                            .inner
-                            .transactions_synchronizer
-                            .fetch_transactions(missing_committed_txns)
-                            .await
-                        {
-                            warn!(
-                                "Error while trying to fetch missing
-                         transactions via transactions synchronizer: {err}"
-                            );
+                        for (block_ref, _ack_authorities) in missing_committed_txns {
+                            let hostname = &self
+                                .inner
+                                .context
+                                .committee
+                                .authority(block_ref.author)
+                                .hostname;
+                            metrics
+                                .commit_sync_fetch_missing_transactions
+                                .with_label_values(&[hostname])
+                                .inc();
                         }
                     }
                 }
@@ -609,7 +652,26 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .expect("Spawn blocking should not fail")?;
 
         // 3. Fetch block headers referenced by the commits, from the same authority.
-        let block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
+        let mut block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
+
+        // 3a. Collect all committed transaction block refs from commits
+        let committed_tx_refs: Vec<BlockRef> = commits
+            .iter()
+            .flat_map(|c| c.committed_transactions())
+            .collect();
+
+        // 3b. Identify which committed transaction blocks are NOT in the committed
+        // blocks list and add them to block_refs so they get fetched together
+        let block_refs_set: BTreeSet<_> = block_refs.iter().cloned().collect();
+        let missing_tx_header_refs: Vec<BlockRef> = committed_tx_refs
+            .iter()
+            .filter(|tx_ref| !block_refs_set.contains(tx_ref))
+            .cloned()
+            .collect();
+
+        // Merge missing transaction headers into the main block_refs list
+        block_refs.extend(missing_tx_header_refs);
+
         let num_chunks = block_refs
             .len()
             .div_ceil(inner.context.parameters.max_headers_per_commit_sync_fetch)
@@ -655,7 +717,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             // If they do match, the returned block headers can be considered
                             // verified as well.
                             if *requested_block_ref != block_header.reference() {
-                                return Err(ConsensusError::UnexpectedBlockForCommit {
+                                return Err(ConsensusError::UnexpectedBlockHeaderForCommit {
                                     peer: target_authority,
                                     requested: *requested_block_ref,
                                     received: block_header.reference(),
@@ -671,15 +733,119 @@ impl<C: NetworkClient> CommitSyncer<C> {
             })
             .collect();
 
+        // 8. Create transaction fetch requests (will be processed concurrently with
+        //    headers)
+        let mut transaction_requests: FuturesOrdered<_> = if !committed_tx_refs.is_empty() {
+            let num_tx_chunks = committed_tx_refs.len().div_ceil(
+                inner
+                    .context
+                    .parameters
+                    .max_transactions_per_commit_sync_fetch,
+            ) as u32;
+            committed_tx_refs
+                .chunks(
+                    inner
+                        .context
+                        .parameters
+                        .max_transactions_per_commit_sync_fetch,
+                )
+                .enumerate()
+                .map(|(i, request_block_refs)| {
+                    let inner = inner.clone();
+                    async move {
+                        // 9. Send out pipelined fetch requests to avoid overloading the target
+                        //    authority.
+                        sleep(timeout * i as u32 / num_tx_chunks.max(1)).await;
+                        let serialized_transactions = inner
+                            .network_client
+                            .fetch_transactions(
+                                target_authority,
+                                request_block_refs.to_vec(),
+                                timeout,
+                            )
+                            .await?;
+
+                        // 10. Verify that the number of returned transactions is not greater than
+                        //     the number of requested transactions. It's OK if not all requested
+                        //     transactions are returned as long as the peer returns all the
+                        //     headers. We don't want to fail the whole fetch in this case.
+                        //     TransactionSynchronizer will take care of fetching missing
+                        //     transactions later.
+                        if request_block_refs.len() < serialized_transactions.len() {
+                            return Err(ConsensusError::TooManyFetchedTransactionsReturned(
+                                target_authority,
+                            ));
+                        }
+                        let requested_block_refs_set: BTreeSet<_> =
+                            request_block_refs.iter().cloned().collect();
+                        // Deserialize to extract BlockRef and build a map directly
+                        let mut result = BTreeMap::new();
+                        for serialized_bytes in serialized_transactions {
+                            let serialized_tx: SerializedTransactions =
+                                bcs::from_bytes(&serialized_bytes)
+                                    .map_err(ConsensusError::MalformedTransactions)?;
+
+                            // 11. Verify the returned transactions match the requested block refs.
+                            if !requested_block_refs_set.contains(&serialized_tx.block_ref) {
+                                return Err(ConsensusError::UnexpectedTransactionForCommit {
+                                    peer: target_authority,
+                                    received: serialized_tx.block_ref,
+                                });
+                            }
+
+                            result.insert(
+                                serialized_tx.block_ref,
+                                serialized_tx.serialized_transactions,
+                            );
+                        }
+                        Ok::<BTreeMap<BlockRef, Bytes>, ConsensusError>(result)
+                    }
+                })
+                .collect()
+        } else {
+            FuturesOrdered::new()
+        };
+
+        // 12. Process header and transaction requests concurrently
         let mut fetched_block_headers = BTreeMap::new();
-        while let Some(result) = requests.next().await {
-            for block_header in result? {
-                fetched_block_headers.insert(block_header.reference(), block_header);
+        let mut fetched_transactions = BTreeMap::new();
+
+        loop {
+            tokio::select! {
+                Some(result) = requests.next() => {
+                    for block_header in result? {
+                        fetched_block_headers.insert(block_header.reference(), block_header);
+                    }
+                }
+                Some(result) = transaction_requests.next() => {
+                    fetched_transactions.extend(result?);
+                }
+                else => break,
             }
         }
 
-        // 8. Now create the Certified commits by assigning the block headers to each
-        //    commit and retaining the commit votes history.
+        // 13. Verify transactions
+        let mut transactions_map = if !fetched_transactions.is_empty() {
+            Handle::current()
+                .spawn_blocking({
+                    let inner = inner.clone();
+                    let fetched_block_headers_clone = fetched_block_headers.clone();
+                    move || {
+                        inner.verify_transactions(
+                            target_authority,
+                            fetched_transactions,
+                            fetched_block_headers_clone,
+                        )
+                    }
+                })
+                .await
+                .expect("Spawn blocking should not fail")?
+        } else {
+            BTreeMap::new()
+        };
+
+        // 14. Now create the Certified commits by assigning the block headers and
+        //     transactions to each commit and retaining the commit votes history.
         let mut certified_commits = Vec::new();
         for commit in &commits {
             let block_headers = commit
@@ -688,12 +854,23 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 .map(|block_ref| {
                     fetched_block_headers
                         .remove(block_ref)
+                        // safe to call .expect here as we make sure beforehand that all headers
+                        // from the commit are fetched
                         .expect("Block should exist")
                 })
                 .collect::<Vec<_>>();
+
+            // Collect transactions for this commit
+            let commit_transactions = commit
+                .committed_transactions()
+                .iter()
+                .filter_map(|tx_ref| transactions_map.remove(tx_ref))
+                .collect::<Vec<_>>();
+
             certified_commits.push(CertifiedCommit::new_certified(
                 commit.clone(),
                 block_headers,
+                commit_transactions,
             ));
         }
 
@@ -736,7 +913,6 @@ struct Inner<C: NetworkClient> {
     core_thread_dispatcher: Arc<dyn CoreThreadDispatcher>,
     commit_vote_monitor: Arc<CommitVoteMonitor>,
     commit_consumer_monitor: Arc<CommitConsumerMonitor>,
-    transactions_synchronizer: Arc<TransactionsSynchronizerHandle>,
     network_client: Arc<C>,
     block_verifier: Arc<dyn BlockVerifier>,
     dag_state: Arc<RwLock<DagState>>,
@@ -823,6 +999,58 @@ impl<C: NetworkClient> Inner<C> {
             .collect();
         Ok(trusted_commits)
     }
+
+    /// Verifies transactions against their block headers and returns a map of
+    /// BlockRef to VerifiedTransactions.
+    fn verify_transactions(
+        &self,
+        peer: AuthorityIndex,
+        serialized_transactions: BTreeMap<BlockRef, Bytes>,
+        block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
+    ) -> ConsensusResult<BTreeMap<BlockRef, VerifiedTransactions>> {
+        let mut verified_transactions_map = BTreeMap::new();
+
+        for (block_ref, inner_serialized_transactions) in serialized_transactions {
+            // Step 1: Get the block header and verify that the transactions commitment
+            // matches. This ensures the transactions we received are exactly
+            // the ones that were included in the block when it was created.
+            let block_header = block_headers
+                .get(&block_ref)
+                .expect("header for fetched transactions must exist");
+
+            let mut encoder = create_encoder(&self.context);
+            if block_header.transactions_commitment()
+                != TransactionsCommitment::compute_transactions_commitment(
+                    &inner_serialized_transactions,
+                    &self.context,
+                    &mut encoder,
+                )
+                .expect("correct computation of the transactions commitment should be successful")
+            {
+                return Err(ConsensusError::TransactionCommitmentFailure {
+                    round: block_ref.round,
+                    author: block_ref.author,
+                    peer,
+                });
+            }
+
+            // Step 2: Deserialize and verify the actual transactions vector.
+            let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
+                .map_err(ConsensusError::MalformedTransactions)?;
+
+            // Step 3: Create a VerifiedTransactions instance and insert into map
+            let verified_transactions = VerifiedTransactions::new(
+                transactions,
+                block_ref,
+                block_header.transactions_commitment(),
+                inner_serialized_transactions,
+            );
+
+            verified_transactions_map.insert(block_ref, verified_transactions);
+        }
+
+        Ok(verified_transactions_map)
+    }
 }
 
 #[cfg(test)]
@@ -846,7 +1074,6 @@ mod tests {
         error::ConsensusResult,
         network::{BlockBundleStream, NetworkClient},
         storage::mem_store::MemStore,
-        transactions_synchronizer::TransactionsSynchronizer,
     };
 
     #[derive(Default)]
@@ -926,17 +1153,11 @@ mod tests {
         let dag_state = Arc::new(RwLock::new(DagState::new(context.clone(), store)));
         let commit_vote_monitor = Arc::new(CommitVoteMonitor::new(context.clone()));
         let commit_consumer_monitor = Arc::new(CommitConsumerMonitor::new(0));
-        let transactions_synchronizer = TransactionsSynchronizer::start(
-            network_client.clone(),
-            context.clone(),
-            core_thread_dispatcher.clone(),
-            dag_state.clone(),
-        );
+
         let mut commit_syncer = CommitSyncer::new(
             context,
             core_thread_dispatcher,
             commit_vote_monitor.clone(),
-            transactions_synchronizer.clone(),
             commit_consumer_monitor.clone(),
             network_client,
             block_verifier,

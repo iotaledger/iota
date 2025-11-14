@@ -216,6 +216,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_fetched_commits: IntCounter,
     pub(crate) commit_sync_fetched_block_headers: IntCounter,
     pub(crate) commit_sync_total_fetched_block_headers_size: IntCounter,
+    pub(crate) commit_sync_total_fetched_transactions_size: IntCounter,
     pub(crate) commit_sync_quorum_index: IntGauge,
     pub(crate) commit_sync_highest_synced_index: IntGauge,
     pub(crate) commit_sync_highest_fetched_index: IntGauge,
@@ -225,6 +226,7 @@ pub(crate) struct NodeMetrics {
     pub(crate) commit_sync_fetch_once_latency: Histogram,
     pub(crate) commit_sync_fetch_once_errors: IntCounterVec,
     pub(crate) commit_sync_fetch_missing_block_headers: IntCounterVec,
+    pub(crate) commit_sync_fetch_missing_transactions: IntCounterVec,
     pub(crate) uptime: Histogram,
 }
 
@@ -876,6 +878,11 @@ impl NodeMetrics {
                 "The total size in bytes of block headers fetched via commit syncer",
                 registry,
             ).unwrap(),
+            commit_sync_total_fetched_transactions_size: register_int_counter_with_registry!(
+                "commit_sync_total_fetched_transactions_size",
+                "The total size in bytes of transactions fetched via commit syncer",
+                registry,
+            ).unwrap(),
             commit_sync_quorum_index: register_int_gauge_with_registry!(
                 "commit_sync_quorum_index",
                 "The maximum commit index voted by a quorum of authorities",
@@ -927,6 +934,12 @@ impl NodeMetrics {
             commit_sync_fetch_missing_block_headers: register_int_counter_vec_with_registry!(
                 "commit_sync_fetch_missing_block_headers",
                 "Number of ancestor block headers that are missing when processing headers via commit sync.",
+                &["authority"],
+                registry
+            ).unwrap(),
+            commit_sync_fetch_missing_transactions: register_int_counter_vec_with_registry!(
+                "commit_sync_fetch_missing_transactions",
+                "Number of committed transactions that are missing when processing transactions via commit sync.",
                 &["authority"],
                 registry
             ).unwrap(),

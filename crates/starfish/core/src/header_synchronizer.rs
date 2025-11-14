@@ -569,7 +569,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
     /// no error is returned then the verified blocks are immediately sent
     /// to Core for processing.
     async fn process_fetched_headers_from_authority(
-        serialized_headers: Vec<Bytes>,
+        mut serialized_headers: Vec<Bytes>,
         peer_index: AuthorityIndex,
         requested_blocks_guard: BlocksGuard,
         core_dispatcher: Arc<D>,
@@ -584,7 +584,11 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
             return Ok(());
         }
         if serialized_headers.len() > context.parameters.max_headers_per_regular_sync_fetch {
-            return Err(ConsensusError::TooManyFetchedHeadersReturned(peer_index));
+            debug!(
+                "Truncating fetched headers from peer {} to max allowed {} blocks",
+                peer_index, context.parameters.max_headers_per_regular_sync_fetch
+            );
+            serialized_headers.truncate(context.parameters.max_headers_per_regular_sync_fetch);
         }
 
         // Verify all the fetched block headers
@@ -670,8 +674,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> HeaderSynchron
                 .await
             {
                 warn!(
-                    "Error while trying to fetch missing transactions via
-             transactions synchronizer: {err}"
+                    "Error while trying to fetch missing transactions via transactions synchronizer: {err}"
                 );
             }
         }
