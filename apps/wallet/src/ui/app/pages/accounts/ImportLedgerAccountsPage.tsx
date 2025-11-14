@@ -18,7 +18,7 @@ import { useAccounts } from '_hooks';
 import { Button, LoadingIndicator } from '@iota/apps-ui-kit';
 import { CheckmarkFilled } from '@iota/apps-ui-icons';
 
-const NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT = 10;
+const LEDGER_ACCOUNTS_DERIVE_CHUNKS_SIZE = 10;
 
 export function ImportLedgerAccountsPage() {
     const [searchParams] = useSearchParams();
@@ -27,22 +27,21 @@ export function ImportLedgerAccountsPage() {
     const { data: existingAccounts } = useAccounts();
     const [selectedLedgerAccounts, setSelectedLedgerAccounts] = useState<Set<string>>(new Set());
     const {
-        data: ledgerAccounts,
-        error: ledgerError,
-        isPending: areLedgerAccountsLoading,
-        isError: encounteredDerviceAccountsError,
-    } = useDeriveLedgerAccounts({
-        numAccountsToDerive: NUM_LEDGER_ACCOUNTS_TO_DERIVE_BY_DEFAULT,
-        select: ({ accounts, mainPublicKey }) => {
-            return {
-                accounts: accounts.filter(
-                    ({ address }) =>
-                        !existingAccounts?.some((account) => account.address === address),
-                ),
-                mainPublicKey,
-            };
+        mainPublicKey: { data: mainPublicKey },
+        accounts,
+        advance: {
+            error: ledgerError,
+            isPending: areLedgerAccountsLoading,
+            isError: encounteredDerviceAccountsError,
+            mutateAsync: loadMore,
         },
+    } = useDeriveLedgerAccounts({
+        chunkSize: LEDGER_ACCOUNTS_DERIVE_CHUNKS_SIZE,
     });
+
+    const ledgerAccounts = accounts.filter(
+        ({ address }) => !existingAccounts?.some((account) => account.address === address),
+    );
 
     useEffect(() => {
         if (ledgerError) {
@@ -65,7 +64,7 @@ export function ImportLedgerAccountsPage() {
         },
         [setSelectedLedgerAccounts],
     );
-    const numImportableAccounts = ledgerAccounts?.accounts?.length;
+    const numImportableAccounts = ledgerAccounts?.length;
     const numSelectedAccounts = selectedLedgerAccounts.size;
     const areAllAccountsImported = numImportableAccounts === 0;
     const isUnlockButtonDisabled = numSelectedAccounts === 0;
@@ -80,7 +79,7 @@ export function ImportLedgerAccountsPage() {
         importLedgerAccountsBody = (
             <div className="max-h-[530px] w-full overflow-auto">
                 <AccountList
-                    accounts={ledgerAccounts.accounts}
+                    accounts={ledgerAccounts}
                     selectedAccounts={selectedLedgerAccounts}
                     onAccountClick={onAccountClick}
                     selectAll={selectAllAccounts}
@@ -92,21 +91,21 @@ export function ImportLedgerAccountsPage() {
     function selectAllAccounts() {
         const areAllAccountsSelected = numSelectedAccounts === numImportableAccounts;
         if (ledgerAccounts && !areAllAccountsSelected) {
-            setSelectedLedgerAccounts(new Set(ledgerAccounts.accounts.map((acc) => acc.address)));
+            setSelectedLedgerAccounts(new Set(ledgerAccounts.map((acc) => acc.address)));
         } else if (areAllAccountsSelected) {
             setSelectedLedgerAccounts(new Set());
         }
     }
 
     function handleNextClick() {
-        if (!ledgerAccounts) {
+        if (!ledgerAccounts || !mainPublicKey) {
             return;
         }
         setAccountsFormValues({
             type: AccountsFormType.ImportLedger,
-            mainPublicKey: ledgerAccounts.mainPublicKey,
+            mainPublicKey: mainPublicKey,
             accounts:
-                ledgerAccounts.accounts
+                ledgerAccounts
                     ?.filter((acc) => selectedLedgerAccounts.has(acc.address))
                     .map(({ address, derivationPath, publicKey }) => ({
                         address,
@@ -134,6 +133,12 @@ export function ImportLedgerAccountsPage() {
             <div className="flex h-full w-full flex-col">
                 {importLedgerAccountsBody}
                 <div className="flex flex-1 items-end">
+                    <Button
+                        disabled={areLedgerAccountsLoading}
+                        text="Load More"
+                        onClick={() => loadMore()}
+                        fullWidth
+                    />
                     {areAllAccountsImported ? (
                         <Button
                             text="Finish"
@@ -145,7 +150,6 @@ export function ImportLedgerAccountsPage() {
                             text="Next"
                             disabled={isUnlockButtonDisabled}
                             onClick={handleNextClick}
-                            fullWidth
                         />
                     )}
                     ;
