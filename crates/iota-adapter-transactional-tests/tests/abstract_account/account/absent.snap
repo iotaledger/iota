@@ -8,4 +8,4 @@ A: object(0,0)
 
 task 1, lines 8-10:
 //# abstract --account object(0,0) --ptb-inputs 100 @A
-Error: abstract: account must be a shared object representing the abstract account
+Error: Error checking transaction input objects: AccountObjectNotSupported { object_id: object(0,0) }

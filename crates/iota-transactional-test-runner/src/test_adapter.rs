@@ -1332,27 +1332,22 @@ impl IotaTestAdapter {
             .into_iter()
             .next()
             .ok_or_else(|| anyhow::anyhow!("Missing account for MoveAuthenticator"))?;
-        let aa_arg = aa_arg.into_call_arg(self)?;
-
-        let aa_shared_objects = aa_arg.shared_objects();
-        let aa_shared_object = aa_shared_objects.first().ok_or_else(|| {
-            anyhow::anyhow!(
-                "abstract: account must be a shared object representing the abstract account"
-            )
-        })?;
-        let aa_sender_addr = aa_shared_object.id.into();
+        let CallArg::Object(aa_arg) = aa_arg.into_call_arg(self)? else {
+            anyhow::bail!("abstract: account must be an object representing the abstract account");
+        };
+        let aa_sender_addr = aa_arg.id().into();
 
         let account = TestAccount {
             address: aa_sender_addr,
             key_pair: None,
-            gas: aa_sender_addr.into(),
+            gas: aa_sender_addr.into(), // TODO: handle abstract account gas
         };
         Ok((
             account,
             GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
                 auth_inputs,
                 vec![],
-                aa_arg,
+                CallArg::Object(aa_arg),
             )),
         ))
     }

@@ -38,9 +38,7 @@ public fun create(
     iota::transfer::share_object(account);
 }
 
-public fun authenticate(account: &AbstractAccount2, _auth_ctx: &AuthContext, ctx: &TxContext) {
-    assert!(account.id.uid_to_address() == ctx.sender(), 0);
-}
+public fun authenticate(_account: &AbstractAccount2, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
 //# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate"
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));

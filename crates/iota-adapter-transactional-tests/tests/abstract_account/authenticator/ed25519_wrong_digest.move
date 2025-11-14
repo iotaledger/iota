@@ -13,12 +13,6 @@ use iota::auth_context::AuthContext;
 use iota::dynamic_field;
 use iota::ed25519;
 
-#[error(code = 0)]
-const ETransactionSenderIsNotTheAccount: vector<u8> = b"Transaction must be signed by the account.";
-
-#[error(code = 1)]
-const EEd25519VerificationFailed: vector<u8> = b"Ed25519 authenticator verification failed.";
-
 public struct AbstractAccount has key {
     id: UID,
 }
@@ -48,11 +42,8 @@ public fun authenticate_ed25519(
     signature: vector<u8>,
     digest: vector<u8>,
     _: &AuthContext,
-    ctx: &TxContext,
+    _ctx: &TxContext,
 ) {
-    // Check that the sender of this transaction is the account.
-    assert!(account.id.uid_to_address() == ctx.sender(), ETransactionSenderIsNotTheAccount);
-
     // Check the signature.
     assert!(
         ed25519::ed25519_verify(
@@ -60,7 +51,7 @@ public fun authenticate_ed25519(
             dynamic_field::borrow(&account.id, OwnerPublicKey {}),
             &digest,
         ),
-        EEd25519VerificationFailed,
+        0,
     );
 }
 

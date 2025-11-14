@@ -1452,6 +1452,7 @@ module test::abstract_account;
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::dynamic_field;
+use std::ascii;
 
 public struct AbstractAccount has key {
     id: UID,
@@ -1476,11 +1477,16 @@ public fun create(
     account_address
 }
 
-public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx: &TxContext) {
-    assert!(account.id.uid_to_address() == ctx.sender(), 0);
+public fun authenticate_hello_world(
+    _account: &AbstractAccount,
+    msg: ascii::String,
+    _auth_ctx: &AuthContext,
+    _ctx: &TxContext,
+) {
+    assert!(msg == ascii::string(b"HelloWorld"), 0);
 }
 
-//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate" 7000000000
+//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate_hello_world" 7000000000
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
 //> 1: test::abstract_account::create(Input(0), Result(0));
 //> 2: SplitCoins(Gas, [Input(4)]);
@@ -1490,7 +1496,7 @@ public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx:
 
 //# view-object 2,3
 
-//# abstract --account immshared(2,3) --gas-payment 2,0 --ptb-inputs 100 @A
+//# abstract --account immshared(2,3) --gas-payment 2,0 --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 
@@ -1516,23 +1522,23 @@ processed 7 tasks
 init:
 A: object(0,0)
 
-task 1, lines 8-40:
+task 1, lines 8-46:
 //# publish --sender A
 created: object(1,0)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9530400,  storage_rebate: 0, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9963600,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 42-46:
-//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate" 7000000000
+task 2, lines 48-52:
+//# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate_hello_world" 7000000000
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
 //> 1: test::abstract_account::create(Input(0), Result(0));
 //> 2: SplitCoins(Gas, [Input(4)]);
 //> 3: TransferObjects([Result(2)], Result(1));
 created: object(2,0), object(2,1), object(2,2), object(2,3)
 mutated: object(0,0)
-gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8519600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8610800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 3, line 48:
+task 3, line 54:
 //# view-object 2,0
 Owner: Account Address ( fake(2,3) )
 Version: 3
@@ -1547,7 +1553,7 @@ Contents: iota::coin::Coin<iota::iota::IOTA> {
     },
 }
 
-task 4, line 50:
+task 4, line 56:
 //# view-object 2,3
 Owner: Shared( 3 )
 Version: 3
@@ -1559,14 +1565,14 @@ Contents: test::abstract_account::AbstractAccount {
     },
 }
 
-task 5, lines 52-54:
-//# abstract --account immshared(2,3) --gas-payment 2,0 --ptb-inputs 100 @A
+task 5, lines 58-60:
+//# abstract --account immshared(2,3) --gas-payment 2,0 --auth-inputs "HelloWorld" --ptb-inputs 100 @A
 created: object(5,0)
 mutated: object(2,0)
 unchanged_shared: object(2,3)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 1960800,  storage_rebate: 980400, non_refundable_storage_fee: 0
 
-task 6, line 56:
+task 6, line 62:
 //# view-object 5,0
 Owner: Account Address ( A )
 Version: 4

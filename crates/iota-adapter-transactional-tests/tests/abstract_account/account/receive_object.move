@@ -37,9 +37,7 @@ public fun create(
     account_address
 }
 
-public fun authenticate(account: &AbstractAccount, _auth_ctx: &AuthContext, ctx: &TxContext) {
-    assert!(account.id.uid_to_address() == ctx.sender(), 0);
-}
+public fun authenticate(_account: &AbstractAccount, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
 
 public fun receive_object(
     self: &mut AbstractAccount,
