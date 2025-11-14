@@ -1,13 +1,12 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
-
-use async_graphql::{Context, OutputType, SimpleObject, Subscription, Union};
+use async_graphql::{Context, OutputType, ResultExt, SimpleObject, Subscription, Union};
 use futures::{Stream, StreamExt, TryStreamExt, future};
 use iota_indexer::read::IndexerReader;
 use iota_indexer_streaming::{memory::InMemory, metrics::InMemoryStreamMetrics};
 use iota_json_rpc_types::Filter;
+use iota_types::supported_protocol_versions::Chain;
 use prometheus::Registry;
 use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tracing::warn;
@@ -15,6 +14,7 @@ use tracing::warn;
 use crate::{
     error::Error,
     types::{
+        chain_identifier::ChainIdentifierCache,
         event::Event,
         subscription::filter::{SubscriptionEventFilter, SubscriptionTransactionFilter},
         transaction_block::{TransactionBlock, TransactionBlockInner},
@@ -59,9 +59,29 @@ impl Subscription {
         &self,
         ctx: &Context<'_>,
         filter: Option<SubscriptionTransactionFilter>,
-    ) -> impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>> {
-        let streams = ctx.data_unchecked::<GraphQLStream>().clone();
-        streams.subscribe_transactions(filter)
+    ) -> async_graphql::Result<impl Stream<Item = Result<SubscriptionItem<TransactionBlock>, Error>>>
+    {
+        let chain_id_cache: &ChainIdentifierCache = ctx.data_unchecked();
+
+        let db = ctx.data_unchecked();
+        let metrics = ctx.data_unchecked();
+        let chain = chain_id_cache
+            .read(db, metrics)
+            .await
+            .extend()?
+            .into_inner()
+            .chain();
+
+        if !matches!(chain, Chain::Unknown) {
+            return Err(Error::UnsupportedFeature(format!(
+                "Subscriptions are not yet supported on {}",
+                chain.as_str()
+            )))
+            .extend();
+        }
+
+        let streams = ctx.data_unchecked::<GraphQLStream>();
+        Ok(streams.subscribe_transactions(filter))
     }
 
     /// Subscribe to incoming events from the IOTA network.
@@ -71,9 +91,28 @@ impl Subscription {
         &self,
         ctx: &Context<'_>,
         filter: Option<SubscriptionEventFilter>,
-    ) -> impl Stream<Item = Result<SubscriptionItem<Event>, Error>> {
-        let streams = ctx.data_unchecked::<GraphQLStream>().clone();
-        streams.subscribe_events(filter)
+    ) -> async_graphql::Result<impl Stream<Item = Result<SubscriptionItem<Event>, Error>>> {
+        let chain_id_cache: &ChainIdentifierCache = ctx.data_unchecked();
+
+        let db = ctx.data_unchecked();
+        let metrics = ctx.data_unchecked();
+        let chain = chain_id_cache
+            .read(db, metrics)
+            .await
+            .extend()?
+            .into_inner()
+            .chain();
+
+        if !matches!(chain, Chain::Unknown) {
+            return Err(Error::UnsupportedFeature(format!(
+                "Subscriptions are not yet supported on {}",
+                chain.as_str()
+            )))
+            .extend();
+        }
+
+        let streams = ctx.data_unchecked::<GraphQLStream>();
+        Ok(streams.subscribe_events(filter))
     }
 }
 
@@ -85,9 +124,8 @@ impl Subscription {
 ///
 /// It ensures that when a critical data error occurs during item conversion,
 /// the resulting stream is gracefully terminated by the server.
-#[derive(Clone)]
 pub(crate) struct GraphQLStream {
-    streamer: Arc<InMemory>,
+    streamer: InMemory,
 }
 
 impl GraphQLStream {
@@ -104,9 +142,7 @@ impl GraphQLStream {
         )
         .await
         .map_err(|e| Error::Internal(format!("failed to connect to postgres: {e}")))?;
-        Ok(Self {
-            streamer: Arc::new(streamer),
-        })
+        Ok(Self { streamer })
     }
 
     /// Checks if the provided filter matches the item.
