@@ -1,7 +1,7 @@
 ---
 source: external-crates/move/crates/move-transactional-test-runner/src/framework.rs
 ---
-processed 3 tasks
+processed 6 tasks
 
 init:
 A: object(0,0)
@@ -12,8 +12,43 @@ created: object(1,0)
 mutated: object(0,0)
 gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 9036400,  storage_rebate: 0, non_refundable_storage_fee: 0
 
-task 2, lines 40-41:
+task 2, lines 40-44:
 //# programmable --sender A --inputs x"10" @test "abstract_account" "authenticate" 7000000000
 //> 0: iota::account::create_auth_info_v1<test::abstract_account::AbstractAccount>(Input(1), Input(2), Input(3));
-Error: Transaction Effects Status: MOVE VM INVARIANT VIOLATION.
-Execution Error: ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: VMInvariantViolation, source: Some(VMError { major_status: UNKNOWN_INVARIANT_VIOLATION_ERROR, sub_status: None, message: Some("ExecutionError: ExecutionError { inner: ExecutionErrorInner { kind: IotaMoveVerificationError, source: Some(\"Invalid account type. Account can only be a reference type, offending argument: MutableReference(Struct(DatatypeHandleIndex(0)))\"), command: None } }"), exec_state: None, location: Module(ModuleId { address: iota, name: Identifier("account") }), indices: [], offsets: [(FunctionDefinitionIndex(7), 0)] }), command: Some(0) } }
+//> 1: test::abstract_account::create(Input(0), Result(0));
+//> 2: SplitCoins(Gas, [Input(4)]);
+//> 3: TransferObjects([Result(2)], Result(1));
+created: object(2,0), object(2,1), object(2,2), object(2,3)
+mutated: object(0,0)
+gas summary: computation_cost: 1000000, computation_cost_burned: 1000000, storage_cost: 8519600,  storage_rebate: 980400, non_refundable_storage_fee: 0
+
+task 3, line 46:
+//# view-object 2,0
+Owner: Account Address ( fake(2,3) )
+Version: 3
+Contents: iota::coin::Coin<iota::iota::IOTA> {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,0),
+        },
+    },
+    balance: iota::balance::Balance<iota::iota::IOTA> {
+        value: 7000000000u64,
+    },
+}
+
+task 4, line 48:
+//# view-object 2,3
+Owner: Shared( 3 )
+Version: 3
+Contents: test::abstract_account::AbstractAccount {
+    id: iota::object::UID {
+        id: iota::object::ID {
+            bytes: fake(2,3),
+        },
+    },
+}
+
+task 5, lines 50-51:
+//# abstract --account object(2,3) --gas-payment 2,0 --ptb-inputs 100 @A
+Error: Error checking transaction input objects: Unsupported("SenderSignedData can have MoveAuthenticator only for the sender")
