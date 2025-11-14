@@ -11,7 +11,7 @@ use iota_types::{
     base_types::ObjectID,
     effects::{TransactionEffects, TransactionEffectsAPI},
     object::{Object, Owner, bounded_visitor::BoundedVisitor},
-    transaction::{TransactionData, TransactionDataAPI},
+    transaction::{SenderSignedData, TransactionDataAPI},
 };
 use move_core_types::{
     annotated_value::{MoveStruct, MoveTypeLayout, MoveValue},
@@ -90,14 +90,14 @@ struct InputObjectTracker {
 }
 
 impl InputObjectTracker {
-    fn new(txn_data: &TransactionData) -> Self {
-        let shared: BTreeSet<ObjectID> = txn_data
+    fn new(txn: &SenderSignedData) -> Self {
+        let shared: BTreeSet<ObjectID> = txn
             .shared_input_objects()
-            .iter()
             .map(|shared_io| shared_io.id())
             .collect();
-        let coins: BTreeSet<ObjectID> = txn_data.gas().iter().map(|obj_ref| obj_ref.0).collect();
-        let input: BTreeSet<ObjectID> = txn_data
+        let tx_data = txn.transaction_data();
+        let coins: BTreeSet<ObjectID> = tx_data.gas().iter().map(|obj_ref| obj_ref.0).collect();
+        let input: BTreeSet<ObjectID> = tx_data
             .input_objects()
             .expect("Input objects must be valid")
             .iter()

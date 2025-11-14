@@ -3,6 +3,7 @@
 
 module authenticate::option;
 
+use authenticate::account::Account;
 use iota::auth_context::AuthContext;
 
 public struct Object has key, store {
@@ -25,6 +26,7 @@ public struct NonObject has copy, drop, store {}
 
 // PASS
 public fun primitive_immutable_reference(
+    _account: &Account,
     _arg: &Option<u8>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -32,16 +34,23 @@ public fun primitive_immutable_reference(
 
 // FAIL
 public fun primitive_mutable_reference(
+    _account: &Account,
     _arg: &mut Option<u8>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
 ) {}
 
 // PASS
-public fun primitive_by_value(_arg: Option<u8>, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
+public fun primitive_by_value(
+    _account: &Account,
+    _arg: Option<u8>,
+    _auth_ctx: &AuthContext,
+    _ctx: &TxContext,
+) {}
 
 // FAIL
 public fun non_object_immutable_ref(
+    _account: &Account,
     _arg: &Option<NonObject>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -49,6 +58,7 @@ public fun non_object_immutable_ref(
 
 // FAIL
 public fun non_object_mutable_ref(
+    _account: &Account,
     _arg: &mut Option<NonObject>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -56,6 +66,7 @@ public fun non_object_mutable_ref(
 
 // FAIL
 public fun non_object_by_value(
+    _account: &Account,
     _arg: Option<NonObject>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -65,6 +76,7 @@ public fun non_object_by_value(
 
 // PASS
 public fun object_immutable_ref(
+    _account: &Account,
     _objects: &Option<Object>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -72,6 +84,7 @@ public fun object_immutable_ref(
 
 // FAIL
 public fun object_mutable_ref(
+    _account: &Account,
     _objects: &mut Option<Object>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -79,7 +92,12 @@ public fun object_mutable_ref(
 
 // FAIL
 #[allow(lint(share_owned))]
-public fun object_by_value(objects: Option<Object>, _auth_ctx: &AuthContext, _ctx: &TxContext) {
+public fun object_by_value(
+    _account: &Account,
+    objects: Option<Object>,
+    _auth_ctx: &AuthContext,
+    _ctx: &TxContext,
+) {
     objects.do!(|object| transfer::public_share_object(object));
 }
 
@@ -94,6 +112,7 @@ public fun object_by_value(objects: Option<Object>, _auth_ctx: &AuthContext, _ct
 
 // PASS
 public fun template_non_object_immutable_ref<T>(
+    _account: &Account,
     _arg: &Option<T>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -101,6 +120,7 @@ public fun template_non_object_immutable_ref<T>(
 
 // FAIL
 public fun template_non_object_mutable_ref<T>(
+    _account: &Account,
     _arg: &mut Option<T>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -108,6 +128,7 @@ public fun template_non_object_mutable_ref<T>(
 
 // FAIL
 public fun templated_non_object_by_value<T: copy + drop + store>(
+    _account: &Account,
     _arg: Option<NonObjectTemplated<T>>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -115,6 +136,7 @@ public fun templated_non_object_by_value<T: copy + drop + store>(
 
 // PASS
 public fun templated_non_object_immutable_ref<T: copy + drop + store>(
+    _account: &Account,
     _arg: &Option<NonObjectTemplated<T>>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -122,6 +144,7 @@ public fun templated_non_object_immutable_ref<T: copy + drop + store>(
 
 // FAIL
 public fun templated_non_object_mutable_ref<T: copy + drop + store>(
+    _account: &Account,
     _arg: &mut Option<NonObjectTemplated<T>>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -131,6 +154,7 @@ public fun templated_non_object_mutable_ref<T: copy + drop + store>(
 
 // PASS
 public fun template_object_immutable_reference<T: key>(
+    _account: &Account,
     _objects: &Option<T>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -138,6 +162,7 @@ public fun template_object_immutable_reference<T: key>(
 
 // FAIL
 public fun template_object_by_value<T: key + store>(
+    _account: &Account,
     objects: Option<T>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -147,6 +172,7 @@ public fun template_object_by_value<T: key + store>(
 
 // FAIL
 public fun template_object_mutable_reference<T: key>(
+    _account: &Account,
     _objects: &mut Option<T>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -154,6 +180,7 @@ public fun template_object_mutable_reference<T: key>(
 
 // PASS
 public fun templated_object_immutable_ref<T: key + store>(
+    _account: &Account,
     _objects: &Option<ObjectTemplated<T>>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -161,6 +188,7 @@ public fun templated_object_immutable_ref<T: key + store>(
 
 // FAIL
 public fun templated_object_by_value<T: key + store>(
+    _account: &Account,
     objects: Option<ObjectTemplated<T>>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,
@@ -173,6 +201,7 @@ public fun templated_object_by_value<T: key + store>(
 
 // FAIL
 public fun templated_object_mutable_ref<T: key + store>(
+    _account: &Account,
     _objects: &mut Option<ObjectTemplated<T>>,
     _auth_ctx: &AuthContext,
     _ctx: &TxContext,

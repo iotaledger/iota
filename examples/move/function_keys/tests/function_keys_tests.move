@@ -455,7 +455,7 @@ fun test_fk_authenticate_unauthorized_granted_permission() {
 // Utilities (mirroring iotaccount test style)
 // ============================================================================
 
-fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
+fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<IOTAccount> {
     account_pkg::create_auth_info_v1_for_testing(
         @0x1,
         ascii::string(b"module"),

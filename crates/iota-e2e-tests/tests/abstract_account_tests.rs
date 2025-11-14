@@ -12,7 +12,7 @@
 //! inspired by the `examples/move/iotaccount` implementation. This is needed in
 //! order to not depend on an external folder and to enable easier changes to
 //! the Move code.
-use std::net::SocketAddr;
+use std::{net::SocketAddr, str::FromStr};
 
 use fastcrypto::{
     ed25519::Ed25519Signature,
@@ -47,6 +47,7 @@ use test_cluster::{TestCluster, TestClusterBuilder};
 
 const AA_PACKAGE_PATH: &str = "tests/abstract_account/abstract_account";
 const AA_MODULE_NAME: &str = "abstract_account";
+const AA_ACCOUNT_NAME: &str = "AbstractAccount";
 const AA_CREATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
@@ -133,6 +134,7 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
         &tx_data,
         Intent::iota_transaction(),
     )?);
+
     // AA signature
     let aa_signature = test_env.create_move_authenticator_for_free_access()?;
 
@@ -432,7 +434,7 @@ impl TestEnvironment {
                 IOTA_FRAMEWORK_ADDRESS.into(),
                 ident_str!("account").to_owned(),
                 ident_str!("create_auth_info_v1").to_owned(),
-                vec![],
+                vec![abstract_account_type_tag(&aa_package_id)],
                 arguments,
             ) {
                 // Create the abstract account.
@@ -507,11 +509,7 @@ impl TestEnvironment {
         .collect();
         let signature_call_arg = CallArg::Pure(bcs::to_bytes(&hex_encoded_signature)?);
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_for_testing(
-                vec![self_call_arg.clone(), signature_call_arg],
-                vec![],
-                self_call_arg,
-            ),
+            MoveAuthenticator::new_for_testing(vec![signature_call_arg], vec![], self_call_arg),
         ))
     }
 
@@ -531,7 +529,7 @@ impl TestEnvironment {
             mutable: false,
         });
         Ok(GenericSignature::MoveAuthenticator(
-            MoveAuthenticator::new_for_testing(vec![self_call_arg.clone()], vec![], self_call_arg),
+            MoveAuthenticator::new_for_testing(vec![], vec![], self_call_arg),
         ))
     }
 
@@ -587,7 +585,7 @@ impl TestEnvironment {
             IOTA_FRAMEWORK_ADDRESS.into(),
             ident_str!("account").to_owned(),
             ident_str!("create_auth_info_v1").to_owned(),
-            vec![],
+            vec![abstract_account_type_tag(&aa_package_id)],
             arguments,
         ) {
             // rotate the key in the abstract account.
@@ -729,4 +727,9 @@ impl TestEnvironment {
         }
         Ok(())
     }
+}
+
+fn abstract_account_type_tag(aa_package_id: &ObjectID) -> TypeTag {
+    TypeTag::from_str(format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())
+        .unwrap()
 }

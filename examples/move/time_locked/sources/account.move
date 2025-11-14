@@ -37,17 +37,22 @@ public struct TimeLocked has key {
 public fun create(
     public_key: vector<u8>,
     unlock_time: u64,
-    authenticator: AuthenticatorInfoV1,
+    authenticator: AuthenticatorInfoV1<TimeLocked>,
     ctx: &mut TxContext,
 ) {
     let mut id = object::new(ctx);
 
-    account::attach_auth_info_v1(&mut id, authenticator);
-
     owner_public_key::attach(&mut id, public_key);
     unlock_time::attach(&mut id, unlock_time);
 
-    let account = TimeLocked { id };
+    let mut account = TimeLocked { id };
+
+    let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
+        &account,
+        authenticator,
+    );
+    account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
+
     iota::transfer::share_object(account);
 }
 

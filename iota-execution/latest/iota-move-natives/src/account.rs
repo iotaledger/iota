@@ -30,7 +30,7 @@ pub fn check_auth_info_v1(
     ty_args: Vec<Type>,
     mut args: VecDeque<Value>,
 ) -> PartialVMResult<NativeResult> {
-    debug_assert!(ty_args.is_empty());
+    debug_assert!(ty_args.len() == 1);
     debug_assert!(args.len() == 3);
 
     // charge gas
@@ -82,9 +82,11 @@ pub fn check_auth_info_v1(
         );
     };
 
-    if let Err(execution_error) =
-        account_auth_verifier::verify_authenticate_func(&compiled_module, function_identifier)
-    {
+    if let Err(execution_error) = account_auth_verifier::verify_authenticate_func_v1(
+        &compiled_module,
+        function_identifier,
+        &context.type_to_type_tag(&ty_args[0])?,
+    ) {
         return Err(
             PartialVMError::new(StatusCode::UNKNOWN_INVARIANT_VIOLATION_ERROR)
                 .with_message(execution_error.to_string()),
