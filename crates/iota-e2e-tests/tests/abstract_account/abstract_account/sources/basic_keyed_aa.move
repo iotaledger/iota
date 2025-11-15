@@ -72,6 +72,7 @@ public fun rotate_public_key(
     account.rotate_auth_info_v1(authenticator_metadata, ctx);
 }
 
+#[authenticator]
 /// Ed25519 signature authenticator.
 public fun authenticate_ed25519(
     account: &AbstractAccount,
@@ -89,6 +90,7 @@ public fun authenticate_ed25519(
     );
 }
 
+#[authenticator]
 /// Secp256k1 signature authenticator.
 public fun authenticate_secp256k1(
     account: &AbstractAccount,
@@ -106,6 +108,7 @@ public fun authenticate_secp256k1(
     );
 }
 
+#[authenticator]
 /// Secp256r1 signature authenticator.
 public fun authenticate_secp256r1(
     account: &AbstractAccount,
@@ -123,6 +126,7 @@ public fun authenticate_secp256r1(
     );
 }
 
+#[authenticator]
 /// Free access, do nothing.
 public fun authenticate_free_access(self: &AbstractAccount, _: &AuthContext, ctx: &TxContext) {
     // Check that the sender of this transaction is the account.

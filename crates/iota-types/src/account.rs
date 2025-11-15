@@ -1,11 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use move_core_types::{
-    ident_str,
-    identifier::IdentStr,
-    language_storage::{StructTag, TypeTag},
-};
+use move_core_types::{ident_str, identifier::IdentStr, language_storage::StructTag};
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -13,11 +9,48 @@ use crate::{
     base_types::ObjectID,
     error::IotaError,
     object::{Data, Object},
+    type_input::TypeName,
 };
 
 pub const ACCOUNT_MODULE_NAME: &IdentStr = ident_str!("account");
+pub const AUTHENTICATOR_INFO_METADATA_V1_STRUCT_NAME: &IdentStr =
+    ident_str!("AuthenticatorInfoMetadataV1");
 pub const AUTHENTICATOR_INFO_V1_STRUCT_NAME: &IdentStr = ident_str!("AuthenticatorInfoV1");
 pub const AUTHENTICATOR_INFO_V1_KEY_STRUCT_NAME: &IdentStr = ident_str!("AuthenticatorInfoV1Key");
+
+/// V1 of IOTA specific authenticator info metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthenticatorInfoMetadataV1 {
+    pub info: AuthenticatorInfoV1,
+    pub account_type: TypeName,
+}
+
+impl AuthenticatorInfoMetadataV1 {
+    pub fn new(
+        package: ObjectID,
+        module: String,
+        function: String,
+        account_type: TypeName,
+    ) -> Self {
+        Self {
+            info: AuthenticatorInfoV1 {
+                package,
+                module,
+                function,
+            },
+            account_type,
+        }
+    }
+
+    pub fn type_() -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: ACCOUNT_MODULE_NAME.to_owned(),
+            name: AUTHENTICATOR_INFO_METADATA_V1_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, PartialEq)]
 pub struct AuthenticatorInfoV1 {
@@ -35,12 +68,12 @@ pub struct AuthenticatorInfoV1Key {
 }
 
 impl AuthenticatorInfoV1 {
-    pub fn tag(type_param: StructTag) -> StructTag {
+    pub fn type_() -> StructTag {
         StructTag {
             address: IOTA_FRAMEWORK_ADDRESS,
             module: ACCOUNT_MODULE_NAME.to_owned(),
             name: AUTHENTICATOR_INFO_V1_STRUCT_NAME.to_owned(),
-            type_params: vec![TypeTag::Struct(Box::new(type_param))],
+            type_params: vec![],
         }
     }
 

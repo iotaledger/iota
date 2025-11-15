@@ -59,7 +59,7 @@ use serde_with::{Bytes, serde_as};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    account::AuthenticatorInfoV1,
+    account::AuthenticatorInfoMetadataV1,
     base_types::{ObjectID, SequenceNumber},
     crypto::DefaultHash,
     dynamic_field,
@@ -1089,14 +1089,12 @@ impl PackageMetadataV1 {
                 });
 
                 let fn_metadata = FunctionMetadataV1 {
-                    authenticator_info: AuthenticatorInfoMetadataV1 {
-                        info: AuthenticatorInfoV1 {
-                            package: storage_id,
-                            module: module_name.clone(),
-                            function: fn_name.clone(),
-                        },
-                        account_type: TypeName::from(&account_type),
-                    },
+                    authenticator_info: AuthenticatorInfoMetadataV1::new(
+                        storage_id,
+                        module_name.clone(),
+                        fn_name.clone(),
+                        TypeName::from(&account_type),
+                    ),
                 };
                 function_metadata.push(fn_metadata);
             }
@@ -1138,13 +1136,6 @@ pub struct FunctionHandle {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FunctionMetadataV1 {
     authenticator_info: AuthenticatorInfoMetadataV1,
-}
-
-/// V1 of IOTA specific authenticator info metadata.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuthenticatorInfoMetadataV1 {
-    info: AuthenticatorInfoV1,
-    account_type: TypeName,
 }
 
 pub fn derive_package_metadata_id(package_storage_id: ObjectID) -> ObjectID {
