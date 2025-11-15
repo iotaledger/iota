@@ -20,7 +20,7 @@ use move_bytecode_utils::format_signature_token;
 
 use crate::{INIT_FN_NAME, verification_failure};
 
-/// Checks valid rules rules for entry points, both for module initialization
+/// Checks valid rules for entry points, both for module initialization
 /// and transactions
 ///
 /// For module initialization
