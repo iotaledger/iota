@@ -51,10 +51,14 @@ fun authenticator_info_v1_happy_path() {
             ascii::string(b"module2"),
             ascii::string(b"function2"),
         );
+        let updated_auth_info_metadata = account::create_auth_info_metadata_v1_for_testing(
+            updated_authenticator_info,
+            account_type,
+        );
 
         let compatibility_proof = account::check_auth_info_v1_compatibility(
             account,
-            auth_info_metadata,
+            updated_auth_info_metadata,
         );
         account::rotate_auth_info_v1(
             account.id_mut(),
