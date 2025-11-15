@@ -33,20 +33,25 @@
 //! with `Runtime ID` and `Storage ID` depending on the context. While `Runtime
 //! ID` is mostly used in name resolution during runtime, when a package with
 //! its modules has been loaded.
-use std::collections::{BTreeMap, BTreeSet};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::LazyLock,
+};
 
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
 use move_binary_format::{
-    binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
+    binary_config::BinaryConfig,
+    file_format::CompiledModule,
+    file_format_common::{IOTA_METADATA_KEY, VERSION_6},
     normalized,
 };
 use move_core_types::{
     account_address::AccountAddress,
     ident_str,
     identifier::{IdentStr, Identifier},
-    language_storage::{ModuleId, StructTag},
+    language_storage::{ModuleId, StructTag, TypeTag},
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -54,18 +59,27 @@ use serde_with::{Bytes, serde_as};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
+    account::AuthenticatorInfoV1,
     base_types::{ObjectID, SequenceNumber},
     crypto::DefaultHash,
+    dynamic_field,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution_status::PackageUpgradeError,
     id::{ID, UID},
     object::OBJECT_START_VERSION,
+    type_input::TypeName,
 };
 
 pub const PACKAGE_MODULE_NAME: &IdentStr = ident_str!("package");
 pub const UPGRADECAP_STRUCT_NAME: &IdentStr = ident_str!("UpgradeCap");
 pub const UPGRADETICKET_STRUCT_NAME: &IdentStr = ident_str!("UpgradeTicket");
 pub const UPGRADERECEIPT_STRUCT_NAME: &IdentStr = ident_str!("UpgradeReceipt");
+
+pub const PACKAGE_METADATA_MODULE_NAME: &IdentStr = ident_str!("package_metadata");
+pub const PACKAGE_METADATA_V1_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataV1");
+pub static PACKAGE_METADATA_DYNAMIC_FIELD_KEY_TYPE: LazyLock<TypeTag> =
+    LazyLock::new(|| TypeTag::Vector(Box::new(TypeTag::U8)));
+pub const PACKAGE_METADATA_DYNAMIC_FIELD_KEY: &[u8] = IOTA_METADATA_KEY;
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -868,7 +882,7 @@ fn build_upgraded_type_origin_table(
 pub struct RuntimeModuleMetadataWrapper {
     pub version: u64,
     #[serde_as(as = "Bytes")]
-    pub contents: Vec<u8>,
+    pub inner: Vec<u8>,
 }
 
 impl RuntimeModuleMetadataWrapper {
@@ -880,9 +894,9 @@ impl RuntimeModuleMetadataWrapper {
 impl From<RuntimeModuleMetadata> for RuntimeModuleMetadataWrapper {
     fn from(metadata: RuntimeModuleMetadata) -> Self {
         match metadata {
-            RuntimeModuleMetadata::V1(contents) => RuntimeModuleMetadataWrapper {
+            RuntimeModuleMetadata::V1(inner) => RuntimeModuleMetadataWrapper {
                 version: 1,
-                contents: contents.to_bcs_bytes(),
+                inner: inner.to_bcs_bytes(),
             },
         }
     }
@@ -930,11 +944,13 @@ impl TryFrom<RuntimeModuleMetadataWrapper> for RuntimeModuleMetadata {
     fn try_from(wrapper: RuntimeModuleMetadataWrapper) -> Result<Self, Self::Error> {
         match wrapper.version {
             1 => {
-                let contents: RuntimeModuleMetadataV1 = bcs::from_bytes(&wrapper.contents)
-                    .map_err(|e| IotaError::RuntimeModuleMetadataDeserialization {
-                        error: e.to_string(),
+                let inner: RuntimeModuleMetadataV1 =
+                    bcs::from_bytes(&wrapper.inner).map_err(|e| {
+                        IotaError::RuntimeModuleMetadataDeserialization {
+                            error: e.to_string(),
+                        }
                     })?;
-                Ok(RuntimeModuleMetadata::V1(contents))
+                Ok(RuntimeModuleMetadata::V1(inner))
             }
             _ => Err(IotaError::RuntimeModuleMetadataDeserialization {
                 error: format!(
@@ -985,4 +1001,157 @@ impl RuntimeModuleMetadataV1 {
     pub fn to_bcs_bytes(&self) -> Vec<u8> {
         bcs::to_bytes(&self).unwrap()
     }
+}
+
+/// Enum for handling the PackageMetadata framework type. The PackageMetadata is
+/// IOTA specific metadata derived from a package and readable on-chain. This
+/// enums helps with the versioning, which is actually used as the object
+/// content, i.e., PackageMetadataV1 is the type used on-chain.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum PackageMetadata {
+    V1(PackageMetadataV1),
+}
+
+impl PackageMetadata {
+    /// Create a `PackageMetadata` for the newly
+    /// published/upgraded package at `package_id`
+    pub fn new(
+        uid: ObjectID,
+        storage_id: ObjectID,
+        runtime_id: ObjectID,
+        package_version: u64,
+        modules_metadata: BTreeMap<String, Vec<(String, TypeTag)>>,
+    ) -> Self {
+        PackageMetadata::V1(PackageMetadataV1::new(
+            uid,
+            storage_id,
+            runtime_id,
+            package_version,
+            modules_metadata,
+        ))
+    }
+
+    pub fn type_(&self) -> StructTag {
+        match self {
+            PackageMetadata::V1(_) => PackageMetadataV1::type_(),
+        }
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        match self {
+            PackageMetadata::V1(inner) => inner.to_bcs_bytes(),
+        }
+    }
+}
+
+/// V1 of IOTA specific package metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PackageMetadataV1 {
+    // The package metadata object UID
+    pub uid: UID,
+    /// Storage ID of the package represented by this metadata
+    /// The object id of the runtime package metadata object is derived from
+    /// this value.
+    pub storage_id: ID,
+    /// Runtime ID of the package represented by this metadata
+    pub runtime_id: ID,
+    /// Version of the package represented by this metadata
+    pub package_version: u64,
+    // Handles to internal package modules
+    pub module_handles: Vec<String>,
+    /// Handles to internal modules functions, with (module_handle,
+    /// function_name).
+    pub function_handles: Vec<FunctionHandle>,
+    /// Metadata for functions in the package, indexed by function handle.
+    pub function_metadata: Vec<FunctionMetadataV1>,
+}
+
+impl PackageMetadataV1 {
+    fn new(
+        uid: ObjectID,
+        storage_id: ObjectID,
+        runtime_id: ObjectID,
+        package_version: u64,
+        modules_metadata: BTreeMap<String, Vec<(String, TypeTag)>>,
+    ) -> Self {
+        let mut module_handles = vec![];
+        let mut function_handles = vec![];
+        let mut function_metadata = vec![];
+
+        for (module_index, (module_name, fns_metadata)) in modules_metadata.into_iter().enumerate()
+        {
+            module_handles.push(module_name.clone());
+
+            for (fn_name, account_type) in fns_metadata {
+                function_handles.push(FunctionHandle {
+                    module_handle: module_index as u16,
+                    function_name: fn_name.clone(),
+                });
+
+                let fn_metadata = FunctionMetadataV1 {
+                    authenticator_info: AuthenticatorInfoMetadataV1 {
+                        info: AuthenticatorInfoV1 {
+                            package: storage_id,
+                            module: module_name.clone(),
+                            function: fn_name.clone(),
+                        },
+                        account_type: TypeName::from(&account_type),
+                    },
+                };
+                function_metadata.push(fn_metadata);
+            }
+        }
+
+        Self {
+            uid: UID::new(uid),
+            storage_id: ID::new(storage_id),
+            runtime_id: ID::new(runtime_id),
+            package_version,
+            module_handles,
+            function_handles,
+            function_metadata,
+        }
+    }
+
+    pub fn type_() -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: PACKAGE_METADATA_MODULE_NAME.to_owned(),
+            name: PACKAGE_METADATA_V1_STRUCT_NAME.to_owned(),
+            type_params: vec![],
+        }
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+/// V1 of IOTA specific function metadata. Only includes authenticator info.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionHandle {
+    module_handle: u16,
+    function_name: String,
+}
+
+/// V1 of IOTA specific function metadata. Only includes authenticator info.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FunctionMetadataV1 {
+    authenticator_info: AuthenticatorInfoMetadataV1,
+}
+
+/// V1 of IOTA specific authenticator info metadata.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuthenticatorInfoMetadataV1 {
+    info: AuthenticatorInfoV1,
+    account_type: TypeName,
+}
+
+pub fn derive_package_metadata_id(package_storage_id: ObjectID) -> ObjectID {
+    dynamic_field::derive_dynamic_field_id(
+        package_storage_id,
+        &PACKAGE_METADATA_DYNAMIC_FIELD_KEY_TYPE,
+        PACKAGE_METADATA_DYNAMIC_FIELD_KEY,
+    )
+    .unwrap() // safe because type tag is known
 }
