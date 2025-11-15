@@ -7,7 +7,10 @@ module iotaccount::iotaccount_builder_tests;
 use iota::test_scenario;
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use iotaccount::iotaccount::{Self, IOTAccount};
-use iotaccount::test_utils::create_authenticator_info_v1_for_testing;
+use iotaccount::test_utils::{
+    create_authenticator_info_v1_for_testing,
+    create_authenticator_info_metadata_v1_for_testing
+};
 
 // -------------------------------- Create IOTAccount --------------------------------
 
@@ -24,9 +27,10 @@ fun builder_all_mandatory_fields_set() {
     let dynamic_field_key = DynamicFieldKey {};
 
     let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(authenticator);
     // Any field value can be set as a dynamic field, and for the purposes of this test
     // the exact value doesn't matter.
-    let account = iotaccount::builder(authenticator, ctx)
+    let account = iotaccount::builder(authenticator_metadata, ctx)
         .add_dynamic_field(dynamic_field_key, 6)
         .finish();
     account.share();
@@ -60,9 +64,10 @@ fun attempting_to_add_same_dynamic_field_twice() {
 
     let ctx = test_scenario::ctx(scenario);
     let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(authenticator);
 
     let field_name = b"SomeData".to_ascii_string();
-    let account = iotaccount::builder(authenticator, ctx)
+    let account = iotaccount::builder(authenticator_metadata, ctx)
         .add_dynamic_field(field_name, 3)
         .add_dynamic_field(
             field_name,
@@ -82,12 +87,13 @@ fun dynamic_fields_observe_the_value_not_just_the_type() {
 
     let ctx = test_scenario::ctx(scenario);
     let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(authenticator);
 
     // These fields will are considered different, because the value within the Strings
     // are different.
     let field_name = b"SomeData".to_ascii_string();
     let another_name = b"DifferentData".to_ascii_string();
-    let account = iotaccount::builder(authenticator, ctx)
+    let account = iotaccount::builder(authenticator_metadata, ctx)
         .add_dynamic_field(
             field_name,
             3,

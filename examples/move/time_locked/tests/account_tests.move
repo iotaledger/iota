@@ -175,11 +175,20 @@ fun account_unlocked() {
 
 // --------------------------------------- Test Utilities ---------------------------------------
 
-fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1<time_locked::TimeLocked> {
+fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
     iota::account::create_auth_info_v1_for_testing(
         @0x1,
         ascii::string(b"time_locked"),
         ascii::string(b"authenticate_time"),
+    )
+}
+
+fun create_authenticator_info_metadata_v1_for_testing(
+    authenticator: AuthenticatorInfoV1,
+): iota::account::AuthenticatorInfoMetadataV1 {
+    iota::account::create_auth_info_metadata_v1_for_testing(
+        authenticator,
+        std::type_name::get<time_locked::TimeLocked>(),
     )
 }
 
@@ -191,8 +200,11 @@ fun create_time_locked_for_testing(
     let ctx = test_scenario::ctx(scenario);
 
     let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
+        authenticator,
+    );
 
-    time_locked::create(public_key, unlock_time, authenticator, ctx);
+    time_locked::create(public_key, unlock_time, authenticator_metadata, ctx);
 
     scenario.next_tx(@0x0);
 

@@ -3,7 +3,7 @@
 
 module iotaccount::iotaccount;
 
-use iota::account::{Self, AuthenticatorInfoV1};
+use iota::account::{Self, AuthenticatorInfoV1, AuthenticatorInfoMetadataV1};
 use iota::dynamic_field;
 
 // === Errors ===
@@ -45,7 +45,7 @@ public struct IOTAccount has key {
 ///
 /// The `AuthenticatorInfo` will be attached to the account being built.
 public fun builder(
-    authenticator: AuthenticatorInfoV1<IOTAccount>,
+    authenticator_metadata: AuthenticatorInfoMetadataV1,
     ctx: &mut TxContext,
 ): IOTAccountBuilder {
     let mut builder = IOTAccountBuilder {
@@ -54,7 +54,7 @@ public fun builder(
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         &builder.account,
-        authenticator,
+        authenticator_metadata,
     );
     account::attach_auth_info_v1(&mut builder.account.id, authenticator_compatibility_proof);
     builder
@@ -150,16 +150,16 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
 /// Only the account itself can call this function.
 public fun rotate_auth_info_v1(
     self: &mut IOTAccount,
-    authenticator: AuthenticatorInfoV1<IOTAccount>,
+    authenticator_metadata: AuthenticatorInfoMetadataV1,
     ctx: &TxContext,
-): AuthenticatorInfoV1<IOTAccount> {
+) {
     ensure_tx_sender_is_account(self, ctx);
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         self,
-        authenticator,
+        authenticator_metadata,
     );
-    account::rotate_auth_info_v1(&mut self.id, authenticator_compatibility_proof)
+    account::rotate_auth_info_v1(&mut self.id, authenticator_compatibility_proof);
 }
 
 // === Public-View Functions ===
@@ -188,7 +188,7 @@ public fun has_field<Name: copy + drop + store>(self: &IOTAccount, name: Name): 
 /// Borrows a reference to the attached `AuthenticatorInfoV1` instance.
 /// This function is not gated to be called only by the account,
 /// anybody can call it to read the attached authenticator.
-public fun borrow_auth_info_v1(self: &IOTAccount): &AuthenticatorInfoV1<IOTAccount> {
+public fun borrow_auth_info_v1(self: &IOTAccount): &AuthenticatorInfoV1 {
     account::borrow_auth_info_v1(&self.id)
 }
 

@@ -10,7 +10,8 @@ use iota::test_utils::{assert_eq, assert_ref_eq};
 use iotaccount::iotaccount::{Self, IOTAccount};
 use iotaccount::test_utils::{
     create_iotaccount_for_testing,
-    create_authenticator_info_v1_for_testing
+    create_authenticator_info_v1_for_testing,
+    create_authenticator_info_metadata_v1_for_testing
 };
 use std::ascii;
 
@@ -111,9 +112,11 @@ fun account_can_rotate_auth_info_v1() {
             ascii::string(b"module2"),
             ascii::string(b"function2"),
         );
+        let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
+            new_authenticator,
+        );
 
-        let value = account.rotate_auth_info_v1(new_authenticator, ctx);
-        assert_eq(value, default_authenticator);
+        account.rotate_auth_info_v1(authenticator_metadata, ctx);
 
         assert_eq(*account.borrow_auth_info_v1(), new_authenticator);
 
@@ -248,7 +251,11 @@ fun non_account_cant_rotate_auth_info_v1() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
-        account.rotate_auth_info_v1(create_authenticator_info_v1_for_testing(), ctx);
+        let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
+            create_authenticator_info_v1_for_testing(),
+        );
+
+        account.rotate_auth_info_v1(authenticator_metadata, ctx);
 
         test_scenario::return_shared(account);
     })

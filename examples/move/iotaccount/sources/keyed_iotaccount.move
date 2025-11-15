@@ -3,7 +3,7 @@
 
 module iotaccount::keyed_iotaccount;
 
-use iota::account::AuthenticatorInfoV1;
+use iota::account::AuthenticatorInfoMetadataV1;
 use iota::auth_context::AuthContext;
 use iota::ecdsa_k1;
 use iota::ecdsa_r1;
@@ -47,10 +47,10 @@ public struct OwnerPublicKey has copy, drop, store {}
 /// - `authenticate_secp256r1`
 public fun create(
     public_key: vector<u8>,
-    authenticator: AuthenticatorInfoV1<IOTAccount>,
+    authenticator_metadata: AuthenticatorInfoMetadataV1,
     ctx: &mut TxContext,
 ) {
-    let account = iotaccount::builder(authenticator, ctx)
+    let account = iotaccount::builder(authenticator_metadata, ctx)
         .add_dynamic_field(OwnerPublicKey {}, public_key)
         .finish();
     account.share();
@@ -113,14 +113,14 @@ public fun authenticate_secp256r1(
 public fun rotate_public_key(
     account: &mut IOTAccount,
     public_key: vector<u8>,
-    authenticator: AuthenticatorInfoV1<IOTAccount>,
+    authenticator_metadata: AuthenticatorInfoMetadataV1,
     ctx: &TxContext,
 ) {
     // Update the account owner public key dynamic field. It is expected that the field already exists.
     account.rotate_field(OwnerPublicKey {}, public_key, ctx);
 
     // Update the account owner public key dynamic field. It is expected that the field already exists.
-    account.rotate_auth_info_v1(authenticator, ctx);
+    account.rotate_auth_info_v1(authenticator_metadata, ctx);
 }
 
 // === View Functions ===

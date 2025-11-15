@@ -5,7 +5,7 @@ module dynamic_multisig_account::dynamic_multisig_account;
 
 use dynamic_multisig_account::members::{Self, Members};
 use dynamic_multisig_account::transactions::{Self, Transactions};
-use iota::account::{Self, AuthenticatorInfoV1};
+use iota::account::{Self, AuthenticatorInfoV1, AuthenticatorInfoMetadataV1};
 use iota::auth_context::AuthContext;
 use iota::dynamic_field;
 
@@ -47,7 +47,7 @@ public fun create(
     members_addresses: vector<address>,
     members_weights: vector<u64>,
     threshold: u64,
-    authenticator: AuthenticatorInfoV1<DynamicMultisigAccount>,
+    authenticator_metadata: AuthenticatorInfoMetadataV1,
     ctx: &mut TxContext,
 ) {
     // Create a `Members` instance.
@@ -68,7 +68,7 @@ public fun create(
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         &account,
-        authenticator,
+        authenticator_metadata,
     );
     account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
 
@@ -119,9 +119,7 @@ public fun total_approves(self: &DynamicMultisigAccount, transaction_digest: vec
 }
 
 /// Immutably borrows the account authenticator.
-public fun authenticator(
-    self: &DynamicMultisigAccount,
-): &AuthenticatorInfoV1<DynamicMultisigAccount> {
+public fun authenticator(self: &DynamicMultisigAccount): &AuthenticatorInfoV1 {
     account::borrow_auth_info_v1(&self.id)
 }
 
@@ -183,7 +181,7 @@ public fun update_account_data(
     members_addresses: vector<address>,
     members_weights: vector<u64>,
     threshold: u64,
-    authenticator: AuthenticatorInfoV1<DynamicMultisigAccount>,
+    authenticator_metadata: AuthenticatorInfoMetadataV1,
     ctx: &TxContext,
 ) {
     // Check that the sender of this transaction is the account.
@@ -197,7 +195,7 @@ public fun update_account_data(
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         self,
-        authenticator,
+        authenticator_metadata,
     );
 
     let account_id = &mut self.id;

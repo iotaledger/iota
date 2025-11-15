@@ -12,8 +12,12 @@ use iota::test_scenario::{Self, Scenario};
 use iota::test_utils::{assert_eq, assert_ref_eq};
 use iotaccount::iotaccount::{Self, IOTAccount};
 use iotaccount::keyed_iotaccount::{Self, borrow_public_key};
-use iotaccount::test_utils::create_authenticator_info_v1_for_testing;
+use iotaccount::test_utils::{
+    create_authenticator_info_v1_for_testing,
+    create_authenticator_info_metadata_v1_for_testing
+};
 use std::ascii;
+use std::type_name;
 
 // --------------------------------------- Create Basic Keyed Account ---------------------------------------
 
@@ -25,8 +29,11 @@ fun account_created() {
 
     let public_key = b"42";
     let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
+        authenticator,
+    );
 
-    keyed_iotaccount::create(public_key, authenticator, ctx);
+    keyed_iotaccount::create(public_key, authenticator_metadata, ctx);
 
     scenario.next_tx(@0x0);
     {
@@ -361,9 +368,13 @@ fun test_rotate_account_public_key() {
             ascii::string(b"module2"),
             ascii::string(b"function2"),
         );
+        let authenticator_metadata = account::create_auth_info_metadata_v1_for_testing(
+            authenticator,
+            type_name::get<IOTAccount>(),
+        );
         let ctx = test_scenario::ctx(scenario);
 
-        keyed_iotaccount::rotate_public_key(&mut account, public_key, authenticator, ctx);
+        keyed_iotaccount::rotate_public_key(&mut account, public_key, authenticator_metadata, ctx);
 
         assert_eq(*borrow_public_key(&account), public_key);
         assert_ref_eq(account.borrow_auth_info_v1(), &authenticator);
@@ -393,10 +404,13 @@ fun test_rotate_account_public_key_wrong_sender() {
             ascii::string(b"module2"),
             ascii::string(b"function2"),
         );
+        let authenticator_metadata = account::create_auth_info_metadata_v1_for_testing(
+            authenticator,
+            type_name::get<IOTAccount>(),
+        );
         let ctx = test_scenario::ctx(scenario);
 
-        keyed_iotaccount::rotate_public_key(&mut account, public_key, authenticator, ctx);
-
+        keyed_iotaccount::rotate_public_key(&mut account, public_key, authenticator_metadata, ctx);
         test_scenario::return_shared(account);
     };
 
@@ -412,8 +426,11 @@ fun create_iotaccount_with_pk_for_testing(
     let ctx = test_scenario::ctx(scenario);
 
     let authenticator = create_authenticator_info_v1_for_testing();
+    let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
+        authenticator,
+    );
 
-    keyed_iotaccount::create(public_key, authenticator, ctx);
+    keyed_iotaccount::create(public_key, authenticator_metadata, ctx);
 
     scenario.next_tx(@0x0);
 
