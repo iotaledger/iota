@@ -408,6 +408,7 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
         // to avoid keeping alive many ssh connections for too long.
         let build_command = [
             "source \"$HOME/.cargo/env\"".to_string(),
+            "export RUSTFLAGS='-C target-cpu=native'".to_string(),
             "cargo build --release --bin iota --bin iota-node --bin stress".to_string(),
         ]
         .join(" && ");
