@@ -1324,11 +1324,11 @@ AuthenticatorInfoV1Key
 AuthenticatorInfoV1
 	public struct
 	0x2::account
-AuthenticatorInfoV1CompatibilityProof
+AuthenticatorInfoMetadataV1
 	public struct
 	0x2::account
-create_auth_info_v1
-	public fun
+AuthenticatorInfoV1CompatibilityProof
+	public struct
 	0x2::account
 check_auth_info_v1_compatibility
 	public fun
@@ -1346,9 +1346,6 @@ has_auth_info_v1
 	public fun
 	0x2::account
 auth_info_v1_key
-	fun
-	0x2::account
-check_auth_info_v1
 	fun
 	0x2::account
 ProgrammableMoveCall
@@ -3094,6 +3091,30 @@ destroy_empty
 value_id
 	public fun
 	0x2::object_table
+PackageMetadataV1
+	public struct
+	0x2::package_metadata
+FunctionHandle
+	public struct
+	0x2::package_metadata
+FunctionMetadataV1
+	public struct
+	0x2::package_metadata
+storage_id
+	public fun
+	0x2::package_metadata
+runtime_id
+	public fun
+	0x2::package_metadata
+package_version
+	public fun
+	0x2::package_metadata
+function_metadata_v1
+	public fun
+	0x2::package_metadata
+authenticator_info_metadata_v1
+	public fun
+	0x2::package_metadata
 keep
 	public fun
 	0x2::pay
