@@ -24,6 +24,7 @@ pub mod faults;
 pub mod logs;
 pub mod measurement;
 mod monitor;
+pub mod net_latency;
 pub mod orchestrator;
 pub mod protocol;
 pub mod settings;
