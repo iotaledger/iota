@@ -2,10 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::fs;
+use std::alloc::System;
 
 use iota_test_transaction_builder::make_transfer_iota_transaction;
+use telemetry_subscribers::flamegraph::CounterAlloc;
 use test_cluster::TestClusterBuilder;
 use tracing::Instrument as _;
+
+#[global_allocator]
+static GLOBAL: CounterAlloc<System> = CounterAlloc::new(System);
 
 /// This is a binary to generate test flamegraph data in a simple benchmark with
 /// a local test cluster. To run it, use:
