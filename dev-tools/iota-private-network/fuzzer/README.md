@@ -1,0 +1,162 @@
+# net_fuzz – local usage guide
+
+This directory contains the `net_fuzz` Python package, which provides
+small, composable primitives to disrupt and inspect the IOTA private
+network (validators, fullnodes, faucet, …).
+
+The goal of this document is to show how to:
+
+- create a local Python environment for `net_fuzz`
+- apply disruptions (restart/kill, block connections, latency/loss)
+- verify that each disruption actually took effect
+
+> Important: the Python code never runs `sudo` internally. Anything
+> that touches `iptables` or `tc/nsenter` must be executed with
+> sufficient privileges from the outermost layer.
+
+## Environment setup
+
+From the repository root for the private network:
+
+```bash
+cd ~/iota/dev-tools/iota-private-network
+
+# create and activate a local virtualenv
+python3 -m venv .venv
+source .venv/bin/activate
+
+# install the net_fuzz package + dependencies
+pip install --upgrade pip setuptools wheel
+pip install -e fuzzer
+```
+
+If `docker` or `requests` are missing, install them into the venv:
+
+```bash
+pip install docker requests
+```
+
+For commands that need root (iptables, tc, nsenter), it is useful to
+capture the venv Python path:
+
+```bash
+PYTHON=$(python -c 'import sys; print(sys.executable)')
+```
+
+You can then run privileged scripts as:
+
+```bash
+sudo -E "$PYTHON" - <<'PY'
+...
+PY
+```
+
+## Node liveness: restart / kill and checks
+
+These operations only talk to Docker and do not require root if your
+user can access the Docker daemon.
+
+Restart or stop a validator:
+
+```bash
+python - <<'PY'
+from net_fuzz import disruptions, checks
+
+name = "validator-1"
+
+print("Before:", "up?", checks.check_node_up(name), "down?", checks.check_node_down(name))
+
+disruptions.kill_node(name)       # stop the container (like `docker stop`)
+print("After kill:", "up?", checks.check_node_up(name), "down?", checks.check_node_down(name))
+
+disruptions.restart_node(name)    # restart the container
+print("After restart:", "up?", checks.check_node_up(name), "down?", checks.check_node_down(name))
+PY
+```
+
+## Blocking and unblocking connections
+
+Blocking is implemented via host-level `iptables` rules in the
+`DOCKER-USER` chain and requires root. The helpers install symmetric
+DROP rules with comments of the form
+`net-fuzz:validator-1->validator-2`.
+
+Apply and verify a block:
+
+```bash
+sudo -E "$PYTHON" - <<'PY'
+from net_fuzz import disruptions, checks
+
+src, dst = "validator-1", "validator-2"
+
+print("Initially blocked?", checks.check_blocked(src, dst))
+
+disruptions.block_connection(src, dst)
+print("After block:", "blocked?", checks.check_blocked(src, dst), "unblocked?", checks.check_unblocked(src, dst))
+
+disruptions.unblock_connection(src, dst)
+print("After unblock:", "blocked?", checks.check_blocked(src, dst), "unblocked?", checks.check_unblocked(src, dst))
+PY
+```
+
+You can cross-check the rules manually:
+
+```bash
+sudo iptables -L DOCKER-USER -n --line-numbers | grep net-fuzz
+```
+
+## Latency and packet loss via tc/netem
+
+Latency and loss are applied from the host by entering the container's
+network namespace with `nsenter` and configuring `tc netem` on `eth0`.
+Both application and verification require root.
+
+Apply latency and loss:
+
+```bash
+sudo -E "$PYTHON" - <<'PY'
+from net_fuzz import disruptions
+
+src, dst = "validator-1", "validator-2"
+
+disruptions.add_latency(src, dst, delay_ms=100, jitter_ms=10, loss_pct=2.0)
+PY
+```
+
+Verify delay and loss:
+
+```bash
+sudo -E "$PYTHON" - <<'PY'
+from net_fuzz import checks
+
+src, dst = "validator-1", "validator-2"
+
+print("Latency OK?", checks.check_latency(src, dst, expected_min_ms=95, expected_max_ms=105))
+print("Loss OK?",    checks.check_loss(src, expected_min_pct=1.0, expected_max_pct=3.0))
+PY
+```
+
+You can manually inspect the qdisc as well:
+
+```bash
+sudo nsenter -t "$(docker inspect -f '{{.State.Pid}}' validator-1)" -n \
+  tc qdisc show dev eth0
+```
+
+## Running scenarios via the CLI
+
+The `net_fuzz.scenarios` module exposes higher-level compositions. A
+minimal example is the latency scenario:
+
+```bash
+sudo -E "$PYTHON" -m net_fuzz run-scenario \
+  --name latency \
+  --src validator-1 \
+  --dst validator-2 \
+  --delay-ms 100
+```
+
+This uses `disruptions.add_latency` and `checks.check_latency` under
+the hood and logs a short summary. More complex fuzz scenarios can be
+added later without changing how the environment is set up.
+

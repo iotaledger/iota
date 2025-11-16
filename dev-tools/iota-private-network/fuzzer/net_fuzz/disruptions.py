@@ -29,7 +29,9 @@ def _run_host_command(args: list[str], *, check: bool = True) -> subprocess.Comp
 
 
 def _nsenter(pid: int, args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
-    return _run_host_command(["sudo", "nsenter", "-t", str(pid), "-n", *args], check=check)
+    """Run a command inside the container's network namespace."""
+
+    return _run_host_command(["nsenter", "-t", str(pid), "-n", *args], check=check)
 
 
 def _require_pid(name: str) -> int:
@@ -76,12 +78,12 @@ def add_latency(
 
 
 def _ensure_docker_user_chain() -> None:
-    res = _run_host_command(["sudo", "iptables", "-nL", _IPTABLES_CHAIN], check=False)
+    res = _run_host_command(["iptables", "-nL", _IPTABLES_CHAIN], check=False)
     if res.returncode != 0:
-        _run_host_command(["sudo", "iptables", "-N", _IPTABLES_CHAIN])
-    res = _run_host_command(["sudo", "iptables", "-C", "FORWARD", "-j", _IPTABLES_CHAIN], check=False)
+        _run_host_command(["iptables", "-N", _IPTABLES_CHAIN])
+    res = _run_host_command(["iptables", "-C", "FORWARD", "-j", _IPTABLES_CHAIN], check=False)
     if res.returncode != 0:
-        _run_host_command(["sudo", "iptables", "-I", "FORWARD", "-j", _IPTABLES_CHAIN])
+        _run_host_command(["iptables", "-I", "FORWARD", "-j", _IPTABLES_CHAIN])
 
 
 def _rule_comment(label: str) -> str:
@@ -90,12 +92,11 @@ def _rule_comment(label: str) -> str:
 
 def _add_drop_rule(src_ip: str, dst_ip: str, label: str) -> None:
     spec = ["-s", src_ip, "-d", dst_ip, "-j", "DROP"]
-    res = _run_host_command(["sudo", "iptables", "-C", _IPTABLES_CHAIN, *spec], check=False)
+    res = _run_host_command(["iptables", "-C", _IPTABLES_CHAIN, *spec], check=False)
     if res.returncode == 0:
         return
     _run_host_command(
         [
-            "sudo",
             "iptables",
             "-A",
             _IPTABLES_CHAIN,
@@ -122,7 +123,7 @@ def block_connection(src: str, dst: str) -> None:
 
 def _delete_drop_rule(src_ip: str, dst_ip: str, label: str) -> None:
     spec = ["-s", src_ip, "-d", dst_ip, "-j", "DROP", "-m", "comment", "--comment", _rule_comment(label)]
-    _run_host_command(["sudo", "iptables", "-D", _IPTABLES_CHAIN, *spec], check=False)
+    _run_host_command(["iptables", "-D", _IPTABLES_CHAIN, *spec], check=False)
 
 
 def unblock_connection(src: str, dst: str) -> None:
