@@ -160,3 +160,52 @@ This uses `disruptions.add_latency` and `checks.check_latency` under
 the hood and logs a short summary. More complex fuzz scenarios can be
 added later without changing how the environment is set up.
 
+## SOTA fuzz scenario
+
+The `sota_fuzz_scenario` combines node churn, network partitions and
+latency/loss into a single long-running experiment. It:
+
+- keeps strictly fewer than 1/3 of validators down at any time
+- uses exponential time-to-stop and time-to-recover per node
+- applies global latency/loss updates at exponential intervals
+- blocks/unblocks every validator pair via its own exponential process
+- resets the network to a clean state at the start and the end
+
+Example invocation from the private-network root:
+
+```bash
+source .venv/bin/activate
+PYTHON=$(python -c 'import sys; print(sys.executable)')
+
+sudo -E "$PYTHON" -m net_fuzz run-scenario \
+  --name sota-fuzz \
+  --num-validators 19 \
+  --duration 6000 \
+  --seed 42 \
+  --mean-down 120 \
+  --mean-up 600 \
+  --max-latency-ms 200 \
+  --max-loss-pct 5.0 \
+  --latency-interval 120 \
+  --block-interval 150
+```
+
+At the beginning and in a `finally` block at the end the scenario
+calls `disruptions.reset_network`, which:
+
+- restarts all `validator-1 .. validator-N` containers
+- clears any `tc` qdisc on their primary interfaces
+- removes all `net-fuzz:` rules from the `DOCKER-USER` chain
+
+## Logging
+
+`net_fuzz` uses the standard `logging` module with a basic
+configuration (timestamp + level + logger name). By default logs go to
+stderr, so you can redirect them to a file when running experiments:
+
+```bash
+sudo -E "$PYTHON" -m net_fuzz run-scenario ... 2>&1 | tee experiments/logs/net-fuzz-$(date +%Y%m%d-%H%M%S).log
+```
+
+This keeps the Python logs alongside the existing bash-based experiment
+logs under `experiments/logs/`.

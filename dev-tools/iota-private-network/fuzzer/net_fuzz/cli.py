@@ -17,10 +17,51 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run-scenario", help="Run a named fuzz scenario")
-    run.add_argument("--name", required=True, help="Scenario name, e.g. random_partition")
+    run.add_argument("--name", required=True, help="Scenario name, e.g. latency or sota-fuzz")
     run.add_argument("--src", help="Source validator/container name")
     run.add_argument("--dst", help="Destination validator/container name")
     run.add_argument("--delay-ms", type=int, default=100)
+
+    # SOTA fuzz scenario parameters
+    run.add_argument("--num-validators", type=int, default=4, help="Number of validators (validator-1..N)")
+    run.add_argument("--duration", type=int, default=600, help="Scenario duration in seconds")
+    run.add_argument("--seed", type=int, default=42, help="Random seed for deterministic runs")
+    run.add_argument(
+        "--mean-down",
+        type=float,
+        default=120.0,
+        help="Mean time (seconds) a node stays up before going down",
+    )
+    run.add_argument(
+        "--mean-up",
+        type=float,
+        default=180.0,
+        help="Mean time (seconds) a node stays down before recovering",
+    )
+    run.add_argument(
+        "--max-latency-ms",
+        type=int,
+        default=200,
+        help="Upper bound for per-node latency (ms)",
+    )
+    run.add_argument(
+        "--max-loss-pct",
+        type=float,
+        default=5.0,
+        help="Upper bound for per-node packet loss (percent)",
+    )
+    run.add_argument(
+        "--latency-interval",
+        type=float,
+        default=30.0,
+        help="Seconds between latency/loss reconfigurations",
+    )
+    run.add_argument(
+        "--block-interval",
+        type=float,
+        default=20.0,
+        help="Seconds between block/unblock churn events",
+    )
 
     return parser
 
@@ -37,7 +78,21 @@ def main(argv: list[str] | None = None) -> int:
             result = scenarios.add_latency_between_validators(args.src, args.dst, args.delay_ms)
             log.info("Scenario completed: %s", result)
             return 0
-        parser.error("Unsupported scenario or missing --src/--dst")
+        if args.name == "sota-fuzz":
+            result = scenarios.sota_fuzz_scenario(
+                num_validators=args.num_validators,
+                duration_s=args.duration,
+                seed=args.seed,
+                mean_time_to_stop_s=args.mean_down,
+                mean_time_to_recover_s=args.mean_up,
+                max_latency_ms=args.max_latency_ms,
+                max_loss_pct=args.max_loss_pct,
+                latency_update_interval_s=args.latency_interval,
+                block_update_interval_s=args.block_interval,
+            )
+            log.info("Scenario completed: %s", result)
+            return 0
+        parser.error("Unsupported scenario or missing required parameters")
     else:
         parser.error(f"Unknown command {args.command}")
 

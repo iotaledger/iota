@@ -144,3 +144,66 @@ def restart_node(name: str) -> None:
 def kill_node(name: str) -> None:
     docker_env.stop_container(name, timeout=5)
     log.info("Stopped node %s", name)
+
+
+def _clear_node_qdisc(name: str) -> None:
+    """Remove any existing qdisc on the node's primary interface."""
+
+    try:
+        pid = docker_env.get_container_pid(name)
+    except docker_env.DockerEnvError:
+        return
+    if not pid:
+        return
+    _nsenter(pid, ["tc", "qdisc", "del", "dev", _TC_DEV, "root"], check=False)
+
+
+def clear_all_net_fuzz_rules() -> None:
+    """Delete all iptables rules installed by this module in DOCKER-USER.
+
+    Rules are identified via the ``net-fuzz:...`` comment prefix and
+    removed bottom-up to keep line numbers valid.
+    """
+
+    res = _run_host_command(
+        ["iptables", "-L", _IPTABLES_CHAIN, "-n", "--line-numbers"],
+        check=False,
+    )
+    if res.returncode != 0:
+        return
+
+    to_delete: list[int] = []
+    for line in res.stdout.splitlines():
+        if _RULE_COMMENT_PREFIX not in line:
+            continue
+        parts = line.split()
+        if not parts:
+            continue
+        num_str = parts[0]
+        if num_str.isdigit():
+            to_delete.append(int(num_str))
+
+    for num in sorted(to_delete, reverse=True):
+        _run_host_command(["iptables", "-D", _IPTABLES_CHAIN, str(num)], check=False)
+
+
+def reset_network(num_validators: int) -> None:
+    """Best-effort reset of validators and network shaping state.
+
+    - Restart all ``validator-1 .. validator-N`` containers.
+    - Clear any tc/netem configuration on their primary interface.
+    - Remove all DOCKER-USER rules installed by :mod:`disruptions`.
+    """
+
+    names = [f"validator-{i}" for i in range(1, num_validators + 1)]
+
+    for name in names:
+        try:
+            docker_env.restart_container(name)
+        except docker_env.DockerEnvError:
+            log.warning("Failed to restart %s during reset", name)
+
+    for name in names:
+        _clear_node_qdisc(name)
+
+    clear_all_net_fuzz_rules()
