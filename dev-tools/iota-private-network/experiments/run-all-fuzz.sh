@@ -522,4 +522,12 @@ done
 
 # --- 9) Copy main experiment log with timestamp ---
 cp "$LOG_FILE" "$LOG_DIR/experiment_script_${TIMESTAMP}.log" 2>/dev/null || true
+
+
+# --- 10) Copy spammer log with timestamp (if enabled and present)
+if [ "$SPAMMER_ENABLE" = true ] && [ -f "$LOG_DIR/spammer.log" ]; then
+  cp "$LOG_DIR/spammer.log" "$LOG_DIR/experiment-spammer-${TIMESTAMP}.log"
+  cp "$LOG_DIR/spammer.log" "$LOG_DIR/experiment-spammer-latest.log"
+  log "Saved spammer log to $LOG_DIR/experiment-spammer-${TIMESTAMP}.log"
+fi
 log "All steps completed. Cleanup will run on script exit."
