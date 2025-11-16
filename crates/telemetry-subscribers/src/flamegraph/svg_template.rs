@@ -613,9 +613,6 @@ pub(super) fn svg_controls(
 
 pub(super) fn svg_node(
     title: &str,
-    samples: usize,
-    dur: std::time::Duration,
-    percent: f64,
     x: f64,
     y: usize,
     width: f64,
@@ -625,18 +622,12 @@ pub(super) fn svg_node(
     let (fill_r, fill_g, fill_b) = rgb;
     let text_x = x + 3.0;
     let text_y = (y as f64) + (height as f64 / 2.0) + 3.0;
-    let dur = dur.as_nanos() as f64 / 1_000_000.0;
-    let avg = if samples > 0 {
-        dur / samples as f64
-    } else {
-        0.0
-    };
 
     let escaped_title = escape_xml(title);
 
     format!(
         r###"<g class="func_g">
-<title>{escaped_title} (#{samples}, tot={dur:.2}ms, avg={avg:.2}ms, {percent:.2}%)</title>
+<title>{escaped_title}</title>
 <rect x="{x:.1}" y="{y}" width="{width:.1}" height="{height}" fill="rgb({fill_r},{fill_g},{fill_b})" rx="2" ry="2" />
 <text x="{text_x:.2}" y="{text_y:.0}"></text>
 </g>

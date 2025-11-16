@@ -10,6 +10,9 @@ description = "Library for common telemetry and observability functionality"
 [lints]
 workspace = true
 
+[features]
+flamegraph-alloc = []
+
 [dependencies]
 atomic_float = "1.0"
 bytes.workspace = true

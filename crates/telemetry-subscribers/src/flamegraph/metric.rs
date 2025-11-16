@@ -3,6 +3,9 @@
 
 use std::{fmt, time::Duration};
 
+#[cfg(feature = "flamegraph-alloc")]
+use super::alloc::{AllocMetrics, get_alloc_metrics};
+
 /// A generic API for internal span metric measuring compatible with
 /// `tracing::Subscriber`.
 pub trait SpanMetrics: fmt::Debug + Default + Sized {
@@ -90,15 +93,28 @@ pub struct FlameMetric {
     /// Stopwatch measuring a task's idle pending time.
     pub pending: Stopwatch,
     pub count: CountMetric,
+    #[cfg(feature = "flamegraph-alloc")]
+    pub alloc_current: AllocMetrics,
+    #[cfg(feature = "flamegraph-alloc")]
+    pub alloc_total: AllocMetrics,
 }
 
 impl fmt::Debug for FlameMetric {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[cfg(not(feature = "flamegraph-alloc"))]
         {
             write!(
                 f,
                 "[run={:?} pend={:?} {:?}]",
                 self.running, self.pending, self.count
+            )
+        }
+        #[cfg(feature = "flamegraph-alloc")]
+        {
+            write!(
+                f,
+                "[run={:?} pend={:?} {:?} {:?}]",
+                self.running, self.pending, self.count, self.alloc_total
             )
         }
     }
@@ -112,12 +128,21 @@ impl SpanMetrics for FlameMetric {
         self.count.enter(());
         self.pending.try_stop(now);
         self.running.start(now);
+        #[cfg(feature = "flamegraph-alloc")]
+        {
+            self.alloc_current = get_alloc_metrics();
+        }
     }
 
     fn exit(&mut self, now: Clock) {
         self.count.exit(());
         self.running.stop(now);
         self.pending.start(now);
+        #[cfg(feature = "flamegraph-alloc")]
+        {
+            self.alloc_total
+                .merge(get_alloc_metrics().delta(self.alloc_current));
+        }
     }
 }
 
@@ -126,6 +151,8 @@ impl MergeMetrics for FlameMetric {
         self.count.merge(other.count);
         self.running.total += other.running.total;
         self.pending.total += other.pending.total;
+        #[cfg(feature = "flamegraph-alloc")]
+        self.alloc_total.merge(other.alloc_total);
     }
 }
 

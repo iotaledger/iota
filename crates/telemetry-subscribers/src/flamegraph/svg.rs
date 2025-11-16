@@ -3,15 +3,15 @@
 
 use std::time::Duration;
 
+#[cfg(feature = "flamegraph-alloc")]
+use super::alloc::AllocMetrics;
+
 #[path = "svg_template.rs"]
 mod svg_template;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct Node {
-    title: &'static str,
-    samples: usize,
-    dur: Duration,
-    percent: f64,
+    title: String,
     x: f64,
     y: usize,
     width: f64,
@@ -75,9 +75,11 @@ struct RawNode {
     samples: usize,
     start: Duration,
     total: Duration,
+    #[cfg(feature = "flamegraph-alloc")]
+    alloc: AllocMetrics,
 }
 impl RawNode {
-    fn into_svg<R: rand::Rng>(
+    fn into_node<R: rand::Rng>(
         self,
         overall: Duration,
         x_scale: f64,
@@ -89,13 +91,24 @@ impl RawNode {
             samples,
             start,
             total,
+            #[cfg(feature = "flamegraph-alloc")]
+            alloc,
         } = self;
         let rgb = random_rgb(rng);
+        let dur = total.as_nanos() as f64 / 1_000_000.0;
+        let percent = total.as_nanos() as f64 * 100.0 / overall.as_nanos() as f64;
+        #[cfg(not(feature = "flamegraph-alloc"))]
+        let title = format!("{} (#{samples}, {dur:.2}ms, {percent:.2}%)", label.name);
+        #[cfg(feature = "flamegraph-alloc")]
+        let title = format!(
+            "{} (#{samples}, {dur:.2}ms, {percent:.2}%, alloc={} total={} peak={})",
+            label.name,
+            alloc.alloc.saturating_sub(alloc.dealloc),
+            alloc.alloc,
+            alloc.peak
+        );
         Node {
-            title: label.name,
-            samples,
-            dur: total,
-            percent: total.as_nanos() as f64 * 100.0 / overall.as_nanos() as f64,
+            title,
             x: start.as_nanos() as f64 * x_scale + 10.0,
             y,
             width: total.as_nanos() as f64 * x_scale,
@@ -126,6 +139,8 @@ impl Raw {
             samples: frame.metrics.count.entered,
             start,
             total: frame.metrics.running.total,
+            #[cfg(feature = "flamegraph-alloc")]
+            alloc: frame.metrics.alloc_total,
         });
         start
     }
@@ -165,7 +180,7 @@ impl Raw {
             .flat_map(|(i, row)| row.into_iter().map(move |raw| (raw, i)))
             .map(|(raw, level)| {
                 let y = (num_levels - 1 - level) * 16 + 33;
-                raw.into_svg(total, x_scale, y, &mut rng)
+                raw.into_node(total, x_scale, y, &mut rng)
             });
 
         render(caption, width, height, nodes)
@@ -230,6 +245,8 @@ where
                 samples: 1,
                 start: Default::default(),
                 total: raw.total,
+                #[cfg(feature = "flamegraph-alloc")]
+                alloc: AllocMetrics::new(),
             });
             Some(raw.render(caption, config))
         }
@@ -273,9 +290,6 @@ fn render(caption: &str, width: usize, height: usize, nodes: impl Iterator<Item 
     nodes.for_each(|n| {
         let Node {
             title,
-            samples,
-            dur,
-            percent,
             x,
             y,
             width: node_width,
@@ -283,7 +297,7 @@ fn render(caption: &str, width: usize, height: usize, nodes: impl Iterator<Item 
             rgb,
         } = n;
         svg.push_str(&svg_template::svg_node(
-            title, samples, dur, percent, x, y, node_width, height, rgb,
+            &title, x, y, node_width, height, rgb,
         ));
     });
     svg.push_str("</g>\n");
