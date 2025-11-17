@@ -889,14 +889,17 @@ impl AuthorityState {
 
         let tx_data = transaction.data().transaction_data();
 
+        let tx_and_auth_input_objects = transaction.input_objects()?.collect::<Vec<_>>();
+        let tx_receiving_objects = tx_data.receiving_objects();
+
         // Note: the deny checks may do redundant package loads but:
         // - they only load packages when there is an active package deny map
         // - the loads are cached anyway
         iota_transaction_checks::deny::check_transaction_for_signing(
             tx_data,
             transaction.tx_signatures(),
-            &tx_data.input_objects()?,
-            &tx_data.receiving_objects(),
+            &tx_and_auth_input_objects,
+            &tx_receiving_objects,
             &self.config.transaction_deny_config,
             self.get_backing_package_store().as_ref(),
         )?;
@@ -905,8 +908,13 @@ impl AuthorityState {
         // Authenticator input objects and the account object are loaded in the same
         // call if there is a sender `MoveAuthenticator` signature present in the
         // transaction.
-        let (tx_input_objects, tx_receiving_objects, auth_input_objects, account_object) =
-            self.read_objects_for_signing(&transaction, epoch)?;
+        let (tx_input_objects, tx_receiving_objects, auth_input_objects, account_object) = self
+            .read_objects_for_signing(
+                &transaction,
+                &tx_and_auth_input_objects,
+                &tx_receiving_objects,
+                epoch,
+            )?;
 
         // Get the sender `MoveAuthenticator`, if any.
         // Only one `MoveAuthenticator` signature is possible, since it is not
@@ -1182,12 +1190,15 @@ impl AuthorityState {
         let observed_effects_digest = observed_effects.digest();
         if &observed_effects_digest != expected_effects_digest {
             panic!(
-                "Locally executed effects do not match canonical effects! expected_effects_digest={:?} observed_effects_digest={:?} expected_effects={:?} observed_effects={:?} input_objects={:?}",
+                "Locally executed effects do not match canonical effects! expected_effects_digest={:?} observed_effects_digest={:?} expected_effects={:?} observed_effects={:?} transaction_input_objects={:?} authenticator_input_objects={:?}",
                 expected_effects_digest,
                 observed_effects_digest,
                 effects.data(),
                 observed_effects,
-                transaction.data().transaction_data().input_objects()
+                transaction.data().transaction_data().input_objects(),
+                transaction
+                    .sender_move_authenticator()
+                    .map(|a| a.input_objects())
             );
         }
         Ok(())
@@ -1314,7 +1325,7 @@ impl AuthorityState {
             .execution_load_input_objects_latency
             .start_timer();
 
-        let input_objects = certificate.collect_all_inputs()?;
+        let input_objects = certificate.input_objects()?.collect::<Vec<_>>();
 
         let input_objects = self.input_loader.read_objects_for_execution(
             epoch_store,
@@ -5454,6 +5465,8 @@ impl AuthorityState {
     fn read_objects_for_signing(
         &self,
         transaction: &VerifiedTransaction,
+        input_object_kinds: &[InputObjectKind],
+        receiving_objects: &[ObjectRef],
         epoch: u64,
     ) -> IotaResult<(
         InputObjects,
@@ -5463,8 +5476,8 @@ impl AuthorityState {
     )> {
         let (input_objects, tx_receiving_objects) = self.input_loader.read_objects_for_signing(
             Some(transaction.digest()),
-            &transaction.collect_all_inputs()?,
-            &transaction.data().transaction_data().receiving_objects(),
+            input_object_kinds,
+            receiving_objects,
             epoch,
         )?;
 

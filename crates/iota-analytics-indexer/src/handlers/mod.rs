@@ -97,10 +97,11 @@ impl InputObjectTracker {
             .collect();
         let tx_data = txn.transaction_data();
         let coins: BTreeSet<ObjectID> = tx_data.gas().iter().map(|obj_ref| obj_ref.0).collect();
-        let input: BTreeSet<ObjectID> = tx_data
+        // All input objects (transaction + authenticators) are collected here, just
+        // like the shared objects previously.
+        let input: BTreeSet<ObjectID> = txn
             .input_objects()
             .expect("Input objects must be valid")
-            .iter()
             .map(|io_kind| io_kind.object_id())
             .collect();
         Self {

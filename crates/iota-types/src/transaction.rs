@@ -2528,25 +2528,6 @@ impl SenderSignedData {
             })
     }
 
-    /// Returns all input objects including those from the sender
-    /// `MoveAuthenticator` if any.
-    pub fn collect_all_inputs(&self) -> IotaResult<Vec<InputObjectKind>> {
-        if let Some(move_authenticator) = self.sender_move_authenticator() {
-            let mut input_objects_set = self
-                .transaction_data()
-                .input_objects()?
-                .into_iter()
-                .collect::<HashSet<_>>();
-
-            input_objects_set.extend(move_authenticator.input_objects());
-            input_objects_set.extend(move_authenticator.object_to_authenticate().input_objects());
-
-            Ok(input_objects_set.into_iter().collect::<Vec<_>>())
-        } else {
-            Ok(self.transaction_data().input_objects()?)
-        }
-    }
-
     /// Splits the provided input objects into three groups:
     /// 1. Input objects required by the transaction itself.
     /// 2. Input objects required by the sender `MoveAuthenticator`.
@@ -2644,6 +2625,33 @@ impl SenderSignedData {
             .into_iter()
             .chain(authenticator_shared_objects)
             .unique()
+    }
+
+    /// Returns an iterator over all input objects related to this
+    /// transaction, including those from the `MoveAuthenticator` if any.
+    pub fn input_objects(&self) -> IotaResult<impl Iterator<Item = InputObjectKind> + '_> {
+        // Add the Move authenticator input objects if any.
+        let authenticator_input_objects =
+            if let Some(move_authenticator) = self.sender_move_authenticator() {
+                move_authenticator
+                    .input_objects()
+                    .into_iter()
+                    // Add `object_to_authenticate` input object.
+                    .chain(move_authenticator.object_to_authenticate().input_objects())
+                    .collect::<Vec<_>>()
+                    .into_iter()
+            } else {
+                Vec::new().into_iter()
+            };
+
+        Ok(self
+            .inner()
+            .intent_message
+            .value
+            .input_objects()?
+            .into_iter()
+            .chain(authenticator_input_objects)
+            .unique())
     }
 
     /// Checks if `SenderSignedData` contains the `Random` object as an

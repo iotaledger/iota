@@ -449,12 +449,12 @@ impl TransactionManager {
             certs
                 .into_iter()
                 .filter_map(|(cert, fx_digest)| {
+                    // Check availability of all transaction associated input objects(transaction +
+                    // authenticators).
                     let input_object_kinds = cert
-                        .data()
-                        .intent_message()
-                        .value
                         .input_objects()
-                        .expect("input_objects() cannot fail");
+                        .expect("input_objects() cannot fail")
+                        .collect::<Vec<_>>();
                     let mut input_object_keys = match epoch_store
                         .get_input_object_keys(&cert.key(), &input_object_kinds)
                     {
