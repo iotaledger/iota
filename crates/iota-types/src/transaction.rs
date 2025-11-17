@@ -2443,37 +2443,6 @@ impl SenderSignedData {
             }
         );
 
-        // Check the `MoveAuthenticator` limitations.
-        let authenticators_num = self.move_authenticators().len();
-        if authenticators_num > 0 {
-            if !tx_data.kind().is_programmable_transaction() {
-                return Err(UserInputError::Unsupported(
-                    "SenderSignedData with MoveAuthenticator must be a programmable transaction"
-                        .to_string(),
-                )
-                .into());
-            }
-
-            // TODO(https://github.com/iotaledger/iota/issues/8966): The following
-            // restrictions are temporary added until we implement MoveAuthenticator support
-            // for sponsors.
-
-            if authenticators_num > 1 {
-                return Err(UserInputError::Unsupported(
-                    "SenderSignedData with more than one MoveAuthenticator is not supported"
-                        .to_string(),
-                )
-                .into());
-            }
-
-            if self.sender_move_authenticator().is_none() {
-                return Err(UserInputError::Unsupported(
-                    "SenderSignedData can have MoveAuthenticator only for the sender".to_string(),
-                )
-                .into());
-            }
-        }
-
         // Checks to see if the transaction has expired
         if match &tx_data.expiration() {
             TransactionExpiration::None => false,
@@ -2500,6 +2469,8 @@ impl SenderSignedData {
         tx_data
             .validity_check(config)
             .map_err(Into::<IotaError>::into)?;
+
+        self.move_authenticators_validity_check(tx_data, config)?;
 
         Ok(tx_size)
     }
@@ -2652,6 +2623,50 @@ impl SenderSignedData {
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
+    }
+
+    fn move_authenticators_validity_check(
+        &self,
+        tx_data: &TransactionData,
+        config: &ProtocolConfig,
+    ) -> IotaResult {
+        // Check each `MoveAuthenticator` validity.
+        self.move_authenticators()
+            .iter()
+            .try_for_each(|authenticator| authenticator.validity_check(config))?;
+
+        // Additional checks when `MoveAuthenticators` are present.
+        let authenticators_num = self.move_authenticators().len();
+        if authenticators_num > 0 {
+            if !tx_data.kind().is_programmable_transaction() {
+                return Err(UserInputError::Unsupported(
+                    "SenderSignedData with MoveAuthenticator must be a programmable transaction"
+                        .to_string(),
+                )
+                .into());
+            }
+
+            // TODO(https://github.com/iotaledger/iota/issues/8966): The following
+            // restrictions are temporary added until we implement `MoveAuthenticator`
+            // support for sponsors.
+
+            if authenticators_num > 1 {
+                return Err(UserInputError::Unsupported(
+                    "SenderSignedData with more than one MoveAuthenticator is not supported"
+                        .to_string(),
+                )
+                .into());
+            }
+
+            if self.sender_move_authenticator().is_none() {
+                return Err(UserInputError::Unsupported(
+                    "SenderSignedData can have MoveAuthenticator only for the sender".to_string(),
+                )
+                .into());
+            }
+        }
+
+        Ok(())
     }
 }
 
