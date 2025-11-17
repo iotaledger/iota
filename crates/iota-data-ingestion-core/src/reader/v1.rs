@@ -14,7 +14,8 @@ use backoff::backoff::Backoff;
 use futures::StreamExt;
 use iota_metrics::spawn_monitored_task;
 use iota_types::{
-    full_checkpoint_content::CheckpointData, messages_checkpoint::CheckpointSequenceNumber,
+    committee::EpochId, full_checkpoint_content::CheckpointData,
+    messages_checkpoint::CheckpointSequenceNumber,
 };
 use object_store::ObjectStore;
 use tap::pipe::Pipe;
@@ -72,6 +73,37 @@ impl LocalRead for CheckpointReader {
     }
 }
 
+/// Common policies for upper limit checkpoint ingestion by the framework.
+///
+/// Once the limit is reached, the framework will start the graceful
+/// shutdown process.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub enum IngestionLimit {
+    /// Last checkpoint sequence number to process.
+    ///
+    /// After processing this checkpoint the framework will start the graceful
+    /// shutdown process.
+    MaxCheckpoint(CheckpointSequenceNumber),
+    /// Last checkpoint to process based on the given epoch.
+    ///
+    /// After processing this checkpoint the framework will start the graceful
+    /// shutdown process.
+    EndOfEpoch(EpochId),
+}
+
+impl IngestionLimit {
+    /// Returns `true` if the given checkpoint matches the limit.
+    pub(crate) fn matches(&self, checkpoint: &CheckpointData) -> bool {
+        match self {
+            IngestionLimit::MaxCheckpoint(max) => {
+                &checkpoint.checkpoint_summary.sequence_number > max
+            }
+            IngestionLimit::EndOfEpoch(max) => &checkpoint.checkpoint_summary.epoch > max,
+        }
+    }
+}
+
 /// Options for configuring how the checkpoint reader fetches new checkpoints.
 #[derive(Clone)]
 pub struct ReaderOptions {
@@ -94,11 +126,13 @@ pub struct ReaderOptions {
     ///
     /// Default: 0.
     pub data_limit: usize,
-    /// Last checkpoint sequence number to process.
+    /// Common policies for upper limit checkpoint ingestion by the framework.
     ///
-    /// After processing this checkpoint the framework will start the graceful
+    /// Once the limit is reached, the framework will start the graceful
     /// shutdown process.
-    pub checkpoint_upper_limit: Option<CheckpointSequenceNumber>,
+    ///
+    /// Default: No ingestion limits are enforced.
+    pub ingestion_upper_limit: Option<IngestionLimit>,
 }
 
 impl Default for ReaderOptions {
@@ -108,7 +142,7 @@ impl Default for ReaderOptions {
             timeout_secs: 5,
             batch_size: 10,
             data_limit: 0,
-            checkpoint_upper_limit: None,
+            ingestion_upper_limit: None,
         }
     }
 }
