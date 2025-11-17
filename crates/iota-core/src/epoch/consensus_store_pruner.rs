@@ -10,10 +10,7 @@ use prometheus::{
     IntCounter, IntCounterVec, IntGauge, Registry, register_int_counter_vec_with_registry,
     register_int_counter_with_registry, register_int_gauge_with_registry,
 };
-use tokio::{
-    sync::mpsc,
-    time::{Instant, sleep},
-};
+use tokio::{sync::mpsc, time::Instant};
 use tracing::{error, info, warn};
 use typed_store::rocks::safe_drop_db;
 
@@ -164,7 +161,8 @@ impl ConsensusStorePruner {
             };
 
             if file_epoch < drop_boundary {
-                if let Err(e) = safe_drop_db(f.path()) {
+                const WAIT_BEFORE_FORCE_DELETE: Duration = Duration::from_secs(5);
+                if let Err(e) = safe_drop_db(f.path(), WAIT_BEFORE_FORCE_DELETE).await {
                     warn!(
                         "Could not prune old consensus storage \"{:?}\" directory with safe approach. Will fallback to force delete: {:?}",
                         f.path(),
@@ -175,9 +173,6 @@ impl ConsensusStorePruner {
                         .error_pruning_consensus_dbs
                         .with_label_values(&["safe"])
                         .inc();
-
-                    const WAIT_BEFORE_FORCE_DELETE: Duration = Duration::from_secs(5);
-                    sleep(WAIT_BEFORE_FORCE_DELETE).await;
 
                     if let Err(err) = fs::remove_dir_all(f.path()) {
                         error!(

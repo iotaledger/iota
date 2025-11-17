@@ -6,7 +6,7 @@ use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use iota_types::{
@@ -627,7 +627,7 @@ pub struct RestIndexStore {
 }
 
 impl RestIndexStore {
-    pub fn new(
+    pub async fn new(
         path: PathBuf,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
@@ -642,7 +642,8 @@ impl RestIndexStore {
             if tables.needs_to_do_initialization(checkpoint_store) {
                 let mut tables = {
                     drop(tables);
-                    typed_store::rocks::safe_drop_db(path.clone())
+                    typed_store::rocks::safe_drop_db(path.clone(), Duration::from_secs(30))
+                        .await
                         .expect("unable to destroy old rpc-index db");
                     IndexStoreTables::open(path)
                 };
