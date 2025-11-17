@@ -513,7 +513,7 @@ const developer = [
             },
             {
                 type: 'doc',
-                id: 'developer/workshops/building-decentralized-applications-with-dapp-kit.mdx',
+                id: 'developer/workshops/building-decentralized-applications-with-dapp-kit',
                 label: 'Building Decentralized Applications with dapp-kit Workshop',
             },
         ],
