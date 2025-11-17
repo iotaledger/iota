@@ -7,6 +7,7 @@ use std::{
     hash::Hash,
     num::NonZeroUsize,
     sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
 };
 
 use arc_swap::ArcSwap;
@@ -325,6 +326,23 @@ impl<C: CheckpointServiceNotify + Send + Sync> ConsensusHandler<C> {
                         self.last_consensus_stats
                             .stats
                             .inc_num_user_transactions(authority_index as usize);
+                    }
+                    if let ConsensusTransactionKind::RandomBytes(bytes) = &transaction.kind {
+                        // Extract only the first 8 bytes to derive the timestamp
+                        let ts = u64::from_be_bytes(bytes[..8].try_into().unwrap());
+
+                        // Get the current moment
+                        let now = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_micros() as u64;
+
+                        // Compute latency in seconds
+                        let latency = now.saturating_sub(ts);
+                        let latency_sec = (latency as f64) / 1_000_000.0;
+                        self.metrics
+                            .consensus_handler_random_bytes_latency
+                            .observe(latency_sec);
                     }
                     let transaction = SequencedConsensusTransactionKind::External(transaction);
                     transactions.push((transaction, authority_index));

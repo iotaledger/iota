@@ -285,6 +285,7 @@ pub struct AuthorityMetrics {
 
     /// Consensus handler metrics
     pub consensus_handler_processed: IntCounterVec,
+    pub consensus_handler_random_bytes_latency: Histogram,
     pub consensus_handler_transaction_sizes: HistogramVec,
     pub consensus_handler_num_low_scoring_authorities: IntGauge,
     pub consensus_handler_scores: IntGaugeVec,
@@ -654,6 +655,12 @@ impl AuthorityMetrics {
                 "Number of transactions processed by consensus handler",
                 &["class"],
                 registry
+            ).unwrap(),
+            consensus_handler_random_bytes_latency: register_histogram_with_registry!(
+                "consensus_handler_random_bytes_latency",
+                "The time taken between transaction creation and committing it in the handler",
+                LATENCY_SEC_BUCKETS.to_vec(),
+                registry,
             ).unwrap(),
             consensus_handler_transaction_sizes: register_histogram_vec_with_registry!(
                 "consensus_handler_transaction_sizes",

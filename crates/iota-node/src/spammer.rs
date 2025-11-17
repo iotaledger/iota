@@ -6,7 +6,7 @@ use std::{
         Arc,
         atomic::{AtomicU64, Ordering},
     },
-    time::Duration,
+    time::{Duration, SystemTime, UNIX_EPOCH},
 };
 
 use iota_core::{
@@ -213,9 +213,22 @@ impl SpammerService {
                             config.mean_size_bytes as f64,
                             config.std_dev_size_bytes as f64,
                         );
-                        let size = size.max(1.0) as usize; // Ensure at least 1 byte
+                         let size = size.max(8.0) as usize; // Ensure at least 8 bytes
 
-                        let bytes = Self::generate_random_bytes(size);
+                        // 1. Generate random bytes of given size
+                        let mut bytes = Self::generate_random_bytes(size);
+
+                        // 2. Generate timestamp
+                        let timestamp = SystemTime::now()
+                            .duration_since(UNIX_EPOCH)
+                            .unwrap()
+                            .as_micros() as u64;
+
+                        // 3. Convert timestamp to 8 bytes
+                        let ts_bytes = timestamp.to_be_bytes();
+
+                        // 4. Overwrite first 8 bytes
+                        bytes[..8].copy_from_slice(&ts_bytes);
 
                         // Create and submit transaction
                         let tx = ConsensusTransaction::new_random_bytes(bytes);
