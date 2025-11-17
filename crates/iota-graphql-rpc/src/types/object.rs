@@ -133,11 +133,8 @@ pub(crate) struct ObjectRef {
 ///   `objectKeys`.
 #[derive(InputObject, Default, Debug, Clone, Eq, PartialEq)]
 pub(crate) struct ObjectFilter {
-    /// This field is used to specify the type of objects that should be
-    /// included in the query results.
-    ///
-    /// Objects can be filtered by their type's package, package::module, or
-    /// their fully qualified type name.
+    /// Filter objects by their type's `package`, `package::module`, or their
+    /// fully qualified type name.
     ///
     /// Generic types can be queried by either the generic type name, e.g.
     /// `0x2::coin::Coin`, or by the full type name, such as

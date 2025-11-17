@@ -2,8 +2,9 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-//! Detects operands that are equal in a binary operation which results in a constant value.
-//! Unlike the warning generated during constant folding, this works over non-constant expressions.
+//! Detects operands that are equal in a binary operation which results in a
+//! constant value. Unlike the warning generated during constant folding, this
+//! works over non-constant expressions.
 
 use crate::{
     cfgir::visitor::{same_value_exp, simple_visitor},
@@ -24,7 +25,7 @@ simple_visitor!(
             let resulting_value = match &op.value {
                 // warning reported elsewhere
                 BinOp_::Div | BinOp_::Mod if rhs.as_value().is_some_and(|v| v.value.is_zero()) => {
-                    return false
+                    return false;
                 }
                 BinOp_::Sub | BinOp_::Mod | BinOp_::Xor => "'0'",
                 BinOp_::Div => "'1'",

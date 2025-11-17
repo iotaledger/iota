@@ -22,6 +22,7 @@
     "dependencies": {
         "@amplitude/analytics-browser": "^1.10.3",
         "@amplitude/analytics-types": "^0.20.0",
+        "@boxfish-studio/react-cookie-manager": "^1.0.5",
         "@growthbook/growthbook": "^1.0.0",
         "@growthbook/growthbook-react": "^1.0.0",
         "@iota/apps-ui-icons": "workspace:*",
@@ -43,7 +44,7 @@
     },
     "devDependencies": {
         "@amplitude/ampli": "^1.31.5",
-        "@playwright/test": "^1.46.1",
+        "@playwright/test": "^1.56.1",
         "@tanstack/react-query-devtools": "^5.58.0",
         "@types/jest": "^29.5.2",
         "@types/node": "^20.14.10",

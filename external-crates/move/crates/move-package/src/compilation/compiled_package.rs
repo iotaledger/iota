@@ -3,16 +3,14 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    compilation::package_layout::CompiledPackageLayout,
-    resolution::resolution_graph::{Package, Renaming, ResolvedGraph, ResolvedTable},
-    source_package::{
-        layout::{SourcePackageLayout, REFERENCE_TEMPLATE_FILENAME},
-        parsed_manifest::{FileName, PackageDigest, PackageName},
-    },
-    BuildConfig,
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Arc,
 };
-use anyhow::{ensure, Result};
+
+use anyhow::{Result, ensure};
 use colored::Colorize;
 use itertools::{Either, Itertools};
 use move_binary_format::file_format::CompiledModule;
@@ -21,32 +19,36 @@ use move_bytecode_source_map::utils::{
 };
 use move_bytecode_utils::Modules;
 use move_command_line_common::files::{
-    extension_equals, find_filenames, try_exists, FileHash, DEBUG_INFO_EXTENSION,
-    MOVE_BYTECODE_EXTENSION, MOVE_COMPILED_EXTENSION, MOVE_EXTENSION,
+    DEBUG_INFO_EXTENSION, FileHash, MOVE_BYTECODE_EXTENSION, MOVE_COMPILED_EXTENSION,
+    MOVE_EXTENSION, extension_equals, find_filenames, try_exists,
 };
 use move_compiler::{
+    Compiler,
     compiled_unit::{AnnotatedCompiledUnit, CompiledUnit, NamedCompiledModule},
     editions::Flavor,
+    iota_mode::{self},
     linters,
     shared::{
-        files::MappedFiles, NamedAddressMap, NumericalAddress, PackageConfig, PackagePaths,
-        SaveFlag, SaveHook,
+        NamedAddressMap, NumericalAddress, PackageConfig, PackagePaths, SaveFlag, SaveHook,
+        files::MappedFiles,
     },
-    iota_mode::{self},
-    Compiler,
 };
 use move_disassembler::disassembler::Disassembler;
 use move_docgen::{Docgen, DocgenFlags, DocgenOptions};
 use move_model_2::source_model;
 use move_symbol_pool::Symbol;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    io::Write,
-    path::{Path, PathBuf},
-};
 use vfs::VfsPath;
+
+use crate::{
+    BuildConfig,
+    compilation::package_layout::CompiledPackageLayout,
+    resolution::resolution_graph::{Package, Renaming, ResolvedGraph, ResolvedTable},
+    source_package::{
+        layout::{REFERENCE_TEMPLATE_FILENAME, SourcePackageLayout},
+        parsed_manifest::{FileName, PackageDigest, PackageName},
+    },
+};
 
 #[derive(Debug, Clone)]
 pub enum CompilationCachingStatus {
@@ -390,7 +392,8 @@ impl OnDiskCompiledPackage {
             disassembly_file_path.clone(),
             disassembled_string.as_bytes(),
         )?;
-        // unwrap below is safe as we just successfully saved a file at disassembly_file_path
+        // unwrap below is safe as we just successfully saved a file at
+        // disassembly_file_path
         if let Ok(p) =
             dunce::canonicalize(self.root_path.join(disassembly_file_path).parent().unwrap())
         {
@@ -632,8 +635,8 @@ impl CompiledPackage {
                     .as_str(),
             );
             let package_name = annot_unit.named_module.package_name.unwrap();
-            // unwraps below are safe as the source path exists (or must have existed at some point)
-            // so it would be syntactically correct
+            // unwraps below are safe as the source path exists (or must have existed at
+            // some point) so it would be syntactically correct
             let file_name = PathBuf::from(source_path.file_name().unwrap());
             if let Ok(p) = dunce::canonicalize(source_path.parent().unwrap()) {
                 annot_unit

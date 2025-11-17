@@ -10,7 +10,7 @@ use move_proc_macros::growing_stack;
 use petgraph::{algo::toposort as petgraph_toposort, graphmap::DiGraphMap};
 
 use crate::{
-    diagnostics::{codes::*, Diagnostic, DiagnosticReporter},
+    diagnostics::{Diagnostic, DiagnosticReporter, codes::*},
     expansion::ast::{Address, ModuleIdent, Value_},
     ice,
     naming::ast::{self as N, Neighbor, Neighbor_},

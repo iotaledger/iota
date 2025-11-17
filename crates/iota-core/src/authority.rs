@@ -4944,7 +4944,7 @@ impl AuthorityState {
         // transactions through consensus.
         epoch_store.assign_shared_object_versions_idempotent(
             self.get_object_cache_reader().as_ref(),
-            &[executable_tx.clone()],
+            std::slice::from_ref(&executable_tx),
         )?;
 
         let input_objects =

@@ -19,7 +19,7 @@ use tracing::{info, warn};
 
 /// The minimum and maximum protocol versions supported by this build.
 const MIN_PROTOCOL_VERSION: u64 = 1;
-pub const MAX_PROTOCOL_VERSION: u64 = 14;
+pub const MAX_PROTOCOL_VERSION: u64 = 16;
 
 // Record history of protocol version allocations here:
 //
@@ -84,6 +84,11 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 //             Enable selecting committee only from active validators that
 //             support the next epoch's version and issued valid
 //             AuthorityCapabilities notification in testnet.
+// Version 15: Enable shared object transaction bursts of 10 times average load
+//             on devnet.
+// Version 16: Enable selecting committee only from active validators that
+//             support the next epoch's version and issued valid
+//             AuthorityCapabilities notification.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -1140,7 +1145,9 @@ pub struct ProtocolConfig {
 
     /// The max accumulated txn execution cost per object in a mysticeti commit.
     /// Transactions in a commit will be deferred once their touch shared
-    /// objects hit this limit.
+    /// objects hit this limit. Note that if
+    /// `max_congestion_limit_overshoot_per_commit` is set, this may be overshot
+    /// within a single commit, but the limit will be enforced in the long run.
     max_accumulated_txn_cost_per_object_in_mysticeti_commit: Option<u64>,
 
     /// Maximum number of committee (validators taking part in consensus)
@@ -1158,6 +1165,12 @@ pub struct ProtocolConfig {
     /// Default value set to 400. (5 x expected committee size (80)).
     /// Applicable only to `starfish` consensus.
     consensus_max_acknowledgments_per_block: Option<u32>,
+
+    /// The maximum amount that is allowed to overshoot the congestion limit
+    /// specified by 'max_accumulated_txn_cost_per_object_in_mysticeti_commit'
+    /// for any single commit. Any overshoot is tracked as a debt that must
+    /// be accounted for in subsequent commits.
+    max_congestion_limit_overshoot_per_commit: Option<u64>,
 }
 
 // feature flags
@@ -1981,6 +1994,8 @@ impl ProtocolConfig {
             consensus_gc_depth: None,
 
             consensus_max_acknowledgments_per_block: None,
+
+            max_congestion_limit_overshoot_per_commit: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
@@ -2273,6 +2288,20 @@ impl ProtocolConfig {
                         // Switch consensus protocol to Starfish in devnet
                         cfg.feature_flags.consensus_choice = ConsensusChoice::Starfish;
                     }
+                }
+                15 => {
+                    if chain != Chain::Mainnet && chain != Chain::Testnet {
+                        // Enable overshoot of 100 in congestion control. This allows bursts of
+                        // shared object transactions up to 10 times the average allowable
+                        // load set by `max_accumulated_txn_cost_per_object_in_mysticeti_commit`.
+                        cfg.max_congestion_limit_overshoot_per_commit = Some(100);
+                    }
+                }
+                16 => {
+                    // Enable selecting committee only from active validators that support the
+                    // next epoch's version and issued valid AuthorityCapabilities notification.
+                    cfg.feature_flags
+                        .select_committee_supporting_next_epoch_version = true;
                 }
                 // Use this template when making changes:
                 //
