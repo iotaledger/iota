@@ -114,6 +114,11 @@ impl Linearizer {
             }
         }
 
+        for block_header in &to_commit {
+            self.traversed_headers_tracker
+                .insert(block_header.reference());
+        }
+
         // Collect all block references for transactions that reached quorum after
         // adding acknowledgments
         let committed_transactions = to_commit
