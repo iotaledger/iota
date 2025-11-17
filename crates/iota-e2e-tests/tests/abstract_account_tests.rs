@@ -352,7 +352,7 @@ impl TestEnvironment {
         }
     }
 
-        /// Common initialization for AA tests:
+    /// Common initialization for AA tests:
     /// - store authenticate fn name
     /// - derive owner from keystore
     /// - publish AA package and store its ID
