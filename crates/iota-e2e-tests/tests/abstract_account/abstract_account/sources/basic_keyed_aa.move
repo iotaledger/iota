@@ -136,7 +136,7 @@ public fun authenticate_free_access(self: &AbstractAccount, _: &AuthContext, ctx
 /// the authenticator is disallowed by the AA auth framework and must fail.
 public fun authenticate_receive_coin(
     account: &AbstractAccount,
-    _coin: &transfer::Receiving<Coin<IOTA>>,
+    _coin: transfer::Receiving<Coin<IOTA>>,
     _: &AuthContext,
     ctx: &TxContext,
 ) {
