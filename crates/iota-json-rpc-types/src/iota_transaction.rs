@@ -1158,7 +1158,13 @@ pub struct DryRunTransactionBlockResponse {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(with = "Option<BigInt<u64>>")]
     #[serde_as(as = "Option<BigInt<u64>>")]
-    pub suggested_gas_price: Option<u64>,
+    pub suggested_gas_price_legacy: Option<u64>,
+    pub suggested_gas_price_with_ogd: Option<u64>,
+
+    /// suggested gas price with nn.
+    /// #[serde_as(as = "Option<BigInt<u64>>")]
+    pub suggested_gas_price_with_nn: Option<u64>,
+    
 }
 
 #[derive(Eq, PartialEq, Clone, Debug, Default, Serialize, Deserialize, JsonSchema)]

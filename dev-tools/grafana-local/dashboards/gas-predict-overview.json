@@ -1,0 +1,202 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "type": "row",
+      "title": "NN Latency (ms)",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency (all pct) by component",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 1 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "ms" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "gas_predict_latency_ms{component=\"model_updater.predict\",instance=~\"$instance\"}",
+          "legendFormat": "predict pct={{pct}}",
+          "refId": "A"
+        },
+        {
+          "expr": "gas_predict_latency_ms{component=\"model_updater.train_step\",instance=~\"$instance\"}",
+          "legendFormat": "train_step pct={{pct}}",
+          "refId": "B"
+        },
+        {
+          "expr": "gas_predict_latency_ms{component=\"model_updater.update_batch\",instance=~\"$instance\"}",
+          "legendFormat": "update_batch pct={{pct}}",
+          "refId": "C"
+        },
+        {
+          "expr": "gas_predict_latency_ms{component=\"model_updater.build_snapshot\",instance=~\"$instance\"}",
+          "legendFormat": "build_snapshot pct={{pct}}",
+          "refId": "D"
+        },
+        {
+          "expr": "gas_predict_latency_ms{component=\"congestion.inform_model\",instance=~\"$instance\"}",
+          "legendFormat": "inform_model pct={{pct}}",
+          "refId": "E"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Per-operation CPU% / Memory",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 9 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU% (process, all pct) by component",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "percent" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "gas_predict_proc_cpu_pct{component=\"model_updater.predict\",instance=~\"$instance\"}",
+          "legendFormat": "predict pct={{pct}}",
+          "refId": "A"
+        },
+        {
+          "expr": "gas_predict_proc_cpu_pct{component=\"model_updater.train_step\",instance=~\"$instance\"}",
+          "legendFormat": "train_step pct={{pct}}",
+          "refId": "B"
+        },
+        {
+          "expr": "gas_predict_proc_cpu_pct{component=\"model_updater.update_batch\",instance=~\"$instance\"}",
+          "legendFormat": "update_batch pct={{pct}}",
+          "refId": "C"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "RSS bytes (process, all pct) by component",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 10 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes" },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "gas_predict_proc_mem_bytes{component=\"model_updater.predict\",instance=~\"$instance\"}",
+          "legendFormat": "predict pct={{pct}}",
+          "refId": "A"
+        },
+        {
+          "expr": "gas_predict_proc_mem_bytes{component=\"model_updater.train_step\",instance=~\"$instance\"}",
+          "legendFormat": "train_step pct={{pct}}",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Volume / Outcomes",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 17 },
+      "collapsed": false,
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "title": "Pending train items",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "gas_predict_pending_train_items{instance=~\"$instance\"}",
+          "legendFormat": "pending",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Inference outcomes (rate per 5m)",
+      "gridPos": { "h": 6, "w": 18, "x": 6, "y": 18 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (status,instance) (rate(gas_predict_infer_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Batches (update/train) rate per 5m",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "sum by (type,status,instance) (rate(gas_predict_batches_total{instance=~\"$instance\"}[5m]))",
+          "legendFormat": "{{type}} {{status}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Touched objects per checkpoint (all pct)",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 24 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [
+        {
+          "expr": "congestion_touched_objects_per_cp{component=\"congestion.touched\",instance=~\"$instance\"}",
+          "legendFormat": "pct={{pct}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "style": "dark",
+  "tags": ["iota", "gas", "nn"],
+  "templating": {
+    "list": [
+      {
+        "name": "instance",
+        "label": "Instance",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "refresh": 2,
+        "includeAll": true,
+        "multi": false,
+        "query": "label_values(up, instance)",
+        "current": { "selected": true, "text": "All", "value": ".*" },
+        "regex": ".*",
+        "options": []
+      }
+    ]
+  },
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "timezone": "",
+  "title": "Gas Price Prediction Overview",
+  "uid": "gas-predict-overview",
+  "version": 1,
+  "weekStart": ""
+}
