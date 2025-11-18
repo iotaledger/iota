@@ -53,22 +53,32 @@ async fn add_worker_pool<W: Worker + 'static>(
     Ok(())
 }
 
-async fn run_with_reader_options(
+async fn run(
     indexer: IndexerExecutor<FileProgressStore>,
-    path: Option<PathBuf>,
-    duration: Option<Duration>,
+    path: impl Into<Option<PathBuf>>,
+    duration: impl Into<Option<Duration>>,
     token: CancellationToken,
-    reader_options: ReaderOptions,
 ) -> IngestionResult<ExecutorProgress> {
-    match duration {
+    let reader_options = ReaderOptions {
+        tick_interval_ms: 10,
+        batch_size: 1,
+        ..Default::default()
+    };
+
+    match duration.into() {
         None => {
             indexer
-                .run(path.unwrap_or_else(temp_dir), None, vec![], reader_options)
+                .run(
+                    path.into().unwrap_or_else(temp_dir),
+                    None,
+                    vec![],
+                    reader_options,
+                )
                 .await
         }
         Some(duration) => {
             let handle = tokio::task::spawn(indexer.run(
-                path.unwrap_or_else(temp_dir),
+                path.into().unwrap_or_else(temp_dir),
                 None,
                 vec![],
                 reader_options,
@@ -81,21 +91,6 @@ async fn run_with_reader_options(
             })?
         }
     }
-}
-
-async fn run(
-    indexer: IndexerExecutor<FileProgressStore>,
-    path: Option<PathBuf>,
-    duration: Option<Duration>,
-    token: CancellationToken,
-) -> IngestionResult<ExecutorProgress> {
-    let options = ReaderOptions {
-        tick_interval_ms: 10,
-        batch_size: 1,
-        ..Default::default()
-    };
-
-    run_with_reader_options(indexer, path, duration, token, options).await
 }
 
 struct ExecutorBundle {
@@ -214,13 +209,7 @@ async fn basic_flow() {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
-    let result = run(
-        bundle.executor,
-        Some(path),
-        Some(Duration::from_secs(3)),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path, Duration::from_secs(3), bundle.token).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&20));
 }
@@ -249,20 +238,11 @@ async fn basic_flow_with_checkpoint_upper_limit() {
     }
     // process until we reach the checkpoint sequence number 19. Subsequent
     // checkpoints should be skipped.
-    let options = ReaderOptions {
-        tick_interval_ms: 10,
-        batch_size: 1,
-        ingestion_upper_limit: Some(IngestionLimit::MaxCheckpoint(19)),
-        ..Default::default()
-    };
-    let result = run_with_reader_options(
-        bundle.executor,
-        Some(path.clone()),
-        Some(Duration::from_secs(3)),
-        bundle.token,
-        options,
-    )
-    .await;
+    bundle
+        .executor
+        .with_ingestion_limit(IngestionLimit::MaxCheckpoint(19));
+
+    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
     assert!(result.is_ok());
     // expect watermark == processed_last_checkpoint + 1 == 20.
     assert_eq!(result.unwrap().get("test"), Some(&20));
@@ -299,13 +279,7 @@ async fn basic_flow_with_custom_callback_checkpoint_limit() {
         .executor
         .shutdown_when(|chk| chk.checkpoint_summary.sequence_number > 19);
 
-    let result = run(
-        bundle.executor,
-        Some(path.clone()),
-        Some(Duration::from_secs(3)),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
     assert!(result.is_ok());
     // expect watermark == processed_last_checkpoint + 1 == 20.
     assert_eq!(result.unwrap().get("test"), Some(&20));
@@ -343,20 +317,11 @@ async fn basic_flow_with_epoch_upper_limit() {
     // process until we reach the epoch upper limit 0, so it should process up to
     // checkpoint file 14.chk (inclusive). Subsequent checkpoints (15.chk) should be
     // skipped.
-    let options = ReaderOptions {
-        tick_interval_ms: 10,
-        batch_size: 1,
-        ingestion_upper_limit: Some(IngestionLimit::EndOfEpoch(0)),
-        ..Default::default()
-    };
-    let result = run_with_reader_options(
-        bundle.executor,
-        Some(path.clone()),
-        Some(Duration::from_secs(3)),
-        bundle.token,
-        options,
-    )
-    .await;
+    bundle
+        .executor
+        .with_ingestion_limit(IngestionLimit::EndOfEpoch(0));
+
+    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
     assert!(result.is_ok());
     // expect watermark == processed_last_checkpoint + 1 == 15.
     assert_eq!(result.unwrap().get("test"), Some(&15));
@@ -400,8 +365,8 @@ async fn basic_flow_with_custom_callback_epoch_limit() {
 
     let result = run(
         bundle.executor,
-        Some(path.clone()),
-        Some(Duration::from_secs(3)),
+        path.clone(),
+        Duration::from_secs(3),
         bundle.token,
     )
     .await;
@@ -480,13 +445,7 @@ async fn basic_flow_with_custom_callback() {
             .any(|tx| *tx.transaction.digest() == tx_digest)
     });
 
-    let result = run(
-        bundle.executor,
-        Some(path.clone()),
-        Some(Duration::from_secs(3)),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
     assert!(result.is_ok());
     // expect watermark == processed_last_checkpoint + 1 == 10.
     assert_eq!(result.unwrap().get("test"), Some(&10));
@@ -570,13 +529,7 @@ async fn basic_flow_with_custom_callback_inclusive() {
         false
     });
 
-    let result = run(
-        bundle.executor,
-        Some(path.clone()),
-        Some(Duration::from_secs(3)),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
     assert!(result.is_ok());
     // expect watermark == processed_last_checkpoint + 1 == 11.
     assert_eq!(result.unwrap().get("test"), Some(&11));
@@ -609,13 +562,7 @@ async fn graceful_shutdown_faulty_worker() {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
-    let result = run(
-        bundle.executor,
-        Some(path),
-        Some(Duration::from_secs(1)),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path, Duration::from_secs(1), bundle.token).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&0));
 }
@@ -648,13 +595,7 @@ async fn worker_pool_with_reducer() {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
-    let result = run(
-        bundle.executor,
-        Some(path),
-        Some(Duration::from_secs(3)),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path, Duration::from_secs(3), bundle.token).await;
     // 4 commits (batches of 5 checkpoints)
     assert_eq!(commit_count.load(Ordering::SeqCst), 4);
     assert!(result.is_ok());
@@ -695,13 +636,7 @@ async fn graceful_shutdown_faulty_reducer() {
         let bytes = mock_checkpoint_data_bytes(checkpoint_number);
         std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
     }
-    let result = run(
-        bundle.executor,
-        Some(path),
-        Some(Duration::from_secs(1)),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path, Duration::from_secs(1), bundle.token).await;
     assert!(result.is_ok());
     assert_eq!(result.unwrap().get("test"), Some(&0));
 }
