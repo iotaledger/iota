@@ -6441,13 +6441,11 @@ dependencies = [
  "futures",
  "iota-config",
  "iota-core",
- "iota-grpc-client",
  "iota-grpc-types",
  "iota-json-rpc-types",
  "iota-types",
  "move-core-types",
  "serde",
- "test-cluster",
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.12",
@@ -7249,7 +7247,7 @@ dependencies = [
 
 [[package]]
 name = "iota-proto-build"
-version = "1.11.0-alpha"
+version = "1.12.0-alpha"
 dependencies = [
  "prettyplease",
  "proc-macro2",
