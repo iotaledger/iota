@@ -137,7 +137,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let forward_time_drift =
             Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
         let latency_to_process_stream =
-            Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
+            Duration::from_millis(now.saturating_sub(verified_block.timestamp_ms()));
         self.context
             .metrics
             .node_metrics

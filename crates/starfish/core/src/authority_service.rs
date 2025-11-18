@@ -489,7 +489,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(forward_time_drift.as_millis() as u64);
         let latency_to_process_stream =
-            Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
+            Duration::from_millis(now.saturating_sub(verified_block.timestamp_ms()));
         self.context
             .metrics
             .node_metrics
