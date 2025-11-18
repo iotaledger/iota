@@ -42,7 +42,7 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./api/Dockerfile
+          file: ./apps/apps-backend/Dockerfile
           push: true
           tags: ghcr.io/iotaledger/iota/apps-backend:${{ env.VERSION }}
 
