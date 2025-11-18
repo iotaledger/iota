@@ -10,17 +10,14 @@ module test::abstract_account;
 
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
-use iota::dynamic_field;
 use std::ascii;
 
 public struct AbstractAccount has key {
     id: UID,
 }
 
-public struct OwnerPublicKey has copy, drop, store {}
-
 public fun create(
-    public_key: vector<u8>,
+    _public_key: vector<u8>,
     authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): address {
@@ -30,7 +27,6 @@ public fun create(
         authenticator,
     );
     account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
-    dynamic_field::add(&mut account.id, OwnerPublicKey {}, public_key);
     let account_address = object::id_address(&account);
     iota::transfer::share_object(account);
     account_address
@@ -53,7 +49,7 @@ public fun authenticate_hello_world(
 
 //# view-object 2,0
 
-//# view-object 2,3
+//# view-object 2,2
 
-//# abstract --account immshared(2,3) --gas-payment 2,0 --auth-inputs "test" --ptb-inputs 100 @A
+//# abstract --account immshared(2,2) --gas-payment 2,0 --auth-inputs "test" --ptb-inputs 100 @A
 //> 0: SplitCoins(Gas, [Input(0)]);

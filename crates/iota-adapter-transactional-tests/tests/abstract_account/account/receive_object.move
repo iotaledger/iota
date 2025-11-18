@@ -11,17 +11,14 @@ module test::abstract_account;
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::coin::Coin;
-use iota::dynamic_field;
 use iota::iota::IOTA;
 
 public struct AbstractAccount has key {
     id: UID,
 }
 
-public struct OwnerPublicKey has copy, drop, store {}
-
 public fun create(
-    public_key: vector<u8>,
+    _public_key: vector<u8>,
     authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ): address {
@@ -31,7 +28,6 @@ public fun create(
         authenticator,
     );
     account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
-    dynamic_field::add(&mut account.id, OwnerPublicKey {}, public_key);
     let account_address = object::id_address(&account);
     iota::transfer::share_object(account);
     account_address
@@ -54,15 +50,15 @@ public fun receive_object(
 //> 2: SplitCoins(Gas, [Input(4)]);
 //> 3: TransferObjects([Result(2)], Result(1));
 
-//# view-object 2,3
+//# view-object 2,2
 
-//# set-address a_account object(2,3)
+//# set-address a_account object(2,2)
 
 //# programmable --sender A --inputs 2000000000 @a_account
 //> 0: SplitCoins(Gas, [Input(0)]);
 //> 1: TransferObjects([Result(0)], Input(1));
 
-//# abstract --account immshared(2,3) --gas-payment 2,0 --ptb-inputs object(2,3) receiving(5,0)
+//# abstract --account immshared(2,2) --gas-payment 2,0 --ptb-inputs object(2,2) receiving(5,0)
 //> 0: test::abstract_account::receive_object(Input(0), Input(1));
 
 //# view-object 5,0

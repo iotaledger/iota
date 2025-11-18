@@ -150,13 +150,13 @@ pub struct AbstractTransactionCommand {
         action = clap::ArgAction::Append,
     )]
     pub account: ParsedValue<IotaExtraValueArgs>,
-    #[clap(long = "sponsor")]
+    #[arg(long = "sponsor")]
     pub sponsor: Option<String>,
     #[arg(long = "gas-budget")]
     pub gas_budget: Option<u64>,
     #[arg(long)]
     pub gas_price: Option<u64>,
-    #[clap(long = "gas-payment", value_parser = parse_fake_id)]
+    #[arg(long = "gas-payment", value_parser = parse_fake_id)]
     pub gas_payment: Vec<FakeID>,
     #[arg(
         long = "ptb-inputs",

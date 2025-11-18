@@ -1,7 +1,7 @@
 // Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-// simple authentication using abstract account
+// wrong account type type for the authenticator
 
 //# init --addresses test=0x0 --accounts A
 
@@ -10,7 +10,6 @@ module test::abstract_account;
 
 use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
-use iota::dynamic_field;
 
 public struct AbstractAccount has key {
     id: UID,
@@ -20,10 +19,8 @@ public struct AbstractAccount2 has key {
     id: UID,
 }
 
-public struct OwnerPublicKey has copy, drop, store {}
-
 public fun create(
-    public_key: vector<u8>,
+    _public_key: vector<u8>,
     authenticator: AuthenticatorInfoV1<AbstractAccount>,
     ctx: &mut TxContext,
 ) {
@@ -34,7 +31,6 @@ public fun create(
     );
 
     account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
-    dynamic_field::add(&mut account.id, OwnerPublicKey {}, public_key);
     iota::transfer::share_object(account);
 }
 
