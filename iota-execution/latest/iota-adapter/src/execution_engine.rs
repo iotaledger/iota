@@ -1890,13 +1890,26 @@ mod checked {
         let mut args = vec![authenticator.object_to_authenticate().to_owned()];
         args.extend(authenticator.call_args().to_owned());
 
+        let type_arguments = authenticator
+            .type_arguments()
+            .iter()
+            .map(|t| {
+                t.as_type_tag().map_err(|err| {
+                    ExecutionError::new_with_source(
+                        ExecutionErrorKind::VMInvariantViolation,
+                        err.to_string(),
+                    )
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
         let res = builder.move_call(
             authenticator_info.package,
             Identifier::new(authenticator_info.module.clone())
                 .expect("`AuthenticatorInfoV1::module` is expected to be a valid `Identifier`"),
             Identifier::new(authenticator_info.function.clone())
                 .expect("`AuthenticatorInfoV1::function` is expected to be a valid `Identifier`"),
-            authenticator.type_arguments().to_owned(),
+            type_arguments,
             args,
         );
 

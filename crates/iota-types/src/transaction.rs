@@ -123,7 +123,7 @@ pub enum ObjectArg {
     Receiving(ObjectRef),
 }
 
-fn type_input_validity_check(
+pub fn type_input_validity_check(
     tag: &TypeInput,
     config: &ProtocolConfig,
     starting_count: &mut usize,
@@ -2638,32 +2638,35 @@ impl SenderSignedData {
         // Additional checks when `MoveAuthenticators` are present.
         let authenticators_num = self.move_authenticators().len();
         if authenticators_num > 0 {
-            if !tx_data.kind().is_programmable_transaction() {
-                return Err(UserInputError::Unsupported(
+            fp_ensure!(
+                tx_data.kind().is_programmable_transaction(),
+                UserInputError::Unsupported(
                     "SenderSignedData with MoveAuthenticator must be a programmable transaction"
                         .to_string(),
                 )
-                .into());
-            }
+                .into()
+            );
 
             // TODO(https://github.com/iotaledger/iota/issues/8966): The following
             // restrictions are temporary added until we implement `MoveAuthenticator`
             // support for sponsors.
 
-            if authenticators_num > 1 {
-                return Err(UserInputError::Unsupported(
+            fp_ensure!(
+                authenticators_num == 1,
+                UserInputError::Unsupported(
                     "SenderSignedData with more than one MoveAuthenticator is not supported"
                         .to_string(),
                 )
-                .into());
-            }
+                .into()
+            );
 
-            if self.sender_move_authenticator().is_none() {
-                return Err(UserInputError::Unsupported(
+            fp_ensure!(
+                self.sender_move_authenticator().is_some(),
+                UserInputError::Unsupported(
                     "SenderSignedData can have MoveAuthenticator only for the sender".to_string(),
                 )
-                .into());
-            }
+                .into()
+            );
         }
 
         Ok(())
