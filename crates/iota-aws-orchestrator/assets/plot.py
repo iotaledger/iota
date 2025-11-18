@@ -17,14 +17,19 @@ from itertools import cycle
 # the following dependencies: `pip install matplotlib`.
 
 
+def gen_data(measurement):
+    for workloads in measurement['scrapers'].values():
+        for data in workloads.values():
+            yield data
+
 def aggregate_tps(measurement, i=-1):
     max_duration = 0
-    for data in measurement['scrapers'].values():
+    for data in gen_data(measurement):
         duration = float(data[i]['timestamp']['secs'])
         max_duration = max(duration, max_duration)
 
     tps = []
-    for data in measurement['scrapers'].values():
+    for data in gen_data(measurement):
         count = float(data[i]['count'])
         tps += [(count / max_duration) if max_duration != 0 else 0]
     return sum(tps)
@@ -32,7 +37,7 @@ def aggregate_tps(measurement, i=-1):
 
 def aggregate_average_latency(measurement, i=-1):
     latency = []
-    for data in measurement['scrapers'].values():
+    for data in gen_data(measurement):
         last = data[i]
         count = float(last['count'])
         total = float(last['sum']['secs'])
@@ -42,7 +47,7 @@ def aggregate_average_latency(measurement, i=-1):
 
 def aggregate_stdev_latency(measurement, i=-1):
     stdev = []
-    for data in measurement['scrapers'].values():
+    for data in gen_data(measurement):
         last = data[i]
         count = float(last['count'])
         if count == 0:
@@ -58,7 +63,7 @@ def aggregate_stdev_latency(measurement, i=-1):
 
 def aggregate_p_latency(measurement, p=50, i=-1):
     latency = []
-    for data in measurement['scrapers'].values():
+    for data in gen_data(measurement):
         last = data[i]
         count = float(last['count'])
         buckets = [(float(l), c) for l, c in last['buckets'].items()]
@@ -101,12 +106,13 @@ def sec_major_formatter(x, pos):
 
 
 class PlotParameters:
-    def __init__(self, shared_objects_ratio, nodes, faults, specs=None, commit=None):
+    def __init__(self, shared_objects_ratio, nodes, faults, specs=None, commit=None, use_internal_ip_address=None):
         self.nodes = nodes
         self.faults = faults
         self.shared_objects_ratio = shared_objects_ratio
         self.specs = specs
         self.commit = commit
+        self.use_internal_ip_address = use_internal_ip_address
 
 
 class MeasurementId:
@@ -243,7 +249,9 @@ class Plotter:
         return measurements
 
     def _file_format(self, shared_objects_ratio, faults, nodes, load):
-        return f'measurements-{shared_objects_ratio}-{faults}-{nodes}-{load}.json'
+        use_ip = self.parameters.use_internal_ip_address
+        use_ip = '*' if use_ip is None else 'true' if use_ip else 'false'
+        return f'measurements-{shared_objects_ratio}-{faults}-{nodes}-{load}-{use_ip}.json'
 
     def plot_latency_throughput(self):
         plot_lines_data = []
@@ -337,7 +345,7 @@ class Plotter:
                 raise PlotError(f'Failed to load file {file}: {e}')
 
         plot_tps_data, plot_lat_data = [], []
-        for data in measurement['scrapers'].values():
+        for data in gen_data(measurement):
             x_values, y_tps_values, y_lat_values, e_values = [], [], [], []
             for d in data:
                 count = float(d['count'])
@@ -372,7 +380,7 @@ class Plotter:
         length = int(total_duration / precision)
 
         scrapers_tps_data, scrapers_lat_data = [], []
-        for data in measurement['scrapers'].values():
+        for data in gen_data(measurement):
             all_y_tps_values = [[] for _ in range(length)]
             all_y_lat_values = [[] for _ in range(length)]
 
