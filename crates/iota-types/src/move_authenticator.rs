@@ -106,8 +106,7 @@ impl MoveAuthenticator {
                         return Err(UserInputError::Unsupported(
                             "MoveAuthenticator cannot authenticate mutable shared objects"
                                 .to_string(),
-                        )
-                        .into());
+                        ));
                     }
 
                     (*id, None, None)
