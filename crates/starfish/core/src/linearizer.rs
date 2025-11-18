@@ -102,10 +102,15 @@ impl Linearizer {
         );
 
         drop(dag_state_guard);
-
-        for block_header in &to_commit {
-            self.traversed_headers_tracker
-                .insert(block_header.reference());
+        if self
+            .context
+            .protocol_config
+            .consensus_commit_transactions_only_for_traversed_headers()
+        {
+            for block_header in &to_commit {
+                self.traversed_headers_tracker
+                    .insert(block_header.reference());
+            }
         }
 
         // Collect all block references for transactions that reached quorum after
@@ -272,7 +277,13 @@ impl Linearizer {
             BlockHeaderDigest::MIN,
         );
         self.transactions_ack_tracker = self.transactions_ack_tracker.split_off(&lower_bound);
-        self.traversed_headers_tracker = self.traversed_headers_tracker.split_off(&lower_bound);
+        if self
+            .context
+            .protocol_config
+            .consensus_commit_transactions_only_for_traversed_headers()
+        {
+            self.traversed_headers_tracker = self.traversed_headers_tracker.split_off(&lower_bound);
+        }
     }
 
     /// This function is called to add the transaction acknowledgments to the
@@ -297,9 +308,14 @@ impl Linearizer {
             let was_below_threshold = !votes_collector.reached_threshold(&self.context.committee);
 
             if votes_collector.add(authority, &self.context.committee) && was_below_threshold {
-                // We commit transactions only if the moment of reaching the quorum the
+                // We commit transactions only if at the moment of reaching the quorum the
                 // corresponding header is traversed
-                if self.traversed_headers_tracker.contains(&block_ref) {
+                if !self
+                    .context
+                    .protocol_config
+                    .consensus_commit_transactions_only_for_traversed_headers()
+                    || self.traversed_headers_tracker.contains(&block_ref)
+                {
                     transactions_to_commit.push(block_ref);
                 }
             }
