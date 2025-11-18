@@ -411,6 +411,29 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
 
     /// Deploy the load generators.
     pub async fn run_clients(&self, parameters: &BenchmarkParameters<T>) -> TestbedResult<()> {
+        // Select the instances to run.
+        let (clients, _, _) = self.select_instances(parameters)?;
+
+        if self.settings.use_fullnode_for_execution {
+            display::action("Setting up full nodes");
+
+            // Deploy the fullnodes.
+            let targets = self
+                .protocol_commands
+                .fullnode_command(clients.clone(), parameters);
+
+            let repo = self.settings.repository_name();
+            let context = CommandContext::new()
+                .run_background("fullnode".into())
+                .with_log_file("~/fullnode.log".into())
+                .with_execute_from_path(repo.into());
+            self.ssh_manager
+                .execute_per_instance(targets, context)
+                .await?;
+
+            display::done();
+        }
+
         display::action("Setting up load generators");
 
         // Deploy the load generators.
