@@ -136,6 +136,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         let now = self.context.clock.timestamp_utc_ms();
         let forward_time_drift =
             Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
+        let latency_to_process_stream =
+            Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
+        self.context
+            .metrics
+            .node_metrics
+            .latency_to_process_stream
+            .with_label_values(&[peer_hostname.as_str()])
+            .observe(latency_to_process_stream.as_secs_f64());
 
         if !self
             .context

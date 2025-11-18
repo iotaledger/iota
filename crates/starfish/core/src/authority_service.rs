@@ -488,6 +488,14 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .block_timestamp_drift_ms
             .with_label_values(&[peer_hostname.as_str(), "handle_subscribed_block_bundle"])
             .inc_by(forward_time_drift.as_millis() as u64);
+        let latency_to_process_stream =
+            Duration::from_millis(verified_block.timestamp_ms().saturating_sub(now));
+        self.context
+            .metrics
+            .node_metrics
+            .latency_to_process_stream
+            .with_label_values(&[peer_hostname.as_str()])
+            .observe(latency_to_process_stream.as_secs_f64());
 
         // 3. Create block headers from bytes from a bundle
 
