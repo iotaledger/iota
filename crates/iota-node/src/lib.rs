@@ -108,6 +108,7 @@ use iota_storage::{
     key_value_store::{FallbackTransactionKVStore, TransactionKeyValueStore},
     key_value_store_metrics::KeyValueStoreMetrics,
 };
+use iota_names::config::IotaNamesConfig;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
@@ -2521,9 +2522,9 @@ pub async fn build_http_server(
             ))?;
         }
 
-        // TODO: Init from chain if config is not set once `IotaNamesConfig::from_chain`
-        // is implemented
-        let iota_names_config = config.iota_names_config.clone().unwrap_or_default();
+        let iota_names_config = config.iota_names_config.clone().unwrap_or_else(|| {
+            IotaNamesConfig::from_chain(&state.get_chain_identifier().chain())
+        });
 
         server.register_module(IndexerApi::new(
             state.clone(),

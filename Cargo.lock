@@ -7115,6 +7115,7 @@ dependencies = [
  "iota-json-rpc-api",
  "iota-macros",
  "iota-metrics",
+ "iota-names",
  "iota-network",
  "iota-network-stack",
  "iota-protocol-config",
