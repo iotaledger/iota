@@ -36,7 +36,7 @@ class ApiProvider {
 
         this._signerByAddress.clear();
 
-        // We also clear the query client whenever set set a new API provider:
+        // We also clear the query client whenever set a new API provider:
         queryClient.resetQueries();
         queryClient.clear();
     }

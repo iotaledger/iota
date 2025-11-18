@@ -17,7 +17,7 @@ use simulacrum::Simulacrum;
 use tokio::fs;
 use tracing::info;
 
-/// Configuration for generating synthetic checkpoint data for for benchmarking
+/// Configuration for generating synthetic checkpoint data for benchmarking
 /// or testing ingestion processes. Defines the behavior of synthetic data
 /// generation, such as checkpoint size, number of checkpoints, and the
 /// directory for storing generated checkpoint data.
