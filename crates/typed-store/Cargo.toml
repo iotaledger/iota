@@ -9,6 +9,7 @@ description = "a typed database interface"
 
 [dependencies]
 # external dependencies
+backoff.workspace = true
 bcs.workspace = true
 bincode.workspace = true
 collectable = "0.0.2"

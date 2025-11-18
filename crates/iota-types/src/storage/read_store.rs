@@ -2,14 +2,14 @@
 // Modifications Copyright (c) 2024 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use move_core_types::language_storage::{StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
+    base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, ObjectType, SequenceNumber},
     committee::Committee,
     digests::{
         ChainIdentifier, CheckpointContentsDigest, CheckpointDigest, TransactionDigest,
@@ -21,6 +21,8 @@ use crate::{
     messages_checkpoint::{
         CheckpointContents, CheckpointSequenceNumber, FullCheckpointContents, VerifiedCheckpoint,
     },
+    object::Object,
+    storage::{get_transaction_input_objects, get_transaction_output_objects},
     transaction::VerifiedTransaction,
 };
 
@@ -311,7 +313,6 @@ pub trait ReadStore: ObjectStore {
     ) -> anyhow::Result<CheckpointData> {
         use std::collections::HashMap;
 
-        use super::ObjectKey;
         use crate::{
             effects::TransactionEffectsAPI, full_checkpoint_content::CheckpointTransaction,
         };
@@ -358,47 +359,8 @@ pub trait ReadStore: ObjectStore {
                     .expect("event was already checked to be present")
             });
 
-            let input_object_keys = fx
-                .modified_at_versions()
-                .into_iter()
-                .map(|(object_id, version)| ObjectKey(object_id, version))
-                .collect::<Vec<_>>();
-
-            let input_objects = self
-                .try_multi_get_objects_by_key(&input_object_keys)?
-                .into_iter()
-                .enumerate()
-                .map(|(idx, maybe_object)| {
-                    maybe_object.ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "missing input object key {:?} from tx {}",
-                            input_object_keys[idx],
-                            tx.digest()
-                        )
-                    })
-                })
-                .collect::<anyhow::Result<Vec<_>>>()?;
-
-            let output_object_keys = fx
-                .all_changed_objects()
-                .into_iter()
-                .map(|(object_ref, _owner, _kind)| ObjectKey::from(object_ref))
-                .collect::<Vec<_>>();
-
-            let output_objects = self
-                .try_multi_get_objects_by_key(&output_object_keys)?
-                .into_iter()
-                .enumerate()
-                .map(|(idx, maybe_object)| {
-                    maybe_object.ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "missing output object key {:?} from tx {}",
-                            output_object_keys[idx],
-                            tx.digest()
-                        )
-                    })
-                })
-                .collect::<anyhow::Result<Vec<_>>>()?;
+            let input_objects = get_transaction_input_objects(&self, &fx)?;
+            let output_objects = get_transaction_output_objects(&self, &fx)?;
 
             let full_transaction = CheckpointTransaction {
                 transaction: (*tx).clone().into(),
@@ -817,10 +779,9 @@ pub trait RestStateReader: ObjectStore + ReadStore + Send + Sync {
 }
 
 pub trait RestIndexes: Send + Sync {
-    fn get_transaction_checkpoint(
-        &self,
-        digest: &TransactionDigest,
-    ) -> Result<Option<CheckpointSequenceNumber>>;
+    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>>;
+
+    fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
 
     fn account_owned_objects_info_iter(
         &self,
@@ -880,4 +841,42 @@ pub struct DynamicFieldIndexInfo {
 pub struct CoinInfo {
     pub coin_metadata_object_id: Option<ObjectID>,
     pub treasury_object_id: Option<ObjectID>,
+}
+
+#[derive(Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]
+pub struct TransactionInfo {
+    pub checkpoint: u64,
+    pub object_types: HashMap<ObjectID, ObjectType>,
+}
+
+impl TransactionInfo {
+    pub fn new(
+        input_objects: &[Object],
+        output_objects: &[Object],
+        checkpoint: u64,
+    ) -> TransactionInfo {
+        let object_types = input_objects
+            .iter()
+            .chain(output_objects)
+            .map(|object| (object.id(), ObjectType::from(object)))
+            .collect();
+
+        TransactionInfo {
+            checkpoint,
+            object_types,
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]
+pub struct EpochInfo {
+    pub epoch: u64,
+    pub protocol_version: u64,
+    pub start_timestamp_ms: u64,
+    pub end_timestamp_ms: Option<u64>,
+    pub start_checkpoint: u64,
+    pub end_checkpoint: Option<u64>,
+    pub reference_gas_price: u64,
+    // System State as of the start of the epoch
+    pub system_state: crate::iota_system_state::IotaSystemState,
 }

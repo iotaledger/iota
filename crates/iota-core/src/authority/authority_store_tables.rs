@@ -372,8 +372,10 @@ impl AuthorityPerpetualTables {
         Ok(())
     }
 
-    pub fn get_highest_pruned_checkpoint(&self) -> IotaResult<CheckpointSequenceNumber> {
-        Ok(self.pruned_checkpoint.get(&())?.unwrap_or_default())
+    pub fn get_highest_pruned_checkpoint(
+        &self,
+    ) -> Result<Option<CheckpointSequenceNumber>, TypedStoreError> {
+        self.pruned_checkpoint.get(&())
     }
 
     pub fn set_highest_pruned_checkpoint(
