@@ -5,7 +5,7 @@ on:
     inputs:
       deployment:
         type: boolean
-        description: 'Deploy after build?'
+        description: "Deploy after build?"
         required: false
         default: false
 
