@@ -675,8 +675,8 @@ mod tests {
         metrics
     }
 
-    #[test]
-    fn test_update_scoring_metrics_on_eviction_edge_cases() {
+    #[tokio::test]
+    async fn test_update_scoring_metrics_on_eviction_edge_cases() {
         let context = Context::new_for_test(4);
         let scoring_metrics_store = context.0.scoring_metrics_store;
         let authority_index = AuthorityIndex::new_for_test(0);
