@@ -95,6 +95,7 @@ use iota_metrics::{
     metrics_network::{MetricsMakeCallbackHandler, NetworkConnectionMetrics, NetworkMetrics},
     server_timing_middleware, spawn_monitored_task,
 };
+use iota_names::config::IotaNamesConfig;
 use iota_network::{
     api::ValidatorServer, discovery, discovery::TrustedPeerChangeEvent, randomness, state_sync,
 };
@@ -108,7 +109,6 @@ use iota_storage::{
     key_value_store::{FallbackTransactionKVStore, TransactionKeyValueStore},
     key_value_store_metrics::KeyValueStoreMetrics,
 };
-use iota_names::config::IotaNamesConfig;
 use iota_types::{
     base_types::{AuthorityName, ConciseableName, EpochId},
     committee::Committee,
@@ -2522,9 +2522,10 @@ pub async fn build_http_server(
             ))?;
         }
 
-        let iota_names_config = config.iota_names_config.clone().unwrap_or_else(|| {
-            IotaNamesConfig::from_chain(&state.get_chain_identifier().chain())
-        });
+        let iota_names_config = config
+            .iota_names_config
+            .clone()
+            .unwrap_or_else(|| IotaNamesConfig::from_chain(&state.get_chain_identifier().chain()));
 
         server.register_module(IndexerApi::new(
             state.clone(),
