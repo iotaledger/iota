@@ -458,6 +458,13 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
         encoder: &mut Box<dyn ShardEncoder + Send + Sync>,
     ) -> ConsensusResult<()> {
         fail_point_async!("consensus-rpc-response");
+        let _s = self
+            .context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["AuthorityService::handle_stream"])
+            .start_timer();
 
         let peer_hostname = &self.context.committee.authority(peer).hostname;
         let mut serialized_block_bundle_parts =

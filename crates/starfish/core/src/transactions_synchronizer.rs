@@ -957,6 +957,12 @@ impl<C: NetworkClient, D: CoreThreadDispatcher> TransactionsSynchronizer<C, D> {
         dag_state: Arc<RwLock<DagState>>,
         sync_method: SyncMethod,
     ) -> ConsensusResult<()> {
+        let _s = context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Synchronizer::process_fetched_transactions"])
+            .start_timer();
         // Ensure that all the returned transactions do not go over the total max
         // allowed returned transactions
         if serialized_transactions.len() > requested_transactions_guard.block_refs.len() {

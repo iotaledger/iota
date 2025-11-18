@@ -567,6 +567,12 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         if serialized_blocks.is_empty() {
             return Ok(());
         }
+        let _s = context
+            .metrics
+            .node_metrics
+            .scope_processing_time
+            .with_label_values(&["Synchronizer::process_fetched_blocks"])
+            .start_timer();
 
         // Limit the number of the returned blocks processed.
         if context.protocol_config.consensus_batched_block_sync() {
