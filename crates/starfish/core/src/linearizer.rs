@@ -263,10 +263,7 @@ impl Linearizer {
     /// This function evicts old acknowledgments and traversed headers from the
     /// tracker. Should be called for solid committed leader round since we
     /// rely on the ack tracker in transaction synchronizer.
-    pub(crate) fn evict_old_acknowledgments_and_headers(
-        &mut self,
-        solid_commit_leader_round: Round,
-    ) {
+    pub(crate) fn evict_linearizer(&mut self, solid_commit_leader_round: Round) {
         let lower_bound_round =
             solid_commit_leader_round.saturating_sub(self.context.protocol_config.gc_depth() * 2);
         let lower_bound = BlockRef::new(
@@ -905,7 +902,7 @@ mod tests {
             assert_eq!(ack_authors.len(), 4);
         }
 
-        linearizer.evict_old_acknowledgments_and_headers(num_rounds);
+        linearizer.evict_linearizer(num_rounds);
         // Check that acknowledgements for the first num_rounds_to_evict rounds are
         // evicted and the rest are still stored
         for round in 1..=num_rounds - 2 {
