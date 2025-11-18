@@ -5,7 +5,7 @@
 use std::{str::FromStr, time::Duration};
 
 use benchmark::{BenchmarkParametersGenerator, LoadType};
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use client::{ServerProviderClient, aws::AwsClient};
 use eyre::{Context, Result};
 use faults::FaultsType;
@@ -15,6 +15,8 @@ use protocol::iota::{IotaBenchmarkType, IotaProtocol};
 use settings::{CloudProvider, Settings};
 use ssh::SshConnectionManager;
 use testbed::Testbed;
+
+use crate::net_latency::TopologyLayout;
 
 pub mod benchmark;
 pub mod client;
@@ -135,6 +137,32 @@ pub enum Operation {
         /// paying for data sent between the nodes.
         #[clap(long, action, default_value_t = false, global = true)]
         use_internal_ip_addresses: bool,
+
+        /// Optional perturbation spec. If omitted => None
+        #[arg(long = "latency-perturbation-spec")]
+        latency_perturbation_spec: Option<PerturbationSpec>,
+
+        /// Optional how many clusters to use in the latency topology, if None
+        /// number of nodes is the number of latency clusters
+        #[arg(long, value_name = "INT")]
+        number_of_clusters: Option<usize>,
+
+        /// Optional number-of-triangles parameter for broken-topologies
+        #[arg(long, value_name = "INT", default_value = "5", global = true)]
+        number_of_triangles: u16,
+
+        /// Extra artificial latency when perturbing topo
+        #[arg(long, value_name = "INT", default_value = "20", global = true)]
+        added_latency: u16,
+
+        /// Maximum latency between two nodes/clusters in a private network
+        #[arg(long, value_name = "INT", default_value = "400", global = true)]
+        maximum_latency: u16,
+
+        /// Switch protocols between mysticeti and starfish every epoch,
+        /// default: false, aka use starfish in every epoch.
+        #[clap(long, action, default_value_t = false, global = true)]
+        protocol_switch_each_epoch: bool,
     },
 
     /// Print a summary of the specified measurements collection.
@@ -226,6 +254,11 @@ pub enum Load {
         #[arg(long, value_name = "INT", default_value = "5")]
         max_iterations: usize,
     },
+}
+#[derive(ValueEnum, Clone, Debug)]
+pub enum PerturbationSpec {
+    BrokenTriangle,
+    // potentially other options later
 }
 
 fn parse_duration(arg: &str) -> Result<Duration, std::num::ParseIntError> {
@@ -320,6 +353,12 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
             retries,
             load_type,
             use_internal_ip_addresses,
+            latency_perturbation_spec,
+            added_latency,
+            number_of_triangles,
+            number_of_clusters,
+            protocol_switch_each_epoch,
+            maximum_latency,
         } => {
             // Create a new orchestrator to instruct the testbed.
             let username = testbed.username();
@@ -363,10 +402,30 @@ async fn run<C: ServerProviderClient>(settings: Settings, client: C, opts: Opts)
                 }
             };
 
+            let perturbation_spec = match latency_perturbation_spec {
+                Some(PerturbationSpec::BrokenTriangle) => {
+                    net_latency::PerturbationSpec::BrokenTriangle {
+                        added_latency,
+                        number_of_triangles,
+                    }
+                }
+                None => net_latency::PerturbationSpec::None,
+            };
+
+            let latency_topology = if let Some(number_of_clusters) = number_of_clusters {
+                TopologyLayout::Clustered { number_of_clusters }
+            } else {
+                TopologyLayout::Geographical
+            };
+
             let generator =
                 BenchmarkParametersGenerator::new(committee, load, use_internal_ip_addresses)
                     .with_benchmark_type(benchmark_type)
                     .with_custom_duration(duration)
+                    .with_perturbation_spec(perturbation_spec)
+                    .with_latency_topology(latency_topology)
+                    .with_protocol_switch_each_epoch(protocol_switch_each_epoch)
+                    .with_max_latency(maximum_latency)
                     .with_faults(fault_type);
 
             Orchestrator::new(

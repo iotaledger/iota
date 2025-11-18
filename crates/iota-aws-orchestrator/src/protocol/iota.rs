@@ -158,6 +158,11 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                 let command = [
                     "source $HOME/.cargo/env",
                     "export RUSTFLAGS='-C target-cpu=native'",
+                    if parameters.protocol_switch_each_epoch {
+                        "export CONSENSUS_PROTOCOL=swap_each_epoch"
+                    } else {
+                        "export CONSENSUS_PROTOCOL=starfish"
+                    },
                     &run,
                 ]
                 .join(" && ");
