@@ -6,20 +6,24 @@ use std::{
     collections::{BTreeMap, HashMap},
     path::PathBuf,
     sync::{Arc, Mutex},
-    time::Instant,
+    time::{Duration, Instant},
 };
 
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
+    committee::EpochId,
     digests::TransactionDigest,
     dynamic_field::visitor as DFV,
     full_checkpoint_content::CheckpointData,
+    iota_system_state::IotaSystemStateTrait,
     layout_resolver::LayoutResolver,
-    messages_checkpoint::CheckpointContents,
+    messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey, error::Error as StorageError,
+        BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey, EpochInfo, TransactionInfo,
+        error::Error as StorageError,
     },
+    transaction::{TransactionDataAPI, TransactionKind},
 };
 use move_core_types::language_storage::StructTag;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -37,7 +41,7 @@ use crate::{
     par_index_live_object_set::{LiveObjectIndexer, ParMakeLiveObjectIndexer},
 };
 
-const CURRENT_DB_VERSION: u64 = 0;
+const CURRENT_DB_VERSION: u64 = 1;
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 struct MetadataInfo {
@@ -45,7 +49,14 @@ struct MetadataInfo {
     version: u64,
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
+/// Checkpoint watermark type
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
+pub enum Watermark {
+    Indexed,
+    Pruned,
+}
+
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct OwnerIndexKey {
     pub owner: IotaAddress,
     pub object_id: ObjectID,
@@ -73,11 +84,6 @@ impl OwnerIndexInfo {
     }
 }
 
-#[derive(Clone, Copy, Serialize, Deserialize, Eq, PartialEq, Debug)]
-pub struct TransactionInfo {
-    pub checkpoint: u64,
-}
-
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Hash, Debug)]
 pub struct CoinIndexKey {
     coin_type: StructTag,
@@ -90,13 +96,11 @@ pub struct CoinIndexInfo {
 }
 
 impl CoinIndexInfo {
-    fn merge(self, other: Self) -> Self {
-        Self {
-            coin_metadata_object_id: self
-                .coin_metadata_object_id
-                .or(other.coin_metadata_object_id),
-            treasury_object_id: self.treasury_object_id.or(other.treasury_object_id),
-        }
+    fn merge(&mut self, other: Self) {
+        self.coin_metadata_object_id = self
+            .coin_metadata_object_id
+            .or(other.coin_metadata_object_id);
+        self.treasury_object_id = self.treasury_object_id.or(other.treasury_object_id);
     }
 }
 
@@ -119,6 +123,20 @@ struct IndexStoreTables {
     /// - version of the DB. Everytime a new table or schema is changed the
     ///   version number needs to be incremented.
     meta: DBMap<(), MetadataInfo>,
+
+    /// Table used to track watermark for the highest indexed checkpoint
+    ///
+    /// This is useful to help know the highest checkpoint that was indexed in
+    /// the event that the node was running with indexes enabled, then run
+    /// for a period of time with indexes disabled, and then run with them
+    /// enabled again so that the tables can be reinitialized.
+    watermark: DBMap<Watermark, CheckpointSequenceNumber>,
+
+    /// An index of extra metadata for Epochs.
+    ///
+    /// Only contains entries for transactions which have yet to be pruned from
+    /// the main database.
+    epochs: DBMap<EpochId, EpochInfo>,
 
     /// An index of extra metadata for Transactions.
     ///
@@ -158,22 +176,25 @@ impl IndexStoreTables {
         )
     }
 
-    fn needs_to_do_initialization(&self) -> bool {
-        match self.meta.get(&()) {
+    fn needs_to_do_initialization(&self, checkpoint_store: &CheckpointStore) -> bool {
+        (match self.meta.get(&()) {
             Ok(Some(metadata)) => metadata.version != CURRENT_DB_VERSION,
             Ok(None) => true,
             Err(_) => true,
-        }
+        }) || self.is_indexed_watermark_out_of_date(checkpoint_store)
     }
 
-    fn needs_to_delete_old_db(&self) -> bool {
-        match self.meta.get(&()) {
-            Ok(Some(metadata)) => metadata.version != CURRENT_DB_VERSION,
-            Ok(None) => false,
-            Err(_) => true,
-        }
+    // Check if the index watermark is behind the highets_executed watermark.
+    fn is_indexed_watermark_out_of_date(&self, checkpoint_store: &CheckpointStore) -> bool {
+        let highest_executed_checkpoint = checkpoint_store
+            .get_highest_executed_checkpoint_seq_number()
+            .ok()
+            .flatten();
+        let watermark = self.watermark.get(&Watermark::Indexed).ok().flatten();
+        watermark < highest_executed_checkpoint
     }
 
+    #[tracing::instrument(skip_all)]
     fn init(
         &mut self,
         authority_store: &AuthorityStore,
@@ -183,44 +204,29 @@ impl IndexStoreTables {
     ) -> Result<(), StorageError> {
         info!("Initializing REST indexes");
 
-        // Iterate through available, executed checkpoints that have yet to be pruned
-        // to initialize checkpoint and transaction based indexes.
-        if let Some(highest_executed_checkpoint) =
-            checkpoint_store.get_highest_executed_checkpoint_seq_number()?
-        {
-            let lowest_available_checkpoint = checkpoint_store
-                .get_highest_pruned_checkpoint_seq_number()?
-                .saturating_add(1);
+        let highest_executed_checkpoint =
+            checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
+        let lowest_available_checkpoint = checkpoint_store
+            .get_highest_pruned_checkpoint_seq_number()?
+            .map(|c| c.saturating_add(1))
+            .unwrap_or(0);
+        let lowest_available_checkpoint_objects = authority_store
+            .perpetual_tables
+            .get_highest_pruned_checkpoint()?
+            .map(|c| c.saturating_add(1))
+            .unwrap_or(0);
 
-            let checkpoint_range = lowest_available_checkpoint..=highest_executed_checkpoint;
+        // Doing backfill requires processing objects so we have to restrict our
+        // backfill range to the range of checkpoints that we have objects for.
+        let lowest_available_checkpoint =
+            lowest_available_checkpoint.max(lowest_available_checkpoint_objects);
 
-            info!(
-                "Indexing {} checkpoints in range {checkpoint_range:?}",
-                checkpoint_range.size_hint().0
-            );
-            let start_time = Instant::now();
+        let checkpoint_range = highest_executed_checkpoint.map(|highest_executed_checkpoint| {
+            lowest_available_checkpoint..=highest_executed_checkpoint
+        });
 
-            checkpoint_range.into_par_iter().try_for_each(|seq| {
-                let checkpoint = checkpoint_store
-                    .get_checkpoint_by_sequence_number(seq)?
-                    .ok_or_else(|| StorageError::missing(format!("missing checkpoint {seq}")))?;
-                let contents = checkpoint_store
-                    .get_checkpoint_contents(&checkpoint.content_digest)?
-                    .ok_or_else(|| StorageError::missing(format!("missing checkpoint {seq}")))?;
-
-                let info = TransactionInfo {
-                    checkpoint: checkpoint.sequence_number,
-                };
-
-                self.transactions
-                    .multi_insert(contents.iter().map(|digests| (digests.transaction, info)))
-                    .map_err(StorageError::from)
-            })?;
-
-            info!(
-                "Indexing checkpoints took {} seconds",
-                start_time.elapsed().as_secs()
-            );
+        if let Some(checkpoint_range) = checkpoint_range {
+            self.index_existing_transactions(authority_store, checkpoint_store, checkpoint_range)?;
         }
 
         let coin_index = Mutex::new(HashMap::new());
@@ -239,6 +245,11 @@ impl IndexStoreTables {
 
         self.coin.multi_insert(coin_index.into_inner().unwrap())?;
 
+        self.watermark.insert(
+            &Watermark::Indexed,
+            &highest_executed_checkpoint.unwrap_or(0),
+        )?;
+
         self.meta.insert(
             &(),
             &MetadataInfo {
@@ -251,9 +262,42 @@ impl IndexStoreTables {
         Ok(())
     }
 
+    #[tracing::instrument(skip(self, authority_store, checkpoint_store))]
+    fn index_existing_transactions(
+        &mut self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+        checkpoint_range: std::ops::RangeInclusive<u64>,
+    ) -> Result<(), StorageError> {
+        info!(
+            "Indexing {} checkpoints in range {checkpoint_range:?}",
+            checkpoint_range.size_hint().0
+        );
+        let start_time = Instant::now();
+
+        checkpoint_range.into_par_iter().try_for_each(|seq| {
+            let checkpoint_data =
+                sparse_checkpoint_data_for_backfill(authority_store, checkpoint_store, seq)?;
+
+            let mut batch = self.transactions.batch();
+
+            self.index_epoch(&checkpoint_data, &mut batch)?;
+            self.index_transactions(&checkpoint_data, &mut batch)?;
+
+            batch.write().map_err(StorageError::from)
+        })?;
+
+        info!(
+            "Indexing checkpoints took {} seconds",
+            start_time.elapsed().as_secs()
+        );
+        Ok(())
+    }
+
     /// Prune data from this Index
     fn prune(
         &self,
+        pruned_checkpoint_watermark: u64,
         checkpoint_contents_to_prune: &[CheckpointContents],
     ) -> Result<(), TypedStoreError> {
         let mut batch = self.transactions.batch();
@@ -263,6 +307,10 @@ impl IndexStoreTables {
             .flat_map(|contents| contents.iter().map(|digests| digests.transaction));
 
         batch.delete_batch(&self.transactions, transactions_to_prune)?;
+        batch.insert_batch(
+            &self.watermark,
+            [(Watermark::Pruned, pruned_checkpoint_watermark)],
+        )?;
 
         batch.write()
     }
@@ -280,111 +328,17 @@ impl IndexStoreTables {
 
         let mut batch = self.transactions.batch();
 
-        // transactions index
-        {
-            let info = TransactionInfo {
-                checkpoint: checkpoint.checkpoint_summary.sequence_number,
-            };
+        self.index_epoch(checkpoint, &mut batch)?;
+        self.index_transactions(checkpoint, &mut batch)?;
+        self.index_objects(checkpoint, resolver, &mut batch)?;
 
-            batch.insert_batch(
-                &self.transactions,
-                checkpoint
-                    .checkpoint_contents
-                    .iter()
-                    .map(|digests| (digests.transaction, info)),
-            )?;
-        }
-
-        // object indexes
-        {
-            let mut coin_index = HashMap::new();
-
-            for tx in &checkpoint.transactions {
-                // determine changes from removed objects
-                for removed_object in tx.removed_objects_pre_version() {
-                    match removed_object.owner() {
-                        Owner::AddressOwner(address) => {
-                            let owner_key = OwnerIndexKey::new(*address, removed_object.id());
-                            batch.delete_batch(&self.owner, [owner_key])?;
-                        }
-                        Owner::ObjectOwner(object_id) => {
-                            batch.delete_batch(
-                                &self.dynamic_field,
-                                [DynamicFieldKey::new(*object_id, removed_object.id())],
-                            )?;
-                        }
-                        Owner::Shared { .. } | Owner::Immutable => {}
-                    }
-                }
-
-                // determine changes from changed objects
-                for (object, old_object) in tx.changed_objects() {
-                    if let Some(old_object) = old_object {
-                        if old_object.owner() != object.owner() {
-                            match old_object.owner() {
-                                Owner::AddressOwner(address) => {
-                                    let owner_key = OwnerIndexKey::new(*address, old_object.id());
-                                    batch.delete_batch(&self.owner, [owner_key])?;
-                                }
-
-                                Owner::ObjectOwner(object_id) => {
-                                    batch.delete_batch(
-                                        &self.dynamic_field,
-                                        [DynamicFieldKey::new(*object_id, old_object.id())],
-                                    )?;
-                                }
-
-                                Owner::Shared { .. } | Owner::Immutable => {}
-                            }
-                        }
-                    }
-
-                    match object.owner() {
-                        Owner::AddressOwner(owner) => {
-                            let owner_key = OwnerIndexKey::new(*owner, object.id());
-                            let owner_info = OwnerIndexInfo::new(object);
-                            batch.insert_batch(&self.owner, [(owner_key, owner_info)])?;
-                        }
-                        Owner::ObjectOwner(parent) => {
-                            if let Some(field_info) =
-                                try_create_dynamic_field_info(object, resolver)
-                                    .ok()
-                                    .flatten()
-                            {
-                                let field_key = DynamicFieldKey::new(*parent, object.id());
-
-                                batch
-                                    .insert_batch(&self.dynamic_field, [(field_key, field_info)])?;
-                            }
-                        }
-                        Owner::Shared { .. } | Owner::Immutable => {}
-                    }
-                }
-
-                // coin indexing
-                //
-                // coin indexing relies on the fact that CoinMetadata and TreasuryCap are
-                // created in the same transaction so we don't need to worry
-                // about overriding any older value that may exist in the
-                // database (because there necessarily cannot be).
-                for (key, value) in tx.created_objects().flat_map(try_create_coin_index_info) {
-                    use std::collections::hash_map::Entry;
-
-                    match coin_index.entry(key) {
-                        Entry::Occupied(o) => {
-                            let (key, v) = o.remove_entry();
-                            let value = value.merge(v);
-                            batch.insert_batch(&self.coin, [(key, value)])?;
-                        }
-                        Entry::Vacant(v) => {
-                            v.insert(value);
-                        }
-                    }
-                }
-            }
-
-            batch.insert_batch(&self.coin, coin_index)?;
-        }
+        batch.insert_batch(
+            &self.watermark,
+            [(
+                Watermark::Indexed,
+                checkpoint.checkpoint_summary.sequence_number,
+            )],
+        )?;
 
         debug!(
             checkpoint = checkpoint.checkpoint_summary.sequence_number,
@@ -392,6 +346,177 @@ impl IndexStoreTables {
         );
 
         Ok(batch)
+    }
+
+    fn index_epoch(
+        &self,
+        checkpoint: &CheckpointData,
+        batch: &mut typed_store::rocks::DBBatch,
+    ) -> Result<(), StorageError> {
+        let CheckpointData {
+            checkpoint_summary,
+            transactions,
+            ..
+        } = checkpoint;
+
+        let Some(_end_of_epoch) = checkpoint_summary.end_of_epoch_data.as_ref() else {
+            return Ok(());
+        };
+
+        let Some(transaction) = transactions.iter().find(|tx| {
+            matches!(
+                tx.transaction.intent_message().value.kind(),
+                TransactionKind::EndOfEpochTransaction(_)
+            )
+        }) else {
+            return Err(StorageError::custom(format!(
+                "Failed to get end of epoch transaction in checkpoint {} with EndOfEpochData",
+                checkpoint_summary.sequence_number,
+            )));
+        };
+
+        // We need to handle closing out the current epoch by updating the entry for
+        // this epoch in case it exists.
+        if let Some(mut current_epoch) = self.epochs.get(&checkpoint_summary.epoch)? {
+            current_epoch.end_timestamp_ms = Some(checkpoint_summary.timestamp_ms);
+            current_epoch.end_checkpoint = Some(checkpoint_summary.sequence_number);
+            batch.insert_batch(&self.epochs, [(current_epoch.epoch, current_epoch)])?;
+        }
+
+        let system_state = iota_types::iota_system_state::get_iota_system_state(
+            &transaction.output_objects.as_slice(),
+        )
+        .map_err(|e| {
+            StorageError::custom(format!(
+                "Failed to find system state object output from end of epoch transaction: {e}"
+            ))
+        })?;
+        let next_epoch = EpochInfo {
+            epoch: system_state.epoch(),
+            protocol_version: system_state.protocol_version(),
+            start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
+            end_timestamp_ms: None,
+            start_checkpoint: checkpoint_summary.sequence_number + 1,
+            end_checkpoint: None,
+            reference_gas_price: system_state.reference_gas_price(),
+            system_state,
+        };
+        batch.insert_batch(&self.epochs, [(next_epoch.epoch, next_epoch)])?;
+
+        Ok(())
+    }
+
+    fn index_transactions(
+        &self,
+        checkpoint: &CheckpointData,
+        batch: &mut typed_store::rocks::DBBatch,
+    ) -> Result<(), StorageError> {
+        for tx in &checkpoint.transactions {
+            let info = TransactionInfo::new(
+                &tx.input_objects,
+                &tx.output_objects,
+                checkpoint.checkpoint_summary.sequence_number,
+            );
+
+            let digest = tx.transaction.digest();
+            batch.insert_batch(&self.transactions, [(digest, info)])?;
+        }
+
+        Ok(())
+    }
+
+    fn index_objects(
+        &self,
+        checkpoint: &CheckpointData,
+        resolver: &mut dyn LayoutResolver,
+        batch: &mut typed_store::rocks::DBBatch,
+    ) -> Result<(), StorageError> {
+        let mut coin_index: HashMap<CoinIndexKey, CoinIndexInfo> = HashMap::new();
+
+        for tx in &checkpoint.transactions {
+            // determine changes from removed objects
+            for removed_object in tx.removed_objects_pre_version() {
+                match removed_object.owner() {
+                    Owner::AddressOwner(address) => {
+                        let owner_key = OwnerIndexKey::new(*address, removed_object.id());
+                        batch.delete_batch(&self.owner, [owner_key])?;
+                    }
+                    Owner::ObjectOwner(object_id) => {
+                        batch.delete_batch(
+                            &self.dynamic_field,
+                            [DynamicFieldKey::new(*object_id, removed_object.id())],
+                        )?;
+                    }
+                    Owner::Shared { .. } | Owner::Immutable => {}
+                }
+            }
+
+            // determine changes from changed objects
+            for (object, old_object) in tx.changed_objects() {
+                if let Some(old_object) = old_object {
+                    match old_object.owner() {
+                        Owner::AddressOwner(address) => {
+                            let owner_key = OwnerIndexKey::new(*address, old_object.id());
+                            batch.delete_batch(&self.owner, [owner_key])?;
+                        }
+
+                        Owner::ObjectOwner(object_id) => {
+                            if old_object.owner() != object.owner() {
+                                batch.delete_batch(
+                                    &self.dynamic_field,
+                                    [DynamicFieldKey::new(*object_id, old_object.id())],
+                                )?;
+                            }
+                        }
+
+                        Owner::Shared { .. } | Owner::Immutable => {}
+                    }
+                }
+
+                match object.owner() {
+                    Owner::AddressOwner(owner) => {
+                        let owner_key = OwnerIndexKey::new(*owner, object.id());
+                        let owner_info = OwnerIndexInfo::new(object);
+                        batch.insert_batch(&self.owner, [(owner_key, owner_info)])?;
+                    }
+                    Owner::ObjectOwner(parent) => {
+                        if let Some(field_info) = try_create_dynamic_field_info(object, resolver)? {
+                            let field_key = DynamicFieldKey::new(*parent, object.id());
+
+                            batch.insert_batch(&self.dynamic_field, [(field_key, field_info)])?;
+                        }
+                    }
+                    Owner::Shared { .. } | Owner::Immutable => {}
+                }
+            }
+
+            // coin indexing
+            //
+            // coin indexing relies on the fact that CoinMetadata and TreasuryCap are
+            // created in the same transaction so we don't need to worry about
+            // overriding any older value that may exist in the database
+            // (because there necessarily cannot be).
+            for (key, value) in tx.created_objects().flat_map(try_create_coin_index_info) {
+                use std::collections::hash_map::Entry;
+
+                match coin_index.entry(key) {
+                    Entry::Occupied(mut o) => {
+                        o.get_mut().merge(value);
+                    }
+                    Entry::Vacant(v) => {
+                        v.insert(value);
+                    }
+                }
+            }
+        }
+
+        batch.insert_batch(&self.coin, coin_index)?;
+
+        Ok(())
+    }
+
+    fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>, TypedStoreError> {
+        self.epochs.get(&epoch)
     }
 
     fn get_transaction_info(
@@ -449,7 +574,7 @@ pub struct RestIndexStore {
 }
 
 impl RestIndexStore {
-    pub fn new(
+    pub async fn new(
         path: PathBuf,
         authority_store: &AuthorityStore,
         checkpoint_store: &CheckpointStore,
@@ -461,14 +586,13 @@ impl RestIndexStore {
 
             // If the index tables are uninitialized or on an older version then we need to
             // populate them
-            if tables.needs_to_do_initialization() {
-                let mut tables = if tables.needs_to_delete_old_db() {
+            if tables.needs_to_do_initialization(checkpoint_store) {
+                let mut tables = {
                     drop(tables);
-                    typed_store::rocks::safe_drop_db(path.clone())
-                        .expect("unable to destroy old rest-index db");
+                    typed_store::rocks::safe_drop_db(path.clone(), Duration::from_secs(30))
+                        .await
+                        .expect("unable to destroy old rpc-index db");
                     IndexStoreTables::open(path)
-                } else {
-                    tables
                 };
 
                 tables
@@ -502,15 +626,21 @@ impl RestIndexStore {
 
     pub fn prune(
         &self,
+        pruned_checkpoint_watermark: u64,
         checkpoint_contents_to_prune: &[CheckpointContents],
     ) -> Result<(), TypedStoreError> {
-        self.tables.prune(checkpoint_contents_to_prune)
+        self.tables
+            .prune(pruned_checkpoint_watermark, checkpoint_contents_to_prune)
     }
 
     /// Index a checkpoint and stage the index updated in `pending_updates`.
     ///
     /// Updates will not be committed to the database until
     /// `commit_update_for_checkpoint` is called.
+    #[tracing::instrument(
+        skip_all,
+        fields(checkpoint = checkpoint.checkpoint_summary.sequence_number)
+    )]
     pub fn index_checkpoint(&self, checkpoint: &CheckpointData, resolver: &mut dyn LayoutResolver) {
         let sequence_number = checkpoint.checkpoint_summary.sequence_number;
         let batch = self
@@ -531,6 +661,7 @@ impl RestIndexStore {
     /// - Callers of this function must ensure that it is called for each
     ///   checkpoint in sequential order. This will panic if the provided
     ///   checkpoint does not match the expected next checkpoint to commit.
+    #[tracing::instrument(skip(self))]
     pub fn commit_update_for_checkpoint(&self, checkpoint: u64) -> Result<(), StorageError> {
         let next_batch = self.pending_updates.lock().unwrap().pop_first();
 
@@ -542,6 +673,10 @@ impl RestIndexStore {
         );
 
         Ok(batch.write()?)
+    }
+
+    pub fn get_epoch_info(&self, epoch: EpochId) -> Result<Option<EpochInfo>, TypedStoreError> {
+        self.tables.get_epoch_info(epoch)
     }
 
     pub fn get_transaction_info(
@@ -719,10 +854,8 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
             use std::collections::hash_map::Entry;
 
             match self.coin_index.lock().unwrap().entry(key) {
-                Entry::Occupied(o) => {
-                    let (key, v) = o.remove_entry();
-                    let value = value.merge(v);
-                    self.batch.insert_batch(&self.tables.coin, [(key, value)])?;
+                Entry::Occupied(mut o) => {
+                    o.get_mut().merge(value);
                 }
                 Entry::Vacant(v) => {
                     v.insert(value);
@@ -743,4 +876,67 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
         self.batch.write()?;
         Ok(())
     }
+}
+
+// TODO figure out a way to dedup this logic. Today we'd need to do quite a bit
+// of refactoring to make it possible.
+//
+// Load a CheckpointData struct without event data
+fn sparse_checkpoint_data_for_backfill(
+    authority_store: &AuthorityStore,
+    checkpoint_store: &CheckpointStore,
+    checkpoint: u64,
+) -> Result<CheckpointData, StorageError> {
+    use iota_types::full_checkpoint_content::CheckpointTransaction;
+
+    let summary = checkpoint_store
+        .get_checkpoint_by_sequence_number(checkpoint)?
+        .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint}")))?;
+    let contents = checkpoint_store
+        .get_checkpoint_contents(&summary.content_digest)?
+        .ok_or_else(|| StorageError::missing(format!("missing checkpoint {checkpoint}")))?;
+
+    let transaction_digests = contents
+        .iter()
+        .map(|execution_digests| execution_digests.transaction)
+        .collect::<Vec<_>>();
+    let transactions = authority_store
+        .multi_get_transaction_blocks(&transaction_digests)?
+        .into_iter()
+        .map(|maybe_transaction| {
+            maybe_transaction.ok_or_else(|| StorageError::custom("missing transaction"))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let effects = authority_store
+        .multi_get_executed_effects(&transaction_digests)?
+        .into_iter()
+        .map(|maybe_effects| maybe_effects.ok_or_else(|| StorageError::custom("missing effects")))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut full_transactions = Vec::with_capacity(transactions.len());
+    for (tx, fx) in transactions.into_iter().zip(effects) {
+        let input_objects =
+            iota_types::storage::get_transaction_input_objects(authority_store, &fx)?;
+        let output_objects =
+            iota_types::storage::get_transaction_output_objects(authority_store, &fx)?;
+
+        let full_transaction = CheckpointTransaction {
+            transaction: tx.into(),
+            effects: fx,
+            events: None,
+            input_objects,
+            output_objects,
+        };
+
+        full_transactions.push(full_transaction);
+    }
+
+    let checkpoint_data = CheckpointData {
+        checkpoint_summary: summary.into(),
+        checkpoint_contents: contents,
+        transactions: full_transactions,
+    };
+
+    Ok(checkpoint_data)
 }
