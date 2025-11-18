@@ -153,8 +153,10 @@ impl MoveAuthenticator {
 
         // `ProtocolConfig::max_arguments` is used to check the call arguments because
         // MoveAuthenticator is considered as a simple programmable Move call.
+        //
+        // The limit includes the object to authenticate, so we subtract 1 here.
         fp_ensure!(
-            self.call_args().len() < (config.max_arguments() as usize),
+            self.call_args().len() < (config.max_arguments() - 1) as usize,
             UserInputError::SizeLimitExceeded {
                 limit: "maximum arguments in MoveAuthenticator".to_string(),
                 value: config.max_arguments().to_string()
