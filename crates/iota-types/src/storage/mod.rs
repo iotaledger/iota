@@ -19,7 +19,7 @@ use move_binary_format::CompiledModule;
 use move_core_types::language_storage::ModuleId;
 pub use object_store_trait::ObjectStore;
 pub use read_store::{
-    CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, EpochInfo, OwnedObjectInfo, ReadStore,
+    AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, EpochInfo, ReadStore,
     RestIndexes, RestStateReader, TransactionInfo,
 };
 use serde::{Deserialize, Serialize};

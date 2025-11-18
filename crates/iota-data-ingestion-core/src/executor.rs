@@ -243,7 +243,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     }
 
     /// Alternative main executor loop. Uses the new iteration of the
-    /// `CheckpointReader` supporting syncing checkppints from hybrid historical
+    /// `CheckpointReader` supporting syncing checkpoints from hybrid historical
     /// store.
     ///
     /// # Error

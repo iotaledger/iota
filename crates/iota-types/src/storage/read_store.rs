@@ -6,15 +6,14 @@ use std::{collections::HashMap, sync::Arc};
 
 use move_core_types::language_storage::{StructTag, TypeTag};
 use serde::{Deserialize, Serialize};
-use typed_store_error::TypedStoreError;
 
 use super::{ObjectStore, error::Result};
 use crate::{
-    base_types::{EpochId, IotaAddress, ObjectID, ObjectType, SequenceNumber},
+    base_types::{EpochId, IotaAddress, MoveObjectType, ObjectID, ObjectType, SequenceNumber},
     committee::Committee,
     digests::{
-        ChainIdentifier, CheckpointContentsDigest, CheckpointDigest, ObjectDigest,
-        TransactionDigest, TransactionEventsDigest,
+        ChainIdentifier, CheckpointContentsDigest, CheckpointDigest, TransactionDigest,
+        TransactionEventsDigest,
     },
     dynamic_field::DynamicFieldType,
     effects::{TransactionEffects, TransactionEvents},
@@ -24,7 +23,7 @@ use crate::{
     },
     object::Object,
     storage::{get_transaction_input_objects, get_transaction_output_objects},
-    transaction::{TransactionData, VerifiedTransaction},
+    transaction::VerifiedTransaction,
 };
 
 pub trait ReadStore: ObjectStore {
@@ -784,12 +783,11 @@ pub trait RestIndexes: Send + Sync {
 
     fn get_transaction_info(&self, digest: &TransactionDigest) -> Result<Option<TransactionInfo>>;
 
-    fn owned_objects_iter(
+    fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
-        object_type: Option<StructTag>,
-        cursor: Option<OwnedObjectInfo>,
-    ) -> Result<Box<dyn Iterator<Item = Result<OwnedObjectInfo, TypedStoreError>> + '_>>;
+        cursor: Option<ObjectID>,
+    ) -> Result<Box<dyn Iterator<Item = AccountOwnedObjectInfo> + '_>>;
 
     fn dynamic_field_iter(
         &self,
@@ -800,14 +798,11 @@ pub trait RestIndexes: Send + Sync {
     fn get_coin_info(&self, coin_type: &StructTag) -> Result<Option<CoinInfo>>;
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct OwnedObjectInfo {
+pub struct AccountOwnedObjectInfo {
     pub owner: IotaAddress,
-    pub object_type: StructTag,
-    pub balance: Option<u64>,
     pub object_id: ObjectID,
     pub version: SequenceNumber,
-    pub digest: ObjectDigest,
+    pub type_: MoveObjectType,
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
@@ -828,12 +823,15 @@ impl DynamicFieldKey {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct DynamicFieldIndexInfo {
     // field_id of this dynamic field is a part of the Key
-    pub dynamic_field_kind: DynamicFieldType,
-
+    pub dynamic_field_type: DynamicFieldType,
     pub name_type: TypeTag,
     pub name_value: Vec<u8>,
-    pub value_type: TypeTag,
-
+    // TODO do we want to also store the type of the value? We can get this for free for
+    // DynamicFields, but for DynamicObjects it would require a lookup in the DB on init, or
+    // scanning the transaction's output objects for the coorisponding Object to retrieve its type
+    // information.
+    //
+    // pub value_type: TypeTag,
     /// ObjectId of the child object when `dynamic_field_type ==
     /// DynamicFieldType::DynamicObject`
     pub dynamic_object_id: Option<ObjectID>,
@@ -843,7 +841,6 @@ pub struct DynamicFieldIndexInfo {
 pub struct CoinInfo {
     pub coin_metadata_object_id: Option<ObjectID>,
     pub treasury_object_id: Option<ObjectID>,
-    pub regulated_coin_metadata_object_id: Option<ObjectID>,
 }
 
 #[derive(Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]
@@ -854,7 +851,6 @@ pub struct TransactionInfo {
 
 impl TransactionInfo {
     pub fn new(
-        _transaction: &TransactionData,
         input_objects: &[Object],
         output_objects: &[Object],
         checkpoint: u64,
@@ -872,17 +868,15 @@ impl TransactionInfo {
     }
 }
 
-#[derive(Clone, Default, Serialize, Deserialize, Eq, PartialEq, Debug)]
+#[derive(Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]
 pub struct EpochInfo {
     pub epoch: u64,
-    pub protocol_version: Option<u64>,
-    pub start_timestamp_ms: Option<u64>,
+    pub protocol_version: u64,
+    pub start_timestamp_ms: u64,
     pub end_timestamp_ms: Option<u64>,
-    pub start_checkpoint: Option<u64>,
+    pub start_checkpoint: u64,
     pub end_checkpoint: Option<u64>,
-    pub reference_gas_price: Option<u64>,
+    pub reference_gas_price: u64,
     // System State as of the start of the epoch
-    pub system_state: Option<crate::iota_system_state::IotaSystemState>,
-    // pub end_of_epoch_transaction: Option<TransactionDigest>,
-    // pub epoch_commitments: Vec<iota_types::messages_checkpoint::CheckpointCommitment>,
+    pub system_state: crate::iota_system_state::IotaSystemState,
 }

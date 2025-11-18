@@ -16,8 +16,8 @@ use iota_types::{
     },
     object::Object,
     storage::{
-        CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey, ObjectStore, OwnedObjectInfo,
-        ReadStore, RestIndexes, RestStateReader, TransactionInfo, WriteStore,
+        AccountOwnedObjectInfo, CoinInfo, DynamicFieldIndexInfo, DynamicFieldKey, ObjectKey,
+        ObjectStore, ReadStore, RestIndexes, RestStateReader, TransactionInfo, WriteStore,
         error::{Error as StorageError, Result},
     },
     transaction::VerifiedTransaction,
@@ -26,7 +26,6 @@ use move_core_types::language_storage::StructTag;
 use parking_lot::Mutex;
 use tap::Pipe;
 use tracing::instrument;
-use typed_store::TypedStoreError;
 
 use crate::{
     authority::AuthorityState,
@@ -507,7 +506,8 @@ impl RestStateReader for RestReadStore {
         Ok(self
             .state
             .get_object_cache_reader()
-            .get_highest_pruned_checkpoint()
+            .try_get_highest_pruned_checkpoint()
+            .map_err(StorageError::custom)?
             .map(|cp| cp + 1)
             .unwrap_or(0))
     }
@@ -544,41 +544,21 @@ impl RestIndexes for RestIndexStore {
             .map_err(StorageError::custom)
     }
 
-    fn owned_objects_iter(
+    fn account_owned_objects_info_iter(
         &self,
         owner: IotaAddress,
-        object_type: Option<StructTag>,
-        cursor: Option<OwnedObjectInfo>,
-    ) -> Result<Box<dyn Iterator<Item = Result<OwnedObjectInfo, TypedStoreError>> + '_>> {
-        let cursor = cursor.map(|cursor| OwnerIndexKey {
-            owner: cursor.owner,
-            object_type: cursor.object_type,
-            inverted_balance: cursor.balance.map(std::ops::Not::not),
-            object_id: cursor.object_id,
-        });
-
-        let iter = self.owner_iter(owner, object_type, cursor)?.map(|result| {
-            result.map(
-                |(
-                    OwnerIndexKey {
-                        owner,
-                        object_id,
-                        object_type,
-                        inverted_balance,
-                    },
-                    OwnerIndexInfo { version, digest },
-                )| {
-                    OwnedObjectInfo {
-                        owner,
-                        object_type,
-                        balance: inverted_balance.map(std::ops::Not::not),
-                        object_id,
-                        version,
-                        digest,
-                    }
-                },
-            )
-        });
+        cursor: Option<ObjectID>,
+    ) -> Result<Box<dyn Iterator<Item = AccountOwnedObjectInfo> + '_>> {
+        let iter = self.owner_iter(owner, cursor)?.map(
+            |(OwnerIndexKey { owner, object_id }, OwnerIndexInfo { version, type_ })| {
+                AccountOwnedObjectInfo {
+                    owner,
+                    object_id,
+                    version,
+                    type_,
+                }
+            },
+        );
 
         Ok(Box::new(iter) as _)
     }
@@ -604,11 +584,9 @@ impl RestIndexes for RestIndexStore {
                 |CoinIndexInfo {
                      coin_metadata_object_id,
                      treasury_object_id,
-                     regulated_coin_metadata_object_id,
                  }| CoinInfo {
                     coin_metadata_object_id,
                     treasury_object_id,
-                    regulated_coin_metadata_object_id,
                 },
             )
             .pipe(Ok)

@@ -12,7 +12,7 @@ use std::{
 use iota_types::{
     base_types::{IotaAddress, MoveObjectType, ObjectID, SequenceNumber},
     committee::EpochId,
-    digests::{ObjectDigest, TransactionDigest},
+    digests::TransactionDigest,
     dynamic_field::visitor as DFV,
     full_checkpoint_content::CheckpointData,
     iota_system_state::IotaSystemStateTrait,
@@ -20,8 +20,8 @@ use iota_types::{
     messages_checkpoint::{CheckpointContents, CheckpointSequenceNumber},
     object::{Object, Owner},
     storage::{
-        BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey, EpochInfo, ObjectStore,
-        TransactionInfo, error::Error as StorageError,
+        BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey, EpochInfo, TransactionInfo,
+        error::Error as StorageError,
     },
     transaction::{TransactionDataAPI, TransactionKind},
 };
@@ -59,48 +59,27 @@ pub enum Watermark {
 #[derive(Clone, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct OwnerIndexKey {
     pub owner: IotaAddress,
-
-    pub object_type: StructTag,
-
-    // If this object is coin-like (eg 0x2::coin::Coin) then this will be the balance of the coin
-    // inverted `!coin.balance` in order to force sorting of coins to be from greatest to least
-    pub inverted_balance: Option<u64>,
-
     pub object_id: ObjectID,
 }
 
 impl OwnerIndexKey {
-    // Creates a key from the provided object.
-    // Panics if the provided object is not an Address owned object
-    fn from_object(object: &Object) -> Self {
-        let Owner::AddressOwner(owner) = object.owner() else {
-            panic!("cannot create OwnerIndexKey if owner is not AddressOwned");
-        };
-        let object_type = object.struct_tag().expect("packages cannot be owned");
-
-        let inverted_balance = object.as_coin_maybe().map(|coin| !coin.balance.value());
-
-        Self {
-            owner: *owner,
-            object_type,
-            inverted_balance,
-            object_id: object.id(),
-        }
+    fn new(owner: IotaAddress, object_id: ObjectID) -> Self {
+        Self { owner, object_id }
     }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
 pub struct OwnerIndexInfo {
-    // object_id and type of this object are a part of the key
+    // object_id of the object is a part of the Key
     pub version: SequenceNumber,
-    pub digest: ObjectDigest,
+    pub type_: MoveObjectType,
 }
 
 impl OwnerIndexInfo {
     pub fn new(object: &Object) -> Self {
         Self {
             version: object.version(),
-            digest: object.digest(),
+            type_: object.type_().expect("packages cannot be owned").to_owned(),
         }
     }
 }
@@ -114,7 +93,6 @@ pub struct CoinIndexKey {
 pub struct CoinIndexInfo {
     pub coin_metadata_object_id: Option<ObjectID>,
     pub treasury_object_id: Option<ObjectID>,
-    pub regulated_coin_metadata_object_id: Option<ObjectID>,
 }
 
 impl CoinIndexInfo {
@@ -122,9 +100,6 @@ impl CoinIndexInfo {
         self.coin_metadata_object_id = self
             .coin_metadata_object_id
             .or(other.coin_metadata_object_id);
-        self.regulated_coin_metadata_object_id = self
-            .regulated_coin_metadata_object_id
-            .or(other.regulated_coin_metadata_object_id);
         self.treasury_object_id = self.treasury_object_id.or(other.treasury_object_id);
     }
 }
@@ -211,12 +186,12 @@ impl IndexStoreTables {
 
     // Check if the index watermark is behind the highets_executed watermark.
     fn is_indexed_watermark_out_of_date(&self, checkpoint_store: &CheckpointStore) -> bool {
-        let highest_executed_checkpint = checkpoint_store
+        let highest_executed_checkpoint = checkpoint_store
             .get_highest_executed_checkpoint_seq_number()
             .ok()
             .flatten();
         let watermark = self.watermark.get(&Watermark::Indexed).ok().flatten();
-        watermark < highest_executed_checkpint
+        watermark < highest_executed_checkpoint
     }
 
     #[tracing::instrument(skip_all)]
@@ -229,7 +204,7 @@ impl IndexStoreTables {
     ) -> Result<(), StorageError> {
         info!("Initializing REST indexes");
 
-        let highest_executed_checkpint =
+        let highest_executed_checkpoint =
             checkpoint_store.get_highest_executed_checkpoint_seq_number()?;
         let lowest_available_checkpoint = checkpoint_store
             .get_highest_pruned_checkpoint_seq_number()?
@@ -240,13 +215,14 @@ impl IndexStoreTables {
             .get_highest_pruned_checkpoint()?
             .map(|c| c.saturating_add(1))
             .unwrap_or(0);
+
         // Doing backfill requires processing objects so we have to restrict our
         // backfill range to the range of checkpoints that we have objects for.
         let lowest_available_checkpoint =
             lowest_available_checkpoint.max(lowest_available_checkpoint_objects);
 
-        let checkpoint_range = highest_executed_checkpint.map(|highest_executed_checkpint| {
-            lowest_available_checkpoint..=highest_executed_checkpint
+        let checkpoint_range = highest_executed_checkpoint.map(|highest_executed_checkpoint| {
+            lowest_available_checkpoint..=highest_executed_checkpoint
         });
 
         if let Some(checkpoint_range) = checkpoint_range {
@@ -260,7 +236,6 @@ impl IndexStoreTables {
             coin_index: &coin_index,
             epoch_store,
             package_store,
-            object_store: authority_store as _,
         };
 
         crate::par_index_live_object_set::par_index_live_object_set(
@@ -272,7 +247,7 @@ impl IndexStoreTables {
 
         self.watermark.insert(
             &Watermark::Indexed,
-            &highest_executed_checkpint.unwrap_or(0),
+            &highest_executed_checkpoint.unwrap_or(0),
         )?;
 
         self.meta.insert(
@@ -401,15 +376,12 @@ impl IndexStoreTables {
         };
 
         // We need to handle closing out the current epoch by updating the entry for
-        // this epoch
-        let mut current_epoch = self
-            .epochs
-            .get(&checkpoint_summary.epoch)?
-            .unwrap_or_default();
-        current_epoch.epoch = checkpoint_summary.epoch; // set this incase there wasn't an entry
-        current_epoch.end_timestamp_ms = Some(checkpoint_summary.timestamp_ms);
-        current_epoch.end_checkpoint = Some(checkpoint_summary.sequence_number);
-        batch.insert_batch(&self.epochs, [(current_epoch.epoch, current_epoch)])?;
+        // this epoch in case it exists.
+        if let Some(mut current_epoch) = self.epochs.get(&checkpoint_summary.epoch)? {
+            current_epoch.end_timestamp_ms = Some(checkpoint_summary.timestamp_ms);
+            current_epoch.end_checkpoint = Some(checkpoint_summary.sequence_number);
+            batch.insert_batch(&self.epochs, [(current_epoch.epoch, current_epoch)])?;
+        }
 
         let system_state = iota_types::iota_system_state::get_iota_system_state(
             &transaction.output_objects.as_slice(),
@@ -421,13 +393,13 @@ impl IndexStoreTables {
         })?;
         let next_epoch = EpochInfo {
             epoch: system_state.epoch(),
-            protocol_version: Some(system_state.protocol_version()),
-            start_timestamp_ms: Some(system_state.epoch_start_timestamp_ms()),
+            protocol_version: system_state.protocol_version(),
+            start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
             end_timestamp_ms: None,
-            start_checkpoint: Some(checkpoint_summary.sequence_number + 1),
+            start_checkpoint: checkpoint_summary.sequence_number + 1,
             end_checkpoint: None,
-            reference_gas_price: Some(system_state.reference_gas_price()),
-            system_state: Some(system_state),
+            reference_gas_price: system_state.reference_gas_price(),
+            system_state,
         };
         batch.insert_batch(&self.epochs, [(next_epoch.epoch, next_epoch)])?;
 
@@ -441,7 +413,6 @@ impl IndexStoreTables {
     ) -> Result<(), StorageError> {
         for tx in &checkpoint.transactions {
             let info = TransactionInfo::new(
-                tx.transaction.transaction_data(),
                 &tx.input_objects,
                 &tx.output_objects,
                 checkpoint.checkpoint_summary.sequence_number,
@@ -466,8 +437,8 @@ impl IndexStoreTables {
             // determine changes from removed objects
             for removed_object in tx.removed_objects_pre_version() {
                 match removed_object.owner() {
-                    Owner::AddressOwner(_) => {
-                        let owner_key = OwnerIndexKey::from_object(removed_object);
+                    Owner::AddressOwner(address) => {
+                        let owner_key = OwnerIndexKey::new(*address, removed_object.id());
                         batch.delete_batch(&self.owner, [owner_key])?;
                     }
                     Owner::ObjectOwner(object_id) => {
@@ -484,8 +455,8 @@ impl IndexStoreTables {
             for (object, old_object) in tx.changed_objects() {
                 if let Some(old_object) = old_object {
                     match old_object.owner() {
-                        Owner::AddressOwner(_) => {
-                            let owner_key = OwnerIndexKey::from_object(old_object);
+                        Owner::AddressOwner(address) => {
+                            let owner_key = OwnerIndexKey::new(*address, old_object.id());
                             batch.delete_batch(&self.owner, [owner_key])?;
                         }
 
@@ -503,17 +474,13 @@ impl IndexStoreTables {
                 }
 
                 match object.owner() {
-                    Owner::AddressOwner(_) => {
-                        let owner_key = OwnerIndexKey::from_object(object);
+                    Owner::AddressOwner(owner) => {
+                        let owner_key = OwnerIndexKey::new(*owner, object.id());
                         let owner_info = OwnerIndexInfo::new(object);
                         batch.insert_batch(&self.owner, [(owner_key, owner_info)])?;
                     }
                     Owner::ObjectOwner(parent) => {
-                        if let Some(field_info) = try_create_dynamic_field_info(
-                            object,
-                            resolver,
-                            &tx.output_objects.as_slice() as _,
-                        )? {
+                        if let Some(field_info) = try_create_dynamic_field_info(object, resolver)? {
                             let field_key = DynamicFieldKey::new(*parent, object.id());
 
                             batch.insert_batch(&self.dynamic_field, [(field_key, field_info)])?;
@@ -562,38 +529,13 @@ impl IndexStoreTables {
     fn owner_iter(
         &self,
         owner: IotaAddress,
-        object_type: Option<StructTag>,
-        cursor: Option<OwnerIndexKey>,
-    ) -> Result<
-        impl Iterator<Item = Result<(OwnerIndexKey, OwnerIndexInfo), TypedStoreError>> + '_,
-        TypedStoreError,
-    > {
-        // TODO can we figure out how to pass a raw byte array as a cursor?
-        let lower_bound = cursor.unwrap_or_else(|| OwnerIndexKey {
-            owner,
-            object_type: object_type
-                .clone()
-                .unwrap_or_else(|| "0x0::a::a".parse::<StructTag>().unwrap()),
-            inverted_balance: None,
-            object_id: ObjectID::ZERO,
-        });
-
+        cursor: Option<ObjectID>,
+    ) -> Result<impl Iterator<Item = (OwnerIndexKey, OwnerIndexInfo)> + '_, TypedStoreError> {
+        let lower_bound = OwnerIndexKey::new(owner, cursor.unwrap_or(ObjectID::ZERO));
+        let upper_bound = OwnerIndexKey::new(owner, ObjectID::MAX);
         Ok(self
             .owner
-            .safe_iter_with_bounds(Some(lower_bound), None)
-            .take_while(move |item| {
-                // If there's an error let if flow through
-                let Ok((key, _)) = item else {
-                    return true;
-                };
-
-                // Only take if owner matches
-                key.owner == owner
-                    // and if an object type was supplied that the type matches
-                    && object_type
-                        .as_ref()
-                        .map(|ty| ty == &key.object_type).unwrap_or(true)
-            }))
+            .iter_with_bounds(Some(lower_bound), Some(upper_bound)))
     }
 
     fn dynamic_field_iter(
@@ -742,13 +684,9 @@ impl RestIndexStore {
     pub fn owner_iter(
         &self,
         owner: IotaAddress,
-        object_type: Option<StructTag>,
-        cursor: Option<OwnerIndexKey>,
-    ) -> Result<
-        impl Iterator<Item = Result<(OwnerIndexKey, OwnerIndexInfo), TypedStoreError>> + '_,
-        TypedStoreError,
-    > {
-        self.tables.owner_iter(owner, object_type, cursor)
+        cursor: Option<ObjectID>,
+    ) -> Result<impl Iterator<Item = (OwnerIndexKey, OwnerIndexInfo)> + '_, TypedStoreError> {
+        self.tables.owner_iter(owner, cursor)
     }
 
     pub fn dynamic_field_iter(
@@ -771,7 +709,6 @@ impl RestIndexStore {
 fn try_create_dynamic_field_info(
     object: &Object,
     resolver: &mut dyn LayoutResolver,
-    object_store: &dyn ObjectStore,
 ) -> Result<Option<DynamicFieldIndexInfo>, StorageError> {
     // Skip if not a move object
     let Some(move_object) = object.data.try_as_move() else {
@@ -798,72 +735,52 @@ fn try_create_dynamic_field_info(
     let field = DFV::FieldVisitor::deserialize(move_object.contents(), &layout)
         .map_err(StorageError::custom)?;
 
-    let (value_type, dynamic_object_id) = match field
-        .value_metadata()
-        .map_err(StorageError::custom)?
-    {
-        DFV::ValueMetadata::DynamicField(type_tag) => (type_tag, None),
-        DFV::ValueMetadata::DynamicObjectField(object_id) => {
-            let type_tag = object_store
-                .get_object(&object_id)
-                .ok_or_else(|| StorageError::custom(format!("missing dynamic object {object_id}")))?
-                .struct_tag()
-                .ok_or_else(|| StorageError::custom("dynamic object field cannot be a package"))?
-                .into();
-            (type_tag, Some(object_id))
-        }
-    };
+    let value_metadata = field.value_metadata().map_err(StorageError::custom)?;
 
     Ok(Some(DynamicFieldIndexInfo {
         name_type: field.name_layout.into(),
         name_value: field.name_bytes.to_owned(),
-        value_type,
-        dynamic_field_kind: field.kind,
-        dynamic_object_id,
+        dynamic_field_type: field.kind,
+        dynamic_object_id: if let DFV::ValueMetadata::DynamicObjectField(id) = value_metadata {
+            Some(id)
+        } else {
+            None
+        },
     }))
 }
 
 fn try_create_coin_index_info(object: &Object) -> Option<(CoinIndexKey, CoinIndexInfo)> {
-    use iota_types::coin::{CoinMetadata, RegulatedCoinMetadata, TreasuryCap};
+    use iota_types::coin::{CoinMetadata, TreasuryCap};
 
-    let object_type = object.type_().and_then(MoveObjectType::other)?;
-
-    if let Some(coin_type) = CoinMetadata::is_coin_metadata_with_coin_type(object_type).cloned() {
-        return Some((
-            CoinIndexKey { coin_type },
-            CoinIndexInfo {
-                coin_metadata_object_id: Some(object.id()),
-                treasury_object_id: None,
-                regulated_coin_metadata_object_id: None,
-            },
-        ));
-    }
-
-    if let Some(coin_type) = TreasuryCap::is_treasury_with_coin_type(object_type).cloned() {
-        return Some((
-            CoinIndexKey { coin_type },
-            CoinIndexInfo {
-                coin_metadata_object_id: None,
-                treasury_object_id: Some(object.id()),
-                regulated_coin_metadata_object_id: None,
-            },
-        ));
-    }
-
-    if let Some(coin_type) =
-        RegulatedCoinMetadata::is_regulated_coin_metadata_with_coin_type(object_type).cloned()
-    {
-        return Some((
-            CoinIndexKey { coin_type },
-            CoinIndexInfo {
-                coin_metadata_object_id: None,
-                treasury_object_id: None,
-                regulated_coin_metadata_object_id: Some(object.id()),
-            },
-        ));
-    }
-
-    None
+    object
+        .type_()
+        .and_then(MoveObjectType::other)
+        .and_then(|object_type| {
+            CoinMetadata::is_coin_metadata_with_coin_type(object_type)
+                .cloned()
+                .map(|coin_type| {
+                    (
+                        CoinIndexKey { coin_type },
+                        CoinIndexInfo {
+                            coin_metadata_object_id: Some(object.id()),
+                            treasury_object_id: None,
+                        },
+                    )
+                })
+                .or_else(|| {
+                    TreasuryCap::is_treasury_with_coin_type(object_type)
+                        .cloned()
+                        .map(|coin_type| {
+                            (
+                                CoinIndexKey { coin_type },
+                                CoinIndexInfo {
+                                    coin_metadata_object_id: None,
+                                    treasury_object_id: Some(object.id()),
+                                },
+                            )
+                        })
+                })
+        })
 }
 
 struct RestParLiveObjectSetIndexer<'a> {
@@ -871,7 +788,6 @@ struct RestParLiveObjectSetIndexer<'a> {
     coin_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
     epoch_store: &'a AuthorityPerEpochStore,
     package_store: &'a Arc<dyn BackingPackageStore + Send + Sync>,
-    object_store: &'a (dyn ObjectStore + Sync),
 }
 
 struct RestLiveObjectIndexer<'a> {
@@ -879,7 +795,6 @@ struct RestLiveObjectIndexer<'a> {
     batch: typed_store::rocks::DBBatch,
     coin_index: &'a Mutex<HashMap<CoinIndexKey, CoinIndexInfo>>,
     resolver: Box<dyn LayoutResolver + 'a>,
-    object_store: &'a (dyn ObjectStore + Sync),
 }
 
 impl<'a> ParMakeLiveObjectIndexer for RestParLiveObjectSetIndexer<'a> {
@@ -894,7 +809,6 @@ impl<'a> ParMakeLiveObjectIndexer for RestParLiveObjectSetIndexer<'a> {
                 .epoch_store
                 .executor()
                 .type_layout_resolver(Box::new(self.package_store)),
-            object_store: self.object_store,
         }
     }
 }
@@ -903,8 +817,8 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
     fn index_object(&mut self, object: Object) -> Result<(), StorageError> {
         match object.owner {
             // Owner Index
-            Owner::AddressOwner(_) => {
-                let owner_key = OwnerIndexKey::from_object(&object);
+            Owner::AddressOwner(owner) => {
+                let owner_key = OwnerIndexKey::new(owner, object.id());
                 let owner_info = OwnerIndexInfo::new(&object);
                 self.batch
                     .insert_batch(&self.tables.owner, [(owner_key, owner_info)])?;
@@ -912,11 +826,9 @@ impl LiveObjectIndexer for RestLiveObjectIndexer<'_> {
 
             // Dynamic Field Index
             Owner::ObjectOwner(parent) => {
-                if let Some(field_info) = try_create_dynamic_field_info(
-                    &object,
-                    self.resolver.as_mut(),
-                    self.object_store,
-                )? {
+                if let Some(field_info) =
+                    try_create_dynamic_field_info(&object, self.resolver.as_mut())?
+                {
                     let field_key = DynamicFieldKey::new(parent, object.id());
 
                     self.batch
