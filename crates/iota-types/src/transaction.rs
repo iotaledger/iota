@@ -416,9 +416,9 @@ pub enum EndOfEpochTransactionKind {
     ChangeEpoch(ChangeEpoch),
     ChangeEpochV2(ChangeEpochV2),
     ChangeEpochV3(ChangeEpochV3),
-    ChangeEpochV4(ChangeEpochV4),
     AuthenticatorStateCreate,
     AuthenticatorStateExpire(AuthenticatorStateExpire),
+    ChangeEpochV4(ChangeEpochV4),
 }
 
 impl EndOfEpochTransactionKind {
