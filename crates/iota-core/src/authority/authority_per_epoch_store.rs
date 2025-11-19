@@ -142,10 +142,14 @@ pub(crate) type EncG = bls12381::G2Element;
 #[path = "consensus_quarantine.rs"]
 pub(crate) mod consensus_quarantine;
 
+#[path = "scorer.rs"]
+pub(crate) mod scorer;
+
 use consensus_quarantine::{
     ConsensusCommitOutput, ConsensusOutputCache, ConsensusOutputQuarantine,
 };
 use iota_types::crypto::AuthorityPublicKey;
+use scorer::Scorer;
 
 // CertLockGuard and CertTxGuard are functionally identical right now, but we
 // retain a distinction anyway. If we need to support distributed object
@@ -670,6 +674,10 @@ pub struct AuthorityPerEpochStore {
     /// State machine managing randomness DKG and generation.
     randomness_manager: OnceCell<tokio::sync::Mutex<RandomnessManager>>,
     randomness_reporter: OnceCell<RandomnessReporter>,
+
+    /// Component including the local view about the other authorities'
+    /// misbehaviour metrics, and received reports.
+    pub(crate) scorer: Arc<Scorer>,
 }
 
 /// AuthorityEpochTables contains tables that contain data that is only valid
@@ -1149,10 +1157,12 @@ impl AuthorityPerEpochStore {
 
         let consensus_output_cache = ConsensusOutputCache::new(&tables, metrics.clone());
 
+        let voting_power = committee.members().map(|(_, v)| *v).collect::<Vec<u64>>();
+
         let s = Arc::new(Self {
             name,
             committee,
-            protocol_config,
+            protocol_config: protocol_config.clone(),
             tables: ArcSwapOption::new(Some(Arc::new(tables))),
             consensus_output_cache,
             consensus_quarantine: RwLock::new(ConsensusOutputQuarantine::new(
@@ -1184,6 +1194,7 @@ impl AuthorityPerEpochStore {
             jwk_aggregator,
             randomness_manager: OnceCell::new(),
             randomness_reporter: OnceCell::new(),
+            scorer: Arc::new(Scorer::new(voting_power, &protocol_config)),
         });
 
         s.update_buffer_stake_metric();
@@ -2857,8 +2868,8 @@ impl AuthorityPerEpochStore {
                         "MisbehaviorReport authority {} does not match its author from consensus {}",
                         authority, transaction.certificate_author_index
                     );
-                    // Here we should update invalid report counts for the
-                    // authority
+                    self.scorer
+                        .update_invalid_reports_count(transaction.certificate_author_index);
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
