@@ -57,10 +57,15 @@ const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2_000);
 /// The timeout for periodic synchronizer to fetch blocks from the peers.
 const FETCH_FROM_PEERS_TIMEOUT: Duration = Duration::from_millis(4_000);
 
-/// The maximum number of authorities from which we will try to fetch blocks at
-/// the same moment. The guard will protect that we will not ask from more than
-/// this number of authorities at the same time.
-const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK: usize = 3;
+/// The maximum number of authorities from which we will try to periodically
+/// fetch blocks at the same moment. The guard will protect that we will not ask
+/// from more than this number of authorities at the same time.
+const MAX_AUTHORITIES_TO_FETCH_PER_BLOCK: usize = 2;
+
+/// The maximum number of authorities from which the live synchronizer will try
+/// to fetch blocks at the same moment. This is lower than the periodic sync
+/// limit to prioritize periodic sync.
+const MAX_AUTHORITIES_TO_LIVE_FETCH_PER_BLOCK: usize = 1;
 
 /// The maximum number of peers from which the periodic synchronizer will
 /// request blocks
@@ -71,10 +76,18 @@ const MAX_PERIODIC_SYNC_PEERS: usize = 4;
 /// their knowledge of the DAG.
 const MAX_PERIODIC_SYNC_RANDOM_PEERS: usize = 2;
 
+/// Represents the different methods used for synchronization
+#[derive(Clone)]
+enum SyncMethod {
+    Live,
+    Periodic,
+}
+
 struct BlocksGuard {
     map: Arc<InflightBlocksMap>,
     block_refs: BTreeSet<BlockRef>,
     peer: AuthorityIndex,
+    method: SyncMethod,
 }
 
 impl Drop for BlocksGuard {
@@ -106,22 +119,40 @@ impl InflightBlocksMap {
     /// number of authorities, then the block ref will not be included in the
     /// returned set. The method returns all the block refs that have been
     /// successfully locked and allowed to be fetched.
+    ///
+    /// Different limits apply based on the sync method:
+    /// - Periodic sync: Can lock if total authorities <
+    ///   MAX_AUTHORITIES_TO_FETCH_PER_BLOCK (3)
+    /// - Live sync: Can lock if total authorities <
+    ///   MAX_AUTHORITIES_TO_LIVE_FETCH_PER_BLOCK (2)
     fn lock_blocks(
         self: &Arc<Self>,
         missing_block_refs: BTreeSet<BlockRef>,
         peer: AuthorityIndex,
+        method: SyncMethod,
     ) -> Option<BlocksGuard> {
         let mut blocks = BTreeSet::new();
         let mut inner = self.inner.lock();
 
         for block_ref in missing_block_refs {
-            // check that the number of authorities that are already instructed to fetch the
-            // block is not higher than the allowed and the `peer_index` has not
-            // already been instructed to do that.
             let authorities = inner.entry(block_ref).or_default();
-            if authorities.len() < MAX_AUTHORITIES_TO_FETCH_PER_BLOCK
-                && authorities.get(&peer).is_none()
-            {
+
+            // Check if this peer is already fetching this block
+            if authorities.contains(&peer) {
+                continue;
+            }
+
+            // Count total authorities currently fetching this block
+            let total_count = authorities.len();
+
+            // Determine the limit based on the sync method
+            let max_limit = match method {
+                SyncMethod::Live => MAX_AUTHORITIES_TO_LIVE_FETCH_PER_BLOCK,
+                SyncMethod::Periodic => MAX_AUTHORITIES_TO_FETCH_PER_BLOCK,
+            };
+
+            // Check if we can acquire the lock
+            if total_count < max_limit {
                 assert!(authorities.insert(peer));
                 blocks.insert(block_ref);
             }
@@ -134,6 +165,7 @@ impl InflightBlocksMap {
                 map: self.clone(),
                 block_refs: blocks,
                 peer,
+                method,
             })
         }
     }
@@ -169,12 +201,13 @@ impl InflightBlocksMap {
         peer: AuthorityIndex,
     ) -> Option<BlocksGuard> {
         let block_refs = blocks_guard.block_refs.clone();
+        let method = blocks_guard.method.clone();
 
         // Explicitly drop the guard
         drop(blocks_guard);
 
-        // Now create new guard
-        self.lock_blocks(block_refs, peer)
+        // Now create a new guard with the same sync method
+        self.lock_blocks(block_refs, peer, method)
     }
 
     #[cfg(test)]
@@ -371,7 +404,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 .take(self.context.parameters.max_blocks_per_sync)
                                 .collect();
 
-                            let blocks_guard = self.inflight_blocks_map.lock_blocks(missing_block_refs, peer_index);
+                            let blocks_guard = self.inflight_blocks_map.lock_blocks(missing_block_refs, peer_index, SyncMethod::Live);
                             let Some(blocks_guard) = blocks_guard else {
                                 result.send(Ok(())).ok();
                                 continue;
@@ -1285,7 +1318,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 
             // Lock the blocks to be fetched. If no lock can be acquired for any of the
             // blocks then don't bother.
-            if let Some(blocks_guard) = inflight_blocks.lock_blocks(block_refs.clone(), peer) {
+            if let Some(blocks_guard) =
+                inflight_blocks.lock_blocks(block_refs.clone(), peer, SyncMethod::Periodic)
+            {
                 info!(
                     "Periodic sync of {} missing blocks from peer {} {}: {}",
                     block_refs.len(),
@@ -1429,7 +1464,8 @@ mod tests {
         round_prober::QuorumRound,
         storage::mem_store::MemStore,
         synchronizer::{
-            FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, InflightBlocksMap, Synchronizer,
+            FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, InflightBlocksMap, SyncMethod,
+            Synchronizer,
         },
     };
 
@@ -1593,33 +1629,43 @@ mod tests {
         {
             let mut all_guards = Vec::new();
 
-            // Try to acquire the block locks for authorities 1 & 2 & 3
-            for i in 1..=3 {
+            // Try to acquire the block locks for authorities 1 & 2 (Periodic limit is 2)
+            for i in 1..=2 {
                 let authority = AuthorityIndex::new_for_test(i);
 
-                let guard = map.lock_blocks(missing_block_refs.clone(), authority);
+                let guard =
+                    map.lock_blocks(missing_block_refs.clone(), authority, SyncMethod::Periodic);
                 let guard = guard.expect("Guard should be created");
                 assert_eq!(guard.block_refs.len(), 4);
 
                 all_guards.push(guard);
 
                 // trying to acquire any of them again will not succeed
-                let guard = map.lock_blocks(missing_block_refs.clone(), authority);
+                let guard =
+                    map.lock_blocks(missing_block_refs.clone(), authority, SyncMethod::Periodic);
                 assert!(guard.is_none());
             }
 
             // Trying to acquire for authority 3 it will fail - as we have maxed out the
-            // number of allowed peers
-            let authority_4 = AuthorityIndex::new_for_test(4);
+            // number of allowed peers (Periodic limit is 2)
+            let authority_3 = AuthorityIndex::new_for_test(3);
 
-            let guard = map.lock_blocks(missing_block_refs.clone(), authority_4);
+            let guard = map.lock_blocks(
+                missing_block_refs.clone(),
+                authority_3,
+                SyncMethod::Periodic,
+            );
             assert!(guard.is_none());
 
             // Explicitly drop the guard of authority 1 and try for authority 3 again - it
             // will now succeed
             drop(all_guards.remove(0));
 
-            let guard = map.lock_blocks(missing_block_refs.clone(), authority_4);
+            let guard = map.lock_blocks(
+                missing_block_refs.clone(),
+                authority_3,
+                SyncMethod::Periodic,
+            );
             let guard = guard.expect("Guard should be successfully acquired");
 
             assert_eq!(guard.block_refs, missing_block_refs);
@@ -1636,7 +1682,11 @@ mod tests {
             // acquire a lock for authority 1
             let authority_1 = AuthorityIndex::new_for_test(1);
             let guard = map
-                .lock_blocks(missing_block_refs.clone(), authority_1)
+                .lock_blocks(
+                    missing_block_refs.clone(),
+                    authority_1,
+                    SyncMethod::Periodic,
+                )
                 .unwrap();
 
             // Now swap the locks for authority 2
@@ -1645,6 +1695,337 @@ mod tests {
 
             assert_eq!(guard.unwrap().block_refs, missing_block_refs);
         }
+    }
+
+    #[test]
+    fn test_inflight_blocks_map_live_sync_limit() {
+        // GIVEN
+        let map = InflightBlocksMap::new();
+        let some_block_refs = [
+            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+        ];
+        let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
+
+        // WHEN authority 1 locks with Live sync
+        let authority_1 = AuthorityIndex::new_for_test(1);
+        let guard_1 = map
+            .lock_blocks(missing_block_refs.clone(), authority_1, SyncMethod::Live)
+            .expect("Should successfully lock with Live sync");
+
+        assert_eq!(guard_1.block_refs.len(), 2);
+
+        // THEN authority 2 cannot lock with Live sync (limit of 1 reached)
+        let authority_2 = AuthorityIndex::new_for_test(2);
+        let guard_2 = map.lock_blocks(missing_block_refs.clone(), authority_2, SyncMethod::Live);
+
+        assert!(
+            guard_2.is_none(),
+            "Should fail to lock - Live limit of 1 reached"
+        );
+
+        // WHEN authority 1 releases the lock
+        drop(guard_1);
+
+        // THEN authority 2 can now lock with Live sync
+        let guard_2 = map
+            .lock_blocks(missing_block_refs.clone(), authority_2, SyncMethod::Live)
+            .expect("Should successfully lock after authority 1 released");
+
+        assert_eq!(guard_2.block_refs.len(), 2);
+    }
+
+    #[test]
+    fn test_inflight_blocks_map_periodic_allows_more_concurrency() {
+        // GIVEN
+        let map = InflightBlocksMap::new();
+        let some_block_refs = [
+            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+        ];
+        let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
+
+        // WHEN authority 1 locks with Periodic sync
+        let authority_1 = AuthorityIndex::new_for_test(1);
+        let guard_1 = map
+            .lock_blocks(
+                missing_block_refs.clone(),
+                authority_1,
+                SyncMethod::Periodic,
+            )
+            .expect("Should successfully lock with Periodic sync");
+
+        assert_eq!(guard_1.block_refs.len(), 2);
+
+        // THEN authority 2 can also lock with Periodic sync (limit is 2)
+        let authority_2 = AuthorityIndex::new_for_test(2);
+        let guard_2 = map
+            .lock_blocks(
+                missing_block_refs.clone(),
+                authority_2,
+                SyncMethod::Periodic,
+            )
+            .expect("Should successfully lock - Periodic allows 2 authorities");
+
+        assert_eq!(guard_2.block_refs.len(), 2);
+
+        // BUT authority 3 cannot lock with Periodic sync (limit of 2 reached)
+        let authority_3 = AuthorityIndex::new_for_test(3);
+        let guard_3 = map.lock_blocks(
+            missing_block_refs.clone(),
+            authority_3,
+            SyncMethod::Periodic,
+        );
+
+        assert!(
+            guard_3.is_none(),
+            "Should fail to lock - Periodic limit of 2 reached"
+        );
+
+        // WHEN authority 1 releases the lock
+        drop(guard_1);
+
+        // THEN authority 3 can now lock with Periodic sync
+        let guard_3 = map
+            .lock_blocks(
+                missing_block_refs.clone(),
+                authority_3,
+                SyncMethod::Periodic,
+            )
+            .expect("Should successfully lock after authority 1 released");
+
+        assert_eq!(guard_3.block_refs.len(), 2);
+    }
+
+    #[test]
+    fn test_inflight_blocks_map_periodic_blocks_live_when_at_live_limit() {
+        // GIVEN
+        let map = InflightBlocksMap::new();
+        let some_block_refs = [
+            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+        ];
+        let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
+
+        // WHEN authority 1 locks with Periodic sync (total=1, at Live's limit)
+        let authority_1 = AuthorityIndex::new_for_test(1);
+        let guard_1 = map
+            .lock_blocks(
+                missing_block_refs.clone(),
+                authority_1,
+                SyncMethod::Periodic,
+            )
+            .expect("Should successfully lock with Periodic sync");
+
+        assert_eq!(guard_1.block_refs.len(), 2);
+
+        // THEN authority 2 cannot lock with Live sync (total already at Live limit of
+        // 1)
+        let authority_2 = AuthorityIndex::new_for_test(2);
+        let guard_2_live =
+            map.lock_blocks(missing_block_refs.clone(), authority_2, SyncMethod::Live);
+
+        assert!(
+            guard_2_live.is_none(),
+            "Should fail to lock with Live - total already at Live limit of 1"
+        );
+
+        // BUT authority 2 CAN lock with Periodic sync (total would be 2, at Periodic
+        // limit)
+        let guard_2_periodic = map
+            .lock_blocks(
+                missing_block_refs.clone(),
+                authority_2,
+                SyncMethod::Periodic,
+            )
+            .expect("Should successfully lock with Periodic - under Periodic limit of 2");
+
+        assert_eq!(guard_2_periodic.block_refs.len(), 2);
+    }
+
+    #[test]
+    fn test_inflight_blocks_map_live_then_periodic_interaction() {
+        // GIVEN
+        let map = InflightBlocksMap::new();
+        let some_block_refs = [
+            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+        ];
+        let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
+
+        // WHEN authority 1 locks with Live sync (total=1, at Live limit)
+        let authority_1 = AuthorityIndex::new_for_test(1);
+        let guard_1 = map
+            .lock_blocks(missing_block_refs.clone(), authority_1, SyncMethod::Live)
+            .expect("Should successfully lock with Live sync");
+
+        assert_eq!(guard_1.block_refs.len(), 2);
+
+        // THEN authority 2 cannot lock with Live sync (would exceed Live limit of 1)
+        let authority_2 = AuthorityIndex::new_for_test(2);
+        let guard_2_live =
+            map.lock_blocks(missing_block_refs.clone(), authority_2, SyncMethod::Live);
+
+        assert!(
+            guard_2_live.is_none(),
+            "Should fail to lock with Live - would exceed Live limit of 1"
+        );
+
+        // BUT authority 2 CAN lock with Periodic sync (total=2, at Periodic limit)
+        let guard_2 = map
+            .lock_blocks(
+                missing_block_refs.clone(),
+                authority_2,
+                SyncMethod::Periodic,
+            )
+            .expect("Should successfully lock with Periodic - total 2 is at Periodic limit");
+
+        assert_eq!(guard_2.block_refs.len(), 2);
+
+        // AND authority 3 cannot lock with Periodic sync (would exceed Periodic limit
+        // of 2)
+        let authority_3 = AuthorityIndex::new_for_test(3);
+        let guard_3 = map.lock_blocks(
+            missing_block_refs.clone(),
+            authority_3,
+            SyncMethod::Periodic,
+        );
+
+        assert!(
+            guard_3.is_none(),
+            "Should fail to lock with Periodic - would exceed Periodic limit of 2"
+        );
+    }
+
+    #[test]
+    fn test_inflight_blocks_map_partial_locks_mixed_methods() {
+        // GIVEN 4 blocks
+        let map = InflightBlocksMap::new();
+        let block_a = BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockDigest::MIN);
+        let block_b = BlockRef::new(2, AuthorityIndex::new_for_test(0), BlockDigest::MIN);
+        let block_c = BlockRef::new(3, AuthorityIndex::new_for_test(0), BlockDigest::MIN);
+        let block_d = BlockRef::new(4, AuthorityIndex::new_for_test(0), BlockDigest::MIN);
+
+        // Lock block A with authority 1 using Live (A at limit for Live)
+        let guard_a = map
+            .lock_blocks(
+                [block_a].into(),
+                AuthorityIndex::new_for_test(1),
+                SyncMethod::Live,
+            )
+            .expect("Should lock block A");
+        assert_eq!(guard_a.block_refs.len(), 1);
+
+        // Lock block B with authorities 1 & 2 using Periodic (B at limit for Periodic)
+        let guard_b1 = map
+            .lock_blocks(
+                [block_b].into(),
+                AuthorityIndex::new_for_test(1),
+                SyncMethod::Periodic,
+            )
+            .expect("Should lock block B");
+        let guard_b2 = map
+            .lock_blocks(
+                [block_b].into(),
+                AuthorityIndex::new_for_test(2),
+                SyncMethod::Periodic,
+            )
+            .expect("Should lock block B again");
+        assert_eq!(guard_b1.block_refs.len(), 1);
+        assert_eq!(guard_b2.block_refs.len(), 1);
+
+        // Lock block C with authority 1 using Periodic (C has 1 lock)
+        let guard_c = map
+            .lock_blocks(
+                [block_c].into(),
+                AuthorityIndex::new_for_test(1),
+                SyncMethod::Periodic,
+            )
+            .expect("Should lock block C");
+        assert_eq!(guard_c.block_refs.len(), 1);
+
+        // Block D is unlocked
+
+        // WHEN authority 3 requests all 4 blocks with Periodic
+        let all_blocks = [block_a, block_b, block_c, block_d].into();
+        let guard_3 = map
+            .lock_blocks(
+                all_blocks,
+                AuthorityIndex::new_for_test(3),
+                SyncMethod::Periodic,
+            )
+            .expect("Should get partial lock");
+
+        // THEN should successfully lock C and D only
+        // - A: total=1 (at Live limit), authority 3 can still add since using Periodic
+        //   and total < 2
+        // - B: total=2 (at Periodic limit), cannot lock
+        // - C: total=1, can lock (under limit)
+        // - D: total=0, can lock
+        assert_eq!(
+            guard_3.block_refs.len(),
+            3,
+            "Should lock blocks A, C, and D"
+        );
+        assert!(
+            guard_3.block_refs.contains(&block_a),
+            "Should contain block A"
+        );
+        assert!(
+            !guard_3.block_refs.contains(&block_b),
+            "Should NOT contain block B (at limit)"
+        );
+        assert!(
+            guard_3.block_refs.contains(&block_c),
+            "Should contain block C"
+        );
+        assert!(
+            guard_3.block_refs.contains(&block_d),
+            "Should contain block D"
+        );
+    }
+
+    #[test]
+    fn test_inflight_blocks_map_swap_locks_preserves_method() {
+        // GIVEN
+        let map = InflightBlocksMap::new();
+        let some_block_refs = [
+            BlockRef::new(1, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+            BlockRef::new(10, AuthorityIndex::new_for_test(0), BlockDigest::MIN),
+        ];
+        let missing_block_refs = some_block_refs.iter().cloned().collect::<BTreeSet<_>>();
+
+        // WHEN authority 1 locks with Live sync
+        let authority_1 = AuthorityIndex::new_for_test(1);
+        let guard_1 = map
+            .lock_blocks(missing_block_refs.clone(), authority_1, SyncMethod::Live)
+            .expect("Should lock with Live sync");
+
+        assert_eq!(guard_1.block_refs.len(), 2);
+
+        // AND we swap to authority 2
+        let authority_2 = AuthorityIndex::new_for_test(2);
+        let guard_2 = map
+            .swap_locks(guard_1, authority_2)
+            .expect("Should swap locks");
+
+        // THEN the new guard should preserve the block refs
+        assert_eq!(guard_2.block_refs, missing_block_refs);
+
+        // AND authority 3 cannot lock with Live sync (limit of 1 reached)
+        let authority_3 = AuthorityIndex::new_for_test(3);
+        let guard_3 = map.lock_blocks(missing_block_refs.clone(), authority_3, SyncMethod::Live);
+        assert!(guard_3.is_none(), "Should fail - Live limit reached");
+
+        // BUT authority 3 CAN lock with Periodic sync
+        let guard_3_periodic = map
+            .lock_blocks(
+                missing_block_refs.clone(),
+                authority_3,
+                SyncMethod::Periodic,
+            )
+            .expect("Should lock with Periodic");
+        assert_eq!(guard_3_periodic.block_refs.len(), 2);
     }
 
     #[tokio::test]
@@ -1686,7 +2067,7 @@ mod tests {
         // Create blocks_guard
         let inflight_blocks_map = InflightBlocksMap::new();
         let blocks_guard = inflight_blocks_map
-            .lock_blocks(expected_block_refs.clone(), peer_index)
+            .lock_blocks(expected_block_refs.clone(), peer_index, SyncMethod::Live)
             .expect("Failed to lock blocks");
 
         assert_eq!(
