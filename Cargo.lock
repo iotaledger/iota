@@ -6111,6 +6111,7 @@ dependencies = [
  "iota-core",
  "iota-framework",
  "iota-genesis-builder",
+ "iota-grpc-types",
  "iota-json-rpc",
  "iota-json-rpc-api",
  "iota-json-rpc-types",
@@ -6140,6 +6141,7 @@ dependencies = [
  "passkey-client",
  "passkey-types",
  "prometheus",
+ "prost-types 0.14.1",
  "rand 0.8.5",
  "serde",
  "serde_json",
@@ -6485,13 +6487,16 @@ version = "1.14.0-alpha"
 dependencies = [
  "anyhow",
  "async-stream",
+ "bcs",
  "futures",
  "iota-config",
  "iota-core",
  "iota-grpc-types",
  "iota-json-rpc-types",
+ "iota-protocol-config",
  "iota-types",
  "move-core-types",
+ "prost-types 0.14.1",
  "serde",
  "tokio",
  "tokio-stream",
@@ -7313,7 +7318,7 @@ dependencies = [
 
 [[package]]
 name = "iota-proto-build"
-version = "1.12.0-alpha"
+version = "1.14.0-alpha"
 dependencies = [
  "prettyplease",
  "proc-macro2",

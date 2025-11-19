@@ -13,7 +13,9 @@ workspace = true
 # external dependencies
 anyhow.workspace = true
 async-stream = "0.3"
+bcs.workspace = true
 futures.workspace = true
+prost-types.workspace = true
 serde.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true
@@ -26,5 +28,6 @@ iota-config.workspace = true
 iota-core.workspace = true
 iota-grpc-types.workspace = true
 iota-json-rpc-types.workspace = true
+iota-protocol-config.workspace = true
 iota-types.workspace = true
 move-core-types.workspace = true

@@ -133,6 +133,14 @@ impl TestCluster {
         &self.fullnode_handle.rpc_url
     }
 
+    pub fn grpc_url(&self) -> String {
+        let grpc_config = self
+            .fullnode_handle
+            .iota_node
+            .with(|node| node.get_config().grpc_api_config.clone());
+        format!("http://{}", grpc_config.unwrap_or_default().address)
+    }
+
     pub fn wallet(&mut self) -> &WalletContext {
         &self.wallet
     }
@@ -1002,6 +1010,7 @@ pub struct TestClusterBuilder {
     fullnode_run_with_range: Option<RunWithRange>,
     fullnode_policy_config: Option<PolicyConfig>,
     fullnode_fw_config: Option<RemoteFirewallConfig>,
+    fullnode_enable_grpc_api: bool,
     fullnode_grpc_api_config: Option<GrpcApiConfig>,
     max_submit_position: Option<usize>,
     submit_delay_step_override_millis: Option<u64>,
@@ -1037,6 +1046,7 @@ impl TestClusterBuilder {
             fullnode_run_with_range: None,
             fullnode_policy_config: None,
             fullnode_fw_config: None,
+            fullnode_enable_grpc_api: false,
             fullnode_grpc_api_config: None,
             max_submit_position: None,
             submit_delay_step_override_millis: None,
@@ -1069,6 +1079,11 @@ impl TestClusterBuilder {
 
     pub fn with_fullnode_rpc_addr(mut self, addr: SocketAddr) -> Self {
         self.fullnode_rpc_addr = Some(addr);
+        self
+    }
+
+    pub fn with_fullnode_enable_grpc_api(mut self, enable: bool) -> Self {
+        self.fullnode_enable_grpc_api = enable;
         self
     }
 
@@ -1439,6 +1454,7 @@ impl TestClusterBuilder {
         if self.disable_fullnode_pruning {
             builder = builder.with_disable_fullnode_pruning();
         }
+        builder = builder.with_fullnode_enable_grpc_api(self.fullnode_enable_grpc_api);
         if let Some(config) = &self.fullnode_grpc_api_config {
             builder = builder.with_fullnode_grpc_api_config(config.clone());
         }

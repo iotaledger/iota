@@ -868,7 +868,11 @@ impl TransactionInfo {
     }
 }
 
-#[derive(Clone, Serialize, Deserialize, Eq, PartialEq, Debug)]
+/// Epoch information structure for indexing.
+///
+/// Contains metadata about an epoch including timing, checkpoints, protocol
+/// version, and a snapshot of the system state at the start of the epoch.
+#[derive(Clone, Serialize, Deserialize, PartialEq, Eq, Debug)]
 pub struct EpochInfo {
     pub epoch: u64,
     pub protocol_version: u64,
@@ -877,6 +881,6 @@ pub struct EpochInfo {
     pub start_checkpoint: u64,
     pub end_checkpoint: Option<u64>,
     pub reference_gas_price: u64,
-    // System State as of the start of the epoch
+    /// System State as of the start of the epoch
     pub system_state: crate::iota_system_state::IotaSystemState,
 }

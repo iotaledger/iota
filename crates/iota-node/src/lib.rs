@@ -2437,6 +2437,9 @@ async fn build_grpc_server(
         return Err(anyhow!("gRPC API is enabled but no configuration provided"));
     };
 
+    // Get chain identifier from state directly
+    let chain = state.get_chain_identifier().chain();
+
     let rest_read_store = Arc::new(RestReadStore::new(state.clone(), state_sync_store));
 
     // Create cancellation token for proper shutdown hierarchy
@@ -2456,6 +2459,7 @@ async fn build_grpc_server(
         event_subscriber,
         grpc_config.clone(),
         shutdown_token,
+        chain,
     )
     .await?;
 

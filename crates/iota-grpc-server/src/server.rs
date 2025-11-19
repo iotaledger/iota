@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use tonic::transport::Server;
 
 use crate::{
-    GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster, GrpcReader, LedgerService,
+    GrpcCheckpointDataBroadcaster, GrpcCheckpointSummaryBroadcaster, GrpcReader, LedgerGrpcService,
 };
 
 /// Handle to control a running gRPC server
@@ -67,6 +67,7 @@ pub async fn start_grpc_server(
     _event_subscriber: Arc<dyn crate::EventSubscriber>, // TODO: still needed?
     config: iota_config::node::GrpcApiConfig,
     shutdown_token: CancellationToken,
+    chain: iota_protocol_config::Chain,
 ) -> Result<GrpcServerHandle> {
     // Create broadcast channels
     let (checkpoint_summary_tx, _) = broadcast::channel(config.checkpoint_broadcast_buffer_size);
@@ -79,11 +80,12 @@ pub async fn start_grpc_server(
 
     // Create the gRPC services - get the cancellation token directly from
     // server level
-    let ledger_service = LedgerService::new(
+    let ledger_service = LedgerGrpcService::new(
         grpc_reader.clone(),
         checkpoint_summary_broadcaster.clone(),
         checkpoint_data_broadcaster.clone(),
         shutdown_token.clone(),
+        chain,
     );
 
     // Create the server with proper address binding
