@@ -2072,6 +2072,7 @@
                 "reward_slashing_rate": {
                   "u64": "10000"
                 },
+                "scorer_version": null,
                 "storage_gas_price": {
                   "u64": "76"
                 },
