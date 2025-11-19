@@ -24,7 +24,7 @@ echo "dual-run: docker root = $DOCKER_ROOT"
 echo "dual-run: building docker images once (node, tools, indexer)..."
 
 # Use sudo because your builds / docker usually run as root
-if ! (cd "$DOCKER_ROOT/iota-node"    && sudo ./build.sh -t iota-node); then
+if ! (cd "$DOCKER_ROOT/iota-node"    && sudo ./build.sh); then
   echo "dual-run: ERROR building iota-node image" >&2
   exit 1
 fi
