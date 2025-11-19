@@ -34,7 +34,7 @@ impl BlockStoreAPI
     for parking_lot::lock_api::RwLockReadGuard<'_, parking_lot::RawRwLock, DagState>
 {
     fn get_block_headers(&self, refs: &[BlockRef]) -> Vec<Option<VerifiedBlockHeader>> {
-        DagState::get_block_headers(self, refs)
+        DagState::get_verified_block_headers(self, refs)
     }
 }
 
@@ -473,23 +473,23 @@ mod tests {
 
             if idx == 0 {
                 // First subdag includes the leader block only and no committed data
-                assert_eq!(subdag.blocks.len(), 1);
+                assert_eq!(subdag.headers.len(), 1);
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 1 {
                 // Genesis blocks are included in the first commit
-                assert_eq!(subdag.blocks.len(), num_authorities);
+                assert_eq!(subdag.headers.len(), num_authorities);
                 // Transactions from genesis are not committed
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else {
                 // Every subdag after will be missing the leader block from the previous
                 // committed subdag
-                assert_eq!(subdag.blocks.len(), num_authorities);
+                assert_eq!(subdag.headers.len(), num_authorities);
                 // Every subdag after the first one will have all the committed transactions
                 // from 2 rounds before the leader round
                 assert_eq!(subdag.committed_transaction_refs.len(), num_authorities);
             }
-            for block in subdag.blocks.iter() {
-                assert!(block.round() <= leaders[idx].round());
+            for header in subdag.headers.iter() {
+                assert!(header.round() <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {
@@ -676,9 +676,9 @@ mod tests {
 
         let expected_ts = median_timestamp_by_stake(
             &context,
-            subdag.blocks.iter().filter_map(|block| {
-                if block.round() == subdag.leader.round - 1 {
-                    Some(block.clone())
+            subdag.headers.iter().filter_map(|header| {
+                if header.round() == subdag.leader.round - 1 {
+                    Some(header.clone())
                 } else {
                     None
                 }
@@ -693,15 +693,15 @@ mod tests {
             .sort_by(|a, b| a.round.cmp(&b.round).then_with(|| a.author.cmp(&b.author)));
         assert_eq!(
             subdag
-                .blocks
+                .headers
                 .clone()
                 .into_iter()
                 .map(|b| b.reference())
                 .collect::<Vec<_>>(),
             block_refs_wave_2
         );
-        for block in subdag.blocks.iter() {
-            assert!(block.round() <= expected_second_commit.leader().round);
+        for header in subdag.headers.iter() {
+            assert!(header.round() <= expected_second_commit.leader().round);
         }
     }
 
@@ -793,11 +793,11 @@ mod tests {
 
             if idx == 0 {
                 // First subdag includes the leader block only
-                assert_eq!(subdag.blocks.len(), 1);
+                assert_eq!(subdag.headers.len(), 1);
                 // First subdag does not commit any transactions
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 1 {
-                assert_eq!(subdag.blocks.len(), 3);
+                assert_eq!(subdag.headers.len(), 3);
                 // The second subdag does not commit any transactions either yet
                 assert_eq!(subdag.committed_transaction_refs.len(), 0);
             } else if idx == 2 {
@@ -807,7 +807,7 @@ mod tests {
                 //   missing
                 // * 2 blocks on round 2, again as no commit happened on round 3, we commit the
                 //   "sub dag" of leader of round 3, which will be another 2 blocks
-                assert_eq!(subdag.blocks.len(), 6);
+                assert_eq!(subdag.headers.len(), 6);
 
                 // We commit transactions from:
                 // * 3 blocks on round 1, as no commit happened on round 3 since the leader was
@@ -827,9 +827,9 @@ mod tests {
                 }
             } else {
                 // we expect to see all blocks of round >= 1
-                assert_eq!(subdag.blocks.len(), 6);
+                assert_eq!(subdag.headers.len(), 6);
                 assert!(
-                    subdag.blocks.iter().all(|block| block.round() >= 1),
+                    subdag.headers.iter().all(|block| block.round() >= 1),
                     "Found blocks that are of round < 1."
                 );
 
@@ -845,8 +845,8 @@ mod tests {
                     assert_eq!(authors, (0..=3).map(AuthorityIndex::new_for_test).collect());
                 }
             }
-            for block in subdag.blocks.iter() {
-                assert!(block.round() <= leaders[idx].round());
+            for header in subdag.headers.iter() {
+                assert!(header.round() <= leaders[idx].round());
             }
 
             for committed_transactions_ref in subdag.committed_transaction_refs.iter() {

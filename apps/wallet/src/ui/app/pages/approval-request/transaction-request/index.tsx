@@ -40,6 +40,7 @@ const APP_ORIGINS_TO_EXCLUDE_FROM_ANALYTICS: string[] = [];
 
 export function TransactionRequest({ txRequest }: TransactionRequestProps) {
     const addressForTransaction = txRequest.tx.account;
+    const chain = txRequest.tx.chain;
     const activeAddress = useActiveAddress();
     const { data: accountForTransaction } = useAccountByAddress(addressForTransaction);
     const signer = useSigner(accountForTransaction);
@@ -58,7 +59,7 @@ export function TransactionRequest({ txRequest }: TransactionRequestProps) {
         data,
         isError: isDryRunError,
         isPending: isDryRunLoading,
-    } = useTransactionDryRun(addressForTransaction, transaction);
+    } = useTransactionDryRun(addressForTransaction, transaction, chain);
     const recognizedPackagesList = useRecognizedPackages();
 
     const summary = useTransactionSummary({

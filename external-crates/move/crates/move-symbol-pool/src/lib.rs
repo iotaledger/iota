@@ -105,7 +105,7 @@ pub(crate) static SYMBOL_POOL: Lazy<Mutex<Pool>> = Lazy::new(|| Mutex::new(Pool:
 mod tests {
     use std::mem::replace;
 
-    use crate::{Pool, Symbol, SYMBOL_POOL};
+    use crate::{Pool, SYMBOL_POOL, Symbol};
 
     #[test]
     fn test_serialization() {

@@ -70,6 +70,8 @@ move-model-2:
   - "external-crates/move/crates/move-model-2/**"
 move-package:
   - "external-crates/move/crates/move-package/**"
+move-package-alt:
+  - "external-crates/move/crates/move-package-alt/**"
 move-proc-macros:
   - "external-crates/move/crates/move-proc-macros/**"
 move-stackless-bytecode:
