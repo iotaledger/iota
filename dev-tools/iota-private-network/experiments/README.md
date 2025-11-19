@@ -9,7 +9,7 @@ Use it to:
 - optionally spam the network with transactions,
 - collect logs and basic network statistics.
 
-All orchestration is done via `run-all.sh`, which internally uses `network-fuzz.sh` to apply latency and disruptions.
+All orchestration is done via `run-all-fuzz.sh`, which internally uses `network-fuzz.sh` to apply latency and disruptions.
 
 ---
 
