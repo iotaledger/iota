@@ -4480,12 +4480,18 @@ export type Query = {
    * direction of pagination, and so on until all transactions in the
    * scanning range have been visited.
    *
-   * By default, the scanning range includes all transactions known to
-   * GraphQL, but it can be restricted by the `after` and `before`
+   * By default, the scanning range includes all checkpointed transactions
+   * known to GraphQL, but it can be restricted by the `after` and `before`
    * cursors, and the `beforeCheckpoint`, `afterCheckpoint` and
-   * `atCheckpoint` filters.
+   * `atCheckpoint` filters. Transactions that don't have a checkpoint yet
+   * are always omitted.
    */
   transactionBlocks: TransactionBlockConnection;
+  /**
+   * Fetch multiple transaction blocks by their digests.
+   * This includes all transactions, even if they are not checkpointed yet.
+   */
+  transactionBlocksByDigests: Array<Maybe<TransactionBlock>>;
   /**
    * Fetch a structured representation of a concrete type, including its
    * layout information. Fails if the type is malformed.
@@ -4649,6 +4655,11 @@ export type QueryTransactionBlocksArgs = {
   first?: InputMaybe<Scalars['Int']['input']>;
   last?: InputMaybe<Scalars['Int']['input']>;
   scanLimit?: InputMaybe<Scalars['Int']['input']>;
+};
+
+
+export type QueryTransactionBlocksByDigestsArgs = {
+  digests: Array<Scalars['String']['input']>;
 };
 
 
