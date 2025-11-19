@@ -2686,6 +2686,19 @@ impl AuthorityPerEpochStore {
                 }
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::MisbehaviorReport(authority, _, _),
+                ..
+            }) => {
+                if &transaction.sender_authority() != authority {
+                    warn!(
+                        "MisbehaviorReport authority {} does not match its author from consensus {}",
+                        authority, transaction.certificate_author_index
+                    );
+                    // Here we should update invalid report counts for the
+                    // authority
+                }
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind:
                     ConsensusTransactionKind::CapabilityNotificationV1(AuthorityCapabilitiesV1 {
                         authority,
@@ -3921,6 +3934,13 @@ impl AuthorityPerEpochStore {
             }) => {
                 // these are partitioned earlier
                 panic!("process_consensus_transaction called with end-of-publish transaction");
+            }
+            SequencedConsensusTransactionKind::External(ConsensusTransaction {
+                kind: ConsensusTransactionKind::MisbehaviorReport(_authority, _report, _),
+                ..
+            }) => {
+                // Validate report
+                Ok(ConsensusCertificateResult::ConsensusMessage)
             }
             SequencedConsensusTransactionKind::External(ConsensusTransaction {
                 kind: ConsensusTransactionKind::CapabilityNotificationV1(capabilities),
