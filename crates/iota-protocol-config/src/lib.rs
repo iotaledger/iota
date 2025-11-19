@@ -89,6 +89,8 @@ pub const MAX_PROTOCOL_VERSION: u64 = 16;
 // Version 16: Enable selecting committee only from active validators that
 //             support the next epoch's version and issued valid
 //             AuthorityCapabilities notification.
+//             Enable committing transactions only for traversed headers in
+//             Starfish.
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
 
@@ -2309,6 +2311,9 @@ impl ProtocolConfig {
                     // next epoch's version and issued valid AuthorityCapabilities notification.
                     cfg.feature_flags
                         .select_committee_supporting_next_epoch_version = true;
+                    // Enable committing transactions only for traversed headers in Starfish
+                    cfg.feature_flags
+                        .consensus_commit_transactions_only_for_traversed_headers = true;
                 }
                 // Use this template when making changes:
                 //
