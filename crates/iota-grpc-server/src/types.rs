@@ -222,6 +222,19 @@ pub trait GrpcStateReader: Send + Sync + 'static {
         &self,
         epoch: u64,
     ) -> anyhow::Result<Option<CertifiedCheckpointSummary>>;
+
+    /// Get committee for a specific epoch
+    fn get_committee(
+        &self,
+        epoch: u64,
+    ) -> anyhow::Result<Option<Arc<iota_types::committee::Committee>>>;
+
+    /// Get the IOTA system state
+    /// This loads the system state including its dynamic fields
+    fn get_system_state(&self) -> anyhow::Result<iota_types::iota_system_state::IotaSystemState>;
+
+    /// Get indexed epoch information
+    fn get_epoch_info(&self, epoch: u64) -> Option<iota_types::storage::EpochInfo>;
 }
 
 /// Adapter that implements GrpcStateReader for RestStateReader
@@ -265,6 +278,26 @@ impl GrpcStateReader for RestStateReaderAdapter {
             Err(e) => Err(e.into()),
         }
     }
+
+    fn get_committee(
+        &self,
+        epoch: u64,
+    ) -> anyhow::Result<Option<Arc<iota_types::committee::Committee>>> {
+        self.inner.try_get_committee(epoch).map_err(Into::into)
+    }
+
+    fn get_system_state(&self) -> anyhow::Result<iota_types::iota_system_state::IotaSystemState> {
+        // self.inner is Arc<dyn RestStateReader>
+        // RestStateReader extends ObjectStore, so we can pass it directly
+        iota_types::iota_system_state::get_iota_system_state(self.inner.as_ref())
+            .map_err(Into::into)
+    }
+
+    fn get_epoch_info(&self, epoch: u64) -> Option<iota_types::storage::EpochInfo> {
+        self.inner
+            .indexes()
+            .and_then(|indexes| indexes.get_epoch_info(epoch).ok().flatten())
+    }
 }
 
 /// Central gRPC data reader that provides unified access to checkpoint data.
@@ -301,6 +334,41 @@ impl GrpcReader {
 
     pub fn get_latest_checkpoint_sequence_number(&self) -> Option<u64> {
         self.state_reader.get_latest_checkpoint_sequence_number()
+    }
+
+    pub fn get_latest_checkpoint(&self) -> anyhow::Result<CertifiedCheckpointSummary> {
+        let seq = self
+            .state_reader
+            .get_latest_checkpoint_sequence_number()
+            .ok_or_else(|| {
+                anyhow::anyhow!("Unable to determine current epoch: no checkpoints available")
+            })?;
+        self.get_checkpoint_summary(seq)?
+            .ok_or_else(|| anyhow::anyhow!("Checkpoint {seq} not found"))
+    }
+
+    pub fn get_checkpoint_summary(
+        &self,
+        seq: u64,
+    ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
+        Ok(self.state_reader.get_checkpoint_summary(seq))
+    }
+
+    pub fn get_committee(
+        &self,
+        epoch: u64,
+    ) -> anyhow::Result<Option<Arc<iota_types::committee::Committee>>> {
+        self.state_reader.get_committee(epoch)
+    }
+
+    pub fn get_system_state(
+        &self,
+    ) -> anyhow::Result<iota_types::iota_system_state::IotaSystemState> {
+        self.state_reader.get_system_state()
+    }
+
+    pub fn get_epoch_info(&self, epoch: u64) -> Option<iota_types::storage::EpochInfo> {
+        self.state_reader.get_epoch_info(epoch)
     }
 
     /// Generic checkpoint streaming implementation that works with checkpoint

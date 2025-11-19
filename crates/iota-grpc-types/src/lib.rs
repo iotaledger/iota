@@ -83,5 +83,8 @@ pub mod v0 {
 
 pub mod bcs;
 pub mod checkpoints;
+pub mod epoch;
 pub mod events;
 pub mod field;
+pub mod merge;
+pub mod proto_helpers;

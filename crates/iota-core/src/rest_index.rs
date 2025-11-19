@@ -23,7 +23,6 @@ use iota_types::{
         BackingPackageStore, DynamicFieldIndexInfo, DynamicFieldKey, EpochInfo, TransactionInfo,
         error::Error as StorageError,
     },
-    transaction::{TransactionDataAPI, TransactionKind},
 };
 use move_core_types::language_storage::StructTag;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
@@ -134,8 +133,8 @@ struct IndexStoreTables {
 
     /// An index of extra metadata for Epochs.
     ///
-    /// Only contains entries for transactions which have yet to be pruned from
-    /// the main database.
+    /// Only contains entries for epochs which have yet to be pruned from the
+    /// main database.
     epochs: DBMap<EpochId, EpochInfo>,
 
     /// An index of extra metadata for Transactions.
@@ -228,6 +227,8 @@ impl IndexStoreTables {
         if let Some(checkpoint_range) = checkpoint_range {
             self.index_existing_transactions(authority_store, checkpoint_store, checkpoint_range)?;
         }
+
+        self.initialize_current_epoch(authority_store, checkpoint_store)?;
 
         let coin_index = Mutex::new(HashMap::new());
 
@@ -353,57 +354,128 @@ impl IndexStoreTables {
         checkpoint: &CheckpointData,
         batch: &mut typed_store::rocks::DBBatch,
     ) -> Result<(), StorageError> {
-        let CheckpointData {
-            checkpoint_summary,
-            transactions,
-            ..
-        } = checkpoint;
-
-        let Some(_end_of_epoch) = checkpoint_summary.end_of_epoch_data.as_ref() else {
+        let Some(epoch_info) = checkpoint.epoch_info()? else {
             return Ok(());
         };
 
-        let Some(transaction) = transactions.iter().find(|tx| {
-            matches!(
-                tx.transaction.intent_message().value.kind(),
-                TransactionKind::EndOfEpochTransaction(_)
-            )
-        }) else {
-            return Err(StorageError::custom(format!(
-                "Failed to get end of epoch transaction in checkpoint {} with EndOfEpochData",
-                checkpoint_summary.sequence_number,
-            )));
-        };
+        // We need to handle closing the previous epoch by updating the entry for it, if
+        // it exists.
+        if epoch_info.epoch > 0 {
+            let prev_epoch = epoch_info.epoch - 1;
 
-        // We need to handle closing out the current epoch by updating the entry for
-        // this epoch in case it exists.
-        if let Some(mut current_epoch) = self.epochs.get(&checkpoint_summary.epoch)? {
-            current_epoch.end_timestamp_ms = Some(checkpoint_summary.timestamp_ms);
-            current_epoch.end_checkpoint = Some(checkpoint_summary.sequence_number);
-            batch.insert_batch(&self.epochs, [(current_epoch.epoch, current_epoch)])?;
+            if let Some(mut previous_epoch) = self.epochs.get(&prev_epoch)? {
+                previous_epoch.end_timestamp_ms = Some(epoch_info.start_timestamp_ms);
+                previous_epoch.end_checkpoint = Some(epoch_info.start_checkpoint - 1);
+                batch.insert_batch(&self.epochs, [(prev_epoch, previous_epoch)])?;
+            }
         }
 
-        let system_state = iota_types::iota_system_state::get_iota_system_state(
-            &transaction.output_objects.as_slice(),
-        )
-        .map_err(|e| {
-            StorageError::custom(format!(
-                "Failed to find system state object output from end of epoch transaction: {e}"
-            ))
-        })?;
-        let next_epoch = EpochInfo {
-            epoch: system_state.epoch(),
+        // Insert the current epoch info
+        batch.insert_batch(&self.epochs, [(epoch_info.epoch, epoch_info)])?;
+
+        Ok(())
+    }
+
+    // After attempting to reindex past epochs, ensure that the current epoch is at
+    // least partially initialized
+    fn initialize_current_epoch(
+        &mut self,
+        authority_store: &AuthorityStore,
+        checkpoint_store: &CheckpointStore,
+    ) -> Result<(), StorageError> {
+        let Some(checkpoint) = checkpoint_store.get_highest_executed_checkpoint()? else {
+            return Ok(());
+        };
+
+        if self.epochs.get(&checkpoint.epoch)?.is_some() {
+            // no need to initialize if it already exists
+            return Ok(());
+        }
+
+        let system_state = iota_types::iota_system_state::get_iota_system_state(authority_store)
+            .map_err(|e| StorageError::custom(format!("Failed to find system state: {e}")))?;
+
+        // Determine the start checkpoint of the current epoch
+        let start_checkpoint = if checkpoint.epoch != 0 {
+            let previous_epoch = checkpoint.epoch - 1;
+
+            // Find the last checkpoint of the previous epoch
+            if let Some(previous_epoch_info) = self.epochs.get(&previous_epoch)? {
+                if let Some(end_checkpoint) = previous_epoch_info.end_checkpoint {
+                    end_checkpoint + 1
+                } else {
+                    // Fall back to scanning checkpoints if the end_checkpoint is None
+                    self.scan_for_epoch_start_checkpoint(
+                        checkpoint_store,
+                        checkpoint.sequence_number,
+                        previous_epoch,
+                    )?
+                }
+            } else {
+                // Fall back to scanning checkpoints if the previous epoch info is missing
+                self.scan_for_epoch_start_checkpoint(
+                    checkpoint_store,
+                    checkpoint.sequence_number,
+                    previous_epoch,
+                )?
+            }
+        } else {
+            // First epoch starts at checkpoint 0
+            0
+        };
+
+        let epoch_info = EpochInfo {
+            epoch: checkpoint.epoch,
             protocol_version: system_state.protocol_version(),
             start_timestamp_ms: system_state.epoch_start_timestamp_ms(),
             end_timestamp_ms: None,
-            start_checkpoint: checkpoint_summary.sequence_number + 1,
+            start_checkpoint,
             end_checkpoint: None,
             reference_gas_price: system_state.reference_gas_price(),
             system_state,
         };
-        batch.insert_batch(&self.epochs, [(next_epoch.epoch, next_epoch)])?;
+
+        self.epochs.insert(&epoch_info.epoch, &epoch_info)?;
 
         Ok(())
+    }
+
+    fn scan_for_epoch_start_checkpoint(
+        &self,
+        checkpoint_store: &CheckpointStore,
+        current_checkpoint_seq_number: u64,
+        previous_epoch: EpochId,
+    ) -> Result<u64, StorageError> {
+        // Scan from current checkpoint backwards to 0 to find the start of this epoch.
+        let mut last_checkpoint_seq_number_of_prev_epoch = None;
+        for seq in (0..=current_checkpoint_seq_number).rev() {
+            let Some(chkpt) = checkpoint_store
+                .get_checkpoint_by_sequence_number(seq)
+                .ok()
+                .flatten()
+            else {
+                // continue if there is a gap in the checkpoints
+                continue;
+            };
+
+            if chkpt.epoch < previous_epoch {
+                // we must stop searching if we are past the previous epoch
+                break;
+            }
+
+            if chkpt.epoch == previous_epoch && chkpt.end_of_epoch_data.is_some() {
+                // We found the checkpoint with end of epoch data for the previous epoch
+                last_checkpoint_seq_number_of_prev_epoch = Some(chkpt.sequence_number);
+                break;
+            }
+        }
+
+        let last_checkpoint_seq_number_of_prev_epoch = last_checkpoint_seq_number_of_prev_epoch
+            .ok_or(StorageError::custom(format!(
+                "Failed to get the last checkpoint of the previous epoch {previous_epoch}",
+            )))?;
+
+        Ok(last_checkpoint_seq_number_of_prev_epoch + 1)
     }
 
     fn index_transactions(

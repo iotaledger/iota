@@ -833,6 +833,7 @@ async fn start(
             }
 
             // Apply gRPC configuration if enabled
+            swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(enable_grpc_api);
             if enable_grpc_api {
                 if let Some(grpc_config) = grpc_api_config {
                     info!("Enabling gRPC API for fullnode with config: {grpc_config:?}");

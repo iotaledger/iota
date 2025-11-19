@@ -7,7 +7,7 @@ pub mod server;
 pub mod types;
 
 // Re-export commonly used types and traits
-pub use ledger_service::LedgerService;
+pub use ledger_service::LedgerGrpcService;
 pub use server::{GrpcServerHandle, start_grpc_server};
 pub use types::{
     CheckpointDataBroadcaster, CheckpointSummaryBroadcaster, EventSubscriber,

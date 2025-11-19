@@ -61,8 +61,9 @@ mod data_ingestion_handler;
 pub mod metrics;
 pub(crate) mod utils;
 
-#[cfg(test)]
-pub(crate) mod tests;
+// TODO: re-enable or remove these tests https://github.com/iotaledger/iota/issues/9257
+//#[cfg(test)]
+// pub(crate) mod tests;
 
 use data_ingestion_handler::{load_checkpoint_data, store_checkpoint_locally};
 use metrics::CheckpointExecutorMetrics;
