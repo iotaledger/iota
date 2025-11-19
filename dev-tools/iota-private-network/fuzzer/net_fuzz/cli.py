@@ -62,6 +62,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=20.0,
         help="Seconds between block/unblock churn events",
     )
+    run.add_argument(
+        "--block-fraction",
+        type=float,
+        default=0.2,
+        help="Target long-run fraction of time a pair is blocked (0..1)",
+    )
 
     return parser
 
@@ -89,6 +95,7 @@ def main(argv: list[str] | None = None) -> int:
                 max_loss_pct=args.max_loss_pct,
                 latency_update_interval_s=args.latency_interval,
                 block_update_interval_s=args.block_interval,
+                block_fraction=args.block_fraction,
             )
             log.info("Scenario completed: %s", result)
             return 0

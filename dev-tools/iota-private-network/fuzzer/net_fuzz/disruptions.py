@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import subprocess
 
 from . import docker_env
@@ -12,6 +13,7 @@ log = logging.getLogger(__name__)
 _TC_DEV = "eth0"
 _IPTABLES_CHAIN = "DOCKER-USER"
 _RULE_COMMENT_PREFIX = "net-fuzz"
+_VALIDATOR_RE = re.compile(r"^validator-(\d+)$")
 
 
 class DisruptionError(RuntimeError):
@@ -19,6 +21,7 @@ class DisruptionError(RuntimeError):
 
 
 def _run_host_command(args: list[str], *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    """Run a command on the host system"""
     log.debug("Host command: %s", " ".join(args))
     result = subprocess.run(args, capture_output=True, text=True)
     if check and result.returncode != 0:
@@ -35,6 +38,7 @@ def _nsenter(pid: int, args: list[str], *, check: bool = True) -> subprocess.Com
 
 
 def _require_pid(name: str) -> int:
+    """Get the PID of the container, raising if not running."""
     pid = docker_env.get_container_pid(name)
     if not pid:
         raise DisruptionError(f"Container {name!r} is not running (no PID)")
@@ -48,8 +52,87 @@ def add_latency(
     jitter_ms: int = 0,
     loss_pct: float = 0.0,
 ) -> None:
+    """Apply latency and optional loss from ``src`` to ``dst``.
+
+    Implements per-destination shaping by:
+
+    - ensuring a classful HTB root on the source interface,
+    - attaching a dedicated class + netem qdisc for the destination, and
+    - adding a ``u32`` filter that matches the destination IP and sends
+      traffic into that class.
+
+    Subsequent calls for other destinations reuse the same root and add
+    additional classes/filters.
+    """
+
     pid = _require_pid(src)
-    _nsenter(pid, ["tc", "qdisc", "del", "dev", _TC_DEV, "root"], check=False)
+    dst_ip = docker_env.get_container_ip(dst)
+    if not dst_ip:
+        raise DisruptionError(f"Unable to resolve container IP for {dst!r}")
+
+    # Ensure a classful root qdisc exists once per node
+    show = _nsenter(pid, ["tc", "qdisc", "show", "dev", _TC_DEV], check=False)
+    if "htb 1:" not in (show.stdout or ""):
+        _nsenter(pid, ["tc", "qdisc", "del", "dev", _TC_DEV, "root"], check=False)
+        _nsenter(
+            pid,
+            ["tc", "qdisc", "add", "dev", _TC_DEV, "root", "handle", "1:", "htb", "default", "1"],
+            check=False,
+        )
+        _nsenter(
+            pid,
+            [
+                "tc",
+                "class",
+                "add",
+                "dev",
+                _TC_DEV,
+                "parent",
+                "1:",
+                "classid",
+                "1:1",
+                "htb",
+                "rate",
+                "1000mbit",
+                "ceil",
+                "1000mbit",
+            ],
+            check=False,
+        )
+
+    # Derive a stable classid from dst name or IP
+    m = _VALIDATOR_RE.match(dst)
+    if m:
+        idx = int(m.group(1))
+    else:
+        # Fallback: use last octet of the IP for non-validator containers
+        try:
+            idx = int(dst_ip.split(".")[-1])
+        except ValueError:
+            idx = 1
+    classid = f"1:{100 + idx}"
+
+    # Create/update dedicated class and netem qdisc for this destination
+    _nsenter(
+        pid,
+        [
+            "tc",
+            "class",
+            "replace",
+            "dev",
+            _TC_DEV,
+            "parent",
+            "1:",
+            "classid",
+            classid,
+            "htb",
+            "rate",
+            "1000mbit",
+            "ceil",
+            "1000mbit",
+        ],
+        check=False,
+    )
 
     cmd = [
         "tc",
@@ -57,7 +140,8 @@ def add_latency(
         "replace",
         "dev",
         _TC_DEV,
-        "root",
+        "parent",
+        classid,
         "netem",
         "delay",
         f"{delay_ms}ms",
@@ -66,7 +150,47 @@ def add_latency(
         cmd.append(f"{jitter_ms}ms")
     if loss_pct > 0:
         cmd.extend(["loss", f"{loss_pct:.2f}%"])
-    _nsenter(pid, cmd)
+    _nsenter(pid, cmd, check=False)
+
+    # Check existing filters to avoid duplicates. We must ensure that the
+    # IP and classid appear on the *same* filter line; otherwise we might
+    # incorrectly assume the filter exists.
+    filters = _nsenter(pid, ["tc", "filter", "show", "dev", _TC_DEV, "parent", "1:"], check=False)
+    filters_out = filters.stdout or ""
+    existing = False
+    for line in filters_out.splitlines():
+        if dst_ip in line and f"flowid {classid}" in line:
+            existing = True
+            break
+
+    if existing:
+        log.info("Filter for %s -> %s already exists, skipping filter add", src, dst)
+    else:
+        # Attach a filter that routes traffic to dst_ip into the class
+        _nsenter(
+            pid,
+            [
+                "tc",
+                "filter",
+                "add",
+                "dev",
+                _TC_DEV,
+                "parent",
+                "1:",
+                "protocol",
+                "ip",
+                "u32",
+                "match",
+                "ip",
+                "dst",
+                f"{dst_ip}/32",
+                "flowid",
+                classid,
+            ],
+            check=False,
+        )
+        log.info("Added filter for %s -> %s: %s -> class %s", src, dst, dst_ip, classid)
+
     log.info(
         "Applied latency: src=%s dst=%s delay=%sms jitter=%sms loss=%.2f%%",
         src,
@@ -78,6 +202,7 @@ def add_latency(
 
 
 def _ensure_docker_user_chain() -> None:
+    """Ensure that the DOCKER-USER chain exists and is hooked into FORWARD."""
     res = _run_host_command(["iptables", "-nL", _IPTABLES_CHAIN], check=False)
     if res.returncode != 0:
         _run_host_command(["iptables", "-N", _IPTABLES_CHAIN])
@@ -91,6 +216,7 @@ def _rule_comment(label: str) -> str:
 
 
 def _add_drop_rule(src_ip: str, dst_ip: str, label: str) -> None:
+    """Add an iptables DROP rule from src_ip to dst_ip with a comment label."""
     spec = ["-s", src_ip, "-d", dst_ip, "-j", "DROP"]
     res = _run_host_command(["iptables", "-C", _IPTABLES_CHAIN, *spec], check=False)
     if res.returncode == 0:
@@ -110,6 +236,7 @@ def _add_drop_rule(src_ip: str, dst_ip: str, label: str) -> None:
 
 
 def block_connection(src: str, dst: str) -> None:
+    """Block all network traffic between ``src`` and ``dst`` containers."""
     src_ip = docker_env.get_container_ip(src)
     dst_ip = docker_env.get_container_ip(dst)
     if not src_ip or not dst_ip:
@@ -122,11 +249,13 @@ def block_connection(src: str, dst: str) -> None:
 
 
 def _delete_drop_rule(src_ip: str, dst_ip: str, label: str) -> None:
+    """Delete an iptables DROP rule from src_ip to dst_ip with a comment label."""
     spec = ["-s", src_ip, "-d", dst_ip, "-j", "DROP", "-m", "comment", "--comment", _rule_comment(label)]
     _run_host_command(["iptables", "-D", _IPTABLES_CHAIN, *spec], check=False)
 
 
 def unblock_connection(src: str, dst: str) -> None:
+    """Unblock all network traffic between ``src`` and ``dst`` containers."""
     src_ip = docker_env.get_container_ip(src)
     dst_ip = docker_env.get_container_ip(dst)
     if not src_ip or not dst_ip:

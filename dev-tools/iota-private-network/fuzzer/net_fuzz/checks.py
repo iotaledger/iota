@@ -47,16 +47,69 @@ def _read_tc_qdisc(name: str) -> str | None:
 
 
 def check_latency(src: str, dst: str, expected_min_ms: int, expected_max_ms: int) -> bool:
-    output = _read_tc_qdisc(src)
-    if output is None:
+    """Check that latency from ``src`` to ``dst`` lies in the expected range.
+
+    For per-destination shaping, we look for the ``tc filter`` matching
+    ``dst``'s IP and then read the delay from the corresponding qdisc.
+    If no such filter/qdisc is found, we fall back to the legacy
+    node-wide netem check.
+    """
+
+    src_pid = docker_env.get_container_pid(src)
+    if not src_pid:
+        log.warning("Container %s has no PID; cannot check latency", src)
         return False
 
-    match = _DELAY_RE.search(output)
-    if not match:
-        log.debug("No delay configured on %s", src)
-        return expected_min_ms == 0
+    dst_ip = docker_env.get_container_ip(dst)
+    if not dst_ip:
+        log.warning("Container %s has no IP; cannot check latency to %s", dst, src)
+        return False
 
-    delay = float(match.group(1))
+    # First try to locate a per-destination filter for dst_ip
+    filt = subprocess.run(
+        ["nsenter", "-t", str(src_pid), "-n", "tc", "filter", "show", "dev", _TC_DEV, "parent", "1:"],
+        capture_output=True,
+        text=True,
+    )
+
+    flowid = None
+    if filt.returncode == 0:
+        for line in filt.stdout.splitlines():
+            if dst_ip in line and "flowid" in line:
+                parts = line.split()
+                for i, token in enumerate(parts):
+                    if token == "flowid" and i + 1 < len(parts):
+                        flowid = parts[i + 1]
+                        break
+                if flowid:
+                    break
+
+    delay = None
+    if flowid:
+        qdisc_out = subprocess.run(
+            ["nsenter", "-t", str(src_pid), "-n", "tc", "qdisc", "show", "dev", _TC_DEV],
+            capture_output=True,
+            text=True,
+        )
+        if qdisc_out.returncode == 0:
+            for line in qdisc_out.stdout.splitlines():
+                if f"parent {flowid} " in line:
+                    match = _DELAY_RE.search(line)
+                    if match:
+                        delay = float(match.group(1))
+                        break
+
+    # Fallback: legacy node-wide netem
+    if delay is None:
+        output = _read_tc_qdisc(src)
+        if output is None:
+            return False
+        match = _DELAY_RE.search(output)
+        if not match:
+            log.debug("No delay configured on %s", src)
+            return expected_min_ms == 0
+        delay = float(match.group(1))
+
     if expected_min_ms <= delay <= expected_max_ms:
         log.debug("Latency check passed for %s->%s (%.2fms)", src, dst, delay)
         return True
