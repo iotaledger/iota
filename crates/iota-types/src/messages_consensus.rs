@@ -20,7 +20,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     base_types::{
-        AuthorityName, ConciseableName, ObjectID, ObjectRef, SequenceNumber, TransactionDigest,
+        AuthorityName, CommitRound, ConciseableName, ObjectID, ObjectRef, SequenceNumber,
+        TransactionDigest,
     },
     crypto::{AuthoritySignature, DefaultHash},
     digests::{ConsensusCommitDigest, Digest},
@@ -90,6 +91,10 @@ pub enum ConsensusTransactionKey {
     NewJWKFetched(Box<(AuthorityName, JwkId, JWK)>),
     RandomnessDkgMessage(AuthorityName),
     RandomnessDkgConfirmation(AuthorityName),
+    // If a validator submits more than one report for the same round, we update the
+    // scoring metrics using the maximum reported metric, so CommitRound is sufficient to
+    // identify a report from a single AuthorityName.
+    MisbehaviorReport(AuthorityName, CommitRound),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -102,6 +107,9 @@ impl Debug for ConsensusTransactionKey {
                 write!(f, "CheckpointSignature({:?}, {:?})", name.concise(), seq)
             }
             Self::EndOfPublish(name) => write!(f, "EndOfPublish({:?})", name.concise()),
+            Self::MisbehaviorReport(name, round) => {
+                write!(f, "MisbehaviorReport({:?},{:?})", name.concise(), round)
+            }
             Self::CapabilityNotification(name, generation) => write!(
                 f,
                 "CapabilityNotification({:?}, {:?})",
@@ -260,6 +268,7 @@ pub enum ConsensusTransactionKind {
     // of `RandomnessDkgMessages` have been received locally, to complete the key generation
     // process. Contents are a serialized `fastcrypto_tbls::dkg::Confirmation`.
     RandomnessDkgConfirmation(AuthorityName, Vec<u8>),
+    MisbehaviorReport(AuthorityName, VersionedMisbehaviorReport, CommitRound),
     // New entries should be added at the end to preserve serialization compatibility. DO NOT
     // CHANGE THE ORDER OF EXISTING ENTRIES!
 }
@@ -271,6 +280,50 @@ impl ConsensusTransactionKind {
             ConsensusTransactionKind::RandomnessDkgMessage(_, _)
                 | ConsensusTransactionKind::RandomnessDkgConfirmation(_, _)
         )
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum VersionedMisbehaviorReport {
+    V1(MisbehaviorReportV1),
+}
+
+impl VersionedMisbehaviorReport {
+    pub fn verify(&self, committee_size: usize) -> bool {
+        match self {
+            VersionedMisbehaviorReport::V1(report) => report.verify(committee_size),
+        }
+    }
+}
+
+// MisbehaviorReportV1 contains lists of faulty blocks, equivocation and missing
+// proposal counts for each authority. This first version does not include any
+// type of proof.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MisbehaviorReportV1 {
+    pub faulty_blocks_provable: Vec<u64>,
+    pub faulty_blocks_unprovable: Vec<u64>,
+    pub equivocations: Vec<u64>,
+    pub missing_proposals: Vec<u64>,
+}
+
+impl MisbehaviorReportV1 {
+    pub fn verify(&self, committee_size: usize) -> bool {
+        // This version of reports are valid as long as they contain the counts for all
+        // authorities.  Future versions may contain proofs that need verification.
+        // However, since the validity of a proof is deeply coupled with the protocol
+        // version and the consensus mechanism being used, we cannot verify it here. In
+        // the future, reports should be unwrapped (or translated) to a type verifiable
+        // by the consensus crate, which means that the verification logic will probably
+        // move out of this crate.
+        if (self.faulty_blocks_provable.len() != committee_size)
+            | (self.faulty_blocks_unprovable.len() != committee_size)
+            | (self.equivocations.len() != committee_size)
+            | (self.missing_proposals.len() != committee_size)
+        {
+            return false;
+        }
+        true
     }
 }
 
@@ -464,6 +517,26 @@ impl ConsensusTransaction {
         }
     }
 
+    pub fn new_misbehavior_report_v1(
+        authority: AuthorityName,
+        report: &MisbehaviorReportV1,
+        round: CommitRound,
+    ) -> Self {
+        let serialized_report =
+            bcs::to_bytes(report).expect("report serialization should not fail");
+        let mut hasher = DefaultHasher::new();
+        serialized_report.hash(&mut hasher);
+        let tracking_id = hasher.finish().to_le_bytes();
+        Self {
+            tracking_id,
+            kind: ConsensusTransactionKind::MisbehaviorReport(
+                authority,
+                VersionedMisbehaviorReport::V1(report.clone()),
+                round,
+            ),
+        }
+    }
+
     pub fn get_tracking_id(&self) -> u64 {
         (&self.tracking_id[..])
             .read_u64::<BigEndian>()
@@ -483,6 +556,9 @@ impl ConsensusTransaction {
             }
             ConsensusTransactionKind::EndOfPublish(authority) => {
                 ConsensusTransactionKey::EndOfPublish(*authority)
+            }
+            ConsensusTransactionKind::MisbehaviorReport(authority, _, round) => {
+                ConsensusTransactionKey::MisbehaviorReport(*authority, *round)
             }
             ConsensusTransactionKind::CapabilityNotificationV1(cap) => {
                 ConsensusTransactionKey::CapabilityNotification(cap.authority, cap.generation)
