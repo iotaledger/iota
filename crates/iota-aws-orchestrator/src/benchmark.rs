@@ -55,13 +55,15 @@ pub struct BenchmarkParameters<T> {
     /// the nodes.
     pub use_internal_ip_address: bool,
     /// The topology of private network latencies, Geographical or Clustered
-    pub latency_topology: TopologyLayout,
+    pub latency_topology: Option<TopologyLayout>,
     /// Maximum latency between two nodes in the private network.
     pub maximum_latency: u16,
     /// Specification of Perturbation imposed on the private network latencies.
     pub perturbation_spec: PerturbationSpec,
     /// Flag used to switch between mysticety and starfish every epoch.
     pub protocol_switch_each_epoch: bool,
+    /// Flag to skip generation of the latency matrix in private networks.
+    pub keep_latencies: bool,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -73,10 +75,11 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             load: 500,
             duration: Duration::from_secs(60),
             use_internal_ip_address: true,
-            latency_topology: TopologyLayout::Geographical,
+            latency_topology: Some(TopologyLayout::Geographical),
             perturbation_spec: PerturbationSpec::None,
             protocol_switch_each_epoch: false,
             maximum_latency: 400,
+            keep_latencies: false,
         }
     }
 }
@@ -110,10 +113,11 @@ impl<T> BenchmarkParameters<T> {
         load: usize,
         duration: Duration,
         use_internal_ip_address: bool,
-        latency_topology: TopologyLayout,
+        latency_topology: Option<TopologyLayout>,
         perturbation_spec: PerturbationSpec,
         protocol_switch_each_epoch: bool,
         maximum_latency: u16,
+        keep_latencies: bool,
     ) -> Self {
         Self {
             benchmark_type,
@@ -126,6 +130,7 @@ impl<T> BenchmarkParameters<T> {
             perturbation_spec,
             protocol_switch_each_epoch,
             maximum_latency,
+            keep_latencies,
         }
     }
 }
@@ -171,13 +176,15 @@ pub struct BenchmarkParametersGenerator<T> {
     /// IP address for inter-node communication.
     use_internal_ip_address: bool,
     /// The topology of private network latencies, Geographical or Clustered
-    pub latency_topology: TopologyLayout,
+    pub latency_topology: Option<TopologyLayout>,
     /// Maximum latency between two nodes in the private network.
     pub maximum_latency: u16,
     /// Specification of Perturbation imposed on the private network latencies.
     pub perturbation_spec: PerturbationSpec,
     /// Flag used to switch between mysticety and starfish every epoch.
     pub protocol_switch_each_epoch: bool,
+    /// Flag to skip generation of the latency matrix in private networks.
+    pub keep_latencies: bool,
 }
 
 impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
@@ -197,6 +204,7 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 self.perturbation_spec.clone(),
                 self.protocol_switch_each_epoch,
                 self.maximum_latency,
+                self.keep_latencies,
             )
         })
     }
@@ -230,9 +238,10 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             iterations: 0,
             use_internal_ip_address,
             perturbation_spec: PerturbationSpec::None,
-            latency_topology: TopologyLayout::Geographical,
+            latency_topology: Some(TopologyLayout::Geographical),
             protocol_switch_each_epoch: false,
             maximum_latency: 400,
+            keep_latencies: false,
         }
     }
 
@@ -259,7 +268,7 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
         self
     }
 
-    pub fn with_latency_topology(mut self, latency_topology: TopologyLayout) -> Self {
+    pub fn with_latency_topology(mut self, latency_topology: Option<TopologyLayout>) -> Self {
         self.latency_topology = latency_topology;
         self
     }
@@ -271,6 +280,11 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
 
     pub fn with_max_latency(mut self, max_latency: u16) -> Self {
         self.maximum_latency = max_latency;
+        self
+    }
+
+    pub fn with_keep_latencies(mut self, keep_latencies: bool) -> Self {
+        self.keep_latencies = keep_latencies;
         self
     }
 

@@ -277,15 +277,17 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .with_log_file("~/node.log".into())
             .with_execute_from_path(repo.into());
         if parameters.use_internal_ip_address {
-            let latency_context = CommandContext::default();
-            let latency_commands = NetworkLatencyCommandBuilder::new(&instances)
-                .with_perturbation_spec(parameters.perturbation_spec.clone())
-                .with_topology_layout(parameters.latency_topology.clone())
-                .with_max_latency(parameters.maximum_latency)
-                .build_network_latency_matrix();
-            self.ssh_manager
-                .execute_per_instance(latency_commands, latency_context)
-                .await?;
+            if let Some(latency_topology) = parameters.latency_topology.clone() {
+                let latency_context = CommandContext::default();
+                let latency_commands = NetworkLatencyCommandBuilder::new(&instances)
+                    .with_perturbation_spec(parameters.perturbation_spec.clone())
+                    .with_topology_layout(latency_topology)
+                    .with_max_latency(parameters.maximum_latency)
+                    .build_network_latency_matrix();
+                self.ssh_manager
+                    .execute_per_instance(latency_commands, latency_context)
+                    .await?;
+            }
         }
         self.ssh_manager
             .execute_per_instance(targets, context)
