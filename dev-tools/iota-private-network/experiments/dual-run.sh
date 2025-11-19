@@ -29,7 +29,7 @@ if ! (cd "$DOCKER_ROOT/iota-node"    && sudo ./build.sh); then
   exit 1
 fi
 
-if ! (cd "$DOCKER_ROOT/iota-tools"   && sudo ./build.sh -t iota-tools); then
+if ! (cd "$DOCKER_ROOT/iota-tools"   && sudo ./build.sh); then
   echo "dual-run: ERROR building iota-tools image" >&2
   exit 1
 fi
