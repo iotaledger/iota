@@ -10116,7 +10116,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "irate(consensus_outbound_request_latency_sum[2m]) / irate(consensus_outbound_request_latency_count[2m])",
+          "expr": "avg by (route) (rate(consensus_outbound_request_latency_sum[2m]) / rate(consensus_outbound_request_latency_count[2m]))",
           "hide": false,
           "legendFormat": "avg - {{route}}",
           "range": true,
