@@ -8,7 +8,7 @@ import time
 from dataclasses import dataclass, field
 from random import Random
 
-from . import checks, disruptions
+from . import checks, disruptions, spammer
 
 log = logging.getLogger(__name__)
 
@@ -50,9 +50,10 @@ class _NodeState:
     next_change: float = math.inf
     last_change: float = 0.0
     total_down_time: float = 0.0
+    latency_next_change: float = math.inf
 
 
-def sota_fuzz_scenario(
+def fuzz_scenario(
     *,
     num_validators: int,
     duration_s: int,
@@ -63,8 +64,10 @@ def sota_fuzz_scenario(
     max_loss_pct: float,
     latency_update_interval_s: float = 30.0,
     block_update_interval_s: float = 20.0,
+    block_fraction: float = 0.2,
+    spammer_tps: int | None = None,
 ) -> ScenarioResult:
-    """State-of-the-art fuzz scenario combining churn, partitions and netem.
+    """Fuzz scenario combining churn, partitions and netem.
 
     Design goals:
     - Deterministic: all randomness is driven by ``seed`` via ``random.Random``.
@@ -77,11 +80,23 @@ def sota_fuzz_scenario(
     """
 
     rng = Random(seed)
+    block_fraction = max(0.0, min(block_fraction, 1.0))
     start = time.monotonic()
     deadline = start + float(duration_s)
 
     # Ensure we start from a clean, non-perturbed state and heal on exit.
     disruptions.reset_network(num_validators)
+
+    # Clean up any existing spammer and start a new one if requested.
+    spammer.stop_stress_spammer()
+    spammer_started = False
+    if spammer_tps and spammer_tps > 0:
+        try:
+            spammer.start_stress_spammer(tps=spammer_tps, duration_s=duration_s)
+            spammer_started = True
+            log.info("Started stress spammer at %s TPS for ~%ss", spammer_tps, duration_s)
+        except Exception as exc:  # pragma: no cover - defensive
+            log.warning("Failed to start stress spammer (tps=%s): %s", spammer_tps, exc)
 
     names = [f"validator-{i}" for i in range(1, num_validators + 1)]
     nodes = {_name: _NodeState(name=_name, up=True, last_change=start) for _name in names}
@@ -103,12 +118,15 @@ def sota_fuzz_scenario(
     for st in nodes.values():
         schedule_next_stop(now, st)
 
-    def schedule_next_latency(now: float) -> float:
+    def schedule_latency_change(now: float, state: _NodeState) -> None:
         if (max_latency_ms <= 0 and max_loss_pct <= 0.0) or latency_update_interval_s <= 0:
-            return math.inf
-        return now + rng.expovariate(1.0 / latency_update_interval_s)
+            state.latency_next_change = math.inf
+            return
+        rate = 1.0 / latency_update_interval_s
+        state.latency_next_change = now + rng.expovariate(rate)
 
-    next_latency_update = schedule_next_latency(start)
+    for st in nodes.values():
+        schedule_latency_change(now, st)
 
     @dataclass
     class _EdgeState:
@@ -118,10 +136,17 @@ def sota_fuzz_scenario(
         next_change: float = math.inf
 
     def schedule_edge_change(now: float, edge: _EdgeState) -> None:
-        if block_update_interval_s <= 0:
+        if block_update_interval_s <= 0 or block_fraction <= 0.0 or block_fraction >= 1.0:
+            edge.next_change = math.inf
+            return
+        if edge.blocked:
+            rate = (1.0 - block_fraction) / block_update_interval_s
+        else:
+            rate = block_fraction / block_update_interval_s
+        if rate <= 0:
             edge.next_change = math.inf
         else:
-            edge.next_change = now + rng.expovariate(1.0 / block_update_interval_s)
+            edge.next_change = now + rng.expovariate(rate)
 
     edges: dict[tuple[str, str], _EdgeState] = {}
     for i in range(len(names)):
@@ -138,7 +163,7 @@ def sota_fuzz_scenario(
     num_recover_events = 0
 
     log.info(
-        "Starting SOTA fuzz scenario: N=%d duration=%ds seed=%d max_down=%d "
+        "Starting fuzz scenario: N=%d duration=%ds seed=%d max_down=%d "
         "mean_stop=%.1fs mean_recover=%.1fs max_latency=%dms max_loss=%.2f%%",
         num_validators,
         duration_s,
@@ -157,8 +182,9 @@ def sota_fuzz_scenario(
                 break
 
             next_node_change = min(st.next_change for st in nodes.values())
+            next_latency_change = min(st.latency_next_change for st in nodes.values())
             next_edge_change = min(edge.next_change for edge in edges.values())
-            next_event_time = min(next_node_change, next_latency_update, next_edge_change, deadline)
+            next_event_time = min(next_node_change, next_latency_change, next_edge_change, deadline)
 
             sleep_for = max(0.0, next_event_time - time.monotonic())
             if sleep_for > 0:
@@ -197,16 +223,26 @@ def sota_fuzz_scenario(
                         num_recover_events += 1
 
             # Latency & loss updates (global Poisson process)
-            if now >= next_latency_update and (max_latency_ms > 0 or max_loss_pct > 0.0):
+            if max_latency_ms > 0 or max_loss_pct > 0.0:
                 for st in nodes.values():
-                    if not st.up:
-                        continue
-                    delay = rng.randint(0, max_latency_ms) if max_latency_ms > 0 else 0
-                    jitter = max(1, delay // 10) if delay > 0 else 0
-                    loss = rng.uniform(0.0, max_loss_pct) if max_loss_pct > 0.0 else 0.0
-                    disruptions.add_latency(st.name, "all", delay_ms=delay, jitter_ms=jitter, loss_pct=loss)
-                next_latency_update = schedule_next_latency(now)
-                num_latency_updates += 1
+                    if st.latency_next_change <= now:
+                        if st.up:
+                            delay = rng.randint(0, max_latency_ms) if max_latency_ms > 0 else 0
+                            jitter = max(1, delay // 10) if delay > 0 else 0
+                            loss = rng.uniform(0.0, max_loss_pct) if max_loss_pct > 0.0 else 0.0
+                            # Apply per-destination latency/loss from this node to all other *up* nodes
+                            for dst_name in names:
+                                if dst_name == st.name or not nodes[dst_name].up:
+                                    continue
+                                disruptions.add_latency(
+                                    st.name,
+                                    dst_name,
+                                    delay_ms=delay,
+                                    jitter_ms=jitter,
+                                    loss_pct=loss,
+                                )
+                            num_latency_updates += 1
+                        schedule_latency_change(now, st)
 
             # Per-pair exponential block/unblock processes
             for edge in edges.values():
@@ -231,6 +267,11 @@ def sota_fuzz_scenario(
                 st.total_down_time += end_time - st.last_change
 
         disruptions.reset_network(num_validators)
+        if spammer_started:
+            try:
+                spammer.stop_stress_spammer()
+            except Exception as exc:  # pragma: no cover - defensive
+                log.warning("Failed to stop stress spammer during cleanup: %s", exc)
 
     details: dict[str, object] = {
         "num_validators": num_validators,
@@ -243,6 +284,6 @@ def sota_fuzz_scenario(
         "num_block_events": num_block_events,
         "node_down_time": {st.name: st.total_down_time for st in nodes.values()},
     }
-    log.info("Completed SOTA fuzz scenario: %s", details)
+    log.info("Completed fuzz scenario: %s", details)
 
-    return ScenarioResult(name="sota_fuzz_scenario", details=details)
+    return ScenarioResult(name="fuzz_scenario", details=details)

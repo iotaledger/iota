@@ -160,9 +160,9 @@ This uses `disruptions.add_latency` and `checks.check_latency` under
 the hood and logs a short summary. More complex fuzz scenarios can be
 added later without changing how the environment is set up.
 
-## SOTA fuzz scenario
+## Long-running fuzz scenario
 
-The `sota_fuzz_scenario` combines node churn, network partitions and
+The `fuzz_scenario` combines node churn, network partitions and
 latency/loss into a single long-running experiment. It:
 
 - keeps strictly fewer than 1/3 of validators down at any time
@@ -178,7 +178,7 @@ source .venv/bin/activate
 PYTHON=$(python -c 'import sys; print(sys.executable)')
 
 sudo -E "$PYTHON" -m net_fuzz run-scenario \
-  --name sota-fuzz \
+  --name fuzz \
   --num-validators 19 \
   --duration 6000 \
   --seed 42 \
@@ -187,7 +187,8 @@ sudo -E "$PYTHON" -m net_fuzz run-scenario \
   --max-latency-ms 200 \
   --max-loss-pct 5.0 \
   --latency-interval 120 \
-  --block-interval 150
+  --block-interval 150 \
+  --spammer-tps 100
 ```
 
 At the beginning and in a `finally` block at the end the scenario
@@ -196,6 +197,30 @@ calls `disruptions.reset_network`, which:
 - restarts all `validator-1 .. validator-N` containers
 - clears any `tc` qdisc on their primary interfaces
 - removes all `net-fuzz:` rules from the `DOCKER-USER` chain
+
+If `--spammer-tps` is greater than zero, the scenario will also:
+
+- stop any existing `stress-benchmark` container
+- start a background `stress` spammer via the `iotaledger/iota-tools`
+  image with `--target-qps` set to the given TPS
+- ensure the spammer container is stopped again during scenario cleanup
+
+You can also run the spammer directly:
+
+```bash
+source .venv/bin/activate
+PYTHON=$(python -c 'import sys; print(sys.executable)')
+
+sudo -E "$PYTHON" -m net_fuzz.spammer --tps 100 --duration 600
+```
+
+This will:
+
+- ensure `fullnode-1` and `faucet-1` are up via `docker compose`
+- start a detached `stress-benchmark` container on the
+  `iota-private-network_iota-network` Docker network
+-, if `--duration` is set, stop the container after the given number of
+  seconds.
 
 ## Logging
 

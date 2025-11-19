@@ -17,12 +17,12 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     run = sub.add_parser("run-scenario", help="Run a named fuzz scenario")
-    run.add_argument("--name", required=True, help="Scenario name, e.g. latency or sota-fuzz")
+    run.add_argument("--name", required=True, help="Scenario name, e.g. latency or fuzz")
     run.add_argument("--src", help="Source validator/container name")
     run.add_argument("--dst", help="Destination validator/container name")
     run.add_argument("--delay-ms", type=int, default=100)
 
-    # SOTA fuzz scenario parameters
+    # Long-running fuzz scenario parameters
     run.add_argument("--num-validators", type=int, default=4, help="Number of validators (validator-1..N)")
     run.add_argument("--duration", type=int, default=600, help="Scenario duration in seconds")
     run.add_argument("--seed", type=int, default=42, help="Random seed for deterministic runs")
@@ -68,6 +68,12 @@ def build_parser() -> argparse.ArgumentParser:
         default=0.2,
         help="Target long-run fraction of time a pair is blocked (0..1)",
     )
+    run.add_argument(
+        "--spammer-tps",
+        type=int,
+        default=0,
+        help="If >0, start stress spammer at this TPS during the fuzz scenario",
+    )
 
     return parser
 
@@ -84,8 +90,8 @@ def main(argv: list[str] | None = None) -> int:
             result = scenarios.add_latency_between_validators(args.src, args.dst, args.delay_ms)
             log.info("Scenario completed: %s", result)
             return 0
-        if args.name == "sota-fuzz":
-            result = scenarios.sota_fuzz_scenario(
+        if args.name == "fuzz":
+            result = scenarios.fuzz_scenario(
                 num_validators=args.num_validators,
                 duration_s=args.duration,
                 seed=args.seed,
@@ -96,6 +102,7 @@ def main(argv: list[str] | None = None) -> int:
                 latency_update_interval_s=args.latency_interval,
                 block_update_interval_s=args.block_interval,
                 block_fraction=args.block_fraction,
+                spammer_tps=args.spammer_tps,
             )
             log.info("Scenario completed: %s", result)
             return 0
