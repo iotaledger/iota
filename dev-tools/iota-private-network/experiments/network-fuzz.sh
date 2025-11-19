@@ -241,26 +241,41 @@ apply_node_qdisc(){
   local pid; pid=$(docker inspect -f '{{.State.Pid}}' "$v" 2>/dev/null || true)
   [[ -z "$pid" || "$pid" = "0" ]] && return 0
 
-  # compute avg latency for this node
-  local sum=0 cnt=0
-  for j in "${all_idx[@]}"; do
-    [[ $v_idx -eq $j ]] && continue
-    sum=$((sum + LAT_MS["$v_idx|$j"]))
-    cnt=$((cnt+1))
-  done
-  local avg=0
-  (( cnt > 0 )) && avg=$(( sum / cnt ))
-  (( avg < 0 )) && avg=0
-  local jitter=$(( (avg>5) ? 3 : 1 ))
+  # Ensure a classful root qdisc exists once per container
+  if ! sudo nsenter -t "$pid" -n tc qdisc show dev eth0 2>/dev/null | grep -q "htb 1:"; then
+    sudo nsenter -t "$pid" -n tc qdisc del dev eth0 root 2>/dev/null || true
+    sudo nsenter -t "$pid" -n tc qdisc add dev eth0 root handle 1: htb default 1 2>/dev/null || true
+    sudo nsenter -t "$pid" -n tc class add dev eth0 parent 1: classid 1:1 htb rate 1000mbit ceil 1000mbit 2>/dev/null || true
+  fi
+
+  # Clear existing filters so we can re-attach per-destination ones
+  sudo nsenter -t "$pid" -n tc filter del dev eth0 parent 1: 2>/dev/null || true
+
   local loss=${LOSS_PCT_NODE["$v_idx"]:-0}
 
-  sudo nsenter -t "$pid" -n tc qdisc del dev eth0 root 2>/dev/null || true
+  # Apply per-destination netem based on LAT_MS[i|j]
+  local j ipB base jitter classid
+  for j in "${all_idx[@]}"; do
+    [[ $v_idx -eq $j ]] && continue
 
-  if (( loss > 0 )); then
-    sudo nsenter -t "$pid" -n tc qdisc replace dev eth0 root netem delay "${avg}ms" "${jitter}ms" loss "${loss}%" 2>/dev/null || true
-  else
-    sudo nsenter -t "$pid" -n tc qdisc replace dev eth0 root netem delay "${avg}ms" "${jitter}ms" 2>/dev/null || true
-  fi
+    ipB=${VALIDATOR_IP["$j"]}
+    [[ -z "$ipB" ]] && continue
+
+    base=${LAT_MS["$v_idx|$j"]}
+    [[ -z "$base" ]] && base=0
+    jitter=$(( (base>5) ? 3 : 1 ))
+    classid="1:$((100 + j))"
+
+    sudo nsenter -t "$pid" -n tc class replace dev eth0 parent 1: classid "$classid" htb rate 1000mbit ceil 1000mbit 2>/dev/null || true
+
+    if (( loss > 0 )); then
+      sudo nsenter -t "$pid" -n tc qdisc replace dev eth0 parent "$classid" netem delay "${base}ms" "${jitter}ms" loss "${loss}%" 2>/dev/null || true
+    else
+      sudo nsenter -t "$pid" -n tc qdisc replace dev eth0 parent "$classid" netem delay "${base}ms" "${jitter}ms" 2>/dev/null || true
+    fi
+
+    sudo nsenter -t "$pid" -n tc filter add dev eth0 parent 1: protocol ip u32 match ip dst "${ipB}/32" flowid "$classid" 2>/dev/null || true
+  done
 }
 
 apply_all_latencies_and_loss_once(){
