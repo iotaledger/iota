@@ -20,8 +20,8 @@ use crate::{
 /// local metrics count used by Scorer.
 pub(crate) struct MysticetiScoringMetricsStore {
     pub current_local_metrics_count: Arc<VersionedScoringMetrics>,
-    pub cached_metrics: Arc<VersionedScoringMetrics>,
-    pub uncached_metrics: Arc<VersionedScoringMetrics>,
+    pub cached_metrics: VersionedScoringMetrics,
+    pub uncached_metrics: VersionedScoringMetrics,
 }
 
 impl MysticetiScoringMetricsStore {
@@ -33,13 +33,11 @@ impl MysticetiScoringMetricsStore {
         match protocol_config.scorer_version_as_option() {
             None | Some(1) => Self {
                 current_local_metrics_count,
-                cached_metrics: Arc::new(VersionedScoringMetrics::V1(ScoringMetricsV1::new(
-                    committee_size,
-                ))),
+                cached_metrics: VersionedScoringMetrics::V1(ScoringMetricsV1::new(committee_size)),
 
-                uncached_metrics: Arc::new(VersionedScoringMetrics::V1(ScoringMetricsV1::new(
+                uncached_metrics: VersionedScoringMetrics::V1(ScoringMetricsV1::new(
                     committee_size,
-                ))),
+                )),
             },
             _ => panic!("Unsupported scorer version"),
         }
