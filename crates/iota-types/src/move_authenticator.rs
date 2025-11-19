@@ -2,12 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashSet,
     hash::{Hash, Hasher},
     sync::Arc,
 };
 
 use fastcrypto::{error::FastCryptoError, traits::ToFromBytes};
-use move_core_types::language_storage::TypeTag;
+use iota_protocol_config::ProtocolConfig;
 use once_cell::sync::OnceCell;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -18,10 +19,11 @@ use crate::{
     committee::EpochId,
     crypto::{SignatureScheme, default_hash},
     digests::{MoveAuthenticatorDigest, ObjectDigest, ZKLoginInputsDigest},
-    error::{IotaError, IotaResult, UserInputError},
+    error::{IotaError, IotaResult, UserInputError, UserInputResult},
     signature::{AuthenticatorTrait, VerifyParams},
     signature_verification::VerifiedDigestCache,
     transaction::{CallArg, InputObjectKind, ObjectArg, SharedInputObject},
+    type_input::TypeInput,
 };
 
 /// MoveAuthenticator is a GenericSignature variant that enables a new
@@ -34,7 +36,7 @@ pub struct MoveAuthenticator {
     call_args: Vec<CallArg>,
     /// Type arguments for the Move authenticate function
     #[schemars(with = "String")]
-    type_arguments: Vec<TypeTag>,
+    type_arguments: Vec<TypeInput>,
     /// The object that is authenticated. Represents the account being the
     /// sender of the transaction.
     object_to_authenticate: CallArg,
@@ -55,7 +57,7 @@ impl Hash for MoveAuthenticator {
 impl MoveAuthenticator {
     pub fn new_for_testing(
         call_args: Vec<CallArg>,
-        type_arguments: Vec<TypeTag>,
+        type_arguments: Vec<TypeInput>,
         object_to_authenticate: CallArg,
     ) -> Self {
         Self {
@@ -79,7 +81,7 @@ impl MoveAuthenticator {
         &self.call_args
     }
 
-    pub fn type_arguments(&self) -> &Vec<TypeTag> {
+    pub fn type_arguments(&self) -> &Vec<TypeInput> {
         &self.type_arguments
     }
 
@@ -89,13 +91,12 @@ impl MoveAuthenticator {
 
     pub fn object_to_authenticate_components(
         &self,
-    ) -> IotaResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
+    ) -> UserInputResult<(ObjectID, Option<SequenceNumber>, Option<ObjectDigest>)> {
         Ok(match self.object_to_authenticate() {
             CallArg::Pure(_) => {
                 return Err(UserInputError::Unsupported(
                     "MoveAuthenticator cannot authenticate pure inputs".to_string(),
-                )
-                .into());
+                ));
             }
             CallArg::Object(object_arg) => match object_arg {
                 ObjectArg::ImmOrOwnedObject((id, sequence_number, digest)) => {
@@ -106,8 +107,7 @@ impl MoveAuthenticator {
                         return Err(UserInputError::Unsupported(
                             "MoveAuthenticator cannot authenticate mutable shared objects"
                                 .to_string(),
-                        )
-                        .into());
+                        ));
                     }
 
                     (*id, None, None)
@@ -115,8 +115,7 @@ impl MoveAuthenticator {
                 ObjectArg::Receiving(_) => {
                     return Err(UserInputError::Unsupported(
                         "MoveAuthenticator cannot authenticate receiving objects".to_string(),
-                    )
-                    .into());
+                    ));
                 }
             },
         })
@@ -141,6 +140,63 @@ impl MoveAuthenticator {
             .iter()
             .flat_map(|arg| arg.shared_objects())
             .collect()
+    }
+
+    /// Validity check for MoveAuthenticator.
+    pub fn validity_check(&self, config: &ProtocolConfig) -> UserInputResult {
+        // Check that the object to authenticate is valid.
+        self.object_to_authenticate_components()?;
+
+        // Inputs validity check.
+        //
+        // `validity_check` is not called for `object_to_authenticate` because it is
+        // already validated with a dedicated function.
+
+        // `ProtocolConfig::max_arguments` is used to check the call arguments because
+        // MoveAuthenticator is considered as a simple programmable Move call.
+        //
+        // The limit includes the object to authenticate, so we subtract 1 here.
+        fp_ensure!(
+            self.call_args().len() < (config.max_arguments() - 1) as usize,
+            UserInputError::SizeLimitExceeded {
+                limit: "maximum arguments in MoveAuthenticator".to_string(),
+                value: config.max_arguments().to_string()
+            }
+        );
+
+        fp_ensure!(
+            self.receiving_objects().is_empty(),
+            UserInputError::Unsupported(
+                "MoveAuthenticator cannot have receiving objects as input".to_string(),
+            )
+        );
+
+        let mut used = HashSet::new();
+        fp_ensure!(
+            self.input_objects()
+                .iter()
+                .all(|o| used.insert(o.object_id())),
+            UserInputError::DuplicateObjectRefInput
+        );
+
+        self.call_args()
+            .iter()
+            .try_for_each(|obj| obj.validity_check(config))?;
+
+        // Type arguments validity check.
+        //
+        // Each type argument is checked for validity in the same way as it is done for
+        // `ProgrammableMoveCall`.
+        let mut type_arguments_count = 0;
+        self.type_arguments().iter().try_for_each(|type_arg| {
+            crate::transaction::type_input_validity_check(
+                type_arg,
+                config,
+                &mut type_arguments_count,
+            )
+        })?;
+
+        Ok(())
     }
 }
 
