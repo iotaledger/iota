@@ -82,7 +82,7 @@ pub fn check_auth_info_v1(
         );
     };
 
-    if let Err(execution_error) = account_auth_verifier::verify_authenticate_func(
+    if let Err(execution_error) = account_auth_verifier::verify_authenticate_func_v1(
         &compiled_module,
         function_identifier,
         &context.type_to_type_tag(&ty_args[0])?,

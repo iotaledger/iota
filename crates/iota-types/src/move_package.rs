@@ -73,6 +73,9 @@ pub struct FnInfo {
     /// If true, it's a function involved in testing (`[test]`, `[test_only]`,
     /// `[expected_failure]`)
     pub is_test: bool,
+    /// If set, function was marked to represent authenticator function of
+    /// given version.
+    pub authenticator_version: Option<u8>,
 }
 
 #[derive(Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
@@ -660,6 +663,24 @@ pub fn is_test_fun(name: &IdentStr, module: &CompiledModule, fn_info_map: &FnInf
     }
 }
 
+pub fn get_authenticator_version_from_fun(
+    name: &IdentStr,
+    module: &CompiledModule,
+    fn_info_map: &FnInfoMap,
+) -> Option<u8> {
+    let fn_name = name.to_string();
+    let mod_handle = module.self_handle();
+    let mod_addr = *module.address_identifier_at(mod_handle.address);
+    let fn_info_key = FnInfoKey { fn_name, mod_addr };
+    match fn_info_map.get(&fn_info_key) {
+        Some(FnInfo {
+            is_test: _,
+            authenticator_version: Some(v),
+        }) => Some(*v),
+        _ => None,
+    }
+}
+
 pub fn normalize_modules<'a, I>(
     modules: I,
     binary_config: &BinaryConfig,
@@ -874,6 +895,14 @@ pub enum RuntimeModuleMetadata {
 }
 
 impl RuntimeModuleMetadata {
+    pub fn add_function_attribute(&mut self, function_name: String, attribute: IotaAttribute) {
+        match self {
+            RuntimeModuleMetadata::V1(metadata) => {
+                metadata.add_function_attribute(function_name, attribute)
+            }
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         match self {
             RuntimeModuleMetadata::V1(metadata) => metadata.is_empty(),
@@ -920,7 +949,18 @@ impl TryFrom<RuntimeModuleMetadataWrapper> for RuntimeModuleMetadata {
 /// The list of iota attribute types recognized by the compiler.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum IotaAttribute {
-    // Attribute(Attribute),
+    Authenticator(AuthenticatorAttribute),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+pub struct AuthenticatorAttribute {
+    pub version: u8,
+}
+
+impl IotaAttribute {
+    pub fn authenticator_attribute(version: u8) -> Self {
+        IotaAttribute::Authenticator(AuthenticatorAttribute { version })
+    }
 }
 
 /// V1 of IOTA specific metadata.
