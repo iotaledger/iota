@@ -366,6 +366,26 @@ impl Hash for BlockRef {
     }
 }
 
+
+#[derive(Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TransactionRef {
+    pub round: Round,
+    pub author: AuthorityIndex,
+    pub transactions_commitment: TransactionsCommitment
+}
+
+impl fmt::Display for TransactionRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        write!(f, "Tr{}({},{})", self.round, self.author, self.transactions_commitment)
+    }
+}
+
+impl fmt::Debug for TransactionRef {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        fmt::Display::fmt(self, f)
+    }
+}
+
 /// Digest of a `VerifiedBlockHeader` or verified `SignedBlockHeader`, which
 /// covers the `BlockHeader` and its signature.
 ///

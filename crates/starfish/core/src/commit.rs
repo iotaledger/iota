@@ -25,6 +25,7 @@ use crate::{
     leader_scoring::ReputationScores,
     storage::Store,
 };
+use crate::block_header::TransactionRef;
 
 /// Index of a commit among all consensus commits.
 pub type CommitIndex = u32;
@@ -57,6 +58,12 @@ pub(crate) type WaveNumber = u32;
 #[enum_dispatch(CommitAPI)]
 pub(crate) enum Commit {
     V1(CommitV1),
+    V2(CommitV2)
+}
+
+pub(crate) enum CommittedTransactionRef {
+    BlockRef(BlockRef),
+    TransactionRef(TransactionRef),
 }
 
 impl Commit {
@@ -69,6 +76,7 @@ impl Commit {
         blocks: Vec<BlockRef>,
         committed_transactions: Vec<BlockRef>,
     ) -> Self {
+
         Commit::V1(CommitV1 {
             index,
             previous_digest,
@@ -94,7 +102,7 @@ pub(crate) trait CommitAPI {
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
     fn blocks(&self) -> &[BlockRef];
-    fn committed_transactions(&self) -> Vec<BlockRef>;
+    fn committed_transactions(&self) -> Vec<CommittedTransactionRef>;
 }
 
 /// Specifies one consensus commit.
@@ -149,6 +157,64 @@ impl CommitAPI for CommitV1 {
     // TODO: https://github.com/iotaledger/iota/issues/8375
     // Does this need to be a vector? block refs are a slice == less cloning?
     fn committed_transactions(&self) -> Vec<BlockRef> {
+        self.committed_transactions.clone()
+    }
+}
+
+
+/// Specifies one consensus commit.
+/// It is stored on disk, so it does not contain blocks which are stored
+/// individually.
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+pub(crate) struct CommitV2 {
+    /// Index of the commit.
+    /// First commit after genesis has an index of 1, then every next commit has
+    /// an index incremented by 1.
+    index: CommitIndex,
+    /// Digest of the previous commit.
+    /// Set to CommitDigest::MIN for the first commit after genesis.
+    previous_digest: CommitDigest,
+    /// Timestamp of the commit, max of the timestamp of the leader block and
+    /// previous Commit timestamp.
+    timestamp_ms: BlockTimestampMs,
+    /// A reference to the commit leader.
+    leader: BlockRef,
+    /// Refs to committed blocks, in the commit order.
+    blocks: Vec<BlockRef>,
+    /// Refs to transactions in blocks for which quorum of acknowledgments has
+    /// been collected in this and past commits.
+    committed_transactions: Vec<TransactionRef>,
+
+}
+
+impl CommitAPI for CommitV2 {
+    fn round(&self) -> Round {
+        self.leader.round
+    }
+
+    fn index(&self) -> CommitIndex {
+        self.index
+    }
+
+    fn previous_digest(&self) -> CommitDigest {
+        self.previous_digest
+    }
+
+    fn timestamp_ms(&self) -> BlockTimestampMs {
+        self.timestamp_ms
+    }
+
+    fn leader(&self) -> BlockRef {
+        self.leader
+    }
+
+    fn blocks(&self) -> &[BlockRef] {
+        &self.blocks
+    }
+
+    // TODO: https://github.com/iotaledger/iota/issues/8375
+    // Does this need to be a vector? block refs are a slice == less cloning?
+    fn committed_transactions(&self) -> Vec<TransactionRef> {
         self.committed_transactions.clone()
     }
 }
