@@ -17,10 +17,10 @@ const MAX_SCORE: u64 = u64::MAX;
 #[expect(dead_code)]
 pub struct Scorer {
     pub(crate) current_local_metrics_count: Arc<VersionedScoringMetrics>,
-    received_metrics: Vec<Arc<VersionedScoringMetrics>>,
-    metrics_missing_from: Vec<Arc<AtomicBool>>,
+    received_metrics: Vec<VersionedScoringMetrics>,
+    metrics_missing_from: Vec<AtomicBool>,
     pub(crate) current_scores: Scores,
-    invalid_reports_count: Vec<Arc<AtomicU64>>,
+    invalid_reports_count: Vec<AtomicU64>,
     voting_power: Vec<u64>,
     version: ScorerVersion,
 }
@@ -39,13 +39,10 @@ impl Scorer {
                     (0..committee_size)
                         .map(|_| {
                             (
-                                Arc::new(VersionedScoringMetrics::new(
-                                    committee_size,
-                                    protocol_config,
-                                )),
-                                Arc::new(AtomicBool::new(true)),
+                                VersionedScoringMetrics::new(committee_size, protocol_config),
+                                AtomicBool::new(true),
                                 AtomicU64::new(0),
-                                Arc::new(AtomicU64::new(0)),
+                                AtomicU64::new(0),
                             )
                         })
                         .collect();
