@@ -1336,6 +1336,7 @@
                 "protocol_defined_base_fee": true,
                 "relocate_event_module": true,
                 "rethrow_serialization_type_layout_errors": true,
+                "score_based_rewards": false,
                 "select_committee_from_eligible_validators": false,
                 "select_committee_supporting_next_epoch_version": false,
                 "separate_gas_price_feedback_mechanism_for_randomness": false,
@@ -8050,6 +8051,15 @@
           },
           "epoch_start_timestamp_ms": {
             "$ref": "#/components/schemas/BigInt_for_uint64"
+          },
+          "scores": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/BigInt_for_uint64"
+            }
           },
           "storage_charge": {
             "$ref": "#/components/schemas/BigInt_for_uint64"

@@ -572,6 +572,8 @@ export type ChangeEpochTransactionV2 = {
   nonRefundableStorageFee: Scalars['BigInt']['output'];
   /** The protocol version in effect in the new epoch. */
   protocolVersion: Scalars['UInt53']['output'];
+  /** The validator scores at the end of the epoch. */
+  scores?: Maybe<Array<Scalars['BigInt']['output']>>;
   /** Time at which the next epoch will start. */
   startTimestamp: Scalars['DateTime']['output'];
   /**
