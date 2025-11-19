@@ -69,7 +69,7 @@ use crate::{
     network::{NetworkClient, SerializedTransactions},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
-use crate::commit::CommittedTransactionRef;
+use crate::commit::CommittedTransactionsRef;
 
 // Handle to stop the CommitSyncer loop.
 pub(crate) struct CommitSyncerHandle {
@@ -356,7 +356,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
                 // Collect available transactions from VerifiedTransactions
                 for verified_txns in certified_commit.transactions() {
-                    available_transactions.insert(CommittedTransactionRef::BlockRef(verified_txns.block_ref()));
+                    available_transactions.insert(CommittedTransactionsRef::BlockRef(verified_txns.block_ref()));
                 }
             }
 
@@ -660,22 +660,32 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let mut block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
 
         // 3a. Collect all committed transaction block refs from commits
-        let committed_tx_refs: Vec<CommittedTransactionRef> = commits
+        let committed_tx_refs: Vec<CommittedTransactionsRef> = commits
             .iter()
             .flat_map(|c| c.committed_transactions())
             .collect();
 
-        // 3b. Identify which committed transaction blocks are NOT in the committed
-        // blocks list and add them to block_refs so they get fetched together
-        let block_refs_set: BTreeSet<_> = block_refs.iter().cloned().collect();
-        let missing_tx_header_refs: Vec<BlockRef> = committed_tx_refs
-            .iter()
-            .filter(|tx_ref| !block_refs_set.contains(tx_ref))
-            .cloned()
-            .collect();
+        if !inner
+            .context
+            .protocol_config
+            .consensus_transaction_ref() {
+            // 3b. Identify which committed transaction blocks are NOT in the committed
+            // blocks list and add them to block_refs so they get fetched together
+            let block_refs_set: BTreeSet<_> = block_refs.iter().cloned().collect();
+            let missing_tx_header_refs: Vec<BlockRef> = committed_tx_refs
+                .iter()
+                .filter(|tx_ref| {
+                    let block_ref = match tx_ref {
+                        CommittedTransactionsRef::BlockRef(br) => br,
+                        _ => panic!("if the flag consensus_transaction_ref turned off then all CommittedTransactionRef should be BlockRef")
+                    };
+                    !block_refs_set.contains(block_ref)
+                }).cloned()
+                .collect();
 
-        // Merge missing transaction headers into the main block_refs list
-        block_refs.extend(missing_tx_header_refs);
+            // Merge missing transaction headers into the main block_refs list
+            block_refs.extend(missing_tx_header_refs);
+        }
 
         let num_chunks = block_refs
             .len()
@@ -834,20 +844,28 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
         // 13. Verify transactions
         let mut transactions_map = if !fetched_transactions.is_empty() {
-            Handle::current()
-                .spawn_blocking({
-                    let inner = inner.clone();
-                    let fetched_block_headers_clone = fetched_block_headers.clone();
-                    move || {
-                        inner.verify_transactions(
-                            target_authority,
-                            fetched_transactions,
-                            fetched_block_headers_clone,
-                        )
-                    }
-                })
-                .await
-                .expect("Spawn blocking should not fail")?
+            if !inner
+                .context
+                .protocol_config
+                .consensus_transaction_ref() {
+                Handle::current()
+                    .spawn_blocking({
+                        let inner = inner.clone();
+                        let fetched_block_headers_clone = fetched_block_headers.clone();
+                        move || {
+                            inner.verify_transactions_with_headers(
+                                target_authority,
+                                fetched_transactions,
+                                fetched_block_headers_clone,
+                            )
+                        }
+                    })
+                    .await
+                    .expect("Spawn blocking should not fail")?
+            }
+            else {
+
+            }
         } else {
             BTreeMap::new()
         };
@@ -1010,7 +1028,7 @@ impl<C: NetworkClient> Inner<C> {
 
     /// Verifies transactions against their block headers and returns a map of
     /// BlockRef to VerifiedTransactions.
-    fn verify_transactions(
+    fn verify_transactions_with_headers(
         &self,
         peer: AuthorityIndex,
         serialized_transactions: BTreeMap<BlockRef, Bytes>,

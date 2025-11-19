@@ -46,6 +46,8 @@ use crate::{
         tonic_tls::certificate_server_name,
     },
 };
+use crate::block_header::TransactionRef;
+use crate::commit::CommittedTransactionsRef;
 
 // Maximum bytes size in a single fetch_blocks()response.
 // TODO: put max RPC response size in protocol config.
@@ -301,22 +303,32 @@ impl NetworkClient for TonicClient {
     async fn fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<BlockRef>,
+        transactions_refs: Vec<CommittedTransactionsRef>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>> {
         let mut client = self.get_client(peer, timeout).await?;
         let mut request = Request::new(FetchTransactionsRequest {
-            block_refs: block_refs
+            block_refs: transactions_refs
                 .iter()
-                .filter_map(|r| match bcs::to_bytes(r) {
-                    Ok(serialized) => Some(serialized),
-                    Err(e) => {
-                        debug!("Failed to serialize block ref {:?}: {e:?}", r);
-                        None
-                    }
+                .filter_map(|r| match r {
+                    CommittedTransactionsRef::BlockRef(block_ref) => match bcs::to_bytes(block_ref) {
+                        Ok(serialized) => Some(serialized),
+                        Err(e) => {
+                            debug!("Failed to serialize BlockRef {:?}: {e:?}", block_ref);
+                            None
+                        }
+                    },
+                    CommittedTransactionsRef::TransactionRef(tx_ref) => match bcs::to_bytes(tx_ref) {
+                        Ok(serialized) => Some(serialized),
+                        Err(e) => {
+                            debug!("Failed to serialize TransactionRef {:?}: {e:?}", tx_ref);
+                            None
+                        }
+                    },
                 })
                 .collect(),
         });
+
         request.set_timeout(timeout);
         let mut stream = client
             .fetch_transactions(request)
@@ -702,21 +714,36 @@ impl<S: NetworkService> ConsensusService for TonicServiceProxy<S> {
         };
 
         let request = request.into_inner();
-        let block_refs = request
+        let committed_transactions_refs: Vec<CommittedTransactionsRef> = request
             .block_refs
             .iter()
-            .filter_map(|r| match bcs::from_bytes::<BlockRef>(r) {
-                Ok(block_ref) => Some(block_ref),
-                Err(e) => {
-                    debug!("Failed to deserialize block ref: {e:?}");
-                    None
+            .filter_map(|r| {
+                if self.context.protocol_config
+                    .consensus_transaction_ref() {
+                    match bcs::from_bytes::<TransactionRef>(r) {
+                        Ok(transaction_ref) => Some(CommittedTransactionsRef::TransactionRef(transaction_ref)),
+                        Err(e) => {
+                            debug!("Failed to deserialize block ref: {e:?}");
+                            None
+                        }
+                    }
+                } else {
+                    match bcs::from_bytes::<BlockRef>(r) {
+                        Ok(block_ref) => Some(CommittedTransactionsRef::BlockRef(block_ref)),
+                        Err(e) => {
+                            debug!("Failed to deserialize block ref: {e:?}");
+                            None
+                        }
+                    }
+
                 }
-            })
+
+    })
             .collect();
 
         let vec_serialized_transactions = self
             .service
-            .handle_fetch_transactions(peer_index, block_refs)
+            .handle_fetch_transactions(peer_index, committed_transactions_refs)
             .await
             .map_err(|e| tonic::Status::internal(format!("fetch_transactions failed: {e:?}")))?;
 

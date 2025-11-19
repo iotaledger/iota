@@ -46,6 +46,7 @@ use crate::{
     storage::Store,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
+use crate::commit::CommittedTransactionsRef;
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
@@ -987,7 +988,7 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        mut block_refs: Vec<BlockRef>,
+        mut block_refs: Vec<CommittedTransactionsRef>,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 

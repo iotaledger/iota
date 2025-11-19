@@ -372,6 +372,9 @@ struct FeatureFlags {
     // If true, then transactions are committed only for traversed headers
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_only_for_traversed_headers: bool,
+    // If true, then TransactionRef is used in commit instead of BlockRef
+    #[serde(skip_serializing_if = "is_false")]
+    consensus_transaction_ref: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1445,6 +1448,10 @@ impl ProtocolConfig {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers
     }
+    pub fn consensus_transaction_ref(&self) -> bool {
+        self.feature_flags
+            .consensus_transaction_ref
+    }
 }
 
 #[cfg(not(msim))]
@@ -2501,6 +2508,10 @@ impl ProtocolConfig {
     ) {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers = val;
+    }
+    pub fn set_consensus_transaction_ref(&mut self, val: bool) {
+        self.feature_flags
+            .consensus_transaction_ref = val;
     }
 }
 

@@ -62,7 +62,7 @@ pub(crate) enum Commit {
 }
 
 #[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
-pub(crate) enum CommittedTransactionRef {
+pub(crate) enum CommittedTransactionsRef {
     BlockRef(BlockRef),
     TransactionRef(TransactionRef),
 }
@@ -103,7 +103,7 @@ pub(crate) trait CommitAPI {
     fn timestamp_ms(&self) -> BlockTimestampMs;
     fn leader(&self) -> BlockRef;
     fn blocks(&self) -> &[BlockRef];
-    fn committed_transactions(&self) -> Vec<CommittedTransactionRef>;
+    fn committed_transactions(&self) -> Vec<CommittedTransactionsRef>;
 }
 
 /// Specifies one consensus commit.
@@ -157,8 +157,8 @@ impl CommitAPI for CommitV1 {
 
     // TODO: https://github.com/iotaledger/iota/issues/8375
     // Does this need to be a vector? block refs are a slice == less cloning?
-    fn committed_transactions(&self) -> Vec<CommittedTransactionRef> {
-        self.committed_transactions.iter().map(|b| CommittedTransactionRef::BlockRef(b.clone())).collect()
+    fn committed_transactions(&self) -> Vec<CommittedTransactionsRef> {
+        self.committed_transactions.iter().map(|b| CommittedTransactionsRef::BlockRef(b.clone())).collect()
     }
 }
 
@@ -215,8 +215,8 @@ impl CommitAPI for CommitV2 {
 
     // TODO: https://github.com/iotaledger/iota/issues/8375
     // Does this need to be a vector? block refs are a slice == less cloning?
-    fn committed_transactions(&self) -> Vec<CommittedTransactionRef> {
-        self.committed_transactions.iter().map(|t| CommittedTransactionRef::TransactionRef(t.clone())).collect()
+    fn committed_transactions(&self) -> Vec<CommittedTransactionsRef> {
+        self.committed_transactions.iter().map(|t| CommittedTransactionsRef::TransactionRef(t.clone())).collect()
     }
 }
 
