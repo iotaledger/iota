@@ -61,6 +61,7 @@ pub(crate) enum Commit {
     V2(CommitV2)
 }
 
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub(crate) enum CommittedTransactionRef {
     BlockRef(BlockRef),
     TransactionRef(TransactionRef),
@@ -156,8 +157,8 @@ impl CommitAPI for CommitV1 {
 
     // TODO: https://github.com/iotaledger/iota/issues/8375
     // Does this need to be a vector? block refs are a slice == less cloning?
-    fn committed_transactions(&self) -> Vec<BlockRef> {
-        self.committed_transactions.clone()
+    fn committed_transactions(&self) -> Vec<CommittedTransactionRef> {
+        self.committed_transactions.iter().map(|b| CommittedTransactionRef::BlockRef(b.clone())).collect()
     }
 }
 
@@ -214,8 +215,8 @@ impl CommitAPI for CommitV2 {
 
     // TODO: https://github.com/iotaledger/iota/issues/8375
     // Does this need to be a vector? block refs are a slice == less cloning?
-    fn committed_transactions(&self) -> Vec<TransactionRef> {
-        self.committed_transactions.clone()
+    fn committed_transactions(&self) -> Vec<CommittedTransactionRef> {
+        self.committed_transactions.iter().map(|t| CommittedTransactionRef::TransactionRef(t.clone())).collect()
     }
 }
 

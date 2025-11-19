@@ -69,6 +69,7 @@ use crate::{
     network::{NetworkClient, SerializedTransactions},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
+use crate::commit::CommittedTransactionRef;
 
 // Handle to stop the CommitSyncer loop.
 pub(crate) struct CommitSyncerHandle {
@@ -355,7 +356,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
                 // Collect available transactions from VerifiedTransactions
                 for verified_txns in certified_commit.transactions() {
-                    available_transactions.insert(verified_txns.block_ref());
+                    available_transactions.insert(CommittedTransactionRef::BlockRef(verified_txns.block_ref()));
                 }
             }
 
@@ -659,7 +660,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let mut block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
 
         // 3a. Collect all committed transaction block refs from commits
-        let committed_tx_refs: Vec<BlockRef> = commits
+        let committed_tx_refs: Vec<CommittedTransactionRef> = commits
             .iter()
             .flat_map(|c| c.committed_transactions())
             .collect();
