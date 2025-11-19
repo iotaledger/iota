@@ -370,9 +370,14 @@ struct FeatureFlags {
     // leader's ancestors, and (3) enforces checkpoint timestamps are non-decreasing.
     #[serde(skip_serializing_if = "is_false")]
     consensus_median_timestamp_with_checkpoint_enforcement: bool,
+
     // If true, then transactions are committed only for traversed headers
     #[serde(skip_serializing_if = "is_false")]
     consensus_commit_transactions_only_for_traversed_headers: bool,
+
+    // If true, validators will use the committee's score to calculate rewards.
+    #[serde(skip_serializing_if = "is_false")]
+    score_based_rewards: bool,
 }
 
 fn is_true(b: &bool) -> bool {
@@ -1442,9 +1447,14 @@ impl ProtocolConfig {
         );
         res
     }
+
     pub fn consensus_commit_transactions_only_for_traversed_headers(&self) -> bool {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers
+    }
+
+    pub fn score_based_rewards(&self) -> bool {
+        self.feature_flags.score_based_rewards
     }
 }
 
@@ -2315,6 +2325,10 @@ impl ProtocolConfig {
                     // Enable committing transactions only for traversed headers in Starfish
                     cfg.feature_flags
                         .consensus_commit_transactions_only_for_traversed_headers = true;
+                    // Enables score based rewards on Devnet
+                    if chain != Chain::Testnet && chain != Chain::Mainnet {
+                        cfg.feature_flags.score_based_rewards = true;
+                    }
                 }
                 17 => {
                     // Increase the committee size to 100 on all networks.
