@@ -51,4 +51,4 @@ Contents: test::abstract_account::AbstractAccount {
 
 task 5, lines 46-47:
 //# abstract --account object(2,2) --gas-payment 2,0 --ptb-inputs 100 @A
-Error: Error checking transaction input objects: Unsupported("SenderSignedData can have MoveAuthenticator only for the sender")
+Error: Error checking transaction input objects: Unsupported("MoveAuthenticator cannot authenticate mutable shared objects")
