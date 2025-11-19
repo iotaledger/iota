@@ -301,7 +301,7 @@ impl Scorer {
         // We provisionally use the formula below to calculate the score, but changes
         // to this function are already expected. The hardcoded parameters (which are
         // also still provisional) represent:
-        // - No tolerance to any provably faulty misbehaviour. If any is detected, the
+        // - No tolerance to any provably faulty misbehavior. If any is detected, the
         //   score will be 0.
         // - If no provably faulty blocks are detected, 50% of the score is guaranteed.
         // - If no unprovably faulty blocks are detected, an additional 12.5% of the
@@ -1343,7 +1343,7 @@ mod tests {
         }
         dag_state.flush();
 
-        // Now all misbehaviours should be accounted for in the uncached metrics.
+        // Now all misbehaviors should be accounted for in the uncached metrics.
         assert_eq!(
             [
                 scoring_metrics.uncached_equivocations_by_authority(),
@@ -1715,7 +1715,7 @@ mod tests {
         }
         dag_state.flush();
 
-        // Now all misbehaviours should be accounted for in the uncached metrics.
+        // Now all misbehaviors should be accounted for in the uncached metrics.
         assert_eq!(
             [
                 scoring_metrics.uncached_equivocations_by_authority(),
