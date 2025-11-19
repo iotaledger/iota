@@ -77,8 +77,6 @@ pub const MAX_PROTOCOL_VERSION: u64 = 14;
 //             of eligible active validators.
 //             Enable processing and tracking AuthorityCapabilitiesV1 from
 //             non-committee validators in the devnet.
-// Version 14: Max authentication gas budget property.
-//             Introduce gas cost for 'check_auth_info_v1_cost_base'.
 
 #[derive(Copy, Clone, Debug, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ProtocolVersion(u64);
@@ -819,11 +817,6 @@ pub struct ProtocolConfig {
     buffer_stake_for_protocol_upgrade_bps: Option<u64>,
 
     // === Native Function Costs ===
-
-    // `account` module
-    // Cost params for the Move native function `check_auth_info_v1(package: address, module:
-    // String, function: String): AuthenticatorInfoV1`
-    check_auth_info_v1_cost_base: Option<u64>,
 
     // `address` module
     // Cost params for the Move native function `address::from_bytes(bytes: vector<u8>)`
@@ -1665,8 +1658,6 @@ impl ProtocolConfig {
             buffer_stake_for_protocol_upgrade_bps: Some(5000),
 
             // === Native Function Costs ===
-            // `account` module
-            check_auth_info_v1_cost_base: None,
             // `address` module
             // Cost params for the Move native function `address::from_bytes(bytes: vector<u8>)`
             address_from_bytes_cost_base: Some(52),
@@ -2260,9 +2251,6 @@ impl ProtocolConfig {
                         cfg.max_auth_gas = Some(1_000_000_000);
                         cfg.feature_flags.move_auth = true;
                         cfg.feature_flags.publish_package_metadata_v1 = true;
-                        // === Native Function Costs ===
-                        // `account` module
-                        cfg.check_auth_info_v1_cost_base = Some(1000);
                         cfg.feature_flags.iota_metadata_module_bytes = true;
                     }
                 }
