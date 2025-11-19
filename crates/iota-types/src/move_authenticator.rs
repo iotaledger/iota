@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use std::{
+    collections::HashSet,
     hash::{Hash, Hasher},
     sync::Arc,
 };
@@ -163,18 +164,24 @@ impl MoveAuthenticator {
             }
         );
 
-        // TODO: should we handle duplicate inputs somehow?
-
-        self.call_args()
-            .iter()
-            .try_for_each(|obj| obj.validity_check(config))?;
-
         fp_ensure!(
             self.receiving_objects().is_empty(),
             UserInputError::Unsupported(
                 "MoveAuthenticator cannot have receiving objects as input".to_string(),
             )
         );
+
+        let mut used = HashSet::new();
+        fp_ensure!(
+            self.input_objects()
+                .iter()
+                .all(|o| used.insert(o.object_id())),
+            UserInputError::DuplicateObjectRefInput
+        );
+
+        self.call_args()
+            .iter()
+            .try_for_each(|obj| obj.validity_check(config))?;
 
         // Type arguments validity check.
         //
