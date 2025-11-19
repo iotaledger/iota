@@ -520,6 +520,7 @@ impl ConsensusTransaction {
     pub fn new_misbehavior_report_v1(
         authority: AuthorityName,
         report: &MisbehaviorReportV1,
+        round: CommitRound,
     ) -> Self {
         let serialized_report =
             bcs::to_bytes(report).expect("report serialization should not fail");
@@ -531,7 +532,7 @@ impl ConsensusTransaction {
             kind: ConsensusTransactionKind::MisbehaviorReport(
                 authority,
                 VersionedMisbehaviorReport::V1(report.clone()),
-                1,
+                round,
             ),
         }
     }
