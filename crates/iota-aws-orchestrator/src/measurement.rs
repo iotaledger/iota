@@ -287,6 +287,19 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         last_measurements.iter().map(|x| x.tps(&duration)).sum()
     }
 
+    pub fn workload_latency(&self) -> HashMap<String, Duration> {
+        let last_data_points: Vec<_> = self
+            .scrapers
+            .values()
+            .flat_map(|workload_map| workload_map.values())
+            .filter_map(|measurements| measurements.last())
+            .collect();
+        last_data_points
+            .iter()
+            .map(|x| (x.workload.clone(), x.average_latency()))
+            .collect()
+    }
+
     /// Aggregate the average latency of multiple data points by taking the
     /// average.
     pub fn aggregate_average_latency(&self) -> Duration {
@@ -327,6 +340,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
     pub fn display_summary(&self) {
         let duration = self.benchmark_duration();
         let total_tps = self.aggregate_tps();
+        let workload_latency = self.workload_latency();
         let average_latency = self.aggregate_average_latency();
         let stdev_latency = self.aggregate_stdev_latency();
 
@@ -345,7 +359,13 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         table.add_row(row![b->"Duration:", format!("{} s", duration.as_secs())]);
         table.add_row(row![bH2->""]);
         table.add_row(row![b->"TPS:", format!("{total_tps} tx/s")]);
+
         table.add_row(row![b->"Latency (avg):", format!("{} ms", average_latency.as_millis())]);
+        for (workload, latency) in &workload_latency {
+            table.add_row(
+                row![b->format!("  {} Latency:", workload), format!("{} ms", latency.as_millis())],
+            );
+        }
         table.add_row(row![b->"Latency (stdev):", format!("{} ms", stdev_latency.as_millis())]);
 
         display::newline();
