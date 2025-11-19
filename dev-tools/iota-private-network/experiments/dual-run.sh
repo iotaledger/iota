@@ -34,7 +34,7 @@ if ! (cd "$DOCKER_ROOT/iota-tools"   && sudo ./build.sh); then
   exit 1
 fi
 
-if ! (cd "$DOCKER_ROOT/iota-indexer" && sudo ./build.sh -t iota-indexer); then
+if ! (cd "$DOCKER_ROOT/iota-indexer" && sudo ./build.sh); then
   echo "dual-run: ERROR building iota-indexer image" >&2
   exit 1
 fi
