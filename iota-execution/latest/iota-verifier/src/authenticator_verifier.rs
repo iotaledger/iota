@@ -78,7 +78,7 @@ pub fn verify_authenticate_func_v1(
     // Additional restrictions on the first argument type are enforced in the
     // following check.
     let account_parameter = &function_signature.0[0];
-    verify_authenticate_account_type(account_parameter).map_err(verification_failure)?;
+    verify_authenticate_account_type(module, account_parameter).map_err(verification_failure)?;
 
     // Check params 2nd to N-2th /////////////////////////////
 
@@ -139,14 +139,25 @@ pub fn verify_authenticate_func_v1(
     Ok(())
 }
 
-/// Verify that the first parameter type of the authenticate function matches
-/// the account type.
-fn verify_authenticate_account_type(param: &SignatureToken) -> Result<(), String> {
+/// Verify that the first parameter type of the authenticate function is an
+/// immutable reference to an Object type, i.e., a Datatype with `key` ability.
+fn verify_authenticate_account_type(
+    module: &CompiledModule,
+    param: &SignatureToken,
+) -> Result<(), String> {
     use SignatureToken::*;
 
     match param {
         Reference(ref_param) => match &**ref_param {
-            Datatype(_) => Ok(()),
+            Datatype(i) => {
+                if module.datatype_handle_at(*i).abilities.has_key() {
+                    Ok(())
+                } else {
+                    Err(format!(
+                        "Invalid account type. Account must be a Datatype with key ability, offending argument: {param:?}"
+                    ))
+                }
+            }
             _ => Err(format!(
                 "Invalid account type. Account can only be a Datatype, offending argument: {param:?}"
             )),
