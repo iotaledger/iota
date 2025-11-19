@@ -494,34 +494,6 @@ impl EndOfEpochTransactionKind {
         })
     }
 
-    pub fn new_change_epoch_v4(
-        next_epoch: EpochId,
-        protocol_version: ProtocolVersion,
-        storage_charge: u64,
-        computation_charge: u64,
-        computation_charge_burned: u64,
-        storage_rebate: u64,
-        non_refundable_storage_fee: u64,
-        epoch_start_timestamp_ms: u64,
-        system_packages: Vec<(SequenceNumber, Vec<Vec<u8>>, Vec<ObjectID>)>,
-        eligible_active_validators: Vec<u64>,
-        scores: Vec<u64>,
-    ) -> Self {
-        Self::ChangeEpochV4(ChangeEpochV4 {
-            epoch: next_epoch,
-            protocol_version,
-            storage_charge,
-            computation_charge,
-            computation_charge_burned,
-            storage_rebate,
-            non_refundable_storage_fee,
-            epoch_start_timestamp_ms,
-            system_packages,
-            eligible_active_validators,
-            scores,
-        })
-    }
-
     pub fn new_authenticator_state_expire(
         min_epoch: u64,
         authenticator_obj_initial_shared_version: SequenceNumber,

@@ -1179,6 +1179,14 @@ pub struct ProtocolConfig {
     /// for any single commit. Any overshoot is tracked as a debt that must
     /// be accounted for in subsequent commits.
     max_congestion_limit_overshoot_per_commit: Option<u64>,
+
+    /// Scorer version. When set to `None`, MisbehaviorReports are not sent nor
+    /// considered valid. When set to `Some(version)`, scores are included in
+    /// the MisbehaviorReports messages, where `version` determines the scoring
+    /// formulas and metrics to be used. Even if set to None, the Scorer
+    /// component is created, having access to metrics and being able to expose
+    /// validator scores.
+    scorer_version: Option<u16>,
 }
 
 // feature flags
@@ -2013,6 +2021,8 @@ impl ProtocolConfig {
             consensus_max_acknowledgments_per_block: None,
 
             max_congestion_limit_overshoot_per_commit: None,
+
+            scorer_version: None,
             // When adding a new constant, set it to None in the earliest version, like this:
             // new_constant: None,
         };
