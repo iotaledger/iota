@@ -4,6 +4,7 @@
 
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet},
+    num::NonZeroUsize,
     sync::Arc,
     time::Duration,
 };
@@ -18,6 +19,7 @@ use iota_metrics::{
     monitored_scope,
 };
 use itertools::Itertools as _;
+use lru::LruCache;
 use parking_lot::{Mutex, RwLock};
 #[cfg(not(test))]
 use rand::prelude::{IteratorRandom, SeedableRng, SliceRandom, StdRng};
@@ -50,6 +52,9 @@ const FETCH_BLOCKS_CONCURRENCY: usize = 5;
 // TODO: This is a temporary value, and should be removed once the protocol
 // version is updated to support batching
 pub(crate) const MAX_ADDITIONAL_BLOCKS: usize = 10;
+
+/// The maximum number of verified block references to cache for deduplication.
+const VERIFIED_BLOCKS_CACHE_CAP: usize = 200_000;
 
 /// The timeout for synchronizer to fetch blocks from a given peer authority.
 const FETCH_REQUEST_TIMEOUT: Duration = Duration::from_millis(2_000);
@@ -300,6 +305,7 @@ pub(crate) struct Synchronizer<C: NetworkClient, V: BlockVerifier, D: CoreThread
     network_client: Arc<C>,
     block_verifier: Arc<V>,
     inflight_blocks_map: Arc<InflightBlocksMap>,
+    verified_blocks_cache: Arc<Mutex<LruCache<BlockRef, ()>>>,
     commands_sender: Sender<Command>,
 }
 
@@ -318,6 +324,9 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let (commands_sender, commands_receiver) =
             channel("consensus_synchronizer_commands", 1_000);
         let inflight_blocks_map = InflightBlocksMap::new();
+        let verified_blocks_cache = Arc::new(Mutex::new(LruCache::new(
+            NonZeroUsize::new(VERIFIED_BLOCKS_CACHE_CAP).unwrap(),
+        )));
 
         // Spawn the tasks to fetch the blocks from the others
         let mut fetch_block_senders = BTreeMap::new();
@@ -332,6 +341,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 index,
                 network_client.clone(),
                 block_verifier.clone(),
+                verified_blocks_cache.clone(),
                 commit_vote_monitor.clone(),
                 context.clone(),
                 core_dispatcher.clone(),
@@ -364,6 +374,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 network_client,
                 block_verifier,
                 inflight_blocks_map,
+                verified_blocks_cache,
                 commands_sender: commands_sender_clone,
                 dag_state,
             };
@@ -494,6 +505,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         peer_index: AuthorityIndex,
         network_client: Arc<C>,
         block_verifier: Arc<V>,
+        verified_cache: Arc<Mutex<LruCache<BlockRef, ()>>>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
@@ -548,6 +560,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 blocks_guard,
                                 core_dispatcher.clone(),
                                 block_verifier.clone(),
+                                verified_cache.clone(),
                                 commit_vote_monitor.clone(),
                                 context.clone(),
                                 commands_sender.clone(),
@@ -592,6 +605,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         requested_blocks_guard: BlocksGuard,
         core_dispatcher: Arc<D>,
         block_verifier: Arc<V>,
+        verified_cache: Arc<Mutex<LruCache<BlockRef, ()>>>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
         context: Arc<Context>,
         commands_sender: Sender<Command>,
@@ -624,8 +638,19 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let blocks = Handle::current()
             .spawn_blocking({
                 let block_verifier = block_verifier.clone();
+                let verified_cache = verified_cache.clone();
                 let context = context.clone();
-                move || Self::verify_blocks(serialized_blocks, block_verifier, &context, peer_index)
+                let sync_method = sync_method.to_string();
+                move || {
+                    Self::verify_blocks(
+                        serialized_blocks,
+                        block_verifier,
+                        verified_cache,
+                        &context,
+                        peer_index,
+                        &sync_method,
+                    )
+                }
             })
             .await
             .expect("Spawn blocking should not fail")?;
@@ -727,16 +752,31 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
     fn verify_blocks(
         serialized_blocks: Vec<Bytes>,
         block_verifier: Arc<V>,
+        verified_cache: Arc<Mutex<LruCache<BlockRef, ()>>>,
         context: &Context,
         peer_index: AuthorityIndex,
+        sync_method: &str,
     ) -> ConsensusResult<Vec<VerifiedBlock>> {
         let mut verified_blocks = Vec::new();
+        let mut skipped_count = 0u64;
 
         for serialized_block in serialized_blocks {
             let signed_block: SignedBlock =
                 bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedBlock)?;
 
-            // TODO: dedup block verifications, here and with fetched blocks.
+            let digest = VerifiedBlock::compute_digest(&serialized_block);
+            let block_ref = BlockRef {
+                round: signed_block.round(),
+                author: signed_block.author(),
+                digest,
+            };
+
+            // Check if this block has already been verified
+            if verified_cache.lock().get(&block_ref).is_some() {
+                skipped_count += 1;
+                continue; // Skip already verified blocks
+            }
+
             if let Err(e) = block_verifier.verify(&signed_block) {
                 // TODO: we might want to use a different metric to track the invalid "served"
                 // blocks from the invalid "proposed" ones.
@@ -751,6 +791,10 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 warn!("Invalid block received from {}: {}", peer_index, e);
                 return Err(e);
             }
+
+            // Add block to verified cache after successful verification
+            verified_cache.lock().put(block_ref, ());
+
             let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block);
 
             // Dropping is ok because the block will be refetched.
@@ -792,6 +836,17 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             }
 
             verified_blocks.push(verified_block);
+        }
+
+        // Record skipped blocks metric
+        if skipped_count > 0 {
+            let peer_hostname = &context.committee.authority(peer_index).hostname;
+            context
+                .metrics
+                .node_metrics
+                .synchronizer_skipped_blocks_by_peer
+                .with_label_values(&[peer_hostname.as_str(), sync_method])
+                .inc_by(skipped_count);
         }
 
         Ok(verified_blocks)
@@ -875,7 +930,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                 let process_blocks = |blocks: Vec<Bytes>, authority_index: AuthorityIndex| -> ConsensusResult<Vec<VerifiedBlock>> {
                                     let mut result = Vec::new();
                                     for serialized_block in blocks {
-                                        let signed_block = bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedBlock)?;
+                                        let signed_block: SignedBlock = bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedBlock)?;
                                         block_verifier.verify(&signed_block).tap_err(|err|{
                                             let hostname = context.committee.authority(authority_index).hostname.clone();
                                             context
@@ -1002,6 +1057,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let context = self.context.clone();
         let network_client = self.network_client.clone();
         let block_verifier = self.block_verifier.clone();
+        let verified_cache = self.verified_blocks_cache.clone();
         let commit_vote_monitor = self.commit_vote_monitor.clone();
         let core_dispatcher = self.core_dispatcher.clone();
         let blocks_to_fetch = self.inflight_blocks_map.clone();
@@ -1091,6 +1147,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                         blocks_guard,
                         core_dispatcher.clone(),
                         block_verifier.clone(),
+                        verified_cache.clone(),
                         commit_vote_monitor.clone(),
                         context.clone(),
                         commands_sender.clone(),
@@ -1438,6 +1495,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
 mod tests {
     use std::{
         collections::{BTreeMap, BTreeSet},
+        num::NonZeroUsize,
         sync::Arc,
         time::Duration,
     };
@@ -1446,14 +1504,15 @@ mod tests {
     use bytes::Bytes;
     use consensus_config::{AuthorityIndex, Parameters};
     use iota_metrics::monitored_mpsc;
-    use parking_lot::RwLock;
+    use lru::LruCache;
+    use parking_lot::{Mutex as SyncMutex, RwLock};
     use tokio::{sync::Mutex, time::sleep};
 
     use crate::{
         CommitDigest, CommitIndex,
         authority_service::COMMIT_LAG_MULTIPLIER,
-        block::{BlockDigest, BlockRef, Round, TestBlock, VerifiedBlock},
-        block_verifier::NoopBlockVerifier,
+        block::{BlockDigest, BlockRef, Round, SignedBlock, TestBlock, VerifiedBlock},
+        block_verifier::{BlockVerifier, NoopBlockVerifier},
         commit::{CertifiedCommits, CommitRange, CommitVote, TrustedCommit},
         commit_vote_monitor::CommitVoteMonitor,
         context::Context,
@@ -1465,7 +1524,7 @@ mod tests {
         storage::mem_store::MemStore,
         synchronizer::{
             FETCH_BLOCKS_CONCURRENCY, FETCH_REQUEST_TIMEOUT, InflightBlocksMap, SyncMethod,
-            Synchronizer,
+            Synchronizer, VERIFIED_BLOCKS_CACHE_CAP,
         },
     };
 
@@ -1473,6 +1532,28 @@ mod tests {
     type FetchRequestResponse = (Vec<VerifiedBlock>, Option<Duration>);
     type FetchLatestBlockKey = (AuthorityIndex, Vec<AuthorityIndex>);
     type FetchLatestBlockResponse = (Vec<VerifiedBlock>, Option<Duration>);
+
+    // Mock verifier that always fails verification
+    struct FailingBlockVerifier;
+
+    impl BlockVerifier for FailingBlockVerifier {
+        fn verify(&self, _block: &SignedBlock) -> ConsensusResult<()> {
+            Err(ConsensusError::WrongEpoch {
+                expected: 1,
+                actual: 0,
+            })
+        }
+
+        fn check_ancestors(
+            &self,
+            _block: &VerifiedBlock,
+            _ancestors: &[Option<VerifiedBlock>],
+            _gc_enabled: bool,
+            _gc_round: Round,
+        ) -> ConsensusResult<()> {
+            Ok(())
+        }
+    }
 
     #[derive(Default)]
     struct MockNetworkClient {
@@ -2076,6 +2157,9 @@ mod tests {
         );
 
         // Create a Synchronizer
+        let verified_cache = Arc::new(SyncMutex::new(LruCache::new(
+            NonZeroUsize::new(VERIFIED_BLOCKS_CACHE_CAP).unwrap(),
+        )));
         let result = Synchronizer::<
             MockNetworkClient,
             NoopBlockVerifier,
@@ -2086,6 +2170,7 @@ mod tests {
             blocks_guard, // The guard is consumed here
             core_dispatcher.clone(),
             block_verifier,
+            verified_cache,
             commit_vote_monitor,
             context.clone(),
             commands_sender,
@@ -2828,5 +2913,108 @@ mod tests {
             .map(|vb| vb.serialized().clone())
             .collect::<Vec<_>>();
         assert_eq!(bytes5, &expected5);
+    }
+
+    #[test]
+    fn test_verify_blocks_deduplication() {
+        let (context, _keys) = Context::new_for_test(4);
+        let context = Arc::new(context);
+        let block_verifier = Arc::new(NoopBlockVerifier {});
+        let failing_verifier = Arc::new(FailingBlockVerifier);
+        let peer1 = AuthorityIndex::new_for_test(1);
+        let peer2 = AuthorityIndex::new_for_test(2);
+
+        // Create cache with capacity of 5 for eviction testing
+        let cache = Arc::new(SyncMutex::new(LruCache::new(NonZeroUsize::new(5).unwrap())));
+
+        // Test 1: Per-peer metric tracking
+        let block1 = VerifiedBlock::new_for_test(TestBlock::new(10, 0).build());
+        let serialized1 = vec![block1.serialized().clone()];
+
+        // Verify from peer1 (cache miss)
+        let result = Synchronizer::<MockNetworkClient, NoopBlockVerifier, MockCoreThreadDispatcher>::verify_blocks(
+            serialized1.clone(), block_verifier.clone(), cache.clone(), &context, peer1, "live",
+        );
+        assert_eq!(result.unwrap().len(), 1);
+
+        let peer1_hostname = &context.committee.authority(peer1).hostname;
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .synchronizer_skipped_blocks_by_peer
+                .with_label_values(&[peer1_hostname.as_str(), "live"])
+                .get(),
+            0
+        );
+
+        // Verify same block from peer2 with different sync method (cache hit)
+        let result = Synchronizer::<MockNetworkClient, NoopBlockVerifier, MockCoreThreadDispatcher>::verify_blocks(
+            serialized1, block_verifier.clone(), cache.clone(), &context, peer2, "periodic",
+        );
+        assert_eq!(result.unwrap().len(), 0, "Should skip cached block");
+
+        let peer2_hostname = &context.committee.authority(peer2).hostname;
+        assert_eq!(
+            context
+                .metrics
+                .node_metrics
+                .synchronizer_skipped_blocks_by_peer
+                .with_label_values(&[peer2_hostname.as_str(), "periodic"])
+                .get(),
+            1
+        );
+
+        // Test 2: Invalid blocks not cached
+        let invalid_block = VerifiedBlock::new_for_test(TestBlock::new(20, 0).build());
+        let invalid_serialized = vec![invalid_block.serialized().clone()];
+
+        assert!(Synchronizer::<MockNetworkClient, FailingBlockVerifier, MockCoreThreadDispatcher>::verify_blocks(
+            invalid_serialized.clone(), failing_verifier.clone(), cache.clone(), &context, peer1, "test",
+        ).is_err());
+        assert_eq!(cache.lock().len(), 1, "Invalid block should not be cached");
+
+        // Verify invalid block fails again (not from cache)
+        assert!(Synchronizer::<MockNetworkClient, FailingBlockVerifier, MockCoreThreadDispatcher>::verify_blocks(
+            invalid_serialized, failing_verifier, cache.clone(), &context, peer1, "test",
+        ).is_err());
+
+        // Test 3: Cache eviction
+        let blocks: Vec<_> = (0..5)
+            .map(|i| VerifiedBlock::new_for_test(TestBlock::new(30 + i, 0).build()))
+            .collect();
+
+        // Fill cache to capacity
+        for block in &blocks {
+            Synchronizer::<MockNetworkClient, NoopBlockVerifier, MockCoreThreadDispatcher>::verify_blocks(
+                vec![block.serialized().clone()], block_verifier.clone(), cache.clone(), &context, peer1, "test",
+            ).unwrap();
+        }
+        assert_eq!(cache.lock().len(), 5);
+
+        // Verify first block is evicted when adding new one
+        let new_block = VerifiedBlock::new_for_test(TestBlock::new(99, 0).build());
+        Synchronizer::<MockNetworkClient, NoopBlockVerifier, MockCoreThreadDispatcher>::verify_blocks(
+            vec![new_block.serialized().clone()], block_verifier.clone(), cache.clone(), &context, peer1, "test",
+        ).unwrap();
+
+        // First block (block1) should be evicted, so re-verifying it should not be a
+        // cache hit
+        let block1_serialized = vec![block1.serialized().clone()];
+        let result = Synchronizer::<MockNetworkClient, NoopBlockVerifier, MockCoreThreadDispatcher>::verify_blocks(
+            block1_serialized, block_verifier.clone(), cache.clone(), &context, peer1, "test",
+        );
+        assert_eq!(
+            result.unwrap().len(),
+            1,
+            "Evicted block should be re-verified"
+        );
+
+        // New block should still be in cache
+        let new_block_serialized = vec![new_block.serialized().clone()];
+        let result = Synchronizer::<MockNetworkClient, NoopBlockVerifier, MockCoreThreadDispatcher>::verify_blocks(
+            new_block_serialized, block_verifier, cache, &context, peer1, "test",
+        );
+        assert_eq!(result.unwrap().len(), 0, "New block should be cached");
     }
 }
