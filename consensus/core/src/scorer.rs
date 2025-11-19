@@ -169,7 +169,7 @@ impl Scorer {
                 .with_label_values(&[hostname, source, error.name()])
                 .inc();
         } else {
-            return;
+            // No scoring metrics to update.
         }
     }
 
@@ -829,8 +829,8 @@ mod tests {
         metrics
     }
 
-    #[test]
-    fn test_update_score_edge_cases() {
+    #[tokio::test]
+    async fn test_update_score_edge_cases() {
         let context = Context::new_for_test(4);
         let scorer = context.0.scorer;
         let authority_index = AuthorityIndex::new_for_test(0);
