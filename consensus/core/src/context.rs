@@ -14,7 +14,9 @@ use tokio::time::Instant;
 
 #[cfg(test)]
 use crate::metrics::test_metrics;
-use crate::{block::BlockTimestampMs, metrics::Metrics, scorer::Scorer};
+use crate::{
+    block::BlockTimestampMs, metrics::Metrics, scoring_metrics_store::MysticetiScoringMetricsStore,
+};
 /// Context contains per-epoch configuration and metrics shared by all
 /// components of this authority.
 #[derive(Clone)]
@@ -31,7 +33,8 @@ pub(crate) struct Context {
     pub protocol_config: ProtocolConfig,
     /// Metrics of this authority.
     pub metrics: Arc<Metrics>,
-    pub(crate) scorer: Arc<Scorer>,
+    /// Store for scoring metrics collected by this authority.
+    pub(crate) scoring_metrics_store: Arc<MysticetiScoringMetricsStore>,
     /// Access to local clock
     pub clock: Arc<Clock>,
 }
@@ -44,7 +47,8 @@ impl Context {
         parameters: Parameters,
         protocol_config: ProtocolConfig,
         metrics: Arc<Metrics>,
-        scorer: Arc<Scorer>,
+        scoring_metrics_store: Arc<MysticetiScoringMetricsStore>,
+
         clock: Arc<Clock>,
     ) -> Self {
         Self {
@@ -54,7 +58,7 @@ impl Context {
             parameters,
             protocol_config,
             metrics,
-            scorer,
+            scoring_metrics_store,
             clock,
         }
     }
@@ -64,13 +68,21 @@ impl Context {
     pub(crate) fn new_for_test(
         committee_size: usize,
     ) -> (Self, Vec<(NetworkKeyPair, ProtocolKeyPair)>) {
+        use iota_common::scoring_metrics::{ScoringMetricsV1, VersionedScoringMetrics};
+
         let (committee, keypairs) =
             consensus_config::local_committee_and_keys(0, vec![1; committee_size]);
         let metrics = test_metrics();
         let temp_dir = TempDir::new().unwrap();
         let clock = Arc::new(Clock::default());
-        let scorer = Arc::new(Scorer::new_dummy_for_tests(committee_size));
-
+        let current_local_metrics_count = Arc::new(VersionedScoringMetrics::V1(
+            ScoringMetricsV1::new(committee_size),
+        ));
+        let scoring_metrics_store = Arc::new(MysticetiScoringMetricsStore::new(
+            committee_size,
+            current_local_metrics_count,
+            &ProtocolConfig::get_for_max_version_UNSAFE(),
+        ));
         let context = Context::new(
             0,
             AuthorityIndex::new_for_test(0),
@@ -81,7 +93,7 @@ impl Context {
             },
             ProtocolConfig::get_for_max_version_UNSAFE(),
             metrics,
-            scorer,
+            scoring_metrics_store,
             clock,
         );
         (context, keypairs)

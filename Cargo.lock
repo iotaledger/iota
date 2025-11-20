@@ -2702,6 +2702,7 @@ dependencies = [
  "arc-swap",
  "consensus-config",
  "consensus-core",
+ "iota-common",
  "iota-config",
  "iota-macros",
  "iota-metrics",
