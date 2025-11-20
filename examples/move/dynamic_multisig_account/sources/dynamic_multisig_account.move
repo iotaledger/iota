@@ -5,9 +5,11 @@ module dynamic_multisig_account::dynamic_multisig_account;
 
 use dynamic_multisig_account::members::{Self, Members};
 use dynamic_multisig_account::transactions::{Self, Transactions};
-use iota::account::{Self, AuthenticatorInfoV1, AuthenticatorInfoMetadataV1};
+use iota::account::{Self, AuthenticatorInfoV1};
 use iota::auth_context::AuthContext;
 use iota::dynamic_field;
+use iota::package_metadata::PackageMetadataV1;
+use std::ascii;
 
 // --------------------------------------- Errors ---------------------------------------
 
@@ -47,7 +49,9 @@ public fun create(
     members_addresses: vector<address>,
     members_weights: vector<u64>,
     threshold: u64,
-    authenticator_metadata: AuthenticatorInfoMetadataV1,
+    package_metadata: &PackageMetadataV1,
+    module_name: ascii::String,
+    function_name: ascii::String,
     ctx: &mut TxContext,
 ) {
     // Create a `Members` instance.
@@ -68,7 +72,9 @@ public fun create(
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         &account,
-        authenticator_metadata,
+        package_metadata,
+        module_name,
+        function_name,
     );
     account::attach_auth_info_v1(&mut account.id, authenticator_compatibility_proof);
 
@@ -181,7 +187,9 @@ public fun update_account_data(
     members_addresses: vector<address>,
     members_weights: vector<u64>,
     threshold: u64,
-    authenticator_metadata: AuthenticatorInfoMetadataV1,
+    package_metadata: &PackageMetadataV1,
+    module_name: ascii::String,
+    function_name: ascii::String,
     ctx: &TxContext,
 ) {
     // Check that the sender of this transaction is the account.
@@ -195,7 +203,9 @@ public fun update_account_data(
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         self,
-        authenticator_metadata,
+        package_metadata,
+        module_name,
+        function_name,
     );
 
     let account_id = &mut self.id;

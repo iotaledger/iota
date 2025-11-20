@@ -24,8 +24,7 @@ use iota_keys::keystore::AccountKeystore;
 use iota_macros::sim_test;
 use iota_test_transaction_builder::publish_package;
 use iota_types::{
-    IOTA_FRAMEWORK_ADDRESS, MOVE_STDLIB_ADDRESS, TypeTag,
-    account::AuthenticatorInfoMetadataV1,
+    TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{PublicKey, SignatureScheme},
     execution_status::{ExecutionFailureStatus, MoveLocation},
@@ -38,7 +37,7 @@ use iota_types::{
     signature::GenericSignature,
     storage::WriteKind,
     transaction::{
-        Argument, CallArg, ObjectArg, ProgrammableTransaction,
+        CallArg, ObjectArg, ProgrammableTransaction,
         TEST_ONLY_GAS_UNIT_FOR_HEAVY_COMPUTATION_STORAGE, Transaction, TransactionData,
     },
 };
@@ -367,46 +366,20 @@ impl TestEnvironment {
         let pt = {
             let mut builder = ProgrammableTransactionBuilder::new();
 
-            // create auth info
+            // Create the abstract account.
             let arguments = vec![
+                builder.pure(aa_owner_pk.as_ref())?,
                 builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
                 builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
                 builder.pure(authenticate_fn_name)?,
             ];
-            if let Argument::Result(authenticator_info_metadata_v1_opt) = builder
-                .programmable_move_call(
-                    IOTA_FRAMEWORK_ADDRESS.into(),
-                    ident_str!("package_metadata").to_owned(),
-                    ident_str!("authenticator_info_metadata_v1").to_owned(),
-                    vec![],
-                    arguments,
-                )
-            {
-                // Unwrap Option<AuthenticatorInfoMetadataV1>
-                let arguments = vec![Argument::Result(authenticator_info_metadata_v1_opt)];
-                if let Argument::Result(authenticator_info_metadata_v1) = builder
-                    .programmable_move_call(
-                        MOVE_STDLIB_ADDRESS.into(),
-                        ident_str!("option").to_owned(),
-                        ident_str!("destroy_some").to_owned(),
-                        vec![AuthenticatorInfoMetadataV1::type_().into()],
-                        arguments,
-                    )
-                {
-                    // Create the abstract account.
-                    let arguments = vec![
-                        builder.pure(aa_owner_pk.as_ref())?,
-                        Argument::Result(authenticator_info_metadata_v1),
-                    ];
-                    builder.programmable_move_call(
-                        aa_package_id,
-                        ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
-                        ident_str!("create").to_owned(),
-                        vec![],
-                        arguments,
-                    );
-                }
-            }
+            builder.programmable_move_call(
+                aa_package_id,
+                ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
+                ident_str!("create").to_owned(),
+                vec![],
+                arguments,
+            );
             builder.finish()
         };
 
@@ -541,51 +514,25 @@ impl TestEnvironment {
 
         let mut builder = ProgrammableTransactionBuilder::new();
 
-        // create auth info
+        // rotate the key in the abstract account.
         let arguments = vec![
+            builder.obj(ObjectArg::SharedObject {
+                id: aa_ref.0,
+                initial_shared_version: aa_ref.1,
+                mutable: true,
+            })?,
+            builder.pure(new_aa_owner_pk.as_ref())?,
             builder.obj(ObjectArg::ImmOrOwnedObject(aa_package_metadata_ref))?,
             builder.pure(AA_AUTHENTICATE_MODULE_NAME)?,
             builder.pure(authenticate_fn_name)?,
         ];
-        if let Argument::Result(authenticator_info_metadata_v1_opt) = builder
-            .programmable_move_call(
-                IOTA_FRAMEWORK_ADDRESS.into(),
-                ident_str!("package_metadata").to_owned(),
-                ident_str!("authenticator_info_metadata_v1").to_owned(),
-                vec![],
-                arguments,
-            )
-        {
-            // Unwrap Option<AuthenticatorInfoMetadataV1>
-            let arguments = vec![Argument::Result(authenticator_info_metadata_v1_opt)];
-            if let Argument::Result(authenticator_info_metadata_v1) = builder
-                .programmable_move_call(
-                    MOVE_STDLIB_ADDRESS.into(),
-                    ident_str!("option").to_owned(),
-                    ident_str!("destroy_some").to_owned(),
-                    vec![AuthenticatorInfoMetadataV1::type_().into()],
-                    arguments,
-                )
-            {
-                // rotate the key in the abstract account.
-                let arguments = vec![
-                    builder.obj(ObjectArg::SharedObject {
-                        id: aa_ref.0,
-                        initial_shared_version: aa_ref.1,
-                        mutable: true,
-                    })?,
-                    builder.pure(new_aa_owner_pk.as_ref())?,
-                    Argument::Result(authenticator_info_metadata_v1),
-                ];
-                builder.programmable_move_call(
-                    aa_package_id,
-                    ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
-                    ident_str!("rotate_public_key").to_owned(),
-                    vec![],
-                    arguments,
-                );
-            }
-        }
+        builder.programmable_move_call(
+            aa_package_id,
+            ident_str!(AA_CREATE_MODULE_NAME).to_owned(),
+            ident_str!("rotate_public_key").to_owned(),
+            vec![],
+            arguments,
+        );
         Ok(builder.finish())
     }
 

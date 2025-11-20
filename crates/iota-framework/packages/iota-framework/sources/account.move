@@ -4,8 +4,9 @@
 module iota::account;
 
 use iota::dynamic_field;
+use iota::package_metadata::PackageMetadataV1;
 use std::ascii;
-use std::type_name::{Self, TypeName};
+use std::type_name;
 
 #[error(code = 0)]
 const EAuthenticatorInfoV1AlreadyAttached: vector<u8> =
@@ -17,6 +18,9 @@ const EAuthenticatorInfoV1NotAttached: vector<u8> =
 const EAuthenticatorInfoV1CompatibilityNotProven: vector<u8> =
     b"An `AuthenticatorInfoV1` instance is not verified to be attached to the account.";
 #[error(code = 3)]
+const EAuthenticatorNotFound: vector<u8> =
+    b"The provided package, module and authenticator function combination was not found.";
+#[error(code = 4)]
 const EAuthenticatorInfoNotCompatibileWithAccount: vector<u8> =
     b"The provided `AuthenticatorInfoV1` is not compatible with the account type.";
 
@@ -32,13 +36,6 @@ public struct AuthenticatorInfoV1 has copy, drop, store {
     function_name: ascii::String,
 }
 
-/// Metadata found in a package associated with an `AuthenticatorInfoV1` instance.
-#[allow(unused_field)]
-public struct AuthenticatorInfoMetadataV1 has copy, drop, store {
-    info: AuthenticatorInfoV1,
-    account_type: TypeName,
-}
-
 /// Represents a proof of compatibility between `AuthenticatorInfoV1` and an account.
 public struct AuthenticatorInfoV1CompatibilityProof has drop {
     account_id: ID,
@@ -49,16 +46,29 @@ public struct AuthenticatorInfoV1CompatibilityProof has drop {
 /// Returns a proof that can be used to attach or rotate the `authenticator` to the `account`.
 public fun check_auth_info_v1_compatibility<Account: key>(
     account: &Account,
-    authenticator_metadata: AuthenticatorInfoMetadataV1,
+    package_metadata: &PackageMetadataV1,
+    module_name: ascii::String,
+    function_name: ascii::String,
 ): AuthenticatorInfoV1CompatibilityProof {
+    let authenticator_metadata_opt = package_metadata.try_get_authenticator_metadata_v1(
+        module_name,
+        function_name,
+    );
+    assert!(authenticator_metadata_opt.is_some(), EAuthenticatorNotFound);
+    let authenticator_metadata = authenticator_metadata_opt.destroy_some();
+
     let account_type_name = type_name::get<Account>();
     assert!(
-        account_type_name == authenticator_metadata.account_type,
+        account_type_name == authenticator_metadata.account_type(),
         EAuthenticatorInfoNotCompatibileWithAccount,
     );
     AuthenticatorInfoV1CompatibilityProof {
         account_id: object::id(account),
-        authenticator: authenticator_metadata.info,
+        authenticator: AuthenticatorInfoV1 {
+            package: package_metadata.storage_id(),
+            module_name,
+            function_name,
+        },
     }
 }
 
@@ -108,13 +118,4 @@ public fun create_auth_info_v1_for_testing(
     function_name: ascii::String,
 ): AuthenticatorInfoV1 {
     AuthenticatorInfoV1 { package: package.to_id(), module_name, function_name }
-}
-
-/// Creates an `AuthenticatorInfoMetadataV1` instance for testing, skipping validation.
-#[test_only]
-public fun create_auth_info_metadata_v1_for_testing(
-    info: AuthenticatorInfoV1,
-    account_type: TypeName,
-): AuthenticatorInfoMetadataV1 {
-    AuthenticatorInfoMetadataV1 { info, account_type }
 }

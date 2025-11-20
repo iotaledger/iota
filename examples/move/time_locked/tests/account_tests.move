@@ -5,13 +5,15 @@
 module time_locked::account_tests;
 
 use generic_keyed_authentication::owner_public_key;
-use iota::account::AuthenticatorInfoV1;
 use iota::auth_context::{Self, AuthContext};
 use iota::clock;
 use iota::hex;
+use iota::package_metadata;
 use iota::test_scenario::{Self, Scenario};
+use iota::test_utils;
 use iotaccount::iotaccount;
 use std::ascii;
+use std::type_name::{Self, TypeName};
 use std::unit_test::assert_eq;
 use time_locked::account as time_locked;
 use time_locked::unlock_time;
@@ -175,20 +177,28 @@ fun account_unlocked() {
 
 // --------------------------------------- Test Utilities ---------------------------------------
 
-fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
-    iota::account::create_auth_info_v1_for_testing(
-        @0x1,
-        ascii::string(b"time_locked"),
-        ascii::string(b"authenticate_time"),
-    )
+fun default_package(): address {
+    @0x1
 }
 
-fun create_authenticator_info_metadata_v1_for_testing(
-    authenticator: AuthenticatorInfoV1,
-): iota::account::AuthenticatorInfoMetadataV1 {
-    iota::account::create_auth_info_metadata_v1_for_testing(
-        authenticator,
-        std::type_name::get<time_locked::TimeLocked>(),
+fun default_module_name(): ascii::String {
+    ascii::string(b"time_locked")
+}
+
+fun default_function_name(): ascii::String {
+    ascii::string(b"authenticate_time")
+}
+
+fun default_account_type(): TypeName {
+    type_name::get<time_locked::TimeLocked>()
+}
+
+fun create_package_metadata_for_testing(): package_metadata::PackageMetadataV1 {
+    package_metadata::create_package_metadata_v1_for_testing_one_authenticator(
+        default_package().to_id(),
+        default_module_name(),
+        default_function_name(),
+        default_account_type(),
     )
 }
 
@@ -199,12 +209,16 @@ fun create_time_locked_for_testing(
 ): address {
     let ctx = test_scenario::ctx(scenario);
 
-    let authenticator = create_authenticator_info_v1_for_testing();
-    let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
-        authenticator,
-    );
+    let package_metadata = create_package_metadata_for_testing();
 
-    time_locked::create(public_key, unlock_time, authenticator_metadata, ctx);
+    time_locked::create(
+        public_key,
+        unlock_time,
+        &package_metadata,
+        default_module_name(),
+        default_function_name(),
+        ctx,
+    );
 
     scenario.next_tx(@0x0);
 
@@ -212,6 +226,7 @@ fun create_time_locked_for_testing(
     let account_address = account.account_address();
 
     test_scenario::return_shared(account);
+    test_utils::destroy(package_metadata);
 
     account_address
 }

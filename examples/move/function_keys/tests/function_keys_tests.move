@@ -18,15 +18,18 @@ module function_keys::function_keys_scenario_tests;
 
 use function_keys::fk_store::{Self as store, make_func_key};
 use function_keys::function_keys;
-use iota::account::{Self as account_pkg, AuthenticatorInfoV1, AuthenticatorInfoMetadataV1};
 use iota::auth_context::{Self as acx, AuthContext};
 use iota::hex;
 use iota::programmable_transaction::{Self as ptb, Command};
 use iota::test_scenario::{Self as scen, Scenario};
+use iota::test_utils;
 use iota::tx_context as txc;
 use iotaccount::iotaccount::{Self, IOTAccount};
-use std::ascii;
-use std::type_name;
+use iotaccount::test_utils::{
+    create_package_metadata_for_testing,
+    default_module_name,
+    default_function_name
+};
 
 // ----------------------------------------------------------------------------
 // Happy path (delegated): attach → grant(pubkey, function) → authenticate OK
@@ -456,23 +459,6 @@ fun test_fk_authenticate_unauthorized_granted_permission() {
 // Utilities (mirroring iotaccount test style)
 // ============================================================================
 
-fun create_authenticator_info_v1_for_testing(): AuthenticatorInfoV1 {
-    account_pkg::create_auth_info_v1_for_testing(
-        @0x1,
-        ascii::string(b"module"),
-        ascii::string(b"function"),
-    )
-}
-
-fun create_authenticator_info_metadata_v1_for_testing(
-    authenticator: AuthenticatorInfoV1,
-): AuthenticatorInfoMetadataV1 {
-    account_pkg::create_auth_info_metadata_v1_for_testing(
-        authenticator,
-        type_name::get<IOTAccount>(),
-    )
-}
-
 fun create_iotaccount_with_pk_for_testing(
     scenario: &mut Scenario,
     public_key: vector<u8>,
@@ -487,18 +473,22 @@ fun create_iotaccount_for_testing_impl(
     let ctx = scen::ctx(scenario);
 
     let public_key = public_key.destroy_or!(public_key_for_testing());
-    let authenticator = create_authenticator_info_v1_for_testing();
-    let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
-        authenticator,
-    );
+    let package_metadata = create_package_metadata_for_testing();
 
-    function_keys::create(public_key, authenticator_metadata, ctx);
+    function_keys::create(
+        public_key,
+        &package_metadata,
+        default_module_name(),
+        default_function_name(),
+        ctx,
+    );
 
     scen::next_tx(scenario, @0x0);
 
     let account = scen::take_shared<IOTAccount>(scenario);
     let account_address = account.account_address();
     scen::return_shared(account);
+    test_utils::destroy(package_metadata);
 
     account_address
 }
@@ -510,18 +500,22 @@ fun create_iotaccount_for_testing_without_fk_store(
     let ctx = scen::ctx(scenario);
 
     let public_key = public_key.destroy_or!(public_key_for_testing());
-    let authenticator = create_authenticator_info_v1_for_testing();
-    let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
-        authenticator,
-    );
+    let package_metadata = create_package_metadata_for_testing();
 
-    function_keys::create_without_fk_store(public_key, authenticator_metadata, ctx);
+    function_keys::create_without_fk_store(
+        public_key,
+        &package_metadata,
+        default_module_name(),
+        default_function_name(),
+        ctx,
+    );
 
     scen::next_tx(scenario, @0x0);
 
     let account = scen::take_shared<IOTAccount>(scenario);
     let account_address = account.account_address();
     scen::return_shared(account);
+    test_utils::destroy(package_metadata);
 
     account_address
 }

@@ -6,8 +6,9 @@
 /// on-chain, additional information about the package.
 module iota::package_metadata;
 
-use iota::account::AuthenticatorInfoMetadataV1;
+use iota::vec_map::VecMap;
 use std::ascii;
+use std::type_name::TypeName;
 
 /// Represents the metadata of a Move package. This includes information
 /// such as the storage ID, runtime ID, version, and metadata for the
@@ -23,24 +24,21 @@ public struct PackageMetadataV1 has key {
     /// Version of the package represented by this metadata
     package_version: u64,
     // Handles to internal package modules
-    module_handles: vector<ascii::String>,
-    /// Handles to internal modules functions, with (module_handle,
-    /// function_name).
-    function_handles: vector<FunctionHandle>,
-    /// Metadata for functions in the package, indexed by function handle.
-    function_metadata: vector<FunctionMetadataV1>,
+    modules_metadata: VecMap<ascii::String, ModuleMetadataV1>,
 }
 
-/// Represents a handle to a function within a module in the package.
-public struct FunctionHandle has copy, drop, store {
-    module_handle: u16,
+/// Represents metadata associated with a module in the package.
+/// V1 includes only the authenticator functions information.
+public struct ModuleMetadataV1 has copy, drop, store {
+    authenticator_metadata: vector<AuthenticatorMetadataV1>,
+}
+
+/// Represents metadata for an authenticator within the package.
+/// It includes the name of the authenticate function and the TypeName
+/// of the first parameter (i.e., the account object type).
+public struct AuthenticatorMetadataV1 has copy, drop, store {
     function_name: ascii::String,
-}
-
-/// Represents metadata associated with a function in the package. This includes
-/// the authenticator information.
-public struct FunctionMetadataV1 has copy, drop, store {
-    authenticator_info: AuthenticatorInfoMetadataV1,
+    account_type: TypeName,
 }
 
 /// Return the storage ID of the package represented by this metadata
@@ -58,24 +56,92 @@ public fun package_version(metadata: &PackageMetadataV1): u64 {
     metadata.package_version
 }
 
-/// Return the function metadata list of the package represented by this metadata
-public fun function_metadata_v1(self: &PackageMetadataV1): &vector<FunctionMetadataV1> {
-    &self.function_metadata
+/// Return the module metadata list of the package represented by this metadata
+public fun modules_metadata_v1(
+    self: &PackageMetadataV1,
+    module_name: &ascii::String,
+): Option<ModuleMetadataV1> {
+    self.modules_metadata.try_get(module_name)
 }
 
-/// Returns the `AuthenticatorInfoMetadataV1` associated with the specified
+/// Returns the `AuthenticatorMetadataV1` associated with the specified
 /// `module_name` and `function_name`, if any.
-public fun authenticator_info_metadata_v1(
+public fun authenticator_metadata_v1(
+    self: &ModuleMetadataV1,
+    function_name: ascii::String,
+): Option<AuthenticatorMetadataV1> {
+    self.authenticator_metadata.find_index!(|m| m.function_name == function_name).and!(|index| {
+        option::some(self.authenticator_metadata[index])
+    })
+}
+
+/// Return the account type of the authenticator represented by this metadata
+public fun account_type(self: &AuthenticatorMetadataV1): TypeName {
+    self.account_type
+}
+
+public fun try_get_authenticator_metadata_v1(
     self: &PackageMetadataV1,
     module_name: ascii::String,
     function_name: ascii::String,
-): Option<AuthenticatorInfoMetadataV1> {
-    self.module_handles.find_index!(|m| m == module_name).and!(|module_handle| {
-        self
-            .function_handles
-            .find_index!(
-                |f| f.module_handle == module_handle as u16 && f.function_name == function_name,
-            )
-            .and!(|fm| option::some(self.function_metadata[fm].authenticator_info))
+): Option<AuthenticatorMetadataV1> {
+    self.modules_metadata_v1(&module_name).and!(|modules_metadata| {
+        modules_metadata.authenticator_metadata_v1(function_name)
     })
+}
+
+/// Creates a `PackageMetadataV1` instance for testing, skipping validation.
+#[test_only]
+public fun create_package_metadata_v1_for_testing(
+    storage_id: ID,
+    modules: vector<ascii::String>,
+    functions: vector<ascii::String>,
+    type_names: vector<TypeName>,
+): PackageMetadataV1 {
+    assert!(modules.length() == functions.length());
+    assert!(modules.length() == type_names.length());
+    // Temp name
+    let name = b"iota::metadata";
+    let hash = iota::dynamic_field::hash_type_and_key(storage_id.to_address(), name);
+    let id = object::new_uid_from_hash(hash);
+    let mut modules_metadata = iota::vec_map::empty<ascii::String, ModuleMetadataV1>();
+    let mut i = 0;
+    while (i < modules.length()) {
+        let module_name = modules[i];
+        let function_name = functions[i];
+        let account_type = type_names[i];
+        let authenticator_metadata = vector[
+            AuthenticatorMetadataV1 {
+                function_name,
+                account_type,
+            },
+        ];
+        let module_meta = ModuleMetadataV1 { authenticator_metadata };
+        modules_metadata.insert(module_name, module_meta);
+        i = i + 1;
+    };
+    PackageMetadataV1 {
+        id,
+        storage_id,
+        runtime_id: storage_id,
+        package_version: 1,
+        modules_metadata,
+    }
+}
+
+/// Creates a `PackageMetadataV1` instance for testing with only one
+/// authenticator, skipping validation.
+#[test_only]
+public fun create_package_metadata_v1_for_testing_one_authenticator(
+    storage_id: ID,
+    module_name: ascii::String,
+    function_name: ascii::String,
+    type_name: TypeName,
+): PackageMetadataV1 {
+    create_package_metadata_v1_for_testing(
+        storage_id,
+        vector[module_name],
+        vector[function_name],
+        vector[type_name],
+    )
 }

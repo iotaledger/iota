@@ -9,15 +9,16 @@ use iota::auth_context::{Self, AuthContext};
 use iota::ecdsa_k1;
 use iota::hex;
 use iota::test_scenario::{Self, Scenario};
-use iota::test_utils::{assert_eq, assert_ref_eq};
+use iota::test_utils::{Self, assert_eq, assert_ref_eq};
 use iotaccount::iotaccount::{Self, IOTAccount};
 use iotaccount::keyed_iotaccount::{Self, borrow_public_key};
 use iotaccount::test_utils::{
     create_authenticator_info_v1_for_testing,
-    create_authenticator_info_metadata_v1_for_testing
+    create_package_metadata_for_testing,
+    default_module_name,
+    default_function_name
 };
 use std::ascii;
-use std::type_name;
 
 // --------------------------------------- Create Basic Keyed Account ---------------------------------------
 
@@ -28,12 +29,15 @@ fun account_created() {
     let ctx = test_scenario::ctx(scenario);
 
     let public_key = b"42";
-    let authenticator = create_authenticator_info_v1_for_testing();
-    let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
-        authenticator,
-    );
+    let package_metadata = create_package_metadata_for_testing();
 
-    keyed_iotaccount::create(public_key, authenticator_metadata, ctx);
+    keyed_iotaccount::create(
+        public_key,
+        &package_metadata,
+        default_module_name(),
+        default_function_name(),
+        ctx,
+    );
 
     scenario.next_tx(@0x0);
     {
@@ -49,6 +53,7 @@ fun account_created() {
 
         test_scenario::return_shared(account);
     };
+    test_utils::destroy(package_metadata);
     test_scenario::end(scenario_val);
 }
 
@@ -368,18 +373,23 @@ fun test_rotate_account_public_key() {
             ascii::string(b"module2"),
             ascii::string(b"function2"),
         );
-        let authenticator_metadata = account::create_auth_info_metadata_v1_for_testing(
-            authenticator,
-            type_name::get<IOTAccount>(),
-        );
+        let package_metadata = create_package_metadata_for_testing();
         let ctx = test_scenario::ctx(scenario);
 
-        keyed_iotaccount::rotate_public_key(&mut account, public_key, authenticator_metadata, ctx);
+        keyed_iotaccount::rotate_public_key(
+            &mut account,
+            public_key,
+            &package_metadata,
+            default_module_name(),
+            default_function_name(),
+            ctx,
+        );
 
         assert_eq(*borrow_public_key(&account), public_key);
         assert_ref_eq(account.borrow_auth_info_v1(), &authenticator);
 
         test_scenario::return_shared(account);
+        test_utils::destroy(package_metadata);
     };
 
     test_scenario::end(scenario_val);
@@ -399,19 +409,19 @@ fun test_rotate_account_public_key_wrong_sender() {
         let mut account = scenario.take_shared<IOTAccount>();
 
         let public_key = b"24";
-        let authenticator = account::create_auth_info_v1_for_testing(
-            @0x2,
-            ascii::string(b"module2"),
-            ascii::string(b"function2"),
-        );
-        let authenticator_metadata = account::create_auth_info_metadata_v1_for_testing(
-            authenticator,
-            type_name::get<IOTAccount>(),
-        );
+        let package_metadata = create_package_metadata_for_testing();
         let ctx = test_scenario::ctx(scenario);
 
-        keyed_iotaccount::rotate_public_key(&mut account, public_key, authenticator_metadata, ctx);
+        keyed_iotaccount::rotate_public_key(
+            &mut account,
+            public_key,
+            &package_metadata,
+            default_module_name(),
+            default_function_name(),
+            ctx,
+        );
         test_scenario::return_shared(account);
+        test_utils::destroy(package_metadata);
     };
 
     test_scenario::end(scenario_val);
@@ -425,12 +435,15 @@ fun create_iotaccount_with_pk_for_testing(
 ): address {
     let ctx = test_scenario::ctx(scenario);
 
-    let authenticator = create_authenticator_info_v1_for_testing();
-    let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
-        authenticator,
-    );
+    let package_metadata = create_package_metadata_for_testing();
 
-    keyed_iotaccount::create(public_key, authenticator_metadata, ctx);
+    keyed_iotaccount::create(
+        public_key,
+        &package_metadata,
+        default_module_name(),
+        default_function_name(),
+        ctx,
+    );
 
     scenario.next_tx(@0x0);
 
@@ -438,6 +451,7 @@ fun create_iotaccount_with_pk_for_testing(
     let account_address = account.account_address();
 
     test_scenario::return_shared(account);
+    test_utils::destroy(package_metadata);
 
     account_address
 }

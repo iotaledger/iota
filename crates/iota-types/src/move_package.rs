@@ -59,8 +59,8 @@ use serde_with::{Bytes, serde_as};
 
 use crate::{
     IOTA_FRAMEWORK_ADDRESS,
-    account::AuthenticatorInfoMetadataV1,
     base_types::{ObjectID, SequenceNumber},
+    collection_types::{Entry, VecMap},
     crypto::DefaultHash,
     dynamic_field,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
@@ -1058,12 +1058,7 @@ pub struct PackageMetadataV1 {
     /// Version of the package represented by this metadata
     pub package_version: u64,
     // Handles to internal package modules
-    pub module_handles: Vec<String>,
-    /// Handles to internal modules functions, with (module_handle,
-    /// function_name).
-    pub function_handles: Vec<FunctionHandle>,
-    /// Metadata for functions in the package, indexed by function handle.
-    pub function_metadata: Vec<FunctionMetadataV1>,
+    pub modules_metadata: VecMap<String, ModuleMetadataV1>,
 }
 
 impl PackageMetadataV1 {
@@ -1072,32 +1067,26 @@ impl PackageMetadataV1 {
         storage_id: ObjectID,
         runtime_id: ObjectID,
         package_version: u64,
-        modules_metadata: BTreeMap<String, Vec<(String, TypeTag)>>,
+        modules_info: BTreeMap<String, Vec<(String, TypeTag)>>,
     ) -> Self {
-        let mut module_handles = vec![];
-        let mut function_handles = vec![];
-        let mut function_metadata = vec![];
+        let mut modules_metadata = VecMap { contents: vec![] };
 
-        for (module_index, (module_name, fns_metadata)) in modules_metadata.into_iter().enumerate()
-        {
-            module_handles.push(module_name.clone());
+        for (module_name, fns_metadata) in modules_info.into_iter() {
+            let mut value = ModuleMetadataV1 {
+                authenticator_metadata: vec![],
+            };
 
             for (fn_name, account_type) in fns_metadata {
-                function_handles.push(FunctionHandle {
-                    module_handle: module_index as u16,
+                value.authenticator_metadata.push(AuthenticatorMetadataV1 {
                     function_name: fn_name.clone(),
+                    account_type: TypeName::from(&account_type),
                 });
-
-                let fn_metadata = FunctionMetadataV1 {
-                    authenticator_info: AuthenticatorInfoMetadataV1::new(
-                        storage_id,
-                        module_name.clone(),
-                        fn_name.clone(),
-                        TypeName::from(&account_type),
-                    ),
-                };
-                function_metadata.push(fn_metadata);
             }
+
+            modules_metadata.contents.push(Entry {
+                key: module_name.clone(),
+                value,
+            });
         }
 
         Self {
@@ -1105,9 +1094,7 @@ impl PackageMetadataV1 {
             storage_id: ID::new(storage_id),
             runtime_id: ID::new(runtime_id),
             package_version,
-            module_handles,
-            function_handles,
-            function_metadata,
+            modules_metadata,
         }
     }
 
@@ -1125,17 +1112,17 @@ impl PackageMetadataV1 {
     }
 }
 
-/// V1 of IOTA specific function metadata. Only includes authenticator info.
+/// V1 of IOTA specific module metadata. Only includes authenticator info.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FunctionHandle {
-    module_handle: u16,
-    function_name: String,
+pub struct ModuleMetadataV1 {
+    authenticator_metadata: Vec<AuthenticatorMetadataV1>,
 }
 
-/// V1 of IOTA specific function metadata. Only includes authenticator info.
+/// V1 of IOTA specific authenticator info metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FunctionMetadataV1 {
-    authenticator_info: AuthenticatorInfoMetadataV1,
+pub struct AuthenticatorMetadataV1 {
+    pub function_name: String,
+    pub account_type: TypeName,
 }
 
 pub fn derive_package_metadata_id(package_storage_id: ObjectID) -> ObjectID {

@@ -6,12 +6,14 @@ module iotaccount::iotaccount_tests;
 
 use iota::account;
 use iota::test_scenario::{Self, Scenario};
-use iota::test_utils::{assert_eq, assert_ref_eq};
+use iota::test_utils::{Self, assert_eq, assert_ref_eq};
 use iotaccount::iotaccount::{Self, IOTAccount};
 use iotaccount::test_utils::{
     create_iotaccount_for_testing,
     create_authenticator_info_v1_for_testing,
-    create_authenticator_info_metadata_v1_for_testing
+    create_package_metadata_for_testing,
+    default_module_name,
+    default_function_name
 };
 use std::ascii;
 
@@ -112,14 +114,18 @@ fun account_can_rotate_auth_info_v1() {
             ascii::string(b"module2"),
             ascii::string(b"function2"),
         );
-        let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
-            new_authenticator,
-        );
+        let package_metadata = create_package_metadata_for_testing();
 
-        account.rotate_auth_info_v1(authenticator_metadata, ctx);
+        account.rotate_auth_info_v1(
+            &package_metadata,
+            default_module_name(),
+            default_function_name(),
+            ctx,
+        );
 
         assert_eq(*account.borrow_auth_info_v1(), new_authenticator);
 
+        test_utils::destroy(package_metadata);
         test_scenario::return_shared(account);
     })
 }
@@ -251,12 +257,16 @@ fun non_account_cant_rotate_auth_info_v1() {
         let mut account = scenario.take_shared<IOTAccount>();
         let ctx = test_scenario::ctx(scenario);
 
-        let authenticator_metadata = create_authenticator_info_metadata_v1_for_testing(
-            create_authenticator_info_v1_for_testing(),
+        let package_metadata = create_package_metadata_for_testing();
+
+        account.rotate_auth_info_v1(
+            &package_metadata,
+            default_module_name(),
+            default_function_name(),
+            ctx,
         );
 
-        account.rotate_auth_info_v1(authenticator_metadata, ctx);
-
+        test_utils::destroy(package_metadata);
         test_scenario::return_shared(account);
     })
 }

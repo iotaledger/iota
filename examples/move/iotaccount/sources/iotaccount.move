@@ -3,8 +3,10 @@
 
 module iotaccount::iotaccount;
 
-use iota::account::{Self, AuthenticatorInfoV1, AuthenticatorInfoMetadataV1};
+use iota::account::{Self, AuthenticatorInfoV1};
 use iota::dynamic_field;
+use iota::package_metadata::PackageMetadataV1;
+use std::ascii;
 
 // === Errors ===
 
@@ -45,7 +47,9 @@ public struct IOTAccount has key {
 ///
 /// The `AuthenticatorInfo` will be attached to the account being built.
 public fun builder(
-    authenticator_metadata: AuthenticatorInfoMetadataV1,
+    authenticator_package: &PackageMetadataV1,
+    module_name: ascii::String,
+    function_name: ascii::String,
     ctx: &mut TxContext,
 ): IOTAccountBuilder {
     let mut builder = IOTAccountBuilder {
@@ -54,7 +58,9 @@ public fun builder(
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         &builder.account,
-        authenticator_metadata,
+        authenticator_package,
+        module_name,
+        function_name,
     );
     account::attach_auth_info_v1(&mut builder.account.id, authenticator_compatibility_proof);
     builder
@@ -150,14 +156,18 @@ public fun rotate_field<Name: copy + drop + store, Value: store>(
 /// Only the account itself can call this function.
 public fun rotate_auth_info_v1(
     self: &mut IOTAccount,
-    authenticator_metadata: AuthenticatorInfoMetadataV1,
+    authenticator_package: &PackageMetadataV1,
+    module_name: ascii::String,
+    function_name: ascii::String,
     ctx: &TxContext,
 ) {
     ensure_tx_sender_is_account(self, ctx);
 
     let authenticator_compatibility_proof = account::check_auth_info_v1_compatibility(
         self,
-        authenticator_metadata,
+        authenticator_package,
+        module_name,
+        function_name,
     );
     account::rotate_auth_info_v1(&mut self.id, authenticator_compatibility_proof);
 }
