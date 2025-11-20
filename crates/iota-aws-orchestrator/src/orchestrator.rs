@@ -607,7 +607,29 @@ impl<P: ProtocolCommands<T> + ProtocolMetrics, T: BenchmarkType> Orchestrator<P,
             .iter()
             .collect();
         fs::create_dir_all(&path).expect("Failed to create log directory");
-        aggregator.save(path);
+        aggregator.save(&path);
+
+        if self.settings.enable_flamegraph {
+            let flamegraph_commands = self
+                .protocol_commands
+                .nodes_metrics_command(nodes.clone(), parameters);
+            let stdio = self
+                .ssh_manager
+                .execute_per_instance(flamegraph_commands, CommandContext::default())
+                .await?;
+            for (i, (stdout, stderr)) in stdio.into_iter().enumerate() {
+                if !stdout.is_empty() {
+                    let mut file = PathBuf::from(&path);
+                    file.push(format!("flamegraph-{i}.svg"));
+                    fs::write(file, stdout).unwrap();
+                }
+                if !stderr.is_empty() {
+                    let mut file = PathBuf::from(&path);
+                    file.push(format!("flamegraph-{i}.log"));
+                    fs::write(file, stderr).unwrap();
+                }
+            }
+        }
 
         display::done();
         Ok(aggregator)

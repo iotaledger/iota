@@ -111,6 +111,28 @@ pub trait ProtocolMetrics {
             .collect()
     }
 
+    /// The command to retrieve the metrics from the nodes.
+    fn nodes_flamegraph_command<I, T>(
+        &self,
+        instances: I,
+        _parameters: &BenchmarkParameters<T>,
+    ) -> Vec<(Instance, String)>
+    where
+        I: IntoIterator<Item = Instance>,
+        T: BenchmarkType,
+    {
+        instances
+            .into_iter()
+            .map(|instance| {
+                (instance, {
+                    let path = "http://localhost:1337?svg=true";
+                    display::action(format!("\ncurl {path}"));
+                    format!("curl {path}")
+                })
+            })
+            .collect()
+    }
+
     /// The network path where the clients expose prometheus metrics.
     fn clients_metrics_path<I, T>(
         &self,
