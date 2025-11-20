@@ -2,14 +2,81 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{
-    field::FieldMaskTree,
-    merge::Merge,
-    v0::epoch::{
-        Epoch, ProtocolConfig, ValidatorCommittee, ValidatorCommitteeMember,
-        ValidatorCommitteeMembers,
-    },
-};
+include!("../../../generated/iota.grpc.v0.epoch.rs");
+include!("../../../generated/iota.grpc.v0.epoch.field_info.rs");
+include!("../../../generated/iota.grpc.v0.epoch.accessors.rs");
+
+use tap::Pipe;
+
+use crate::{field::FieldMaskTree, merge::Merge, proto::TryFromProtoError};
+
+// ValidatorCommitteeMember
+//
+
+impl From<iota_sdk2::types::ValidatorCommitteeMember> for ValidatorCommitteeMember {
+    fn from(value: iota_sdk2::types::ValidatorCommitteeMember) -> Self {
+        Self {
+            public_key: Some(value.public_key.as_bytes().to_vec().into()),
+            weight: Some(value.stake),
+        }
+    }
+}
+
+impl TryFrom<&ValidatorCommitteeMember> for iota_sdk2::types::ValidatorCommitteeMember {
+    type Error = TryFromProtoError;
+
+    fn try_from(
+        ValidatorCommitteeMember { public_key, weight }: &ValidatorCommitteeMember,
+    ) -> Result<Self, Self::Error> {
+        let public_key = public_key
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing("public_key"))?
+            .as_ref()
+            .pipe(iota_sdk2::types::Bls12381PublicKey::from_bytes)
+            .map_err(|e| {
+                TryFromProtoError::invalid(ValidatorCommitteeMember::PUBLIC_KEY_FIELD, e)
+            })?;
+
+        let stake = weight.ok_or_else(|| TryFromProtoError::missing("weight"))?;
+        Ok(Self { public_key, stake })
+    }
+}
+
+// ValidatorCommittee
+//
+
+impl From<iota_sdk2::types::ValidatorCommittee> for ValidatorCommittee {
+    fn from(value: iota_sdk2::types::ValidatorCommittee) -> Self {
+        Self {
+            epoch: Some(value.epoch),
+            members: Some(ValidatorCommitteeMembers {
+                members: value.members.into_iter().map(Into::into).collect(),
+            }),
+        }
+    }
+}
+
+impl TryFrom<&ValidatorCommittee> for iota_sdk2::types::ValidatorCommittee {
+    type Error = TryFromProtoError;
+
+    fn try_from(value: &ValidatorCommittee) -> Result<Self, Self::Error> {
+        let epoch = value
+            .epoch
+            .ok_or_else(|| TryFromProtoError::missing("epoch"))?;
+        let members = value
+            .members
+            .as_ref()
+            .ok_or_else(|| TryFromProtoError::missing("members"))?;
+        Ok(Self {
+            epoch,
+            members: members
+                .members
+                .iter()
+                .map(TryInto::try_into)
+                .collect::<Result<_, _>>()?,
+        })
+    }
+}
 
 impl Merge<&Epoch> for Epoch {
     fn merge(&mut self, source: &Epoch, mask: &FieldMaskTree) {

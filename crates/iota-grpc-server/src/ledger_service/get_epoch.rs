@@ -5,7 +5,7 @@
 use iota_grpc_types::{
     field::{FieldMaskTree, FieldMaskUtil},
     merge::Merge,
-    proto_helpers::timestamp_ms_to_proto,
+    proto::timestamp_ms_to_proto,
     v0::{
         bcs::BcsData,
         epoch::{Epoch, ProtocolConfig},
@@ -102,9 +102,9 @@ pub fn get_epoch(
             let bcs_bytes = bcs::to_bytes(&system_state).map_err(|e| {
                 Status::internal(format!("Failed to serialize system state to BCS: {e}"))
             })?;
-            message.bcs_system_state = Some(BcsData {
+            message.bcs_system_state = Some(Box::new(BcsData {
                 data: bcs_bytes.into(),
-            });
+            }));
         }
     }
 

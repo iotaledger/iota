@@ -80,7 +80,7 @@ pub mod object_result {
         #[prost(message, tag = "1")]
         Object(super::super::object::Object),
         #[prost(message, tag = "2")]
-        Error(super::super::google::rpc::Status),
+        Error(crate::google::rpc::Status),
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
@@ -128,7 +128,7 @@ pub mod transaction_result {
             ::prost::alloc::boxed::Box<super::super::transaction::ExecutedTransaction>,
         ),
         #[prost(message, tag = "2")]
-        Error(super::super::google::rpc::Status),
+        Error(crate::google::rpc::Status),
     }
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
