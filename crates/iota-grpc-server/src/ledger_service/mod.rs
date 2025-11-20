@@ -76,13 +76,13 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
     /// Query the service for general information about its current state.
     async fn get_service_info(
         &self,
-        _request: tonic::Request<grpc_ledger_service::GetServiceInfoRequest>,
+        request: tonic::Request<grpc_ledger_service::GetServiceInfoRequest>,
     ) -> std::result::Result<
         tonic::Response<grpc_ledger_service::GetServiceInfoResponse>,
         tonic::Status,
     > {
         info!("[grpc][ledger] GetServiceInfo called");
-        get_service_info::get_service_info(self)
+        get_service_info::get_service_info(self, request.into_inner())
             .map(Response::new)
             .map_err(Into::into)
     }
