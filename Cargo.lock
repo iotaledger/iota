@@ -11247,7 +11247,7 @@ dependencies = [
  "hmac",
  "md-5",
  "memchr",
- "rand 0.9.1",
+ "rand 0.9.2",
  "sha2 0.10.8",
  "stringprep",
 ]
@@ -14733,7 +14733,7 @@ dependencies = [
  "pin-project-lite",
  "postgres-protocol",
  "postgres-types",
- "rand 0.9.1",
+ "rand 0.9.2",
  "socket2 0.6.1",
  "tokio",
  "tokio-util 0.7.12",
