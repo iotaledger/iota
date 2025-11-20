@@ -2,6 +2,7 @@
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
 
+#[allow(rustdoc::invalid_html_tags)]
 pub mod rpc {
     include!("generated/google.rpc.rs");
     include!("generated/google.rpc.accessors.rs");
