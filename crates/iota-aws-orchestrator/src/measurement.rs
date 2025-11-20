@@ -264,6 +264,28 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
             .unwrap_or_default()
     }
 
+    pub fn workload_tps(&self) -> HashMap<String, u64> {
+        // Collect all last measurements
+        let last_measurements: Vec<_> = self
+            .scrapers
+            .values()
+            .flat_map(|workload_map| workload_map.values())
+            .filter_map(|measurements| measurements.last())
+            .collect();
+
+        // Get the maximum timestamp
+        let duration = last_measurements
+            .iter()
+            .map(|x| x.timestamp)
+            .max()
+            .unwrap_or_default();
+
+        last_measurements
+            .iter()
+            .map(|x| (x.workload.clone(), x.tps(&duration)))
+            .collect()
+    }
+
     /// Aggregate the tps of multiple data points by taking the sum.
     /// Calculates TPS for each workload separately, then sums across all
     /// workloads.
@@ -339,6 +361,7 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
     /// Display a summary of the measurements.
     pub fn display_summary(&self) {
         let duration = self.benchmark_duration();
+        let workload_tps = self.workload_tps();
         let total_tps = self.aggregate_tps();
         let workload_latency = self.workload_latency();
         let average_latency = self.aggregate_average_latency();
@@ -359,6 +382,9 @@ impl<T: BenchmarkType> MeasurementsCollection<T> {
         table.add_row(row![b->"Duration:", format!("{} s", duration.as_secs())]);
         table.add_row(row![bH2->""]);
         table.add_row(row![b->"TPS:", format!("{total_tps} tx/s")]);
+        for (workload, tps) in &workload_tps {
+            table.add_row(row![b->format!("  {} TPS:", workload), format!("{tps} tx/s")]);
+        }
 
         table.add_row(row![b->"Latency (avg):", format!("{} ms", average_latency.as_millis())]);
         for (workload, latency) in &workload_latency {
