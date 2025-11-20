@@ -619,9 +619,10 @@ fn svg_node(
     let text_x = x + 3.0;
     let text_y = y + 12;
     let dur = dur.as_nanos() as f64 / 1_000_000.0;
+	let avg = dur / samples as f64;
     format!(
         r###"<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
-<title>{title} (#{samples}, {dur:.2}ms, {percent:.2}%)</title><rect x="{x:.2}" y="{y}" width="{width:.2}" height="{height}" fill="rgb({fill_r},{fill_g},{fill_b})" rx="2" ry="2" />
+<title>{title} (#{samples}, tot={dur:.2}ms, avg={avg:.2}ms, {percent:.2}%)</title><rect x="{x:.2}" y="{y}" width="{width:.2}" height="{height}" fill="rgb({fill_r},{fill_g},{fill_b})" rx="2" ry="2" />
 <text text-anchor="" x="{text_x:.2}" y="{text_y}" font-size="12" font-family="Verdana" fill="rgb(0,0,0)"></text>
 </g>
 "###
