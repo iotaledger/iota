@@ -5,7 +5,6 @@ module authenticate::receiving;
 
 use iota::auth_context::AuthContext;
 use iota::transfer::Receiving;
-use iota::vec_map::VecMap;
 
 // Receiving
 
@@ -14,96 +13,94 @@ public struct Object has key, store {
 }
 
 // FAIL
-public fun immutable_ref(
+//#[authenticator]
+public entry fun immutable_ref(
     _to_receive: &Receiving<Object>,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {}
 
 // FAIL
-#[allow(lint(share_owned))]
-public fun by_value(
+//#[authenticator]
+public entry fun by_value(
     to_receive: Receiving<Object>,
     parent: &mut Object,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {
     let object = transfer::public_receive(&mut parent.id, to_receive);
-    transfer::public_share_object(object);
+    let Object { id } = object;
+    object::delete(id);
 }
 
 // FAIL
-public fun by_mutable_ref(
+//#[authenticator]
+public entry fun by_mutable_ref(
     _to_receive: &mut Receiving<Object>,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {}
 
 // Receiving and vector
 
-// FAIL
-public fun vector_immutable_ref(
-    _objects: &vector<Receiving<Object>>,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun vector_immutable_ref(
+//    _objects: &vector<Receiving<Object>>,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}
 
-// FAIL
-public fun vector_mutable_ref(
-    _objects: &mut vector<Receiving<Object>>,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun vector_mutable_ref(
+//    _objects: &mut vector<Receiving<Object>>,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}
 
-// FAIL
-#[allow(lint(share_owned))]
-public fun vector_by_value(
-    to_receive: vector<Receiving<Object>>,
-    parent: &mut Object,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {
-    to_receive.do!(|to_receive| {
-        let object = transfer::public_receive(&mut parent.id, to_receive);
-        transfer::public_share_object(object);
-    });
-}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun vector_by_value(
+//    to_receive: vector<Receiving<Object>>,
+//    parent: &mut Object,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}
 
 // Receiving and option
 
-// FAIL
-public fun option_immutable_ref(
-    _objects: &Option<Receiving<Object>>,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun option_immutable_ref(
+//    _objects: &Option<Receiving<Object>>,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}
 
-// FAIL
-public fun option_mutable_ref(
-    _objects: &mut Option<Receiving<Object>>,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun option_mutable_ref(
+//    _objects: &mut Option<Receiving<Object>>,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}
 
-// FAIL
-#[allow(lint(share_owned))]
-public fun option_by_value(
-    to_receive: Option<Receiving<Object>>,
-    parent: &mut Object,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {
-    to_receive.do!(|to_receive| {
-        let object = transfer::public_receive(&mut parent.id, to_receive);
-        transfer::public_share_object(object);
-    });
-}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun option_by_value(
+//    to_receive: Option<Receiving<Object>>,
+//    parent: &mut Object,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}
 
 // Receiving and datatype instantiation
 
-// FAIL
-public fun datatype_inst_immutable_ref(
-    _to_receive: &VecMap<u8, Receiving<Object>>,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun datatype_inst_immutable_ref(
+//    _to_receive: &VecMap<u8, Receiving<Object>>,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}

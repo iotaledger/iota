@@ -3,8 +3,12 @@
 
 module authenticate::template;
 
-use authenticate::account::Account;
 use iota::auth_context::AuthContext;
+
+// Test account struct
+public struct Account has key {
+    id: UID,
+}
 
 public struct Object has key, store {
     id: iota::object::UID,
@@ -18,62 +22,69 @@ public struct NonObjectTemplated<T: copy + drop + store> has copy, drop, store {
 }
 
 // PASS
-public fun primitive<T: copy + drop + store>(
+#[authenticator]
+public entry fun primitive<T: copy + drop + store>(
     _account: &Account,
     _arg: T,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {}
 
-// PASS
-public fun templated_non_object_immutable_ref<T: copy + drop + store>(
-    _account: &Account,
-    _arg: &NonObjectTemplated<T>,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun templated_non_object_immutable_ref<T: copy + drop + store>(
+//    _account: &Account,
+//    _arg: &NonObjectTemplated<T>,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}
 
-// FAIL
-public fun templated_non_object_mutable_ref<T: copy + drop + store>(
-    _account: &Account,
-    _arg: &mut NonObjectTemplated<T>,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun templated_non_object_mutable_ref<T: copy + drop + store>(
+//    _account: &Account,
+//    _arg: &mut NonObjectTemplated<T>,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}
 
-// FAIL
-public fun templated_non_object_by_value<T: copy + drop + store>(
-    _account: &Account,
-    _arg: NonObjectTemplated<T>,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun templated_non_object_by_value<T: copy + drop + store>(
+//    _account: &Account,
+//    _arg: NonObjectTemplated<T>,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}
 
 // Template and object
 
 // PASS
-public fun object_immutable_ref<T: key>(
+#[authenticator]
+public entry fun object_immutable_ref<T: key>(
     _account: &Account,
     _object: &T,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {}
 
 // FAIL
-public fun object_by_value<T: key + store>(
+//#[authenticator]
+public entry fun object_by_value<T: key + store>(
     _account: &Account,
     object: T,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {
     transfer::public_share_object(object);
 }
 
 // FAIL
-public fun object_mutable_ref<T: key>(
+//#[authenticator]
+public entry fun object_mutable_ref<T: key>(
     _account: &Account,
     _object: &mut T,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {}
 
@@ -82,29 +93,29 @@ public struct ObjectTemplated<T: key + store> has copy, drop, store {
     t: T,
 }
 
-// PASS
-public fun templated_object_immutable_ref<T: key + store>(
-    _account: &Account,
-    _object: &ObjectTemplated<T>,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun templated_object_immutable_ref<T: key + store>(
+//    _account: &Account,
+//    _object: &ObjectTemplated<T>,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}
 
-// FAIL
-public fun templated_object_by_value<T: key + store>(
-    _account: &Account,
-    object: ObjectTemplated<T>,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {
-    let ObjectTemplated { t } = object;
-    transfer::public_share_object(t);
-}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun templated_object_by_value<T: key + store>(
+//    _account: &Account,
+//    object: ObjectTemplated<T>,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}
 
-// FAIL
-public fun templated_object_mutable_ref<T: key + store>(
-    _account: &Account,
-    _object: &mut ObjectTemplated<T>,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun templated_object_mutable_ref<T: key + store>(
+//    _account: &Account,
+//    _object: &mut ObjectTemplated<T>,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}

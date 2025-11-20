@@ -3,84 +3,110 @@
 
 module authenticate::signature;
 
-use authenticate::account::{Self, Account};
 use iota::auth_context::AuthContext;
 
-// PASS
-public fun minimally_viable_auth_function(
-    _account: &Account,
-    _auth_ctx: &AuthContext,
-    _ctx: &TxContext,
-) {}
-
-// FAIL
-#[allow(unused_function)]
-fun has_to_be_public_auth_function(_account: &Account, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
-
-// FAIL
-public fun without_account(_auth_ctx: &AuthContext, _ctx: &TxContext) {}
-
-// FAIL
-public fun without_auth_context(_account: &Account, _ctx: &TxContext) {}
-
-// FAIL
-public fun without_tx_context(_account: &Account, _auth_ctx: &AuthContext) {}
-
-// FAIL
-public fun account_cant_be_value(account: Account, _auth_ctx: &AuthContext, _ctx: &TxContext) {
-    account::destroy(account);
+// Test account struct
+public struct Account has key {
+    id: UID,
 }
 
-// FAIL
-public fun auth_context_cant_be_value(
+// PASS
+#[authenticator]
+public entry fun minimally_viable_auth_function(
     _account: &Account,
-    _auth_ctx: AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {}
 
 // FAIL
-public fun tx_context_cant_be_value(_account: &Account, _auth_ctx: &AuthContext, _ctx: TxContext) {}
+//#[authenticator]
+public fun has_to_be_entry_auth_function(
+    _account: &Account,
+    _actx: &AuthContext,
+    _ctx: &TxContext,
+) {}
 
 // FAIL
-public fun account_cant_be_mutable_ref(
+//#[authenticator]
+public entry fun without_account(_actx: &AuthContext, _ctx: &TxContext) {}
+
+// FAIL
+//#[authenticator]
+public entry fun without_auth_context(_account: &Account, _ctx: &TxContext) {}
+
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun without_tx_context(_account: &Account, _actx: &AuthContext) {}
+
+// FAIL
+//#[authenticator]
+public entry fun account_cant_be_value(account: Account, _actx: &AuthContext, _ctx: &TxContext) {
+    let Account { id } = account;
+    object::delete(id);
+}
+
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun auth_context_cant_be_value(
+//    _account: &Account,
+//    _actx: AuthContext,
+//    _ctx: &TxContext,
+//) {}
+
+// FAIL
+//#[authenticator]
+public entry fun account_cant_be_mutable_ref(
     _account: &mut Account,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {}
 
 // FAIL
-public fun auth_context_cant_be_mutable_ref(
+//#[authenticator]
+public entry fun auth_context_cant_be_mutable_ref(
     _account: &Account,
-    _auth_ctx: &mut AuthContext,
+    _actx: &mut AuthContext,
     _ctx: &TxContext,
 ) {}
 
 // FAIL
-public fun tx_context_cant_be_mutable_ref(
+//#[authenticator]
+public entry fun tx_context_cant_be_mutable_ref(
     _account: &Account,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &mut TxContext,
 ) {}
 
 // FAIL
-public fun account_isnt_struct(_account: u64, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
+//#[authenticator]
+public entry fun account_isnt_struct(_account: u64, _actx: &AuthContext, _ctx: &TxContext) {}
 
 // FAIL
-public fun auth_context_isnt_struct(_account: &Account, _auth_ctx: u64, _ctx: &TxContext) {}
+//#[authenticator]
+public entry fun auth_context_isnt_struct(_account: &Account, _actx: u64, _ctx: &TxContext) {}
 
-// FAIL
-public fun tx_context_isnt_struct(_account: &Account, _auth_ctx: &AuthContext, _ctx: u64) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun tx_context_isnt_struct(_account: &Account, _actx: &AuthContext, _ctx: u64) {}
 
 // PASS
-public fun arg_value(_account: &Account, _val: u8, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
+#[authenticator]
+public entry fun arg_value(_account: &Account, _val: u8, _actx: &AuthContext, _ctx: &TxContext) {}
 
 // PASS
-public fun arg_mutable_value(
+#[authenticator]
+public entry fun arg_mutable_value(
     _account: &Account,
     mut _val: u8,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {}
 
-// FAIL
-public fun with_signer(_account: &Account, _s: signer, _auth_ctx: &AuthContext, _ctx: &TxContext) {}
+// FAIL Invalid 'entry' parameter type
+//#[authenticator]
+//public entry fun with_signer(
+//    _account: &Account,
+//    _s: signer,
+//    _actx: &AuthContext,
+//    _ctx: &TxContext,
+//) {}

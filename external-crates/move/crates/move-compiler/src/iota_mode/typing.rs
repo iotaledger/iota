@@ -608,7 +608,16 @@ fn entry_signature(
     } = signature;
     let all_non_ctx_parameters = match parameters.last() {
         Some((_, _, last_param_ty)) if tx_context_kind(last_param_ty) != TxContextKind::None => {
-            &parameters[0..parameters.len() - 1]
+            let params_without_tx_ctx = &parameters[0..parameters.len() - 1];
+            // Only in the case in which the TxContext is present, we check for AuthContext
+            match params_without_tx_ctx.last() {
+                Some((_, _, second_to_last_param_ty))
+                    if auth_context_kind(second_to_last_param_ty) != AuthContextKind::None =>
+                {
+                    &params_without_tx_ctx[0..params_without_tx_ctx.len() - 1]
+                }
+                _ => params_without_tx_ctx,
+            }
         }
         _ => parameters,
     };
@@ -653,6 +662,49 @@ pub enum TxContextKind {
     // &mut TxContext
     Mutable,
     // &TxContext
+    Immutable,
+}
+
+fn auth_context_kind(sp!(_, second_to_last_param_ty_): &Type) -> AuthContextKind {
+    // Already an error, so assume a valid, mutable AuthContext
+    if matches!(
+        second_to_last_param_ty_,
+        Type_::UnresolvedError | Type_::Var(_)
+    ) {
+        return AuthContextKind::Mutable;
+    }
+
+    let Type_::Ref(is_mut, inner_ty) = second_to_last_param_ty_ else {
+        // not a reference
+        return AuthContextKind::None;
+    };
+    let Type_::Apply(_, sp!(_, inner_name), _) = &inner_ty.value else {
+        // not a user defined type
+        return AuthContextKind::None;
+    };
+    if inner_name.is(
+        &IOTA_ADDR_VALUE,
+        AUTH_CONTEXT_MODULE_NAME,
+        AUTH_CONTEXT_TYPE_NAME,
+    ) {
+        if *is_mut {
+            AuthContextKind::Mutable
+        } else {
+            AuthContextKind::Immutable
+        }
+    } else {
+        // not the tx context
+        AuthContextKind::None
+    }
+}
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum AuthContextKind {
+    // No AuthContext
+    None,
+    // &mut AuthContext
+    Mutable,
+    // &AuthContext
     Immutable,
 }
 

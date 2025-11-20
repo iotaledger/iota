@@ -53,6 +53,21 @@ const AA_AUTHENTICATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
 const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
 
+/// Temp test to just publish the abstract account package
+#[sim_test]
+async fn test_publish() {
+    let cluster = TestClusterBuilder::new().build().await;
+
+    let path = [
+        env!("CARGO_MANIFEST_DIR"),
+        "tests/abstract_account/authenticate",
+    ]
+    .iter()
+    .collect();
+
+    publish_package(&cluster.wallet, path).await;
+}
+
 /// Test the creation of an Abstract Account and the issuance of a simple
 /// transaction from it using the Move-based Ed25519 signature authenticator.
 #[sim_test]

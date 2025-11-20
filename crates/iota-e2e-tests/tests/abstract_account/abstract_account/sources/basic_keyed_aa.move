@@ -79,7 +79,7 @@ public fun rotate_public_key(
 
 #[authenticator]
 /// Ed25519 signature authenticator.
-public fun authenticate_ed25519(
+public entry fun authenticate_ed25519(
     account: &AbstractAccount,
     signature: vector<u8>,
     _: &AuthContext,
@@ -97,7 +97,7 @@ public fun authenticate_ed25519(
 
 #[authenticator]
 /// Secp256k1 signature authenticator.
-public fun authenticate_secp256k1(
+public entry fun authenticate_secp256k1(
     account: &AbstractAccount,
     signature: vector<u8>,
     _: &AuthContext,
@@ -115,7 +115,7 @@ public fun authenticate_secp256k1(
 
 #[authenticator]
 /// Secp256r1 signature authenticator.
-public fun authenticate_secp256r1(
+public entry fun authenticate_secp256r1(
     account: &AbstractAccount,
     signature: vector<u8>,
     _: &AuthContext,
@@ -133,7 +133,11 @@ public fun authenticate_secp256r1(
 
 #[authenticator]
 /// Free access, do nothing.
-public fun authenticate_free_access(self: &AbstractAccount, _: &AuthContext, ctx: &TxContext) {
+public entry fun authenticate_free_access(
+    self: &AbstractAccount,
+    _: &AuthContext,
+    ctx: &TxContext,
+) {
     // Check that the sender of this transaction is the account.
     ensure_tx_sender_is_account(self, ctx);
 }

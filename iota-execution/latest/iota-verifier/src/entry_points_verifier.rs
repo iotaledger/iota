@@ -4,6 +4,7 @@
 
 use iota_types::{
     IOTA_FRAMEWORK_ADDRESS,
+    auth_context::{AuthContext, AuthContextKind},
     base_types::{TX_CONTEXT_MODULE_NAME, TX_CONTEXT_STRUCT_NAME, TxContext, TxContextKind},
     clock::Clock,
     error::ExecutionError,
@@ -180,7 +181,17 @@ fn verify_entry_function_impl(
 
     let all_non_ctx_params = match params.0.last() {
         Some(last_param) if TxContext::kind(view, last_param) != TxContextKind::None => {
-            &params.0[0..params.0.len() - 1]
+            let params_without_tx_ctx = &params.0[0..params.0.len() - 1];
+            // Only in the case in which the TxContext is present, we check for AuthContext
+            match params_without_tx_ctx.last() {
+                Some(second_to_last_param_ty)
+                    if AuthContext::kind(view, second_to_last_param_ty)
+                        != AuthContextKind::None =>
+                {
+                    &params_without_tx_ctx[0..params_without_tx_ctx.len() - 1]
+                }
+                _ => params_without_tx_ctx,
+            }
         }
         _ => &params.0,
     };

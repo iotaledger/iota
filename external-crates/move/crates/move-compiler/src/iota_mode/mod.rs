@@ -41,6 +41,8 @@ pub const UID_TYPE_NAME: Symbol = symbol!("UID");
 pub const ID_TYPE_NAME: Symbol = symbol!("ID");
 pub const TX_CONTEXT_MODULE_NAME: Symbol = symbol!("tx_context");
 pub const TX_CONTEXT_TYPE_NAME: Symbol = symbol!("TxContext");
+pub const AUTH_CONTEXT_MODULE_NAME: Symbol = symbol!("auth_context");
+pub const AUTH_CONTEXT_TYPE_NAME: Symbol = symbol!("AuthContext");
 pub const IOTA_MODULE_NAME: Symbol = symbol!("iota");
 pub const IOTA_OTW_NAME: Symbol = symbol!("IOTA");
 

@@ -3,8 +3,12 @@
 
 module authenticate::object;
 
-use authenticate::account::Account;
 use iota::auth_context::AuthContext;
+
+// Test account struct
+public struct Account has key {
+    id: UID,
+}
 
 // Object
 
@@ -13,23 +17,31 @@ public struct Object has key, store {
 }
 
 // PASS
-public fun immutable_ref(
+#[authenticator]
+public entry fun immutable_ref(
     _account: &Account,
     _object: &Object,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {}
 
 // FAIL
-#[allow(lint(share_owned))]
-public fun by_value(_account: &Account, object: Object, _auth_ctx: &AuthContext, _ctx: &TxContext) {
-    transfer::public_share_object(object);
+//#[authenticator]
+public entry fun by_value(
+    _account: &Account,
+    object: Object,
+    _actx: &AuthContext,
+    _ctx: &TxContext,
+) {
+    let Object { id } = object;
+    object::delete(id);
 }
 
 // FAIL
-public fun by_mutable_ref(
+//#[authenticator]
+public entry fun by_mutable_ref(
     _account: &Account,
     _object: &mut Object,
-    _auth_ctx: &AuthContext,
+    _actx: &AuthContext,
     _ctx: &TxContext,
 ) {}
