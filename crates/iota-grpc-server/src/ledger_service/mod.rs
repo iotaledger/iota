@@ -11,7 +11,6 @@ use iota_protocol_config::Chain;
 use iota_types::digests::ChainIdentifier;
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
-use tracing::info;
 
 use crate::types::*;
 
@@ -20,8 +19,8 @@ pub struct LedgerGrpcService {
     pub checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
     pub checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
     pub cancellation_token: CancellationToken,
-    pub chain: Chain,
     pub chain_id: ChainIdentifier,
+    pub chain: Chain,
     pub server_version: Option<String>,
 }
 
@@ -31,7 +30,6 @@ impl LedgerGrpcService {
         checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
         checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
         cancellation_token: CancellationToken,
-        chain: Chain,
         chain_id: ChainIdentifier,
         server_version: Option<String>,
     ) -> Self {
@@ -40,8 +38,8 @@ impl LedgerGrpcService {
             checkpoint_summary_broadcaster,
             checkpoint_data_broadcaster,
             cancellation_token,
-            chain,
             chain_id,
+            chain: chain_id.chain(),
             server_version,
         }
     }
@@ -81,7 +79,6 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
         tonic::Response<grpc_ledger_service::GetServiceInfoResponse>,
         tonic::Status,
     > {
-        info!("[grpc][ledger] GetServiceInfo called");
         get_service_info::get_service_info(self, request.into_inner())
             .map(Response::new)
             .map_err(Into::into)

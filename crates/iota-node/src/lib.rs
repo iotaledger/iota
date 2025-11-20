@@ -2432,7 +2432,7 @@ async fn build_grpc_server(
     };
 
     // Get chain identifier from state directly
-    let chain = state.get_chain_identifier().chain();
+    let chain_id = state.get_chain_identifier();
 
     let rest_read_store = Arc::new(RestReadStore::new(state.clone(), state_sync_store));
 
@@ -2448,13 +2448,11 @@ async fn build_grpc_server(
 
     // Pass the same token to both GrpcReader (already done above) and
     // start_grpc_server
-    let chain_id = state.get_chain_identifier();
     let handle = start_grpc_server(
         grpc_reader,
         event_subscriber,
         grpc_config.clone(),
         shutdown_token,
-        chain,
         chain_id,
         Some(env!("CARGO_PKG_VERSION").to_string()),
     )

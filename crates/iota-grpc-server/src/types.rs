@@ -288,7 +288,6 @@ impl GrpcStateReader for RestStateReaderAdapter {
     }
 
     fn get_lowest_available_checkpoint(&self) -> anyhow::Result<u64> {
-        use iota_types::storage::ReadStore;
         self.inner
             .try_get_lowest_available_checkpoint()
             .map_err(Into::into)

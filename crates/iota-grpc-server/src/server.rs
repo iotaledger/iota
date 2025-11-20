@@ -67,7 +67,6 @@ pub async fn start_grpc_server(
     _event_subscriber: Arc<dyn crate::EventSubscriber>, // TODO: still needed?
     config: iota_config::node::GrpcApiConfig,
     shutdown_token: CancellationToken,
-    chain: iota_protocol_config::Chain,
     chain_id: iota_types::digests::ChainIdentifier,
     server_version: Option<String>,
 ) -> Result<GrpcServerHandle> {
@@ -87,7 +86,6 @@ pub async fn start_grpc_server(
         checkpoint_summary_broadcaster.clone(),
         checkpoint_data_broadcaster.clone(),
         shutdown_token.clone(),
-        chain,
         chain_id,
         server_version,
     );
