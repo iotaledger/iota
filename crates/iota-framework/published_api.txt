@@ -1090,6 +1090,9 @@ allocate_tokens
 activate_validators
 	fun
 	0x3::genesis
+DerivedObjectKey
+	public struct
+	0x2::derived_object
 secp256k1_ecrecover
 	public fun
 	0x2::ecdsa_k1
@@ -1330,6 +1333,9 @@ delete_impl
 record_new_uid
 	fun
 	0x2::object
+PackageMetadataKey
+	public struct
+	0x2::package_metadata
 PackageMetadataV1
 	public struct
 	0x2::package_metadata

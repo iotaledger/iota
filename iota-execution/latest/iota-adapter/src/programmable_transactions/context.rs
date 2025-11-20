@@ -20,16 +20,12 @@ mod checked {
         balance::Balance,
         base_types::{IotaAddress, MoveObjectType, ObjectID, TxContext},
         coin::Coin,
-        dynamic_field,
         error::{ExecutionError, ExecutionErrorKind, command_argument_error},
         event::Event,
         execution::{ExecutionResults, ExecutionResultsV1},
         execution_status::CommandArgumentError,
         metrics::LimitsMetrics,
-        move_package::{
-            MovePackage, PACKAGE_METADATA_DYNAMIC_FIELD_KEY,
-            PACKAGE_METADATA_DYNAMIC_FIELD_KEY_TYPE,
-        },
+        move_package::{MovePackage, derive_package_metadata_id},
         object::{Data, MoveObject, Object, ObjectInner, Owner},
         storage::{BackingPackageStore, DenyListResult, PackageObject},
         transaction::{Argument, CallArg, ObjectArg},
@@ -278,12 +274,7 @@ mod checked {
             &mut self,
             package_storage_id: ObjectID,
         ) -> Result<ObjectID, ExecutionError> {
-            let object_id = dynamic_field::derive_dynamic_field_id(
-                package_storage_id,
-                &PACKAGE_METADATA_DYNAMIC_FIELD_KEY_TYPE,
-                PACKAGE_METADATA_DYNAMIC_FIELD_KEY,
-            )
-            .unwrap(); // safe because type tag is known
+            let object_id = derive_package_metadata_id(package_storage_id);
 
             self.native_extensions
                 .get_mut()

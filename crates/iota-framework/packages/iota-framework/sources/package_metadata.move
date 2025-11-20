@@ -10,6 +10,9 @@ use iota::vec_map::VecMap;
 use std::ascii;
 use std::type_name::TypeName;
 
+/// Key type for deriving the package metadata object address
+public struct PackageMetadataKey has copy, drop, store {}
+
 /// Represents the metadata of a Move package. This includes information
 /// such as the storage ID, runtime ID, version, and metadata for the
 /// functions contained within the package.
@@ -100,10 +103,11 @@ public fun create_package_metadata_v1_for_testing(
 ): PackageMetadataV1 {
     assert!(modules.length() == functions.length());
     assert!(modules.length() == type_names.length());
-    // Temp name
-    let name = b"iota::metadata";
-    let hash = iota::dynamic_field::hash_type_and_key(storage_id.to_address(), name);
-    let id = object::new_uid_from_hash(hash);
+    let addr = iota::derived_object::derive_address_for_testing(
+        storage_id,
+        PackageMetadataKey {},
+    );
+    let id = object::new_uid_from_hash(addr);
     let mut modules_metadata = iota::vec_map::empty<ascii::String, ModuleMetadataV1>();
     let mut i = 0;
     while (i < modules.length()) {

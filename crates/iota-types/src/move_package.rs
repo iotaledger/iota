@@ -33,18 +33,13 @@
 //! with `Runtime ID` and `Storage ID` depending on the context. While `Runtime
 //! ID` is mostly used in name resolution during runtime, when a package with
 //! its modules has been loaded.
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::LazyLock,
-};
+use std::collections::{BTreeMap, BTreeSet};
 
 use derive_more::Display;
 use fastcrypto::hash::HashFunction;
 use iota_protocol_config::ProtocolConfig;
 use move_binary_format::{
-    binary_config::BinaryConfig,
-    file_format::CompiledModule,
-    file_format_common::{IOTA_METADATA_KEY, VERSION_6},
+    binary_config::BinaryConfig, file_format::CompiledModule, file_format_common::VERSION_6,
     normalized,
 };
 use move_core_types::{
@@ -62,7 +57,7 @@ use crate::{
     base_types::{ObjectID, SequenceNumber},
     collection_types::{Entry, VecMap},
     crypto::DefaultHash,
-    dynamic_field,
+    derived_object,
     error::{ExecutionError, ExecutionErrorKind, IotaError, IotaResult},
     execution_status::PackageUpgradeError,
     id::{ID, UID},
@@ -77,9 +72,7 @@ pub const UPGRADERECEIPT_STRUCT_NAME: &IdentStr = ident_str!("UpgradeReceipt");
 
 pub const PACKAGE_METADATA_MODULE_NAME: &IdentStr = ident_str!("package_metadata");
 pub const PACKAGE_METADATA_V1_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataV1");
-pub static PACKAGE_METADATA_DYNAMIC_FIELD_KEY_TYPE: LazyLock<TypeTag> =
-    LazyLock::new(|| TypeTag::Vector(Box::new(TypeTag::U8)));
-pub const PACKAGE_METADATA_DYNAMIC_FIELD_KEY: &[u8] = IOTA_METADATA_KEY;
+pub const PACKAGE_METADATA_KEY_STRUCT_NAME: &IdentStr = ident_str!("PackageMetadataKey");
 
 #[derive(Clone, Debug)]
 /// Additional information about a function
@@ -1044,6 +1037,38 @@ impl PackageMetadata {
     }
 }
 
+#[derive(Debug, Default, Serialize, Deserialize, Clone, Eq, PartialEq)]
+pub struct PackageMetadataKey {
+    // This field is required to make a Rust struct compatible with an empty Move one.
+    // An empty Move struct contains a 1-byte dummy bool field because empty fields are not
+    // allowed in the bytecode.
+    dummy_field: bool,
+}
+
+impl PackageMetadataKey {
+    pub fn tag() -> StructTag {
+        StructTag {
+            address: IOTA_FRAMEWORK_ADDRESS,
+            module: PACKAGE_METADATA_MODULE_NAME.to_owned(),
+            name: PACKAGE_METADATA_KEY_STRUCT_NAME.to_owned(),
+            type_params: Vec::new(),
+        }
+    }
+
+    pub fn to_bcs_bytes(&self) -> Vec<u8> {
+        bcs::to_bytes(&self).unwrap()
+    }
+}
+
+pub fn derive_package_metadata_id(package_storage_id: ObjectID) -> ObjectID {
+    derived_object::derive_object_id(
+        package_storage_id,
+        &PackageMetadataKey::tag().into(),
+        &PackageMetadataKey::default().to_bcs_bytes(),
+    )
+    .unwrap() // safe because type tag is known
+}
+
 /// V1 of IOTA specific package metadata.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PackageMetadataV1 {
@@ -1123,13 +1148,4 @@ pub struct ModuleMetadataV1 {
 pub struct AuthenticatorMetadataV1 {
     pub function_name: String,
     pub account_type: TypeName,
-}
-
-pub fn derive_package_metadata_id(package_storage_id: ObjectID) -> ObjectID {
-    dynamic_field::derive_dynamic_field_id(
-        package_storage_id,
-        &PACKAGE_METADATA_DYNAMIC_FIELD_KEY_TYPE,
-        PACKAGE_METADATA_DYNAMIC_FIELD_KEY,
-    )
-    .unwrap() // safe because type tag is known
 }
