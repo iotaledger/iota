@@ -82,12 +82,37 @@ impl AllocMetrics {
         self.peak = self.peak.max(other.peak);
     }
 }
+struct Iec(usize);
+impl fmt::Display for Iec {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.0 < 1024 {
+            write!(f, "{}B", self.0)
+        } else if self.0 < 1024 * 1024 {
+            write!(f, "{:.2}KiB", self.0 as f64 / 1024.0)
+        } else if self.0 < 1024 * 1024 * 1024 {
+            write!(f, "{:.2}MiB", self.0 as f64 / 1024.0 / 1024.0)
+        } else {
+            write!(f, "{:.2}GiB", self.0 as f64 / 1024.0 / 1024.0 / 1024.0)
+        }
+    }
+}
 impl fmt::Debug for AllocMetrics {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
             "alloc={} dealloc={} peak={}",
             self.alloc, self.dealloc, self.peak
+        )
+    }
+}
+impl fmt::Display for AllocMetrics {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "alloc={} total={} peak={}",
+            Iec(self.alloc.saturating_sub(self.dealloc)),
+            Iec(self.alloc),
+            Iec(self.peak)
         )
     }
 }

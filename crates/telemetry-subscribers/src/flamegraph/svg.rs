@@ -96,16 +96,17 @@ impl RawNode {
         } = self;
         let rgb = random_rgb(rng);
         let dur = total.as_nanos() as f64 / 1_000_000.0;
+        let avg = dur / samples as f64;
         let percent = total.as_nanos() as f64 * 100.0 / overall.as_nanos() as f64;
         #[cfg(not(feature = "flamegraph-alloc"))]
-        let title = format!("{} (#{samples}, {dur:.2}ms, {percent:.2}%)", label.name);
+        let title = format!(
+            "{} (#{samples}, tot={dur:.2}ms, avg={avg:.2}ms, {percent:.2}%)",
+            label.name
+        );
         #[cfg(feature = "flamegraph-alloc")]
         let title = format!(
-            "{} (#{samples}, {dur:.2}ms, {percent:.2}%, alloc={} total={} peak={})",
+            "{} (#{samples}, tot={dur:.2}ms, avg={avg:.2}ms, {percent:.2}%, {alloc})",
             label.name,
-            alloc.alloc.saturating_sub(alloc.dealloc),
-            alloc.alloc,
-            alloc.peak
         );
         Node {
             title,
