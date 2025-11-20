@@ -130,7 +130,6 @@ impl ErrorDetails {
                 prost_types::Any::from_msg(retry_info).expect("Message encoding cannot fail"),
             );
         }
-
         details
     }
 }
