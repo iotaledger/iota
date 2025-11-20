@@ -59,6 +59,7 @@ pub struct IotaProtocol {
     use_fullnode_for_execution: bool,
     use_precompiled_binaries: bool,
     build_configs: HashMap<String, BinaryBuildConfig>,
+    enable_flamegraph: bool,
 }
 
 impl IotaProtocol {
@@ -71,6 +72,7 @@ impl IotaProtocol {
             use_fullnode_for_execution: settings.use_fullnode_for_execution,
             use_precompiled_binaries: settings.build_cache_enabled(),
             build_configs: settings.build_configs.clone(),
+            enable_flamegraph: settings.enable_flamegraph,
         }
     }
 
@@ -227,6 +229,11 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                             }
                         },
                         format!("export MAX_PIPELINE_DELAY={max_pipeline_delay}").as_str(),
+                        if self.enable_flamegraph {
+                            "export TRACE_FLAMEGRAPH=1"
+                        } else {
+                            ""
+                        },
                     ],
                     &[&format!(
                         "--config-path {} --listen-address {}",
