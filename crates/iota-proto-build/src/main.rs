@@ -6,10 +6,15 @@
 
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::generate_fields::FileDescriptorWithPackageVersion;
+use crate::{generate_fields::FileDescriptorWithPackageVersion, message_graph::DescriptorGraph};
 
+mod codegen;
+mod comments;
+mod context;
 mod dependency_graph;
 mod generate_fields;
+mod ident;
+mod message_graph;
 
 fn main() {
     let root_dir = PathBuf::from(std::env!("CARGO_MANIFEST_DIR"));
@@ -19,7 +24,7 @@ fn main() {
         .canonicalize()
         .unwrap();
     let out_dir = root_dir
-        .join("../iota-grpc-types/src/proto_generated")
+        .join("../iota-grpc-types/src/proto/generated")
         .canonicalize()
         .unwrap();
 
@@ -55,18 +60,33 @@ fn main() {
     // Sort files by name to have deterministic codegen output
     fds.file.sort_by(|a, b| a.name.cmp(&b.name));
 
-    // Define boxing configuration
-    let boxed_types = vec![
-        ".iota.grpc.v0.types.TypeTagVector.inner_type".to_string(),
+    // Define boxing configuration for prost-build
+    let boxed_types_prost = vec![
+        // TODO: should we box all bcs types?
+        ".iota.grpc.v0.epoch.Epoch.bcs_system_state".to_string(),
+        ".iota.grpc.v0.ledger_service.TransactionResult.result.transaction".to_string(),
+        "json_contents".to_string(),
+    ];
+
+    // for field info and accessor generation
+    let boxed_types_field_info = vec![
         ".iota.grpc.v0.filter.AllEventFilter.filters".to_string(),
         ".iota.grpc.v0.filter.AnyEventFilter.filters".to_string(),
         ".iota.grpc.v0.filter.NotEventFilter.filter".to_string(),
         ".iota.grpc.v0.filter.AllTransactionFilter.filters".to_string(),
         ".iota.grpc.v0.filter.AnyTransactionFilter.filters".to_string(),
         ".iota.grpc.v0.filter.NotTransactionFilter.filter".to_string(),
-        ".iota.grpc.v0.ledger_service.TransactionResult.result.transaction".to_string(),
-        "json_contents".to_string(),
+        ".iota.grpc.v0.types.TypeTagVector.inner_type".to_string(),
     ];
+
+    // for accessor generation
+    let mut boxed_types_accessor = vec![
+        ".iota.grpc.v0.filter.EventFilter.negation".to_string(),
+        ".iota.grpc.v0.filter.TransactionFilter.negation".to_string(),
+        ".iota.grpc.v0.ledger_service.TransactionResult.transaction".to_string(),
+        ".iota.grpc.v0.types.TypeTag.vector_tag".to_string(),
+    ];
+    boxed_types_accessor.extend(boxed_types_prost.clone());
 
     let mut tonic_prost_builder = tonic_prost_build::configure()
         .build_client(true)
@@ -74,7 +94,7 @@ fn main() {
         .bytes(".");
 
     // apply all boxed types
-    for boxed_type in &boxed_types {
+    for boxed_type in &boxed_types_prost {
         tonic_prost_builder = tonic_prost_builder.boxed(boxed_type);
     }
 
@@ -85,6 +105,8 @@ fn main() {
         .out_dir(&out_dir)
         .compile_protos(&proto_files, std::slice::from_ref(&proto_dir))
         .unwrap();
+
+    let google_import_regex = regex::Regex::new(r"(?:super::)+google").unwrap();
 
     // Add IOTA license headers to tonic-generated files and fix clippy warnings
     for entry in std::fs::read_dir(&out_dir).unwrap() {
@@ -113,17 +135,20 @@ fn main() {
                 );
             }
 
-            // reduce awesomeness of google xD
-            if content.contains("super::super::super::super::super::google") {
-                content = content.replace(
-                    "super::super::super::super::super::google",
-                    "super::super::google",
-                );
-            }
-
+            // Replace all occurrences of super::google with crate::google (any number of
+            // super::)
+            content = google_import_regex
+                .replace_all(&content, "crate::google")
+                .to_string();
             std::fs::write(&path, content).unwrap();
         }
     }
+
+    // Setup for extended codegen
+    let extern_paths = context::extern_paths::ExternPaths::new(&[], true).unwrap();
+    let graph = DescriptorGraph::new(fds.file.iter());
+    let context = context::Context::new(extern_paths, graph);
+    codegen::accessors::generate_accessors(&context, &out_dir, &boxed_types_accessor);
 
     // Group files by package for field info generation
     let mut packages: HashMap<String, FileDescriptorWithPackageVersion> = HashMap::new();
@@ -152,7 +177,7 @@ fn main() {
     }
 
     // Generate field constants and MessageFields impls
-    generate_fields::generate_field_info(&packages, &out_dir, &boxed_types);
+    generate_fields::generate_field_info(&packages, &out_dir, &boxed_types_field_info);
 
     let status = std::process::Command::new("git")
         .arg("diff")

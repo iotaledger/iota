@@ -12,9 +12,11 @@ workspace = true
 [dependencies]
 # external dependencies
 bcs.workspace = true
+iota-sdk2.workspace = true
 prost.workspace = true
 prost-types.workspace = true
 serde.workspace = true
+tap.workspace = true
 tonic.workspace = true
 tonic-prost.workspace = true
 

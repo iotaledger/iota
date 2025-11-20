@@ -63,8 +63,10 @@ pub struct Epoch {
     /// Snapshot of IOTA's SystemState (`0x3::iota_system::SystemState`) at the
     /// beginning of the epoch, for past epochs, or the current state for the
     /// current epoch.
-    #[prost(message, optional, tag = "3")]
-    pub bcs_system_state: ::core::option::Option<super::bcs::BcsData>,
+    #[prost(message, optional, boxed, tag = "3")]
+    pub bcs_system_state: ::core::option::Option<
+        ::prost::alloc::boxed::Box<super::bcs::BcsData>,
+    >,
     #[prost(uint64, optional, tag = "4")]
     pub first_checkpoint: ::core::option::Option<u64>,
     #[prost(uint64, optional, tag = "5")]

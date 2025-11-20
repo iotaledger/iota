@@ -4,12 +4,13 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use iota_grpc_types::{
-    checkpoints::{
+use iota_grpc_types::v0::{
+    bcs as grpc_bcs,
+    checkpoint::{
         CertifiedCheckpointSummary as GrpcCertifiedCheckpointSummary,
         CheckpointData as GrpcCheckpointData,
     },
-    v0::{bcs as grpc_bcs, ledger_service as grpc_ledger_service},
+    ledger_service as grpc_ledger_service,
 };
 use iota_json_rpc_types::{EventFilter, IotaEvent};
 use iota_types::{
@@ -408,7 +409,7 @@ impl GrpcReader {
                     if let Some(item) = fetch_historical(&reader, start) {
                         debug!("[profile][grpc] Fetched checkpoint {data_type_name} for index {start} from DB.");
                         // TODO: implementation
-                        let response = grpc_bcs::BcsData::serialize_from(&*item)
+                        let response = grpc_bcs::BcsData::serialize(&*item)
                             .map(|_data| grpc_ledger_service::CheckpointData {
                                 payload: None,
                             })
@@ -440,7 +441,7 @@ impl GrpcReader {
                         let sequence_number = get_sequence_number(&item);
                         if start == sequence_number {
                             // TODO: implementation
-                            let response = grpc_bcs::BcsData::serialize_from(&*item)
+                            let response = grpc_bcs::BcsData::serialize(&*item)
                                 .map(|_data| grpc_ledger_service::CheckpointData {
                                 payload: None,
                             })
