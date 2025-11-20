@@ -944,7 +944,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                 (
                                     obj.object_id.into(),
                                     crate::effects::EffectsObjectChange {
-                                        input_state: match obj.change.input_state {
+                                        input_state: match obj.input_state {
                                             ObjectIn::Missing => {
                                                 crate::effects::ObjectIn::NotExist
                                             }
@@ -957,7 +957,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                                 owner.into(),
                                             )),
                                         },
-                                        output_state: match obj.change.output_state {
+                                        output_state: match obj.output_state {
                                             ObjectOut::Missing => {
                                                 crate::effects::ObjectOut::NotExist
                                             }
@@ -974,7 +974,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                                 ))
                                             }
                                         },
-                                        id_operation: match obj.change.id_operation {
+                                        id_operation: match obj.id_operation {
                                             IdOperation::None => crate::effects::IDOperation::None,
                                             IdOperation::Created => {
                                                 crate::effects::IDOperation::Created
