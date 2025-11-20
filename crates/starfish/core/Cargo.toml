@@ -64,6 +64,7 @@ typed-store.workspace = true
 [dev-dependencies]
 # external dependencies
 rstest.workspace = true
+serial_test = "2.0.0"
 tempfile.workspace = true
 
 # internal dependencies

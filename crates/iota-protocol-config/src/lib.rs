@@ -2495,7 +2495,10 @@ impl ProtocolConfig {
         self.feature_flags
             .consensus_median_timestamp_with_checkpoint_enforcement = val;
     }
-    pub fn set_consensus_commit_transactions_only_for_traversed_headers(&mut self, val: bool) {
+    pub fn set_consensus_commit_transactions_only_for_traversed_headers_for_testing(
+        &mut self,
+        val: bool,
+    ) {
         self.feature_flags
             .consensus_commit_transactions_only_for_traversed_headers = val;
     }

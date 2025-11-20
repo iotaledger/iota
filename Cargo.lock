@@ -13793,6 +13793,7 @@ dependencies = [
  "rstest",
  "rustls 0.23.28",
  "serde",
+ "serial_test",
  "shared-crypto",
  "starfish-config",
  "strum_macros 0.26.4",
