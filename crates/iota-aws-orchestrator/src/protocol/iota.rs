@@ -105,6 +105,7 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
         [
             &format!("mkdir -p {working_dir}"),
             "source $HOME/.cargo/env",
+            "export RUSTFLAGS='-C target-cpu=native'",
             &genesis,
         ]
         .join(" && ")
@@ -154,7 +155,17 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     ),
                 ]
                 .join(" ");
-                let command = ["source $HOME/.cargo/env", &run].join(" && ");
+                let command = [
+                    "source $HOME/.cargo/env",
+                    "export RUSTFLAGS='-C target-cpu=native'",
+                    if parameters.protocol_switch_each_epoch {
+                        "export CONSENSUS_PROTOCOL=swap_each_epoch"
+                    } else {
+                        "export CONSENSUS_PROTOCOL=starfish"
+                    },
+                    &run,
+                ]
+                .join(" && ");
 
                 display::action(format!("\n Command ({i}): {command}"));
 
@@ -216,7 +227,12 @@ impl ProtocolCommands<IotaBenchmarkType> for IotaProtocol {
                     &format!("--client-metric-host 0.0.0.0 --client-metric-port {metrics_port}"),
                 ]
                 .join(" ");
-                let command = ["source $HOME/.cargo/env", &run].join(" && ");
+                let command = [
+                    "source $HOME/.cargo/env",
+                    "export RUSTFLAGS='-C target-cpu=native'",
+                    &run,
+                ]
+                .join(" && ");
 
                 (instance, command)
             })

@@ -31,6 +31,7 @@ class Iota < Formula
         depends_on "cmake" => :build
         depends_on "libpq" => :build
         depends_on "rust" => :build
+        depends_on "protobuf" => :build
         on_linux do
             depends_on "llvm" => :build
         end

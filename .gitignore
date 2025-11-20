@@ -95,3 +95,9 @@ docs/generated-docs/**
 # https://github.com/wclr/yalc
 .yalc
 yalc.lock
+
+# iota-aws-orchestrator
+crates/iota-aws-orchestrator/venv/
+crates/iota-aws-orchestrator/assets/plots/
+crates/iota-aws-orchestrator/assets/results/
+crates/iota-aws-orchestrator/assets/logs/

@@ -11,7 +11,11 @@ use std::{
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
-use crate::{faults::FaultsType, measurement::MeasurementsCollection};
+use crate::{
+    faults::FaultsType,
+    measurement::MeasurementsCollection,
+    net_latency::{PerturbationSpec, TopologyLayout},
+};
 
 pub trait BenchmarkType:
     Serialize
@@ -50,6 +54,14 @@ pub struct BenchmarkParameters<T> {
     /// they should use their internal IPs to avoid paying for data sent between
     /// the nodes.
     pub use_internal_ip_address: bool,
+    /// The topology of private network latencies, Geographical or Clustered
+    pub latency_topology: TopologyLayout,
+    /// Maximum latency between two nodes in the private network.
+    pub maximum_latency: u16,
+    /// Specification of Perturbation imposed on the private network latencies.
+    pub perturbation_spec: PerturbationSpec,
+    /// Flag used to switch between mysticety and starfish every epoch.
+    pub protocol_switch_each_epoch: bool,
 }
 
 impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
@@ -61,6 +73,10 @@ impl<T: BenchmarkType> Default for BenchmarkParameters<T> {
             load: 500,
             duration: Duration::from_secs(60),
             use_internal_ip_address: true,
+            latency_topology: TopologyLayout::Geographical,
+            perturbation_spec: PerturbationSpec::None,
+            protocol_switch_each_epoch: false,
+            maximum_latency: 400,
         }
     }
 }
@@ -94,6 +110,10 @@ impl<T> BenchmarkParameters<T> {
         load: usize,
         duration: Duration,
         use_internal_ip_address: bool,
+        latency_topology: TopologyLayout,
+        perturbation_spec: PerturbationSpec,
+        protocol_switch_each_epoch: bool,
+        maximum_latency: u16,
     ) -> Self {
         Self {
             benchmark_type,
@@ -102,6 +122,10 @@ impl<T> BenchmarkParameters<T> {
             load,
             duration,
             use_internal_ip_address,
+            latency_topology,
+            perturbation_spec,
+            protocol_switch_each_epoch,
+            maximum_latency,
         }
     }
 }
@@ -146,6 +170,14 @@ pub struct BenchmarkParametersGenerator<T> {
     /// Flag indicating whether nodes should advertise their internal or public
     /// IP address for inter-node communication.
     use_internal_ip_address: bool,
+    /// The topology of private network latencies, Geographical or Clustered
+    pub latency_topology: TopologyLayout,
+    /// Maximum latency between two nodes in the private network.
+    pub maximum_latency: u16,
+    /// Specification of Perturbation imposed on the private network latencies.
+    pub perturbation_spec: PerturbationSpec,
+    /// Flag used to switch between mysticety and starfish every epoch.
+    pub protocol_switch_each_epoch: bool,
 }
 
 impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
@@ -161,6 +193,10 @@ impl<T: BenchmarkType> Iterator for BenchmarkParametersGenerator<T> {
                 load,
                 self.duration,
                 self.use_internal_ip_address,
+                self.latency_topology.clone(),
+                self.perturbation_spec.clone(),
+                self.protocol_switch_each_epoch,
+                self.maximum_latency,
             )
         })
     }
@@ -193,6 +229,10 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
             upper_bound_result: None,
             iterations: 0,
             use_internal_ip_address,
+            perturbation_spec: PerturbationSpec::None,
+            latency_topology: TopologyLayout::Geographical,
+            protocol_switch_each_epoch: false,
+            maximum_latency: 400,
         }
     }
 
@@ -211,6 +251,26 @@ impl<T: BenchmarkType> BenchmarkParametersGenerator<T> {
     /// Set a custom benchmark duration.
     pub fn with_custom_duration(mut self, duration: Duration) -> Self {
         self.duration = duration;
+        self
+    }
+
+    pub fn with_perturbation_spec(mut self, perturbation_spec: PerturbationSpec) -> Self {
+        self.perturbation_spec = perturbation_spec;
+        self
+    }
+
+    pub fn with_latency_topology(mut self, latency_topology: TopologyLayout) -> Self {
+        self.latency_topology = latency_topology;
+        self
+    }
+
+    pub fn with_protocol_switch_each_epoch(mut self, protocol_switch_each_epoch: bool) -> Self {
+        self.protocol_switch_each_epoch = protocol_switch_each_epoch;
+        self
+    }
+
+    pub fn with_max_latency(mut self, max_latency: u16) -> Self {
+        self.maximum_latency = max_latency;
         self
     }
 

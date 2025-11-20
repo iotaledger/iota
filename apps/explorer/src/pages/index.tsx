@@ -6,6 +6,7 @@ import { wrapCreateBrowserRouter } from '@sentry/react';
 import { createBrowserRouter, Navigate, useLocation, useParams } from 'react-router-dom';
 import { AddressResultPage } from './address-result/AddressResult';
 import { CheckpointDetail } from './checkpoints/CheckpointDetail';
+import { CookiePolicyPage } from './cookie-policy/CookiePolicyPage';
 import { EpochDetail } from './epochs/EpochDetail';
 import { Home } from './home/Home';
 import { ObjectResult } from './object-result/ObjectResult';
@@ -33,6 +34,7 @@ export const router = sentryCreateBrowserRouter([
         element: <Layout />,
         children: [
             { path: '/', element: <Home /> },
+            { path: 'cookie-policy', element: <CookiePolicyPage /> },
             { path: 'recent', element: <Recent /> },
             { path: 'object/:id', element: <ObjectResult /> },
             { path: 'checkpoint/:id', element: <CheckpointDetail /> },

@@ -94,6 +94,7 @@ export class BrowserPasskeyProvider implements PasskeyProvider {
                 userVerification:
                     this.#options.authenticatorSelection?.userVerification || 'required',
                 timeout: this.#options.timeout ?? 60000,
+                rpId: this.#options.rp?.id,
                 ...(allowCredentialIds
                     ? {
                           allowCredentials: allowCredentialIds.map((id) => ({
