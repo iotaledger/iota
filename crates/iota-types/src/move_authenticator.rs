@@ -178,6 +178,13 @@ impl MoveAuthenticator {
                 .all(|o| used.insert(o.object_id())),
             UserInputError::DuplicateObjectRefInput
         );
+        fp_ensure!(
+            self.object_to_authenticate()
+                .input_objects()
+                .iter()
+                .all(|o| used.insert(o.object_id())),
+            UserInputError::DuplicateObjectRefInput
+        );
 
         self.call_args()
             .iter()
