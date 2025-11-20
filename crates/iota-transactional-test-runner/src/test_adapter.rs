@@ -20,7 +20,7 @@ use criterion::Criterion;
 use fastcrypto::{
     ed25519::Ed25519KeyPair,
     encoding::{Base64, Encoding},
-    traits::ToFromBytes,
+    traits::{Signer, ToFromBytes},
 };
 use iota_core::authority::{AuthorityState, test_authority_builder::TestAuthorityBuilder};
 use iota_framework::DEFAULT_FRAMEWORK_PATH;
@@ -53,15 +53,20 @@ use iota_types::{
     messages_checkpoint::{
         CheckpointContents, CheckpointContentsDigest, CheckpointSequenceNumber, VerifiedCheckpoint,
     },
+    move_authenticator::MoveAuthenticator,
     move_package::MovePackage,
     object::{self, GAS_VALUE_FOR_TESTING, Object, bounded_visitor::BoundedVisitor},
     programmable_transaction_builder::ProgrammableTransactionBuilder,
+    signature::GenericSignature,
     storage::{ObjectStore, ReadStore, RestStateReader},
     transaction::{
         Argument, CallArg, Command, ProgrammableTransaction, Transaction, TransactionData,
         TransactionKind, VerifiedTransaction,
     },
-    utils::{to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers},
+    utils::{
+        to_sender_signed_transaction, to_sender_signed_transaction_with_multi_signers,
+        to_sender_signed_transaction_with_optional_sponsor,
+    },
 };
 use move_binary_format::CompiledModule;
 use move_bytecode_utils::module_cache::GetModule;
@@ -76,7 +81,7 @@ use move_core_types::{
     ident_str,
     identifier::IdentStr,
     language_storage::{ModuleId, TypeTag},
-    parsing::address::ParsedAddress,
+    parsing::{address::ParsedAddress, values::ParsedValue},
 };
 use move_symbol_pool::Symbol;
 use move_transactional_test_runner::{
@@ -266,7 +271,7 @@ impl AdapterInitConfig {
 #[derive(Debug)]
 struct TestAccount {
     address: IotaAddress,
-    key_pair: AccountKeyPair,
+    key_pair: Option<AccountKeyPair>,
     gas: ObjectID,
 }
 
@@ -794,49 +799,17 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 if dry_run && dev_inspect {
                     bail!("Cannot set both dev-inspect and dry-run");
                 }
+                let (inputs, commands) = self.prepare_ptb_data(data, inputs)?;
 
-                let inputs = self.compiled_state().resolve_args(inputs)?;
-                let inputs: Vec<CallArg> = inputs
-                    .into_iter()
-                    .map(|arg| arg.into_call_arg(self))
-                    .collect::<anyhow::Result<_>>()?;
-                let file = data.ok_or_else(|| {
-                    anyhow::anyhow!("Missing commands for programmable transaction")
-                })?;
-                let contents = std::fs::read_to_string(file.path())?;
-                let commands = ParsedCommand::parse_vec(&contents)?;
-                let staged = &self.staged_modules;
-                let state = &self.compiled_state;
-                let commands = commands
-                    .into_iter()
-                    .map(|c| {
-                        c.into_command(
-                            &|p| {
-                                let modules = staged
-                                    .get(&Symbol::from(p))?
-                                    .modules
-                                    .iter()
-                                    .map(|m| {
-                                        let mut buf = vec![];
-                                        m.module
-                                            .serialize_with_version(m.module.version, &mut buf)
-                                            .unwrap();
-                                        buf
-                                    })
-                                    .collect();
-                                Some(modules)
-                            },
-                            &|s| Some(state.resolve_named_address(s)),
-                        )
-                    })
-                    .collect::<anyhow::Result<Vec<Command>>>()?;
                 let summary = if !dev_inspect && !dry_run {
                     let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
                     let gas_price = gas_price.unwrap_or(self.gas_price);
+                    let sender = self.get_sender(sender);
                     let transaction = self.sign_sponsor_txn(
                         sender,
                         sponsor,
                         gas_payment.unwrap_or_default(),
+                        None,
                         |sender, sponsor, gas| {
                             TransactionData::new_programmable_allow_sponsor(
                                 sender,
@@ -1188,6 +1161,54 @@ impl MoveTestAdapter<'_> for IotaTestAdapter {
                 .await?;
                 Ok(merge_output(None, None))
             }
+            IotaSubcommand::AbstractTransaction(AbstractTransactionCommand {
+                account,
+                sponsor,
+                gas_budget,
+                gas_price,
+                gas_payment,
+                ptb_inputs,
+                authenticator_inputs,
+            }) => {
+                if self.is_simulator() {
+                    bail!("Abstract transactions are not supported in simulator mode");
+                }
+                // Parse and resolve ptb inputs.
+                let (ptb_inputs, ptb_commands) = self.prepare_ptb_data(data, ptb_inputs)?;
+
+                // Parse and resolve auth inputs.
+                // Build MoveAuthenticator.
+                // Get Abstract Test Account
+                let (aa_sender, move_authenticator) =
+                    self.prepare_move_authenticator_data(authenticator_inputs, account)?;
+
+                let gas_budget = gas_budget.unwrap_or(DEFAULT_GAS_BUDGET);
+                let gas_price = gas_price.unwrap_or(self.gas_price);
+
+                let tx = self.sign_sponsor_txn(
+                    &aa_sender,
+                    sponsor,
+                    gas_payment,
+                    Some(move_authenticator),
+                    |sender, sponsor, gas| {
+                        TransactionData::new_programmable_allow_sponsor(
+                            sender,
+                            gas,
+                            ProgrammableTransaction {
+                                inputs: ptb_inputs,
+                                commands: ptb_commands,
+                            },
+                            gas_budget,
+                            gas_price,
+                            sponsor,
+                        )
+                    },
+                );
+
+                let summary = self.execute_txn(tx).await?;
+                let output = self.object_summary_output(&summary, /* summarize */ false);
+                Ok(output)
+            }
         }
     }
 
@@ -1243,6 +1264,92 @@ impl IotaTestAdapter {
 
     pub fn into_executor(self) -> Box<dyn TransactionalAdapter> {
         self.executor
+    }
+
+    fn prepare_ptb_data(
+        &mut self,
+        ptb_data: Option<NamedTempFile>,
+        ptb_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+    ) -> anyhow::Result<(Vec<CallArg>, Vec<Command>)> {
+        let ptb_inputs = self
+            .compiled_state()
+            .resolve_args(ptb_inputs)?
+            .into_iter()
+            .map(|arg| arg.into_call_arg(self))
+            .collect::<anyhow::Result<Vec<CallArg>>>()?;
+
+        let ptb_cmds = {
+            let file = ptb_data
+                .ok_or_else(|| anyhow::anyhow!("Missing commands for programmable transaction"))?;
+            let contents = std::fs::read_to_string(file.path())?;
+            let commands = ParsedCommand::parse_vec(&contents)?;
+            let staged = &self.staged_modules;
+            let state = &self.compiled_state;
+            commands
+                .into_iter()
+                .map(|c| {
+                    c.into_command(
+                        &|p| {
+                            let modules = staged
+                                .get(&Symbol::from(p))?
+                                .modules
+                                .iter()
+                                .map(|m| {
+                                    let mut buf = vec![];
+                                    m.module
+                                        .serialize_with_version(m.module.version, &mut buf)
+                                        .unwrap();
+                                    buf
+                                })
+                                .collect();
+                            Some(modules)
+                        },
+                        &|s| Some(state.resolve_named_address(s)),
+                    )
+                })
+                .collect::<anyhow::Result<Vec<Command>>>()?
+        };
+        Ok((ptb_inputs, ptb_cmds))
+    }
+
+    /// Build a MoveAuthenticator.
+    /// Returns the Abstract Test Account and MoveAuthenticator.
+    fn prepare_move_authenticator_data(
+        &mut self,
+        authenticator_inputs: Vec<ParsedValue<IotaExtraValueArgs>>,
+        account: ParsedValue<IotaExtraValueArgs>,
+    ) -> anyhow::Result<(TestAccount, GenericSignature)> {
+        // Resolve authenticator inputs
+        let auth_inputs_resolved = self.compiled_state().resolve_args(authenticator_inputs)?;
+        let auth_inputs: Vec<CallArg> = auth_inputs_resolved
+            .into_iter()
+            .map(|arg| arg.into_call_arg(self))
+            .collect::<anyhow::Result<_>>()?;
+
+        let aa_arg = self
+            .compiled_state()
+            .resolve_args(vec![account])?
+            .into_iter()
+            .next()
+            .ok_or_else(|| anyhow::anyhow!("Missing account for MoveAuthenticator"))?;
+        let CallArg::Object(aa_arg) = aa_arg.into_call_arg(self)? else {
+            anyhow::bail!("abstract: account must be an object representing the abstract account");
+        };
+        let aa_sender_addr = aa_arg.id().into();
+
+        let account = TestAccount {
+            address: aa_sender_addr,
+            key_pair: None,
+            gas: aa_sender_addr.into(), // TODO: handle abstract account gas
+        };
+        Ok((
+            account,
+            GenericSignature::MoveAuthenticator(MoveAuthenticator::new_for_testing(
+                auth_inputs,
+                vec![],
+                CallArg::Object(aa_arg),
+            )),
+        ))
     }
 
     fn named_variables(&self) -> BTreeMap<String, String> {
@@ -1473,7 +1580,8 @@ impl IotaTestAdapter {
             Vec<ObjectRef>,
         ) -> TransactionData,
     ) -> Transaction {
-        self.sign_sponsor_txn(sender, None, vec![], move |sender, _, gas| {
+        let sender = self.get_sender(sender);
+        self.sign_sponsor_txn(sender, None, vec![], None, move |sender, _, gas| {
             txn_data(sender, gas)
         })
     }
@@ -1503,9 +1611,10 @@ impl IotaTestAdapter {
 
     fn sign_sponsor_txn(
         &self,
-        sender: Option<String>,
+        sender: &TestAccount,
         sponsor: Option<String>,
         payment: Vec<FakeID>,
+        aa_sig: Option<GenericSignature>,
         txn_data: impl FnOnce(
             // sender
             IotaAddress,
@@ -1515,19 +1624,27 @@ impl IotaTestAdapter {
             Vec<ObjectRef>,
         ) -> TransactionData,
     ) -> Transaction {
-        let sender = self.get_sender(sender);
         let sponsor = sponsor.map_or(sender, |a| self.get_sender(Some(a)));
 
         let payment_refs = self.get_payments(sponsor, payment);
 
         let data = txn_data(sender.address, sponsor.address, payment_refs);
 
-        if sender.address == sponsor.address {
-            to_sender_signed_transaction(data, &sender.key_pair)
+        if let Some(aa_sig) = aa_sig {
+            let sponsor_keypair = sponsor.key_pair.as_ref().map(|v| v as &dyn Signer<_>);
+            to_sender_signed_transaction_with_optional_sponsor(data, aa_sig, sponsor_keypair)
+        } else if sender.address == sponsor.address {
+            to_sender_signed_transaction(
+                data,
+                sender.key_pair.as_ref().expect("Sender key pair missing"),
+            )
         } else {
             to_sender_signed_transaction_with_multi_signers(
                 data,
-                vec![&sender.key_pair, &sponsor.key_pair],
+                vec![
+                    sender.key_pair.as_ref().expect("Sender key pair missing"),
+                    sponsor.key_pair.as_ref().expect("Sponsor key pair missing"),
+                ],
             )
         }
     }
@@ -2209,7 +2326,7 @@ async fn init_val_fullnode_executor(
         );
         let test_account = TestAccount {
             address,
-            key_pair,
+            key_pair: Some(key_pair),
             gas: obj.id(),
         };
         objects.push(obj);
@@ -2337,7 +2454,7 @@ async fn init_sim_executor(
             name.to_owned(),
             TestAccount {
                 address: addr,
-                key_pair: kp,
+                key_pair: Some(kp),
                 gas: o.id(),
             },
         );
@@ -2349,7 +2466,7 @@ async fn init_sim_executor(
         .unwrap();
     let default_account = TestAccount {
         address: default_account_kp.0,
-        key_pair: default_account_kp.1,
+        key_pair: Some(default_account_kp.1),
         gas: o.id(),
     };
     objects.push(o.clone());
@@ -2358,7 +2475,7 @@ async fn init_sim_executor(
         let o = sim.store().owned_objects(v_addr).next().unwrap();
         let validator_account = TestAccount {
             address: v_addr,
-            key_pair: v_key,
+            key_pair: Some(v_key),
             gas: o.id(),
         };
         objects.push(o.clone());

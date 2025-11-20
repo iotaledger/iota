@@ -4,7 +4,9 @@
 module abstract_account::abstract_account;
 
 use iota::account::{Self, AuthenticatorInfoV1};
+use iota::coin::Coin;
 use iota::dynamic_field;
+use iota::iota::IOTA;
 
 // === Errors ===
 
@@ -192,6 +194,17 @@ public fun borrow_auth_info_v1(self: &AbstractAccount): &AuthenticatorInfoV1<Abs
     account::borrow_auth_info_v1(&self.id)
 }
 
+/// Receive an object that was previously sent to this AbstractAccount.
+/// Gated so only the account itself can do it.
+public fun receive_object(
+    self: &mut AbstractAccount,
+    coin: transfer::Receiving<Coin<IOTA>>,
+    ctx: &TxContext,
+) {
+    ensure_tx_sender_is_account(self, ctx);
+    let received_coin = transfer::public_receive(&mut self.id, coin);
+    transfer::public_transfer(received_coin, self.account_address());
+}
 // === Admin Functions ===
 
 /// Check that the sender of this transaction is the account.

@@ -27,7 +27,8 @@ use iota_types::{
     IOTA_FRAMEWORK_ADDRESS, TypeTag,
     base_types::{IotaAddress, ObjectID, ObjectRef},
     crypto::{PublicKey, SignatureScheme},
-    execution_status::{ExecutionFailureStatus, MoveLocation},
+    effects::{TransactionEffects, TransactionEffectsAPI},
+    execution_status::{ExecutionFailureStatus, ExecutionStatus, MoveLocation},
     messages_grpc::HandleCertificateRequestV1,
     move_authenticator::MoveAuthenticator,
     object::Owner,
@@ -52,6 +53,7 @@ const AA_CREATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_MODULE_NAME: &str = "basic_keyed_aa";
 const AA_AUTHENTICATE_FN_NAME_ED25519: &str = "authenticate_ed25519";
 const AA_AUTHENTICATE_FN_NAME_FREE_ACCESS: &str = "authenticate_free_access";
+const AA_AUTHENTICATE_FN_NAME_RECEIVE_COIN: &str = "authenticate_receive_coin";
 
 /// Test the creation of an Abstract Account and the issuance of a simple
 /// transaction from it using the Move-based Ed25519 signature authenticator.
@@ -145,6 +147,65 @@ async fn test_abstract_account_issues_sponsored_tx() -> Result<(), anyhow::Error
         .await
 }
 
+/// FAIL: try to "receive" in authenticate (by supplying a Receiving<Coin<IOTA>>
+/// to the authenticator).
+#[sim_test]
+async fn test_authenticate_receiving_object_fails() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // AA with the invalid authenticator
+    let mut test_env = TestEnvironment::new().await;
+    if let Ok(ExecutionStatus::Failure { error, .. }) = test_env
+        .setup_abstract_account_may_fail(AA_AUTHENTICATE_FN_NAME_RECEIVE_COIN)
+        .await
+    {
+        assert_eq!(error, ExecutionFailureStatus::VMInvariantViolation);
+    } else {
+        anyhow::bail!("Expected abstract account setup to fail");
+    }
+    Ok(())
+}
+
+/// SUCCESS: receive in the main PT using
+/// abstract_account::receive_object<T>(...).
+#[sim_test]
+async fn test_receive_object_in_main_tx_succeeds() -> Result<(), anyhow::Error> {
+    telemetry_subscribers::init_for_testing();
+
+    // AA with free access (effect-free auth)
+    let mut test_env = TestEnvironment::new().await;
+    test_env
+        .setup_abstract_account(AA_AUTHENTICATE_FN_NAME_FREE_ACCESS)
+        .await?;
+    let aa_ref = test_env.aa_ref.unwrap();
+    let aa_sender: IotaAddress = aa_ref.0.into();
+
+    // Fund AA
+    let rgp = test_env.test_cluster.get_reference_gas_price().await;
+    let aa_gas = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(20_000_000_000), aa_sender)
+        .await;
+    let gas_to_send = test_env
+        .test_cluster
+        .fund_address_and_return_gas(rgp, Some(10_000_000), aa_sender)
+        .await;
+
+    // Main PTB: actually receive the Gas into the AA
+    let pt = test_env.craft_aa_receive_gas_ptb(gas_to_send)?;
+    let tx_data = test_env
+        .craft_tx_from_pt(pt, aa_gas, aa_sender, None)
+        .await?;
+
+    // Authenticator: free-access (no object args)
+    let aa_sig = test_env.create_move_authenticator_for_free_access()?;
+    let tx = Transaction::from_generic_sig_data(tx_data, vec![aa_sig]);
+
+    // Should succeed
+    test_env.execute_and_check_tx_correctness(tx).await
+}
+
+/// Test environment for Abstract Account tests
 /// Test in 3 steps the failure of an Abstract Account transaction
 /// post-consensus:
 /// 1) Create a TX certificate signed by the validators where the authentication
@@ -291,10 +352,11 @@ impl TestEnvironment {
         }
     }
 
-    async fn setup_abstract_account(
-        &mut self,
-        authenticate_fn_name: &str,
-    ) -> Result<(), anyhow::Error> {
+    /// Common initialization for AA tests:
+    /// - store authenticate fn name
+    /// - derive owner from keystore
+    /// - publish AA package and store its ID
+    async fn init_abstract_account_state(&mut self, authenticate_fn_name: &str) {
         // Store the authenticate function name
         self.authenticate_fn_name = Some(authenticate_fn_name.to_string());
 
@@ -312,11 +374,41 @@ impl TestEnvironment {
 
         // Publish the Move Account Abstraction package
         self.aa_package_id = Some(self.publish_account_abstraction_package().await);
+    }
 
-        // Create an AbstractAccount
-        self.aa_ref = Some(self.create_abstract_account().await?);
+    async fn setup_abstract_account(
+        &mut self,
+        authenticate_fn_name: &str,
+    ) -> Result<(), anyhow::Error> {
+        // Common initialization
+        self.init_abstract_account_state(authenticate_fn_name).await;
+
+        // Create an AbstractAccount (must succeed in this variant)
+        let effects = self.create_abstract_account().await?;
+        self.aa_ref = Some(abstract_account_from_effects(&effects));
 
         Ok(())
+    }
+
+    async fn setup_abstract_account_may_fail(
+        &mut self,
+        authenticate_fn_name: &str,
+    ) -> Result<ExecutionStatus, anyhow::Error> {
+        // Common initialization
+        self.init_abstract_account_state(authenticate_fn_name).await;
+
+        // Creation may fail in this variant
+        let effects = self.create_abstract_account().await?;
+        match effects.status().clone() {
+            ExecutionStatus::Success => {
+                // Create an AbstractAccount only on success
+                self.aa_ref = Some(abstract_account_from_effects(&effects));
+                Ok(ExecutionStatus::Success)
+            }
+            ExecutionStatus::Failure { error, command } => {
+                Ok(ExecutionStatus::Failure { error, command })
+            }
+        }
     }
 
     async fn publish_account_abstraction_package(&mut self) -> ObjectID {
@@ -326,7 +418,7 @@ impl TestEnvironment {
         publish_package(self.test_cluster.wallet(), path).await.0
     }
 
-    async fn create_abstract_account(&self) -> anyhow::Result<ObjectRef> {
+    async fn create_abstract_account(&self) -> anyhow::Result<TransactionEffects> {
         let (Some(owner), Some(authenticate_fn_name), Some(aa_package_id)) =
             (self.owner, &self.authenticate_fn_name, self.aa_package_id)
         else {
@@ -386,15 +478,7 @@ impl TestEnvironment {
             .execute_transaction_return_raw_effects(transaction)
             .await?;
 
-        // Extract the only created shared object which is the abstract account
-        Ok(effects
-            .all_changed_objects()
-            .iter()
-            .find_map(|change| match change {
-                (_, Owner::Shared { .. }, WriteKind::Create) => Some(change.0),
-                _ => None,
-            })
-            .expect("Expected a shared object in the transaction response"))
+        Ok(effects)
     }
 
     // Create the MoveAuthenticator for the Ed25519 signature authenticator:
@@ -566,9 +650,53 @@ impl TestEnvironment {
         assert!(errors.is_empty());
         Ok(())
     }
+
+    /// PTB to receive the Gas in the main transaction:
+    /// abstract_account::receive_object<Coin<IOTA>>(&mut account,
+    /// Receiving<Gas>, ctx)
+    fn craft_aa_receive_gas_ptb(
+        &self,
+        gas_ref: ObjectRef,
+    ) -> anyhow::Result<ProgrammableTransaction> {
+        let (Some(aa_ref), Some(aa_package_id)) = (self.aa_ref, self.aa_package_id) else {
+            anyhow::bail!("Abstract account not created yet");
+        };
+        let mut b = ProgrammableTransactionBuilder::new();
+
+        let args = vec![
+            b.obj(ObjectArg::SharedObject {
+                id: aa_ref.0,
+                initial_shared_version: aa_ref.1,
+                mutable: true,
+            })?,
+            // IMPORTANT: passing an object ref *in the position of* `Receiving<T>`
+            // yields a Receiving PTB arg (SDK converts when building the call).
+            b.obj(ObjectArg::Receiving(gas_ref))?,
+        ];
+        b.programmable_move_call(
+            aa_package_id,
+            ident_str!(AA_MODULE_NAME).to_owned(), // abstract_account
+            ident_str!("receive_object").to_owned(),
+            vec![],
+            args,
+        );
+        Ok(b.finish())
+    }
 }
 
 fn abstract_account_type_tag(aa_package_id: &ObjectID) -> TypeTag {
     TypeTag::from_str(format!("{aa_package_id}::{AA_MODULE_NAME}::{AA_ACCOUNT_NAME}").as_str())
         .unwrap()
+}
+
+fn abstract_account_from_effects(effects: &TransactionEffects) -> ObjectRef {
+    // Extract the only created shared object which is the abstract account
+    effects
+        .all_changed_objects()
+        .iter()
+        .find_map(|change| match change {
+            (_, Owner::Shared { .. }, WriteKind::Create) => Some(change.0),
+            _ => None,
+        })
+        .expect("Expected a shared object in the transaction response")
 }

@@ -123,7 +123,7 @@ pub enum ObjectArg {
     Receiving(ObjectRef),
 }
 
-fn type_input_validity_check(
+pub fn type_input_validity_check(
     tag: &TypeInput,
     config: &ProtocolConfig,
     starting_count: &mut usize,
@@ -2443,37 +2443,6 @@ impl SenderSignedData {
             }
         );
 
-        // Check the `MoveAuthenticator` limitations.
-        let authenticators_num = self.move_authenticators().len();
-        if authenticators_num > 0 {
-            if !tx_data.kind().is_programmable_transaction() {
-                return Err(UserInputError::Unsupported(
-                    "SenderSignedData with MoveAuthenticator must be a programmable transaction"
-                        .to_string(),
-                )
-                .into());
-            }
-
-            // TODO(https://github.com/iotaledger/iota/issues/8966): The following
-            // restrictions are temporary added until we implement MoveAuthenticator support
-            // for sponsors.
-
-            if authenticators_num > 1 {
-                return Err(UserInputError::Unsupported(
-                    "SenderSignedData with more than one MoveAuthenticator is not supported"
-                        .to_string(),
-                )
-                .into());
-            }
-
-            if self.sender_move_authenticator().is_none() {
-                return Err(UserInputError::Unsupported(
-                    "SenderSignedData can have MoveAuthenticator only for the sender".to_string(),
-                )
-                .into());
-            }
-        }
-
         // Checks to see if the transaction has expired
         if match &tx_data.expiration() {
             TransactionExpiration::None => false,
@@ -2500,6 +2469,8 @@ impl SenderSignedData {
         tx_data
             .validity_check(config)
             .map_err(Into::<IotaError>::into)?;
+
+        self.move_authenticators_validity_check(tx_data, config)?;
 
         Ok(tx_size)
     }
@@ -2530,9 +2501,9 @@ impl SenderSignedData {
 
     /// Splits the provided input objects into three groups:
     /// 1. Input objects required by the transaction itself.
-    /// 2. Input objects required by the sender `MoveAuthenticator`.
-    /// 3. The object to authenticate from the sender `MoveAuthenticator`, if
-    ///    any.
+    /// 2. Input objects required by the sender `MoveAuthenticator`, including
+    ///    the object to authenticate.
+    /// 3. The object to authenticate from the sender `MoveAuthenticator`.
     pub fn split_inputs_into_groups(
         &self,
         input_objects: InputObjects,
@@ -2607,13 +2578,7 @@ impl SenderSignedData {
         // Add the Move authenticator shared objects if any.
         let authenticator_shared_objects =
             if let Some(move_authenticator) = self.sender_move_authenticator() {
-                move_authenticator
-                    .shared_objects()
-                    .into_iter()
-                    // Add `object_to_authenticate` if it is a shared object.
-                    .chain(move_authenticator.object_to_authenticate().shared_objects())
-                    .collect::<Vec<_>>()
-                    .into_iter()
+                move_authenticator.shared_objects().into_iter()
             } else {
                 Vec::new().into_iter()
             };
@@ -2633,13 +2598,7 @@ impl SenderSignedData {
         // Add the Move authenticator input objects if any.
         let authenticator_input_objects =
             if let Some(move_authenticator) = self.sender_move_authenticator() {
-                move_authenticator
-                    .input_objects()
-                    .into_iter()
-                    // Add `object_to_authenticate` input object.
-                    .chain(move_authenticator.object_to_authenticate().input_objects())
-                    .collect::<Vec<_>>()
-                    .into_iter()
+                move_authenticator.input_objects().into_iter()
             } else {
                 Vec::new().into_iter()
             };
@@ -2660,6 +2619,53 @@ impl SenderSignedData {
     pub fn uses_randomness(&self) -> bool {
         self.shared_input_objects()
             .any(|obj| obj.id() == IOTA_RANDOMNESS_STATE_OBJECT_ID)
+    }
+
+    fn move_authenticators_validity_check(
+        &self,
+        tx_data: &TransactionData,
+        config: &ProtocolConfig,
+    ) -> IotaResult {
+        // Check each `MoveAuthenticator` validity.
+        self.move_authenticators()
+            .iter()
+            .try_for_each(|authenticator| authenticator.validity_check(config))?;
+
+        // Additional checks when `MoveAuthenticators` are present.
+        let authenticators_num = self.move_authenticators().len();
+        if authenticators_num > 0 {
+            fp_ensure!(
+                tx_data.kind().is_programmable_transaction(),
+                UserInputError::Unsupported(
+                    "SenderSignedData with MoveAuthenticator must be a programmable transaction"
+                        .to_string(),
+                )
+                .into()
+            );
+
+            // TODO(https://github.com/iotaledger/iota/issues/8966): The following
+            // restrictions are temporary added until we implement `MoveAuthenticator`
+            // support for sponsors.
+
+            fp_ensure!(
+                authenticators_num == 1,
+                UserInputError::Unsupported(
+                    "SenderSignedData with more than one MoveAuthenticator is not supported"
+                        .to_string(),
+                )
+                .into()
+            );
+
+            fp_ensure!(
+                self.sender_move_authenticator().is_some(),
+                UserInputError::Unsupported(
+                    "SenderSignedData can have MoveAuthenticator only for the sender".to_string(),
+                )
+                .into()
+            );
+        }
+
+        Ok(())
     }
 }
 
