@@ -826,7 +826,6 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                         .into_iter()
                         .map(|(id, change)| ChangedObject {
                             object_id: id.into(),
-                            change: EffectsObjectChange {
                                 input_state: match change.input_state {
                                     crate::effects::ObjectIn::NotExist => ObjectIn::NotExist,
                                     crate::effects::ObjectIn::Exist(((version, digest), owner)) => {
@@ -857,7 +856,6 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                                     crate::effects::IDOperation::Created => IdOperation::Created,
                                     crate::effects::IDOperation::Deleted => IdOperation::Deleted,
                                 },
-                            },
                         })
                         .collect(),
                     unchanged_shared_objects: effects
