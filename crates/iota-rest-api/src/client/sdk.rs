@@ -340,7 +340,7 @@ impl Client {
 
     pub async fn get_transaction(
         &self,
-        transaction: &TransactionDigest,
+        transaction: &Digest,
     ) -> Result<Response<TransactionResponse>> {
         let url = self.url().join(&format!("transactions/{transaction}"))?;
 
