@@ -3,8 +3,11 @@
 
 //! gRPC client for IOTA node operations.
 
-mod ledger;
-mod node_client;
+mod client;
+pub use client::Client;
 
-pub use ledger::LedgerClient;
-pub use node_client::NodeClient;
+mod response_ext;
+pub use response_ext::ResponseExt;
+
+mod interceptors;
+pub use interceptors::HeadersInterceptor;

@@ -23,7 +23,7 @@ make proto
 
 ## Output
 
-Generated files are written to `crates/iota-grpc-types/src/proto_generated/`:
+Generated files are written to `crates/iota-grpc-types/src/proto/generated/`:
 
 - `iota.grpc.v0.*.rs` - Standard protobuf types
 - `iota.grpc.v0.*.field_info.rs` - Field metadata and builders

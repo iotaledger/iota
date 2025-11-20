@@ -17,6 +17,6 @@ function cleanup() {
 
 trap cleanup EXIT
 
-rm -Rf crates/iota-grpc-types/src/proto_generated/
-mkdir -p crates/iota-grpc-types/src/proto_generated/
+rm -Rf crates/iota-grpc-types/src/proto/generated/
+mkdir -p crates/iota-grpc-types/src/proto/generated/
 cargo run -p iota-proto-build
