@@ -151,13 +151,14 @@ fn verify_authenticate_account_type(
 }
 
 /// Verify that the parameter type is a valid type for an `authenticate`
-/// function. The parameter type can be:
+/// function. The entry modifier ensures us that only primitive types and
+/// objects can reach this point; then, here, we additionally check that no
+/// objects are passed by value or by mutable reference and that no Receiving
+/// objects are passed at all.
+///
+/// A valid parameter type can be:
 /// - an immutable reference to anything but a receiving object
-/// - a pure input type
-/// The entry modifier ensures us that only primitive types and objects can
-/// reach this point; then, here, we additionally check that no objects are
-/// passed by value or by mutable reference and that no Receiving objects are
-/// passed at all.
+/// - a primitive type
 fn verify_authenticate_param_type(
     module: &CompiledModule,
     function_type_args: &[AbilitySet],
