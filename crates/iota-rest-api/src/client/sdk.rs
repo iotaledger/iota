@@ -5,7 +5,7 @@
 use iota_sdk_types::{
     Address, CheckpointData, Digest, CheckpointSequenceNumber, EpochId, Object, ObjectId,
     SignedCheckpointSummary, SignedTransaction, StructTag, Transaction,
-    UnresolvedTransaction, ValidatorCommittee, Version,
+     ValidatorCommittee, Version,
 };
 use reqwest::{StatusCode, Url, header::HeaderValue};
 use tap::Pipe;
@@ -23,6 +23,7 @@ use crate::{
         X_IOTA_MIN_SUPPORTED_PROTOCOL_VERSION,
     },
     transactions::{
+        unresolved::UnresolvedTransaction,
         ListTransactionsQueryParameters, ResolveTransactionQueryParameters,
         ResolveTransactionResponse, TransactionExecutionResponse, TransactionResponse,
         TransactionSimulationResponse,

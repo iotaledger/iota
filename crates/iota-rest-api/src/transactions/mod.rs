@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod execution;
+pub(crate)mod unresolved;
 pub use execution::{
     EffectsFinality, ExecuteTransaction, ExecuteTransactionQueryParameters, SimulateTransaction,
     SimulateTransactionQueryParameters, TransactionExecutionResponse,
