@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use iota_sdk_types::{
-    Address, CheckpointData, CheckpointDigest, CheckpointSequenceNumber, EpochId, Object, ObjectId,
-    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction, TransactionDigest,
+    Address, CheckpointData, Digest, CheckpointSequenceNumber, EpochId, Object, ObjectId,
+    SignedCheckpointSummary, SignedTransaction, StructTag, Transaction,
     UnresolvedTransaction, ValidatorCommittee, Version,
 };
 use reqwest::{StatusCode, Url, header::HeaderValue};
@@ -518,7 +518,7 @@ impl Client {
 #[derive(Debug)]
 pub struct ResponseParts {
     pub status: StatusCode,
-    pub chain_id: Option<CheckpointDigest>,
+    pub chain_id: Option<Digest>,
     pub chain: Option<String>,
     pub epoch: Option<EpochId>,
     pub checkpoint_height: Option<CheckpointSequenceNumber>,
@@ -537,7 +537,7 @@ impl ResponseParts {
         let chain_id = headers
             .get(X_IOTA_CHAIN_ID)
             .map(HeaderValue::as_bytes)
-            .and_then(|s| CheckpointDigest::from_base58(s).ok());
+            .and_then(|s| Digest::from_base58(s).ok());
         let chain = headers
             .get(X_IOTA_CHAIN)
             .and_then(|h| h.to_str().ok())

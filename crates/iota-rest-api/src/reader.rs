@@ -70,7 +70,7 @@ impl StateReader {
 
     pub fn get_transaction(
         &self,
-        digest: iota_sdk_types::TransactionDigest,
+        digest: iota_sdk_types::Digest,
     ) -> crate::Result<(
         iota_sdk_types::SignedTransaction,
         iota_sdk_types::TransactionEffects,
@@ -120,7 +120,7 @@ impl StateReader {
 
     pub fn get_transaction_response(
         &self,
-        digest: iota_sdk_types::TransactionDigest,
+        digest: iota_sdk_types::Digest,
     ) -> crate::Result<super::transactions::TransactionResponse> {
         let (
             SignedTransaction {

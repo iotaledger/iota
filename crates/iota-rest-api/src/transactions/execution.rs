@@ -308,7 +308,7 @@ enum BinaryEffectsFinality {
     },
 }
 
-fn coins(objects: &[Object]) -> impl Iterator<Item = (&Address, Coin<'_>)> + '_ {
+fn coins(objects: &[Object]) -> impl Iterator<Item = (&Address, Coin)> + '_ {
     objects.iter().filter_map(|object| {
         let address = match object.owner() {
             Owner::Address(address) => address,

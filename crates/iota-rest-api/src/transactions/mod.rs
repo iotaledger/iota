@@ -15,7 +15,7 @@ use axum::{
     http::StatusCode,
 };
 use iota_sdk_types::{
-    CheckpointSequenceNumber, Transaction, TransactionDigest, TransactionEffects,
+    CheckpointSequenceNumber, Transaction, Digest, TransactionEffects,
     TransactionEvents, UserSignature,
 };
 pub use resolve::{
@@ -49,7 +49,7 @@ impl ApiEndpoint<RestService> for GetTransaction {
         OperationBuilder::new()
             .tag("Transactions")
             .operation_id("GetTransaction")
-            .path_parameter::<TransactionDigest>("transaction", generator)
+            .path_parameter::<Digest>("transaction", generator)
             .response(
                 200,
                 ResponseBuilder::new()
@@ -67,7 +67,7 @@ impl ApiEndpoint<RestService> for GetTransaction {
 }
 
 async fn get_transaction(
-    Path(transaction_digest): Path<TransactionDigest>,
+    Path(transaction_digest): Path<Digest>,
     accept: AcceptFormat,
     State(state): State<StateReader>,
 ) -> Result<ResponseContent<TransactionResponse>> {
@@ -83,7 +83,7 @@ async fn get_transaction(
 #[serde_with::serde_as]
 #[derive(Debug, serde::Serialize, serde::Deserialize, schemars::JsonSchema)]
 pub struct TransactionResponse {
-    pub digest: TransactionDigest,
+    pub digest: Digest,
     pub transaction: Transaction,
     pub signatures: Vec<UserSignature>,
     pub effects: TransactionEffects,
@@ -101,7 +101,7 @@ pub struct TransactionResponse {
 }
 
 #[derive(Debug)]
-pub struct TransactionNotFoundError(pub TransactionDigest);
+pub struct TransactionNotFoundError(pub Digest);
 
 impl std::fmt::Display for TransactionNotFoundError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
