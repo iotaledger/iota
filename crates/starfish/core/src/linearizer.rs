@@ -211,7 +211,7 @@ impl Linearizer {
     // Leaders in `committed_leaders` are assumed to be ordered in increasing
     // rounds.
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn handle_commit(
+    pub(crate) fn get_pending_sub_dags(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
     ) -> Vec<PendingSubDag> {
@@ -249,16 +249,6 @@ impl Linearizer {
 
             pending_sub_dags.push(sub_dag);
         }
-
-        // Committed blocks must be persisted to storage before sending them to IOTA and
-        // executing their transactions.
-        // Commit metadata can be persisted more lazily because they are recoverable.
-        // Uncommitted blocks can wait to persist too.
-        // But for simplicity, all unpersisted blocks and commits are flushed to
-        // storage.
-        let mut dag_state_guard = self.dag_state.write();
-        dag_state_guard.flush();
-        drop(dag_state_guard);
 
         pending_sub_dags
     }
@@ -451,7 +441,7 @@ mod tests {
             .map(Option::unwrap)
             .collect::<Vec<_>>();
 
-        let commits = linearizer.handle_commit(leaders.clone());
+        let commits = linearizer.get_pending_sub_dags(leaders.clone());
         for (idx, subdag) in commits.into_iter().enumerate() {
             tracing::info!("{subdag:?}");
             assert_eq!(subdag.leader, leaders[idx].reference());
@@ -533,7 +523,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Create some commits
-        let commits = linearizer.handle_commit(leaders.clone());
+        let commits = linearizer.get_pending_sub_dags(leaders.clone());
 
         // Write them in DagState
         dag_state
@@ -555,7 +545,7 @@ mod tests {
 
         // Now on the commits only the first one should contain the updated scores, the
         // other should be empty
-        let commits = linearizer.handle_commit(leaders.clone());
+        let commits = linearizer.get_pending_sub_dags(leaders.clone());
         assert_eq!(commits.len(), 10);
         let scores = vec![
             (AuthorityIndex::new_for_test(1), 29),
@@ -666,7 +656,7 @@ mod tests {
             vec![],
         );
 
-        let commit = linearizer.handle_commit(vec![leader.clone()]);
+        let commit = linearizer.get_pending_sub_dags(vec![leader.clone()]);
         assert_eq!(commit.len(), 1);
 
         let subdag = &commit[0];
@@ -768,7 +758,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         for (idx, leader) in leaders.iter().enumerate() {
-            let subdags = linearizer.handle_commit(vec![leader.clone()]);
+            let subdags = linearizer.get_pending_sub_dags(vec![leader.clone()]);
             assert_eq!(subdags.len(), 1);
             let subdag = &subdags[0];
 
@@ -887,7 +877,7 @@ mod tests {
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        linearizer.handle_commit(leaders.clone());
+        linearizer.get_pending_sub_dags(leaders.clone());
         // Check that before eviction acknowledgements for all rounds up to num_rounds-2
         // are stored
         for round in 1..=num_rounds - 2 {

@@ -1355,8 +1355,18 @@ type EventEdge {
 	cursor: String!
 }
 
+"""
+Represents optional available filters for events.
+"""
 input EventFilter {
+	"""
+	Filter down to events from transactions sent by this address.
+	"""
 	sender: IotaAddress
+	"""
+	Filter down to the events from this transaction (given by its
+	transaction digest).
+	"""
 	transactionDigest: String
 	"""
 	Events emitted by a particular module. An event is emitted by a
@@ -3203,11 +3213,8 @@ resulting set of objects are ones whose
 """
 input ObjectFilter {
 	"""
-	This field is used to specify the type of objects that should be
-	included in the query results.
-	
-	Objects can be filtered by their type's package, package::module, or
-	their fully qualified type name.
+	Filter objects by their type's `package`, `package::module`, or their
+	fully qualified type name.
 	
 	Generic types can be queried by either the generic type name, e.g.
 	`0x2::coin::Coin`, or by the full type name, such as
@@ -4534,21 +4541,57 @@ type TransactionBlockEffects {
 	bcs: Base64!
 }
 
+"""
+Represents optional available filters for transaction blocks.
+"""
 input TransactionBlockFilter {
+	"""
+	Filter transactions by move function called.
+	
+	Calls can be filtered by the `package`, `package::module`, or the
+	`package::module::name` of their function.
+	"""
 	function: String
 	"""
 	An input filter selecting for either system or programmable
 	transactions.
 	"""
 	kind: TransactionBlockKindInput
+	"""
+	Limit to transactions that occurred strictly after the given checkpoint.
+	"""
 	afterCheckpoint: UInt53
+	"""
+	Limit to transactions in the given checkpoint.
+	"""
 	atCheckpoint: UInt53
+	"""
+	Limit to transaction that occurred strictly before the given checkpoint.
+	"""
 	beforeCheckpoint: UInt53
+	"""
+	Limit to transactions that were signed by the given address.
+	"""
 	signAddress: IotaAddress
+	"""
+	Limit to transactions that sent an object to the given address.
+	"""
 	recvAddress: IotaAddress
+	"""
+	Limit to transactions that accepted the given object as an input.
+	"""
 	inputObject: IotaAddress
+	"""
+	Limit to transactions that output a version of this object.
+	"""
 	changedObject: IotaAddress
+	"""
+	Limit to transactions that wrapped or deleted the given object.
+	"""
 	wrappedOrDeletedObject: IotaAddress
+	"""
+	Select transactions by their digest.
+	"""
 	transactionIds: [String!]
 }
 

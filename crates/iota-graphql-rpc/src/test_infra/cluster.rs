@@ -410,9 +410,10 @@ impl ExecutorCluster {
                 tokio::time::sleep(Duration::from_secs(1)).await;
                 latest_snapshot_cp = self
                     .indexer_store
-                    .get_latest_object_snapshot_checkpoint_sequence_number()
+                    .get_latest_object_snapshot_watermark()
                     .await
                     .unwrap()
+                    .map(|watermark| watermark.checkpoint_hi_inclusive)
                     .unwrap_or_default();
             }
         })

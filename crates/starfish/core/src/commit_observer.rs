@@ -18,9 +18,9 @@ use crate::{
     BlockRef, CommitConsumer, CommittedSubDag,
     block_header::{BlockHeaderAPI, VerifiedBlockHeader},
     commit::{CommitAPI, CommitIndex, PendingSubDag, load_pending_subdag_from_store},
+    commit_solidifier::CommitSolidifier,
     context::Context,
     dag_state::DagState,
-    data_manager::DataManager,
     error::{ConsensusError, ConsensusResult},
     leader_schedule::LeaderSchedule,
     linearizer::Linearizer,
@@ -45,9 +45,9 @@ use crate::{
 pub(crate) struct CommitObserver {
     context: Arc<Context>,
     /// Component to deterministically collect subdags for committed leaders.
-    commit_interpreter: Linearizer,
+    linearizer: Linearizer,
     /// Component to deterministically collect subdags for committed leaders.
-    commit_solidifier: DataManager,
+    commit_solidifier: CommitSolidifier,
     /// An unbounded channel to send committed sub-dags to the consumer of
     /// consensus output.
     sender: UnboundedSender<CommittedSubDag>,
@@ -72,12 +72,12 @@ impl CommitObserver {
     ) -> Self {
         let last_processed_commit_index = commit_consumer.last_processed_commit_index;
         let mut observer = Self {
-            commit_interpreter: Linearizer::new(
+            linearizer: Linearizer::new(
                 context.clone(),
                 dag_state.clone(),
                 leader_schedule.clone(),
             ),
-            commit_solidifier: DataManager::new(dag_state.clone()),
+            commit_solidifier: CommitSolidifier::new(dag_state.clone()),
             context,
             sender: commit_consumer.sender,
             store,
@@ -100,7 +100,7 @@ impl CommitObserver {
     /// - A vector of block references to transactions that were missing during
     ///   the commit.
     #[instrument(level = "trace", skip_all)]
-    pub(crate) fn handle_commit(
+    pub(crate) fn handle_committed_leaders(
         &mut self,
         committed_leaders: Vec<VerifiedBlockHeader>,
     ) -> ConsensusResult<(
@@ -112,16 +112,23 @@ impl CommitObserver {
             .metrics
             .node_metrics
             .scope_processing_time
-            .with_label_values(&["CommitObserver::handle_commit"])
+            .with_label_values(&["CommitObserver::handle_committed_leaders"])
             .start_timer();
 
-        let pending_sub_dags = self.commit_interpreter.handle_commit(committed_leaders);
+        let pending_sub_dags = self.linearizer.get_pending_sub_dags(committed_leaders);
 
         // First, add the commits to the commit solidifier to make sure that the data is
         // available. This function returns not only the just-created commits but also
         // any pending ones that'd become solid since the last commit.
-        let (solid_sub_dags, missing_transactions) =
-            self.commit_solidifier.try_commit(&pending_sub_dags);
+        let (solid_sub_dags, missing_transactions) = self
+            .commit_solidifier
+            .try_get_solid_sub_dags(&pending_sub_dags);
+
+        // Committed headers and sequenced transactions must be persisted to storage
+        // before sending them outside consensus.
+        if !pending_sub_dags.is_empty() || !solid_sub_dags.is_empty() {
+            self.dag_state.write().flush();
+        }
 
         tracing::trace!("Missing committed transactions {missing_transactions:#?}");
 
@@ -130,7 +137,7 @@ impl CommitObserver {
         // fetch the missing transactions from the authorities that acknowledged
         // them.
         let missing_transaction_acknowledgers = self
-            .commit_interpreter
+            .linearizer
             .get_transaction_ack_authors(missing_transactions);
 
         let mut sent_sub_dags = Vec::with_capacity(solid_sub_dags.len());
@@ -175,7 +182,7 @@ impl CommitObserver {
                 .expect("There should be at least one solid subdag")
                 .leader
                 .round;
-            self.commit_interpreter
+            self.linearizer
                 .evict_old_acknowledgments(max_solid_commit_leader_round);
         }
         tracing::trace!("Committed & sent {sent_sub_dags:#?}");
@@ -261,7 +268,7 @@ impl CommitObserver {
             for ((round, authority_idx), transaction_acknowledgments) in
                 pending_sub_dag.transaction_acknowledgments().into_iter()
             {
-                self.commit_interpreter.add_committed_transaction_acks(
+                self.linearizer.add_committed_transaction_acks(
                     round,
                     authority_idx,
                     transaction_acknowledgments,
@@ -271,7 +278,9 @@ impl CommitObserver {
             // they are tracked there. The commit will be sent to IOTA here if all the
             // transactions are available or will be kept in the buffer and sent later when
             // the transactions become available.
-            let (solid_sub_dags, _missing) = self.commit_solidifier.try_commit(&[pending_sub_dag]);
+            let (solid_sub_dags, _missing) = self
+                .commit_solidifier
+                .try_get_solid_sub_dags(&[pending_sub_dag]);
             // Only submit unprocessed commits to IOTA
             for solid_sub_dag in solid_sub_dags {
                 if solid_sub_dag.commit_ref.index > last_processed_commit_index {
@@ -315,7 +324,7 @@ impl CommitObserver {
         &self,
     ) -> BTreeMap<BlockRef, BTreeSet<AuthorityIndex>> {
         let missing_refs = self.commit_solidifier.get_missing_transaction_data();
-        self.commit_interpreter
+        self.linearizer
             .get_transaction_ack_authors(missing_refs.into_iter().collect())
     }
 
@@ -356,11 +365,13 @@ impl CommitObserver {
             }
         }
 
-        self.context
-            .metrics
-            .node_metrics
-            .sub_dags_per_commit_count
-            .observe(pending_sub_dags.len() as f64);
+        if !pending_sub_dags.is_empty() {
+            self.context
+                .metrics
+                .node_metrics
+                .sub_dags_per_commit_count
+                .observe(pending_sub_dags.len() as f64);
+        }
 
         // Now report transaction-related metrics for committed subdags
         for commit in committed_sub_dags {
@@ -475,7 +486,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         let (commits, _missing_transactions_refs) =
-            observer.handle_commit(leaders.clone()).unwrap();
+            observer.handle_committed_leaders(leaders.clone()).unwrap();
 
         // Check commits are returned by CommitObserver::handle_commit is accurate
         let mut expected_stored_refs: Vec<BlockRef> = vec![];
@@ -594,7 +605,7 @@ mod tests {
         // consumer of the consensus output channel.
         let expected_last_processed_index: usize = 2;
         let (mut created_commits, _missing_transactions_refs) = observer
-            .handle_commit(
+            .handle_committed_leaders(
                 leaders
                     .clone()
                     .into_iter()
@@ -630,7 +641,7 @@ mod tests {
         // the consumer side where the commits were not persisted.
         created_commits.append(
             &mut observer
-                .handle_commit(
+                .handle_committed_leaders(
                     leaders
                         .clone()
                         .into_iter()
@@ -732,7 +743,7 @@ mod tests {
         // the consensus output channel.
         let expected_last_processed_index: usize = 10;
         let (created_commits, _missing_transactions_refs) =
-            observer.handle_commit(leaders.clone()).unwrap();
+            observer.handle_committed_leaders(leaders.clone()).unwrap();
 
         // Check commits sent over consensus output channel is accurate
         let mut processed_subdag_index = 0;

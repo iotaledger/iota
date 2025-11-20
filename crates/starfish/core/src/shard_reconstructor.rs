@@ -35,7 +35,7 @@ use crate::{
 
 const EVICTION_TIMEOUT: Duration = Duration::from_secs(1);
 
-const SEND_TO_CORE_RECONSTRUCTED_TXS_TIMEOUT: Duration = Duration::from_millis(100);
+const SEND_TO_CORE_RECONSTRUCTED_TXS_TIMEOUT: Duration = Duration::from_millis(20);
 const NUMBER_OF_RECONSTRUCTION_WORKERS: usize = 5;
 
 /// Using transaction messages we update the state of shard reconstructor

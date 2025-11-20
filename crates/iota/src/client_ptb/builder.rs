@@ -947,6 +947,9 @@ impl<'a> PTBBuilder<'a> {
                 let chain_id = self.reader.get_chain_identifier().await.ok();
                 let build_config = MoveBuildConfig::default();
                 let package_path = Path::new(&package_path);
+                // Save the initial current directory
+                let initial_dir = std::env::current_dir()
+                    .map_err(|e| err!(pkg_loc, "Failed to get current directory: {e}"))?;
                 let build_config = resolve_lock_file_path(build_config.clone(), Some(package_path))
                     .map_err(|e| err!(pkg_loc, "{e}"))?;
                 let previous_id = if let Some(ref chain_id) = chain_id {
@@ -979,6 +982,10 @@ impl<'a> PTBBuilder<'a> {
                 )
                 .await
                 .map_err(|e| err!(pkg_loc, "{e}"))?;
+
+                // Restore the initial directory so subsequent commands are not affected
+                std::env::set_current_dir(initial_dir)
+                    .map_err(|e| err!(pkg_loc, "Failed to restore initial directory: {e}"))?;
 
                 let compiled_modules = compiled_package.get_package_bytes(false);
 

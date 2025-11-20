@@ -294,7 +294,7 @@ hyper-rustls = { version = "0.27", default-features = false, features = ["webpki
 hyper-util = { version = "0.1.4", features = ["tokio", "server-auto", "service"] }
 im = "15"
 indexmap = { version = "2.11.0", features = ["serde"] }
-indicatif = "0.17.2"
+indicatif = "0.18.3"
 insta = { version = "1.21.1", features = ["redactions", "yaml", "json"] }
 integer-encoding = "3.0.1"
 itertools = "0.13.0"

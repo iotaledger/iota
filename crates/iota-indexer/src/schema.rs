@@ -441,6 +441,19 @@ diesel::table! {
     }
 }
 
+diesel::table! {
+    watermarks (entity) {
+        entity -> Text,
+        epoch_hi_inclusive -> Int8,
+        checkpoint_hi_inclusive -> Int8,
+        tx_hi -> Int8,
+        epoch_lo -> Int8,
+        reader_lo -> Int8,
+        timestamp_ms -> Int8,
+        pruner_hi -> Int8,
+    }
+}
+
 #[macro_export]
 macro_rules! for_all_tables {
     ($action:path) => {
@@ -484,7 +497,8 @@ macro_rules! for_all_tables {
             tx_kinds,
             tx_recipients,
             tx_senders,
-            tx_wrapped_or_deleted_objects
+            tx_wrapped_or_deleted_objects,
+            watermarks
         );
     };
 }
