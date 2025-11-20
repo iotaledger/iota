@@ -6117,6 +6117,7 @@ dependencies = [
  "tempfile",
  "test-cluster",
  "tokio",
+ "tonic 0.14.2",
  "tracing",
  "url",
 ]
