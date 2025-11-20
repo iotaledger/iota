@@ -191,15 +191,12 @@ where
     CallGraph<S>: Renderer,
 {
     pub fn render_svg(&self, graph_id: &GraphId, config: &Config) -> Option<Svg> {
-        self.completed
-            .read()
-            .get(graph_id)
+        self.get_callgraph(graph_id)
             .map(|callgraph| callgraph.render_svg(graph_id.caption, config))
     }
     pub fn render_combined_svg(&self, caption: &str, config: &Config) -> Option<Svg> {
         let mut raw = self
-            .completed
-            .read()
+            .get_callgraphs()
             .values()
             .fold(Raw::default(), |mut raw, callgraph| {
                 callgraph.raw_svg(&mut raw, true);

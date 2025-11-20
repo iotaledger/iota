@@ -3,7 +3,7 @@
 
 //! Grafana Flame Graph panel compatible data structures and traits.
 
-use std::{collections::hash_map, time::Duration};
+use std::time::Duration;
 
 use serde::Serialize;
 
@@ -132,21 +132,8 @@ where
     }
 
     fn get_nested_sets(&self, label: &'static str) -> Vec<NestedSetFrame> {
-        let mut completed = self.completed.read().clone();
-        let rlock = self.graphs.read();
-        rlock.iter().for_each(|(_tid, Graph { graph_id, mutex })| {
-            // collect_into is still unstable
-            match completed.entry(*graph_id) {
-                hash_map::Entry::Occupied(mut entry) => {
-                    entry.get_mut().merge(mutex.lock().clone());
-                }
-                hash_map::Entry::Vacant(entry) => {
-                    entry.insert(mutex.lock().clone());
-                }
-            }
-        });
-
-        let total = completed.values().map(|graph| graph.total()).sum::<f64>();
+        let callgraphs = self.get_callgraphs();
+        let total = callgraphs.values().map(|graph| graph.total()).sum::<f64>();
 
         std::iter::once(NestedSetFrame {
             label: label.into(),
@@ -155,7 +142,7 @@ where
             self_: 0.0,
         })
         .chain(
-            completed
+            callgraphs
                 .into_iter()
                 .flat_map(|(_, flame)| flame.collect_nested_set().into_iter())
                 .map(|mut frame| {
