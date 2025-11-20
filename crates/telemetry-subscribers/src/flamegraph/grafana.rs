@@ -36,8 +36,14 @@ pub trait NestedSetCollector<N = f64> {
 
 pub trait Dashboard {
     fn list_nested_sets(&self) -> Vec<(GraphId, f64)>;
-    fn get_nested_set(&self, graph_id: &str) -> Vec<NestedSetFrame>;
-    fn get_nested_sets(&self, label: &'static str) -> Vec<NestedSetFrame>;
+    fn get_nested_set(&self, graph_id: &str, running: bool, completed: bool)
+    -> Vec<NestedSetFrame>;
+    fn get_nested_sets(
+        &self,
+        label: &'static str,
+        running: bool,
+        completed: bool,
+    ) -> Vec<NestedSetFrame>;
 }
 
 trait FromDuration: Default + Sized {
@@ -123,16 +129,24 @@ where
         graph_ids
     }
 
-    fn get_nested_set(&self, graph_id: &str) -> Vec<NestedSetFrame> {
-        self.completed
-            .read()
-            .get(&Metadata::from(graph_id))
+    fn get_nested_set(
+        &self,
+        graph_id: &str,
+        running: bool,
+        completed: bool,
+    ) -> Vec<NestedSetFrame> {
+        self.get_callgraph(&Metadata::from(graph_id), running, completed)
             .map(|graph| graph.collect_nested_set())
             .unwrap_or_default()
     }
 
-    fn get_nested_sets(&self, label: &'static str) -> Vec<NestedSetFrame> {
-        let callgraphs = self.get_callgraphs();
+    fn get_nested_sets(
+        &self,
+        label: &'static str,
+        running: bool,
+        completed: bool,
+    ) -> Vec<NestedSetFrame> {
+        let callgraphs = self.get_callgraphs(running, completed);
         let total = callgraphs.values().map(|graph| graph.total()).sum::<f64>();
 
         std::iter::once(NestedSetFrame {

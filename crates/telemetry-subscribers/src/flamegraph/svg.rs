@@ -59,8 +59,8 @@ pub trait Renderer {
 }
 
 use super::{
-    callgraph::Frame,
-    flame::{Flames, FrameLabel, GraphId},
+    callgraph::{CallGraph, Frame, NodeId},
+    flame::{Flames, FrameLabel, Metadata},
     metric::{FlameMetric, MergeMetrics, SpanMetrics},
 };
 
@@ -162,8 +162,6 @@ impl Raw {
     }
 }
 
-use super::callgraph::{CallGraph, NodeId};
-
 impl Renderer for CallGraph<FlameMetric> {
     fn raw_svg(&self, raw: &mut Raw, indent: bool) {
         if !self.graph.is_empty() {
@@ -190,18 +188,30 @@ impl<S: Clone + Default + MergeMetrics + SpanMetrics> Flames<S>
 where
     CallGraph<S>: Renderer,
 {
-    pub fn render_svg(&self, graph_id: &GraphId, config: &Config) -> Option<Svg> {
-        self.get_callgraph(graph_id)
+    pub fn render_svg(
+        &self,
+        graph_id: &Metadata<'_>,
+        running: bool,
+        completed: bool,
+        config: &Config,
+    ) -> Option<Svg> {
+        self.get_callgraph(graph_id, running, completed)
             .map(|callgraph| callgraph.render_svg(graph_id.caption, config))
     }
-    pub fn render_combined_svg(&self, caption: &str, config: &Config) -> Option<Svg> {
-        let mut raw = self
-            .get_callgraphs()
-            .values()
-            .fold(Raw::default(), |mut raw, callgraph| {
+    pub fn render_combined_svg(
+        &self,
+        caption: &str,
+        running: bool,
+        completed: bool,
+        config: &Config,
+    ) -> Option<Svg> {
+        let mut raw = self.get_callgraphs(running, completed).values().fold(
+            Raw::default(),
+            |mut raw, callgraph| {
                 callgraph.raw_svg(&mut raw, true);
                 raw
-            });
+            },
+        );
         if raw.total.is_zero() {
             None
         } else {
@@ -619,7 +629,7 @@ fn svg_node(
     let text_x = x + 3.0;
     let text_y = y + 12;
     let dur = dur.as_nanos() as f64 / 1_000_000.0;
-	let avg = dur / samples as f64;
+    let avg = dur / samples as f64;
     format!(
         r###"<g class="func_g" onmouseover="s(this)" onmouseout="c()" onclick="zoom(this)">
 <title>{title} (#{samples}, tot={dur:.2}ms, avg={avg:.2}ms, {percent:.2}%)</title><rect x="{x:.2}" y="{y}" width="{width:.2}" height="{height}" fill="rgb({fill_r},{fill_g},{fill_b})" rx="2" ry="2" />
