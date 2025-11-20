@@ -837,9 +837,9 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                         .map(|(id, change)| ChangedObject {
                             object_id: id.into(),
                                 input_state: match change.input_state {
-                                    crate::effects::ObjectIn::NotExist => ObjectIn::NotExist,
+                                    crate::effects::ObjectIn::NotExist => ObjectIn::Missing,
                                     crate::effects::ObjectIn::Exist(((version, digest), owner)) => {
-                                        ObjectIn::Exist {
+                                        ObjectIn::Data {
                                             version: version.value(),
                                             digest: digest.into(),
                                             owner: owner.into(),
@@ -847,7 +847,7 @@ impl TryFrom<crate::effects::TransactionEffects> for TransactionEffects {
                                     }
                                 },
                                 output_state: match change.output_state {
-                                    crate::effects::ObjectOut::NotExist => ObjectOut::NotExist,
+                                    crate::effects::ObjectOut::NotExist => ObjectOut::Missing,
                                     crate::effects::ObjectOut::ObjectWrite((digest, owner)) => {
                                         ObjectOut::ObjectWrite {
                                             digest: digest.into(),
@@ -945,10 +945,10 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                     obj.object_id.into(),
                                     crate::effects::EffectsObjectChange {
                                         input_state: match obj.change.input_state {
-                                            ObjectIn::NotExist => {
+                                            ObjectIn::Missing => {
                                                 crate::effects::ObjectIn::NotExist
                                             }
-                                            ObjectIn::Exist {
+                                            ObjectIn::Data {
                                                 version,
                                                 digest,
                                                 owner,
@@ -958,7 +958,7 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
                                             )),
                                         },
                                         output_state: match obj.change.output_state {
-                                            ObjectOut::NotExist => {
+                                            ObjectOut::Missing => {
                                                 crate::effects::ObjectOut::NotExist
                                             }
                                             ObjectOut::ObjectWrite { digest, owner } => {
