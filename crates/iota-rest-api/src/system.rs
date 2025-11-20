@@ -9,7 +9,7 @@ use axum::{
     extract::{Path, State},
 };
 use iota_protocol_config::{ProtocolConfig, ProtocolConfigValue, ProtocolVersion};
-use iota_sdk_types::{Address, ObjectId};
+use iota_sdk_types::{Address, ObjectId,PublicKeyExt};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
