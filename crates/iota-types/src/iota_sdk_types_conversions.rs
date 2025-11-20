@@ -22,7 +22,7 @@ use iota_sdk_types::{
     object_id::ObjectId,
     object::{Owner,MovePackage,UpgradeInfo,TypeOrigin,ObjectReference, GenesisObject,MoveStruct,Object,ObjectData},
     type_tag::{TypeTag,TypeParseError, StructTag,Identifier},
-    transaction::{MoveCall,Publish, MakeMoveVector,TransferObjects,MergeCoins,SplitCoins,Upgrade,SignedTransaction,Command,Argument,RandomnessStateUpdate,ActiveJwk,SystemPackage,AuthenticatorStateExpire,GasPayment,GenesisTransaction,ProgrammableTransaction,AuthenticatorStateUpdateV1,ChangeEpoch,Transaction,CancelledTransaction,TransactionExpiration,EndOfEpochTransactionKind, VersionAssignment,ChangeEpochV2,ConsensusCommitPrologueV1,TransactionKind, ConsensusDeterminedVersionAssignments,ChangeEpochV3, Input},
+    transaction::{TransactionV1,MoveCall,Publish, MakeMoveVector,TransferObjects,MergeCoins,SplitCoins,Upgrade,SignedTransaction,Command,Argument,RandomnessStateUpdate,ActiveJwk,SystemPackage,AuthenticatorStateExpire,GasPayment,GenesisTransaction,ProgrammableTransaction,AuthenticatorStateUpdateV1,ChangeEpoch,CancelledTransaction,TransactionExpiration,EndOfEpochTransactionKind, VersionAssignment,ChangeEpochV2,ConsensusCommitPrologueV1,TransactionKind, ConsensusDeterminedVersionAssignments,ChangeEpochV3, Input},
     validator::{ValidatorCommittee,ValidatorCommitteeMember,ValidatorAggregatedSignature},
     gas::GasCostSummary,
 };
@@ -271,9 +271,30 @@ fn sdk_upgrade_info_to_move(info: UpgradeInfo) -> crate::move_package::UpgradeIn
 }
 
 impl TryFrom<crate::transaction::TransactionData> for Transaction {
-    type Error = SdkTypeConversionError;
+     type Error = SdkTypeConversionError;
 
     fn try_from(value: crate::transaction::TransactionData) -> Result<Self, Self::Error> {
+        match value {
+            crate::transaction::TransactionData::V1(txn) => {
+                Ok(Transaction::V1(txn.try_into()?))
+            }
+        }
+}
+
+impl TryFrom<Transaction> for crate::transaction::TransactionData {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: Transaction) -> Result<Self, Self::Error> {
+        match value {
+            Transaction::V1(txn) => Ok(crate::transaction::TransactionData::V1(txn.try_into()?)),
+        }
+    }
+}
+
+impl TryFrom<crate::transaction::TransactionDataV1> for TransactionV1 {
+    type Error = SdkTypeConversionError;
+
+    fn try_from(value: crate::transaction::TransactionDataV1) -> Result<Self, Self::Error> {
         Self {
             sender: Address::new(value.sender().to_inner()),
             gas_payment: GasPayment {
@@ -300,14 +321,14 @@ impl TryFrom<crate::transaction::TransactionData> for Transaction {
     }
 }
 
-impl TryFrom<Transaction> for crate::transaction::TransactionData {
+impl TryFrom<TransactionV1> for crate::transaction::TransactionDataV1 {
     type Error = SdkTypeConversionError;
 
-    fn try_from(value: Transaction) -> Result<Self, Self::Error> {
-        Self::new_with_gas_data(
-            value.kind.try_into()?,
-            value.sender.into(),
-            crate::transaction::GasData {
+    fn try_from(value: TransactionV1) -> Result<Self, Self::Error> {
+        Self {
+            kind:value.kind.try_into()?,
+            sender:value.sender.into(),
+            gas_data:crate::transaction::GasData {
                 payment: value
                     .gas_payment
                     .objects
@@ -319,7 +340,11 @@ impl TryFrom<Transaction> for crate::transaction::TransactionData {
                 price: value.gas_payment.price,
                 budget: value.gas_payment.budget,
             },
-        )
+            expiration: match value.expiration {
+                TransactionExpiration::None => crate::transaction::TransactionExpiration::None,
+                TransactionExpiration::Epoch(e) => crate::transaction::TransactionExpiration::Epoch(e),
+            },
+        }
         .pipe(Ok)
     }
 }
