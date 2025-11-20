@@ -2915,8 +2915,8 @@ mod tests {
         assert_eq!(bytes5, &expected5);
     }
 
-    #[test]
-    fn test_verify_blocks_deduplication() {
+    #[tokio::test(flavor = "current_thread")]
+    async fn test_verify_blocks_deduplication() {
         let (context, _keys) = Context::new_for_test(4);
         let context = Arc::new(context);
         let block_verifier = Arc::new(NoopBlockVerifier {});
