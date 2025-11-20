@@ -2448,12 +2448,15 @@ async fn build_grpc_server(
 
     // Pass the same token to both GrpcReader (already done above) and
     // start_grpc_server
+    let chain_id = state.get_chain_identifier();
     let handle = start_grpc_server(
         grpc_reader,
         event_subscriber,
         grpc_config.clone(),
         shutdown_token,
         chain,
+        chain_id,
+        Some(env!("CARGO_PKG_VERSION").to_string()),
     )
     .await?;
 

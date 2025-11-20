@@ -224,6 +224,13 @@ pub trait GrpcStateReader: Send + Sync + 'static {
         epoch: u64,
     ) -> anyhow::Result<Option<CertifiedCheckpointSummary>>;
 
+    /// Get the lowest available checkpoint for which checkpoint and transaction
+    /// data are available
+    fn get_lowest_available_checkpoint(&self) -> anyhow::Result<u64>;
+
+    /// Get the lowest available checkpoint for which object data is available
+    fn get_lowest_available_checkpoint_objects(&self) -> anyhow::Result<u64>;
+
     /// Get committee for a specific epoch
     fn get_committee(
         &self,
@@ -278,6 +285,19 @@ impl GrpcStateReader for RestStateReaderAdapter {
             Ok(None) => Ok(None),
             Err(e) => Err(e.into()),
         }
+    }
+
+    fn get_lowest_available_checkpoint(&self) -> anyhow::Result<u64> {
+        use iota_types::storage::ReadStore;
+        self.inner
+            .try_get_lowest_available_checkpoint()
+            .map_err(Into::into)
+    }
+
+    fn get_lowest_available_checkpoint_objects(&self) -> anyhow::Result<u64> {
+        self.inner
+            .get_lowest_available_checkpoint_objects()
+            .map_err(Into::into)
     }
 
     fn get_committee(
@@ -353,6 +373,14 @@ impl GrpcReader {
         seq: u64,
     ) -> anyhow::Result<Option<CertifiedCheckpointSummary>> {
         Ok(self.state_reader.get_checkpoint_summary(seq))
+    }
+
+    pub fn get_lowest_available_checkpoint(&self) -> anyhow::Result<u64> {
+        self.state_reader.get_lowest_available_checkpoint()
+    }
+
+    pub fn get_lowest_available_checkpoint_objects(&self) -> anyhow::Result<u64> {
+        self.state_reader.get_lowest_available_checkpoint_objects()
     }
 
     pub fn get_committee(

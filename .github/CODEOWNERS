@@ -24,6 +24,7 @@
 /crates/iota-cost/ @iotaledger/vm-language
 /crates/iota-data-ingestion*/ @iotaledger/infrastructure
 /crates/iota-e2e-tests/ @iotaledger/node @iotaledger/vm-language
+/crates/iota-e2e-tests/tests/grpc @iotaledger/node
 /crates/iota-enum-compat-util/ @iotaledger/vm-language
 /crates/iota-faucet/ @iotaledger/infrastructure
 /crates/iota-framework/ @iotaledger/vm-language
