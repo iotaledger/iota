@@ -1,8 +1,6 @@
 // Copyright (c) Mysten Labs, Inc.
 // Modifications Copyright (c) 2025 IOTA Stiftung
 // SPDX-License-Identifier: Apache-2.0
-#![cfg_attr(feature = "flamegraph-alloc", feature(thread_local))]
-
 use std::{
     env,
     io::{Write, stderr},

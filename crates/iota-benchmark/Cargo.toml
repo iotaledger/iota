@@ -62,7 +62,6 @@ iota-surfer.workspace = true
 typed-store.workspace = true
 
 [[bin]]
-
 name = "flamegraph"
 path = "src/bin/flamegraph.rs"
 required-features = ["flamegraph-alloc"]
