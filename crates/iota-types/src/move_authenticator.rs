@@ -121,10 +121,13 @@ impl MoveAuthenticator {
         })
     }
 
+    /// Returns all input objects used by the MoveAuthenticator,
+    /// including those from the object to authenticate.
     pub fn input_objects(&self) -> Vec<InputObjectKind> {
         self.call_args
             .iter()
             .flat_map(|arg| arg.input_objects())
+            .chain(self.object_to_authenticate().input_objects())
             .collect::<Vec<_>>()
     }
 
@@ -135,10 +138,13 @@ impl MoveAuthenticator {
             .collect()
     }
 
+    /// Returns all shared input objects used by the MoveAuthenticator,
+    /// including those from the object to authenticate.
     pub fn shared_objects(&self) -> Vec<SharedInputObject> {
         self.call_args
             .iter()
             .flat_map(|arg| arg.shared_objects())
+            .chain(self.object_to_authenticate().shared_objects())
             .collect()
     }
 

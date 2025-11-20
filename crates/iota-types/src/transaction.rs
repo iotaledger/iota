@@ -2510,7 +2510,6 @@ impl SenderSignedData {
                 .collect::<HashSet<_>>();
 
             input_objects_set.extend(move_authenticator.input_objects());
-            input_objects_set.extend(move_authenticator.object_to_authenticate().input_objects());
 
             Ok(input_objects_set.into_iter().collect::<Vec<_>>())
         } else {
@@ -2520,9 +2519,9 @@ impl SenderSignedData {
 
     /// Splits the provided input objects into three groups:
     /// 1. Input objects required by the transaction itself.
-    /// 2. Input objects required by the sender `MoveAuthenticator`.
-    /// 3. The object to authenticate from the sender `MoveAuthenticator`, if
-    ///    any.
+    /// 2. Input objects required by the sender `MoveAuthenticator`, including
+    ///    the object to authenticate.
+    /// 3. The object to authenticate from the sender `MoveAuthenticator`.
     pub fn split_inputs_into_groups(
         &self,
         input_objects: InputObjects,
@@ -2597,13 +2596,7 @@ impl SenderSignedData {
         // Add the Move authenticator shared objects if any.
         let authenticator_shared_objects =
             if let Some(move_authenticator) = self.sender_move_authenticator() {
-                move_authenticator
-                    .shared_objects()
-                    .into_iter()
-                    // Add `object_to_authenticate` if it is a shared object.
-                    .chain(move_authenticator.object_to_authenticate().shared_objects())
-                    .collect::<Vec<_>>()
-                    .into_iter()
+                move_authenticator.shared_objects().into_iter()
             } else {
                 Vec::new().into_iter()
             };
