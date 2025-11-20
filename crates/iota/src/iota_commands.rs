@@ -808,9 +808,9 @@ async fn start(
                     .with_iota_names_config(iota_names_config);
             }
 
-            // Apply gRPC configuration if enabled
             swarm_builder = swarm_builder.with_fullnode_enable_grpc_api(enable_grpc_api);
             if enable_grpc_api {
+                // Apply gRPC configuration if enabled
                 if let Some(grpc_config) = grpc_api_config {
                     info!("Enabling gRPC API for fullnode with config: {grpc_config:?}");
                     swarm_builder = swarm_builder.with_fullnode_grpc_api_config(grpc_config);
