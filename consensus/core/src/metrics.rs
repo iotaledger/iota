@@ -81,6 +81,7 @@ pub(crate) struct Metrics {
     pub(crate) node_metrics: NodeMetrics,
     pub(crate) network_metrics: NetworkMetrics,
 }
+
 pub(crate) struct NodeMetrics {
     pub(crate) block_commit_latency: Histogram,
     pub(crate) proposed_blocks: IntCounterVec,
@@ -133,7 +134,10 @@ pub(crate) struct NodeMetrics {
     pub(crate) uncached_missing_proposals_by_authority: IntCounterVec,
     pub(crate) equivocations_in_cache_by_authority: IntGaugeVec,
     pub(crate) missing_proposals_in_cache_by_authority: IntGaugeVec,
+    #[allow(dead_code)]
     pub(crate) score_by_authority: IntGaugeVec,
+    #[allow(dead_code)]
+    pub(crate) invalid_misbehavior_reports_by_authority: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -522,6 +526,12 @@ impl NodeMetrics {
                 &["authority"],
                 registry,
             ).unwrap(),
+            invalid_misbehavior_reports_by_authority: register_int_counter_vec_with_registry!(
+                "invalid_misbehavior_reports_by_authority",
+                "Number of invalid misbehavior reports received from each authority",
+                &["authority"],
+                registry,
+            ).unwrap(),
             rejected_blocks: register_int_counter_vec_with_registry!(
                 "rejected_blocks",
                 "Number of blocks rejected before verifications",
@@ -891,105 +901,6 @@ pub(crate) fn initialise_metrics(registry: Registry) -> Arc<Metrics> {
         node_metrics,
         network_metrics,
     })
-}
-
-// Given the set of blocks issued by an authority in rounds in the inclusive
-// range [start, end], this function calculates and returns the number of
-// equivocations and missing blocks in that range . The function should receive
-// the vector with the rounds of such blocks and the range start and end points.
-fn calculate_scoring_metrics_for_range(
-    mut block_rounds: Vec<u32>,
-    start: u32,
-    end: u32,
-) -> (u64, u64) {
-    // Filter out rounds that are not in the range [start, end].
-    block_rounds.retain(|&round| round >= start && round <= end);
-    let number_of_blocks = block_rounds.len();
-    block_rounds.dedup();
-    let unique_block_rounds = block_rounds.len();
-    // We use saturating_sub to avoid unexpected underflows, but the subtractions
-    // below should never result in negative values by construction:
-    // 1) unique_block_rounds <= number_of_blocks
-    // 2) end - start + 1 >= unique_block_rounds
-    let number_of_equivocations = number_of_blocks.saturating_sub(unique_block_rounds) as u64;
-    let number_of_missing_blocks =
-        (end + 1).saturating_sub(start + unique_block_rounds as u32) as u64;
-
-    (number_of_equivocations, number_of_missing_blocks)
-}
-
-fn should_update_provable_metrics(error: &ConsensusError, source: &str) -> bool {
-    if source == "handle_send_block"
-        && (is_from_signed_block_verification(error)
-            || matches!(
-                error,
-                ConsensusError::BlockRejected { .. } //| ConsensusError::MalformedAncestorBlock { .. }
-            ))
-    {
-        return true;
-    }
-    false
-}
-
-fn should_update_unprovable_metrics(error: &ConsensusError, source: &str) -> bool {
-    if source == "handle_send_block" {
-        return is_from_unsigned_block_verification(error)
-            || matches!(
-                error,
-                ConsensusError::MalformedBlock { .. } | ConsensusError::UnexpectedAuthority { .. }
-            );
-    } else if source == "fetch_once" {
-        return is_from_commit_syncer(error);
-    } else if source == "process_fetched_blocks" {
-        return is_from_unsigned_block_verification(error)
-            || is_from_signed_block_verification(error)
-            || matches!(error, ConsensusError::MalformedBlock { .. });
-    }
-    false
-}
-
-fn is_from_unsigned_block_verification(err: &ConsensusError) -> bool {
-    matches!(
-        err,
-        ConsensusError::WrongEpoch { .. }
-            | ConsensusError::UnexpectedGenesisBlock
-            | ConsensusError::InvalidAuthorityIndex { .. }
-            | ConsensusError::SerializationFailure { .. }
-            | ConsensusError::MalformedSignature { .. }
-            | ConsensusError::SignatureVerificationFailure { .. }
-    )
-}
-
-fn is_from_signed_block_verification(err: &ConsensusError) -> bool {
-    matches!(
-        err,
-        ConsensusError::TooManyAncestors { .. }
-            | ConsensusError::InsufficientParentStakes { .. }
-            | ConsensusError::InvalidAuthorityIndex { .. }
-            | ConsensusError::InvalidAncestorPosition { .. }
-            | ConsensusError::InvalidAncestorRound { .. }
-            | ConsensusError::InvalidGenesisAncestor { .. }
-            | ConsensusError::DuplicatedAncestorsAuthority { .. }
-            | ConsensusError::TransactionTooLarge { .. }
-            | ConsensusError::TooManyTransactions { .. }
-            | ConsensusError::TooManyTransactionBytes { .. }
-            | ConsensusError::InvalidTransaction { .. }
-    )
-}
-
-fn is_from_commit_syncer(err: &ConsensusError) -> bool {
-    matches!(
-        err,
-        ConsensusError::MalformedCommit { .. }
-            | ConsensusError::UnexpectedStartCommit { .. }
-            | ConsensusError::UnexpectedCommitSequence { .. }
-            | ConsensusError::NoCommitReceived { .. }
-            | ConsensusError::MalformedBlock { .. }
-            | ConsensusError::NotEnoughCommitVotes { .. }
-            | ConsensusError::UnexpectedNumberOfBlocksFetched { .. }
-            | ConsensusError::UnexpectedBlockForCommit { .. }
-    ) || is_from_unsigned_block_verification(err)
-        || is_from_signed_block_verification(err)
 }
 
 #[cfg(test)]

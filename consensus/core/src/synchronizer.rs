@@ -566,7 +566,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
                                 commands_sender.clone(),
                                 "live"
                             ).await {
-                                context.scorer.update_scoring_metrics_on_block_receival(
+                                context.scoring_metrics_store.update_scoring_metrics_on_block_receival(
                                     peer_index,
                                     peer_hostname,
                                     err.clone(),
