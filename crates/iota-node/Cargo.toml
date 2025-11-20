@@ -9,6 +9,9 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+flamegraph-alloc = ["telemetry-subscribers/flamegraph-alloc"]
+
 [dependencies]
 # external dependencies
 anemo.workspace = true
