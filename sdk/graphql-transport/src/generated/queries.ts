@@ -1637,6 +1637,16 @@ export type EventFilter = {
 };
 
 /**
+ * Possible responses from a subscription.
+ *
+ * It could be one of the following:
+ * - A successful payload from the subscription stream.
+ * - A notice that the subscription has been lagged behind the network with the
+ * number of lost payloads.
+ */
+export type EventSubscriptionPayload = Event | Lagged;
+
+/**
  * The result of an execution, including errors that occurred during said
  * execution.
  */
@@ -2067,6 +2077,16 @@ export type Input = {
   __typename?: 'Input';
   /** Index of the programmable transaction block input (0-indexed). */
   ix: Scalars['Int']['output'];
+};
+
+/**
+ * Notifies that the subscription consumer has fallen behind the live
+ * subscription stream and missed one or more payloads.
+ */
+export type Lagged = {
+  __typename?: 'Lagged';
+  /** Number of missed payloads since the previous emitted one. */
+  count: Scalars['Int']['output'];
 };
 
 /**
@@ -5215,6 +5235,57 @@ export type StorageFund = {
   totalObjectStorageRebates?: Maybe<Scalars['BigInt']['output']>;
 };
 
+export type Subscription = {
+  __typename?: 'Subscription';
+  /**
+   * Subscribe to incoming events from the IOTA network.
+   *
+   * If no filter is provided, all events will be returned.
+   */
+  events: EventSubscriptionPayload;
+  /**
+   * Subscribe to incoming transactions from the IOTA network.
+   *
+   * If no filter is provided, all transactions will be returned.
+   */
+  transactions: TransactionBlockSubscriptionPayload;
+};
+
+
+export type SubscriptionEventsArgs = {
+  filter?: InputMaybe<SubscriptionEventFilter>;
+};
+
+
+export type SubscriptionTransactionsArgs = {
+  filter?: InputMaybe<SubscriptionTransactionFilter>;
+};
+
+/** Filter incoming events in a subscription. */
+export type SubscriptionEventFilter =
+  /**
+   * Filter incoming events by emitting module.
+   *
+   * - Filter by package: "0x02"
+   * - Filter by module: "0x02::coin"
+   */
+  { emittingModule: Scalars['String']['input']; };
+
+/** Filter incoming transactions in a subscription. */
+export type SubscriptionTransactionFilter =
+  /**
+   * Filter incoming transactions by package, module, or function name.
+   *
+   * - Filter by package: "0x03"
+   * - Filter by module: "0x03::iota_system"
+   * - Filter by function: "0x03::iota_system::request_add_stake"
+   */
+  { function: Scalars['String']['input']; kind?: never; signingAddress?: never; }
+  |  /** Filter incoming transactions by kind. */
+  { function?: never; kind: TransactionBlockKindInput; signingAddress?: never; }
+  |  /** Filter incoming transactions by signing address. */
+  { function?: never; kind?: never; signingAddress: Scalars['IotaAddress']['input']; };
+
 /** Details of the system that are decided during genesis. */
 export type SystemParameters = {
   __typename?: 'SystemParameters';
@@ -5489,6 +5560,16 @@ export enum TransactionBlockKindInput {
    */
   SystemTx = 'SYSTEM_TX'
 }
+
+/**
+ * Possible responses from a subscription.
+ *
+ * It could be one of the following:
+ * - A successful payload from the subscription stream.
+ * - A notice that the subscription has been lagged behind the network with the
+ * number of lost payloads.
+ */
+export type TransactionBlockSubscriptionPayload = Lagged | TransactionBlock;
 
 export type TransactionInput = OwnedOrImmutable | Pure | Receiving | SharedInput;
 
