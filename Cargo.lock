@@ -2114,9 +2114,9 @@ dependencies = [
 
 [[package]]
 name = "bnum"
-version = "0.11.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e31ea183f6ee62ac8b8a8cf7feddd766317adfb13ff469de57ce033efd6a790"
+checksum = "f781dba93de3a5ef6dc5b17c9958b208f6f3f021623b360fb605ea51ce443f10"
 
 [[package]]
 name = "brotli"
@@ -5911,7 +5911,7 @@ dependencies = [
  "rand 0.8.5",
  "rayon",
  "reqwest 0.12.7",
- "roaring",
+ "roaring 0.10.10",
  "rstest",
  "scopeguard",
  "serde",
@@ -6089,8 +6089,8 @@ dependencies = [
  "iota-node",
  "iota-protocol-config",
  "iota-rest-api",
- "iota-rust-sdk",
  "iota-sdk 1.12.0-alpha",
+ "iota-sdk-types",
  "iota-simulator",
  "iota-storage",
  "iota-swarm",
@@ -6849,7 +6849,7 @@ dependencies = [
  "object_store 0.10.2",
  "prometheus",
  "reqwest 0.12.7",
- "roaring",
+ "roaring 0.10.10",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -7384,7 +7384,7 @@ dependencies = [
  "fastcrypto",
  "iota-network-stack",
  "iota-protocol-config",
- "iota-rust-sdk",
+ "iota-sdk-types",
  "iota-types",
  "itertools 0.13.0",
  "mime",
@@ -7496,26 +7496,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "iota-rust-sdk"
-version = "0.0.0"
-source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=d7084eaf0564f4e2381b2e8408ee1f7d51468450#d7084eaf0564f4e2381b2e8408ee1f7d51468450"
-dependencies = [
- "base64ct",
- "bcs",
- "blake2",
- "bnum",
- "bs58 0.5.1",
- "hex",
- "roaring",
- "schemars",
- "serde",
- "serde_derive",
- "serde_json",
- "serde_with",
- "winnow 0.6.26",
-]
-
-[[package]]
 name = "iota-sdk"
 version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7592,6 +7572,30 @@ dependencies = [
  "thiserror 1.0.64",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "iota-sdk-types"
+version = "0.0.1-alpha.1"
+source = "git+https://github.com/iotaledger/iota-rust-sdk.git?rev=6eb94114dd8614154cb277320e7afd547edd4072#6eb94114dd8614154cb277320e7afd547edd4072"
+dependencies = [
+ "base64ct",
+ "bcs",
+ "blake2",
+ "bnum",
+ "bs58 0.5.1",
+ "eyre",
+ "hex",
+ "itertools 0.13.0",
+ "paste",
+ "roaring 0.11.2",
+ "schemars",
+ "serde",
+ "serde_json",
+ "serde_with",
+ "strum 0.27.2",
+ "thiserror 2.0.12",
+ "winnow 0.7.11",
 ]
 
 [[package]]
@@ -8079,8 +8083,8 @@ dependencies = [
  "iota-macros",
  "iota-network-stack",
  "iota-protocol-config",
- "iota-rust-sdk",
  "iota-sdk 1.1.5",
+ "iota-sdk-types",
  "itertools 0.13.0",
  "lru",
  "move-binary-format",
@@ -8103,7 +8107,7 @@ dependencies = [
  "proptest",
  "proptest-derive",
  "rand 0.8.5",
- "roaring",
+ "roaring 0.10.10",
  "schemars",
  "serde",
  "serde-name",
@@ -12354,6 +12358,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "roaring"
+version = "0.11.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f08d6a905edb32d74a5d5737a0c9d7e950c312f3c46cb0ca0a2ca09ea11878a0"
+dependencies = [
+ "bytemuck",
+ "byteorder",
+]
+
+[[package]]
 name = "rocksdb"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16325,15 +16339,6 @@ name = "winnow"
 version = "0.5.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f593a95398737aeed53e489c785df13f3618e41dbcd6718c6addbf1395aa6876"
-dependencies = [
- "memchr",
-]
-
-[[package]]
-name = "winnow"
-version = "0.6.26"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e90edd2ac1aa278a5c4599b1d89cf03074b610800f866d4026dc199d7929a28"
 dependencies = [
  "memchr",
 ]

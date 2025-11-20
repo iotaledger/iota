@@ -9,7 +9,7 @@ use axum::{
     extract::{Query, State},
 };
 use iota_protocol_config::ProtocolConfig;
-use iota_sdk2::types::{
+use iota_sdk_types::{
     Argument, Command, ObjectId, Transaction, UnresolvedInputArgument, UnresolvedObjectReference,
     UnresolvedProgrammableTransaction, UnresolvedTransaction,
 };

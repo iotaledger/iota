@@ -5,7 +5,7 @@
 use std::{net::SocketAddr, sync::Arc};
 
 use axum::extract::{Query, State, rejection::ExtensionRejection};
-use iota_sdk2::types::{
+use iota_sdk_types::{
     Address, BalanceChange, CheckpointSequenceNumber, Object, Owner, SignedTransaction,
     Transaction, TransactionEffects, TransactionEvents, ValidatorAggregatedSignature,
     framework::Coin,

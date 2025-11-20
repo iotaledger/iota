@@ -11,10 +11,10 @@
 //! directly to avoid going through the BCS machinery.
 
 use fastcrypto::traits::ToFromBytes;
-use iota_sdk2::types::{
+use iota_sdk_types::{
     object::{MovePackage, MoveStruct},
-    transaction::{ChangeEpoch, ChangeEpochV2, ChangeEpochV3},
-    *,
+    transaction::{ChangeEpoch, ChangeEpochV2, ChangeEpochV3, Input},
+    *,// TODO remove *
 };
 use move_core_types::language_storage::ModuleId;
 use tap::Pipe;
@@ -743,7 +743,7 @@ impl From<EndOfEpochTransactionKind> for crate::transaction::EndOfEpochTransacti
     }
 }
 
-impl From<crate::transaction::CallArg> for InputArgument {
+impl From<crate::transaction::CallArg> for Input {
     fn from(value: crate::transaction::CallArg) -> Self {
         match value {
             crate::transaction::CallArg::Pure(vec) => Self::Pure { value: vec },
@@ -768,15 +768,15 @@ impl From<crate::transaction::CallArg> for InputArgument {
     }
 }
 
-impl From<InputArgument> for crate::transaction::CallArg {
-    fn from(value: InputArgument) -> Self {
+impl From<Input> for crate::transaction::CallArg {
+    fn from(value: Input) -> Self {
         use crate::transaction::ObjectArg;
         match value {
-            InputArgument::Pure { value } => Self::Pure(value),
-            InputArgument::ImmutableOrOwned(object_reference) => Self::Object(
+            Input::Pure { value } => Self::Pure(value),
+            Input::ImmutableOrOwned(object_reference) => Self::Object(
                 ObjectArg::ImmOrOwnedObject(sdk_obj_ref_to_core(object_reference)),
             ),
-            InputArgument::Shared {
+            Input::Shared {
                 object_id,
                 initial_shared_version,
                 mutable,
@@ -785,7 +785,7 @@ impl From<InputArgument> for crate::transaction::CallArg {
                 initial_shared_version: initial_shared_version.into(),
                 mutable,
             }),
-            InputArgument::Receiving(object_reference) => {
+            Input::Receiving(object_reference) => {
                 Self::Object(ObjectArg::Receiving(sdk_obj_ref_to_core(object_reference)))
             }
         }
@@ -1028,14 +1028,14 @@ impl TryFrom<TransactionEffects> for crate::effects::TransactionEffects {
 
 macro_rules! impl_convert_digest {
     ($name:ident) => {
-        impl From<crate::digests::$name> for $name {
+        impl From<crate::digests::$name> for Digest {
             fn from(value: crate::digests::$name) -> Self {
                 Self::new(value.into_inner())
             }
         }
 
-        impl From<$name> for crate::digests::$name {
-            fn from(value: $name) -> Self {
+        impl From<Digest> for crate::digests::$name {
+            fn from(value: Digest) -> Self {
                 Self::new(value.into_inner())
             }
         }
@@ -1050,18 +1050,7 @@ impl_convert_digest!(TransactionEffectsDigest);
 impl_convert_digest!(TransactionEventsDigest);
 impl_convert_digest!(CheckpointContentsDigest);
 impl_convert_digest!(ConsensusCommitDigest);
-
-impl From<crate::digests::EffectsAuxDataDigest> for EffectsAuxiliaryDataDigest {
-    fn from(value: crate::digests::EffectsAuxDataDigest) -> Self {
-        Self::new(value.into_inner())
-    }
-}
-
-impl From<EffectsAuxiliaryDataDigest> for crate::digests::EffectsAuxDataDigest {
-    fn from(value: EffectsAuxiliaryDataDigest) -> Self {
-        Self::new(value.into_inner())
-    }
-}
+impl_convert_digest!(EffectsAuxDataDigest);
 
 impl From<crate::execution_status::ExecutionStatus> for ExecutionStatus {
     fn from(value: crate::execution_status::ExecutionStatus) -> Self {
