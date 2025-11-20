@@ -81,6 +81,7 @@ pub(crate) struct Metrics {
     pub(crate) node_metrics: NodeMetrics,
     pub(crate) network_metrics: NetworkMetrics,
 }
+
 pub(crate) struct NodeMetrics {
     pub(crate) block_commit_latency: Histogram,
     pub(crate) proposed_blocks: IntCounterVec,
@@ -133,7 +134,10 @@ pub(crate) struct NodeMetrics {
     pub(crate) uncached_missing_proposals_by_authority: IntCounterVec,
     pub(crate) equivocations_in_cache_by_authority: IntGaugeVec,
     pub(crate) missing_proposals_in_cache_by_authority: IntGaugeVec,
+    #[allow(dead_code)]
     pub(crate) score_by_authority: IntGaugeVec,
+    #[allow(dead_code)]
+    pub(crate) invalid_misbehavior_reports_by_authority: IntCounterVec,
     pub(crate) rejected_blocks: IntCounterVec,
     pub(crate) rejected_future_blocks: IntCounterVec,
     pub(crate) subscribed_blocks: IntCounterVec,
@@ -519,6 +523,12 @@ impl NodeMetrics {
             score_by_authority: register_int_gauge_vec_with_registry!(
                 "score_by_authority",
                 "Registers the authority score.",
+                &["authority"],
+                registry,
+            ).unwrap(),
+            invalid_misbehavior_reports_by_authority: register_int_counter_vec_with_registry!(
+                "invalid_misbehavior_reports_by_authority",
+                "Number of invalid misbehavior reports received from each authority",
                 &["authority"],
                 registry,
             ).unwrap(),

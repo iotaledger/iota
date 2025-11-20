@@ -676,7 +676,7 @@ pub struct AuthorityPerEpochStore {
     randomness_reporter: OnceCell<RandomnessReporter>,
 
     /// Component including the local view about the other authorities'
-    /// misbehaviour metrics, and received reports.
+    /// misbehavior metrics, and received reports.
     pub(crate) scorer: Arc<Scorer>,
 }
 
