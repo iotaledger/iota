@@ -22,7 +22,7 @@ use iota_sdk_types::{
     object_id::ObjectId,
     object::{Owner,MovePackage,UpgradeInfo,TypeOrigin,ObjectReference, GenesisObject,MoveStruct,Object,ObjectData},
     type_tag::{TypeTag,TypeParseError, StructTag,Identifier},
-    transaction::{TransactionV1,MoveCall,Publish, MakeMoveVector,TransferObjects,MergeCoins,SplitCoins,Upgrade,SignedTransaction,Command,Argument,RandomnessStateUpdate,ActiveJwk,SystemPackage,AuthenticatorStateExpire,GasPayment,GenesisTransaction,ProgrammableTransaction,AuthenticatorStateUpdateV1,ChangeEpoch,CancelledTransaction,TransactionExpiration,EndOfEpochTransactionKind, VersionAssignment,ChangeEpochV2,ConsensusCommitPrologueV1,TransactionKind, ConsensusDeterminedVersionAssignments,ChangeEpochV3, Input},
+    transaction::{Transaction,TransactionV1,MoveCall,Publish, MakeMoveVector,TransferObjects,MergeCoins,SplitCoins,Upgrade,SignedTransaction,Command,Argument,RandomnessStateUpdate,ActiveJwk,SystemPackage,AuthenticatorStateExpire,GasPayment,GenesisTransaction,ProgrammableTransaction,AuthenticatorStateUpdateV1,ChangeEpoch,CancelledTransaction,TransactionExpiration,EndOfEpochTransactionKind, VersionAssignment,ChangeEpochV2,ConsensusCommitPrologueV1,TransactionKind, ConsensusDeterminedVersionAssignments,ChangeEpochV3, Input},
     validator::{ValidatorCommittee,ValidatorCommitteeMember,ValidatorAggregatedSignature},
     gas::GasCostSummary,
 };
@@ -279,6 +279,7 @@ impl TryFrom<crate::transaction::TransactionData> for Transaction {
                 Ok(Transaction::V1(txn.try_into()?))
             }
         }
+    }
 }
 
 impl TryFrom<Transaction> for crate::transaction::TransactionData {
