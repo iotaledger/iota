@@ -512,7 +512,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
                             .clone();
                         inner
                             .context
-                            .scorer
+                            .scoring_metrics_store
                             .update_scoring_metrics_on_block_receival(
                                 authority,
                                 hostname.as_str(),
