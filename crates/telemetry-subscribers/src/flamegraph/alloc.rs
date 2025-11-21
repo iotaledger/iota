@@ -1,10 +1,10 @@
+// Copyright (c) 2025 IOTA Stiftung
+// SPDX-License-Identifier: Apache-2.0
+
 use std::{
     alloc::{GlobalAlloc, System},
     fmt,
 };
-
-// #[global_allocator]
-// static GLOBAL: CounterAlloc<System> = CounterAlloc::new(System);
 
 #[derive(Default)]
 pub struct CounterAlloc<A = System>(A);
