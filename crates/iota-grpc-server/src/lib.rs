@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Modules
+mod error;
 pub mod ledger_service;
 pub mod server;
 pub mod types;

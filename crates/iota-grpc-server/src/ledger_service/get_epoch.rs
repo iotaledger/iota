@@ -83,9 +83,8 @@ pub fn get_epoch(
         }
 
         if let Some(submask) = read_mask.subtree(Epoch::PROTOCOL_CONFIG_FIELD.name) {
-            let chain = service.chain;
             message.protocol_config = Some(ProtocolConfig::merge_from(
-                get_protocol_config(epoch_info.protocol_version, chain)?,
+                get_protocol_config(epoch_info.protocol_version, service.chain)?,
                 &submask,
             ));
         }

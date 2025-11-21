@@ -2,14 +2,15 @@
 // SPDX-License-Identifier: Apache-2.0
 
 mod get_epoch;
+mod get_service_info;
 
 use std::{pin::Pin, sync::Arc};
 
 use iota_grpc_types::v0::ledger_service::{self as grpc_ledger_service};
 use iota_protocol_config::Chain;
+use iota_types::digests::ChainIdentifier;
 use tokio_util::sync::CancellationToken;
 use tonic::{Request, Response, Status};
-use tracing::info;
 
 use crate::types::*;
 
@@ -18,7 +19,9 @@ pub struct LedgerGrpcService {
     pub checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
     pub checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
     pub cancellation_token: CancellationToken,
+    pub chain_id: ChainIdentifier,
     pub chain: Chain,
+    pub server_version: Option<String>,
 }
 
 impl LedgerGrpcService {
@@ -27,14 +30,17 @@ impl LedgerGrpcService {
         checkpoint_summary_broadcaster: GrpcCheckpointSummaryBroadcaster,
         checkpoint_data_broadcaster: GrpcCheckpointDataBroadcaster,
         cancellation_token: CancellationToken,
-        chain: Chain,
+        chain_id: ChainIdentifier,
+        server_version: Option<String>,
     ) -> Self {
         Self {
             reader,
             checkpoint_summary_broadcaster,
             checkpoint_data_broadcaster,
             cancellation_token,
-            chain,
+            chain_id,
+            chain: chain_id.chain(),
+            server_version,
         }
     }
 }
@@ -68,23 +74,14 @@ impl grpc_ledger_service::ledger_service_server::LedgerService for LedgerGrpcSer
     /// Query the service for general information about its current state.
     async fn get_service_info(
         &self,
-        _request: tonic::Request<grpc_ledger_service::GetServiceInfoRequest>,
+        request: tonic::Request<grpc_ledger_service::GetServiceInfoRequest>,
     ) -> std::result::Result<
         tonic::Response<grpc_ledger_service::GetServiceInfoResponse>,
         tonic::Status,
     > {
-        info!("[grpc][ledger] GetServiceInfo called");
-        let response = grpc_ledger_service::GetServiceInfoResponse {
-            chain_id: None,
-            chain: None,
-            epoch: None,
-            executed_checkpoint_height: None,
-            executed_checkpoint_timestamp: None,
-            lowest_available_checkpoint: None,
-            lowest_available_checkpoint_objects: None,
-            server: None,
-        };
-        Ok(Response::new(response))
+        get_service_info::get_service_info(self, request.into_inner())
+            .map(Response::new)
+            .map_err(Into::into)
     }
 
     async fn get_objects(
