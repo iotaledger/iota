@@ -39,7 +39,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     DataIngestionMetrics, FileProgressStore, IndexerExecutor, IngestionError, IngestionLimit,
-    IngestionResult, ProgressStore, ReaderOptions, Reducer, Worker, WorkerPool,
+    IngestionResult, ProgressStore, ReaderOptions, Reducer, ShutdownAction, Worker, WorkerPool,
     progress_store::ExecutorProgress,
 };
 
@@ -275,9 +275,12 @@ async fn basic_flow_with_custom_callback_checkpoint_limit() {
 
     // process until we reach the checkpoint sequence number 19 (inclusive).
     // Subsequent checkpoints should be skipped.
-    bundle
-        .executor
-        .shutdown_when(|chk| chk.checkpoint_summary.sequence_number > 19);
+    bundle.executor.shutdown_when(|chk| {
+        if chk.checkpoint_summary.sequence_number == 19 {
+            return ShutdownAction::IncludeAndShutdown;
+        }
+        ShutdownAction::Continue
+    });
 
     let result = run(bundle.executor, path.clone(), None, bundle.token).await;
     assert!(result.is_ok());
@@ -359,17 +362,14 @@ async fn basic_flow_with_custom_callback_epoch_limit() {
     // process until we reach the epoch upper limit 0, so it should process up to
     // checkpoint file 14.chk (inclusive). Subsequent checkpoints (15.chk) should be
     // skipped.
-    bundle
-        .executor
-        .shutdown_when(|chk| chk.checkpoint_summary.epoch > 0);
+    bundle.executor.shutdown_when(|chk| {
+        if chk.checkpoint_summary.epoch > 0 {
+            return ShutdownAction::ExcludeAndShutdown;
+        }
+        ShutdownAction::Continue
+    });
 
-    let result = run(
-        bundle.executor,
-        path.clone(),
-        Duration::from_secs(3),
-        bundle.token,
-    )
-    .await;
+    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
     assert!(result.is_ok());
     // expect watermark == processed_last_checkpoint + 1 == 15.
     assert_eq!(result.unwrap().get("test"), Some(&15));
@@ -384,14 +384,14 @@ async fn basic_flow_with_custom_callback_epoch_limit() {
 // callback `shutdown_when` inspects each processed checkpoint and returns
 // `true` if it contains the target transaction digest. Once the condition is
 // met, the Executor initiates graceful shutdown without handing that checkpoint
-// to workers (i.e. 10.chk is skipped and becomes the upper limit).
+// to workers (i.e. 11.chk is skipped and becomes the upper limit).
 //
 // This test verifies that:
 // 1. The framework only processes checkpoints with sequence numbers strictly
 //    less than the one containing the matching transaction digest (0.chk =>
-//    9.chk).
+//    10.chk).
 // 2. Upon hitting the shutdown condition, the Executor stops dispatching
-//    further checkpoints (10.chk and later are not sent to workers).
+//    further checkpoints (11.chk and later are not sent to workers).
 // 3. Graceful shutdown is triggered exactly when the matching digest would be
 //    encountered, never prematurely.
 #[tokio::test]
@@ -437,96 +437,17 @@ async fn basic_flow_with_custom_callback() {
         }
     }
 
-    // process until we reach the checkpoint number 9. The checkpoint sequence
-    // number 10 which holds the transaction digest should be skipped.
+    // process until we reach the checkpoint number 10 the one that holds the
+    // transaction digest.
     bundle.executor.shutdown_when(move |chk| {
-        chk.transactions
-            .iter()
-            .any(|tx| *tx.transaction.digest() == tx_digest)
-    });
-
-    let result = run(bundle.executor, path.clone(), None, bundle.token).await;
-    assert!(result.is_ok());
-    // expect watermark == processed_last_checkpoint + 1 == 10.
-    assert_eq!(result.unwrap().get("test"), Some(&10));
-    // remove leftover checkpoint files.
-    fs::remove_dir_all(path).unwrap();
-}
-
-// Test: graceful shutdown via custom callback (inclusive variant).
-//
-// Scenario:
-// A transaction with a known digest is embedded only in checkpoint 10. The
-// callback `shutdown_when` inspects each checkpoint. When it encounters the
-// target digest in checkpoint 10, it records that fact (sets
-// `include_matching_checkpoint = true`) but returns `false`, allowing
-// checkpoint 10 to be processed normally. On the next invocation (checkpoint
-// 11), since the flag is set, it returns `true`, triggering graceful
-// shutdown before dispatching checkpoint 11 to workers.
-//
-// This test verifies that:
-// 1. The framework only processes checkpoints with sequence numbers (0.chk =>
-//    10.chk).
-// 2. Upon hitting the shutdown condition, the Executor stops dispatching
-//    further checkpoints (11.chk and later are not sent to workers).
-// 3. Graceful shutdown is triggered after 10.chk was processed by all workers.
-#[tokio::test]
-async fn basic_flow_with_custom_callback_inclusive() {
-    let mut bundle = create_executor_bundle().await;
-    add_worker_pool(&mut bundle.executor, TestWorker, 5)
-        .await
-        .unwrap();
-    let path = temp_dir();
-
-    let tx_data = TransactionData::new(
-        TransactionKind::RandomnessStateUpdate(RandomnessStateUpdate {
-            epoch: 0,
-            randomness_round: RandomnessRound::new(0),
-            random_bytes: vec![],
-            randomness_obj_initial_shared_version: SequenceNumber::new(),
-        }),
-        IotaAddress::random_for_testing_only(),
-        (ObjectID::ZERO, SequenceNumber::default(), ObjectDigest::MIN),
-        0,
-        0,
-    );
-
-    let ch_tx = CheckpointTransaction {
-        transaction: Transaction::from_data(tx_data, vec![]),
-        effects: TransactionEffects::default(),
-        events: None,
-        input_objects: vec![],
-        output_objects: vec![],
-    };
-
-    let tx_digest = *ch_tx.transaction.digest();
-
-    // range not inclusive actual chk files generated 0.chk .. 14.chk
-    for checkpoint_number in 0..15 {
-        if checkpoint_number == 10 {
-            let bytes =
-                mock_checkpoint_data_bytes_with_opt(checkpoint_number, 0, vec![ch_tx.clone()]);
-            std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
-        } else {
-            let bytes = mock_checkpoint_data_bytes(checkpoint_number);
-            std::fs::write(path.join(format!("{checkpoint_number}.chk")), bytes).unwrap();
-        }
-    }
-
-    let mut include_matching_checkpoint = false;
-    // the checkpoint sequence number 10 which holds the transaction digest should
-    // be included.
-    bundle.executor.shutdown_when(move |chk| {
-        if include_matching_checkpoint {
-            return true;
-        }
-
-        include_matching_checkpoint = chk
+        if chk
             .transactions
             .iter()
-            .any(|tx| *tx.transaction.digest() == tx_digest);
-
-        false
+            .any(|tx| *tx.transaction.digest() == tx_digest)
+        {
+            return ShutdownAction::IncludeAndShutdown;
+        }
+        ShutdownAction::Continue
     });
 
     let result = run(bundle.executor, path.clone(), None, bundle.token).await;

@@ -28,9 +28,23 @@ use crate::{
 
 pub const MAX_CHECKPOINTS_IN_PROGRESS: usize = 10000;
 
-/// Callback function that when resolved to `true`, the executor will start the
-/// shutdown process.
-type ShutdownCallback = Box<dyn FnMut(&CheckpointData) -> bool + Send>;
+/// Callback function invoked for each incoming checkpoint to determine the
+/// shutdown action if it exceeds the ingestion limit.
+type ShutdownCallback = Box<dyn Fn(&CheckpointData) -> ShutdownAction + Send>;
+
+/// Determines the shutdown action when a checkpoint reaches the ingestion
+/// limit.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ShutdownAction {
+    /// Include the current checkpoint in the ingestion process, then initiate
+    /// the graceful shutdown process.
+    IncludeAndShutdown,
+    /// Exclude the current checkpoint from ingestion and immediately initiate
+    /// the graceful shutdown process.
+    ExcludeAndShutdown,
+    /// Continue processing the current checkpoint without shutting down.
+    Continue,
+}
 
 /// Common policies for upper limit checkpoint ingestion by the framework.
 ///
@@ -52,13 +66,22 @@ pub enum IngestionLimit {
 }
 
 impl IngestionLimit {
-    /// Returns `true` if the given checkpoint matches the limit.
-    fn matches(&self, checkpoint: &CheckpointData) -> bool {
+    /// Evaluates whether the given checkpoint triggers a shutdown action based
+    /// on the ingestion limit.
+    fn matches(&self, checkpoint: &CheckpointData) -> ShutdownAction {
         match self {
             IngestionLimit::MaxCheckpoint(max) => {
-                &checkpoint.checkpoint_summary.sequence_number > max
+                if &checkpoint.checkpoint_summary.sequence_number > max {
+                    return ShutdownAction::ExcludeAndShutdown;
+                }
+                ShutdownAction::Continue
             }
-            IngestionLimit::EndOfEpoch(max) => &checkpoint.checkpoint_summary.epoch > max,
+            IngestionLimit::EndOfEpoch(max) => {
+                if &checkpoint.checkpoint_summary.epoch > max {
+                    return ShutdownAction::ExcludeAndShutdown;
+                }
+                ShutdownAction::Continue
+            }
         }
     }
 }
@@ -244,11 +267,13 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     /// This function `f` will be called for every **incoming checkpoint**
     /// before it’s sent to the worker pool.
     ///
-    /// If the callback resolves to `true`, the **current checkpoint is
-    /// discarded**. The executor will then immediately stop sending any
-    /// *further* new checkpoints to the worker pool and wait for all
-    /// previously sent checkpoints to be processed by the workers
-    /// before initiating the graceful shutdown sequence.
+    /// Based on the returned [`ShutdownAction`] the executor will evaluate
+    /// whether to continue or stop the ingestion process by initiating the
+    /// graceful shutdown process.
+    ///
+    /// Once a shutdown action is triggered, the executor will stop sending new
+    /// checkpoints and will wait for all previously sent checkpoints to be
+    /// processed by workers before initiating graceful shutdown process.
     ///
     /// Note:
     ///
@@ -257,7 +282,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     /// earlier predicate, and vice versa. They are not cumulative.
     pub fn shutdown_when<F>(&mut self, f: F)
     where
-        F: FnMut(&CheckpointData) -> bool + Send + 'static,
+        F: Fn(&CheckpointData) -> ShutdownAction + Send + 'static,
     {
         self.shutdown_callback = Some(Box::new(f));
     }
@@ -268,12 +293,6 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     /// This is a convenience method, it internally uses
     /// [`shutdown_when`](Self::shutdown_when) by registering a predicate
     /// derived from the provided [`IngestionLimit`].
-    ///
-    /// If the callback resolves to `true`, the **current checkpoint is
-    /// discarded**. The executor will then immediately stop sending any
-    /// *further* new checkpoints to the worker pool and wait for all
-    /// previously sent checkpoints to be processed by the workers
-    /// before initiating the graceful shutdown sequence.
     ///
     /// Note:
     ///
@@ -371,7 +390,7 @@ impl<P: ProgressStore> IndexerExecutor<P> {
         let mut checkpoint_limit_reached = None;
 
         loop {
-            // the min watermark represents the lowest sequence number that
+            // the min watermark represents the lowest watermark that
             // has been processed by any worker pool. This guarantees that
             // all worker pools have processed the checkpoint before the
             // shutdown process starts.
@@ -407,11 +426,9 @@ impl<P: ProgressStore> IndexerExecutor<P> {
                         }
                     }
                 }
-                Some(checkpoint) = checkpoint_reader.get_checkpoint(), if !self.token.is_cancelled() && checkpoint_limit_reached.is_none() => {
-                    // when we reach the upper limit we skip sending new checkpoints to workers.
-                    if self.is_ingestion_upper_limit_reached(&checkpoint) {
-                        info!("checkpoint upper limit reached: no further checkpoints will be sent, waiting for workers to process remaining checkpoints");
-                        checkpoint_limit_reached.get_or_insert(checkpoint.checkpoint_summary.sequence_number.saturating_sub(1));
+                Some(checkpoint) = checkpoint_reader.get_checkpoint(), if !self.token.is_cancelled() => {
+                    // once upper limit reached skip sending new checkpoints to workers.
+                    if self.should_shutdown(&checkpoint, &mut checkpoint_limit_reached) {
                         continue;
                     }
 
@@ -447,10 +464,40 @@ impl<P: ProgressStore> IndexerExecutor<P> {
     /// Returns `true` if the ingestion limit has been reached.
     /// If no ingestion limit is present or it has not been reached yet, the
     /// function returns `false`.
-    fn is_ingestion_upper_limit_reached(&mut self, checkpoint: &CheckpointData) -> bool {
-        self.shutdown_callback
-            .as_mut()
-            .is_some_and(|matches| matches(checkpoint))
+    fn should_shutdown(
+        &mut self,
+        checkpoint: &CheckpointData,
+        checkpoint_limit_reached: &mut Option<CheckpointSequenceNumber>,
+    ) -> bool {
+        if checkpoint_limit_reached.is_some() {
+            return true;
+        }
+
+        let Some(shutdown_action) = self
+            .shutdown_callback
+            .as_ref()
+            .map(|matches| matches(checkpoint))
+        else {
+            return false;
+        };
+
+        match shutdown_action {
+            ShutdownAction::IncludeAndShutdown => {
+                checkpoint_limit_reached
+                    .get_or_insert(checkpoint.checkpoint_summary.sequence_number);
+                false
+            }
+            ShutdownAction::ExcludeAndShutdown => {
+                checkpoint_limit_reached.get_or_insert(
+                    checkpoint
+                        .checkpoint_summary
+                        .sequence_number
+                        .saturating_sub(1),
+                );
+                true
+            }
+            ShutdownAction::Continue => false,
+        }
     }
 }
 
