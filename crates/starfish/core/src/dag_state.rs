@@ -33,6 +33,7 @@ use crate::{
     storage::{Store, WriteBatch},
     threshold_clock::ThresholdClock,
 };
+use crate::commit::GenericTransactionsRef;
 
 /// Represents the source from which transactions were received and added to the
 /// DAG state. This is used for metrics tracking and debugging.
@@ -108,7 +109,7 @@ pub(crate) struct DagState {
     /// entry with index block_ref.author. Evicted using the minimum between
     /// GC round for the last solid leader round evicted rounds by
     /// authority.
-    recent_transactions_by_authority: Vec<BTreeMap<BlockRef, VerifiedTransactions>>,
+    recent_transactions_by_authority: Vec<BTreeMap<GenericTransactionsRef, VerifiedTransactions>>,
     /// Contains recent own serialized shards with their Merkle proofs per
     /// authority. To access own shard for a given block_ref, one
     /// needs to read first the entry with index block_ref.author.
@@ -575,30 +576,23 @@ impl DagState {
     /// transaction is not found.
     pub(crate) fn get_serialized_transactions(
         &self,
-        block_refs: &[BlockRef],
+        references: &[GenericTransactionsRef],
     ) -> Vec<Option<Bytes>> {
-        let mut transactions = vec![None; block_refs.len()];
+        let mut transactions = vec![None; references.len()];
         let mut missing = Vec::new();
 
-        for (index, block_ref) in block_refs.iter().enumerate() {
-            if block_ref.round == GENESIS_ROUND {
-                // Allow the caller to handle the invalid genesis ancestor error.
-                if let Some(transaction) = self
-                    .genesis
-                    .get(block_ref)
-                    .map(|block| block.verified_transactions.clone())
-                {
-                    transactions[index] = Some(transaction.serialized().clone());
-                }
+        for (index, reference) in references.iter().enumerate() {
+            if reference.round() == GENESIS_ROUND {
+                transactions[index] = None;
                 continue;
             }
             if let Some(transaction) =
-                self.recent_transactions_by_authority[block_ref.author].get(block_ref)
+                self.recent_transactions_by_authority[reference.author()].get(reference)
             {
                 transactions[index] = Some(transaction.serialized().clone());
                 continue;
             }
-            missing.push((index, block_ref));
+            missing.push((index, reference));
         }
 
         if missing.is_empty() {

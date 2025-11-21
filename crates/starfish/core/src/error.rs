@@ -12,6 +12,7 @@ use crate::{
     block_header::{BlockRef, GENESIS_ROUND, Round},
     commit::{Commit, CommitIndex},
 };
+use crate::commit::GenericTransactionsRef;
 
 /// Errors that can occur when processing blocks, reading from storage, or
 /// encountering shutdown.
@@ -188,7 +189,7 @@ pub(crate) enum ConsensusError {
     #[error("Received unexpected transaction from peer {peer}: {received:?}")]
     UnexpectedTransactionForCommit {
         peer: AuthorityIndex,
-        received: BlockRef,
+        received: GenericTransactionsRef,
     },
 
     #[error("RocksDB failure: {0}")]

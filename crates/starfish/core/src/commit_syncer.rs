@@ -66,10 +66,12 @@ use crate::{
     dag_state::DagState,
     encoder::create_encoder,
     error::{ConsensusError, ConsensusResult},
-    network::{NetworkClient, SerializedTransactions},
+    network::{NetworkClient, SerializedTransactionsV1},
     stake_aggregator::{QuorumThreshold, StakeAggregator},
 };
-use crate::commit::CommittedTransactionsRef;
+use crate::block_header::TransactionRef;
+use crate::commit::GenericTransactionsRef;
+use crate::network::SerializedTransactionsV2;
 
 // Handle to stop the CommitSyncer loop.
 pub(crate) struct CommitSyncerHandle {
@@ -356,7 +358,7 @@ impl<C: NetworkClient> CommitSyncer<C> {
 
                 // Collect available transactions from VerifiedTransactions
                 for verified_txns in certified_commit.transactions() {
-                    available_transactions.insert(CommittedTransactionsRef::BlockRef(verified_txns.block_ref()));
+                    available_transactions.insert(GenericTransactionsRef::BlockRef(verified_txns.block_ref()));
                 }
             }
 
@@ -630,6 +632,10 @@ impl<C: NetworkClient> CommitSyncer<C> {
             .node_metrics
             .commit_sync_fetch_once_latency
             .start_timer();
+        let transaction_ref_enabled = inner
+            .context
+            .protocol_config
+            .consensus_transaction_ref();
 
         // 1. Fetch commits in the commit range from the target authority.
         let (serialized_commits, serialized_voting_block_headers) = inner
@@ -660,27 +666,29 @@ impl<C: NetworkClient> CommitSyncer<C> {
         let mut block_refs: Vec<_> = commits.iter().flat_map(|c| c.blocks()).cloned().collect();
 
         // 3a. Collect all committed transaction block refs from commits
-        let committed_tx_refs: Vec<CommittedTransactionsRef> = commits
+        let committed_tx_refs: Vec<GenericTransactionsRef> = commits
             .iter()
             .flat_map(|c| c.committed_transactions())
             .collect();
 
-        if !inner
-            .context
-            .protocol_config
-            .consensus_transaction_ref() {
+        if !transaction_ref_enabled {
             // 3b. Identify which committed transaction blocks are NOT in the committed
             // blocks list and add them to block_refs so they get fetched together
             let block_refs_set: BTreeSet<_> = block_refs.iter().cloned().collect();
             let missing_tx_header_refs: Vec<BlockRef> = committed_tx_refs
                 .iter()
-                .filter(|tx_ref| {
-                    let block_ref = match tx_ref {
-                        CommittedTransactionsRef::BlockRef(br) => br,
-                        _ => panic!("if the flag consensus_transaction_ref turned off then all CommittedTransactionRef should be BlockRef")
-                    };
-                    !block_refs_set.contains(block_ref)
-                }).cloned()
+                .filter_map(|tx_ref| {
+                    match tx_ref {
+                        GenericTransactionsRef::BlockRef(br) => {
+                            if !block_refs_set.contains(br) {
+                                Some(br.clone())
+                            } else {
+                                None
+                            }
+                        }
+                        _ => panic!("if the flag consensus_transaction_ref turned off then all CommittedTransactionRef should be BlockRef"),
+                    }
+                })
                 .collect();
 
             // Merge missing transaction headers into the main block_refs list
@@ -799,24 +807,44 @@ impl<C: NetworkClient> CommitSyncer<C> {
                         // Deserialize to extract BlockRef and build a map directly
                         let mut result = BTreeMap::new();
                         for serialized_bytes in serialized_transactions {
-                            let serialized_tx: SerializedTransactions =
-                                bcs::from_bytes(&serialized_bytes)
-                                    .map_err(ConsensusError::MalformedTransactions)?;
+                            let (committed_transaction_ref, serialized_transactions) =
+                                if !transaction_ref_enabled {
+                                    let serialized_tx: SerializedTransactionsV1 =
+                                        bcs::from_bytes(&serialized_bytes)
+                                            .map_err(ConsensusError::MalformedTransactions)?;
 
-                            // 11. Verify the returned transactions match the requested block refs.
-                            if !requested_block_refs_set.contains(&serialized_tx.block_ref) {
-                                return Err(ConsensusError::UnexpectedTransactionForCommit {
-                                    peer: target_authority,
-                                    received: serialized_tx.block_ref,
-                                });
-                            }
+                                    // 11. Verify the returned transactions match the requested block refs.
+                                    let committed_transaction_ref = GenericTransactionsRef::BlockRef(serialized_tx.block_ref);
+                                    if !requested_block_refs_set.contains(&committed_transaction_ref) {
+                                        return Err(ConsensusError::UnexpectedTransactionForCommit {
+                                            peer: target_authority,
+                                            received: committed_transaction_ref,
+                                        });
+                                    }
+                                    (committed_transaction_ref, serialized_tx.serialized_transactions)
+                                } else {
+                                    let serialized_tx: SerializedTransactionsV2 =
+                                        bcs::from_bytes(&serialized_bytes)
+                                            .map_err(ConsensusError::MalformedTransactions)?;
+
+                                    // 11. Verify the returned transactions match the requested transaction refs.
+                                    let committed_transaction_ref = GenericTransactionsRef::TransactionRef(serialized_tx.transaction_ref);
+                                    if !requested_block_refs_set.contains(&committed_transaction_ref) {
+                                        return Err(ConsensusError::UnexpectedTransactionForCommit {
+                                            peer: target_authority,
+                                            received: committed_transaction_ref,
+                                        });
+                                    }
+                                    (committed_transaction_ref, serialized_tx.serialized_transactions)
+                                };
 
                             result.insert(
-                                serialized_tx.block_ref,
-                                serialized_tx.serialized_transactions,
+                                committed_transaction_ref,
+                                serialized_transactions,
                             );
                         }
-                        Ok::<BTreeMap<BlockRef, Bytes>, ConsensusError>(result)
+
+                        Ok::<BTreeMap<GenericTransactionsRef, Bytes>, ConsensusError>(result)
                     }
                 })
                 .collect()
@@ -850,10 +878,11 @@ impl<C: NetworkClient> CommitSyncer<C> {
                 .consensus_transaction_ref() {
                 Handle::current()
                     .spawn_blocking({
-                        let inner = inner.clone();
+                        let context = inner.context.clone();
                         let fetched_block_headers_clone = fetched_block_headers.clone();
                         move || {
-                            inner.verify_transactions_with_headers(
+                            verify_transactions_with_headers(
+                                context,
                                 target_authority,
                                 fetched_transactions,
                                 fetched_block_headers_clone,
@@ -864,6 +893,20 @@ impl<C: NetworkClient> CommitSyncer<C> {
                     .expect("Spawn blocking should not fail")?
             }
             else {
+                Handle::current()
+                    .spawn_blocking({
+                        let context = inner.context.clone();
+
+                        move || {
+                            verify_transactions_with_transactions_refs(
+                                &context,
+                                target_authority,
+                                fetched_transactions,
+                            )
+                        }
+                    })
+                    .await
+                    .expect("Spawn blocking should not fail")?
 
             }
         } else {
@@ -1025,58 +1068,123 @@ impl<C: NetworkClient> Inner<C> {
             .collect();
         Ok(trusted_commits)
     }
+}
 
-    /// Verifies transactions against their block headers and returns a map of
-    /// BlockRef to VerifiedTransactions.
-    fn verify_transactions_with_headers(
-        &self,
-        peer: AuthorityIndex,
-        serialized_transactions: BTreeMap<BlockRef, Bytes>,
-        block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
-    ) -> ConsensusResult<BTreeMap<BlockRef, VerifiedTransactions>> {
-        let mut verified_transactions_map = BTreeMap::new();
+/// Verifies transactions against their block headers and returns a map of
+/// BlockRef to VerifiedTransactions.
+pub (crate) fn verify_transactions_with_headers(
+    context: Arc<Context>,
+    peer: AuthorityIndex,
+    serialized_transactions: BTreeMap<GenericTransactionsRef, Bytes>,
+    block_headers: BTreeMap<BlockRef, VerifiedBlockHeader>,
+) -> ConsensusResult<BTreeMap<GenericTransactionsRef, VerifiedTransactions>> {
+    let mut verified_transactions_map = BTreeMap::new();
 
-        for (block_ref, inner_serialized_transactions) in serialized_transactions {
-            // Step 1: Get the block header and verify that the transactions commitment
-            // matches. This ensures the transactions we received are exactly
-            // the ones that were included in the block when it was created.
-            let block_header = block_headers
-                .get(&block_ref)
-                .expect("header for fetched transactions must exist");
-
-            let mut encoder = create_encoder(&self.context);
-            if block_header.transactions_commitment()
-                != TransactionsCommitment::compute_transactions_commitment(
-                    &inner_serialized_transactions,
-                    &self.context,
-                    &mut encoder,
-                )
-                .expect("correct computation of the transactions commitment should be successful")
-            {
-                return Err(ConsensusError::TransactionCommitmentFailure {
-                    round: block_ref.round,
-                    author: block_ref.author,
-                    peer,
-                });
+    for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
+        let block_ref = match committed_transactions_ref {
+            GenericTransactionsRef::BlockRef(br) => br,
+            _ => {
+                panic!("this function should be called only if the flag consensus_transaction_ref is turned off, and then all CommittedTransactionRef should be BlockRef")
             }
+        };
+        // Step 1: Get the block header and verify that the transactions commitment
+        // matches. This ensures the transactions we received are exactly
+        // the ones that were included in the block when it was created.
+        let block_header = block_headers
+            .get(&block_ref)
+            .expect("header for fetched transactions must exist");
 
-            // Step 2: Deserialize and verify the actual transactions vector.
-            let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
-                .map_err(ConsensusError::MalformedTransactions)?;
-
-            // Step 3: Create a VerifiedTransactions instance and insert into map
-            let verified_transactions = VerifiedTransactions::new(
-                transactions,
-                block_ref,
-                block_header.transactions_commitment(),
-                inner_serialized_transactions,
-            );
-
-            verified_transactions_map.insert(block_ref, verified_transactions);
+        let mut encoder = create_encoder(&context);
+        if block_header.transactions_commitment()
+            != TransactionsCommitment::compute_transactions_commitment(
+            &inner_serialized_transactions,
+            &context,
+            &mut encoder,
+        )
+            .expect("correct computation of the transactions commitment should be successful")
+        {
+            return Err(ConsensusError::TransactionCommitmentFailure {
+                round: block_ref.round,
+                author: block_ref.author,
+                peer,
+            });
         }
 
-        Ok(verified_transactions_map)
+        // Step 2: Deserialize and verify the actual transactions vector.
+        let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
+            .map_err(ConsensusError::MalformedTransactions)?;
+
+        // Step 3: Create a VerifiedTransactions instance and insert into map
+        let verified_transactions = VerifiedTransactions::new(
+            transactions,
+            block_ref,
+            block_header.transactions_commitment(),
+            inner_serialized_transactions,
+        );
+
+        verified_transactions_map.insert(GenericTransactionsRef::BlockRef(block_ref), verified_transactions);
     }
+
+    Ok(verified_transactions_map)
+}
+
+/// Verifies transactions against their transaction refs and returns a map of
+/// BlockRef to VerifiedTransactions.
+pub(crate) fn verify_transactions_with_transactions_refs(
+    context: &Arc<Context>,
+    peer: AuthorityIndex,
+    serialized_transactions: BTreeMap<GenericTransactionsRef, Bytes>,
+) -> ConsensusResult<BTreeMap<GenericTransactionsRef, VerifiedTransactions>> {
+    let mut verified_transactions_map = BTreeMap::new();
+
+    for (committed_transactions_ref, inner_serialized_transactions) in serialized_transactions {
+        let transaction_ref = match committed_transactions_ref {
+            GenericTransactionsRef::TransactionRef(tr_ref) => tr_ref,
+            _ => {
+                panic!("this function should be called only if the flag consensus_transaction_ref is turned on, and then all CommittedTransactionRef should be TransactionRef")
+            }
+        };
+        let block_ref = BlockRef {
+            round: transaction_ref.round,
+            author: transaction_ref.author,
+            digest: transaction_ref.block_digest,
+        };
+        // Step 1: Get the block header and verify that the transactions commitment
+        // matches. This ensures the transactions we received are exactly
+        // the ones that were included in the block when it was created.
+
+        let mut encoder = create_encoder(context);
+        if transaction_ref.transactions_commitment
+            != TransactionsCommitment::compute_transactions_commitment(
+            &inner_serialized_transactions,
+            &context,
+            &mut encoder,
+        )
+            .expect("correct computation of the transactions commitment should be successful")
+        {
+            return Err(ConsensusError::TransactionCommitmentFailure {
+                round: transaction_ref.round,
+                author: transaction_ref.author,
+                peer,
+            });
+        }
+
+        // Step 2: Deserialize and verify the actual transactions vector.
+        let transactions: Vec<Transaction> = bcs::from_bytes(&inner_serialized_transactions)
+            .map_err(ConsensusError::MalformedTransactions)?;
+
+        // Step 3: Create a VerifiedTransactions instance and insert into map
+        let verified_transactions = VerifiedTransactions::new(
+            transactions,
+            block_ref,
+            transaction_ref.transactions_commitment,
+            inner_serialized_transactions,
+        );
+
+        verified_transactions_map.insert(GenericTransactionsRef::TransactionRef(transaction_ref), verified_transactions);
+    }
+
+    Ok(verified_transactions_map)
 }
 
 #[cfg(test)]

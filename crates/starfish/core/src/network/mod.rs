@@ -36,7 +36,8 @@ use crate::{
     commit::{CommitRange, TrustedCommit},
     error::{ConsensusError, ConsensusResult},
 };
-use crate::commit::CommittedTransactionsRef;
+use crate::block_header::TransactionRef;
+use crate::commit::GenericTransactionsRef;
 
 // Tonic generated RPC stubs.
 mod tonic_gen {
@@ -82,7 +83,7 @@ pub(crate) trait NetworkClient: Send + Sync + Sized + 'static {
     async fn fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        transactions_refs: Vec<CommittedTransactionsRef>,
+        transactions_refs: Vec<GenericTransactionsRef>,
         timeout: Duration,
     ) -> ConsensusResult<Vec<Bytes>>;
 
@@ -180,7 +181,7 @@ pub(crate) trait NetworkService: Send + Sync + 'static {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        block_refs: Vec<CommittedTransactionsRef>,
+        block_refs: Vec<GenericTransactionsRef>,
     ) -> ConsensusResult<Vec<Bytes>>;
 }
 
@@ -383,8 +384,14 @@ impl TryFrom<BlockBundle> for SerializedBlockBundle {
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SerializedTransactions {
+pub(crate) struct SerializedTransactionsV1 {
     pub(crate) block_ref: BlockRef,
+    pub(crate) serialized_transactions: Bytes,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub(crate) struct SerializedTransactionsV2 {
+    pub(crate) transaction_ref: TransactionRef,
     pub(crate) serialized_transactions: Bytes,
 }
 

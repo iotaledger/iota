@@ -348,6 +348,16 @@ impl BlockRef {
     }
 }
 
+impl From<TransactionRef> for BlockRef {
+    fn from(tr: TransactionRef) -> Self {
+        BlockRef {
+            round: tr.round,
+            author: tr.author,
+            digest: tr.block_digest,
+        }
+    }
+}
+
 impl fmt::Display for BlockRef {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         write!(f, "B{}({},{})", self.round, self.author, self.digest)
@@ -371,7 +381,8 @@ impl Hash for BlockRef {
 pub struct TransactionRef {
     pub round: Round,
     pub author: AuthorityIndex,
-    pub transactions_commitment: TransactionsCommitment
+    pub transactions_commitment: TransactionsCommitment,
+    pub block_digest: BlockHeaderDigest,
 }
 
 impl fmt::Display for TransactionRef {

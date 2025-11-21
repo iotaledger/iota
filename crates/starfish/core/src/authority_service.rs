@@ -39,14 +39,15 @@ use crate::{
     header_synchronizer::HeaderSynchronizerHandle,
     network::{
         BlockBundleStream, NetworkService, SerializedBlock, SerializedBlockBundle,
-        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactions,
+        SerializedBlockBundleParts, SerializedHeaderAndTransactions, SerializedTransactionsV1,
     },
     shard_reconstructor::TransactionMessage,
     stake_aggregator::{QuorumThreshold, StakeAggregator},
     storage::Store,
     transactions_synchronizer::TransactionsSynchronizerHandle,
 };
-use crate::commit::CommittedTransactionsRef;
+use crate::commit::GenericTransactionsRef;
+use crate::network::SerializedTransactionsV2;
 
 pub(crate) const COMMIT_LAG_MULTIPLIER: u32 = 5;
 
@@ -988,11 +989,11 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
     async fn handle_fetch_transactions(
         &self,
         peer: AuthorityIndex,
-        mut block_refs: Vec<CommittedTransactionsRef>,
+        mut committed_transactions_refs: Vec<GenericTransactionsRef>,
     ) -> ConsensusResult<Vec<Bytes>> {
         fail_point_async!("consensus-rpc-response");
 
-        if block_refs.is_empty() {
+        if committed_transactions_refs.is_empty() {
             return Ok(Vec::new());
         }
 
@@ -1008,11 +1009,18 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
                     .max_transactions_per_commit_sync_fetch,
             );
 
-        if block_refs.len() > max_transactions {
-            block_refs.truncate(max_transactions);
+        if committed_transactions_refs.len() > max_transactions {
+            committed_transactions_refs.truncate(max_transactions);
         }
 
         // Some quick validation of the requested block refs
+        let block_refs = committed_transactions_refs.iter().map(|tr_ref| {
+            BlockRef {
+                author: tr_ref.author(),
+                round: tr_ref.round(),
+                ..Default::default()
+            }
+        }).collect::<Vec<BlockRef>>();
         ConsensusError::quick_validation_requested_block_refs(
             &block_refs,
             peer,
@@ -1056,14 +1064,37 @@ impl<C: CoreThreadDispatcher> NetworkService for AuthorityService<C> {
             .chain(dag_transactions.into_iter())
             .filter_map(|(opt_serialized_tx, block_ref)| {
                 opt_serialized_tx.map(|serialized_tx| {
-                    Bytes::from(
-                        bcs::to_bytes(&SerializedTransactions {
-                            block_ref: *block_ref,
-                            serialized_transactions: serialized_tx,
-                        })
-                        .map_err(ConsensusError::SerializationFailure)
-                        .expect("serialization should succeed"),
-                    )
+                    if !self.context.protocol_config.consensus_transaction_ref() {
+                        if let GenericTransactionsRef::BlockRef(block_ref) = gen_ref {
+                            Bytes::from(
+                                bcs::to_bytes(&SerializedTransactionsV1 {
+                                    block_ref,
+                                    serialized_transactions: serialized_tx,
+                                })
+                                    .map_err(ConsensusError::SerializationFailure)
+                                    .expect("serialization should succeed"),
+                            )
+                        }
+                        else {
+                            panic!("Unexpected transactions ref type");
+                        }
+                    }
+                    else {
+                        if let GenericTransactionsRef::TransactionRef(transaction_ref) = gen_ref {
+                            Bytes::from(
+                                bcs::to_bytes(&SerializedTransactionsV2 {
+                                    transaction_ref,
+                                    serialized_transactions: serialized_tx,
+                                })
+                                    .map_err(ConsensusError::SerializationFailure)
+                                    .expect("serialization should succeed"),
+                            )
+                        }
+                        else {
+                            panic!("Unexpected transactions ref type");
+                        }
+
+                    }
                 })
             })
             .collect();
@@ -1334,7 +1365,7 @@ mod tests {
         network::{
             BlockBundle, BlockBundleStream, NetworkClient, NetworkService, SerializedBlock,
             SerializedBlockBundle, SerializedBlockBundleParts, SerializedHeaderAndTransactions,
-            SerializedTransactions,
+            SerializedTransactionsV1,
         },
         storage::{Store, mem_store::MemStore},
         test_dag_builder::DagBuilder,
@@ -3392,7 +3423,7 @@ mod tests {
         // Check the correctness of the received transactions
         for (i, serialized_transactions_bytes) in serialized_transactions.iter().enumerate() {
             // Deserialize and check transaction commitment
-            let deserialized: SerializedTransactions =
+            let deserialized: SerializedTransactionsV1 =
                 bcs::from_bytes(serialized_transactions_bytes)
                     .expect("deserialization should succeed");
             let block_ref = deserialized.block_ref;
