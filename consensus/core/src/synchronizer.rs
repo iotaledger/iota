@@ -35,7 +35,7 @@ use tracing::{debug, error, info, trace, warn};
 use crate::{
     BlockAPI, CommitIndex, Round,
     authority_service::COMMIT_LAG_MULTIPLIER,
-    block::{BlockRef, GENESIS_ROUND, SignedBlock, VerifiedBlock},
+    block::{BlockDigest, BlockRef, GENESIS_ROUND, SignedBlock, VerifiedBlock},
     block_verifier::BlockVerifier,
     commit_vote_monitor::CommitVoteMonitor,
     context::Context,
@@ -305,7 +305,7 @@ pub(crate) struct Synchronizer<C: NetworkClient, V: BlockVerifier, D: CoreThread
     network_client: Arc<C>,
     block_verifier: Arc<V>,
     inflight_blocks_map: Arc<InflightBlocksMap>,
-    verified_blocks_cache: Arc<Mutex<LruCache<BlockRef, ()>>>,
+    verified_blocks_cache: Arc<Mutex<LruCache<BlockDigest, ()>>>,
     commands_sender: Sender<Command>,
 }
 
@@ -505,7 +505,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         peer_index: AuthorityIndex,
         network_client: Arc<C>,
         block_verifier: Arc<V>,
-        verified_cache: Arc<Mutex<LruCache<BlockRef, ()>>>,
+        verified_cache: Arc<Mutex<LruCache<BlockDigest, ()>>>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
         context: Arc<Context>,
         core_dispatcher: Arc<D>,
@@ -605,7 +605,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         requested_blocks_guard: BlocksGuard,
         core_dispatcher: Arc<D>,
         block_verifier: Arc<V>,
-        verified_cache: Arc<Mutex<LruCache<BlockRef, ()>>>,
+        verified_cache: Arc<Mutex<LruCache<BlockDigest, ()>>>,
         commit_vote_monitor: Arc<CommitVoteMonitor>,
         context: Arc<Context>,
         commands_sender: Sender<Command>,
@@ -752,7 +752,7 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
     fn verify_blocks(
         serialized_blocks: Vec<Bytes>,
         block_verifier: Arc<V>,
-        verified_cache: Arc<Mutex<LruCache<BlockRef, ()>>>,
+        verified_cache: Arc<Mutex<LruCache<BlockDigest, ()>>>,
         context: &Context,
         peer_index: AuthorityIndex,
         sync_method: &str,
@@ -761,21 +761,16 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
         let mut skipped_count = 0u64;
 
         for serialized_block in serialized_blocks {
-            let signed_block: SignedBlock =
-                bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedBlock)?;
-
-            let digest = VerifiedBlock::compute_digest(&serialized_block);
-            let block_ref = BlockRef {
-                round: signed_block.round(),
-                author: signed_block.author(),
-                digest,
-            };
+            let block_digest = VerifiedBlock::compute_digest(&serialized_block);
 
             // Check if this block has already been verified
-            if verified_cache.lock().get(&block_ref).is_some() {
+            if verified_cache.lock().get(&block_digest).is_some() {
                 skipped_count += 1;
                 continue; // Skip already verified blocks
             }
+
+            let signed_block: SignedBlock =
+                bcs::from_bytes(&serialized_block).map_err(ConsensusError::MalformedBlock)?;
 
             if let Err(e) = block_verifier.verify(&signed_block) {
                 // TODO: we might want to use a different metric to track the invalid "served"
@@ -793,9 +788,13 @@ impl<C: NetworkClient, V: BlockVerifier, D: CoreThreadDispatcher> Synchronizer<C
             }
 
             // Add block to verified cache after successful verification
-            verified_cache.lock().put(block_ref, ());
+            verified_cache.lock().put(block_digest, ());
 
-            let verified_block = VerifiedBlock::new_verified(signed_block, serialized_block);
+            let verified_block = VerifiedBlock::new_verified_with_digest(
+                signed_block,
+                serialized_block,
+                block_digest,
+            );
 
             // Dropping is ok because the block will be refetched.
             // TODO: improve efficiency, maybe suspend and continue processing the block

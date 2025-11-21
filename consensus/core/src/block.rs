@@ -459,6 +459,18 @@ impl VerifiedBlock {
         }
     }
 
+    pub(crate) fn new_verified_with_digest(
+        signed_block: SignedBlock,
+        serialized: Bytes,
+        digest: BlockDigest,
+    ) -> Self {
+        VerifiedBlock {
+            block: Arc::new(signed_block),
+            digest,
+            serialized,
+        }
+    }
+
     /// This method is public for testing in other crates.
     pub fn new_for_test(block: Block) -> Self {
         let signed_block = SignedBlock {
