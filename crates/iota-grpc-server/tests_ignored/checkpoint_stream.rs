@@ -393,6 +393,8 @@ async fn test_server_and_client_setup<I: Iterator<Item = u64>>(
         dummy_event_subscriber,
         config,
         cancellation_token,
+        iota_types::digests::ChainIdentifier::default(),
+        Some("test".to_string()),
     )
     .await
     .expect("Failed to start gRPC server");

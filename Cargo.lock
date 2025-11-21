@@ -6149,6 +6149,7 @@ dependencies = [
  "tempfile",
  "test-cluster",
  "tokio",
+ "tonic 0.14.2",
  "tracing",
  "url",
 ]
@@ -6500,8 +6501,10 @@ dependencies = [
  "iota-protocol-config",
  "iota-types",
  "move-core-types",
+ "prost 0.14.1",
  "prost-types 0.14.1",
  "serde",
+ "tap",
  "tokio",
  "tokio-stream",
  "tokio-util 0.7.12",
